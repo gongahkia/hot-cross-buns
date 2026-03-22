@@ -3,7 +3,26 @@ import { invoke } from '@tauri-apps/api/core';
 import type { Task, TaskUpdatePayload } from '$lib/types';
 
 export const tasks = writable<Task[]>([]);
-export const selectedListId = writable<string | null>(null);
+export const taskMutationVersion = writable(0);
+
+function flattenTasks(items: Task[]): Task[] {
+  const flat: Task[] = [];
+
+  for (const task of items) {
+    flat.push(task);
+    flat.push(...task.subtasks);
+  }
+
+  return flat;
+}
+
+function removeTaskTree(items: Task[], taskId: string): Task[] {
+  return items.filter((task) => task.id !== taskId && task.parentTaskId !== taskId);
+}
+
+function bumpTaskMutationVersion(): void {
+  taskMutationVersion.update((value) => value + 1);
+}
 
 /**
  * Fetch tasks for a given list and update the store.
@@ -11,12 +30,14 @@ export const selectedListId = writable<string | null>(null);
 export async function loadTasks(
   listId: string,
   includeCompleted: boolean = false
-): Promise<void> {
+) : Promise<Task[]> {
   const result = await invoke<Task[]>('get_tasks_by_list', {
     listId,
     includeCompleted,
   });
-  tasks.set(result);
+  const flat = flattenTasks(result);
+  tasks.set(flat);
+  return flat;
 }
 
 /**
@@ -43,6 +64,7 @@ export async function addTask(params: {
     parentTaskId: params.parentTaskId ?? null,
   });
   tasks.update((current) => [...current, created]);
+  bumpTaskMutationVersion();
   return created;
 }
 
@@ -67,6 +89,7 @@ export async function editTask(
   tasks.update((current) =>
     current.map((task) => (task.id === id ? updated : task))
   );
+  bumpTaskMutationVersion();
   return updated;
 }
 
@@ -75,7 +98,8 @@ export async function editTask(
  */
 export async function removeTask(id: string): Promise<void> {
   await invoke('delete_task', { id });
-  tasks.update((current) => current.filter((task) => task.id !== id));
+  tasks.update((current) => removeTaskTree(current, id));
+  bumpTaskMutationVersion();
 }
 
 /**
@@ -93,7 +117,8 @@ export async function moveTask(
     newSortOrder: sortOrder,
   });
   // Remove from current view -- the task now belongs to a different list.
-  tasks.update((current) => current.filter((task) => task.id !== id));
+  tasks.update((current) => removeTaskTree(current, id));
+  bumpTaskMutationVersion();
   return moved;
 }
 

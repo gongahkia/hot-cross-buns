@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import type { Task } from '$lib/types';
+  import { taskMutationVersion } from '$lib/stores/tasks';
   import { selectedTaskId } from '$lib/stores/ui';
   import TaskRow from './TaskRow.svelte';
 
@@ -86,6 +87,7 @@
   $effect(() => {
     // Access weekStart to create a dependency
     const _start = weekStart;
+    const _taskMutationVersion = $taskMutationVersion;
     loadWeekTasks();
   });
 

@@ -2,6 +2,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import type { Task, List } from '$lib/types';
   import { lists } from '$lib/stores/lists';
+  import { taskMutationVersion } from '$lib/stores/tasks';
   import TaskRow from './TaskRow.svelte';
 
   let todayTasks: Task[] = $state([]);
@@ -44,6 +45,7 @@
 
   // Fetch data on mount.
   $effect(() => {
+    const _taskMutationVersion = $taskMutationVersion;
     loadData();
   });
 

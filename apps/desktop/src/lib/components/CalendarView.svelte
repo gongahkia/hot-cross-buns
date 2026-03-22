@@ -10,7 +10,8 @@
     goToToday,
     loadCalendarTasks,
   } from '$lib/stores/calendar';
-  import { addTask } from '$lib/stores/tasks';
+  import { lists } from '$lib/stores/lists';
+  import { addTask, taskMutationVersion } from '$lib/stores/tasks';
   import { selectedTaskId } from '$lib/stores/ui';
   import type { Task } from '$lib/types';
 
@@ -21,6 +22,7 @@
   $effect(() => {
     const m = $currentMonth;
     const y = $currentYear;
+    const _taskMutationVersion = $taskMutationVersion;
     loadCalendarTasks(y, m);
   });
 
@@ -102,6 +104,8 @@
     return formatDateParts(now.getFullYear(), now.getMonth(), now.getDate());
   });
 
+  let quickAddListId = $derived(($lists.find((list) => list.isInbox) ?? $lists[0])?.id ?? null);
+
   function formatDateParts(year: number, month: number, day: number): string {
     // Handle month overflow/underflow
     const d = new Date(year, month, day);
@@ -140,22 +144,21 @@
     }
   }
 
-  async function handleQuickAdd(e: MouseEvent, cell: DayCell) {
+  async function handleQuickAdd(e: Event, cell: DayCell) {
     // Only trigger on direct click on empty area (not on a task chip)
     const target = e.target as HTMLElement;
     if (target.closest('.cal-task-chip') || target.closest('.cal-more-badge')) return;
+
+    if (!quickAddListId) return;
 
     const title = prompt('New task title:');
     if (!title?.trim()) return;
 
     await addTask({
-      listId: 'inbox',
+      listId: quickAddListId,
       title: title.trim(),
       dueDate: cell.date,
     });
-
-    // Reload calendar tasks
-    loadCalendarTasks($currentYear, $currentMonth);
   }
 </script>
 

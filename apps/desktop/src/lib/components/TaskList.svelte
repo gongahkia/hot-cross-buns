@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Task } from '$lib/types';
-  import { tasks, addTask, loadTasks } from '$lib/stores/tasks';
+  import { tasks, addTask, loadTasks, taskMutationVersion } from '$lib/stores/tasks';
   import { lists } from '$lib/stores/lists';
   import { selectedListId, showCompletedTasks } from '$lib/stores/ui';
   import TaskRow from './TaskRow.svelte';
@@ -34,6 +34,19 @@
     const unsub = showCompletedTasks.subscribe((v) => (value = v));
     unsub();
     return value;
+  });
+
+  $effect(() => {
+    const listId = currentListId;
+    const includeCompleted = showCompleted;
+    const _taskMutationVersion = $taskMutationVersion;
+
+    if (!listId) {
+      tasks.set([]);
+      return;
+    }
+
+    void loadTasks(listId, includeCompleted);
   });
 
   // WHY: Separate top-level tasks from subtasks for hierarchical rendering.
