@@ -47,11 +47,14 @@
   class:indent
   class:completed={isCompleted}
   style:border-left-color={borderColor}
+  role="listitem"
 >
   <button
     class="checkbox"
     class:checked={isCompleted}
     onclick={handleComplete}
+    role="checkbox"
+    aria-checked={isCompleted}
     aria-label={isCompleted ? 'Mark as incomplete' : 'Mark as complete'}
   >
     {#if isCompleted}
@@ -61,7 +64,7 @@
     {/if}
   </button>
 
-  <button class="task-title" onclick={handleSelectTask}>
+  <button class="task-title" onclick={handleSelectTask} aria-label="Select task: {task.title}">
     {task.title}
   </button>
 
