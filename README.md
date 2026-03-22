@@ -1,155 +1,112 @@
 # TickClone
 
-A local-first desktop task manager with optional self-hosted sync. Works fully offline; the server is only needed for multi-device synchronization.
+TickClone is a desktop-first, local-first task manager. The desktop app owns the primary experience: lists, tasks, tags, planning views, and persistence all work against a local SQLite database. The Go server exists to support optional self-hosted sync between devices.
 
-## Architecture
+## Current Scope
 
+- Offline-first desktop app built with Tauri + Svelte
+- Local SQLite persistence for lists, tasks, tags, recurrence, and sync metadata
+- Planning views for list, today, week, and calendar workflows
+- Optional self-hosted sync server built with Echo + PostgreSQL
+- Persisted sync settings on desktop (`serverUrl`, `authToken`, `deviceId`, `autoSyncEnabled`, `lastSyncedAt`)
+
+Current non-goals for this repo:
+
+- Collaboration and shared workspaces
+- Mobile clients
+- Broad adjacent features like habits, docs, or notes systems
+
+## Repo Layout
+
+```text
+cross-2/
+  apps/desktop/      Tauri desktop app (Svelte frontend + Rust commands)
+  services/server/   Go sync server
+  schema/            Reference SQL schema files
+  docker-compose.yml Local PostgreSQL + server stack
 ```
-+-------------------+       HTTPS        +-------------------+
-|  Tauri Desktop    |   push / pull      |  Go Sync Server   |
-|                   | -----------------> |                   |
-|  Svelte 5 UI      |                    |  Echo router      |
-|       |           |                    |       |           |
-|  Tauri IPC        |                    |  Handlers         |
-|       |           |                    |       |           |
-|  +----------+     |                    |  +------------+   |
-|  | SQLite   |     |                    |  | PostgreSQL |   |
-|  | (WAL)    |     |                    |  |    16      |   |
-|  +----------+     |                    |  +------------+   |
-|       |           |                    +-------------------+
-|  Sync Tracker     |
-|  (sync_meta)      |
-+-------------------+
-```
 
-All reads and writes happen against the local SQLite database. The sync tracker records per-field timestamps and pushes/pulls changes to the server when a connection is available.
+## Prerequisites
 
-## Tech Stack
+- Node.js 20+
+- Rust stable
+- Go 1.22+
+- Docker
 
-| Layer | Technology | Version |
-|---|---|---|
-| Desktop shell | Tauri | 2.x |
-| Frontend | Svelte 5 + TypeScript | 5.x |
-| Styling | Tailwind CSS | 4.x |
-| Client DB | SQLite 3 (rusqlite, WAL mode) | 3.40+ |
-| Server | Go + Echo | Go 1.22+, Echo v4 |
-| Server DB | PostgreSQL | 16 |
-| Auth | Passwordless magic links + HS256 JWT | -- |
-| Sync | Per-field vector clocks, LWW | -- |
-| Recurrence | rrule (Rust), rrule-go (Go) | latest |
-
-## Quick Start (Development)
-
-Prerequisites: Node.js 20+, Rust stable, Go 1.22+, Docker.
+Linux desktop builds also need the usual Tauri system packages:
 
 ```bash
-# 1. Clone and configure
-git clone <repo-url> && cd cross-2
-cp .env.example .env
+sudo apt install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+```
 
-# 2. Start PostgreSQL
+## Run The Desktop App
+
+The desktop app does not need the sync server to be useful.
+
+```bash
+cd apps/desktop
+npm ci
+npm run tauri dev
+```
+
+Useful desktop verification commands:
+
+```bash
+cd apps/desktop
+npm run check
+npm test
+
+cd src-tauri
+cargo test
+```
+
+## Run The Sync Server
+
+The server now requires `DATABASE_URL` at boot.
+
+```bash
 docker compose up -d db
 
-# 3. Start the sync server (runs migrations automatically)
-cd services/server && go run ./cmd/server
-
-# 4. Start the desktop app (separate terminal)
-cd apps/desktop && npm install && npm run tauri dev
+cd services/server
+DATABASE_URL=postgres://tickclone:changeme@localhost:5432/tickclone?sslmode=disable go run ./cmd/server
 ```
 
-The desktop app is fully functional without the server. Skip steps 2-3 if you only need offline mode.
-
-## Quick Start (Self-Hosting)
+Server verification:
 
 ```bash
-# Start everything (PostgreSQL + sync server)
-docker compose up
+cd services/server
+go test ./...
 ```
 
-The server listens on port 8080 by default. Configure via environment variables in `.env`:
-
-| Variable | Default | Description |
-|---|---|---|
-| `DB_PASSWORD` | `changeme` | PostgreSQL password |
-| `PORT` | `8080` | Server HTTP port |
-| `AUTH_REQUIRED` | `false` | Enable magic-link auth |
-| `MAGIC_LINK_SECRET` | -- | JWT signing key (32+ chars) |
-| `CORS_ORIGINS` | `*` | Allowed CORS origins |
-
-Point your desktop client's sync settings to `http://<host>:8080`.
-
-## Sync Protocol
-
-TickClone uses a per-field last-write-wins (LWW) sync protocol. Changes are tracked at field granularity -- two users editing different fields on the same task never conflict.
-
-**Cycle:** `detect local changes -> push -> pull -> apply remote -> update last_sync_at`
-
-```
-Client A               Server               Client B
-   |                      |                      |
-   |-- POST /sync/push -->|                      |
-   |   {deviceId, batchId,|                      |
-   |    changes: [...]}   |                      |
-   |<-- {accepted, conflicts}                    |
-   |                      |                      |
-   |                      |<-- POST /sync/pull --|
-   |                      |   {deviceId,         |
-   |                      |    lastSyncAt}       |
-   |                      |-- {changes,       -->|
-   |                      |    serverTime}       |
-```
-
-**Rules:**
-- Each field (title, status, priority, etc.) carries its own timestamp in `sync_meta`.
-- Last-write-wins: the change with the later timestamp is accepted; older changes are counted as conflicts.
-- Pulls exclude changes originating from the requesting device.
-- Multi-change pushes are wrapped in a single PostgreSQL transaction with a shared `batch_id`.
-- Auto-sync interval: 60 seconds with exponential backoff on failure (max 300s).
-
-## SMTP Configuration
-
-Magic-link authentication requires an SMTP server. Add these to your `.env`:
+If you prefer the full stack through Docker:
 
 ```bash
-SMTP_HOST=smtp.example.com
-SMTP_PORT=587
-SMTP_FROM=noreply@example.com
-SMTP_USER=your-smtp-username
-SMTP_PASS=your-smtp-password
-AUTH_REQUIRED=true
-MAGIC_LINK_SECRET=change-this-to-a-32-char-secret!
+docker compose up --build
 ```
 
-When `AUTH_REQUIRED=false` (the default), authentication is skipped and all requests use a default local user. No SMTP setup is needed for single-user self-hosting.
+## Environment
 
-## API Documentation
+The root [`.env.example`](./.env.example) contains the server-side environment variables used by Docker and local server runs.
 
-The sync server exposes a REST API under `/api/v1`. See:
+Important variables:
 
-- [API_CONVENTIONS.md](./API_CONVENTIONS.md) -- endpoint reference, error codes, rate limits
-- [services/server/docs/swagger.json](./services/server/docs/swagger.json) -- OpenAPI 3.0 spec
+- `DATABASE_URL`: required for `services/server`
+- `PORT`: HTTP port for the sync server
+- `AUTH_REQUIRED`: when `false`, the server runs in local-first single-user mode
+- `MAGIC_LINK_SECRET`: required if you want JWT-backed authenticated sessions
+- `SMTP_*`: required only when you actually want magic-link email delivery
 
-## Contributing
+## Product Notes
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full guide. Summary:
+- The desktop app always reads and writes locally first.
+- Sync is optional and configured from the desktop settings panel.
+- Manual sync uses the saved sync settings.
+- Auto-sync currently runs from a frontend timer while the desktop app is open.
+- The server exposes REST endpoints under `/api/v1` and a health check at `/health`.
 
-- **Git workflow:** Trunk-based. Short-lived feature branches, squash-merged into `main`.
-- **Branch naming:** `feat/`, `fix/`, `refactor/`, `test/`, `docs/`, `chore/` prefixes.
-- **Commits:** [Conventional Commits](https://www.conventionalcommits.org/) format.
-- **Testing:** `go test ./...` (server), `cargo test` (Tauri), `npm run test` (Svelte), Playwright for E2E.
-- **Code style:** See [STYLE_GUIDE.md](./STYLE_GUIDE.md) and [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md).
+## Related Docs
 
-## Project Structure
-
-```
-cross-2/
-  apps/desktop/          Tauri 2 + Svelte 5 desktop client
-  services/server/       Go Echo sync server
-  schema/                Shared SQL schemas and seed data
-  docker-compose.yml     PostgreSQL + server
-  .env.example           Environment variable template
-```
-
-## License
-
-See repository for license details.
+- [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [CONTRIBUTING.md](./CONTRIBUTING.md)
+- [API_CONVENTIONS.md](./API_CONVENTIONS.md)
+- [apps/desktop/README.md](./apps/desktop/README.md)

@@ -50,15 +50,11 @@ jobs:
         run: go test -v -race -count=1 ./...
 
   # -----------------------------------------------------------------------
-  # Desktop (Svelte / Vitest) tests
+  # Desktop checks
   # -----------------------------------------------------------------------
-  tauri-test:
-    name: Desktop Tests
+  desktop-test:
+    name: Desktop Checks
     runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: apps/desktop
 
     steps:
       - uses: actions/checkout@v4
@@ -69,8 +65,26 @@ jobs:
           cache: npm
           cache-dependency-path: apps/desktop/package-lock.json
 
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
       - name: Install dependencies
+        working-directory: apps/desktop
         run: npm ci
 
-      - name: Run Vitest
-        run: npx vitest run --reporter=verbose
+      - name: Run frontend type and Svelte checks
+        working-directory: apps/desktop
+        run: npm run check
+
+      - name: Run frontend tests
+        working-directory: apps/desktop
+        run: npm test
+
+      - name: Run Rust tests
+        working-directory: apps/desktop/src-tauri
+        run: cargo test

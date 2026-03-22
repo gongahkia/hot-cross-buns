@@ -1,7 +1,43 @@
-# Tauri + SvelteKit + TypeScript
+# Desktop App
 
-This template should help get you started developing with Tauri, SvelteKit and TypeScript in Vite.
+This is the Tauri desktop client for TickClone.
 
-## Recommended IDE Setup
+## What Lives Here
 
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer).
+- `src/`: Svelte UI, stores, and route entrypoints
+- `src-tauri/`: Rust command handlers, SQLite setup, sync client, and app bootstrap
+- `tests/`: frontend test scaffolding
+
+## Commands
+
+Install dependencies:
+
+```bash
+npm ci
+```
+
+Run the desktop app:
+
+```bash
+npm run tauri dev
+```
+
+Frontend checks:
+
+```bash
+npm run check
+npm test
+```
+
+Rust checks:
+
+```bash
+cd src-tauri
+cargo test
+```
+
+## Notes
+
+- The desktop app is designed to be useful without the sync server.
+- Local data is stored in SQLite through the Tauri layer.
+- Sync settings are persisted locally and reused for manual sync and auto-sync while the app is open.
