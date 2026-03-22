@@ -59,6 +59,21 @@ CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_date);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_task_tags_tag ON task_tags(tag_id);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS tasks_fts USING fts5(title, content, content=tasks, content_rowid=rowid);
+
+CREATE TRIGGER IF NOT EXISTS tasks_ai AFTER INSERT ON tasks BEGIN
+    INSERT INTO tasks_fts(rowid, title, content) VALUES (new.rowid, new.title, new.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS tasks_au AFTER UPDATE ON tasks BEGIN
+    INSERT INTO tasks_fts(tasks_fts, rowid, title, content) VALUES('delete', old.rowid, old.title, old.content);
+    INSERT INTO tasks_fts(rowid, title, content) VALUES (new.rowid, new.title, new.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS tasks_ad AFTER DELETE ON tasks BEGIN
+    INSERT INTO tasks_fts(tasks_fts, rowid, title, content) VALUES('delete', old.rowid, old.title, old.content);
+END;
 "#;
 
 fn apply_pragmas(conn: &Connection) -> Result<(), String> {

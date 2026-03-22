@@ -643,6 +643,52 @@ pub fn preview_recurrence(
     crate::services::recurrence::expand_rrule(&rule, &start_date, &start_date, count as usize)
 }
 
+#[tauri::command]
+pub fn search_tasks(
+    state: State<'_, AppState>,
+    query: String,
+) -> Result<Vec<Task>, String> {
+    let conn = db::get_connection(&state.db_path)?;
+
+    let sql = format!(
+        "SELECT {} FROM tasks JOIN tasks_fts ON tasks.rowid = tasks_fts.rowid \
+         WHERE tasks_fts MATCH ?1 AND tasks.deleted_at IS NULL \
+         ORDER BY rank LIMIT 50",
+        TASK_COLUMNS
+            .split(", ")
+            .map(|col| format!("tasks.{}", col))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+
+    let mut stmt = conn
+        .prepare(&sql)
+        .map_err(|e| format!("Failed to prepare search query: {}", e))?;
+    let tasks: Vec<Task> = stmt
+        .query_map(params![query], row_to_task)
+        .map_err(|e| format!("Failed to search tasks: {}", e))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("Failed to read search result row: {}", e))?;
+
+    if tasks.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // Attach tags to search results.
+    let all_ids: Vec<String> = tasks.iter().map(|t| t.id.clone()).collect();
+    let tag_map = fetch_tags_for_tasks(&conn, &all_ids)?;
+
+    let tasks = tasks
+        .into_iter()
+        .map(|mut t| {
+            t.tags = tag_map.get(&t.id).cloned().unwrap_or_default();
+            t
+        })
+        .collect();
+
+    Ok(tasks)
+}
+
 /// Complete a recurring task: advances its due_date to the next occurrence
 /// based on its recurrence_rule, keeping the task open. Returns the updated task.
 #[tauri::command]

@@ -6,6 +6,7 @@
   import TodayView from '$lib/components/TodayView.svelte';
   import CalendarView from '$lib/components/CalendarView.svelte';
   import ShortcutsModal from '$lib/components/ShortcutsModal.svelte';
+  import SearchBar from '$lib/components/SearchBar.svelte';
   import { selectedListId, selectedTaskId, currentView } from '$lib/stores/ui';
   import { editTask, removeTask } from '$lib/stores/tasks';
   import { registerShortcuts } from '$lib/services/shortcuts';
@@ -76,6 +77,7 @@
   <main class="content">
     <header class="toolbar">
       <span class="toolbar-title">TickClone</span>
+      <SearchBar />
     </header>
     <div class="main-area">
       {#if activeView === 'calendar'}
