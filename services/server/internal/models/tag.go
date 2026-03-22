@@ -10,7 +10,7 @@ import (
 type Tag struct {
 	ID        uuid.UUID `json:"id"`
 	UserID    uuid.UUID `json:"userId"`
-	Name      string    `json:"name"`
+	Name      string    `json:"name" validate:"required,max=100"`
 	Color     *string   `json:"color"`
 	CreatedAt time.Time `json:"createdAt"`
 }

@@ -12,9 +12,9 @@ type Task struct {
 	UserID         uuid.UUID  `json:"userId"`
 	ListID         uuid.UUID  `json:"listId"`
 	ParentTaskID   *uuid.UUID `json:"parentTaskId"`
-	Title          string     `json:"title"`
+	Title          string     `json:"title" validate:"required,max=500"`
 	Content        *string    `json:"content"`
-	Priority       int        `json:"priority"`
+	Priority       int        `json:"priority" validate:"gte=0,lte=3"`
 	Status         int        `json:"status"`
 	DueDate        *time.Time `json:"dueDate"`
 	DueTimezone    *string    `json:"dueTimezone"`
