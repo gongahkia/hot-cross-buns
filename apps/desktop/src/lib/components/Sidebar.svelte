@@ -4,11 +4,13 @@
   import { tags } from '$lib/stores/tags';
   import { currentView, selectedListId, type ViewMode } from '$lib/stores/ui';
   import type { List } from '$lib/types';
+  import SyncSettings from './SyncSettings.svelte';
 
   let tagsExpanded = $state(true);
   let creatingList = $state(false);
   let newListName = $state('');
   let inputRef: HTMLInputElement | undefined = $state(undefined);
+  let showSyncSettings = $state(false);
 
   // Derived values from stores using Svelte 5 $-prefix auto-subscription
   let inboxList = $derived(($lists).find((l: List) => l.isInbox));
@@ -171,7 +173,34 @@
       {/if}
     {/if}
   </div>
+
+  <div class="sidebar-spacer"></div>
+
+  <div class="sidebar-footer">
+    <button
+      class="gear-btn"
+      onclick={() => (showSyncSettings = true)}
+      aria-label="Sync settings"
+      title="Sync settings"
+    >
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+      >
+        <path
+          d="M6.6 1.2A.6.6 0 0 1 7.2.6h1.6a.6.6 0 0 1 .6.6v.94a5.4 5.4 0 0 1 1.36.56l.66-.66a.6.6 0 0 1 .85 0l1.13 1.13a.6.6 0 0 1 0 .85l-.66.66c.24.42.42.88.56 1.36h.94a.6.6 0 0 1 .6.6v1.6a.6.6 0 0 1-.6.6h-.94a5.4 5.4 0 0 1-.56 1.36l.66.66a.6.6 0 0 1 0 .85l-1.13 1.13a.6.6 0 0 1-.85 0l-.66-.66c-.42.24-.88.42-1.36.56v.94a.6.6 0 0 1-.6.6H7.2a.6.6 0 0 1-.6-.6v-.94a5.4 5.4 0 0 1-1.36-.56l-.66.66a.6.6 0 0 1-.85 0L2.6 12.37a.6.6 0 0 1 0-.85l.66-.66A5.4 5.4 0 0 1 2.7 9.5h-.94a.6.6 0 0 1-.6-.6V7.3a.6.6 0 0 1 .6-.6h.94c.14-.48.32-.94.56-1.36l-.66-.66a.6.6 0 0 1 0-.85L3.73 2.7a.6.6 0 0 1 .85 0l.66.66c.42-.24.88-.42 1.36-.56V1.2ZM8 10.2a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4Z"
+          fill="currentColor"
+        />
+      </svg>
+    </button>
+  </div>
 </aside>
+
+<SyncSettings open={showSyncSettings} onclose={() => (showSyncSettings = false)} />
 
 <style>
   .sidebar {
@@ -376,5 +405,35 @@
     font-size: 12px;
     color: var(--color-text-muted, #a6adc8);
     font-style: italic;
+  }
+
+  .sidebar-spacer {
+    flex: 1;
+  }
+
+  .sidebar-footer {
+    padding: 8px 12px;
+    border-top: 1px solid var(--color-border-subtle, #313244);
+    display: flex;
+    align-items: center;
+  }
+
+  .gear-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: none;
+    background: none;
+    color: var(--color-text-muted, #a6adc8);
+    cursor: pointer;
+    transition: background 200ms ease, color 200ms ease;
+  }
+
+  .gear-btn:hover {
+    background: var(--color-surface-0, #313244);
+    color: var(--color-text-primary, #cdd6f4);
   }
 </style>
