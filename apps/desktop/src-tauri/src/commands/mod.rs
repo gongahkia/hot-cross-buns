@@ -1,9 +1,11 @@
+pub mod bench_commands;
 pub mod data_commands;
 pub mod list_commands;
 pub mod sync_commands;
 pub mod tag_commands;
 pub mod task_commands;
 
+pub use bench_commands::seed_benchmark_data;
 pub use data_commands::{export_data, import_data};
 pub use list_commands::{create_list, delete_list, get_lists, update_list};
 pub use sync_commands::sync_now;

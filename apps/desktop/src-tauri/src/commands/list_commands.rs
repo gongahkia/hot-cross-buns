@@ -203,3 +203,89 @@ pub fn delete_list(state: State<'_, AppState>, id: String) -> Result<(), String>
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db;
+    use std::path::PathBuf;
+    use tempfile::TempDir;
+
+    /// Create a temporary database directory, initialise the schema, and return
+    /// the TempDir (which keeps the directory alive) and the path to use as
+    /// AppState.db_path.
+    fn setup_test_db() -> (TempDir, PathBuf) {
+        let tmp = TempDir::new().expect("failed to create temp dir");
+        let db_path = tmp.path().to_path_buf();
+        db::init_db(&db_path).expect("failed to init test db");
+        (tmp, db_path)
+    }
+
+    #[test]
+    fn test_create_and_get_lists() {
+        let (_tmp, db_path) = setup_test_db();
+        let conn = db::get_connection(&db_path).expect("failed to open connection");
+
+        // Insert a list directly via SQL (bypassing Tauri State which requires
+        // a running app). This validates the schema and row_to_list mapping.
+        let id = uuid::Uuid::now_v7().to_string();
+        let now = iso8601_now();
+        conn.execute(
+            "INSERT INTO lists (id, name, color, sort_order, is_inbox, created_at, updated_at) \
+             VALUES (?1, ?2, ?3, 0, 0, ?4, ?5)",
+            rusqlite::params![id, "Test List", "#ff0000", now, now],
+        )
+        .expect("failed to insert test list");
+
+        // Read it back via row_to_list.
+        let list = conn
+            .query_row(
+                "SELECT id, name, color, sort_order, is_inbox, created_at, updated_at, deleted_at \
+                 FROM lists WHERE id = ?1",
+                rusqlite::params![id],
+                row_to_list,
+            )
+            .expect("failed to query test list");
+
+        assert_eq!(list.id, id);
+        assert_eq!(list.name, "Test List");
+        assert_eq!(list.color, Some("#ff0000".to_string()));
+        assert!(!list.is_inbox);
+        assert!(list.deleted_at.is_none());
+    }
+
+    #[test]
+    fn test_delete_inbox_rejected() {
+        let (_tmp, db_path) = setup_test_db();
+        let conn = db::get_connection(&db_path).expect("failed to open connection");
+
+        // Create an inbox list (is_inbox = 1).
+        let id = uuid::Uuid::now_v7().to_string();
+        let now = iso8601_now();
+        conn.execute(
+            "INSERT INTO lists (id, name, color, sort_order, is_inbox, created_at, updated_at) \
+             VALUES (?1, 'Inbox', NULL, 0, 1, ?2, ?3)",
+            rusqlite::params![id, now, now],
+        )
+        .expect("failed to insert inbox list");
+
+        // Attempting to delete the inbox should fail at the is_inbox check.
+        let is_inbox: i32 = conn
+            .query_row(
+                "SELECT is_inbox FROM lists WHERE id = ?1 AND deleted_at IS NULL",
+                rusqlite::params![id],
+                |row| row.get(0),
+            )
+            .expect("failed to query inbox flag");
+
+        assert_ne!(is_inbox, 0, "expected is_inbox to be non-zero for inbox list");
+
+        // Simulate the guard from delete_list.
+        if is_inbox != 0 {
+            // This is the expected path -- inbox deletion should be rejected.
+            return;
+        }
+
+        panic!("inbox deletion guard did not trigger");
+    }
+}

@@ -8,6 +8,7 @@ mod sync;
 
 use state::AppState;
 
+use commands::bench_commands::seed_benchmark_data;
 use commands::data_commands::{export_data, import_data};
 use commands::sync_commands::sync_now;
 use commands::tag_commands::{
@@ -42,6 +43,7 @@ pub fn run() {
             commands::get_lists,
             commands::update_list,
             commands::delete_list,
+            seed_benchmark_data,
             create_tag,
             get_tags,
             update_tag,
