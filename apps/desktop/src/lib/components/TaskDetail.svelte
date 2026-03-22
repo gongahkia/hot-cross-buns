@@ -154,19 +154,11 @@
   async function handleRemoveTag(tagId: string) {
     if (!task) return;
     await untagTask(task.id, tagId);
-    // Optimistically update the local task tags
-    if (task) {
-      task = { ...task, tags: task.tags.filter((t) => t.id !== tagId) };
-    }
   }
 
   async function handleAddTag(tagId: string) {
     if (!task) return;
     await tagTask(task.id, tagId);
-    const tagObj = allTags.find((t) => t.id === tagId);
-    if (task && tagObj) {
-      task = { ...task, tags: [...task.tags, tagObj] };
-    }
     showTagDropdown = false;
   }
 
