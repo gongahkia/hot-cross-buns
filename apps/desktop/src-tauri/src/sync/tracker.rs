@@ -1,6 +1,14 @@
 use rusqlite::Connection;
 
-use super::client::ChangeRecord;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrackedChange {
+    pub entity_type: String,
+    pub entity_id: String,
+    pub field_name: String,
+    pub new_value: String,
+    pub updated_at: String,
+    pub device_id: String,
+}
 
 /// Ensure the sync_meta table has the new_value column.
 /// This is safe to call repeatedly -- it silently ignores the ALTER if the column exists.
@@ -36,7 +44,7 @@ pub fn record_change(
 }
 
 /// Fetch all pending changes that were recorded at or after `since`.
-pub fn get_pending_changes(conn: &Connection, since: &str) -> Vec<ChangeRecord> {
+pub fn get_pending_changes(conn: &Connection, since: &str) -> Vec<TrackedChange> {
     let _ = ensure_new_value_column(conn);
 
     let mut stmt = match conn.prepare(
@@ -50,7 +58,7 @@ pub fn get_pending_changes(conn: &Connection, since: &str) -> Vec<ChangeRecord> 
     };
 
     let rows = match stmt.query_map(rusqlite::params![since], |row| {
-        Ok(ChangeRecord {
+        Ok(TrackedChange {
             entity_type: row.get(0)?,
             entity_id: row.get(1)?,
             field_name: row.get(2)?,
@@ -71,7 +79,7 @@ pub fn get_pending_changes(conn: &Connection, since: &str) -> Vec<ChangeRecord> 
 /// This performs a straightforward UPDATE on the table derived from `entity_type`,
 /// setting `field_name = new_value` where the row's primary key matches `entity_id`.
 /// Only known entity types (lists, tasks, tags) are accepted.
-pub fn apply_remote_change(conn: &Connection, change: &ChangeRecord) -> Result<(), String> {
+pub fn apply_remote_change(conn: &Connection, change: &TrackedChange) -> Result<(), String> {
     let table = match change.entity_type.as_str() {
         "list" => "lists",
         "task" => "tasks",

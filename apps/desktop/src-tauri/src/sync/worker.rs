@@ -125,6 +125,23 @@ async fn do_sync(db_path: &PathBuf) -> Result<(), String> {
 
     // Gather pending local changes (using epoch as the "since" marker for now).
     let pending = tracker::get_pending_changes(&conn, "1970-01-01T00:00:00Z");
+    let transport_pending = pending
+        .iter()
+        .map(|change| {
+            let new_value = match serde_json::from_str::<serde_json::Value>(&change.new_value) {
+                Ok(parsed) => parsed,
+                Err(_) => serde_json::Value::String(change.new_value.clone()),
+            };
+
+            crate::sync::client::SyncChangePayload {
+                entity_type: change.entity_type.clone(),
+                entity_id: change.entity_id.clone(),
+                field_name: change.field_name.clone(),
+                new_value,
+                timestamp: change.updated_at.clone(),
+            }
+        })
+        .collect::<Vec<_>>();
 
     // Build a sync client.  In a real deployment the base URL and auth token
     // would come from user settings / environment.
@@ -136,12 +153,14 @@ async fn do_sync(db_path: &PathBuf) -> Result<(), String> {
     };
 
     // Push local changes.
-    if !pending.is_empty() {
-        let push_result = client.push_changes(pending).await?;
+    if !transport_pending.is_empty() {
+        let push_result = client
+            .push_changes(&uuid::Uuid::now_v7().to_string(), transport_pending)
+            .await?;
         println!(
-            "Push complete: {} accepted, {} rejected",
+            "Push complete: {} accepted, {} conflicts",
             push_result.accepted,
-            push_result.rejected
+            push_result.conflicts
         );
     }
 
@@ -150,7 +169,30 @@ async fn do_sync(db_path: &PathBuf) -> Result<(), String> {
 
     if !pull_result.changes.is_empty() {
         for change in &pull_result.changes {
-            if let Err(e) = tracker::apply_remote_change(&conn, change) {
+            let local_change = tracker::TrackedChange {
+                entity_type: change.entity_type.clone(),
+                entity_id: change.entity_id.clone(),
+                field_name: change.field_name.clone(),
+                new_value: match &change.new_value {
+                    serde_json::Value::Null => String::new(),
+                    serde_json::Value::Bool(flag) => {
+                        if *flag {
+                            "1".to_string()
+                        } else {
+                            "0".to_string()
+                        }
+                    }
+                    serde_json::Value::Number(number) => number.to_string(),
+                    serde_json::Value::String(text) => text.clone(),
+                    serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+                        change.new_value.to_string()
+                    }
+                },
+                updated_at: change.timestamp.clone(),
+                device_id: "remote".to_string(),
+            };
+
+            if let Err(e) = tracker::apply_remote_change(&conn, &local_change) {
                 eprintln!("Failed to apply remote change: {e}");
             }
         }

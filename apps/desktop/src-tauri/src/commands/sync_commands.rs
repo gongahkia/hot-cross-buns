@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::db;
 use crate::models::SyncSettings;
 use crate::state::AppState;
-use crate::sync::client::SyncClient;
+use crate::sync::client::{PullResult, PushResult, SyncChangePayload, SyncClient};
 use crate::sync::tracker;
 
 /// Summary returned to the frontend after a sync round-trip.
@@ -15,6 +15,50 @@ pub struct SyncStatus {
     pub pushed: u32,
     pub pulled: u32,
     pub conflicts: u32,
+}
+
+fn tracked_change_to_transport(
+    change: &tracker::TrackedChange,
+) -> Result<SyncChangePayload, String> {
+    let new_value = match serde_json::from_str::<serde_json::Value>(&change.new_value) {
+        Ok(parsed) => parsed,
+        Err(_) => serde_json::Value::String(change.new_value.clone()),
+    };
+
+    Ok(SyncChangePayload {
+        entity_type: change.entity_type.clone(),
+        entity_id: change.entity_id.clone(),
+        field_name: change.field_name.clone(),
+        new_value,
+        timestamp: change.updated_at.clone(),
+    })
+}
+
+fn transport_change_to_tracked(change: &SyncChangePayload) -> tracker::TrackedChange {
+    tracker::TrackedChange {
+        entity_type: change.entity_type.clone(),
+        entity_id: change.entity_id.clone(),
+        field_name: change.field_name.clone(),
+        new_value: json_value_to_sql_text(&change.new_value),
+        updated_at: change.timestamp.clone(),
+        device_id: "remote".to_string(),
+    }
+}
+
+fn json_value_to_sql_text(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::Null => String::new(),
+        serde_json::Value::Bool(flag) => {
+            if *flag {
+                "1".to_string()
+            } else {
+                "0".to_string()
+            }
+        }
+        serde_json::Value::Number(number) => number.to_string(),
+        serde_json::Value::String(text) => text.clone(),
+        serde_json::Value::Array(_) | serde_json::Value::Object(_) => value.to_string(),
+    }
 }
 
 fn row_to_sync_settings(row: &rusqlite::Row) -> rusqlite::Result<SyncSettings> {
@@ -134,6 +178,10 @@ pub async fn sync_now(state: State<'_, AppState>) -> Result<SyncStatus, String> 
     // 1. Gather pending local changes (everything since epoch for the first sync).
     let last_sync_at = get_last_sync_time(&conn);
     let pending = tracker::get_pending_changes(&conn, &last_sync_at);
+    let transport_pending = pending
+        .iter()
+        .map(tracked_change_to_transport)
+        .collect::<Result<Vec<_>, _>>()?;
 
     let client = SyncClient {
         base_url: settings.server_url.clone(),
@@ -146,21 +194,28 @@ pub async fn sync_now(state: State<'_, AppState>) -> Result<SyncStatus, String> 
     };
 
     // 2. Push local changes.
-    let pushed_count = if pending.is_empty() {
-        0u32
+    let batch_id = Uuid::now_v7().to_string();
+    let push_result = if transport_pending.is_empty() {
+        None
     } else {
-        let push_result = client.push_changes(pending).await?;
-        push_result.accepted
+        Some(client.push_changes(&batch_id, transport_pending).await?)
+    };
+
+    let pushed_count = if let Some(PushResult { accepted, .. }) = &push_result {
+        *accepted
+    } else {
+        0u32
     };
 
     // 3. Pull remote changes.
-    let pull_result = client.pull_changes(&last_sync_at).await?;
+    let pull_result: PullResult = client.pull_changes(&last_sync_at).await?;
     let pulled_count = pull_result.changes.len() as u32;
 
     // 4. Apply each remote change locally.
-    let mut conflicts = 0u32;
+    let mut conflicts = push_result.as_ref().map(|result| result.conflicts).unwrap_or(0);
     for change in &pull_result.changes {
-        if let Err(_) = tracker::apply_remote_change(&conn, change) {
+        let local_change = transport_change_to_tracked(change);
+        if tracker::apply_remote_change(&conn, &local_change).is_err() {
             conflicts += 1;
         }
     }
@@ -251,6 +306,7 @@ fn days_to_ymd(epoch_days: i64) -> (i64, u32, u32) {
 mod tests {
     use super::*;
     use crate::db;
+    use serde_json::json;
     use std::path::PathBuf;
     use tempfile::TempDir;
 
@@ -296,5 +352,45 @@ mod tests {
         assert_eq!(loaded.device_id, settings.device_id);
         assert!(loaded.auto_sync_enabled);
         assert_eq!(loaded.last_synced_at, settings.last_synced_at);
+    }
+
+    #[test]
+    fn test_tracked_change_translates_to_server_transport_shape() {
+        let tracked = tracker::TrackedChange {
+            entity_type: "task".to_string(),
+            entity_id: "task-1".to_string(),
+            field_name: "title".to_string(),
+            new_value: "Synced title".to_string(),
+            updated_at: "2026-03-22T14:35:00Z".to_string(),
+            device_id: "desktop-123".to_string(),
+        };
+
+        let payload = tracked_change_to_transport(&tracked).expect("translate tracked change");
+
+        assert_eq!(payload.entity_type, "task");
+        assert_eq!(payload.entity_id, "task-1");
+        assert_eq!(payload.field_name, "title");
+        assert_eq!(payload.new_value, json!("Synced title"));
+        assert_eq!(payload.timestamp, "2026-03-22T14:35:00Z");
+    }
+
+    #[test]
+    fn test_pull_response_change_translates_to_local_apply_record() {
+        let payload = SyncChangePayload {
+            entity_type: "task".to_string(),
+            entity_id: "task-1".to_string(),
+            field_name: "priority".to_string(),
+            new_value: json!(3),
+            timestamp: "2026-03-22T14:35:00Z".to_string(),
+        };
+
+        let tracked = transport_change_to_tracked(&payload);
+
+        assert_eq!(tracked.entity_type, "task");
+        assert_eq!(tracked.entity_id, "task-1");
+        assert_eq!(tracked.field_name, "priority");
+        assert_eq!(tracked.new_value, "3");
+        assert_eq!(tracked.updated_at, "2026-03-22T14:35:00Z");
+        assert_eq!(tracked.device_id, "remote");
     }
 }
