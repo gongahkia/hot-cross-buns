@@ -3,6 +3,7 @@
   import { tasks } from '$lib/stores/tasks';
   import { tags } from '$lib/stores/tags';
   import { currentView, selectedListId, type ViewMode } from '$lib/stores/ui';
+  import { theme, cycleTheme } from '$lib/stores/theme';
   import type { List } from '$lib/types';
   import SyncSettings from './SyncSettings.svelte';
 
@@ -177,6 +178,32 @@
   <div class="sidebar-spacer"></div>
 
   <div class="sidebar-footer">
+    <button
+      class="gear-btn"
+      onclick={cycleTheme}
+      aria-label="Toggle theme"
+      title={$theme === 'system' ? 'Theme: System' : $theme === 'dark' ? 'Theme: Dark' : 'Theme: Light'}
+    >
+      {#if $theme === 'dark'}
+        <!-- Moon icon -->
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M14.3 10.5A6.5 6.5 0 0 1 5.5 1.7a6.5 6.5 0 1 0 8.8 8.8Z" fill="currentColor"/>
+        </svg>
+      {:else if $theme === 'light'}
+        <!-- Sun icon -->
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <circle cx="8" cy="8" r="3" fill="currentColor"/>
+          <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      {:else}
+        <!-- Monitor icon (system) -->
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="1.5" y="2" width="13" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+          <path d="M5.5 14h5M8 11v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      {/if}
+    </button>
+
     <button
       class="gear-btn"
       onclick={() => (showSyncSettings = true)}
@@ -416,6 +443,7 @@
     border-top: 1px solid var(--color-border-subtle, #313244);
     display: flex;
     align-items: center;
+    gap: 4px;
   }
 
   .gear-btn {
