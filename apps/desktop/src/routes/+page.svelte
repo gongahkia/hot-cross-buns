@@ -1,14 +1,72 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import TaskList from '$lib/components/TaskList.svelte';
   import TaskDetail from '$lib/components/TaskDetail.svelte';
-  import { selectedListId } from '$lib/stores/ui';
+  import TodayView from '$lib/components/TodayView.svelte';
+  import CalendarView from '$lib/components/CalendarView.svelte';
+  import ShortcutsModal from '$lib/components/ShortcutsModal.svelte';
+  import { selectedListId, selectedTaskId, currentView } from '$lib/stores/ui';
+  import { editTask, removeTask } from '$lib/stores/tasks';
+  import { registerShortcuts } from '$lib/services/shortcuts';
+
+  let showShortcuts = $state(false);
 
   let hasSelectedList = $derived.by(() => {
     let value: string | null = null;
     const unsub = selectedListId.subscribe((v) => (value = v));
     unsub();
     return value !== null;
+  });
+
+  let activeView = $derived.by(() => {
+    let value: string = 'list';
+    const unsub = currentView.subscribe((v) => (value = v));
+    unsub();
+    return value;
+  });
+
+  onMount(() => {
+    const cleanup = registerShortcuts({
+      focusQuickAdd() {
+        const input = document.querySelector<HTMLInputElement>('.quick-add-input');
+        if (input) {
+          input.focus();
+        }
+      },
+      closeDetail() {
+        selectedTaskId.set(null);
+        showShortcuts = false;
+      },
+      deleteSelectedTask() {
+        let taskId: string | null = null;
+        const unsub = selectedTaskId.subscribe((v) => (taskId = v));
+        unsub();
+        if (taskId) {
+          selectedTaskId.set(null);
+          removeTask(taskId);
+        }
+      },
+      setPriority(level: number) {
+        let taskId: string | null = null;
+        const unsub = selectedTaskId.subscribe((v) => (taskId = v));
+        unsub();
+        if (taskId) {
+          editTask(taskId, { priority: level });
+        }
+      },
+      switchToToday() {
+        currentView.set('today');
+      },
+      switchToCalendar() {
+        currentView.set('calendar');
+      },
+      showShortcutsModal() {
+        showShortcuts = true;
+      },
+    });
+
+    return cleanup;
   });
 </script>
 
@@ -20,7 +78,11 @@
       <span class="toolbar-title">TickClone</span>
     </header>
     <div class="main-area">
-      {#if hasSelectedList}
+      {#if activeView === 'calendar'}
+        <CalendarView />
+      {:else if activeView === 'today'}
+        <TodayView />
+      {:else if hasSelectedList}
         <TaskList />
       {:else}
         <p class="empty-state">Select a list to view tasks</p>
@@ -30,6 +92,7 @@
 </div>
 
 <TaskDetail />
+<ShortcutsModal open={showShortcuts} onclose={() => (showShortcuts = false)} />
 
 <style>
   :global(body) {
