@@ -1,22 +1,35 @@
+<script lang="ts">
+  import Sidebar from '$lib/components/Sidebar.svelte';
+  import TaskList from '$lib/components/TaskList.svelte';
+  import TaskDetail from '$lib/components/TaskDetail.svelte';
+  import { selectedListId } from '$lib/stores/ui';
+
+  let hasSelectedList = $derived.by(() => {
+    let value: string | null = null;
+    const unsub = selectedListId.subscribe((v) => (value = v));
+    unsub();
+    return value !== null;
+  });
+</script>
+
 <div class="app">
-  <aside class="sidebar">
-    <div class="sidebar-header">
-      <h2>TickClone</h2>
-    </div>
-    <nav class="sidebar-nav">
-      <div class="nav-item active">Inbox</div>
-    </nav>
-  </aside>
+  <Sidebar />
 
   <main class="content">
     <header class="toolbar">
       <span class="toolbar-title">TickClone</span>
     </header>
     <div class="main-area">
-      <p class="empty-state">Select a list to view tasks</p>
+      {#if hasSelectedList}
+        <TaskList />
+      {:else}
+        <p class="empty-state">Select a list to view tasks</p>
+      {/if}
     </div>
   </main>
 </div>
+
+<TaskDetail />
 
 <style>
   :global(body) {
@@ -33,46 +46,6 @@
     grid-template-columns: 250px 1fr;
     height: 100vh;
     overflow: hidden;
-  }
-
-  .sidebar {
-    background: var(--color-bg-secondary, #181825);
-    border-right: 1px solid var(--color-border-subtle, #313244);
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-  }
-
-  .sidebar-header {
-    padding: 16px;
-    border-bottom: 1px solid var(--color-border-subtle, #313244);
-  }
-
-  .sidebar-header h2 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--color-text-primary, #cdd6f4);
-  }
-
-  .sidebar-nav {
-    padding: 8px;
-  }
-
-  .nav-item {
-    padding: 8px 12px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: background 200ms ease;
-  }
-
-  .nav-item:hover {
-    background: var(--color-surface-0, #313244);
-  }
-
-  .nav-item.active {
-    background: var(--color-surface-0, #313244);
   }
 
   .content {
@@ -97,13 +70,16 @@
 
   .main-area {
     flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    overflow: hidden;
   }
 
   .empty-state {
     color: var(--color-text-muted, #a6adc8);
     font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    margin: 0;
   }
 </style>
