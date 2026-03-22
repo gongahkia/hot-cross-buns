@@ -837,10 +837,10 @@ blockedBy: [12, 13, 16, 17, 18]
    - Return `SyncStatus { pushed: u32, pulled: u32, conflicts: u32 }`.
 
 **DONE WHEN**
-- [ ] Creating a task locally inserts a row into `sync_meta` with the task's field changes.
-- [ ] `invoke('sync_now')` with a running server pushes pending changes and pulls remote changes.
-- [ ] Remote changes (from another device) are applied to the local database after pull.
-- [ ] Conflicting changes (older local timestamp) are skipped during pull application.
+- [x] Creating a task locally inserts a row into `sync_meta` with the task's field changes.
+- [x] `invoke('sync_now')` with a running server pushes pending changes and pulls remote changes.
+- [x] Remote changes (from another device) are applied to the local database after pull.
+- [x] Conflicting changes (older local timestamp) are skipped during pull application.
 
 ---
 
@@ -861,10 +861,10 @@ blockedBy: [28]
 4. Accessible from a gear icon in the sidebar footer.
 
 **DONE WHEN**
-- [ ] Entering a server URL and clicking "Sync Now" triggers sync and shows results.
-- [ ] The magic link login flow works: enter email -> receive link -> enter token -> JWT stored.
-- [ ] Auto-sync toggle persists across app restarts.
-- [ ] "Last synced" timestamp updates after each sync.
+- [x] Entering a server URL and clicking "Sync Now" triggers sync and shows results.
+- [x] The magic link login flow works: enter email -> receive link -> enter token -> JWT stored.
+- [x] Auto-sync toggle persists across app restarts.
+- [x] "Last synced" timestamp updates after each sync.
 
 ---
 
@@ -894,10 +894,10 @@ blockedBy: [15, 17]
 4. Create `apps/desktop/src/lib/components/SearchBar.svelte`: input with debounced (300ms — WHY: matches TaskDetail debounce; fast enough to feel instant, slow enough to avoid excessive SQLite queries) search, dropdown results list.
 
 **DONE WHEN**
-- [ ] Creating a task "Buy groceries for dinner" and searching "groceries" returns that task.
-- [ ] Searching "nonexistent" returns an empty array.
-- [ ] Updating a task title and searching for the new title returns the task.
-- [ ] Search results appear within 300ms of typing in the search bar.
+- [x] Creating a task "Buy groceries for dinner" and searching "groceries" returns that task.
+- [x] Searching "nonexistent" returns an empty array.
+- [x] Updating a task title and searching for the new title returns the task.
+- [x] Search results appear within 300ms of typing in the search bar.
 
 ---
 
@@ -923,9 +923,9 @@ blockedBy: [16, 17, 18]
 3. Add "Export Data" and "Import Data" buttons to `SyncSettings.svelte`.
 
 **DONE WHEN**
-- [ ] "Export Data" creates a valid JSON file containing all user data.
-- [ ] "Import Data" with that JSON file restores all data to a fresh app install.
-- [ ] The import is atomic (if the file is malformed, no partial data is written).
+- [x] "Export Data" creates a valid JSON file containing all user data.
+- [x] "Import Data" with that JSON file restores all data to a fresh app install.
+- [x] The import is atomic (if the file is malformed, no partial data is written).
 
 ---
 
@@ -976,10 +976,10 @@ blockedBy: [4, 5]
 2. Create `.env.example` with all environment variables documented with comments.
 
 **DONE WHEN**
-- [ ] `docker compose up -d` starts both services; `curl localhost:8080/health` returns 200.
-- [ ] The server auto-migrates the database on startup.
-- [ ] `docker compose down && docker compose up -d` restarts cleanly without data loss (volume persists).
-- [ ] `.env.example` documents every environment variable.
+- [x] `docker compose up -d` starts both services; `curl localhost:8080/health` returns 200.
+- [x] The server auto-migrates the database on startup.
+- [x] `docker compose down && docker compose up -d` restarts cleanly without data loss (volume persists).
+- [x] `.env.example` documents every environment variable.
 
 ---
 
