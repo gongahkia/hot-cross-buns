@@ -512,10 +512,10 @@ blockedBy: [15]
 3. Register all commands in the Tauri builder: `.invoke_handler(tauri::generate_handler![create_list, get_lists, update_list, delete_list])`.
 
 **DONE WHEN**
-- [ ] From Svelte, `invoke('create_list', { name: 'Work' })` returns a JSON object with `id`, `name`, `createdAt`.
-- [ ] `invoke('get_lists')` returns an array including the created list.
-- [ ] `invoke('delete_list', { id: inboxId })` returns an error string containing "inbox".
-- [ ] `invoke('update_list', { id, color: '#FF0000' })` returns the list with updated color.
+- [x] From Svelte, `invoke('create_list', { name: 'Work' })` returns a JSON object with `id`, `name`, `createdAt`.
+- [x] `invoke('get_lists')` returns an array including the created list.
+- [x] `invoke('delete_list', { id: inboxId })` returns an error string containing "inbox".
+- [x] `invoke('update_list', { id, color: '#FF0000' })` returns the list with updated color.
 
 ---
 
@@ -537,10 +537,10 @@ blockedBy: [15]
 3. Register all commands.
 
 **DONE WHEN**
-- [ ] `invoke('create_task', { listId, title: 'Buy milk', priority: 2 })` returns a task with all fields.
-- [ ] `invoke('get_tasks_by_list', { listId, includeCompleted: false })` excludes completed tasks.
-- [ ] Creating a subtask of a subtask returns an error.
-- [ ] `invoke('complete_recurring_task', { id })` on a task with `recurrenceRule: 'FREQ=DAILY'` returns both `completed` and `next` tasks.
+- [x] `invoke('create_task', { listId, title: 'Buy milk', priority: 2 })` returns a task with all fields.
+- [x] `invoke('get_tasks_by_list', { listId, includeCompleted: false })` excludes completed tasks.
+- [x] Creating a subtask of a subtask returns an error.
+- [x] `invoke('complete_recurring_task', { id })` on a task with `recurrenceRule: 'FREQ=DAILY'` returns both `completed` and `next` tasks.
 
 ---
 
@@ -561,9 +561,9 @@ blockedBy: [15]
 3. Register all commands.
 
 **DONE WHEN**
-- [ ] `invoke('create_tag', { name: 'urgent', color: '#EF4444' })` returns a tag with `id`.
-- [ ] `invoke('add_tag_to_task', { taskId, tagId })` succeeds; calling again does not error (idempotent).
-- [ ] After deleting a tag, `invoke('get_tasks_by_list', ...)` no longer includes that tag in any task's `tags` array.
+- [x] `invoke('create_tag', { name: 'urgent', color: '#EF4444' })` returns a tag with `id`.
+- [x] `invoke('add_tag_to_task', { taskId, tagId })` succeeds; calling again does not error (idempotent).
+- [x] After deleting a tag, `invoke('get_tasks_by_list', ...)` no longer includes that tag in any task's `tags` array.
 
 ---
 
