@@ -17,7 +17,10 @@ import (
 
 	"github.com/gongahkia/tickclone-server/internal/app"
 	"github.com/gongahkia/tickclone-server/internal/database"
+	"github.com/gongahkia/tickclone-server/internal/handlers"
 	authmw "github.com/gongahkia/tickclone-server/internal/middleware"
+	"github.com/gongahkia/tickclone-server/internal/repository"
+	"github.com/gongahkia/tickclone-server/internal/services"
 )
 
 func getEnv(key, fallback string) string {
@@ -53,53 +56,19 @@ func ensureDefaultLocalUser(ctx context.Context, pool *pgxpool.Pool) error {
 	return err
 }
 
-func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	slog.SetDefault(logger)
-
-	cfg := loadConfig()
-
-	// Run migrations
-	if cfg.DatabaseURL != "" {
-		migrationsPath := getEnv("MIGRATIONS_PATH", "migrations")
-		if err := database.RunMigrations(cfg.DatabaseURL, migrationsPath); err != nil {
-			slog.Error("failed to run migrations", "error", err)
-			os.Exit(1)
-		}
-	}
-
-	// Create DB pool
-	ctx := context.Background()
-	var application *app.App
-	if cfg.DatabaseURL != "" {
-		pool, err := database.NewPool(ctx, cfg.DatabaseURL)
-		if err != nil {
-			slog.Error("failed to connect to database", "error", err)
-			os.Exit(1)
-		}
-		defer pool.Close()
-		application = &app.App{DB: pool, Log: logger, Config: cfg}
-	} else {
-		slog.Warn("DATABASE_URL not set, running without database")
-		application = &app.App{Log: logger, Config: cfg}
-	}
-	// In local-first mode, ensure the default user exists on boot.
-	if !cfg.AuthRequired && application.DB != nil {
-		if err := ensureDefaultLocalUser(ctx, application.DB); err != nil {
-			slog.Error("failed to create default local user", "error", err)
-			os.Exit(1)
-		}
-		slog.Info("local-first mode enabled, default user ensured", "email", "local@localhost")
-	}
-
+func newServer(application *app.App) *echo.Echo {
 	e := echo.New()
 	e.HideBanner = true
 
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: strings.Split(cfg.CORSOrigins, ","),
+		AllowOrigins: strings.Split(application.Config.CORSOrigins, ","),
 	}))
-	e.Use(authmw.AuthMiddleware(cfg.MagicLinkSecret, application.DB, cfg.AuthRequired))
+	e.Use(authmw.AuthMiddleware(
+		application.Config.MagicLinkSecret,
+		application.DB,
+		application.Config.AuthRequired,
+	))
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			start := time.Now()
@@ -120,6 +89,68 @@ func main() {
 			"time":   time.Now().UTC().Format(time.RFC3339),
 		})
 	})
+
+	api := e.Group("/api/v1")
+
+	authHandler := &handlers.AuthHandler{
+		App:          application,
+		AuthService:  &services.AuthService{},
+		EmailService: &services.EmailService{},
+	}
+	authHandler.RegisterRoutes(api)
+
+	handlers.NewListHandler(api, application)
+
+	taskHandler := handlers.NewTaskHandler(application.DB, repository.NewTaskRepository())
+	taskHandler.RegisterTaskRoutes(api)
+
+	handlers.NewTagHandler(api, application.DB)
+
+	syncHandler := handlers.NewSyncHandler(application.DB)
+	syncHandler.RegisterSyncRoutes(api)
+
+	return e
+}
+
+func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	slog.SetDefault(logger)
+
+	cfg := loadConfig()
+
+	if cfg.DatabaseURL == "" {
+		slog.Error("DATABASE_URL is required")
+		os.Exit(1)
+	}
+
+	// Run migrations
+	migrationsPath := getEnv("MIGRATIONS_PATH", "migrations")
+	if err := database.RunMigrations(cfg.DatabaseURL, migrationsPath); err != nil {
+		slog.Error("failed to run migrations", "error", err)
+		os.Exit(1)
+	}
+
+	// Create DB pool
+	ctx := context.Background()
+	pool, err := database.NewPool(ctx, cfg.DatabaseURL)
+	if err != nil {
+		slog.Error("failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	application := &app.App{DB: pool, Log: logger, Config: cfg}
+
+	// In local-first mode, ensure the default user exists on boot.
+	if !cfg.AuthRequired {
+		if err := ensureDefaultLocalUser(ctx, application.DB); err != nil {
+			slog.Error("failed to create default local user", "error", err)
+			os.Exit(1)
+		}
+		slog.Info("local-first mode enabled, default user ensured", "email", "local@localhost")
+	}
+
+	e := newServer(application)
 
 	sigCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
