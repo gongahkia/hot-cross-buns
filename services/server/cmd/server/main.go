@@ -13,31 +13,10 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+
+	"github.com/gongahkia/tickclone-server/internal/app"
+	"github.com/gongahkia/tickclone-server/internal/database"
 )
-
-type Config struct {
-	Port            string
-	DatabaseURL     string
-	MagicLinkSecret string
-	SMTPHost        string
-	SMTPPort        string
-	SMTPFrom        string
-	CORSOrigins     string
-	AuthRequired    bool
-}
-
-func loadConfig() *Config {
-	return &Config{
-		Port:            getEnv("PORT", "8080"),
-		DatabaseURL:     getEnv("DATABASE_URL", ""),
-		MagicLinkSecret: getEnv("MAGIC_LINK_SECRET", ""),
-		SMTPHost:        getEnv("SMTP_HOST", ""),
-		SMTPPort:        getEnv("SMTP_PORT", "587"),
-		SMTPFrom:        getEnv("SMTP_FROM", ""),
-		CORSOrigins:     getEnv("CORS_ORIGINS", "*"),
-		AuthRequired:    getEnv("AUTH_REQUIRED", "false") == "true",
-	}
-}
 
 func getEnv(key, fallback string) string {
 	if val, ok := os.LookupEnv(key); ok {
@@ -46,11 +25,52 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
+func loadConfig() *app.Config {
+	return &app.Config{
+		Port:            getEnv("PORT", "8080"),
+		DatabaseURL:     getEnv("DATABASE_URL", ""),
+		MagicLinkSecret: getEnv("MAGIC_LINK_SECRET", ""),
+		SMTPHost:        getEnv("SMTP_HOST", ""),
+		SMTPPort:        getEnv("SMTP_PORT", "587"),
+		SMTPFrom:        getEnv("SMTP_FROM", ""),
+		SMTPUser:        getEnv("SMTP_USER", ""),
+		SMTPPass:        getEnv("SMTP_PASS", ""),
+		CORSOrigins:     getEnv("CORS_ORIGINS", "*"),
+		AuthRequired:    getEnv("AUTH_REQUIRED", "false") == "true",
+	}
+}
+
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
 
 	cfg := loadConfig()
+
+	// Run migrations
+	if cfg.DatabaseURL != "" {
+		migrationsPath := getEnv("MIGRATIONS_PATH", "migrations")
+		if err := database.RunMigrations(cfg.DatabaseURL, migrationsPath); err != nil {
+			slog.Error("failed to run migrations", "error", err)
+			os.Exit(1)
+		}
+	}
+
+	// Create DB pool
+	ctx := context.Background()
+	var application *app.App
+	if cfg.DatabaseURL != "" {
+		pool, err := database.NewPool(ctx, cfg.DatabaseURL)
+		if err != nil {
+			slog.Error("failed to connect to database", "error", err)
+			os.Exit(1)
+		}
+		defer pool.Close()
+		application = &app.App{DB: pool, Log: logger, Config: cfg}
+	} else {
+		slog.Warn("DATABASE_URL not set, running without database")
+		application = &app.App{Log: logger, Config: cfg}
+	}
+	_ = application
 
 	e := echo.New()
 	e.HideBanner = true
@@ -80,7 +100,7 @@ func main() {
 		})
 	})
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	sigCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	go func() {
@@ -92,7 +112,7 @@ func main() {
 		}
 	}()
 
-	<-ctx.Done()
+	<-sigCtx.Done()
 	slog.Info("shutting down server")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
