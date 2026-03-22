@@ -82,6 +82,15 @@
 
     <button
       class="nav-item"
+      class:active={$currentView === 'week'}
+      onclick={() => selectView('week')}
+    >
+      <span class="nav-icon">{@html '&#128198;'}</span>
+      <span class="nav-label">Week</span>
+    </button>
+
+    <button
+      class="nav-item"
       class:active={$currentView === 'calendar'}
       onclick={() => selectView('calendar')}
     >

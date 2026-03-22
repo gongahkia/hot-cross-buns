@@ -5,6 +5,7 @@
   import TaskDetail from '$lib/components/TaskDetail.svelte';
   import TodayView from '$lib/components/TodayView.svelte';
   import CalendarView from '$lib/components/CalendarView.svelte';
+  import WeekView from '$lib/components/WeekView.svelte';
   import ShortcutsModal from '$lib/components/ShortcutsModal.svelte';
   import SearchBar from '$lib/components/SearchBar.svelte';
   import { selectedListId, selectedTaskId, currentView } from '$lib/stores/ui';
@@ -82,6 +83,8 @@
     <div class="main-area">
       {#if activeView === 'calendar'}
         <CalendarView />
+      {:else if activeView === 'week'}
+        <WeekView />
       {:else if activeView === 'today'}
         <TodayView />
       {:else if hasSelectedList}
