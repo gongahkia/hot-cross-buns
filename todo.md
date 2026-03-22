@@ -691,10 +691,10 @@ blockedBy: [17, 21]
 4. Add "Today" as a navigation item in `Sidebar.svelte` above the Inbox, with a calendar-day icon. Clicking it sets a `$currentView` store to `'today'`. `App.svelte` conditionally renders `TodayView` vs `TaskList` based on `$currentView`.
 
 **DONE WHEN**
-- [ ] Clicking "Today" in sidebar shows only tasks with `due_date` = today, grouped by list.
-- [ ] Overdue tasks (due before today, still open) appear in a red "Overdue" section.
-- [ ] Completing a task from the Today view removes it from the view immediately.
-- [ ] Tasks with no due date do not appear in the Today view.
+- [x] Clicking "Today" in sidebar shows only tasks with `due_date` = today, grouped by list.
+- [x] Overdue tasks (due before today, still open) appear in a red "Overdue" section.
+- [x] Completing a task from the Today view removes it from the view immediately.
+- [x] Tasks with no due date do not appear in the Today view.
 
 ---
 
@@ -718,11 +718,11 @@ blockedBy: [17, 21]
 4. Add "Calendar" navigation item in sidebar with a calendar icon.
 
 **DONE WHEN**
-- [ ] The calendar view renders a correct month grid for the current month (correct number of days, correct starting weekday).
-- [ ] Tasks with due dates appear on the correct day cells with priority coloring.
-- [ ] Navigating to the next month fetches and renders tasks for that month.
-- [ ] Clicking a day shows all tasks for that day; clicking "+N more" expands the list.
-- [ ] Quick-adding a task on a day cell creates a task with that day as `due_date`.
+- [x] The calendar view renders a correct month grid for the current month (correct number of days, correct starting weekday).
+- [x] Tasks with due dates appear on the correct day cells with priority coloring.
+- [x] Navigating to the next month fetches and renders tasks for that month.
+- [x] Clicking a day shows all tasks for that day; clicking "+N more" expands the list.
+- [x] Quick-adding a task on a day cell creates a task with that day as `due_date`.
 
 ---
 
@@ -752,10 +752,10 @@ blockedBy: [21]
    - If no date detected, create the task with no due date.
 
 **DONE WHEN**
-- [ ] Typing "Buy milk tomorrow" in quick-add shows a "Tomorrow" badge and creates a task due tomorrow with title "Buy milk".
-- [ ] Typing "Standup meeting every weekday 9am" creates a task with `recurrenceRule: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR'` and due time 09:00.
-- [ ] Typing "something random" with no date keywords creates a task with no due date.
-- [ ] Typing "Dec 25" correctly parses to the next December 25th.
+- [x] Typing "Buy milk tomorrow" in quick-add shows a "Tomorrow" badge and creates a task due tomorrow with title "Buy milk".
+- [x] Typing "Standup meeting every weekday 9am" creates a task with `recurrenceRule: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR'` and due time 09:00.
+- [x] Typing "something random" with no date keywords creates a task with no due date.
+- [x] Typing "Dec 25" correctly parses to the next December 25th.
 
 ---
 
@@ -780,11 +780,11 @@ blockedBy: [21, 22]
 2. Add a "Keyboard Shortcuts" modal (`ShortcutsModal.svelte`) toggled by `?` key, displaying all shortcuts in a two-column grid.
 
 **DONE WHEN**
-- [ ] Pressing `n` when no input is focused moves focus to the quick-add input.
-- [ ] Pressing `3` when a task is selected (not editing) sets its priority to high; the UI updates immediately.
-- [ ] Pressing `Escape` closes an open task detail panel.
-- [ ] Pressing `?` opens the shortcuts modal; pressing `?` or `Escape` again closes it.
-- [ ] Shortcuts do NOT fire when the user is typing in an input or textarea.
+- [x] Pressing `n` when no input is focused moves focus to the quick-add input.
+- [x] Pressing `3` when a task is selected (not editing) sets its priority to high; the UI updates immediately.
+- [x] Pressing `Escape` closes an open task detail panel.
+- [x] Pressing `?` opens the shortcuts modal; pressing `?` or `Escape` again closes it.
+- [x] Shortcuts do NOT fire when the user is typing in an input or textarea.
 
 ---
 
@@ -806,9 +806,9 @@ blockedBy: [17]
 4. Create Tauri command `preview_recurrence(rule: String, start_date: String, count: u32) -> Result<Vec<String>, String>` — returns upcoming occurrence dates for UI preview.
 
 **DONE WHEN**
-- [ ] `expand_rrule("FREQ=WEEKLY;BYDAY=MO,WE,FR", "2026-03-12", "2026-03-12", 5)` returns 5 dates all on Mon/Wed/Fri.
-- [ ] `next_occurrence("FREQ=MONTHLY;INTERVAL=1", "2026-03-01", "2026-03-15")` returns "2026-04-01".
-- [ ] `invoke('preview_recurrence', { rule: 'FREQ=DAILY', startDate: '2026-03-12', count: 7 })` returns 7 consecutive dates.
+- [x] `expand_rrule("FREQ=WEEKLY;BYDAY=MO,WE,FR", "2026-03-12", "2026-03-12", 5)` returns 5 dates all on Mon/Wed/Fri.
+- [x] `next_occurrence("FREQ=MONTHLY;INTERVAL=1", "2026-03-01", "2026-03-15")` returns "2026-04-01".
+- [x] `invoke('preview_recurrence', { rule: 'FREQ=DAILY', startDate: '2026-03-12', count: 7 })` returns 7 consecutive dates.
 
 ---
 
