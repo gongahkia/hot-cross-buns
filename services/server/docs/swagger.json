@@ -1,0 +1,1246 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "TickClone Sync Server API",
+    "description": "REST API for the TickClone sync server. All endpoints except /health and /api/v1/auth/* require a Bearer JWT token when AUTH_REQUIRED=true.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "TickClone"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local development"
+    }
+  ],
+  "tags": [
+    { "name": "health", "description": "Server health check" },
+    { "name": "auth", "description": "Passwordless magic-link authentication" },
+    { "name": "lists", "description": "Task list CRUD" },
+    { "name": "tasks", "description": "Task CRUD, move, and complete" },
+    { "name": "tags", "description": "Tag CRUD and task-tag associations" },
+    { "name": "sync", "description": "Per-field LWW sync protocol" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "HS256 JWT with sub=userID, exp=30 days. Not required when AUTH_REQUIRED=false."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "example": "VALIDATION_ERROR"
+              },
+              "message": {
+                "type": "string",
+                "example": "One or more fields are invalid."
+              },
+              "details": {
+                "type": "array",
+                "items": { "type": "string" },
+                "example": []
+              }
+            },
+            "required": ["code", "message", "details"]
+          }
+        },
+        "required": ["error"]
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "example": "ok" },
+          "time": { "type": "string", "format": "date-time", "example": "2026-03-22T14:30:00Z" }
+        },
+        "required": ["status", "time"]
+      },
+      "MagicLinkRequest": {
+        "type": "object",
+        "properties": {
+          "email": { "type": "string", "format": "email", "example": "user@example.com" }
+        },
+        "required": ["email"]
+      },
+      "MagicLinkResponse": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string", "example": "If that email is registered, a link has been sent." }
+        },
+        "required": ["message"]
+      },
+      "VerifyRequest": {
+        "type": "object",
+        "properties": {
+          "token": { "type": "string", "example": "base64url-encoded-token" }
+        },
+        "required": ["token"]
+      },
+      "VerifyResponse": {
+        "type": "object",
+        "properties": {
+          "token": { "type": "string", "example": "eyJhbGciOiJIUzI1NiIs..." },
+          "expiresAt": { "type": "string", "format": "date-time", "example": "2026-04-21T14:30:00Z" }
+        },
+        "required": ["token", "expiresAt"]
+      },
+      "List": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid", "example": "019513a4-7e2b-7000-8000-000000000001" },
+          "userId": { "type": "string", "format": "uuid" },
+          "name": { "type": "string", "example": "Work" },
+          "color": { "type": "string", "nullable": true, "example": "#89b4fa" },
+          "sortOrder": { "type": "integer", "example": 0 },
+          "isInbox": { "type": "boolean", "example": false },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "deletedAt": { "type": "string", "format": "date-time", "nullable": true }
+        },
+        "required": ["id", "userId", "name", "sortOrder", "isInbox", "createdAt", "updatedAt"]
+      },
+      "CreateListRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 255, "example": "Work" },
+          "color": { "type": "string", "nullable": true, "example": "#89b4fa" }
+        },
+        "required": ["name"]
+      },
+      "UpdateListRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "color": { "type": "string", "nullable": true },
+          "sortOrder": { "type": "integer" }
+        }
+      },
+      "Tag": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "userId": { "type": "string", "format": "uuid" },
+          "name": { "type": "string", "example": "urgent" },
+          "color": { "type": "string", "nullable": true, "example": "#f38ba8" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "userId", "name", "createdAt"]
+      },
+      "CreateTagRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 255, "example": "urgent" },
+          "color": { "type": "string", "nullable": true, "example": "#f38ba8" }
+        },
+        "required": ["name"]
+      },
+      "UpdateTagRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "color": { "type": "string", "nullable": true }
+        }
+      },
+      "Task": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "userId": { "type": "string", "format": "uuid" },
+          "listId": { "type": "string", "format": "uuid" },
+          "parentTaskId": { "type": "string", "format": "uuid", "nullable": true },
+          "title": { "type": "string", "example": "Buy groceries" },
+          "content": { "type": "string", "nullable": true },
+          "priority": { "type": "integer", "minimum": 0, "maximum": 3, "description": "0=none, 1=low, 2=medium, 3=high" },
+          "status": { "type": "integer", "minimum": 0, "maximum": 1, "description": "0=open, 1=completed" },
+          "dueDate": { "type": "string", "format": "date-time", "nullable": true },
+          "dueTimezone": { "type": "string", "nullable": true, "example": "Asia/Singapore" },
+          "recurrenceRule": { "type": "string", "nullable": true, "description": "RFC 5545 RRULE string" },
+          "sortOrder": { "type": "integer" },
+          "completedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "deletedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "subtasks": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Task" }
+          },
+          "tags": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Tag" }
+          }
+        },
+        "required": ["id", "userId", "listId", "title", "priority", "status", "sortOrder", "createdAt", "updatedAt"]
+      },
+      "CreateTaskRequest": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string", "minLength": 1, "maxLength": 500, "example": "Buy groceries" },
+          "content": { "type": "string", "nullable": true, "maxLength": 10000 },
+          "priority": { "type": "integer", "minimum": 0, "maximum": 3 },
+          "dueDate": { "type": "string", "format": "date-time", "nullable": true },
+          "dueTimezone": { "type": "string", "nullable": true },
+          "parentTaskId": { "type": "string", "format": "uuid", "nullable": true },
+          "recurrenceRule": { "type": "string", "nullable": true }
+        },
+        "required": ["title"]
+      },
+      "UpdateTaskRequest": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "content": { "type": "string", "nullable": true },
+          "listId": { "type": "string", "format": "uuid" },
+          "parentTaskId": { "type": "string", "format": "uuid", "nullable": true },
+          "priority": { "type": "integer", "minimum": 0, "maximum": 3 },
+          "status": { "type": "integer", "minimum": 0, "maximum": 1 },
+          "dueDate": { "type": "string", "format": "date-time", "nullable": true },
+          "dueTimezone": { "type": "string", "nullable": true },
+          "recurrenceRule": { "type": "string", "nullable": true },
+          "sortOrder": { "type": "integer" }
+        }
+      },
+      "MoveTaskRequest": {
+        "type": "object",
+        "properties": {
+          "listId": { "type": "string", "format": "uuid" },
+          "sortOrder": { "type": "integer" }
+        },
+        "required": ["listId"]
+      },
+      "CompleteTaskResponse": {
+        "type": "object",
+        "properties": {
+          "completed": { "$ref": "#/components/schemas/Task" },
+          "next": {
+            "nullable": true,
+            "allOf": [{ "$ref": "#/components/schemas/Task" }],
+            "description": "Next occurrence if the task is recurring, null otherwise."
+          }
+        },
+        "required": ["completed", "next"]
+      },
+      "ChangeRecord": {
+        "type": "object",
+        "properties": {
+          "entityType": { "type": "string", "enum": ["list", "task", "tag"], "example": "task" },
+          "entityId": { "type": "string", "format": "uuid" },
+          "fieldName": { "type": "string", "example": "title" },
+          "newValue": { "description": "Raw JSON value (string, number, boolean, or null)" },
+          "timestamp": { "type": "string", "format": "date-time" }
+        },
+        "required": ["entityType", "entityId", "fieldName", "newValue", "timestamp"]
+      },
+      "SyncPushRequest": {
+        "type": "object",
+        "properties": {
+          "deviceId": { "type": "string", "example": "device-abc-123" },
+          "batchId": { "type": "string", "format": "uuid" },
+          "changes": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ChangeRecord" },
+            "minItems": 1
+          }
+        },
+        "required": ["deviceId", "batchId", "changes"]
+      },
+      "SyncPushResponse": {
+        "type": "object",
+        "properties": {
+          "batchId": { "type": "string", "format": "uuid" },
+          "accepted": { "type": "integer", "example": 2 },
+          "conflicts": { "type": "integer", "example": 0 }
+        },
+        "required": ["batchId", "accepted", "conflicts"]
+      },
+      "SyncPullRequest": {
+        "type": "object",
+        "properties": {
+          "deviceId": { "type": "string", "example": "device-xyz-456" },
+          "lastSyncAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["deviceId", "lastSyncAt"]
+      },
+      "SyncPullResponse": {
+        "type": "object",
+        "properties": {
+          "changes": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ChangeRecord" }
+          },
+          "serverTime": { "type": "string", "format": "date-time" }
+        },
+        "required": ["changes", "serverTime"]
+      }
+    }
+  },
+  "security": [
+    { "BearerAuth": [] }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["health"],
+        "summary": "Health check",
+        "description": "Returns server status and current UTC time. No authentication required.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Server is healthy.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/magic-link": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Request a magic link",
+        "description": "Sends a magic-link email to the provided address. Always returns the same response to prevent email enumeration.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/MagicLinkRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Request accepted (regardless of whether the email exists).",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MagicLinkResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/verify": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Verify a magic-link token",
+        "description": "Validates the magic-link token and returns a JWT session token valid for 30 days.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/VerifyRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token verified, JWT issued.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VerifyResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or malformed token.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or expired magic-link token.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/lists": {
+      "post": {
+        "tags": ["lists"],
+        "summary": "Create a list",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateListRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "List created.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/List" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["lists"],
+        "summary": "Get all lists",
+        "description": "Returns all lists for the authenticated user, ordered by sort_order.",
+        "responses": {
+          "200": {
+            "description": "Array of lists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/List" }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/lists/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "format": "uuid" },
+          "description": "List UUID"
+        }
+      ],
+      "get": {
+        "tags": ["lists"],
+        "summary": "Get a list by ID",
+        "responses": {
+          "200": {
+            "description": "List found.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/List" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid ID format.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "List not found.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["lists"],
+        "summary": "Update a list",
+        "description": "Partial update. Only include fields to change.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateListRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "List updated.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/List" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "List not found.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["lists"],
+        "summary": "Delete a list (soft delete)",
+        "description": "Soft-deletes the list. Returns 409 if the list is the Inbox.",
+        "responses": {
+          "204": {
+            "description": "List deleted."
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "List not found.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "Cannot delete the Inbox list.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/lists/{listId}/tasks": {
+      "parameters": [
+        {
+          "name": "listId",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "format": "uuid" },
+          "description": "Parent list UUID"
+        }
+      ],
+      "post": {
+        "tags": ["tasks"],
+        "summary": "Create a task",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateTaskRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Task created.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Task" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error or nesting depth exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Parent task not found (when parentTaskId is provided).",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["tasks"],
+        "summary": "Get tasks by list",
+        "description": "Returns tasks for a list with nested subtasks and tags.",
+        "parameters": [
+          {
+            "name": "includeCompleted",
+            "in": "query",
+            "schema": { "type": "boolean", "default": false },
+            "description": "Include completed tasks in the response."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of tasks.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Task" }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid list ID.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "format": "uuid" },
+          "description": "Task UUID"
+        }
+      ],
+      "get": {
+        "tags": ["tasks"],
+        "summary": "Get a task by ID",
+        "responses": {
+          "200": {
+            "description": "Task found.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Task" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid task ID.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["tasks"],
+        "summary": "Update a task",
+        "description": "Partial update. Only include fields to change.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateTaskRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task updated.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Task" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["tasks"],
+        "summary": "Delete a task (soft delete)",
+        "responses": {
+          "204": {
+            "description": "Task deleted."
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/move": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "format": "uuid" },
+          "description": "Task UUID"
+        }
+      ],
+      "post": {
+        "tags": ["tasks"],
+        "summary": "Move a task to another list",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/MoveTaskRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task moved. Returns the full updated task.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Task" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error (missing listId).",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/complete": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "format": "uuid" },
+          "description": "Task UUID"
+        }
+      ],
+      "post": {
+        "tags": ["tasks"],
+        "summary": "Complete a task",
+        "description": "Marks the task as completed. If the task has a recurrence rule, creates the next occurrence and returns both.",
+        "responses": {
+          "200": {
+            "description": "Task completed. next is non-null for recurring tasks.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CompleteTaskResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tags": {
+      "post": {
+        "tags": ["tags"],
+        "summary": "Create a tag",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateTagRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tag created.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Tag" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["tags"],
+        "summary": "Get all tags",
+        "description": "Returns all tags for the authenticated user.",
+        "responses": {
+          "200": {
+            "description": "Array of tags.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Tag" }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tags/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "format": "uuid" },
+          "description": "Tag UUID"
+        }
+      ],
+      "patch": {
+        "tags": ["tags"],
+        "summary": "Update a tag",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateTagRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tag updated.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Tag" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["tags"],
+        "summary": "Delete a tag",
+        "description": "Permanently deletes the tag and removes all task associations.",
+        "responses": {
+          "204": {
+            "description": "Tag deleted."
+          },
+          "400": {
+            "description": "Invalid tag ID.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tags/{id}/tasks": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "format": "uuid" },
+          "description": "Tag UUID"
+        }
+      ],
+      "get": {
+        "tags": ["tags"],
+        "summary": "Get tasks by tag",
+        "description": "Returns all tasks associated with the given tag.",
+        "responses": {
+          "200": {
+            "description": "Array of tasks.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Task" }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid tag ID.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{taskId}/tags/{tagId}": {
+      "parameters": [
+        {
+          "name": "taskId",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "format": "uuid" },
+          "description": "Task UUID"
+        },
+        {
+          "name": "tagId",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "format": "uuid" },
+          "description": "Tag UUID"
+        }
+      ],
+      "post": {
+        "tags": ["tags"],
+        "summary": "Add a tag to a task",
+        "description": "Associates the tag with the task. Idempotent.",
+        "responses": {
+          "204": {
+            "description": "Tag added to task."
+          },
+          "400": {
+            "description": "Invalid ID format.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["tags"],
+        "summary": "Remove a tag from a task",
+        "description": "Removes the tag association from the task.",
+        "responses": {
+          "204": {
+            "description": "Tag removed from task."
+          },
+          "400": {
+            "description": "Invalid ID format.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sync/push": {
+      "post": {
+        "tags": ["sync"],
+        "summary": "Push local changes to the server",
+        "description": "Applies a batch of per-field change records atomically. Returns the count of accepted and conflicted changes.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SyncPushRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Push processed.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SyncPushResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error (missing deviceId, batchId, or empty changes).",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Push failed due to server error.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sync/pull": {
+      "post": {
+        "tags": ["sync"],
+        "summary": "Pull remote changes from the server",
+        "description": "Returns all changes made by other devices after the given lastSyncAt timestamp. Excludes changes from the requesting device.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SyncPullRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changes retrieved.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SyncPullResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error (missing deviceId).",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Pull failed due to server error.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
