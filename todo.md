@@ -126,9 +126,9 @@ blockedBy: [0]
 3. Add a `CHECK` constraint on `tasks.priority` ensuring value is in `(0,1,2,3)` and on `tasks.status` ensuring value is in `(0,1)`.
 
 **DONE WHEN**
-- [ ] `schema/canonical.sql` executes without error on SQLite 3.40+ and creates all 5 tables with all specified columns, types, constraints, and indexes.
-- [ ] Inserting a task with `parent_task_id` referencing a non-existent task fails with a foreign key error (PRAGMA foreign_keys=ON).
-- [ ] Inserting a task with `priority=5` fails the CHECK constraint.
+- [x] `schema/canonical.sql` executes without error on SQLite 3.40+ and creates all 5 tables with all specified columns, types, constraints, and indexes.
+- [x] Inserting a task with `parent_task_id` referencing a non-existent task fails with a foreign key error (PRAGMA foreign_keys=ON).
+- [x] Inserting a task with `priority=5` fails the CHECK constraint.
 
 ---
 
@@ -149,9 +149,9 @@ blockedBy: [0]
 2. Create `services/server/migrations/001_init.down.sql` that drops all tables in reverse dependency order.
 
 **DONE WHEN**
-- [ ] Running `001_init.up.sql` on a fresh PostgreSQL 16 database succeeds with zero errors.
-- [ ] Running `001_init.down.sql` after the up migration leaves zero tables in the `public` schema.
-- [ ] The `sync_log` table has an index on `(user_id, timestamp)`.
+- [x] Running `001_init.up.sql` on a fresh PostgreSQL 16 database succeeds with zero errors.
+- [x] Running `001_init.down.sql` after the up migration leaves zero tables in the `public` schema.
+- [x] The `sync_log` table has an index on `(user_id, timestamp)`.
 
 ---
 
@@ -168,8 +168,8 @@ blockedBy: [1]
 2. All `id` fields must be hardcoded UUIDv7 strings (use pre-generated values). All `created_at`/`updated_at` must be valid ISO8601.
 
 **DONE WHEN**
-- [ ] Executing `canonical.sql` followed by `seed.sql` on a fresh SQLite database succeeds with zero errors.
-- [ ] `SELECT COUNT(*) FROM tasks` returns 10; `SELECT COUNT(*) FROM tasks WHERE parent_task_id IS NOT NULL` returns >= 2; `SELECT COUNT(*) FROM tags` returns 4.
+- [x] Executing `canonical.sql` followed by `seed.sql` on a fresh SQLite database succeeds with zero errors.
+- [x] `SELECT COUNT(*) FROM tasks` returns 10; `SELECT COUNT(*) FROM tasks WHERE parent_task_id IS NOT NULL` returns >= 2; `SELECT COUNT(*) FROM tags` returns 4.
 
 ---
 
@@ -193,10 +193,10 @@ blockedBy: [0]
 3. Create `services/server/Dockerfile`: multi-stage build, `golang:1.22-alpine` builder, `alpine:3.19` runner, expose `$PORT`, run as non-root user.
 
 **DONE WHEN**
-- [ ] `go build ./cmd/server` compiles with zero errors.
-- [ ] Running the binary with `DATABASE_URL=postgres://...` set, then `curl localhost:8080/health` returns HTTP 200 with JSON containing `"status":"ok"`.
-- [ ] Sending `SIGTERM` to the process causes it to shut down within 10s with a log line indicating graceful shutdown.
-- [ ] `docker build -t tickclone-server ./services/server` succeeds.
+- [x] `go build ./cmd/server` compiles with zero errors.
+- [x] Running the binary with `DATABASE_URL=postgres://...` set, then `curl localhost:8080/health` returns HTTP 200 with JSON containing `"status":"ok"`.
+- [x] Sending `SIGTERM` to the process causes it to shut down within 10s with a log line indicating graceful shutdown.
+- [x] `docker build -t tickclone-server ./services/server` succeeds.
 
 ---
 
@@ -214,9 +214,9 @@ blockedBy: [2, 4]
 4. In `main.go`, call `RunMigrations` before starting Echo, then `NewPool` and store the pool in a custom Echo context or dependency struct `services/server/internal/app/app.go`: `type App struct { DB *pgxpool.Pool; Log *slog.Logger; Config *Config }`.
 
 **DONE WHEN**
-- [ ] Starting the server against an empty PostgreSQL database automatically creates all tables from `001_init.up.sql`.
-- [ ] Starting the server again (no new migrations) logs "no change" and proceeds normally.
-- [ ] The `/health` endpoint returns 200, confirming the app starts successfully after migration.
+- [x] Starting the server against an empty PostgreSQL database automatically creates all tables from `001_init.up.sql`.
+- [x] Starting the server again (no new migrations) logs "no change" and proceeds normally.
+- [x] The `/health` endpoint returns 200, confirming the app starts successfully after migration.
 
 ---
 
@@ -242,10 +242,10 @@ blockedBy: [5]
 4. Register routes in `main.go` under an `/api` group.
 
 **DONE WHEN**
-- [ ] `POST /api/lists` with `{"name":"Work"}` returns 201 with a JSON body containing `id`, `name`, `createdAt`.
-- [ ] `GET /api/lists` returns all non-deleted lists for the user.
-- [ ] `DELETE /api/lists/:id` on the inbox list returns 409; on a non-inbox list returns 204 and subsequent GET returns 404.
-- [ ] `PATCH /api/lists/:id` with `{"color":"#FF0000"}` updates only the color and returns the full updated list.
+- [x] `POST /api/lists` with `{"name":"Work"}` returns 201 with a JSON body containing `id`, `name`, `createdAt`.
+- [x] `GET /api/lists` returns all non-deleted lists for the user.
+- [x] `DELETE /api/lists/:id` on the inbox list returns 409; on a non-inbox list returns 204 and subsequent GET returns 404.
+- [x] `PATCH /api/lists/:id` with `{"color":"#FF0000"}` updates only the color and returns the full updated list.
 
 ---
 
@@ -272,11 +272,11 @@ blockedBy: [5]
    - `POST /api/tasks/:id/move` — body `{"listId":"...","sortOrder":0}`. Return 200.
 
 **DONE WHEN**
-- [ ] Creating a task under a list returns 201 with all fields populated.
-- [ ] Creating a subtask with `parentTaskId` pointing to an existing task returns 201; creating a subtask of a subtask returns 400.
-- [ ] `GET /api/lists/:listId/tasks` returns tasks with nested `subtasks` arrays and populated `tags` arrays.
-- [ ] Completing a task (`PATCH` with `status:1`) sets `completedAt` to a non-null timestamp.
-- [ ] Deleting a parent task also soft-deletes its subtasks.
+- [x] Creating a task under a list returns 201 with all fields populated.
+- [x] Creating a subtask with `parentTaskId` pointing to an existing task returns 201; creating a subtask of a subtask returns 400.
+- [x] `GET /api/lists/:listId/tasks` returns tasks with nested `subtasks` arrays and populated `tags` arrays.
+- [x] Completing a task (`PATCH` with `status:1`) sets `completedAt` to a non-null timestamp.
+- [x] Deleting a parent task also soft-deletes its subtasks.
 
 ---
 
@@ -305,10 +305,10 @@ blockedBy: [5]
    - `GET /api/tags/:id/tasks` — list tasks by tag. Return 200.
 
 **DONE WHEN**
-- [ ] Creating a tag with `{"name":"urgent","color":"#EF4444"}` returns 201 with an `id`.
-- [ ] Associating a tag with a task via `POST /api/tasks/:taskId/tags/:tagId` returns 204; re-posting the same association also returns 204 (idempotent).
-- [ ] `GET /api/tags/:id/tasks` returns only tasks associated with that tag.
-- [ ] Deleting a tag removes all `task_tags` rows for that tag (verified by querying `task_tags` directly).
+- [x] Creating a tag with `{"name":"urgent","color":"#EF4444"}` returns 201 with an `id`.
+- [x] Associating a tag with a task via `POST /api/tasks/:taskId/tags/:tagId` returns 204; re-posting the same association also returns 204 (idempotent).
+- [x] `GET /api/tags/:id/tasks` returns only tasks associated with that tag.
+- [x] Deleting a tag removes all `task_tags` rows for that tag (verified by querying `task_tags` directly).
 
 ---
 
@@ -343,10 +343,10 @@ blockedBy: [5]
    - Apply this middleware to all `/api/*` routes except `/api/auth/*` and `/health`.
 
 **DONE WHEN**
-- [ ] `POST /api/auth/magic-link` with a valid email returns 200 and inserts a row into `magic_links`.
-- [ ] `POST /api/auth/verify` with a valid, unexpired token returns 200 with a JWT; using the same token again returns 401.
-- [ ] Requests to `POST /api/lists` without a Bearer token return 401.
-- [ ] Requests to `POST /api/lists` with a valid JWT succeed (200/201) and the created list is associated with the correct `user_id`.
+- [x] `POST /api/auth/magic-link` with a valid email returns 200 and inserts a row into `magic_links`.
+- [x] `POST /api/auth/verify` with a valid, unexpired token returns 200 with a JWT; using the same token again returns 401.
+- [x] Requests to `POST /api/lists` without a Bearer token return 401.
+- [x] Requests to `POST /api/lists` with a valid JWT succeed (200/201) and the created list is associated with the correct `user_id`.
 
 ---
 
