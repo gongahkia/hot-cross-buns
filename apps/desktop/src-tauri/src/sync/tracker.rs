@@ -1,5 +1,7 @@
 use rusqlite::Connection;
 
+use super::settings;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrackedChange {
     pub entity_type: String,
@@ -29,7 +31,7 @@ pub fn record_change(
     ensure_new_value_column(conn)?;
 
     let now = iso8601_now();
-    let device_id = get_device_id();
+    let device_id = settings::get_or_create_sync_settings(conn)?.device_id;
 
     conn.execute(
         "INSERT INTO sync_meta (entity_type, entity_id, field_name, new_value, updated_at, device_id)
@@ -197,8 +199,47 @@ fn days_to_ymd(epoch_days: i64) -> (i64, u32, u32) {
     (y, m, d)
 }
 
-/// Return a stable device identifier.  For now we use a fixed placeholder;
-/// a real implementation would persist a UUID on first launch.
-fn get_device_id() -> String {
-    "desktop-device".to_string()
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db;
+    use crate::models::SyncSettings;
+    use crate::sync::settings::save_sync_settings_record;
+    use std::path::PathBuf;
+    use tempfile::TempDir;
+
+    fn setup_test_db() -> (TempDir, PathBuf) {
+        let tmp = TempDir::new().expect("failed to create temp dir");
+        let db_path = tmp.path().to_path_buf();
+        db::init_db(&db_path).expect("failed to init test db");
+        (tmp, db_path)
+    }
+
+    #[test]
+    fn test_record_change_uses_persisted_device_id() {
+        let (_tmp, db_path) = setup_test_db();
+        let conn = db::get_connection(&db_path).expect("failed to open connection");
+        let settings = SyncSettings {
+            server_url: "https://sync.example.com".to_string(),
+            auth_token: "secret-token".to_string(),
+            device_id: "desktop-123".to_string(),
+            auto_sync_enabled: true,
+            last_synced_at: None,
+        };
+
+        save_sync_settings_record(&conn, &settings).expect("save sync settings");
+        record_change(&conn, "task", "task-1", "title", "Updated title")
+            .expect("record sync change");
+
+        let device_id: String = conn
+            .query_row(
+                "SELECT device_id FROM sync_meta
+                 WHERE entity_type = 'task' AND entity_id = 'task-1' AND field_name = 'title'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read recorded device id");
+
+        assert_eq!(device_id, "desktop-123");
+    }
 }

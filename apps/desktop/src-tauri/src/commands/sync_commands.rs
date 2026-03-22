@@ -1,4 +1,3 @@
-use rusqlite::OptionalExtension;
 use serde::Serialize;
 use tauri::State;
 use uuid::Uuid;
@@ -7,6 +6,7 @@ use crate::db;
 use crate::models::SyncSettings;
 use crate::state::AppState;
 use crate::sync::client::{PullResult, PushResult, SyncChangePayload, SyncClient};
+use crate::sync::settings::{get_or_create_sync_settings, save_sync_settings_record};
 use crate::sync::tracker;
 
 /// Summary returned to the frontend after a sync round-trip.
@@ -61,71 +61,16 @@ fn json_value_to_sql_text(value: &serde_json::Value) -> String {
     }
 }
 
-fn row_to_sync_settings(row: &rusqlite::Row) -> rusqlite::Result<SyncSettings> {
-    let auto_sync_enabled: i32 = row.get(3)?;
-
-    Ok(SyncSettings {
-        server_url: row.get(0)?,
-        auth_token: row.get(1)?,
-        device_id: row.get(2)?,
-        auto_sync_enabled: auto_sync_enabled != 0,
-        last_synced_at: row.get(4)?,
-    })
-}
-
-fn default_sync_settings() -> SyncSettings {
-    SyncSettings {
-        server_url: String::new(),
-        auth_token: String::new(),
-        device_id: Uuid::now_v7().to_string(),
-        auto_sync_enabled: false,
-        last_synced_at: None,
+fn sync_client_from_settings(settings: &SyncSettings) -> SyncClient {
+    SyncClient {
+        base_url: settings.server_url.clone(),
+        auth_token: if settings.auth_token.is_empty() {
+            None
+        } else {
+            Some(settings.auth_token.clone())
+        },
+        device_id: settings.device_id.clone(),
     }
-}
-
-fn save_sync_settings_record(
-    conn: &rusqlite::Connection,
-    settings: &SyncSettings,
-) -> Result<SyncSettings, String> {
-    conn.execute(
-        "INSERT INTO sync_settings (id, server_url, auth_token, device_id, auto_sync_enabled, last_synced_at)
-         VALUES (1, ?1, ?2, ?3, ?4, ?5)
-         ON CONFLICT(id) DO UPDATE SET
-           server_url = excluded.server_url,
-           auth_token = excluded.auth_token,
-           device_id = excluded.device_id,
-           auto_sync_enabled = excluded.auto_sync_enabled,
-           last_synced_at = excluded.last_synced_at",
-        rusqlite::params![
-            &settings.server_url,
-            &settings.auth_token,
-            &settings.device_id,
-            if settings.auto_sync_enabled { 1 } else { 0 },
-            &settings.last_synced_at,
-        ],
-    )
-    .map_err(|e| format!("Failed to save sync settings: {}", e))?;
-
-    Ok(settings.clone())
-}
-
-fn get_or_create_sync_settings(conn: &rusqlite::Connection) -> Result<SyncSettings, String> {
-    let existing = conn
-        .query_row(
-            "SELECT server_url, auth_token, device_id, auto_sync_enabled, last_synced_at
-             FROM sync_settings WHERE id = 1",
-            [],
-            row_to_sync_settings,
-        )
-        .optional()
-        .map_err(|e| format!("Failed to load sync settings: {}", e))?;
-
-    if let Some(settings) = existing {
-        return Ok(settings);
-    }
-
-    let settings = default_sync_settings();
-    save_sync_settings_record(conn, &settings)
 }
 
 #[tauri::command]
@@ -183,15 +128,7 @@ pub async fn sync_now(state: State<'_, AppState>) -> Result<SyncStatus, String> 
         .map(tracked_change_to_transport)
         .collect::<Result<Vec<_>, _>>()?;
 
-    let client = SyncClient {
-        base_url: settings.server_url.clone(),
-        auth_token: if settings.auth_token.is_empty() {
-            None
-        } else {
-            Some(settings.auth_token.clone())
-        },
-        device_id: settings.device_id.clone(),
-    };
+    let client = sync_client_from_settings(&settings);
 
     // 2. Push local changes.
     let batch_id = Uuid::now_v7().to_string();
@@ -249,6 +186,7 @@ fn get_last_sync_time(conn: &rusqlite::Connection) -> String {
 
 /// Persist the current time as the last-sync timestamp.
 fn save_last_sync_time(conn: &rusqlite::Connection, device_id: &str, synced_at: &str) {
+    let _ = tracker::ensure_new_value_column(conn);
     let _ = conn.execute(
         "INSERT INTO sync_meta (entity_type, entity_id, field_name, new_value, updated_at, device_id)
          VALUES ('__sync', 'last_sync', 'timestamp', ?1, ?1, ?2)
@@ -318,43 +256,6 @@ mod tests {
     }
 
     #[test]
-    fn test_get_or_create_sync_settings_creates_default_record() {
-        let (_tmp, db_path) = setup_test_db();
-        let conn = db::get_connection(&db_path).expect("failed to open connection");
-
-        let settings = get_or_create_sync_settings(&conn).expect("failed to get sync settings");
-
-        assert_eq!(settings.server_url, "");
-        assert_eq!(settings.auth_token, "");
-        assert!(!settings.device_id.is_empty());
-        assert!(!settings.auto_sync_enabled);
-        assert!(settings.last_synced_at.is_none());
-    }
-
-    #[test]
-    fn test_save_sync_settings_persists_values() {
-        let (_tmp, db_path) = setup_test_db();
-        let conn = db::get_connection(&db_path).expect("failed to open connection");
-
-        let settings = SyncSettings {
-            server_url: "https://sync.example.com".to_string(),
-            auth_token: "secret-token".to_string(),
-            device_id: "desktop-123".to_string(),
-            auto_sync_enabled: true,
-            last_synced_at: Some("2026-03-22T00:00:00Z".to_string()),
-        };
-
-        save_sync_settings_record(&conn, &settings).expect("failed to save sync settings");
-        let loaded = get_or_create_sync_settings(&conn).expect("failed to reload sync settings");
-
-        assert_eq!(loaded.server_url, settings.server_url);
-        assert_eq!(loaded.auth_token, settings.auth_token);
-        assert_eq!(loaded.device_id, settings.device_id);
-        assert!(loaded.auto_sync_enabled);
-        assert_eq!(loaded.last_synced_at, settings.last_synced_at);
-    }
-
-    #[test]
     fn test_tracked_change_translates_to_server_transport_shape() {
         let tracked = tracker::TrackedChange {
             entity_type: "task".to_string(),
@@ -392,5 +293,49 @@ mod tests {
         assert_eq!(tracked.new_value, "3");
         assert_eq!(tracked.updated_at, "2026-03-22T14:35:00Z");
         assert_eq!(tracked.device_id, "remote");
+    }
+
+    #[test]
+    fn test_save_last_sync_time_uses_persisted_device_id() {
+        let (_tmp, db_path) = setup_test_db();
+        let conn = db::get_connection(&db_path).expect("failed to open connection");
+        let settings = SyncSettings {
+            server_url: "https://sync.example.com".to_string(),
+            auth_token: "secret-token".to_string(),
+            device_id: "desktop-123".to_string(),
+            auto_sync_enabled: true,
+            last_synced_at: None,
+        };
+
+        save_sync_settings_record(&conn, &settings).expect("save sync settings");
+        save_last_sync_time(&conn, &settings.device_id, "2026-03-22T15:00:00Z");
+
+        let device_id: String = conn
+            .query_row(
+                "SELECT device_id FROM sync_meta
+                 WHERE entity_type = '__sync' AND entity_id = 'last_sync' AND field_name = 'timestamp'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read persisted last sync device id");
+
+        assert_eq!(device_id, "desktop-123");
+    }
+
+    #[test]
+    fn test_sync_client_uses_persisted_device_id_for_push_and_pull() {
+        let settings = SyncSettings {
+            server_url: "https://sync.example.com".to_string(),
+            auth_token: "secret-token".to_string(),
+            device_id: "desktop-123".to_string(),
+            auto_sync_enabled: true,
+            last_synced_at: None,
+        };
+
+        let client = sync_client_from_settings(&settings);
+
+        assert_eq!(client.device_id, "desktop-123");
+        assert_eq!(client.base_url, "https://sync.example.com");
+        assert_eq!(client.auth_token.as_deref(), Some("secret-token"));
     }
 }

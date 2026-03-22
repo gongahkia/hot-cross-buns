@@ -115,6 +115,7 @@ impl SyncWorker {
 /// them to the remote server, then pulls any remote changes and applies them.
 async fn do_sync(db_path: &PathBuf) -> Result<(), String> {
     use crate::sync::client::SyncClient;
+    use crate::sync::settings;
     use crate::sync::tracker;
 
     let db_file = db_path.join("tickclone.db");
@@ -122,6 +123,7 @@ async fn do_sync(db_path: &PathBuf) -> Result<(), String> {
     // Open a connection for reading pending changes and applying remote changes.
     let conn = rusqlite::Connection::open(&db_file)
         .map_err(|e| format!("Failed to open database for sync: {e}"))?;
+    let sync_settings = settings::get_or_create_sync_settings(&conn)?;
 
     // Gather pending local changes (using epoch as the "since" marker for now).
     let pending = tracker::get_pending_changes(&conn, "1970-01-01T00:00:00Z");
@@ -147,9 +149,11 @@ async fn do_sync(db_path: &PathBuf) -> Result<(), String> {
     // would come from user settings / environment.
     let client = SyncClient {
         base_url: std::env::var("TICKCLONE_SYNC_URL")
-            .unwrap_or_else(|_| "http://localhost:8080".to_string()),
-        auth_token: std::env::var("TICKCLONE_SYNC_TOKEN").ok(),
-        device_id: "desktop-device".to_string(),
+            .unwrap_or_else(|_| sync_settings.server_url.clone()),
+        auth_token: std::env::var("TICKCLONE_SYNC_TOKEN")
+            .ok()
+            .or_else(|| (!sync_settings.auth_token.is_empty()).then(|| sync_settings.auth_token.clone())),
+        device_id: sync_settings.device_id.clone(),
     };
 
     // Push local changes.
