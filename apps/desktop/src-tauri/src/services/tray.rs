@@ -1,31 +1,62 @@
-/// System tray integration (stub).
+/// System tray integration for TickClone.
 ///
-/// A full implementation requires the `tauri-plugin-tray` plugin to be added
-/// to `Cargo.toml` and initialised in the Tauri builder.  This module provides
-/// the scaffolding so the rest of the codebase can reference it.
+/// Creates a tray icon with a context menu containing:
+/// - "Open TickClone" -- shows/focuses the main window
+/// - "Quick Add Task" -- emits a custom event for the frontend
+/// - Separator
+/// - "Quit" -- exits the application
 ///
-/// NOTE (Task 56 – Global shortcut): Global shortcut registration
-/// (e.g. Ctrl+Shift+T to show/hide the window) would also be wired up here
-/// using the `tauri-plugin-global-shortcut` plugin once it is added as a
-/// dependency.  The setup would look roughly like:
-///
-/// ```ignore
-/// use tauri_plugin_global_shortcut::GlobalShortcutExt;
-///
-/// app.global_shortcut().register("CmdOrCtrl+Shift+T", |_app, _shortcut, _event| {
-///     // toggle main window visibility
-/// });
-/// ```
+/// Uses the built-in Tauri 2 tray API (`tauri::tray::TrayIconBuilder`).
 
-/// Placeholder for system tray setup.
+use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem};
+use tauri::tray::TrayIconBuilder;
+use tauri::Manager;
+
+/// Set up the system tray icon and its context menu.
 ///
-/// Call this from the Tauri builder chain once `tauri-plugin-tray` is available.
-/// Currently a no-op.
-pub fn setup_tray() {
-    // TODO: Implement once tauri-plugin-tray is added.
-    //
-    // Typical steps:
-    //   1. Create a TrayIconBuilder with icon, tooltip and menu items.
-    //   2. Attach on_tray_icon_event for click / double-click.
-    //   3. Attach on_menu_event for context-menu actions (Show, Quit, etc.).
+/// Call this from the Tauri `setup` closure, passing a reference to the `App`.
+pub fn setup_tray(app: &tauri::App) -> Result<(), String> {
+    let open_item = MenuItemBuilder::with_id("open", "Open TickClone")
+        .build(app)
+        .map_err(|e| format!("Failed to build 'Open' menu item: {e}"))?;
+
+    let quick_add_item = MenuItemBuilder::with_id("quick_add", "Quick Add Task")
+        .build(app)
+        .map_err(|e| format!("Failed to build 'Quick Add' menu item: {e}"))?;
+
+    let separator = PredefinedMenuItem::separator(app)
+        .map_err(|e| format!("Failed to build separator: {e}"))?;
+
+    let quit_item = MenuItemBuilder::with_id("quit", "Quit")
+        .build(app)
+        .map_err(|e| format!("Failed to build 'Quit' menu item: {e}"))?;
+
+    let menu = MenuBuilder::new(app)
+        .items(&[&open_item, &quick_add_item, &separator, &quit_item])
+        .build()
+        .map_err(|e| format!("Failed to build tray menu: {e}"))?;
+
+    TrayIconBuilder::new()
+        .tooltip("TickClone")
+        .menu(&menu)
+        .on_menu_event(|app_handle, event| match event.id().as_ref() {
+            "open" => {
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+            "quick_add" => {
+                // Emit a custom event that the frontend can listen for.
+                let _ = app_handle.emit("tray://quick-add-task", ());
+            }
+            "quit" => {
+                app_handle.exit(0);
+            }
+            _ => {}
+        })
+        .build(app)
+        .map_err(|e| format!("Failed to build tray icon: {e}"))?;
+
+    Ok(())
 }
