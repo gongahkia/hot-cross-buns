@@ -590,9 +590,9 @@ blockedBy: [16, 17, 18]
 4. Create shared TypeScript types in `apps/desktop/src/lib/types.ts`: `List`, `Task`, `Tag`, `TaskUpdatePayload`, matching the Rust models.
 
 **DONE WHEN**
-- [ ] Calling `addList('Work')` in browser console (via dev tools) triggers IPC, and the `lists` store reactively updates.
-- [ ] Changing `selectedListId` triggers `loadTasks` and the `tasks` store updates with that list's tasks.
-- [ ] All TypeScript types compile with `tsc --noEmit` — no type errors.
+- [x] Calling `addList('Work')` in browser console (via dev tools) triggers IPC, and the `lists` store reactively updates.
+- [x] Changing `selectedListId` triggers `loadTasks` and the `tasks` store updates with that list's tasks.
+- [x] All TypeScript types compile with `tsc --noEmit` — no type errors.
 
 ---
 
@@ -613,10 +613,10 @@ blockedBy: [19]
 3. Attach to `App.svelte` in the sidebar grid area.
 
 **DONE WHEN**
-- [ ] The sidebar renders Inbox + all user lists with correct colors and task count badges.
-- [ ] Clicking a list highlights it and updates the main content area (via store).
-- [ ] Typing "Groceries" in the new-list input and pressing Enter creates a list that immediately appears in the sidebar.
-- [ ] The Tags section is collapsible (clicking the header toggles visibility).
+- [x] The sidebar renders Inbox + all user lists with correct colors and task count badges.
+- [x] Clicking a list highlights it and updates the main content area (via store).
+- [x] Typing "Groceries" in the new-list input and pressing Enter creates a list that immediately appears in the sidebar.
+- [x] The Tags section is collapsible (clicking the header toggles visibility).
 
 ---
 
@@ -637,11 +637,11 @@ blockedBy: [19, 20]
 2. Support drag-and-drop reordering (use a simple mousedown/mousemove/mouseup handler or a lightweight `sortablejs` integration). On drop, call `editTask(id, { sortOrder: newIndex })` for affected tasks.
 
 **DONE WHEN**
-- [ ] Typing "Buy milk" and pressing Enter creates a task that appears in the list immediately.
-- [ ] Clicking the checkbox on a non-recurring task strikes it through and moves it to the completed section.
-- [ ] Tasks with `priority: 3` (high) display a red left border; `priority: 0` has no colored border.
-- [ ] Subtasks appear indented under their parent and can be collapsed.
-- [ ] Overdue tasks show a red due-date badge.
+- [x] Typing "Buy milk" and pressing Enter creates a task that appears in the list immediately.
+- [x] Clicking the checkbox on a non-recurring task strikes it through and moves it to the completed section.
+- [x] Tasks with `priority: 3` (high) display a red left border; `priority: 0` has no colored border.
+- [x] Subtasks appear indented under their parent and can be collapsed.
+- [x] Overdue tasks show a red due-date badge.
 
 ---
 
@@ -665,11 +665,11 @@ blockedBy: [19, 21]
 2. Create `apps/desktop/src/lib/stores/ui.ts`: `selectedTaskId` writable store. `TaskDetail` reacts to this.
 
 **DONE WHEN**
-- [ ] Clicking a task in `TaskList` opens `TaskDetail` with all fields populated.
-- [ ] Editing the title, waiting 300ms, and refreshing the task list shows the updated title.
-- [ ] Changing priority to "high" immediately updates the priority indicator in both the detail panel and the task list row.
-- [ ] Adding a tag via the "+" dropdown adds a pill; removing it via "X" removes the pill and the association.
-- [ ] Changing the list assignment moves the task out of the current list view.
+- [x] Clicking a task in `TaskList` opens `TaskDetail` with all fields populated.
+- [x] Editing the title, waiting 300ms, and refreshing the task list shows the updated title.
+- [x] Changing priority to "high" immediately updates the priority indicator in both the detail panel and the task list row.
+- [x] Adding a tag via the "+" dropdown adds a pill; removing it via "X" removes the pill and the association.
+- [x] Changing the list assignment moves the task out of the current list view.
 
 ---
 
