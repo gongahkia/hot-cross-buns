@@ -132,6 +132,14 @@
     selectedTaskId.set(task.id);
   }
 
+  function handleDayKeydown(e: KeyboardEvent, cell: DayCell) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleDayClick(cell);
+      handleQuickAdd(e as unknown as MouseEvent, cell);
+    }
+  }
+
   async function handleQuickAdd(e: MouseEvent, cell: DayCell) {
     // Only trigger on direct click on empty area (not on a task chip)
     const target = e.target as HTMLElement;
@@ -174,12 +182,15 @@
       <div class="cal-week-row">
         {#each week as cell}
           {@const dayTasks = tasksByDate[cell.date] ?? []}
-          <button
+          <div
             class="cal-day-cell"
             class:other-month={!cell.isCurrentMonth}
             class:is-today={cell.date === today}
             class:is-selected={cell.isCurrentMonth && cell.day === $selectedDay}
+            role="button"
+            tabindex={cell.isCurrentMonth ? 0 : -1}
             onclick={(e) => { handleDayClick(cell); handleQuickAdd(e, cell); }}
+            onkeydown={(e) => handleDayKeydown(e, cell)}
           >
             <span class="cal-day-number">{cell.day}</span>
             <div class="cal-day-tasks">
@@ -197,7 +208,7 @@
                 <span class="cal-more-badge">+{dayTasks.length - MAX_VISIBLE_TASKS} more</span>
               {/if}
             </div>
-          </button>
+          </div>
         {/each}
       </div>
     {/each}

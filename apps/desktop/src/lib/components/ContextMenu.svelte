@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-
-  export interface ContextMenuItem {
+  interface ContextMenuItem {
     label: string;
     icon?: string;
     action?: () => void;
@@ -11,19 +9,21 @@
     submenu?: ContextMenuItem[];
   }
 
+  interface Props {
+    x?: number;
+    y?: number;
+    items?: ContextMenuItem[];
+    open?: boolean;
+    onclose?: () => void;
+  }
+
   let {
     x = 0,
     y = 0,
     items = [] as ContextMenuItem[],
     open = false,
     onclose = () => {},
-  }: {
-    x?: number;
-    y?: number;
-    items?: ContextMenuItem[];
-    open?: boolean;
-    onclose?: () => void;
-  } = $props();
+  }: Props = $props();
 
   let menuRef: HTMLDivElement | undefined = $state(undefined);
   let activeSubmenuIndex: number | null = $state(null);
@@ -90,29 +90,25 @@
     {#each items as item, i}
       {#if item.separator}
         <div class="separator"></div>
-      {:else}
-        <button
-          class="menu-item"
+      {:else if item.submenu && item.submenu.length > 0}
+        <div
+          class="menu-item has-submenu"
           class:danger={item.danger}
           class:disabled={item.disabled}
-          class:has-submenu={item.submenu && item.submenu.length > 0}
-          onclick={() => handleItemClick(item)}
-          onmouseenter={() => (activeSubmenuIndex = item.submenu ? i : null)}
+          onmouseenter={() => (activeSubmenuIndex = i)}
           onmouseleave={() => {
             if (activeSubmenuIndex === i) activeSubmenuIndex = null;
           }}
-          disabled={item.disabled}
           role="menuitem"
+          tabindex={item.disabled ? -1 : 0}
         >
           {#if item.icon}
             <span class="menu-icon">{item.icon}</span>
           {/if}
           <span class="menu-label">{item.label}</span>
-          {#if item.submenu && item.submenu.length > 0}
-            <span class="submenu-arrow">&#9654;</span>
-          {/if}
+          <span class="submenu-arrow">&#9654;</span>
 
-          {#if item.submenu && item.submenu.length > 0 && activeSubmenuIndex === i}
+          {#if activeSubmenuIndex === i}
             <div class="submenu" role="menu">
               {#each item.submenu as sub}
                 {#if sub.separator}
@@ -141,6 +137,20 @@
               {/each}
             </div>
           {/if}
+        </div>
+      {:else}
+        <button
+          class="menu-item"
+          class:danger={item.danger}
+          class:disabled={item.disabled}
+          onclick={() => handleItemClick(item)}
+          disabled={item.disabled}
+          role="menuitem"
+        >
+          {#if item.icon}
+            <span class="menu-icon">{item.icon}</span>
+          {/if}
+          <span class="menu-label">{item.label}</span>
         </button>
       {/if}
     {/each}

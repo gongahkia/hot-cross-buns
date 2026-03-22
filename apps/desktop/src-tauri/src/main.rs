@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    tickclone_init_lib::run()
+    tickclone_lib::run()
 }

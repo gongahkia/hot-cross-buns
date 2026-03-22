@@ -35,7 +35,7 @@ pub fn purge_old_data(conn: &Connection, days: u32) -> Result<u64, String> {
         total_deleted += count as u64;
     }
 
-    log::info!(
+    println!(
         "Purged {} rows older than {} days from soft-deleted tables",
         total_deleted,
         days

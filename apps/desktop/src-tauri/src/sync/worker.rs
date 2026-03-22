@@ -46,7 +46,7 @@ impl SyncWorker {
     /// SQLite database. It is moved into the spawned task.
     pub fn start(&mut self, db_path: PathBuf) {
         if self.running.load(Ordering::SeqCst) {
-            log::warn!("SyncWorker is already running");
+            eprintln!("SyncWorker is already running");
             return;
         }
 
@@ -55,7 +55,7 @@ impl SyncWorker {
         let interval = Duration::from_secs(self.interval_secs);
         let running = Arc::clone(&self.running);
 
-        log::info!("SyncWorker started with interval {:?}", interval);
+        println!("SyncWorker started with interval {:?}", interval);
 
         let handle = tokio::spawn(async move {
             let mut backoff = MIN_BACKOFF_SECS;
@@ -67,14 +67,14 @@ impl SyncWorker {
                         tokio::time::sleep(interval).await;
                     }
                     Err(e) => {
-                        log::error!("Sync failed: {e}");
+                        eprintln!("Sync failed: {e}");
                         tokio::time::sleep(Duration::from_secs(backoff)).await;
                         backoff = (backoff * 2).min(MAX_BACKOFF_SECS);
                     }
                 }
             }
 
-            log::info!("SyncWorker loop exited");
+            println!("SyncWorker loop exited");
         });
 
         self.task_handle = Some(handle);
@@ -89,7 +89,7 @@ impl SyncWorker {
             handle.abort();
         }
 
-        log::info!("SyncWorker stopped");
+        println!("SyncWorker stopped");
     }
 
     /// Calculate the next backoff duration using exponential backoff.
@@ -138,7 +138,7 @@ async fn do_sync(db_path: &PathBuf) -> Result<(), String> {
     // Push local changes.
     if !pending.is_empty() {
         let push_result = client.push_changes(pending).await?;
-        log::info!(
+        println!(
             "Push complete: {} accepted, {} rejected",
             push_result.accepted,
             push_result.rejected
@@ -151,10 +151,10 @@ async fn do_sync(db_path: &PathBuf) -> Result<(), String> {
     if !pull_result.changes.is_empty() {
         for change in &pull_result.changes {
             if let Err(e) = tracker::apply_remote_change(&conn, change) {
-                log::error!("Failed to apply remote change: {e}");
+                eprintln!("Failed to apply remote change: {e}");
             }
         }
-        log::info!("Applied {} remote changes", pull_result.changes.len());
+        println!("Applied {} remote changes", pull_result.changes.len());
     }
 
     Ok(())

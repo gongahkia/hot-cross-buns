@@ -5,7 +5,7 @@ use std::time::Instant;
 /// Useful for profiling startup phases (db init, window creation, etc.).
 pub fn log_startup_timing(label: &str, start: Instant) {
     let elapsed = start.elapsed();
-    log::info!("[startup] {} completed in {:.2?}", label, elapsed);
+    println!("[startup] {} completed in {:.2?}", label, elapsed);
 }
 
 #[cfg(test)]
