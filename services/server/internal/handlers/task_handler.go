@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/gongahkia/tickclone-server/internal/models"
 	"github.com/gongahkia/tickclone-server/internal/repository"
+	"github.com/gongahkia/tickclone-server/internal/services"
 )
 
 type TaskHandler struct {
@@ -29,6 +31,7 @@ func (h *TaskHandler) RegisterTaskRoutes(g *echo.Group) {
 	g.PATCH("/tasks/:id", h.UpdateTask)
 	g.DELETE("/tasks/:id", h.DeleteTask)
 	g.POST("/tasks/:id/move", h.MoveTask)
+	g.POST("/tasks/:id/complete", h.CompleteTask)
 }
 
 // CreateTask handles POST /api/v1/lists/:listId/tasks
@@ -238,6 +241,68 @@ func (h *TaskHandler) MoveTask(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, task)
+}
+
+// CompleteTask handles POST /api/v1/tasks/:id/complete
+// If the task has a recurrence rule, it marks it completed and creates the next
+// occurrence. Otherwise it simply marks the task as completed.
+func (h *TaskHandler) CompleteTask(c echo.Context) error {
+	userID, err := getUserID(c)
+	if err != nil {
+		return apiError(c, http.StatusUnauthorized, "UNAUTHORIZED", "missing or invalid user id", nil)
+	}
+
+	taskID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return apiError(c, http.StatusBadRequest, "INVALID_TASK_ID", "invalid task id format", nil)
+	}
+
+	// Fetch the task to check for recurrence rule.
+	task, err := h.Repo.GetTaskByID(c.Request().Context(), h.Pool, userID, taskID)
+	if err != nil {
+		return apiError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to fetch task", nil)
+	}
+	if task == nil {
+		return apiError(c, http.StatusNotFound, "NOT_FOUND", "task not found", nil)
+	}
+
+	type completeResponse struct {
+		Completed *models.Task `json:"completed"`
+		Next      *models.Task `json:"next"`
+	}
+
+	if task.RecurrenceRule != nil && *task.RecurrenceRule != "" {
+		completed, next, err := services.CompleteRecurringTask(c.Request().Context(), h.Pool, userID, taskID)
+		if err != nil {
+			if strings.Contains(err.Error(), "task not found") {
+				return apiError(c, http.StatusNotFound, "NOT_FOUND", "task not found", nil)
+			}
+			return apiError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to complete recurring task", nil)
+		}
+		return c.JSON(http.StatusOK, completeResponse{
+			Completed: completed,
+			Next:      next,
+		})
+	}
+
+	// Non-recurring task: just mark as completed.
+	now := time.Now().UTC()
+	fields := map[string]interface{}{
+		"status":       1,
+		"completed_at": now,
+	}
+	updated, err := h.Repo.UpdateTask(c.Request().Context(), h.Pool, userID, taskID, fields)
+	if err != nil {
+		return apiError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to complete task", nil)
+	}
+	if updated == nil {
+		return apiError(c, http.StatusNotFound, "NOT_FOUND", "task not found", nil)
+	}
+
+	return c.JSON(http.StatusOK, completeResponse{
+		Completed: updated,
+		Next:      nil,
+	})
 }
 
 // getUserID and apiError are defined in helpers.go
