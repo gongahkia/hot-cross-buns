@@ -423,10 +423,10 @@ blockedBy: [6, 7, 8]
    - `POST /api/sync/pull` — accepts `SyncPullPayload`, returns 200 with `SyncPullResponse`.
 
 **DONE WHEN**
-- [ ] Pushing a change for field `title` on a task inserts a row into `sync_log` and updates the `tasks` table.
-- [ ] Pushing an older timestamp for the same field is rejected (conflict count > 0, table value unchanged).
-- [ ] Pulling changes with `lastSyncAt` before a known change returns that change; pulling with `lastSyncAt` after it returns empty.
-- [ ] Changes from the same `device_id` are excluded from pull results.
+- [x] Pushing a change for field `title` on a task inserts a row into `sync_log` and updates the `tasks` table.
+- [x] Pushing an older timestamp for the same field is rejected (conflict count > 0, table value unchanged).
+- [x] Pulling changes with `lastSyncAt` before a known change returns that change; pulling with `lastSyncAt` after it returns empty.
+- [x] Changes from the same `device_id` are excluded from pull results.
 
 ---
 
@@ -442,9 +442,9 @@ blockedBy: [12]
 4. Update the push response to include `batchId` for client-side tracking.
 
 **DONE WHEN**
-- [ ] Pushing 3 changes where the 2nd references a non-existent entity returns 409 and none of the 3 are applied (verified by checking `sync_log` is unchanged).
-- [ ] Pushing 3 valid changes applies all 3 and all share the same `batch_id` in `sync_log`.
-- [ ] The `002_sync_batch.up.sql` migration runs cleanly on top of `001_init`.
+- [x] Pushing 3 changes where the 2nd references a non-existent entity returns 409 and none of the 3 are applied (verified by checking `sync_log` is unchanged).
+- [x] Pushing 3 valid changes applies all 3 and all share the same `batch_id` in `sync_log`.
+- [x] The `002_sync_batch.up.sql` migration runs cleanly on top of `001_init`.
 
 ---
 
@@ -491,9 +491,9 @@ blockedBy: [1, 14]
    - On app setup, resolve `app.path().app_data_dir()`, call `init_db`, store `AppState` via `app.manage()`.
 
 **DONE WHEN**
-- [ ] Launching the app creates `tickclone.db` in the platform-appropriate app data directory (e.g., `~/.local/share/com.tickclone.app/` on Linux).
-- [ ] The database contains all 5 tables from the canonical schema with correct columns.
-- [ ] Relaunching the app does not error or recreate existing tables.
+- [x] Launching the app creates `tickclone.db` in the platform-appropriate app data directory (e.g., `~/.local/share/com.tickclone.app/` on Linux).
+- [x] The database contains all 5 tables from the canonical schema with correct columns.
+- [x] Relaunching the app does not error or recreate existing tables.
 
 ---
 
