@@ -363,9 +363,9 @@ blockedBy: [9]
 3. Ensure the default local user is auto-created on first server boot (in `main.go` after migrations).
 
 **DONE WHEN**
-- [ ] With `AUTH_REQUIRED=false`, `POST /api/lists` without any auth header returns 201 and associates the list with the local default user.
-- [ ] With `AUTH_REQUIRED=true`, `POST /api/lists` without auth returns 401.
-- [ ] The default user is created exactly once (restarting the server does not create duplicates).
+- [x] With `AUTH_REQUIRED=false`, `POST /api/lists` without any auth header returns 201 and associates the list with the local default user.
+- [x] With `AUTH_REQUIRED=true`, `POST /api/lists` without auth returns 401.
+- [x] The default user is created exactly once (restarting the server does not create duplicates).
 
 ---
 
@@ -389,10 +389,10 @@ blockedBy: [7]
    - If no recurrence: just update status to 1, return 200 with `{"completed": <task>}`.
 
 **DONE WHEN**
-- [ ] `ExpandRecurrence("FREQ=DAILY;INTERVAL=1", <today>, <today>, 5)` returns exactly 5 dates, each 1 day apart starting tomorrow.
-- [ ] `POST /api/tasks/:id/complete` on a recurring task marks the original completed and creates a new task with the next due date.
-- [ ] `POST /api/tasks/:id/complete` on a non-recurring task just marks it completed with no new task created.
-- [ ] `ExpandRecurrence("FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=3", ...)` returns exactly 3 dates all falling on Mon/Wed/Fri.
+- [x] `ExpandRecurrence("FREQ=DAILY;INTERVAL=1", <today>, <today>, 5)` returns exactly 5 dates, each 1 day apart starting tomorrow.
+- [x] `POST /api/tasks/:id/complete` on a recurring task marks the original completed and creates a new task with the next due date.
+- [x] `POST /api/tasks/:id/complete` on a non-recurring task just marks it completed with no new task created.
+- [x] `ExpandRecurrence("FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=3", ...)` returns exactly 3 dates all falling on Mon/Wed/Fri.
 
 ---
 
@@ -469,9 +469,9 @@ blockedBy: [0]
 6. Verify the dev loop: `cd apps/desktop && npm run tauri dev` launches a native window on the current platform.
 
 **DONE WHEN**
-- [ ] `npm run tauri dev` compiles and opens a native window titled "TickClone" with the sidebar + content layout visible.
-- [ ] `npm run tauri build` produces a distributable binary for the current platform without errors.
-- [ ] The Svelte version in `node_modules/svelte/package.json` is 5.x.
+- [x] `npm run tauri dev` compiles and opens a native window titled "TickClone" with the sidebar + content layout visible.
+- [x] `npm run tauri build` produces a distributable binary for the current platform without errors.
+- [x] The Svelte version in `node_modules/svelte/package.json` is 5.x.
 
 ---
 
