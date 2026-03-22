@@ -42,10 +42,15 @@
     });
   }
 
-  function confirmNewList() {
+  async function confirmNewList() {
     const name = newListName.trim();
     if (name) {
-      addList(name);
+      try {
+        const created = await addList(name);
+        selectList(created.id);
+      } catch (err) {
+        console.error('Failed to create list:', err);
+      }
     }
     creatingList = false;
     newListName = '';

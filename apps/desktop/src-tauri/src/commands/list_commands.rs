@@ -1,5 +1,6 @@
 use tauri::State;
 use uuid::Uuid;
+use rusqlite::OptionalExtension;
 
 use crate::db;
 use crate::models::List;
@@ -59,6 +60,57 @@ fn row_to_list(row: &rusqlite::Row) -> rusqlite::Result<List> {
     })
 }
 
+fn next_list_sort_order(conn: &rusqlite::Connection) -> Result<i32, String> {
+    conn.query_row(
+        "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM lists WHERE deleted_at IS NULL",
+        [],
+        |row| row.get(0),
+    )
+    .map_err(|e| format!("Failed to calculate next list sort order: {}", e))
+}
+
+fn ensure_inbox_list(conn: &rusqlite::Connection) -> Result<(), String> {
+    let existing_inbox_id: Option<String> = conn
+        .query_row(
+            "SELECT id FROM lists WHERE is_inbox = 1 AND deleted_at IS NULL LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| format!("Failed to query inbox list: {}", e))?;
+
+    if existing_inbox_id.is_some() {
+        return Ok(());
+    }
+
+    let now = iso8601_now();
+    conn.execute(
+        "INSERT INTO lists (id, name, color, sort_order, is_inbox, created_at, updated_at) \
+         VALUES (?1, 'Inbox', NULL, 0, 1, ?2, ?2)",
+        rusqlite::params![Uuid::now_v7().to_string(), now],
+    )
+    .map_err(|e| format!("Failed to create inbox list: {}", e))?;
+
+    Ok(())
+}
+
+fn load_lists(conn: &rusqlite::Connection) -> Result<Vec<List>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, name, color, sort_order, is_inbox, created_at, updated_at, deleted_at \
+             FROM lists WHERE deleted_at IS NULL ORDER BY is_inbox DESC, sort_order, created_at",
+        )
+        .map_err(|e| format!("Failed to prepare statement: {}", e))?;
+
+    let rows = stmt
+        .query_map([], row_to_list)
+        .map_err(|e| format!("Failed to query lists: {}", e))?;
+
+    rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("Failed to read list row: {}", e))
+}
+
 #[tauri::command]
 pub fn create_list(
     state: State<'_, AppState>,
@@ -68,10 +120,11 @@ pub fn create_list(
     let conn = db::get_connection(&state.db_path)?;
     let id = Uuid::now_v7().to_string();
     let now = iso8601_now();
+    let sort_order = next_list_sort_order(&conn)?;
 
     conn.execute(
-        "INSERT INTO lists (id, name, color, sort_order, is_inbox, created_at, updated_at) VALUES (?1, ?2, ?3, 0, 0, ?4, ?5)",
-        rusqlite::params![id, name, color, now, now],
+        "INSERT INTO lists (id, name, color, sort_order, is_inbox, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, 0, ?5, ?5)",
+        rusqlite::params![id, name, color, sort_order, now],
     )
     .map_err(|e| format!("Failed to insert list: {}", e))?;
 
@@ -89,20 +142,8 @@ pub fn create_list(
 #[tauri::command]
 pub fn get_lists(state: State<'_, AppState>) -> Result<Vec<List>, String> {
     let conn = db::get_connection(&state.db_path)?;
-
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, name, color, sort_order, is_inbox, created_at, updated_at, deleted_at FROM lists WHERE deleted_at IS NULL ORDER BY sort_order",
-        )
-        .map_err(|e| format!("Failed to prepare statement: {}", e))?;
-
-    let lists = stmt
-        .query_map([], row_to_list)
-        .map_err(|e| format!("Failed to query lists: {}", e))?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| format!("Failed to read list row: {}", e))?;
-
-    Ok(lists)
+    ensure_inbox_list(&conn)?;
+    load_lists(&conn)
 }
 
 #[tauri::command]
@@ -252,6 +293,19 @@ mod tests {
         assert_eq!(list.color, Some("#ff0000".to_string()));
         assert!(!list.is_inbox);
         assert!(list.deleted_at.is_none());
+    }
+
+    #[test]
+    fn test_get_lists_creates_inbox_on_empty_db() {
+        let (_tmp, db_path) = setup_test_db();
+        let conn = db::get_connection(&db_path).expect("failed to open connection");
+
+        ensure_inbox_list(&conn).expect("failed to ensure inbox");
+        let lists = load_lists(&conn).expect("failed to load lists");
+
+        assert_eq!(lists.len(), 1);
+        assert_eq!(lists[0].name, "Inbox");
+        assert!(lists[0].is_inbox);
     }
 
     #[test]

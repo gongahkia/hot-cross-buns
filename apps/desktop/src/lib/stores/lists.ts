@@ -4,12 +4,26 @@ import type { List } from '$lib/types';
 
 export const lists = writable<List[]>([]);
 
+function sortLists(items: List[]): List[] {
+  return [...items].sort((a, b) => {
+    if (a.isInbox !== b.isInbox) {
+      return a.isInbox ? -1 : 1;
+    }
+    if (a.sortOrder !== b.sortOrder) {
+      return a.sortOrder - b.sortOrder;
+    }
+    return a.createdAt.localeCompare(b.createdAt);
+  });
+}
+
 /**
  * Fetch all non-deleted lists from the backend and update the store.
  */
-export async function loadLists(): Promise<void> {
+export async function loadLists(): Promise<List[]> {
   const result = await invoke<List[]>('get_lists');
-  lists.set(result);
+  const sorted = sortLists(result);
+  lists.set(sorted);
+  return sorted;
 }
 
 /**
@@ -17,7 +31,7 @@ export async function loadLists(): Promise<void> {
  */
 export async function addList(name: string, color?: string): Promise<List> {
   const created = await invoke<List>('create_list', { name, color: color ?? null });
-  lists.update((current) => [...current, created]);
+  lists.update((current) => sortLists([...current, created]));
   return created;
 }
 
@@ -35,7 +49,7 @@ export async function editList(
     sortOrder: updates.sortOrder ?? null,
   });
   lists.update((current) =>
-    current.map((list) => (list.id === id ? updated : list))
+    sortLists(current.map((list) => (list.id === id ? updated : list)))
   );
   return updated;
 }

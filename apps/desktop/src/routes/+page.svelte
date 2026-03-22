@@ -10,9 +10,14 @@
   import SearchBar from '$lib/components/SearchBar.svelte';
   import { selectedListId, selectedTaskId, currentView } from '$lib/stores/ui';
   import { editTask, removeTask } from '$lib/stores/tasks';
+  import { loadLists } from '$lib/stores/lists';
+  import { loadTags } from '$lib/stores/tags';
   import { registerShortcuts } from '$lib/services/shortcuts';
+  import type { List } from '$lib/types';
 
   let showShortcuts = $state(false);
+  let appReady = $state(false);
+  let startupError = $state<string | null>(null);
 
   let hasSelectedList = $derived.by(() => {
     let value: string | null = null;
@@ -29,6 +34,25 @@
   });
 
   onMount(() => {
+    async function bootstrapApp() {
+      try {
+        const loadedLists = await loadLists();
+        await loadTags();
+
+        const defaultList =
+          loadedLists.find((list: List) => list.isInbox) ?? loadedLists[0] ?? null;
+
+        selectedListId.set(defaultList?.id ?? null);
+        startupError = null;
+      } catch (err) {
+        console.error('Failed to bootstrap desktop data:', err);
+        startupError = 'Could not load your lists.';
+        selectedListId.set(null);
+      } finally {
+        appReady = true;
+      }
+    }
+
     const cleanup = registerShortcuts({
       focusQuickAdd() {
         const input = document.querySelector<HTMLInputElement>('.quick-add-input');
@@ -68,6 +92,8 @@
       },
     });
 
+    void bootstrapApp();
+
     return cleanup;
   });
 </script>
@@ -81,7 +107,11 @@
       <SearchBar />
     </header>
     <div class="main-area">
-      {#if activeView === 'calendar'}
+      {#if !appReady}
+        <p class="empty-state">Loading your workspace...</p>
+      {:else if startupError}
+        <p class="empty-state">{startupError}</p>
+      {:else if activeView === 'calendar'}
         <CalendarView />
       {:else if activeView === 'week'}
         <WeekView />
