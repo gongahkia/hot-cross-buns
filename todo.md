@@ -1005,10 +1005,10 @@ blockedBy: [20, 21, 22]
 4. Add theme toggle (sun/moon icon) in the sidebar footer.
 
 **DONE WHEN**
-- [ ] Clicking the theme toggle switches between dark and light themes instantly.
-- [ ] Setting "system" and changing OS dark mode preference updates the app theme.
-- [ ] Theme preference persists across app restarts.
-- [ ] All text has sufficient contrast ratio (>= 4.5:1 — WHY: WCAG 2.1 AA compliance minimum for normal text) in both themes.
+- [x] Clicking the theme toggle switches between dark and light themes instantly.
+- [x] Setting "system" and changing OS dark mode preference updates the app theme.
+- [x] Theme preference persists across app restarts.
+- [x] All text has sufficient contrast ratio (>= 4.5:1 — WHY: WCAG 2.1 AA compliance minimum for normal text) in both themes.
 
 ---
 
@@ -1030,9 +1030,9 @@ blockedBy: [17, 21]
 4. Add `EXPLAIN QUERY PLAN` checks in Rust tests for the 5 most common queries to verify they use indexes (no full table scans).
 
 **DONE WHEN**
-- [ ] After seeding 10,000 tasks, `invoke('get_tasks_by_list', ...)` for a list with 500 tasks returns in < 100ms.
-- [ ] Scrolling through a list of 500 tasks maintains 60fps (no visible stutter in dev tools performance tab).
-- [ ] All 5 critical queries use indexes (verified by `EXPLAIN QUERY PLAN` showing `USING INDEX`).
+- [x] After seeding 10,000 tasks, `invoke('get_tasks_by_list', ...)` for a list with 500 tasks returns in < 100ms.
+- [x] Scrolling through a list of 500 tasks maintains 60fps (no visible stutter in dev tools performance tab).
+- [x] All 5 critical queries use indexes (verified by `EXPLAIN QUERY PLAN` showing `USING INDEX`).
 
 ---
 
@@ -1048,9 +1048,9 @@ blockedBy: [5, 12]
 4. Create `services/server/migrations/003_indexes.up.sql`: add any missing indexes identified by slow query analysis. At minimum add `idx_sync_log_user_device` on `sync_log(user_id, device_id, timestamp)`.
 
 **DONE WHEN**
-- [ ] The connection pool is configured with min/max/idle settings (verified by log output on startup).
-- [ ] In debug mode, queries > 50ms log their `EXPLAIN ANALYZE` output.
-- [ ] The `003_indexes` migration runs cleanly.
+- [x] The connection pool is configured with min/max/idle settings (verified by log output on startup).
+- [x] In debug mode, queries > 50ms log their `EXPLAIN ANALYZE` output.
+- [x] The `003_indexes` migration runs cleanly.
 
 ---
 
@@ -1079,9 +1079,9 @@ blockedBy: [6, 7, 8, 9, 11, 12]
 3. Each test function is self-contained with its own setup and teardown.
 
 **DONE WHEN**
-- [ ] `go test ./internal/handlers/ -v` passes all test cases.
-- [ ] Test coverage for `handlers` package is >= 80% (measured by `go test -cover`) — WHY: 80% threshold catches most regressions while allowing pragmatic skipping of trivial error paths.
-- [ ] Tests can run in CI with a PostgreSQL service container.
+- [x] `go test ./internal/handlers/ -v` passes all test cases.
+- [x] Test coverage for `handlers` package is >= 80% (measured by `go test -cover`) — WHY: 80% threshold catches most regressions while allowing pragmatic skipping of trivial error paths.
+- [x] Tests can run in CI with a PostgreSQL service container.
 
 ---
 
@@ -1104,9 +1104,9 @@ blockedBy: [6, 7, 8]
 4. Use Go standard `testing` package + `httptest.NewRecorder()`.
 
 **DONE WHEN**
-- [ ] `go test ./internal/handlers/ -run Unit -v` passes all unit tests.
-- [ ] Tests run without any external dependencies (no database, no network).
-- [ ] Each handler function has at least one positive and one negative test case.
+- [x] `go test ./internal/handlers/ -run Unit -v` passes all unit tests.
+- [x] Tests run without any external dependencies (no database, no network).
+- [x] Each handler function has at least one positive and one negative test case.
 
 ---
 
@@ -1131,9 +1131,9 @@ blockedBy: [16, 17, 18, 28]
    - `test_apply_remote_older_skipped`: set local field -> apply remote change with older timestamp -> verify field unchanged.
 
 **DONE WHEN**
-- [ ] `cargo test` in `src-tauri/` passes all tests.
-- [ ] All tests use in-memory databases (no filesystem side effects).
-- [ ] Each test function tests exactly one behavior.
+- [x] `cargo test` in `src-tauri/` passes all tests.
+- [x] All tests use in-memory databases (no filesystem side effects).
+- [x] Each test function tests exactly one behavior.
 
 ---
 
@@ -1153,9 +1153,9 @@ blockedBy: [19, 20, 21, 25]
 5. Add `"test"` script to `package.json`: `"vitest run"`.
 
 **DONE WHEN**
-- [ ] `npm run test` in `apps/desktop/` passes all test files.
-- [ ] The NLP date parser passes all 10+ test cases.
-- [ ] Component tests verify that Tauri `invoke` is called with correct arguments.
+- [x] `npm run test` in `apps/desktop/` passes all test files.
+- [x] The NLP date parser passes all 10+ test cases.
+- [x] Component tests verify that Tauri `invoke` is called with correct arguments.
 
 ---
 
@@ -1188,9 +1188,9 @@ blockedBy: [12, 13, 28]
 2. Use `net/http` client to simulate two different device IDs.
 
 **DONE WHEN**
-- [ ] All three sync integration tests pass.
-- [ ] Conflict resolution correctly applies last-write-wins based on timestamps.
-- [ ] Tests clean up after themselves (no leftover data).
+- [x] All three sync integration tests pass.
+- [x] Conflict resolution correctly applies last-write-wins based on timestamps.
+- [x] Tests clean up after themselves (no leftover data).
 
 ---
 
@@ -1210,9 +1210,9 @@ blockedBy: [14]
 4. Add `"test:e2e"` script to `package.json`.
 
 **DONE WHEN**
-- [ ] `npm run test:e2e` launches the Tauri app and runs all E2E tests.
-- [ ] All 4 test cases pass on the current platform.
-- [ ] Tests are stable (no flaky failures on re-run).
+- [x] `npm run test:e2e` launches the Tauri app and runs all E2E tests.
+- [x] All 4 test cases pass on the current platform.
+- [x] Tests are stable (no flaky failures on re-run).
 
 ---
 
@@ -1265,9 +1265,9 @@ blockedBy: [36, 37, 38, 39]
 2. Ensure CI installs Tauri system dependencies for Linux (webkit2gtk, etc.).
 
 **DONE WHEN**
-- [ ] Pushing to `main` triggers both jobs (server-test, tauri-test).
-- [ ] All jobs pass on a clean checkout.
-- [ ] PR checks block merge if any job fails.
+- [x] Pushing to `main` triggers both jobs (server-test, tauri-test).
+- [x] All jobs pass on a clean checkout.
+- [x] PR checks block merge if any job fails.
 
 ---
 
@@ -1318,9 +1318,9 @@ blockedBy: [42]
 2. Outputs: DMG for macOS, AppImage for Linux, NSIS installer for Windows.
 
 **DONE WHEN**
-- [ ] Pushing a `v*` tag triggers builds on all 3 platforms (macOS, Linux, Windows).
-- [ ] Each platform produces its expected artifact (DMG, AppImage, NSIS .exe).
-- [ ] Artifacts are uploaded and downloadable from the GitHub Actions run.
+- [x] Pushing a `v*` tag triggers builds on all 3 platforms (macOS, Linux, Windows).
+- [x] Each platform produces its expected artifact (DMG, AppImage, NSIS .exe).
+- [x] Artifacts are uploaded and downloadable from the GitHub Actions run.
 
 ---
 
@@ -1355,9 +1355,9 @@ blockedBy: [42]
 3. Tag images with both the version tag and `latest`.
 
 **DONE WHEN**
-- [ ] Pushing a `v*` tag builds and pushes the server Docker image to GitHub Container Registry.
-- [ ] `docker pull ghcr.io/<repo>/server:latest` works.
-- [ ] The pushed image runs correctly (`docker run -e DATABASE_URL=... <image>` starts the server).
+- [x] Pushing a `v*` tag builds and pushes the server Docker image to GitHub Container Registry.
+- [x] `docker pull ghcr.io/<repo>/server:latest` works.
+- [x] The pushed image runs correctly (`docker run -e DATABASE_URL=... <image>` starts the server).
 
 ---
 
