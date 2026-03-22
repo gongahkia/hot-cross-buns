@@ -3,7 +3,9 @@ module github.com/gongahkia/tickclone-server
 go 1.25.0
 
 require (
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/golang-migrate/migrate/v4 v4.19.1
+	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.9.0
 	github.com/labstack/echo/v4 v4.12.0
 )
