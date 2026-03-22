@@ -11,11 +11,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
 	"github.com/gongahkia/tickclone-server/internal/app"
 	"github.com/gongahkia/tickclone-server/internal/database"
+	authmw "github.com/gongahkia/tickclone-server/internal/middleware"
 )
 
 func getEnv(key, fallback string) string {
@@ -38,6 +40,17 @@ func loadConfig() *app.Config {
 		CORSOrigins:     getEnv("CORS_ORIGINS", "*"),
 		AuthRequired:    getEnv("AUTH_REQUIRED", "false") == "true",
 	}
+}
+
+// ensureDefaultLocalUser creates the default local user (local@localhost) if
+// it does not already exist. This is called once at server boot when running
+// in local-first single-user mode (AUTH_REQUIRED=false).
+func ensureDefaultLocalUser(ctx context.Context, pool *pgxpool.Pool) error {
+	_, err := pool.Exec(ctx,
+		`INSERT INTO users (email) VALUES ($1) ON CONFLICT (email) DO NOTHING`,
+		"local@localhost",
+	)
+	return err
 }
 
 func main() {
@@ -70,7 +83,14 @@ func main() {
 		slog.Warn("DATABASE_URL not set, running without database")
 		application = &app.App{Log: logger, Config: cfg}
 	}
-	_ = application
+	// In local-first mode, ensure the default user exists on boot.
+	if !cfg.AuthRequired && application.DB != nil {
+		if err := ensureDefaultLocalUser(ctx, application.DB); err != nil {
+			slog.Error("failed to create default local user", "error", err)
+			os.Exit(1)
+		}
+		slog.Info("local-first mode enabled, default user ensured", "email", "local@localhost")
+	}
 
 	e := echo.New()
 	e.HideBanner = true
@@ -79,6 +99,7 @@ func main() {
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: strings.Split(cfg.CORSOrigins, ","),
 	}))
+	e.Use(authmw.AuthMiddleware(cfg.MagicLinkSecret, application.DB, cfg.AuthRequired))
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			start := time.Now()
