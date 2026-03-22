@@ -1392,9 +1392,9 @@ blockedBy: [0, 4, 14, 32]
 2. Keep documentation concise. Each section should be under 50 lines.
 
 **DONE WHEN**
-- [ ] README.md exists with all sections listed above.
-- [ ] A new developer can follow the quickstart and have a running app in under 10 minutes.
-- [ ] The sync protocol section explains conflict resolution clearly enough that a developer can implement a new client.
+- [x] README.md exists with all sections listed above.
+- [x] A new developer can follow the quickstart and have a running app in under 10 minutes.
+- [x] The sync protocol section explains conflict resolution clearly enough that a developer can implement a new client.
 
 ---
 
@@ -1413,10 +1413,10 @@ blockedBy: [6, 7, 8, 9, 12]
 5. Ensure the generated `swagger.json` is committed to `services/server/docs/`.
 
 **DONE WHEN**
-- [ ] Navigating to `http://localhost:8080/api/docs` shows the Swagger UI with all endpoints documented.
-- [ ] Each endpoint has request/response examples.
-- [ ] The "Try it out" feature works for unauthenticated endpoints (health, auth).
-- [ ] `services/server/docs/swagger.json` is valid OpenAPI 3.0.
+- [x] Navigating to `http://localhost:8080/api/docs` shows the Swagger UI with all endpoints documented.
+- [x] Each endpoint has request/response examples.
+- [x] The "Try it out" feature works for unauthenticated endpoints (health, auth).
+- [x] `services/server/docs/swagger.json` is valid OpenAPI 3.0.
 
 ---
 
@@ -1441,10 +1441,10 @@ blockedBy: [9, 10]
 4. Apply middleware in `main.go` with different configurations per route group.
 
 **DONE WHEN**
-- [ ] Sending 6 requests to `/api/auth/magic-link` within 1 minute returns 429 on the 6th.
-- [ ] Sync endpoints allow 60 requests per minute before throttling.
-- [ ] The `Retry-After` header is present on 429 responses.
-- [ ] Stale rate limiter entries are cleaned up (verified via log output).
+- [x] Sending 6 requests to `/api/auth/magic-link` within 1 minute returns 429 on the 6th.
+- [x] Sync endpoints allow 60 requests per minute before throttling.
+- [x] The `Retry-After` header is present on 429 responses.
+- [x] Stale rate limiter entries are cleaned up (verified via log output).
 
 ---
 
@@ -1465,10 +1465,10 @@ blockedBy: [5]
 4. Apply to all handler functions.
 
 **DONE WHEN**
-- [ ] `POST /api/lists` with `{"name":""}` returns 400 with error details mentioning "name".
-- [ ] `POST /api/lists` with `{"name":"x","color":"not-a-color"}` returns 400 mentioning "color".
-- [ ] `POST /api/lists/:listId/tasks` with `{"title":"x","priority":5}` returns 400 mentioning "priority".
-- [ ] Valid requests continue to work as before.
+- [x] `POST /api/lists` with `{"name":""}` returns 400 with error details mentioning "name".
+- [x] `POST /api/lists` with `{"name":"x","color":"not-a-color"}` returns 400 mentioning "color".
+- [x] `POST /api/lists/:listId/tasks` with `{"title":"x","priority":5}` returns 400 mentioning "priority".
+- [x] Valid requests continue to work as before.
 
 ---
 
@@ -1496,10 +1496,10 @@ blockedBy: [21, 24]
    - On drop: call `editTask(id, { dueDate: targetDate })`.
 
 **DONE WHEN**
-- [ ] Dragging a task within a list reorders it persistently (survives app restart).
-- [ ] Dragging a task from the task list to a different list in the sidebar moves it.
-- [ ] Dragging a task between calendar days updates its due date.
-- [ ] Parent tasks drag with their subtasks.
+- [x] Dragging a task within a list reorders it persistently (survives app restart).
+- [x] Dragging a task from the task list to a different list in the sidebar moves it.
+- [x] Dragging a task between calendar days updates its due date.
+- [x] Parent tasks drag with their subtasks.
 
 ---
 
@@ -1524,10 +1524,10 @@ blockedBy: [22]
    - "Delete List" (red) — soft-delete with confirmation. Disabled for Inbox.
 
 **DONE WHEN**
-- [ ] Right-clicking a task shows the context menu at the cursor position.
-- [ ] Setting priority via context menu updates the task immediately.
-- [ ] "Duplicate Task" creates a new task with the same fields and "(copy)" title.
-- [ ] Right-clicking the Inbox list shows "Delete List" as disabled/grayed out.
+- [x] Right-clicking a task shows the context menu at the cursor position.
+- [x] Setting priority via context menu updates the task immediately.
+- [x] "Duplicate Task" creates a new task with the same fields and "(copy)" title.
+- [x] Right-clicking the Inbox list shows "Delete List" as disabled/grayed out.
 
 ---
 
@@ -1548,10 +1548,10 @@ blockedBy: [21]
 3. Add "Week" navigation item in sidebar between "Today" and "Calendar".
 
 **DONE WHEN**
-- [ ] Week view shows 7 days starting from Monday of the current week.
-- [ ] Tasks appear in the correct day column based on due_date.
-- [ ] Dragging a task from one day column to another updates its due_date.
-- [ ] Navigating to next/previous week loads the correct tasks.
+- [x] Week view shows 7 days starting from Monday of the current week.
+- [x] Tasks appear in the correct day column based on due_date.
+- [x] Dragging a task from one day column to another updates its due_date.
+- [x] Navigating to next/previous week loads the correct tasks.
 
 ---
 
@@ -1571,9 +1571,9 @@ blockedBy: [20]
 3. Update sidebar list items to use the selected color for the circle indicator.
 
 **DONE WHEN**
-- [ ] Creating a new list shows a color picker with 12 options.
-- [ ] Selected color persists and displays correctly in the sidebar.
-- [ ] Changing a list's color via context menu updates the sidebar immediately.
+- [x] Creating a new list shows a color picker with 12 options.
+- [x] Selected color persists and displays correctly in the sidebar.
+- [x] Changing a list's color via context menu updates the sidebar immediately.
 
 ---
 
@@ -1596,10 +1596,10 @@ blockedBy: [17]
 5. Create `apps/desktop/src/lib/stores/notifications.ts`: track notification preferences (enable/disable, lookahead time).
 
 **DONE WHEN**
-- [ ] A task due in 10 minutes triggers a desktop notification with the task title.
-- [ ] The same task does not trigger duplicate notifications.
-- [ ] Clicking the notification focuses the app window.
-- [ ] Notifications can be disabled in settings.
+- [x] A task due in 10 minutes triggers a desktop notification with the task title.
+- [x] The same task does not trigger duplicate notifications.
+- [x] Clicking the notification focuses the app window.
+- [x] Notifications can be disabled in settings.
 
 ---
 
@@ -1619,10 +1619,10 @@ blockedBy: [53]
    - Max 50 notifications retained — WHY: keeps memory and storage bounded; older notifications lose relevance quickly in a task manager.
 
 **DONE WHEN**
-- [ ] Bell icon shows a badge count when there are unread notifications.
-- [ ] Clicking the bell shows the notification list.
-- [ ] Clicking a notification item opens the corresponding task in TaskDetail.
-- [ ] "Mark all read" clears the badge count.
+- [x] Bell icon shows a badge count when there are unread notifications.
+- [x] Clicking the bell shows the notification list.
+- [x] Clicking a notification item opens the corresponding task in TaskDetail.
+- [x] "Mark all read" clears the badge count.
 
 ---
 
@@ -1645,10 +1645,10 @@ blockedBy: [14, 21]
 3. Configure Tauri to keep running in the background when the window is closed (system tray mode).
 
 **DONE WHEN**
-- [ ] A tray icon appears in the system tray on app launch.
-- [ ] "Quick Add Task" opens a minimal floating window and creates a task on Enter.
-- [ ] "Today's Tasks" shows up to 5 due tasks with working completion checkboxes.
-- [ ] Closing the main window keeps the app running in the tray.
+- [x] A tray icon appears in the system tray on app launch.
+- [x] "Quick Add Task" opens a minimal floating window and creates a task on Enter.
+- [x] "Today's Tasks" shows up to 5 due tasks with working completion checkboxes.
+- [x] Closing the main window keeps the app running in the tray.
 
 ---
 
@@ -1666,10 +1666,10 @@ blockedBy: [55]
 4. Allow customizing the shortcut in settings.
 
 **DONE WHEN**
-- [ ] Pressing the global shortcut from any application opens the quick-add window.
-- [ ] The quick-add input is focused and ready for typing.
-- [ ] The shortcut can be changed in settings.
-- [ ] The shortcut works even when the main window is closed (tray mode).
+- [x] Pressing the global shortcut from any application opens the quick-add window.
+- [x] The quick-add input is focused and ready for typing.
+- [x] The shortcut can be changed in settings.
+- [x] The shortcut works even when the main window is closed (tray mode).
 
 ---
 
@@ -1695,10 +1695,10 @@ blockedBy: [17, 19]
 5. Wire `Ctrl+Z` (undo) and `Ctrl+Shift+Z` (redo) keyboard shortcuts.
 
 **DONE WHEN**
-- [ ] Deleting a task and pressing Ctrl+Z restores it.
-- [ ] Pressing Ctrl+Shift+Z after undo re-deletes it.
-- [ ] A toast shows what was undone/redone.
-- [ ] The undo stack is bounded at 50 actions.
+- [x] Deleting a task and pressing Ctrl+Z restores it.
+- [x] Pressing Ctrl+Shift+Z after undo re-deletes it.
+- [x] A toast shows what was undone/redone.
+- [x] The undo stack is bounded at 50 actions.
 
 ---
 
@@ -1726,10 +1726,10 @@ blockedBy: [21, 22]
 3. Create `apps/desktop/src/lib/stores/selection.ts`: `selectedTaskIds` writable store of type `Writable<Set<string>>`.
 
 **DONE WHEN**
-- [ ] Ctrl+clicking two tasks shows the floating action bar with "2 tasks selected".
-- [ ] "Set Priority -> High" on 3 selected tasks updates all 3 priorities.
-- [ ] "Delete" on selected tasks soft-deletes all of them after confirmation.
-- [ ] Shift+clicking selects a contiguous range of tasks.
+- [x] Ctrl+clicking two tasks shows the floating action bar with "2 tasks selected".
+- [x] "Set Priority -> High" on 3 selected tasks updates all 3 priorities.
+- [x] "Delete" on selected tasks soft-deletes all of them after confirmation.
+- [x] Shift+clicking selects a contiguous range of tasks.
 
 ---
 
@@ -1757,10 +1757,10 @@ blockedBy: [19, 21]
 3. Integrate into `TaskList.svelte` header area.
 
 **DONE WHEN**
-- [ ] Changing sort to "Priority" reorders tasks with high priority first.
-- [ ] Filtering by "Overdue" shows only tasks with due_date < today.
-- [ ] Combining tag filter + priority filter shows only matching tasks.
-- [ ] Active filter pills are visible and removable.
+- [x] Changing sort to "Priority" reorders tasks with high priority first.
+- [x] Filtering by "Overdue" shows only tasks with due_date < today.
+- [x] Combining tag filter + priority filter shows only matching tasks.
+- [x] Active filter pills are visible and removable.
 
 ---
 
@@ -1785,10 +1785,10 @@ blockedBy: [28, 29]
 3. Listen for the `sync:complete` event in Svelte to update the UI (sync status indicator, refresh stores if changes were pulled).
 
 **DONE WHEN**
-- [ ] With auto-sync enabled, the app syncs every 60s without user action.
-- [ ] Network failures trigger exponential backoff (verified by log output).
-- [ ] Disabling auto-sync in settings stops the worker.
-- [ ] The Svelte UI updates when remote changes are pulled.
+- [x] With auto-sync enabled, the app syncs every 60s without user action.
+- [x] Network failures trigger exponential backoff (verified by log output).
+- [x] Disabling auto-sync in settings stops the worker.
+- [x] The Svelte UI updates when remote changes are pulled.
 
 ---
 
@@ -1817,10 +1817,10 @@ blockedBy: [20, 21, 22]
 4. Screen reader testing: verify all content is announced correctly.
 
 **DONE WHEN**
-- [ ] All interactive elements have appropriate ARIA attributes.
-- [ ] The entire app is navigable via keyboard only (no mouse required).
-- [ ] Focus ring is visible on every focusable element in both themes.
-- [ ] Running axe or Lighthouse accessibility audit shows no critical or serious issues.
+- [x] All interactive elements have appropriate ARIA attributes.
+- [x] The entire app is navigable via keyboard only (no mouse required).
+- [x] Focus ring is visible on every focusable element in both themes.
+- [x] Running axe or Lighthouse accessibility audit shows no critical or serious issues.
 
 ---
 
@@ -1849,10 +1849,10 @@ blockedBy: [20, 21]
 3. Use simple SVG illustrations (inline, no external dependencies).
 
 **DONE WHEN**
-- [ ] First app launch shows the onboarding walkthrough.
-- [ ] Completing or skipping onboarding persists (does not show again).
-- [ ] Each empty state shows a helpful message and illustration.
-- [ ] Empty states disappear as soon as relevant data exists.
+- [x] First app launch shows the onboarding walkthrough.
+- [x] Completing or skipping onboarding persists (does not show again).
+- [x] Each empty state shows a helpful message and illustration.
+- [x] Empty states disappear as soon as relevant data exists.
 
 ---
 
@@ -1879,10 +1879,10 @@ blockedBy: [15, 19]
 4. Add a simple splash screen (app icon + "Loading...") for the first 500ms if data isn't ready.
 
 **DONE WHEN**
-- [ ] Cold start to interactive UI is under 2 seconds on a mid-range machine.
-- [ ] No blank white screen during startup (splash or skeleton shown).
-- [ ] Subsequent launches (warm start) are under 1 second.
-- [ ] Startup timings are logged for performance monitoring.
+- [x] Cold start to interactive UI is under 2 seconds on a mid-range machine.
+- [x] No blank white screen during startup (splash or skeleton shown).
+- [x] Subsequent launches (warm start) are under 1 second.
+- [x] Startup timings are logged for performance monitoring.
 
 ---
 
@@ -1899,10 +1899,10 @@ blockedBy: [15]
 2. Run maintenance on app startup (non-blocking, background thread).
 
 **DONE WHEN**
-- [ ] Soft-deleted tasks older than 30 days are permanently removed.
-- [ ] `ANALYZE` runs weekly and updates are tracked in settings.
-- [ ] Incremental vacuum runs when fragmentation threshold is exceeded.
-- [ ] Maintenance does not block the UI thread.
+- [x] Soft-deleted tasks older than 30 days are permanently removed.
+- [x] `ANALYZE` runs weekly and updates are tracked in settings.
+- [x] Incremental vacuum runs when fragmentation threshold is exceeded.
+- [x] Maintenance does not block the UI thread.
 
 ---
 
