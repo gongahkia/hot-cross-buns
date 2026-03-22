@@ -149,7 +149,7 @@ pub async fn sync_now(state: State<'_, AppState>) -> Result<SyncStatus, String> 
     }
 
     // 5. Persist the new sync timestamp.
-    let synced_at = iso8601_now();
+    let synced_at = resolved_sync_watermark(&pull_result);
     save_last_sync_time(&conn, &settings.device_id, &synced_at);
     save_last_synced_at(&conn, &settings, &synced_at)?;
 
@@ -195,6 +195,14 @@ fn save_last_synced_at(
     let mut updated = settings.clone();
     updated.last_synced_at = Some(synced_at.to_string());
     save_sync_settings_record(conn, &updated)
+}
+
+fn resolved_sync_watermark(pull_result: &PullResult) -> String {
+    if pull_result.server_time.trim().is_empty() {
+        iso8601_now()
+    } else {
+        pull_result.server_time.clone()
+    }
 }
 
 fn iso8601_now() -> String {
@@ -343,5 +351,30 @@ mod tests {
         assert_eq!(client.device_id, "desktop-123");
         assert_eq!(client.base_url, "https://sync.example.com");
         assert_eq!(client.auth_token.as_deref(), Some("secret-token"));
+    }
+
+    #[test]
+    fn test_resolved_sync_watermark_prefers_server_time() {
+        let pull_result = PullResult {
+            changes: Vec::new(),
+            server_time: "2026-03-22T15:10:00Z".to_string(),
+        };
+
+        assert_eq!(
+            resolved_sync_watermark(&pull_result),
+            "2026-03-22T15:10:00Z".to_string()
+        );
+    }
+
+    #[test]
+    fn test_resolved_sync_watermark_falls_back_when_server_time_missing() {
+        let pull_result = PullResult {
+            changes: Vec::new(),
+            server_time: "   ".to_string(),
+        };
+
+        let resolved = resolved_sync_watermark(&pull_result);
+        assert!(!resolved.trim().is_empty());
+        assert!(resolved.ends_with('Z'));
     }
 }
