@@ -330,6 +330,109 @@ pub fn get_task(state: State<'_, AppState>, id: String) -> Result<Task, String> 
     load_task_full(&conn, &id)
 }
 
+/// Shared helper: query top-level tasks matching a date filter, attach subtasks + tags.
+fn fetch_tasks_by_date_filter(
+    conn: &rusqlite::Connection,
+    date_filter: &str,
+) -> Result<Vec<Task>, String> {
+    let sql = format!(
+        "SELECT {} FROM tasks WHERE deleted_at IS NULL AND status = 0 \
+         AND parent_task_id IS NULL AND {} \
+         ORDER BY priority DESC, sort_order ASC",
+        TASK_COLUMNS, date_filter
+    );
+
+    let mut stmt = conn
+        .prepare(&sql)
+        .map_err(|e| format!("Failed to prepare date query: {}", e))?;
+    let top_tasks: Vec<Task> = stmt
+        .query_map([], row_to_task)
+        .map_err(|e| format!("Failed to query tasks: {}", e))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("Failed to read task row: {}", e))?;
+
+    if top_tasks.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let top_ids: Vec<String> = top_tasks.iter().map(|t| t.id.clone()).collect();
+
+    // Fetch subtasks for these top-level tasks.
+    let placeholders: Vec<String> = (1..=top_ids.len()).map(|i| format!("?{}", i)).collect();
+    let subtask_sql = format!(
+        "SELECT {} FROM tasks WHERE parent_task_id IN ({}) \
+         AND deleted_at IS NULL AND status = 0 ORDER BY sort_order",
+        TASK_COLUMNS,
+        placeholders.join(", ")
+    );
+
+    let sub_params_boxed: Vec<Box<dyn rusqlite::types::ToSql>> = top_ids
+        .iter()
+        .map(|id| Box::new(id.clone()) as Box<dyn rusqlite::types::ToSql>)
+        .collect();
+    let sub_params_refs: Vec<&dyn rusqlite::types::ToSql> =
+        sub_params_boxed.iter().map(|p| p.as_ref()).collect();
+
+    let mut sub_stmt = conn
+        .prepare(&subtask_sql)
+        .map_err(|e| format!("Failed to prepare subtask query: {}", e))?;
+    let all_subtasks: Vec<Task> = sub_stmt
+        .query_map(sub_params_refs.as_slice(), row_to_task)
+        .map_err(|e| format!("Failed to query subtasks: {}", e))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("Failed to read subtask row: {}", e))?;
+
+    // Group subtasks by parent_task_id.
+    let mut subtask_map: HashMap<String, Vec<Task>> = HashMap::new();
+    for st in all_subtasks {
+        if let Some(ref pid) = st.parent_task_id {
+            subtask_map.entry(pid.clone()).or_default().push(st);
+        }
+    }
+
+    // Collect all task IDs (top + subtasks) for tag lookup.
+    let mut all_ids: Vec<String> = top_ids.clone();
+    for subs in subtask_map.values() {
+        for st in subs {
+            all_ids.push(st.id.clone());
+        }
+    }
+
+    let tag_map = fetch_tags_for_tasks(conn, &all_ids)?;
+
+    // Assemble the final result.
+    let tasks = top_tasks
+        .into_iter()
+        .map(|mut t| {
+            t.tags = tag_map.get(&t.id).cloned().unwrap_or_default();
+            t.subtasks = subtask_map
+                .remove(&t.id)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|mut st| {
+                    st.tags = tag_map.get(&st.id).cloned().unwrap_or_default();
+                    st
+                })
+                .collect();
+            t
+        })
+        .collect();
+
+    Ok(tasks)
+}
+
+#[tauri::command]
+pub fn get_tasks_due_today(state: State<'_, AppState>) -> Result<Vec<Task>, String> {
+    let conn = db::get_connection(&state.db_path)?;
+    fetch_tasks_by_date_filter(&conn, "date(due_date) = date('now')")
+}
+
+#[tauri::command]
+pub fn get_overdue_tasks(state: State<'_, AppState>) -> Result<Vec<Task>, String> {
+    let conn = db::get_connection(&state.db_path)?;
+    fetch_tasks_by_date_filter(&conn, "date(due_date) < date('now')")
+}
+
 #[tauri::command]
 pub fn update_task(
     state: State<'_, AppState>,
@@ -450,6 +553,48 @@ pub fn delete_task(state: State<'_, AppState>, id: String) -> Result<(), String>
 }
 
 #[tauri::command]
+pub fn get_tasks_in_range(
+    state: State<'_, AppState>,
+    start_date: String,
+    end_date: String,
+) -> Result<Vec<Task>, String> {
+    let conn = db::get_connection(&state.db_path)?;
+
+    let sql = format!(
+        "SELECT {} FROM tasks WHERE deleted_at IS NULL AND due_date >= ?1 AND due_date <= ?2 \
+         ORDER BY due_date, priority DESC",
+        TASK_COLUMNS
+    );
+
+    let mut stmt = conn
+        .prepare(&sql)
+        .map_err(|e| format!("Failed to prepare range query: {}", e))?;
+    let top_tasks: Vec<Task> = stmt
+        .query_map(params![start_date, end_date], row_to_task)
+        .map_err(|e| format!("Failed to query tasks in range: {}", e))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("Failed to read task row: {}", e))?;
+
+    if top_tasks.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // Collect all task IDs for tag lookup.
+    let all_ids: Vec<String> = top_tasks.iter().map(|t| t.id.clone()).collect();
+    let tag_map = fetch_tags_for_tasks(&conn, &all_ids)?;
+
+    let tasks = top_tasks
+        .into_iter()
+        .map(|mut t| {
+            t.tags = tag_map.get(&t.id).cloned().unwrap_or_default();
+            t
+        })
+        .collect();
+
+    Ok(tasks)
+}
+
+#[tauri::command]
 pub fn move_task(
     state: State<'_, AppState>,
     id: String,
@@ -485,6 +630,53 @@ pub fn move_task(
         params![new_list_id, now, id],
     )
     .map_err(|e| format!("Failed to move subtasks: {}", e))?;
+
+    load_task_full(&conn, &id)
+}
+
+#[tauri::command]
+pub fn preview_recurrence(
+    rule: String,
+    start_date: String,
+    count: u32,
+) -> Result<Vec<String>, String> {
+    crate::services::recurrence::expand_rrule(&rule, &start_date, &start_date, count as usize)
+}
+
+/// Complete a recurring task: advances its due_date to the next occurrence
+/// based on its recurrence_rule, keeping the task open. Returns the updated task.
+#[tauri::command]
+pub fn complete_recurring_task(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Task, String> {
+    let conn = db::get_connection(&state.db_path)?;
+    let now = iso8601_now();
+
+    // Load the task to inspect its recurrence_rule and due_date.
+    let task = load_task_full(&conn, &id)?;
+
+    let rrule = task
+        .recurrence_rule
+        .as_deref()
+        .ok_or_else(|| "Task has no recurrence rule".to_string())?;
+
+    let due_date = task
+        .due_date
+        .as_deref()
+        .ok_or_else(|| "Recurring task has no due date".to_string())?;
+
+    // Compute the next occurrence after the current due date.
+    let next = crate::services::recurrence::next_occurrence(rrule, due_date, due_date)?
+        .ok_or_else(|| "No further occurrences for this recurrence rule".to_string())?;
+
+    // Advance the due date and keep the task open (status = 0).
+    conn.execute(
+        "UPDATE tasks SET status = 0, completed_at = NULL, due_date = ?1, updated_at = ?2 \
+         WHERE id = ?3 AND deleted_at IS NULL",
+        params![next, now, id],
+    )
+    .map_err(|e| format!("Failed to advance recurring task: {}", e))?;
 
     load_task_full(&conn, &id)
 }

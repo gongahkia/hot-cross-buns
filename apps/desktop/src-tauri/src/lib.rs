@@ -2,6 +2,7 @@ mod commands;
 mod db;
 mod error;
 mod models;
+mod services;
 mod state;
 
 use state::AppState;
@@ -10,7 +11,9 @@ use commands::tag_commands::{
     add_tag_to_task, create_tag, delete_tag, get_tags, remove_tag_from_task, update_tag,
 };
 use commands::task_commands::{
-    create_task, delete_task, get_task, get_tasks_by_list, move_task, update_task,
+    complete_recurring_task, create_task, delete_task, get_overdue_tasks, get_task,
+    get_tasks_by_list, get_tasks_due_today, get_tasks_in_range, move_task, preview_recurrence,
+    update_task,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -44,10 +47,15 @@ pub fn run() {
             remove_tag_from_task,
             create_task,
             get_tasks_by_list,
+            get_tasks_in_range,
+            get_tasks_due_today,
+            get_overdue_tasks,
             get_task,
             update_task,
             delete_task,
             move_task,
+            preview_recurrence,
+            complete_recurring_task,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
