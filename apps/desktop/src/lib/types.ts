@@ -18,6 +18,14 @@ export interface Tag {
   createdAt: string;
 }
 
+export interface SyncSettings {
+  serverUrl: string;
+  authToken: string;
+  deviceId: string;
+  autoSyncEnabled: boolean;
+  lastSyncedAt: string | null;
+}
+
 export interface Task {
   id: string;
   listId: string;

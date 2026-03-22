@@ -54,6 +54,15 @@ CREATE TABLE IF NOT EXISTS sync_meta (
     PRIMARY KEY (entity_type, entity_id, field_name)
 );
 
+CREATE TABLE IF NOT EXISTS sync_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    server_url TEXT NOT NULL DEFAULT '',
+    auth_token TEXT NOT NULL DEFAULT '',
+    device_id TEXT NOT NULL DEFAULT '',
+    auto_sync_enabled INTEGER NOT NULL DEFAULT 0,
+    last_synced_at TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_tasks_list_id ON tasks(list_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_date);

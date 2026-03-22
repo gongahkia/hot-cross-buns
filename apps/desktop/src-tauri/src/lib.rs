@@ -12,7 +12,7 @@ use tauri::Manager;
 use commands::bench_commands::seed_benchmark_data;
 use commands::data_commands::{export_data, import_data};
 use commands::list_commands::{create_list, delete_list, get_lists, update_list};
-use commands::sync_commands::sync_now;
+use commands::sync_commands::{get_sync_settings, save_sync_settings, sync_now};
 use commands::tag_commands::{
     add_tag_to_task, create_tag, delete_tag, get_tags, remove_tag_from_task, update_tag,
 };
@@ -66,6 +66,8 @@ pub fn run() {
             search_tasks,
             export_data,
             import_data,
+            get_sync_settings,
+            save_sync_settings,
             sync_now,
         ])
         .run(tauri::generate_context!())

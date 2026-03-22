@@ -1,15 +1,19 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
+  import type { SyncSettings as SyncSettingsRecord } from '$lib/types';
 
   let { open = false, onclose }: { open: boolean; onclose: () => void } = $props();
 
   let serverUrl = $state('');
   let authToken = $state('');
+  let deviceId = $state('');
   let autoSync = $state(false);
   let syncing = $state(false);
   let syncStatus = $state<string | null>(null);
   let lastSyncedAt = $state<Date | null>(null);
   let syncSummary = $state<{ pushed: number; pulled: number; conflicts: number } | null>(null);
+  let settingsLoaded = $state(false);
 
   let showMagicLinkForm = $state(false);
   let magicLinkEmail = $state('');
@@ -19,6 +23,50 @@
   let magicLinkMessage = $state<string | null>(null);
 
   let autoSyncInterval: ReturnType<typeof setInterval> | undefined = undefined;
+
+  function applySettings(settings: SyncSettingsRecord) {
+    serverUrl = settings.serverUrl;
+    authToken = settings.authToken;
+    deviceId = settings.deviceId;
+    autoSync = settings.autoSyncEnabled;
+    lastSyncedAt = settings.lastSyncedAt ? new Date(settings.lastSyncedAt) : null;
+  }
+
+  async function loadSavedSettings() {
+    try {
+      const settings = await invoke<SyncSettingsRecord>('get_sync_settings');
+      applySettings(settings);
+      if (settings.autoSyncEnabled) {
+        startAutoSync();
+      }
+    } catch (err: unknown) {
+      syncStatus = err instanceof Error ? err.message : String(err);
+    } finally {
+      settingsLoaded = true;
+    }
+  }
+
+  async function persistSettings() {
+    if (!settingsLoaded) return;
+
+    const saved = await invoke<SyncSettingsRecord>('save_sync_settings', {
+      serverUrl: serverUrl.trim(),
+      authToken: authToken.trim(),
+      deviceId,
+      autoSyncEnabled: autoSync,
+      lastSyncedAt: lastSyncedAt ? lastSyncedAt.toISOString() : null,
+    });
+
+    applySettings(saved);
+  }
+
+  onMount(() => {
+    void loadSavedSettings();
+
+    return () => {
+      stopAutoSync();
+    };
+  });
 
   let lastSyncedLabel = $derived.by(() => {
     if (!lastSyncedAt) return null;
@@ -30,12 +78,18 @@
     return `${hours}h ago`;
   });
 
-  function handleAutoSyncToggle() {
+  async function handleAutoSyncToggle() {
     autoSync = !autoSync;
     if (autoSync) {
       startAutoSync();
     } else {
       stopAutoSync();
+    }
+
+    try {
+      await persistSettings();
+    } catch (err: unknown) {
+      syncStatus = err instanceof Error ? err.message : String(err);
     }
   }
 
@@ -62,12 +116,11 @@
     syncSummary = null;
 
     try {
-      const result = await invoke<{ pushed: number; pulled: number; conflicts: number }>('sync_now', {
-        serverUrl,
-        authToken,
-      });
+      await persistSettings();
+      const result = await invoke<{ pushed: number; pulled: number; conflicts: number }>('sync_now');
       syncSummary = result;
-      lastSyncedAt = new Date();
+      const saved = await invoke<SyncSettingsRecord>('get_sync_settings');
+      applySettings(saved);
       syncStatus = 'success';
     } catch (err: unknown) {
       syncStatus = err instanceof Error ? err.message : String(err);
@@ -138,6 +191,7 @@
 
       const data = await res.json();
       authToken = data.jwt ?? data.token ?? '';
+      await persistSettings();
       magicLinkMessage = null;
       showMagicLinkForm = false;
       magicLinkStep = 'email';
@@ -165,14 +219,33 @@
 
   function handleOverlayClick(e: MouseEvent) {
     if (e.target === e.currentTarget) {
-      onclose();
+      handleClose();
     }
   }
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
-      onclose();
+      handleClose();
     }
+  }
+
+  function handleServerUrlBlur() {
+    void persistSettings().catch((err: unknown) => {
+      syncStatus = err instanceof Error ? err.message : String(err);
+    });
+  }
+
+  function handleAuthTokenBlur() {
+    void persistSettings().catch((err: unknown) => {
+      syncStatus = err instanceof Error ? err.message : String(err);
+    });
+  }
+
+  function handleClose() {
+    void persistSettings().catch((err: unknown) => {
+      syncStatus = err instanceof Error ? err.message : String(err);
+    });
+    onclose();
   }
 </script>
 
@@ -183,7 +256,7 @@
     <div class="sync-panel" role="dialog" aria-label="Sync Settings">
       <div class="panel-header">
         <h2 class="panel-title">Sync Settings</h2>
-        <button class="panel-close" onclick={onclose} aria-label="Close">
+        <button class="panel-close" onclick={handleClose} aria-label="Close">
           &#x2715;
         </button>
       </div>
@@ -197,6 +270,7 @@
             type="text"
             placeholder="https://api.example.com/sync"
             bind:value={serverUrl}
+            onblur={handleServerUrlBlur}
           />
         </div>
 
@@ -208,6 +282,7 @@
             type="password"
             placeholder="Paste your auth token..."
             bind:value={authToken}
+            onblur={handleAuthTokenBlur}
           />
           <button class="magic-link-btn" onclick={handleMagicLink}>
             {showMagicLinkForm ? 'Cancel Magic Link' : 'Login with Magic Link'}
@@ -262,6 +337,17 @@
               {/if}
             </div>
           {/if}
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="sync-device-id">Device ID</label>
+          <input
+            id="sync-device-id"
+            class="field-input"
+            type="text"
+            value={deviceId}
+            readonly
+          />
         </div>
 
         <div class="field field-row">
