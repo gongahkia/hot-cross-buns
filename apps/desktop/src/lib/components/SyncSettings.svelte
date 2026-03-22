@@ -11,6 +11,13 @@
   let lastSyncedAt = $state<Date | null>(null);
   let syncSummary = $state<{ pushed: number; pulled: number; conflicts: number } | null>(null);
 
+  let showMagicLinkForm = $state(false);
+  let magicLinkEmail = $state('');
+  let magicLinkToken = $state('');
+  let magicLinkStep = $state<'email' | 'token'>('email');
+  let magicLinkLoading = $state(false);
+  let magicLinkMessage = $state<string | null>(null);
+
   let autoSyncInterval: ReturnType<typeof setInterval> | undefined = undefined;
 
   let lastSyncedLabel = $derived.by(() => {
@@ -70,8 +77,90 @@
   }
 
   function handleMagicLink() {
-    // Placeholder for magic link login flow
-    syncStatus = 'Magic link login is not yet implemented.';
+    showMagicLinkForm = !showMagicLinkForm;
+    magicLinkStep = 'email';
+    magicLinkEmail = '';
+    magicLinkToken = '';
+    magicLinkMessage = null;
+    magicLinkLoading = false;
+  }
+
+  async function submitMagicLinkEmail() {
+    if (!magicLinkEmail.trim() || !serverUrl.trim()) {
+      magicLinkMessage = 'Please enter both a server URL and email address.';
+      return;
+    }
+
+    magicLinkLoading = true;
+    magicLinkMessage = null;
+
+    try {
+      const res = await fetch(`${serverUrl}/api/v1/auth/magic-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: magicLinkEmail.trim() }),
+      });
+
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(body || `Server responded with ${res.status}`);
+      }
+
+      magicLinkMessage = 'Check your email for a magic link.';
+      magicLinkStep = 'token';
+    } catch (err: unknown) {
+      magicLinkMessage = err instanceof Error ? err.message : String(err);
+    } finally {
+      magicLinkLoading = false;
+    }
+  }
+
+  async function submitMagicLinkToken() {
+    if (!magicLinkToken.trim()) {
+      magicLinkMessage = 'Please paste the token from your email.';
+      return;
+    }
+
+    magicLinkLoading = true;
+    magicLinkMessage = null;
+
+    try {
+      const res = await fetch(`${serverUrl}/api/v1/auth/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: magicLinkToken.trim() }),
+      });
+
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(body || `Verification failed with ${res.status}`);
+      }
+
+      const data = await res.json();
+      authToken = data.jwt ?? data.token ?? '';
+      magicLinkMessage = null;
+      showMagicLinkForm = false;
+      magicLinkStep = 'email';
+      magicLinkEmail = '';
+      magicLinkToken = '';
+      syncStatus = 'success';
+    } catch (err: unknown) {
+      magicLinkMessage = err instanceof Error ? err.message : String(err);
+    } finally {
+      magicLinkLoading = false;
+    }
+  }
+
+  function handleMagicLinkEmailKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      submitMagicLinkEmail();
+    }
+  }
+
+  function handleMagicLinkTokenKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      submitMagicLinkToken();
+    }
   }
 
   function handleOverlayClick(e: MouseEvent) {
@@ -121,8 +210,58 @@
             bind:value={authToken}
           />
           <button class="magic-link-btn" onclick={handleMagicLink}>
-            Login with Magic Link
+            {showMagicLinkForm ? 'Cancel Magic Link' : 'Login with Magic Link'}
           </button>
+
+          {#if showMagicLinkForm}
+            <div class="magic-link-form">
+              {#if magicLinkStep === 'email'}
+                <input
+                  class="field-input magic-link-input"
+                  type="email"
+                  placeholder="you@example.com"
+                  bind:value={magicLinkEmail}
+                  onkeydown={handleMagicLinkEmailKeydown}
+                  disabled={magicLinkLoading}
+                />
+                <button
+                  class="magic-link-submit"
+                  onclick={submitMagicLinkEmail}
+                  disabled={magicLinkLoading}
+                >
+                  {#if magicLinkLoading}
+                    Sending...
+                  {:else}
+                    Send Magic Link
+                  {/if}
+                </button>
+              {:else}
+                <input
+                  class="field-input magic-link-input"
+                  type="text"
+                  placeholder="Paste token from email..."
+                  bind:value={magicLinkToken}
+                  onkeydown={handleMagicLinkTokenKeydown}
+                  disabled={magicLinkLoading}
+                />
+                <button
+                  class="magic-link-submit"
+                  onclick={submitMagicLinkToken}
+                  disabled={magicLinkLoading}
+                >
+                  {#if magicLinkLoading}
+                    Verifying...
+                  {:else}
+                    Verify Token
+                  {/if}
+                </button>
+              {/if}
+
+              {#if magicLinkMessage}
+                <div class="magic-link-message">{magicLinkMessage}</div>
+              {/if}
+            </div>
+          {/if}
         </div>
 
         <div class="field field-row">
@@ -311,6 +450,50 @@
 
   .magic-link-btn:hover {
     color: #b4d0fb;
+  }
+
+  .magic-link-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 4px;
+    padding: 10px;
+    background: #181825;
+    border: 1px solid #313244;
+    border-radius: 8px;
+  }
+
+  .magic-link-input {
+    font-size: 13px;
+  }
+
+  .magic-link-submit {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: none;
+    background: #89b4fa;
+    color: #1e1e2e;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 200ms ease, opacity 200ms ease;
+  }
+
+  .magic-link-submit:hover:not(:disabled) {
+    background: #74a8f7;
+  }
+
+  .magic-link-submit:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+
+  .magic-link-message {
+    font-size: 12px;
+    color: #a6adc8;
+    text-align: center;
+    padding: 4px 0;
   }
 
   /* Toggle switch */
