@@ -99,10 +99,10 @@ blockedBy: [none]
 5. Create `.env.example` documenting all environment variables with defaults and descriptions.
 
 **DONE WHEN**
-- [ ] `cd apps/desktop && npm run tauri dev` compiles and opens a native window.
-- [ ] `cd services/server && go build ./cmd/server` compiles with zero errors.
-- [ ] `docker compose up -d db` starts PostgreSQL and `pg_isready` reports healthy.
-- [ ] The directory structure matches the tree above (all directories exist even if some are empty with `.gitkeep`).
+- [x] `cd apps/desktop && npm run tauri dev` compiles and opens a native window.
+- [x] `cd services/server && go build ./cmd/server` compiles with zero errors.
+- [x] `docker compose up -d db` starts PostgreSQL and `pg_isready` reports healthy.
+- [x] The directory structure matches the tree above (all directories exist even if some are empty with `.gitkeep`).
 
 ---
 
