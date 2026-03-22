@@ -47,6 +47,7 @@ jobs:
       - name: Run Go tests
         env:
           DATABASE_URL: postgres://tickclone:testpass@localhost:5432/tickclone_test?sslmode=disable
+          INTEGRATION_TEST: "1"
         run: go test -v -race -count=1 ./...
 
   # -----------------------------------------------------------------------
