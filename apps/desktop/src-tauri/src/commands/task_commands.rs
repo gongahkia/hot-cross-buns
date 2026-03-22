@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::db;
 use crate::models::{Tag, Task};
 use crate::state::AppState;
+use crate::sync::changes;
 
 /// Return the current UTC time formatted as an ISO 8601 string (e.g. "2026-03-22T10:30:00Z").
 fn iso8601_now() -> String {
@@ -83,7 +84,7 @@ fn fetch_tags_for_tasks(
     let sql = format!(
         "SELECT tt.task_id, t.id, t.name, t.color, t.created_at \
          FROM task_tags tt JOIN tags t ON t.id = tt.tag_id \
-         WHERE tt.task_id IN ({})",
+         WHERE tt.task_id IN ({}) AND t.deleted_at IS NULL",
         placeholders.join(", ")
     );
 
@@ -164,6 +165,24 @@ fn load_task_full(conn: &rusqlite::Connection, id: &str) -> Result<Task, String>
     Ok(task)
 }
 
+fn get_active_subtask_ids(
+    conn: &rusqlite::Connection,
+    parent_task_id: &str,
+) -> Result<Vec<String>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id FROM tasks WHERE parent_task_id = ?1 AND deleted_at IS NULL ORDER BY sort_order",
+        )
+        .map_err(|e| format!("Failed to prepare subtask id query: {}", e))?;
+
+    let rows = stmt
+        .query_map(params![parent_task_id], |row| row.get(0))
+        .map_err(|e| format!("Failed to query subtask ids: {}", e))?;
+
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("Failed to read subtask id row: {}", e))
+}
+
 #[tauri::command]
 pub fn create_task(
     state: State<'_, AppState>,
@@ -217,7 +236,10 @@ pub fn create_task(
     )
     .map_err(|e| format!("Failed to insert task: {}", e))?;
 
-    load_task_full(&conn, &id)
+    let task = load_task_full(&conn, &id)?;
+    changes::record_task_upsert(&conn, &task)?;
+
+    Ok(task)
 }
 
 #[tauri::command]
@@ -522,13 +544,42 @@ pub fn update_task(
         return Err("Task not found or already deleted".to_string());
     }
 
-    load_task_full(&conn, &id)
+    let task = load_task_full(&conn, &id)?;
+
+    if let Some(ref value) = title {
+        changes::record_field_change(&conn, "task", &task.id, "title", value)?;
+    }
+    if let Some(ref value) = content {
+        changes::record_field_change(&conn, "task", &task.id, "content", value)?;
+    }
+    if let Some(value) = priority {
+        changes::record_field_change(&conn, "task", &task.id, "priority", &value)?;
+    }
+    if let Some(value) = status {
+        changes::record_field_change(&conn, "task", &task.id, "status", &value)?;
+        changes::record_field_change(&conn, "task", &task.id, "completed_at", &task.completed_at)?;
+    }
+    if let Some(ref value) = due_date {
+        changes::record_field_change(&conn, "task", &task.id, "due_date", value)?;
+    }
+    if let Some(ref value) = due_timezone {
+        changes::record_field_change(&conn, "task", &task.id, "due_timezone", value)?;
+    }
+    if let Some(ref value) = recurrence_rule {
+        changes::record_field_change(&conn, "task", &task.id, "recurrence_rule", value)?;
+    }
+    if let Some(value) = sort_order {
+        changes::record_field_change(&conn, "task", &task.id, "sort_order", &value)?;
+    }
+
+    Ok(task)
 }
 
 #[tauri::command]
 pub fn delete_task(state: State<'_, AppState>, id: String) -> Result<(), String> {
     let conn = db::get_connection(&state.db_path)?;
     let now = iso8601_now();
+    let subtask_ids = get_active_subtask_ids(&conn, &id)?;
 
     // Soft-delete the task itself.
     let rows_affected = conn
@@ -548,6 +599,11 @@ pub fn delete_task(state: State<'_, AppState>, id: String) -> Result<(), String>
         params![now, id],
     )
     .map_err(|e| format!("Failed to soft-delete subtasks: {}", e))?;
+
+    changes::record_deleted_at(&conn, "task", &id, &now)?;
+    for subtask_id in subtask_ids {
+        changes::record_deleted_at(&conn, "task", &subtask_id, &now)?;
+    }
 
     Ok(())
 }
@@ -603,6 +659,7 @@ pub fn move_task(
 ) -> Result<Task, String> {
     let conn = db::get_connection(&state.db_path)?;
     let now = iso8601_now();
+    let subtask_ids = get_active_subtask_ids(&conn, &id)?;
 
     // Verify the target list exists and is not deleted.
     conn.query_row(
@@ -631,7 +688,14 @@ pub fn move_task(
     )
     .map_err(|e| format!("Failed to move subtasks: {}", e))?;
 
-    load_task_full(&conn, &id)
+    let task = load_task_full(&conn, &id)?;
+    changes::record_field_change(&conn, "task", &task.id, "list_id", &new_list_id)?;
+    changes::record_field_change(&conn, "task", &task.id, "sort_order", &new_sort_order)?;
+    for subtask_id in subtask_ids {
+        changes::record_field_change(&conn, "task", &subtask_id, "list_id", &new_list_id)?;
+    }
+
+    Ok(task)
 }
 
 #[tauri::command]
@@ -644,10 +708,7 @@ pub fn preview_recurrence(
 }
 
 #[tauri::command]
-pub fn search_tasks(
-    state: State<'_, AppState>,
-    query: String,
-) -> Result<Vec<Task>, String> {
+pub fn search_tasks(state: State<'_, AppState>, query: String) -> Result<Vec<Task>, String> {
     let conn = db::get_connection(&state.db_path)?;
 
     let sql = format!(
@@ -692,10 +753,7 @@ pub fn search_tasks(
 /// Complete a recurring task: advances its due_date to the next occurrence
 /// based on its recurrence_rule, keeping the task open. Returns the updated task.
 #[tauri::command]
-pub fn complete_recurring_task(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<Task, String> {
+pub fn complete_recurring_task(state: State<'_, AppState>, id: String) -> Result<Task, String> {
     let conn = db::get_connection(&state.db_path)?;
     let now = iso8601_now();
 
@@ -724,5 +782,28 @@ pub fn complete_recurring_task(
     )
     .map_err(|e| format!("Failed to advance recurring task: {}", e))?;
 
-    load_task_full(&conn, &id)
+    let updated_task = load_task_full(&conn, &id)?;
+    changes::record_field_change(
+        &conn,
+        "task",
+        &updated_task.id,
+        "status",
+        &updated_task.status,
+    )?;
+    changes::record_field_change(
+        &conn,
+        "task",
+        &updated_task.id,
+        "completed_at",
+        &updated_task.completed_at,
+    )?;
+    changes::record_field_change(
+        &conn,
+        "task",
+        &updated_task.id,
+        "due_date",
+        &updated_task.due_date,
+    )?;
+
+    Ok(updated_task)
 }

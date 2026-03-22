@@ -4,6 +4,7 @@ use uuid::Uuid;
 use crate::db;
 use crate::models::Tag;
 use crate::state::AppState;
+use crate::sync::changes;
 
 fn iso8601_now() -> String {
     let now = std::time::SystemTime::now()
@@ -42,6 +43,22 @@ fn iso8601_now() -> String {
     )
 }
 
+fn get_associated_task_ids(
+    conn: &rusqlite::Connection,
+    tag_id: &str,
+) -> Result<Vec<String>, String> {
+    let mut stmt = conn
+        .prepare("SELECT task_id FROM task_tags WHERE tag_id = ?1 ORDER BY task_id")
+        .map_err(|e| format!("Failed to prepare task tag query: {}", e))?;
+
+    let rows = stmt
+        .query_map(rusqlite::params![tag_id], |row| row.get(0))
+        .map_err(|e| format!("Failed to query tag associations: {}", e))?;
+
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("Failed to read tag association row: {}", e))
+}
+
 #[tauri::command]
 pub fn create_tag(
     state: State<'_, AppState>,
@@ -59,12 +76,15 @@ pub fn create_tag(
     )
     .map_err(|e| format!("Failed to create tag: {}", e))?;
 
-    Ok(Tag {
+    let tag = Tag {
         id,
         name,
         color,
         created_at,
-    })
+    };
+    changes::record_tag_upsert(&conn, &tag)?;
+
+    Ok(tag)
 }
 
 #[tauri::command]
@@ -72,7 +92,9 @@ pub fn get_tags(state: State<'_, AppState>) -> Result<Vec<Tag>, String> {
     let conn = db::get_connection(&state.db_path)?;
 
     let mut stmt = conn
-        .prepare("SELECT id, name, color, created_at FROM tags ORDER BY name")
+        .prepare(
+            "SELECT id, name, color, created_at FROM tags WHERE deleted_at IS NULL ORDER BY name",
+        )
         .map_err(|e| format!("Failed to prepare query: {}", e))?;
 
     let tags = stmt
@@ -103,7 +125,7 @@ pub fn update_tag(
     // Fetch the existing tag first.
     let mut tag: Tag = conn
         .query_row(
-            "SELECT id, name, color, created_at FROM tags WHERE id = ?1",
+            "SELECT id, name, color, created_at FROM tags WHERE id = ?1 AND deleted_at IS NULL",
             rusqlite::params![id],
             |row| {
                 Ok(Tag {
@@ -116,18 +138,25 @@ pub fn update_tag(
         )
         .map_err(|e| format!("Tag not found: {}", e))?;
 
-    if let Some(new_name) = name {
-        tag.name = new_name;
+    if let Some(ref new_name) = name {
+        tag.name = new_name.clone();
     }
-    if let Some(new_color) = color {
-        tag.color = Some(new_color);
+    if let Some(ref new_color) = color {
+        tag.color = Some(new_color.clone());
     }
 
     conn.execute(
-        "UPDATE tags SET name = ?1, color = ?2 WHERE id = ?3",
+        "UPDATE tags SET name = ?1, color = ?2 WHERE id = ?3 AND deleted_at IS NULL",
         rusqlite::params![tag.name, tag.color, tag.id],
     )
     .map_err(|e| format!("Failed to update tag: {}", e))?;
+
+    if name.is_some() {
+        changes::record_field_change(&conn, "tag", &tag.id, "name", &tag.name)?;
+    }
+    if color.is_some() {
+        changes::record_field_change(&conn, "tag", &tag.id, "color", &tag.color)?;
+    }
 
     Ok(tag)
 }
@@ -135,6 +164,8 @@ pub fn update_tag(
 #[tauri::command]
 pub fn delete_tag(state: State<'_, AppState>, id: String) -> Result<(), String> {
     let conn = db::get_connection(&state.db_path)?;
+    let deleted_at = iso8601_now();
+    let associated_task_ids = get_associated_task_ids(&conn, &id)?;
 
     conn.execute(
         "DELETE FROM task_tags WHERE tag_id = ?1",
@@ -143,11 +174,19 @@ pub fn delete_tag(state: State<'_, AppState>, id: String) -> Result<(), String> 
     .map_err(|e| format!("Failed to delete task_tags: {}", e))?;
 
     let rows = conn
-        .execute("DELETE FROM tags WHERE id = ?1", rusqlite::params![id])
+        .execute(
+            "UPDATE tags SET deleted_at = ?1 WHERE id = ?2 AND deleted_at IS NULL",
+            rusqlite::params![deleted_at, id],
+        )
         .map_err(|e| format!("Failed to delete tag: {}", e))?;
 
     if rows == 0 {
         return Err(format!("Tag with id '{}' not found", id));
+    }
+
+    changes::record_deleted_at(&conn, "tag", &id, &deleted_at)?;
+    for task_id in associated_task_ids {
+        changes::record_task_tag_presence(&conn, &task_id, &id, false)?;
     }
 
     Ok(())
@@ -167,6 +206,8 @@ pub fn add_tag_to_task(
     )
     .map_err(|e| format!("Failed to add tag to task: {}", e))?;
 
+    changes::record_task_tag_presence(&conn, &task_id, &tag_id, true)?;
+
     Ok(())
 }
 
@@ -183,6 +224,8 @@ pub fn remove_tag_from_task(
         rusqlite::params![task_id, tag_id],
     )
     .map_err(|e| format!("Failed to remove tag from task: {}", e))?;
+
+    changes::record_task_tag_presence(&conn, &task_id, &tag_id, false)?;
 
     Ok(())
 }

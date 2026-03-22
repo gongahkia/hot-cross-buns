@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -44,7 +45,7 @@ func (r *TagRepository) GetTagsByUser(ctx context.Context, pool *pgxpool.Pool, u
 	rows, err := pool.Query(ctx,
 		`SELECT id, user_id, name, color, created_at
 		 FROM tags
-		 WHERE user_id = $1
+		 WHERE user_id = $1 AND deleted_at IS NULL
 		 ORDER BY created_at`,
 		userID,
 	)
@@ -89,7 +90,7 @@ func (r *TagRepository) UpdateTag(
 		`UPDATE tags
 		 SET name  = COALESCE($3, name),
 		     color = CASE WHEN $4::boolean THEN $5 ELSE color END
-		 WHERE id = $1 AND user_id = $2
+		 WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
 		 RETURNING id, user_id, name, color, created_at`,
 		tagID, userID, name, color != nil, color,
 	)
@@ -101,7 +102,7 @@ func (r *TagRepository) UpdateTag(
 	return &t, nil
 }
 
-// DeleteTag hard-deletes a tag and its task_tags associations.
+// DeleteTag soft-deletes a tag and removes its task_tags associations.
 func (r *TagRepository) DeleteTag(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID, tagID uuid.UUID) error {
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -117,11 +118,11 @@ func (r *TagRepository) DeleteTag(ctx context.Context, pool *pgxpool.Pool, userI
 	}
 
 	ct, err := tx.Exec(ctx,
-		`DELETE FROM tags WHERE id = $1 AND user_id = $2`,
-		tagID, userID,
+		`UPDATE tags SET deleted_at = $3 WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+		tagID, userID, time.Now().UTC(),
 	)
 	if err != nil {
-		return fmt.Errorf("delete tag: %w", err)
+		return fmt.Errorf("soft delete tag: %w", err)
 	}
 	if ct.RowsAffected() == 0 {
 		return fmt.Errorf("tag not found")
@@ -184,7 +185,8 @@ func (r *TagRepository) GetTasksByTag(
 		        t.created_at, t.updated_at, t.deleted_at
 		 FROM tasks t
 		 JOIN task_tags tt ON tt.task_id = t.id
-		 WHERE tt.tag_id = $1 AND tt.user_id = $2
+		 JOIN tags tg ON tg.id = tt.tag_id
+		 WHERE tt.tag_id = $1 AND tt.user_id = $2 AND t.deleted_at IS NULL AND tg.deleted_at IS NULL
 		 ORDER BY t.sort_order, t.created_at`,
 		tagID, userID,
 	)
@@ -219,7 +221,7 @@ func (r *TagRepository) getTag(ctx context.Context, pool *pgxpool.Pool, userID u
 	row := pool.QueryRow(ctx,
 		`SELECT id, user_id, name, color, created_at
 		 FROM tags
-		 WHERE id = $1 AND user_id = $2`,
+		 WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
 		tagID, userID,
 	)
 	var t models.Tag

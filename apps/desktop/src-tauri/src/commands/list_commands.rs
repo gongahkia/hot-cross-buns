@@ -1,10 +1,11 @@
+use rusqlite::OptionalExtension;
 use tauri::State;
 use uuid::Uuid;
-use rusqlite::OptionalExtension;
 
 use crate::db;
 use crate::models::List;
 use crate::state::AppState;
+use crate::sync::changes;
 
 /// Return the current UTC time formatted as an ISO 8601 string (e.g. "2026-03-22T10:30:00Z").
 fn iso8601_now() -> String {
@@ -35,8 +36,7 @@ fn days_to_ymd(epoch_days: i64) -> (i64, u32, u32) {
     let z = epoch_days + 719468;
     let era = if z >= 0 { z } else { z - 146096 } / 146097;
     let doe = (z - era * 146097) as u32; // day of era [0, 146096]
-    let yoe =
-        (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365; // year of era [0, 399]
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365; // year of era [0, 399]
     let y = yoe as i64 + era * 400;
     let doy = doe - (365 * yoe + yoe / 4 - yoe / 100); // day of year [0, 365]
     let mp = (5 * doy + 2) / 153; // [0, 11]
@@ -91,6 +91,16 @@ fn ensure_inbox_list(conn: &rusqlite::Connection) -> Result<(), String> {
     )
     .map_err(|e| format!("Failed to create inbox list: {}", e))?;
 
+    let inbox = conn
+        .query_row(
+            "SELECT id, name, color, sort_order, is_inbox, created_at, updated_at, deleted_at FROM lists WHERE is_inbox = 1 AND deleted_at IS NULL LIMIT 1",
+            [],
+            row_to_list,
+        )
+        .map_err(|e| format!("Failed to fetch created inbox list: {}", e))?;
+
+    changes::record_list_upsert(conn, &inbox)?;
+
     Ok(())
 }
 
@@ -106,8 +116,7 @@ fn load_lists(conn: &rusqlite::Connection) -> Result<Vec<List>, String> {
         .query_map([], row_to_list)
         .map_err(|e| format!("Failed to query lists: {}", e))?;
 
-    rows
-        .collect::<Result<Vec<_>, _>>()
+    rows.collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("Failed to read list row: {}", e))
 }
 
@@ -135,6 +144,8 @@ pub fn create_list(
             row_to_list,
         )
         .map_err(|e| format!("Failed to fetch created list: {}", e))?;
+
+    changes::record_list_upsert(&conn, &list)?;
 
     Ok(list)
 }
@@ -209,6 +220,16 @@ pub fn update_list(
         )
         .map_err(|e| format!("Failed to fetch updated list: {}", e))?;
 
+    if let Some(ref value) = name {
+        changes::record_field_change(&conn, "list", &list.id, "name", value)?;
+    }
+    if let Some(ref value) = color {
+        changes::record_field_change(&conn, "list", &list.id, "color", value)?;
+    }
+    if let Some(value) = sort_order {
+        changes::record_field_change(&conn, "list", &list.id, "sort_order", &value)?;
+    }
+
     Ok(list)
 }
 
@@ -241,6 +262,8 @@ pub fn delete_list(state: State<'_, AppState>, id: String) -> Result<(), String>
     if rows_affected == 0 {
         return Err("List not found or already deleted".to_string());
     }
+
+    changes::record_deleted_at(&conn, "list", &id, &now)?;
 
     Ok(())
 }
@@ -332,7 +355,10 @@ mod tests {
             )
             .expect("failed to query inbox flag");
 
-        assert_ne!(is_inbox, 0, "expected is_inbox to be non-zero for inbox list");
+        assert_ne!(
+            is_inbox, 0,
+            "expected is_inbox to be non-zero for inbox list"
+        );
 
         // Simulate the guard from delete_list.
         if is_inbox != 0 {

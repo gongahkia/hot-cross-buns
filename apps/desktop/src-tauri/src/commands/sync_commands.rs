@@ -46,19 +46,7 @@ fn transport_change_to_tracked(change: &SyncChangePayload) -> tracker::TrackedCh
 }
 
 fn json_value_to_sql_text(value: &serde_json::Value) -> String {
-    match value {
-        serde_json::Value::Null => String::new(),
-        serde_json::Value::Bool(flag) => {
-            if *flag {
-                "1".to_string()
-            } else {
-                "0".to_string()
-            }
-        }
-        serde_json::Value::Number(number) => number.to_string(),
-        serde_json::Value::String(text) => text.clone(),
-        serde_json::Value::Array(_) | serde_json::Value::Object(_) => value.to_string(),
-    }
+    value.to_string()
 }
 
 fn sync_client_from_settings(settings: &SyncSettings) -> SyncClient {
@@ -149,7 +137,10 @@ pub async fn sync_now(state: State<'_, AppState>) -> Result<SyncStatus, String> 
     let pulled_count = pull_result.changes.len() as u32;
 
     // 4. Apply each remote change locally.
-    let mut conflicts = push_result.as_ref().map(|result| result.conflicts).unwrap_or(0);
+    let mut conflicts = push_result
+        .as_ref()
+        .map(|result| result.conflicts)
+        .unwrap_or(0);
     for change in &pull_result.changes {
         let local_change = transport_change_to_tracked(change);
         if tracker::apply_remote_change(&conn, &local_change).is_err() {
@@ -293,6 +284,21 @@ mod tests {
         assert_eq!(tracked.new_value, "3");
         assert_eq!(tracked.updated_at, "2026-03-22T14:35:00Z");
         assert_eq!(tracked.device_id, "remote");
+    }
+
+    #[test]
+    fn test_pull_response_string_change_preserves_json_encoding() {
+        let payload = SyncChangePayload {
+            entity_type: "task".to_string(),
+            entity_id: "task-1".to_string(),
+            field_name: "title".to_string(),
+            new_value: json!("Draft spec"),
+            timestamp: "2026-03-22T14:35:00Z".to_string(),
+        };
+
+        let tracked = transport_change_to_tracked(&payload);
+
+        assert_eq!(tracked.new_value, "\"Draft spec\"");
     }
 
     #[test]

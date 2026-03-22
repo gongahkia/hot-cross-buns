@@ -731,109 +731,288 @@ func TestSyncPushPull(t *testing.T) {
 	userID := createTestUser(t, env.Pool, "sync@test.com")
 	base := env.Server.URL + "/api/v1"
 
-	// Create a list and a task via HTTP so that entities exist for sync operations.
-	resp := doRequest(t, http.MethodPost, base+"/lists", map[string]string{"name": "Sync List"}, userID)
-	if resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		t.Fatalf("create list: expected 201, got %d; body: %s", resp.StatusCode, string(body))
+	mustJSON := func(v interface{}) json.RawMessage {
+		t.Helper()
+		data, err := json.Marshal(v)
+		if err != nil {
+			t.Fatalf("marshal sync payload: %v", err)
+		}
+		return json.RawMessage(data)
 	}
-	var list models.List
-	readJSON(t, resp, &list)
 
-	resp = doRequest(t, http.MethodPost, base+"/lists/"+list.ID.String()+"/tasks",
-		map[string]string{"title": "Sync task"}, userID)
-	if resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		t.Fatalf("create task: expected 201, got %d; body: %s", resp.StatusCode, string(body))
-	}
-	var task models.Task
-	readJSON(t, resp, &task)
+	listID := uuid.NewString()
+	taskID := uuid.NewString()
+	tagID := uuid.NewString()
+	now := time.Now().UTC().Truncate(time.Second)
 
-	now := time.Now().UTC()
-	batchID := uuid.NewString()
-
-	// Build a change record.
-	newTitle, _ := json.Marshal("Synced title")
-	pushPayload := models.SyncPushPayload{
+	createPayload := models.SyncPushPayload{
 		DeviceID: "device-A",
-		BatchID:  batchID,
+		BatchID:  uuid.NewString(),
 		Changes: []models.ChangeRecord{
 			{
+				EntityType: "list",
+				EntityID:   listID,
+				FieldName:  "_upsert",
+				NewValue: mustJSON(map[string]interface{}{
+					"id":        listID,
+					"name":      "Projects",
+					"color":     "#336699",
+					"sortOrder": 1,
+					"isInbox":   false,
+					"createdAt": now.Format(time.RFC3339),
+					"updatedAt": now.Format(time.RFC3339),
+					"deletedAt": nil,
+				}),
+				Timestamp: now,
+			},
+			{
 				EntityType: "task",
-				EntityID:   task.ID.String(),
-				FieldName:  "title",
-				NewValue:   json.RawMessage(newTitle),
-				Timestamp:  now,
+				EntityID:   taskID,
+				FieldName:  "_upsert",
+				NewValue: mustJSON(map[string]interface{}{
+					"id":             taskID,
+					"listId":         listID,
+					"parentTaskId":   nil,
+					"title":          "Draft spec",
+					"content":        "Sync the desktop app",
+					"priority":       2,
+					"status":         0,
+					"dueDate":        now.Add(24 * time.Hour).Format(time.RFC3339),
+					"dueTimezone":    "Asia/Singapore",
+					"recurrenceRule": nil,
+					"sortOrder":      5,
+					"completedAt":    nil,
+					"createdAt":      now.Add(time.Second).Format(time.RFC3339),
+					"updatedAt":      now.Add(time.Second).Format(time.RFC3339),
+					"deletedAt":      nil,
+					"subtasks":       []interface{}{},
+					"tags":           []interface{}{},
+				}),
+				Timestamp: now.Add(time.Second),
+			},
+			{
+				EntityType: "tag",
+				EntityID:   tagID,
+				FieldName:  "_upsert",
+				NewValue: mustJSON(map[string]interface{}{
+					"id":        tagID,
+					"name":      "Urgent",
+					"color":     "#ff0000",
+					"createdAt": now.Add(2 * time.Second).Format(time.RFC3339),
+					"deletedAt": nil,
+				}),
+				Timestamp: now.Add(2 * time.Second),
+			},
+			{
+				EntityType: "task_tag",
+				EntityID:   taskID + ":" + tagID,
+				FieldName:  "present",
+				NewValue:   mustJSON(true),
+				Timestamp:  now.Add(3 * time.Second),
 			},
 		},
 	}
 
-	// 1. POST /api/v1/sync/push from device A => 200
-	resp = doRequest(t, http.MethodPost, base+"/sync/push", pushPayload, userID)
+	resp := doRequest(t, http.MethodPost, base+"/sync/push", createPayload, userID)
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		t.Fatalf("sync push: expected 200, got %d; body: %s", resp.StatusCode, string(body))
+		t.Fatalf("sync create push: expected 200, got %d; body: %s", resp.StatusCode, string(body))
 	}
-	var pushResp models.PushResponse
-	readJSON(t, resp, &pushResp)
-	if pushResp.Accepted != 1 {
-		t.Errorf("expected 1 accepted change, got %d", pushResp.Accepted)
-	}
-	if pushResp.BatchID != batchID {
-		t.Errorf("expected batchId %s, got %s", batchID, pushResp.BatchID)
+	var createPushResp models.PushResponse
+	readJSON(t, resp, &createPushResp)
+	if createPushResp.Accepted != 4 {
+		t.Fatalf("expected 4 accepted create changes, got %d", createPushResp.Accepted)
 	}
 
-	// 2. POST /api/v1/sync/pull from device B => 200
-	pullPayload := models.SyncPullPayload{
+	var persistedListName string
+	if err := env.Pool.QueryRow(context.Background(),
+		"SELECT name FROM lists WHERE id = $1 AND user_id = $2",
+		listID, userID,
+	).Scan(&persistedListName); err != nil {
+		t.Fatalf("read synced list: %v", err)
+	}
+	if persistedListName != "Projects" {
+		t.Fatalf("expected synced list name Projects, got %q", persistedListName)
+	}
+
+	var persistedTaskTitle string
+	if err := env.Pool.QueryRow(context.Background(),
+		"SELECT title FROM tasks WHERE id = $1 AND user_id = $2",
+		taskID, userID,
+	).Scan(&persistedTaskTitle); err != nil {
+		t.Fatalf("read synced task: %v", err)
+	}
+	if persistedTaskTitle != "Draft spec" {
+		t.Fatalf("expected synced task title Draft spec, got %q", persistedTaskTitle)
+	}
+
+	var persistedTagName string
+	if err := env.Pool.QueryRow(context.Background(),
+		"SELECT name FROM tags WHERE id = $1 AND user_id = $2",
+		tagID, userID,
+	).Scan(&persistedTagName); err != nil {
+		t.Fatalf("read synced tag: %v", err)
+	}
+	if persistedTagName != "Urgent" {
+		t.Fatalf("expected synced tag name Urgent, got %q", persistedTagName)
+	}
+
+	var associationCount int
+	if err := env.Pool.QueryRow(context.Background(),
+		"SELECT COUNT(*) FROM task_tags WHERE task_id = $1 AND tag_id = $2 AND user_id = $3",
+		taskID, tagID, userID,
+	).Scan(&associationCount); err != nil {
+		t.Fatalf("count task_tag rows after create: %v", err)
+	}
+	if associationCount != 1 {
+		t.Fatalf("expected 1 task_tag association after create, got %d", associationCount)
+	}
+
+	resp = doRequest(t, http.MethodPost, base+"/sync/pull", models.SyncPullPayload{
 		DeviceID:   "device-B",
 		LastSyncAt: now.Add(-time.Minute),
-	}
-	resp = doRequest(t, http.MethodPost, base+"/sync/pull", pullPayload, userID)
+	}, userID)
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		t.Fatalf("sync pull: expected 200, got %d; body: %s", resp.StatusCode, string(body))
+		t.Fatalf("sync pull after create: expected 200, got %d; body: %s", resp.StatusCode, string(body))
 	}
-	var pullResp models.SyncPullResponse
-	readJSON(t, resp, &pullResp)
-
-	// 3. Verify pulled changes contain the pushed data.
-	if len(pullResp.Changes) < 1 {
-		t.Fatal("expected at least 1 change in pull response")
-	}
-	found := false
-	for _, change := range pullResp.Changes {
-		if change.EntityID == task.ID.String() && change.FieldName == "title" {
-			found = true
-			var title string
-			if err := json.Unmarshal(change.NewValue, &title); err == nil {
-				if title != "Synced title" {
-					t.Errorf("expected synced title 'Synced title', got %q", title)
-				}
-			}
-			break
-		}
-	}
-	if !found {
-		t.Error("pushed change not found in pull response")
+	var createPullResp models.SyncPullResponse
+	readJSON(t, resp, &createPullResp)
+	if len(createPullResp.Changes) != 4 {
+		t.Fatalf("expected 4 create changes in pull response, got %d", len(createPullResp.Changes))
 	}
 
-	// 4. Pull from device A with lastSyncAt=now should return no changes
-	// (device A's own changes are excluded).
-	pullPayloadA := models.SyncPullPayload{
+	updateDeleteStart := now.Add(10 * time.Second)
+	updateDeletePayload := models.SyncPushPayload{
+		DeviceID: "device-A",
+		BatchID:  uuid.NewString(),
+		Changes: []models.ChangeRecord{
+			{
+				EntityType: "task",
+				EntityID:   taskID,
+				FieldName:  "title",
+				NewValue:   mustJSON("Shipped spec"),
+				Timestamp:  updateDeleteStart,
+			},
+			{
+				EntityType: "task_tag",
+				EntityID:   taskID + ":" + tagID,
+				FieldName:  "present",
+				NewValue:   mustJSON(false),
+				Timestamp:  updateDeleteStart.Add(time.Second),
+			},
+			{
+				EntityType: "task",
+				EntityID:   taskID,
+				FieldName:  "deleted_at",
+				NewValue:   mustJSON(updateDeleteStart.Add(2 * time.Second).Format(time.RFC3339)),
+				Timestamp:  updateDeleteStart.Add(2 * time.Second),
+			},
+			{
+				EntityType: "list",
+				EntityID:   listID,
+				FieldName:  "deleted_at",
+				NewValue:   mustJSON(updateDeleteStart.Add(3 * time.Second).Format(time.RFC3339)),
+				Timestamp:  updateDeleteStart.Add(3 * time.Second),
+			},
+			{
+				EntityType: "tag",
+				EntityID:   tagID,
+				FieldName:  "deleted_at",
+				NewValue:   mustJSON(updateDeleteStart.Add(4 * time.Second).Format(time.RFC3339)),
+				Timestamp:  updateDeleteStart.Add(4 * time.Second),
+			},
+		},
+	}
+
+	resp = doRequest(t, http.MethodPost, base+"/sync/push", updateDeletePayload, userID)
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		t.Fatalf("sync update/delete push: expected 200, got %d; body: %s", resp.StatusCode, string(body))
+	}
+	var updateDeleteResp models.PushResponse
+	readJSON(t, resp, &updateDeleteResp)
+	if updateDeleteResp.Accepted != 5 {
+		t.Fatalf("expected 5 accepted update/delete changes, got %d", updateDeleteResp.Accepted)
+	}
+
+	if err := env.Pool.QueryRow(context.Background(),
+		"SELECT title FROM tasks WHERE id = $1 AND user_id = $2",
+		taskID, userID,
+	).Scan(&persistedTaskTitle); err != nil {
+		t.Fatalf("read updated task: %v", err)
+	}
+	if persistedTaskTitle != "Shipped spec" {
+		t.Fatalf("expected updated task title Shipped spec, got %q", persistedTaskTitle)
+	}
+
+	var taskDeletedAt, listDeletedAt, tagDeletedAt *time.Time
+	if err := env.Pool.QueryRow(context.Background(),
+		"SELECT deleted_at FROM tasks WHERE id = $1 AND user_id = $2",
+		taskID, userID,
+	).Scan(&taskDeletedAt); err != nil {
+		t.Fatalf("read task deleted_at: %v", err)
+	}
+	if taskDeletedAt == nil {
+		t.Fatal("expected task deleted_at to be set")
+	}
+	if err := env.Pool.QueryRow(context.Background(),
+		"SELECT deleted_at FROM lists WHERE id = $1 AND user_id = $2",
+		listID, userID,
+	).Scan(&listDeletedAt); err != nil {
+		t.Fatalf("read list deleted_at: %v", err)
+	}
+	if listDeletedAt == nil {
+		t.Fatal("expected list deleted_at to be set")
+	}
+	if err := env.Pool.QueryRow(context.Background(),
+		"SELECT deleted_at FROM tags WHERE id = $1 AND user_id = $2",
+		tagID, userID,
+	).Scan(&tagDeletedAt); err != nil {
+		t.Fatalf("read tag deleted_at: %v", err)
+	}
+	if tagDeletedAt == nil {
+		t.Fatal("expected tag deleted_at to be set")
+	}
+
+	if err := env.Pool.QueryRow(context.Background(),
+		"SELECT COUNT(*) FROM task_tags WHERE task_id = $1 AND tag_id = $2 AND user_id = $3",
+		taskID, tagID, userID,
+	).Scan(&associationCount); err != nil {
+		t.Fatalf("count task_tag rows after remove: %v", err)
+	}
+	if associationCount != 0 {
+		t.Fatalf("expected 0 task_tag associations after removal, got %d", associationCount)
+	}
+
+	resp = doRequest(t, http.MethodPost, base+"/sync/pull", models.SyncPullPayload{
+		DeviceID:   "device-B",
+		LastSyncAt: updateDeleteStart.Add(-time.Second),
+	}, userID)
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		t.Fatalf("sync pull after update/delete: expected 200, got %d; body: %s", resp.StatusCode, string(body))
+	}
+	var updateDeletePullResp models.SyncPullResponse
+	readJSON(t, resp, &updateDeletePullResp)
+	if len(updateDeletePullResp.Changes) != 5 {
+		t.Fatalf("expected 5 update/delete changes in pull response, got %d", len(updateDeletePullResp.Changes))
+	}
+
+	resp = doRequest(t, http.MethodPost, base+"/sync/pull", models.SyncPullPayload{
 		DeviceID:   "device-A",
 		LastSyncAt: now.Add(-time.Minute),
-	}
-	resp = doRequest(t, http.MethodPost, base+"/sync/pull", pullPayloadA, userID)
+	}, userID)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("sync pull device-A: expected 200, got %d", resp.StatusCode)
 	}
-	var pullRespA models.SyncPullResponse
-	readJSON(t, resp, &pullRespA)
-	if len(pullRespA.Changes) != 0 {
-		t.Errorf("expected 0 changes for device-A (own changes excluded), got %d", len(pullRespA.Changes))
+	var ownPullResp models.SyncPullResponse
+	readJSON(t, resp, &ownPullResp)
+	if len(ownPullResp.Changes) != 0 {
+		t.Fatalf("expected 0 changes for device-A (own changes excluded), got %d", len(ownPullResp.Changes))
 	}
 }

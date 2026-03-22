@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS tags (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
     color TEXT,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    deleted_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS task_tags (
@@ -93,6 +94,11 @@ fn apply_pragmas(conn: &Connection) -> Result<(), String> {
     .map_err(|e| format!("Failed to set PRAGMAs: {}", e))
 }
 
+fn apply_runtime_migrations(conn: &Connection) -> Result<(), String> {
+    let _ = conn.execute_batch("ALTER TABLE tags ADD COLUMN deleted_at TEXT");
+    Ok(())
+}
+
 /// Creates (or opens) tickclone.db inside `app_data_dir`, applies PRAGMAs,
 /// and runs the canonical schema.
 pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
@@ -106,6 +112,7 @@ pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
 
     conn.execute_batch(SCHEMA_SQL)
         .map_err(|e| format!("Failed to execute schema: {}", e))?;
+    apply_runtime_migrations(&conn)?;
 
     Ok(conn)
 }
@@ -116,6 +123,7 @@ pub fn get_connection(app_data_dir: &Path) -> Result<Connection, String> {
     let conn = Connection::open(&db_path).map_err(|e| format!("Failed to open database: {}", e))?;
 
     apply_pragmas(&conn)?;
+    apply_runtime_migrations(&conn)?;
 
     Ok(conn)
 }
