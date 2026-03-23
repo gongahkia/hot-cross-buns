@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/gongahkia/tickclone-server/internal/models"
+	"github.com/gongahkia/cross-2-server/internal/models"
 )
 
 // ListRepository handles database operations for lists.

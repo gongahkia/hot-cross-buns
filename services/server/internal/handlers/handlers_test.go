@@ -19,13 +19,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 
-	"github.com/gongahkia/tickclone-server/internal/app"
-	"github.com/gongahkia/tickclone-server/internal/database"
-	"github.com/gongahkia/tickclone-server/internal/handlers"
-	authmw "github.com/gongahkia/tickclone-server/internal/middleware"
-	"github.com/gongahkia/tickclone-server/internal/models"
-	"github.com/gongahkia/tickclone-server/internal/repository"
-	"github.com/gongahkia/tickclone-server/internal/services"
+	"github.com/gongahkia/cross-2-server/internal/app"
+	"github.com/gongahkia/cross-2-server/internal/database"
+	"github.com/gongahkia/cross-2-server/internal/handlers"
+	authmw "github.com/gongahkia/cross-2-server/internal/middleware"
+	"github.com/gongahkia/cross-2-server/internal/models"
+	"github.com/gongahkia/cross-2-server/internal/repository"
+	"github.com/gongahkia/cross-2-server/internal/services"
 )
 
 // ---------------------------------------------------------------------------

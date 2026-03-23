@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/tickclone-server/internal/app"
-	"github.com/gongahkia/tickclone-server/internal/database"
+	"github.com/gongahkia/cross-2-server/internal/app"
+	"github.com/gongahkia/cross-2-server/internal/database"
 )
 
 func TestNewServerRegistersCoreRoutes(t *testing.T) {

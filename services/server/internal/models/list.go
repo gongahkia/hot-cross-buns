@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// List represents a task list in the TickClone application.
+// List represents a task list in the Cross 2 application.
 type List struct {
 	ID        uuid.UUID  `json:"id"`
 	UserID    uuid.UUID  `json:"userId"`

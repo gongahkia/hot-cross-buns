@@ -10,8 +10,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/gongahkia/tickclone-server/internal/models"
-	"github.com/gongahkia/tickclone-server/internal/services"
+	"github.com/gongahkia/cross-2-server/internal/models"
+	"github.com/gongahkia/cross-2-server/internal/services"
 )
 
 // testPool returns a *pgxpool.Pool connected to the integration-test database.

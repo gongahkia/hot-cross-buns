@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
-	"github.com/gongahkia/tickclone-server/internal/middleware"
+	"github.com/gongahkia/cross-2-server/internal/middleware"
 )
 
 // ---------------------------------------------------------------------------

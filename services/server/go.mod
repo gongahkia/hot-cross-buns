@@ -1,4 +1,4 @@
-module github.com/gongahkia/tickclone-server
+module github.com/gongahkia/cross-2-server
 
 go 1.25.0
 

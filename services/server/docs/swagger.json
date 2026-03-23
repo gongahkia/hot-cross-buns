@@ -1,11 +1,11 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "TickClone Sync Server API",
-    "description": "REST API for the TickClone sync server. All endpoints except /health and /api/v1/auth/* require a Bearer JWT token when AUTH_REQUIRED=true.",
+    "title": "Cross 2 Sync Server API",
+    "description": "REST API for the Cross 2 sync server. All endpoints except /health and /api/v1/auth/* require a Bearer JWT token when AUTH_REQUIRED=true.",
     "version": "1.0.0",
     "contact": {
-      "name": "TickClone"
+      "name": "Cross 2"
     }
   },
   "servers": [

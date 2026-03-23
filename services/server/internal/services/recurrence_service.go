@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/teambition/rrule-go"
 
-	"github.com/gongahkia/tickclone-server/internal/models"
+	"github.com/gongahkia/cross-2-server/internal/models"
 )
 
 // ExpandRecurrence parses an RRULE string and returns the next `limit`

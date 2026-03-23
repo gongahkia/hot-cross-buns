@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/gongahkia/tickclone-server/internal/models"
+	"github.com/gongahkia/cross-2-server/internal/models"
 )
 
 type syncedListPayload struct {
