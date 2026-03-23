@@ -5,6 +5,7 @@
   import { selectedTaskId } from '$lib/stores/ui';
   import { invoke } from '@tauri-apps/api/core';
   import type { Task, Tag } from '$lib/types';
+  import RecurrenceBuilder from './RecurrenceBuilder.svelte';
 
   let task: Task | null = $state(null);
   let titleValue = $state('');
@@ -29,13 +30,6 @@
   ];
   const DEFAULT_TAG_COLOR = 'var(--color-tag-default)';
 
-  const recurrencePresets = [
-    { value: '', label: 'None' },
-    { value: 'RRULE:FREQ=DAILY', label: 'Daily' },
-    { value: 'RRULE:FREQ=WEEKLY', label: 'Weekly' },
-    { value: 'RRULE:FREQ=MONTHLY', label: 'Monthly' },
-    { value: 'RRULE:FREQ=YEARLY', label: 'Yearly' },
-  ];
 
   let allTasks: Task[] = $state([]);
   let allTags: Tag[] = $state([]);
@@ -163,11 +157,10 @@
     editTask(task.id, { dueDate: combined });
   }
 
-  function onRecurrenceChange(e: Event) {
-    const target = e.target as HTMLSelectElement;
-    recurrenceValue = target.value;
+  function handleRecurrenceBuilderChange(rule: string) {
+    recurrenceValue = rule;
     if (task) {
-      editTask(task.id, { recurrenceRule: recurrenceValue || undefined });
+      editTask(task.id, { recurrenceRule: rule || undefined });
     }
   }
 
@@ -311,17 +304,8 @@
 
         <!-- Recurrence -->
         <section class="field-group">
-          <label class="field-label" for="task-recurrence">Recurrence</label>
-          <select
-            id="task-recurrence"
-            class="field-input"
-            value={recurrenceValue}
-            onchange={onRecurrenceChange}
-          >
-            {#each recurrencePresets as preset}
-              <option value={preset.value}>{preset.label}</option>
-            {/each}
-          </select>
+          <span class="field-label">Recurrence</span>
+          <RecurrenceBuilder value={recurrenceValue} onchange={handleRecurrenceBuilderChange} />
         </section>
 
         {#if previewDates.length > 0}

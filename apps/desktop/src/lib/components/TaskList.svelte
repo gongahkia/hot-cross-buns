@@ -7,9 +7,12 @@
   import { currentFilters, currentSort } from '$lib/stores/filters';
   import { matchesTaskFilters, sortTasks } from '$lib/utils/taskFilters';
   import TaskRow from './TaskRow.svelte';
+  import { parseQuickAdd } from '$lib/services/nlp-quickadd';
+  import { tags, tagTask, addTag } from '$lib/stores/tags';
 
   let newTaskTitle = $state('');
   let collapsedParents = $state<Set<string>>(new Set());
+  let quickAddPreview = $derived.by(() => newTaskTitle.trim() ? parseQuickAdd(newTaskTitle) : null);
 
   let currentListId = $derived($selectedListId);
 
@@ -72,11 +75,28 @@
   }
 
   async function handleQuickAdd(e: KeyboardEvent) {
-    if (e.key !== 'Enter') return;
-    const title = newTaskTitle.trim();
-    if (!title || !currentListId) return;
+    if (e.key !== 'Enter' || !newTaskTitle.trim() || !currentListId) return;
+    const parsed = parseQuickAdd(newTaskTitle);
+    if (!parsed.title) return;
     try {
-      await addTask({ listId: currentListId, title });
+      const created = await addTask({
+        listId: currentListId,
+        title: parsed.title,
+        dueDate: parsed.dueDate,
+        priority: parsed.priority,
+        recurrenceRule: parsed.recurrenceRule,
+      });
+      if (created && parsed.tagNames.length > 0) {
+        for (const tagName of parsed.tagNames) {
+          let existing = ($tags).find((t) => t.name.toLowerCase() === tagName.toLowerCase());
+          if (!existing) {
+            try { existing = await addTag(tagName); } catch { continue; }
+          }
+          if (existing) {
+            try { await tagTask(created.id, existing.id); } catch {} // best-effort
+          }
+        }
+      }
       newTaskTitle = '';
     } catch (err) {
       console.error('Failed to create task:', err);
@@ -105,6 +125,22 @@
         onkeydown={handleQuickAdd}
       />
     </div>
+
+    {#if quickAddPreview && (quickAddPreview.dueDate || quickAddPreview.priority || quickAddPreview.tagNames.length > 0)}
+      <div class="quick-add-preview">
+        {#if quickAddPreview.dueDate}
+          <span class="preview-chip date-chip">{quickAddPreview.dueDate}</span>
+        {/if}
+        {#if quickAddPreview.priority}
+          <span class="preview-chip priority-chip" class:p1={quickAddPreview.priority === 1} class:p2={quickAddPreview.priority === 2} class:p3={quickAddPreview.priority === 3}>
+            {['', 'Low', 'Med', 'High'][quickAddPreview.priority]}
+          </span>
+        {/if}
+        {#each quickAddPreview.tagNames as tag}
+          <span class="preview-chip tag-chip">#{tag}</span>
+        {/each}
+      </div>
+    {/if}
 
     <FilterBar />
 
@@ -339,4 +375,19 @@
   .completed-chevron.collapsed {
     transform: rotate(0deg);
   }
+
+  .quick-add-preview {
+    display: flex; flex-wrap: wrap; gap: 4px;
+    padding: 2px 12px 6px;
+  }
+  .preview-chip {
+    font-size: 11px; padding: 1px 8px; border-radius: 6px;
+    background: var(--color-surface-0, #25282c);
+    color: var(--color-text-secondary, #b6b6b2);
+  }
+  .date-chip { background: color-mix(in srgb, var(--color-accent, #6c93c7) 14%, transparent); color: var(--color-accent, #6c93c7); }
+  .priority-chip.p1 { background: color-mix(in srgb, var(--color-priority-low) 14%, transparent); color: var(--color-priority-low); }
+  .priority-chip.p2 { background: color-mix(in srgb, var(--color-priority-med) 14%, transparent); color: var(--color-priority-med); }
+  .priority-chip.p3 { background: color-mix(in srgb, var(--color-priority-high) 14%, transparent); color: var(--color-priority-high); }
+  .tag-chip { background: color-mix(in srgb, var(--color-info, #2e7cd1) 14%, transparent); color: var(--color-info, #2e7cd1); }
 </style>

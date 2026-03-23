@@ -67,6 +67,16 @@
   let todayGroups = $derived(groupByList(todayTasks));
   let totalCount = $derived(todayTasks.length + overdueTasks.length);
 
+  let completedToday = $state(0);
+  let streak = $state(0);
+
+  $effect(() => {
+    const _v = $taskMutationVersion;
+    invoke<{ today: number; streak: number }>('get_completion_stats')
+      .then((s) => { completedToday = s.today; streak = s.streak; })
+      .catch(() => {});
+  });
+
   function getListName(listId: string): string {
     return listMap.get(listId)?.name ?? 'Unknown';
   }
@@ -82,6 +92,12 @@
     <span class="today-date">{dateString}</span>
     {#if totalCount > 0}
       <span class="today-count">{totalCount}</span>
+    {/if}
+    {#if completedToday > 0}
+      <span class="stat-badge completed-badge">{completedToday} done</span>
+    {/if}
+    {#if streak > 1}
+      <span class="stat-badge streak-badge">{streak}d streak</span>
     {/if}
   </div>
 
@@ -172,6 +188,22 @@
     padding: 2px 8px;
     border-radius: 8px;
     margin-left: auto;
+  }
+
+  .stat-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+  .completed-badge {
+    background: color-mix(in srgb, var(--color-success, #2d9964) 14%, transparent);
+    color: var(--color-success, #2d9964);
+  }
+  .streak-badge {
+    background: color-mix(in srgb, var(--color-warning, #ca8e1b) 14%, transparent);
+    color: var(--color-warning, #ca8e1b);
   }
 
   .today-content {

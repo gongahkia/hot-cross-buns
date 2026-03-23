@@ -829,6 +829,54 @@ pub fn complete_recurring_task(state: State<'_, AppState>, id: String) -> Result
 }
 
 #[tauri::command]
+pub fn get_high_priority_tasks(state: State<'_, AppState>) -> Result<Vec<Task>, String> {
+    let conn = db::get_connection(&state.db_path)?;
+    fetch_tasks_by_date_filter(
+        &conn,
+        "priority = 3", // reuse helper; date_filter is just an extra WHERE clause
+    )
+}
+
+#[tauri::command]
+pub fn get_tasks_due_this_week(state: State<'_, AppState>) -> Result<Vec<Task>, String> {
+    let conn = db::get_connection(&state.db_path)?;
+    fetch_tasks_by_date_filter(
+        &conn,
+        "date(due_date) BETWEEN date('now') AND date('now', '+6 days')",
+    )
+}
+
+#[tauri::command]
+pub fn get_untagged_tasks(state: State<'_, AppState>) -> Result<Vec<Task>, String> {
+    let conn = db::get_connection(&state.db_path)?;
+    let sql = format!(
+        "SELECT {} FROM tasks WHERE id NOT IN (SELECT task_id FROM task_tags) \
+         AND status = 0 AND deleted_at IS NULL AND parent_task_id IS NULL \
+         ORDER BY created_at DESC",
+        TASK_COLUMNS
+    );
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+    let top_tasks: Vec<Task> = stmt
+        .query_map([], row_to_task)
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    if top_tasks.is_empty() {
+        return Ok(Vec::new());
+    }
+    let all_ids: Vec<String> = top_tasks.iter().map(|t| t.id.clone()).collect();
+    let tag_map = fetch_tags_for_tasks(&conn, &all_ids)?;
+    let tasks = top_tasks
+        .into_iter()
+        .map(|mut t| {
+            t.tags = tag_map.get(&t.id).cloned().unwrap_or_default();
+            t
+        })
+        .collect();
+    Ok(tasks)
+}
+
+#[tauri::command]
 pub fn get_completion_stats(state: State<'_, AppState>) -> Result<CompletionStats, String> {
     let conn = db::get_connection(&state.db_path)?;
     let today: i64 = conn.query_row(

@@ -21,6 +21,7 @@
   type TodayViewModule = typeof import('$lib/components/TodayView.svelte');
   type WeekViewModule = typeof import('$lib/components/WeekView.svelte');
   type CalendarViewModule = typeof import('$lib/components/CalendarView.svelte');
+  type SmartFilterViewModule = typeof import('$lib/components/SmartFilterView.svelte');
 
   let showShortcuts = $state(false);
   let showOnboarding = $state(false);
@@ -29,6 +30,7 @@
   let todayViewModule = $state<TodayViewModule | null>(null);
   let weekViewModule = $state<WeekViewModule | null>(null);
   let calendarViewModule = $state<CalendarViewModule | null>(null);
+  let smartFilterViewModule = $state<SmartFilterViewModule | null>(null);
 
   function defaultListFrom(lists: List[]): List | null {
     return lists.find((list) => list.isInbox) ?? lists[0] ?? null;
@@ -56,6 +58,10 @@
 
     if (view === 'calendar' && !calendarViewModule) {
       calendarViewModule = await import('$lib/components/CalendarView.svelte');
+    }
+
+    if (view === 'smart-filter' && !smartFilterViewModule) {
+      smartFilterViewModule = await import('$lib/components/SmartFilterView.svelte');
     }
   }
 
@@ -239,6 +245,12 @@
           <weekViewModule.default />
         {:else}
           <p class="empty-state">Loading week view...</p>
+        {/if}
+      {:else if activeView === 'smart-filter'}
+        {#if smartFilterViewModule}
+          <smartFilterViewModule.default />
+        {:else}
+          <p class="empty-state">Loading filters...</p>
         {/if}
       {:else if activeView === 'today'}
         {#if todayViewModule}

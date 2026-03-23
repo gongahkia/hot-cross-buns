@@ -2,9 +2,10 @@
   import { lists, addList, editList, removeList } from '$lib/stores/lists';
   import ContextMenu from './ContextMenu.svelte';
   import ColorPicker from './ColorPicker.svelte';
-  import { tasks } from '$lib/stores/tasks';
+  import { tasks, taskMutationVersion } from '$lib/stores/tasks';
+  import { invoke } from '@tauri-apps/api/core';
   import { tags } from '$lib/stores/tags';
-  import { currentView, selectedListId, type ViewMode } from '$lib/stores/ui';
+  import { currentView, selectedListId, selectedSmartFilter, type ViewMode, type SmartFilterType } from '$lib/stores/ui';
   import { theme, cycleTheme } from '$lib/stores/theme';
   import type { List } from '$lib/types';
   import SyncSettings from './SyncSettings.svelte';
@@ -24,8 +25,19 @@
   let colorPickerListId: string | null = $state(null);
   let colorPickerX = $state(0);
   let colorPickerY = $state(0);
+  let draggedListId: string | null = $state(null);
+  let dragOverListId: string | null = $state(null);
   const DEFAULT_LIST_COLOR = 'var(--color-list-default)';
   const DEFAULT_TAG_COLOR = 'var(--color-tag-default)';
+
+  let overdueCount = $state(0);
+
+  $effect(() => {
+    const _v = $taskMutationVersion;
+    invoke<any[]>('get_overdue_tasks')
+      .then((tasks) => { overdueCount = tasks.length; })
+      .catch(() => { overdueCount = 0; });
+  });
 
   // Derived values from stores using Svelte 5 $-prefix auto-subscription
   let inboxList = $derived(($lists).find((l: List) => l.isInbox));
@@ -46,6 +58,11 @@
   function selectList(id: string) {
     selectedListId.set(id);
     currentView.set('list');
+  }
+
+  function selectSmartFilter(filter: SmartFilterType) {
+    selectedSmartFilter.set(filter);
+    currentView.set('smart-filter');
   }
 
   function startCreatingList() {
@@ -150,6 +167,42 @@
     await removeList(deletingId);
   }
 
+  function handleListDragStart(e: DragEvent, list: List) {
+    draggedListId = list.id;
+    e.dataTransfer!.effectAllowed = 'move';
+    e.dataTransfer!.setData('text/plain', list.id);
+  }
+  function handleListDragOver(e: DragEvent, listId: string) {
+    e.preventDefault();
+    e.dataTransfer!.dropEffect = 'move';
+    dragOverListId = listId;
+  }
+  async function handleListDrop(e: DragEvent, targetList: List) {
+    e.preventDefault();
+    if (!draggedListId || draggedListId === targetList.id) {
+      draggedListId = null;
+      dragOverListId = null;
+      return;
+    }
+    const currentLists = [...userLists]; // already sorted by sortOrder
+    const dragIdx = currentLists.findIndex(l => l.id === draggedListId);
+    const targetIdx = currentLists.findIndex(l => l.id === targetList.id);
+    if (dragIdx < 0 || targetIdx < 0) return;
+    const [moved] = currentLists.splice(dragIdx, 1);
+    currentLists.splice(targetIdx, 0, moved);
+    for (let i = 0; i < currentLists.length; i++) {
+      if (currentLists[i].sortOrder !== i) {
+        await editList(currentLists[i].id, { sortOrder: i });
+      }
+    }
+    draggedListId = null;
+    dragOverListId = null;
+  }
+  function handleDragEnd() {
+    draggedListId = null;
+    dragOverListId = null;
+  }
+
   let contextMenuItems = $derived(contextListId ? [
     { label: 'Rename', action: startRenameList },
     { label: 'Change Color', action: openColorPicker },
@@ -176,6 +229,9 @@
         </svg>
       </span>
       <span class="nav-label">Today</span>
+      {#if overdueCount > 0}
+        <span class="overdue-badge">{overdueCount}</span>
+      {/if}
     </button>
 
     <button
@@ -213,6 +269,30 @@
 
   <div class="sidebar-section">
     <div class="section-header">
+      <span class="section-title">Smart Filters</span>
+    </div>
+    <button class="nav-item" class:active={$currentView === 'smart-filter' && $selectedSmartFilter === 'overdue'} onclick={() => selectSmartFilter('overdue')}>
+      <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none"><path d="M8 3v5l3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/></svg></span>
+      <span class="nav-label">Overdue</span>
+    </button>
+    <button class="nav-item" class:active={$currentView === 'smart-filter' && $selectedSmartFilter === 'due-this-week'} onclick={() => selectSmartFilter('due-this-week')}>
+      <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10.5" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M5 1.75V4.25M11 1.75V4.25M2 6h12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+      <span class="nav-label">This Week</span>
+    </button>
+    <button class="nav-item" class:active={$currentView === 'smart-filter' && $selectedSmartFilter === 'high-priority'} onclick={() => selectSmartFilter('high-priority')}>
+      <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none"><path d="M8 2L9.8 6h4.2l-3.4 2.8L12 13 8 10.2 4 13l1.4-4.2L2 6h4.2L8 2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>
+      <span class="nav-label">High Priority</span>
+    </button>
+    <button class="nav-item" class:active={$currentView === 'smart-filter' && $selectedSmartFilter === 'untagged'} onclick={() => selectSmartFilter('untagged')}>
+      <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 9.5l5-7h4l2 2v4l-7 5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle cx="10.5" cy="5.5" r="1" fill="currentColor"/></svg></span>
+      <span class="nav-label">Untagged</span>
+    </button>
+  </div>
+
+  <div class="sidebar-divider"></div>
+
+  <div class="sidebar-section">
+    <div class="section-header">
       <span class="section-title">Lists</span>
     </div>
 
@@ -239,9 +319,17 @@
       <button
         class="list-item"
         class:active={$currentView === 'list' && $selectedListId === list.id}
+        class:dragging={draggedListId === list.id}
+        class:drag-over={dragOverListId === list.id}
         data-list-id={list.id}
+        draggable="true"
         onclick={() => selectList(list.id)}
         oncontextmenu={(e) => openListContextMenu(e, list.id)}
+        ondragstart={(e) => handleListDragStart(e, list)}
+        ondragover={(e) => handleListDragOver(e, list.id)}
+        ondrop={(e) => handleListDrop(e, list)}
+        ondragend={handleDragEnd}
+        ondragleave={() => { if (dragOverListId === list.id) dragOverListId = null; }}
       >
         <span
           class="list-color-dot"
@@ -669,5 +757,20 @@
     border-radius: 12px;
     padding: 12px;
     box-shadow: var(--shadow-overlay, 0 20px 56px rgba(0, 0, 0, 0.48));
+  }
+
+  .list-item.dragging { opacity: 0.4; }
+  .list-item.drag-over { border-top: 2px solid var(--color-accent, #6c93c7); margin-top: -2px; }
+
+  .overdue-badge {
+    background: var(--color-danger, #cd4945);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 999px;
+    margin-left: auto;
+    flex-shrink: 0;
+    line-height: 1.4;
   }
 </style>

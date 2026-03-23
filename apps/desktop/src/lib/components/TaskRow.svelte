@@ -137,6 +137,13 @@
   .checkbox.checked {
     background: var(--color-accent, #6c93c7);
     border-color: var(--color-accent, #6c93c7);
+    animation: check-pop 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes check-pop {
+    0% { transform: scale(0.8); opacity: 0.6; }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); opacity: 1; }
   }
 
   .task-title {
