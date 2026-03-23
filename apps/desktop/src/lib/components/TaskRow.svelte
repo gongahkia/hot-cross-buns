@@ -2,6 +2,7 @@
   import type { Task } from '$lib/types';
   import { completeTask } from '$lib/stores/tasks';
   import { selectedTaskId } from '$lib/stores/ui';
+  import { selectedTaskIds, toggleSelect, clearSelection } from '$lib/stores/selection';
 
   let { task, indent = false }: { task: Task; indent?: boolean } = $props();
 
@@ -37,7 +38,18 @@
     selectedTaskId.set(task.id);
   }
 
+  function handleClick(e: MouseEvent) {
+    if (e.metaKey || e.ctrlKey) {
+      e.preventDefault();
+      toggleSelect(task.id);
+      return;
+    }
+    if ($selectedTaskIds.size > 0) clearSelection();
+    handleSelectTask();
+  }
+
   let isCompleted = $derived(task.status === 1);
+  let isSelected = $derived($selectedTaskIds.has(task.id));
   let borderColor = $derived(PRIORITY_COLORS[task.priority] ?? 'transparent');
   let dueBadge = $derived(formatDueDate(task.dueDate));
 </script>
@@ -46,6 +58,7 @@
   class="task-row"
   class:indent
   class:completed={isCompleted}
+  class:selected={isSelected}
   style:border-left-color={borderColor}
   role="listitem"
 >
@@ -64,7 +77,7 @@
     {/if}
   </button>
 
-  <button class="task-title" onclick={handleSelectTask} aria-label="Select task: {task.title}">
+  <button class="task-title" onclick={handleClick} aria-label="Select task: {task.title}">
     {task.title}
   </button>
 
@@ -103,6 +116,10 @@
 
   .task-row:hover {
     background: var(--color-surface-hover, #2a2e33);
+  }
+
+  .task-row.selected {
+    background: var(--color-accent-soft, rgba(108, 147, 199, 0.16));
   }
 
   .task-row.indent {

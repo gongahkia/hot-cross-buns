@@ -21,10 +21,10 @@ use commands::tag_commands::{
     add_tag_to_task, create_tag, delete_tag, get_tags, remove_tag_from_task, update_tag,
 };
 use commands::task_commands::{
-    complete_recurring_task, create_task, delete_task, get_completion_stats,
-    get_high_priority_tasks, get_overdue_tasks, get_task, get_tasks_by_list,
-    get_tasks_due_this_week, get_tasks_due_today, get_tasks_in_range, get_untagged_tasks,
-    move_task, preview_recurrence, search_tasks, update_task,
+    bulk_delete_tasks, bulk_move_tasks, bulk_update_tasks, complete_recurring_task, create_task,
+    delete_task, get_completion_stats, get_high_priority_tasks, get_overdue_tasks, get_task,
+    get_tasks_by_list, get_tasks_due_this_week, get_tasks_due_today, get_tasks_in_range,
+    get_untagged_tasks, move_task, preview_recurrence, search_tasks, update_task,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -122,6 +122,9 @@ pub fn run() {
             resolve_sync_conflict,
             dismiss_sync_conflict,
             sync_now,
+            bulk_update_tasks,
+            bulk_delete_tasks,
+            bulk_move_tasks,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

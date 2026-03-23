@@ -7,6 +7,7 @@
   import { currentFilters, currentSort } from '$lib/stores/filters';
   import { matchesTaskFilters, sortTasks } from '$lib/utils/taskFilters';
   import TaskRow from './TaskRow.svelte';
+  import BulkActionBar from './BulkActionBar.svelte';
   import { parseQuickAdd } from '$lib/services/nlp-quickadd';
   import { tags, tagTask, addTag } from '$lib/stores/tags';
 
@@ -199,6 +200,7 @@
         {/if}
       {/if}
     </div>
+    <BulkActionBar />
   </div>
 {/if}
 

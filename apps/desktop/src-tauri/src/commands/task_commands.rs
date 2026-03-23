@@ -903,3 +903,111 @@ pub fn get_completion_stats(state: State<'_, AppState>) -> Result<CompletionStat
     ).unwrap_or(0);
     Ok(CompletionStats { today: today as u32, streak: streak as u32 })
 }
+
+#[tauri::command]
+pub fn bulk_update_tasks(
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+    priority: Option<i32>,
+    status: Option<i32>,
+) -> Result<(), String> {
+    let conn = db::get_connection(&state.db_path)?;
+    for id in &ids {
+        let mut set_clauses: Vec<String> = Vec::new();
+        let mut params_boxed: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+        if let Some(p) = priority {
+            set_clauses.push(format!("priority = ?{}", params_boxed.len() + 1));
+            params_boxed.push(Box::new(p));
+        }
+        if let Some(s) = status {
+            set_clauses.push(format!("status = ?{}", params_boxed.len() + 1));
+            params_boxed.push(Box::new(s));
+            if s == 1 {
+                set_clauses.push(format!("completed_at = ?{}", params_boxed.len() + 1));
+                params_boxed.push(Box::new(iso8601_now()));
+            } else {
+                set_clauses.push(format!("completed_at = ?{}", params_boxed.len() + 1));
+                params_boxed.push(Box::new(None::<String>));
+            }
+        }
+        if set_clauses.is_empty() { continue; }
+        set_clauses.push(format!("updated_at = ?{}", params_boxed.len() + 1));
+        params_boxed.push(Box::new(iso8601_now()));
+        let id_idx = params_boxed.len() + 1;
+        params_boxed.push(Box::new(id.clone()));
+        let sql = format!(
+            "UPDATE tasks SET {} WHERE id = ?{} AND deleted_at IS NULL",
+            set_clauses.join(", "),
+            id_idx
+        );
+        let params_refs: Vec<&dyn rusqlite::types::ToSql> =
+            params_boxed.iter().map(|p| p.as_ref()).collect();
+        conn.execute(&sql, params_refs.as_slice())
+            .map_err(|e| format!("Failed to bulk update task {}: {}", id, e))?;
+        if let Some(p) = priority {
+            changes::record_field_change(&conn, "task", id, "priority", &p)?;
+        }
+        if let Some(s) = status {
+            changes::record_field_change(&conn, "task", id, "status", &s)?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn bulk_delete_tasks(
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+) -> Result<(), String> {
+    let conn = db::get_connection(&state.db_path)?;
+    let now = iso8601_now();
+    for id in &ids {
+        let subtask_ids = get_active_subtask_ids(&conn, id)?;
+        conn.execute(
+            "UPDATE tasks SET deleted_at = ?1, updated_at = ?1 WHERE id = ?2 AND deleted_at IS NULL",
+            params![now, id],
+        ).map_err(|e| format!("Failed to bulk delete task {}: {}", id, e))?;
+        conn.execute(
+            "UPDATE tasks SET deleted_at = ?1, updated_at = ?1 WHERE parent_task_id = ?2 AND deleted_at IS NULL",
+            params![now, id],
+        ).map_err(|e| format!("Failed to bulk delete subtasks of {}: {}", id, e))?;
+        changes::record_deleted_at(&conn, "task", id, &now)?;
+        reminder::clear_notified(&conn, id);
+        for subtask_id in subtask_ids {
+            changes::record_deleted_at(&conn, "task", &subtask_id, &now)?;
+            reminder::clear_notified(&conn, &subtask_id);
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn bulk_move_tasks(
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+    new_list_id: String,
+) -> Result<(), String> {
+    let conn = db::get_connection(&state.db_path)?;
+    conn.query_row(
+        "SELECT id FROM lists WHERE id = ?1 AND deleted_at IS NULL",
+        params![new_list_id],
+        |_row| Ok(()),
+    ).map_err(|_| "Target list not found or deleted".to_string())?;
+    let now = iso8601_now();
+    for id in &ids {
+        let subtask_ids = get_active_subtask_ids(&conn, id)?;
+        conn.execute(
+            "UPDATE tasks SET list_id = ?1, updated_at = ?2 WHERE id = ?3 AND deleted_at IS NULL",
+            params![new_list_id, now, id],
+        ).map_err(|e| format!("Failed to bulk move task {}: {}", id, e))?;
+        conn.execute(
+            "UPDATE tasks SET list_id = ?1, updated_at = ?2 WHERE parent_task_id = ?3 AND deleted_at IS NULL",
+            params![new_list_id, now, id],
+        ).map_err(|e| format!("Failed to bulk move subtasks of {}: {}", id, e))?;
+        changes::record_field_change(&conn, "task", id, "list_id", &new_list_id)?;
+        for subtask_id in subtask_ids {
+            changes::record_field_change(&conn, "task", &subtask_id, "list_id", &new_list_id)?;
+        }
+    }
+    Ok(())
+}
