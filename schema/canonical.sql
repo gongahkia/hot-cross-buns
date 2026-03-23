@@ -1,4 +1,4 @@
--- TickClone canonical schema (SQLite)
+-- Cross 2 canonical schema (SQLite)
 -- All clients must implement this schema locally.
 
 PRAGMA foreign_keys = ON;
