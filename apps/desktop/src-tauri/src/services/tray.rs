@@ -47,6 +47,10 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), String> {
                 }
             }
             "quick_add" => {
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
                 // Emit a custom event that the frontend can listen for.
                 let _ = app_handle.emit("tray://quick-add-task", ());
             }

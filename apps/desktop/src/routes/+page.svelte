@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
+  import { listen } from '@tauri-apps/api/event';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import TaskList from '$lib/components/TaskList.svelte';
   import TaskDetail from '$lib/components/TaskDetail.svelte';
@@ -28,6 +29,17 @@
   let todayViewModule = $state<TodayViewModule | null>(null);
   let weekViewModule = $state<WeekViewModule | null>(null);
   let calendarViewModule = $state<CalendarViewModule | null>(null);
+
+  function defaultListFrom(lists: List[]): List | null {
+    return lists.find((list) => list.isInbox) ?? lists[0] ?? null;
+  }
+
+  async function focusQuickAddInput() {
+    await tick();
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLInputElement>('.quick-add-input')?.focus();
+    });
+  }
 
   let hasSelectedList = $derived.by(() => {
     let value: string | null = null;
@@ -78,6 +90,7 @@
 
   onMount(() => {
     let notificationPoll: ReturnType<typeof setInterval> | undefined;
+    let removeTrayQuickAddListener: (() => void) | undefined;
 
     function notificationMessage(task: Task): string {
       if (!task.dueDate) {
@@ -116,8 +129,7 @@
         const loadedLists = await loadLists();
         await loadTags();
 
-        const defaultList =
-          loadedLists.find((list: List) => list.isInbox) ?? loadedLists[0] ?? null;
+        const defaultList = defaultListFrom(loadedLists);
 
         selectedListId.set(defaultList?.id ?? null);
         showOnboarding = !hasSeenOnboarding() && loadedLists.length <= 1;
@@ -175,6 +187,25 @@
       },
     });
 
+    void listen('tray://quick-add-task', async () => {
+      currentView.set('list');
+      selectedTaskId.set(null);
+
+      let selectedList: string | null = null;
+      const unsub = selectedListId.subscribe((value) => (selectedList = value));
+      unsub();
+
+      if (!selectedList) {
+        const loadedLists = await loadLists();
+        const defaultList = defaultListFrom(loadedLists);
+        selectedListId.set(defaultList?.id ?? null);
+      }
+
+      await focusQuickAddInput();
+    }).then((unlisten) => {
+      removeTrayQuickAddListener = unlisten;
+    });
+
     void bootstrapApp();
     void pollDueNotifications();
     notificationPoll = setInterval(() => {
@@ -183,6 +214,7 @@
 
     return () => {
       cleanup();
+      removeTrayQuickAddListener?.();
       if (notificationPoll !== undefined) {
         clearInterval(notificationPoll);
       }

@@ -69,6 +69,15 @@ pub fn run() {
                 }
             }
 
+            let tray_disabled = std::env::var("TICKCLONE_DISABLE_TRAY")
+                .map(|value| matches!(value.trim(), "1" | "true" | "TRUE"))
+                .unwrap_or(false)
+                || std::env::var("CI").is_ok();
+
+            if !tray_disabled {
+                services::tray::setup_tray(app)?;
+            }
+
             services::startup::log_startup_timing("tauri setup", setup_started);
 
             Ok(())
