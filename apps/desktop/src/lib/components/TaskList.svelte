@@ -1,8 +1,11 @@
 <script lang="ts">
   import type { Task } from '$lib/types';
+  import FilterBar from './FilterBar.svelte';
   import { tasks, addTask, loadTasks, taskMutationVersion } from '$lib/stores/tasks';
   import { lists } from '$lib/stores/lists';
   import { selectedListId, showCompletedTasks } from '$lib/stores/ui';
+  import { currentFilters, currentSort } from '$lib/stores/filters';
+  import { matchesTaskFilters, sortTasks } from '$lib/utils/taskFilters';
   import TaskRow from './TaskRow.svelte';
 
   let newTaskTitle = $state('');
@@ -51,12 +54,22 @@
 
   // WHY: Separate top-level tasks from subtasks for hierarchical rendering.
   // Subtasks are rendered indented below their parent.
-  let topLevelTasks = $derived(
-    allTasks.filter((t) => !t.parentTaskId && t.status === 0),
+  let topLevelTasks = $derived.by(() =>
+    sortTasks(
+      allTasks.filter(
+        (task) => !task.parentTaskId && task.status === 0 && matchesTaskFilters(task, $currentFilters)
+      ),
+      $currentSort,
+    ),
   );
 
-  let completedTasks = $derived(
-    allTasks.filter((t) => !t.parentTaskId && t.status === 1),
+  let completedTasks = $derived.by(() =>
+    sortTasks(
+      allTasks.filter(
+        (task) => !task.parentTaskId && task.status === 1 && matchesTaskFilters(task, $currentFilters)
+      ),
+      $currentSort,
+    ),
   );
 
   let taskCount = $derived(topLevelTasks.length);
@@ -112,6 +125,8 @@
         onkeydown={handleQuickAdd}
       />
     </div>
+
+    <FilterBar />
 
     <div class="task-items">
       {#each topLevelTasks as task (task.id)}

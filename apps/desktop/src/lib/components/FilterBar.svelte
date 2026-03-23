@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tags } from '$lib/stores/tags';
+  import { showCompletedTasks } from '$lib/stores/ui';
   import {
     currentSort,
     currentFilters,
@@ -35,7 +36,7 @@
   }
 
   function toggleCompleted() {
-    currentFilters.update((f) => ({ ...f, showCompleted: !f.showCompleted }));
+    showCompletedTasks.update((value) => !value);
   }
 
   function removePriority(p: number) {
@@ -66,7 +67,7 @@
   );
 
   let hasActiveFilters = $derived(
-    $currentFilters.showCompleted ||
+    !$showCompletedTasks ||
     $currentFilters.priorities.length > 0 ||
     $currentFilters.tagIds.length > 0 ||
     $currentFilters.dueBefore !== null ||
@@ -91,11 +92,11 @@
 
     <button
       class="toggle-btn"
-      class:active={$currentFilters.showCompleted}
+      class:active={!$showCompletedTasks}
       onclick={toggleCompleted}
-      aria-pressed={$currentFilters.showCompleted}
+      aria-pressed={!$showCompletedTasks}
     >
-      Show Completed
+      {$showCompletedTasks ? 'All Tasks' : 'Active Only'}
     </button>
 
     <div class="priority-chips" role="group" aria-label="Filter by priority">
@@ -131,13 +132,13 @@
 
   {#if hasActiveFilters}
     <div class="active-pills" role="list" aria-label="Active filters">
-      {#if $currentFilters.showCompleted}
+      {#if !$showCompletedTasks}
         <span class="pill" role="listitem">
-          Showing Completed
+          Active Only
           <button
             class="pill-remove"
             onclick={toggleCompleted}
-            aria-label="Remove show completed filter"
+            aria-label="Show completed tasks again"
           >&times;</button>
         </span>
       {/if}

@@ -3,7 +3,6 @@ import { writable } from 'svelte/store';
 export type SortMode = 'manual' | 'priority' | 'dueDate' | 'title' | 'created';
 
 export interface Filters {
-  showCompleted: boolean;
   priorities: number[];
   tagIds: string[];
   dueBefore: string | null;
@@ -11,7 +10,6 @@ export interface Filters {
 }
 
 const defaultFilters: Filters = {
-  showCompleted: false,
   priorities: [],
   tagIds: [],
   dueBefore: null,
