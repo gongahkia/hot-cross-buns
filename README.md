@@ -1,6 +1,6 @@
-# TickClone
+# Cross 2
 
-TickClone is a desktop-first, local-first task manager. The desktop app owns the primary experience: lists, tasks, tags, planning views, and persistence all work against a local SQLite database. The Go server exists to support optional self-hosted sync between devices.
+Cross 2 is a desktop-first, local-first task manager. The desktop app owns the primary experience: lists, tasks, tags, planning views, and persistence all work against a local SQLite database. The Go server exists to support optional self-hosted sync between devices.
 
 ## Current Scope
 
@@ -68,7 +68,7 @@ The server now requires `DATABASE_URL` at boot.
 docker compose up -d db
 
 cd services/server
-DATABASE_URL=postgres://tickclone:changeme@localhost:5432/tickclone?sslmode=disable go run ./cmd/server
+DATABASE_URL=postgres://cross2:changeme@localhost:5432/cross2?sslmode=disable go run ./cmd/server
 ```
 
 Server verification:
