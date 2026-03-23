@@ -64,12 +64,12 @@
       return true;
     }
 
-    return localStorage.getItem('tickclone:onboardingSeen') === 'true';
+    return localStorage.getItem('cross2:onboardingSeen') === 'true';
   }
 
   function markOnboardingSeen() {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('tickclone:onboardingSeen', 'true');
+      localStorage.setItem('cross2:onboardingSeen', 'true');
     }
     showOnboarding = false;
   }
@@ -217,7 +217,7 @@
 
   <main class="content">
     <header class="toolbar">
-      <span class="toolbar-title">TickClone</span>
+      <span class="toolbar-title">Cross 2</span>
       <div class="toolbar-actions">
         <SearchBar />
         <NotificationCenter />

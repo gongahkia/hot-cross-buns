@@ -7,7 +7,7 @@ export interface StartupMetrics {
 
 declare global {
   interface Window {
-    __TICKCLONE_STARTUP_METRICS__?: StartupMetrics;
+    __CROSS2_STARTUP_METRICS__?: StartupMetrics;
   }
 }
 
@@ -20,7 +20,7 @@ const metrics: StartupMetrics = {
 
 function publish(): void {
   if (typeof window !== 'undefined') {
-    window.__TICKCLONE_STARTUP_METRICS__ = { ...metrics };
+    window.__CROSS2_STARTUP_METRICS__ = { ...metrics };
   }
 }
 

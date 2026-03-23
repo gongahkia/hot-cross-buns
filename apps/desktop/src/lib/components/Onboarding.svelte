@@ -6,7 +6,7 @@
 
   const steps = [
     {
-      title: 'Welcome to TickClone',
+      title: 'Welcome to Cross 2',
       description: 'A fast, keyboard-driven task manager built for people who get things done.',
       illustration: 'task-list',
     },

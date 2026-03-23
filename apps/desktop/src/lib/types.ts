@@ -1,4 +1,4 @@
-// TickClone shared type definitions
+// Cross 2 shared type definitions
 
 export interface List {
   id: string;

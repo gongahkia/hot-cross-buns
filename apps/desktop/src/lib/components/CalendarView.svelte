@@ -164,13 +164,13 @@
 <div class="calendar-view">
   <header class="cal-header">
     <button class="cal-nav-btn" onclick={prevMonth} aria-label="Previous month">
-      <svg viewBox="0 0 12 12" fill="none" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 12 12" fill="none" aria-hidden="true">
         <path d="M7.5 2.25L3.75 6L7.5 9.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
     </button>
     <h2 class="cal-month-label">{$monthLabel}</h2>
     <button class="cal-nav-btn" onclick={nextMonth} aria-label="Next month">
-      <svg viewBox="0 0 12 12" fill="none" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 12 12" fill="none" aria-hidden="true">
         <path d="M4.5 2.25L8.25 6L4.5 9.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
     </button>

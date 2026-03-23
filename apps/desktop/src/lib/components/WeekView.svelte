@@ -115,13 +115,13 @@
 <div class="week-view">
   <header class="week-header">
     <button class="week-nav-btn" onclick={prevWeek} aria-label="Previous week">
-      <svg viewBox="0 0 12 12" fill="none" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 12 12" fill="none" aria-hidden="true">
         <path d="M7.5 2.25L3.75 6L7.5 9.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
     </button>
     <h2 class="week-label">{weekLabel}</h2>
     <button class="week-nav-btn" onclick={nextWeek} aria-label="Next week">
-      <svg viewBox="0 0 12 12" fill="none" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 12 12" fill="none" aria-hidden="true">
         <path d="M4.5 2.25L8.25 6L4.5 9.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
     </button>

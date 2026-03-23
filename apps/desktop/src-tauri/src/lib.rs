@@ -47,7 +47,7 @@ pub fn run() {
                 db_path: app_data_dir,
             });
 
-            if let Some(task_count) = std::env::var("TICKCLONE_BENCHMARK_SEED")
+            if let Some(task_count) = std::env::var("CROSS2_BENCHMARK_SEED")
                 .ok()
                 .and_then(|value| value.parse::<u32>().ok())
             {
@@ -69,7 +69,7 @@ pub fn run() {
                 }
             }
 
-            let tray_disabled = std::env::var("TICKCLONE_DISABLE_TRAY")
+            let tray_disabled = std::env::var("CROSS2_DISABLE_TRAY")
                 .map(|value| matches!(value.trim(), "1" | "true" | "TRUE"))
                 .unwrap_or(false)
                 || std::env::var("CI").is_ok();

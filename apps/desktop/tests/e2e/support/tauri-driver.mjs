@@ -65,15 +65,15 @@ async function resolveApplicationBinary() {
   const candidates = [];
   if (process.platform === 'darwin') {
     candidates.push(
-      path.join(SRC_TAURI_ROOT, 'target', 'debug', 'TickClone.app', 'Contents', 'MacOS', 'TickClone'),
-      path.join(SRC_TAURI_ROOT, 'target', 'debug', 'tickclone')
+      path.join(SRC_TAURI_ROOT, 'target', 'debug', 'Cross 2.app', 'Contents', 'MacOS', 'Cross 2'),
+      path.join(SRC_TAURI_ROOT, 'target', 'debug', 'cross-2')
     );
   } else if (process.platform === 'win32') {
-    candidates.push(path.join(SRC_TAURI_ROOT, 'target', 'debug', 'tickclone.exe'));
+    candidates.push(path.join(SRC_TAURI_ROOT, 'target', 'debug', 'cross-2.exe'));
   } else {
     candidates.push(
-      path.join(SRC_TAURI_ROOT, 'target', 'debug', 'tickclone'),
-      path.join(SRC_TAURI_ROOT, 'target', 'debug', 'TickClone')
+      path.join(SRC_TAURI_ROOT, 'target', 'debug', 'cross-2'),
+      path.join(SRC_TAURI_ROOT, 'target', 'debug', 'Cross 2')
     );
   }
 
@@ -162,7 +162,7 @@ export async function shutdownDriverEnvironment() {
   }
 }
 
-export async function createProfileDir(prefix = 'tickclone-e2e-') {
+export async function createProfileDir(prefix = 'cross2-e2e-') {
   return fs.mkdtemp(path.join(os.tmpdir(), prefix));
 }
 

@@ -572,6 +572,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "cross-2"
+version = "0.1.0"
+dependencies = [
+ "reqwest 0.12.28",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-fs",
+ "tauri-plugin-opener",
+ "tempfile",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "crossbeam-channel"
 version = "0.5.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4357,24 +4375,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
-]
-
-[[package]]
-name = "tickclone"
-version = "0.1.0"
-dependencies = [
- "reqwest 0.12.28",
- "rusqlite",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-fs",
- "tauri-plugin-opener",
- "tempfile",
- "tokio",
- "uuid",
 ]
 
 [[package]]

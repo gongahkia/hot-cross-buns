@@ -23,7 +23,7 @@ import {
   waitForVisible,
 } from './support/tauri-driver.mjs';
 
-describe('TickClone desktop smoke tests', function () {
+describe('Cross 2 desktop smoke tests', function () {
   this.timeout(180000);
 
   let activeProfileDir;
@@ -129,7 +129,7 @@ describe('TickClone desktop smoke tests', function () {
     activeProfileDir = await createProfileDir();
     await launchApp(activeProfileDir, {
       env: {
-        TICKCLONE_BENCHMARK_SEED: '2000',
+        CROSS2_BENCHMARK_SEED: '2000',
       },
     });
 
@@ -231,7 +231,7 @@ async function waitForStartupMetrics() {
   const startedAt = Date.now();
 
   while (Date.now() - startedAt < 15000) {
-    const metrics = await executeScript(() => window.__TICKCLONE_STARTUP_METRICS__ ?? null);
+    const metrics = await executeScript(() => window.__CROSS2_STARTUP_METRICS__ ?? null);
     if (metrics?.firstInteractiveAt !== null) {
       return metrics;
     }

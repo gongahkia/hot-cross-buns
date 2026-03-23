@@ -1,6 +1,6 @@
 # Desktop App
 
-This is the Tauri desktop client for TickClone.
+This is the Tauri desktop client for Cross 2.
 
 ## What Lives Here
 

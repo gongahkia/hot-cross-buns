@@ -1,4 +1,4 @@
-// Natural language date parser for TickClone.
+// Natural language date parser for Cross 2.
 // Regex-based — no external dependencies.
 
 export interface ParsedDate {
