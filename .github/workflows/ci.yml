@@ -22,13 +22,13 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: tickclone_test
-          POSTGRES_USER: tickclone
+          POSTGRES_DB: cross2_test
+          POSTGRES_USER: cross2
           POSTGRES_PASSWORD: testpass
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U tickclone"
+          --health-cmd "pg_isready -U cross2"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 5
@@ -46,7 +46,7 @@ jobs:
 
       - name: Run Go tests
         env:
-          DATABASE_URL: postgres://tickclone:testpass@localhost:5432/tickclone_test?sslmode=disable
+          DATABASE_URL: postgres://cross2:testpass@localhost:5432/cross2_test?sslmode=disable
           INTEGRATION_TEST: "1"
         run: go test -v -race -count=1 ./...
 
