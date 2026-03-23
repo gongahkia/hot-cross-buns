@@ -117,11 +117,10 @@
 
   function priorityColor(priority: number): string {
     switch (priority) {
-      case 4: return 'var(--color-red, #f38ba8)';
-      case 3: return 'var(--color-peach, #fab387)';
-      case 2: return 'var(--color-yellow, #f9e2af)';
-      case 1: return 'var(--color-blue, #89b4fa)';
-      default: return 'var(--color-text-muted, #a6adc8)';
+      case 3: return 'var(--color-priority-high)';
+      case 2: return 'var(--color-priority-med)';
+      case 1: return 'var(--color-priority-low)';
+      default: return 'var(--color-text-muted)';
     }
   }
 
@@ -165,11 +164,15 @@
 <div class="calendar-view">
   <header class="cal-header">
     <button class="cal-nav-btn" onclick={prevMonth} aria-label="Previous month">
-      &#9664;
+      <svg viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        <path d="M7.5 2.25L3.75 6L7.5 9.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
     </button>
     <h2 class="cal-month-label">{$monthLabel}</h2>
     <button class="cal-nav-btn" onclick={nextMonth} aria-label="Next month">
-      &#9654;
+      <svg viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        <path d="M4.5 2.25L8.25 6L4.5 9.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
     </button>
     <button class="cal-today-btn" onclick={goToToday}>Today</button>
   </header>
@@ -239,35 +242,39 @@
   .cal-month-label {
     font-size: 18px;
     font-weight: 600;
-    color: var(--color-text-primary, #cdd6f4);
+    color: var(--color-text-primary, #d4d4d4);
     margin: 0;
     min-width: 180px;
     text-align: center;
   }
 
   .cal-nav-btn {
-    background: none;
-    border: 1px solid var(--color-border-subtle, #313244);
-    border-radius: 6px;
-    color: var(--color-text-primary, #cdd6f4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: var(--color-panel, #202225);
+    border: 1px solid var(--color-border, #32353a);
+    border-radius: 8px;
+    color: var(--color-text-primary, #d4d4d4);
     cursor: pointer;
-    padding: 4px 10px;
-    font-size: 12px;
+    padding: 0;
     transition: background 150ms ease;
     font-family: inherit;
   }
 
   .cal-nav-btn:hover {
-    background: var(--color-surface-0, #313244);
+    background: var(--color-surface-hover, #2a2e33);
   }
 
   .cal-today-btn {
-    background: var(--color-surface-0, #313244);
-    border: 1px solid var(--color-border-subtle, #313244);
-    border-radius: 6px;
-    color: var(--color-text-primary, #cdd6f4);
+    background: var(--color-panel, #202225);
+    border: 1px solid var(--color-border, #32353a);
+    border-radius: 8px;
+    color: var(--color-text-primary, #d4d4d4);
     cursor: pointer;
-    padding: 4px 12px;
+    padding: 6px 12px;
     font-size: 12px;
     font-family: inherit;
     margin-left: auto;
@@ -275,7 +282,7 @@
   }
 
   .cal-today-btn:hover {
-    background: var(--color-surface-1, #45475a);
+    background: var(--color-surface-hover, #2a2e33);
   }
 
   .cal-grid {
@@ -297,7 +304,7 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: var(--color-text-muted, #a6adc8);
+    color: var(--color-text-muted, #90918d);
     padding: 6px 0;
   }
 
@@ -311,13 +318,13 @@
   .cal-day-cell {
     display: flex;
     flex-direction: column;
-    border: 1px solid var(--color-border-subtle, #313244);
+    border: 1px solid var(--color-border-subtle, #292c30);
     margin: -0.5px;
     padding: 4px;
     min-height: 0;
     overflow: hidden;
     cursor: pointer;
-    background: var(--color-bg-primary, #1e1e2e);
+    background: var(--color-panel, #202225);
     text-align: left;
     font-family: inherit;
     color: inherit;
@@ -325,7 +332,7 @@
   }
 
   .cal-day-cell:hover {
-    background: var(--color-surface-0, #313244);
+    background: var(--color-surface-hover, #2a2e33);
   }
 
   .cal-day-cell.other-month {
@@ -333,8 +340,8 @@
   }
 
   .cal-day-cell.is-today .cal-day-number {
-    background: var(--color-accent, #89b4fa);
-    color: var(--color-bg-primary, #1e1e2e);
+    background: var(--color-accent, #6c93c7);
+    color: var(--color-on-accent, #f7f7f5);
     border-radius: 50%;
     width: 22px;
     height: 22px;
@@ -345,14 +352,14 @@
   }
 
   .cal-day-cell.is-selected {
-    background: var(--color-surface-0, #313244);
-    box-shadow: inset 0 0 0 2px var(--color-accent, #89b4fa);
+    background: var(--color-surface-active, #30353b);
+    box-shadow: inset 0 0 0 2px var(--color-accent, #6c93c7);
   }
 
   .cal-day-number {
     font-size: 12px;
     font-weight: 500;
-    color: var(--color-text-primary, #cdd6f4);
+    color: var(--color-text-primary, #d4d4d4);
     margin-bottom: 2px;
     flex-shrink: 0;
   }
@@ -371,10 +378,10 @@
     line-height: 1.3;
     padding: 1px 4px;
     border-radius: 3px;
-    background: var(--color-surface-1, #45475a);
-    color: var(--color-text-primary, #cdd6f4);
-    border: none;
-    border-left: 3px solid var(--color-text-muted, #a6adc8);
+    background: var(--color-surface-0, #25282c);
+    color: var(--color-text-primary, #d4d4d4);
+    border: 1px solid var(--color-border-subtle, #292c30);
+    border-left: 3px solid var(--color-text-muted, #90918d);
     cursor: pointer;
     white-space: nowrap;
     overflow: hidden;
@@ -386,12 +393,12 @@
   }
 
   .cal-task-chip:hover {
-    background: var(--color-surface-2, #585b70);
+    background: var(--color-surface-hover, #2a2e33);
   }
 
   .cal-more-badge {
     font-size: 9px;
-    color: var(--color-text-muted, #a6adc8);
+    color: var(--color-text-muted, #90918d);
     padding: 0 4px;
     flex-shrink: 0;
   }

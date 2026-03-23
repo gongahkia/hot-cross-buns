@@ -1,18 +1,16 @@
 <script lang="ts">
-  /** Catppuccin Mocha palette -- 12 curated colors. */
+  /** Muted Notion and Obsidian-inspired palette for lists and tags. */
   const COLORS = [
-    { name: 'Rosewater', hex: '#f5e0dc' },
-    { name: 'Flamingo', hex: '#f2cdcd' },
-    { name: 'Pink', hex: '#f5c2e7' },
-    { name: 'Mauve', hex: '#cba6f7' },
-    { name: 'Red', hex: '#f38ba8' },
-    { name: 'Maroon', hex: '#eba0ac' },
-    { name: 'Peach', hex: '#fab387' },
-    { name: 'Yellow', hex: '#f9e2af' },
-    { name: 'Green', hex: '#a6e3a1' },
-    { name: 'Teal', hex: '#94e2d5' },
-    { name: 'Blue', hex: '#89b4fa' },
-    { name: 'Lavender', hex: '#b4befe' },
+    { name: 'Gray', hex: '#7f7f7f' },
+    { name: 'Slate', hex: '#6b7280' },
+    { name: 'Brown', hex: '#aa755f' },
+    { name: 'Orange', hex: '#d9730d' },
+    { name: 'Yellow', hex: '#ca8e1b' },
+    { name: 'Green', hex: '#2d9964' },
+    { name: 'Blue', hex: '#2e7cd1' },
+    { name: 'Purple', hex: '#8d5bc1' },
+    { name: 'Pink', hex: '#c94079' },
+    { name: 'Red', hex: '#cd4945' },
   ];
 
   let {
@@ -57,7 +55,7 @@
         >
           <path
             d="M3 7L6 10L11 4"
-            stroke="#1e1e2e"
+            stroke="#ffffff"
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
@@ -71,7 +69,7 @@
 <style>
   .color-picker {
     display: grid;
-    grid-template-columns: repeat(6, 24px);
+    grid-template-columns: repeat(5, 24px);
     gap: 8px;
     padding: 4px;
   }
@@ -91,16 +89,16 @@
 
   .color-swatch:hover {
     transform: scale(1.15);
-    border-color: var(--color-text-muted, #a6adc8);
+    border-color: var(--color-text-muted, #90918d);
   }
 
   .color-swatch:focus-visible {
-    outline: 2px solid var(--color-accent, #89b4fa);
+    outline: 2px solid var(--color-accent, #6c93c7);
     outline-offset: 2px;
   }
 
   .color-swatch.selected {
-    border-color: var(--color-text-primary, #cdd6f4);
+    border-color: var(--color-text-primary, #d4d4d4);
     transform: scale(1.1);
   }
 

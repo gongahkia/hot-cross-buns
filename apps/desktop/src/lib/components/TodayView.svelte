@@ -72,7 +72,7 @@
   }
 
   function getListColor(listId: string): string {
-    return listMap.get(listId)?.color ?? '#cba6f7';
+    return listMap.get(listId)?.color ?? 'var(--color-list-default)';
   }
 </script>
 

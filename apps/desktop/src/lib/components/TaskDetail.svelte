@@ -19,7 +19,13 @@
   let contentTimer: ReturnType<typeof setTimeout> | null = null;
 
   const priorityLabels = ['None', 'Low', 'Med', 'High'] as const;
-  const priorityColors = ['#6c7086', '#94e2d5', '#f9e2af', '#f38ba8'];
+  const priorityColors = [
+    'var(--color-text-faint)',
+    'var(--color-priority-low)',
+    'var(--color-priority-med)',
+    'var(--color-priority-high)',
+  ];
+  const DEFAULT_TAG_COLOR = 'var(--color-tag-default)';
 
   const recurrencePresets = [
     { value: '', label: 'None' },
@@ -309,7 +315,7 @@
           <span class="field-label">Tags</span>
           <div class="tags-container">
             {#each task.tags as tag (tag.id)}
-              <span class="tag-pill" style="background: {tag.color ?? '#cba6f7'}">
+              <span class="tag-pill" style="--tag-color: {tag.color ?? DEFAULT_TAG_COLOR}">
                 {tag.name}
                 <button
                   class="tag-remove-btn"
@@ -335,7 +341,7 @@
                       class="tag-dropdown-item"
                       onclick={() => handleAddTag(tag.id)}
                     >
-                      <span class="tag-dot" style="background: {tag.color ?? '#cba6f7'}"></span>
+                      <span class="tag-dot" style="background: {tag.color ?? DEFAULT_TAG_COLOR}"></span>
                       {tag.name}
                     </button>
                   {/each}
@@ -407,7 +413,7 @@
   .task-detail-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.3);
+    background: var(--color-overlay, rgba(8, 8, 8, 0.56));
     z-index: 99;
     opacity: 0;
     transition: opacity 350ms ease;
@@ -426,8 +432,8 @@
     bottom: 0;
     width: 400px;
     max-width: 100vw;
-    background: #1e1e2e;
-    border-left: 1px solid #313244;
+    background: var(--color-panel, #202225);
+    border-left: 1px solid var(--color-border-subtle, #292c30);
     z-index: 100;
     display: flex;
     flex-direction: column;
@@ -445,20 +451,20 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px;
-    border-bottom: 1px solid #313244;
+    border-bottom: 1px solid var(--color-border-subtle, #292c30);
     flex-shrink: 0;
   }
 
   .panel-title {
     font-size: 14px;
     font-weight: 600;
-    color: #cdd6f4;
+    color: var(--color-text-primary, #d4d4d4);
   }
 
   .close-btn {
     background: none;
     border: none;
-    color: #a6adc8;
+    color: var(--color-text-muted, #90918d);
     font-size: 16px;
     cursor: pointer;
     padding: 4px 8px;
@@ -468,8 +474,8 @@
   }
 
   .close-btn:hover {
-    background: #313244;
-    color: #cdd6f4;
+    background: var(--color-surface-hover, #2a2e33);
+    color: var(--color-text-primary, #d4d4d4);
   }
 
   .panel-body {
@@ -492,23 +498,24 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: #a6adc8;
+    color: var(--color-text-muted, #90918d);
   }
 
   .field-input {
-    background: #181825;
-    border: 1px solid #313244;
+    background: var(--color-input, #17181a);
+    border: 1px solid var(--color-border, #32353a);
     border-radius: 8px;
     padding: 8px 12px;
-    color: #cdd6f4;
+    color: var(--color-text-primary, #d4d4d4);
     font-size: 13px;
     font-family: inherit;
     outline: none;
-    transition: border-color 200ms ease;
+    transition: border-color 200ms ease, box-shadow 200ms ease;
   }
 
   .field-input:focus {
-    border-color: #89b4fa;
+    border-color: var(--color-accent, #6c93c7);
+    box-shadow: 0 0 0 3px var(--color-accent-soft, rgba(108, 147, 199, 0.16));
   }
 
   .title-input {
@@ -532,10 +539,10 @@
   .priority-btn {
     flex: 1;
     padding: 6px 0;
-    border: 1px solid #313244;
+    border: 1px solid var(--color-border, #32353a);
     border-radius: 8px;
-    background: #181825;
-    color: #a6adc8;
+    background: var(--color-input, #17181a);
+    color: var(--color-text-muted, #90918d);
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
@@ -584,13 +591,15 @@
     border-radius: 12px;
     font-size: 12px;
     font-weight: 500;
-    color: #1e1e2e;
+    background: color-mix(in srgb, var(--tag-color) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--tag-color) 20%, transparent);
+    color: var(--tag-color);
   }
 
   .tag-remove-btn {
     background: none;
     border: none;
-    color: rgba(30, 30, 46, 0.6);
+    color: color-mix(in srgb, var(--tag-color) 72%, var(--color-text-muted, #90918d));
     font-size: 10px;
     cursor: pointer;
     padding: 0 2px;
@@ -599,7 +608,7 @@
   }
 
   .tag-remove-btn:hover {
-    color: #1e1e2e;
+    color: var(--tag-color);
   }
 
   .tag-add-wrapper {
@@ -610,9 +619,9 @@
     width: 26px;
     height: 26px;
     border-radius: 50%;
-    border: 1px dashed #585b70;
+    border: 1px dashed var(--color-border, #32353a);
     background: none;
-    color: #a6adc8;
+    color: var(--color-text-muted, #90918d);
     font-size: 14px;
     cursor: pointer;
     display: flex;
@@ -623,8 +632,8 @@
   }
 
   .tag-add-btn:hover {
-    border-color: #89b4fa;
-    color: #89b4fa;
+    border-color: var(--color-accent, #6c93c7);
+    color: var(--color-accent, #6c93c7);
   }
 
   .tag-dropdown {
@@ -632,13 +641,13 @@
     top: 100%;
     left: 0;
     margin-top: 4px;
-    background: #181825;
-    border: 1px solid #313244;
+    background: var(--color-panel, #202225);
+    border: 1px solid var(--color-border-subtle, #292c30);
     border-radius: 8px;
     padding: 4px;
     min-width: 160px;
     z-index: 10;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    box-shadow: var(--shadow-overlay, 0 20px 56px rgba(0, 0, 0, 0.48));
   }
 
   .tag-dropdown-item {
@@ -649,7 +658,7 @@
     padding: 6px 10px;
     border: none;
     background: none;
-    color: #cdd6f4;
+    color: var(--color-text-primary, #d4d4d4);
     font-size: 12px;
     cursor: pointer;
     border-radius: 6px;
@@ -659,7 +668,7 @@
   }
 
   .tag-dropdown-item:hover {
-    background: #313244;
+    background: var(--color-surface-hover, #2a2e33);
   }
 
   .tag-dot {
@@ -684,7 +693,7 @@
   }
 
   .subtask-item input[type='checkbox'] {
-    accent-color: #89b4fa;
+    accent-color: var(--color-accent, #6c93c7);
     width: 16px;
     height: 16px;
     cursor: pointer;
@@ -692,12 +701,12 @@
 
   .subtask-title {
     font-size: 13px;
-    color: #cdd6f4;
+    color: var(--color-text-primary, #d4d4d4);
   }
 
   .subtask-title.completed {
     text-decoration: line-through;
-    color: #6c7086;
+    color: var(--color-text-muted, #90918d);
   }
 
   .subtask-add-row {
@@ -714,10 +723,10 @@
 
   .subtask-add-btn {
     padding: 6px 14px;
-    border: 1px solid #313244;
+    border: 1px solid var(--color-border, #32353a);
     border-radius: 8px;
-    background: #181825;
-    color: #a6adc8;
+    background: var(--color-input, #17181a);
+    color: var(--color-text-muted, #90918d);
     font-size: 12px;
     cursor: pointer;
     transition: all 200ms ease;
@@ -725,8 +734,8 @@
   }
 
   .subtask-add-btn:hover {
-    border-color: #89b4fa;
-    color: #89b4fa;
+    border-color: var(--color-accent, #6c93c7);
+    color: var(--color-accent, #6c93c7);
   }
 
   /* Footer */
@@ -735,21 +744,21 @@
     align-items: center;
     justify-content: space-between;
     padding: 12px 20px;
-    border-top: 1px solid #313244;
+    border-top: 1px solid var(--color-border-subtle, #292c30);
     flex-shrink: 0;
   }
 
   .created-date {
     font-size: 11px;
-    color: #6c7086;
+    color: var(--color-text-faint, #70726f);
   }
 
   .delete-btn {
     padding: 6px 16px;
-    border: 1px solid #f38ba8;
+    border: 1px solid var(--color-danger, #cd4945);
     border-radius: 8px;
     background: transparent;
-    color: #f38ba8;
+    color: var(--color-danger, #cd4945);
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
@@ -758,7 +767,7 @@
   }
 
   .delete-btn:hover {
-    background: rgba(243, 139, 168, 0.1);
+    background: color-mix(in srgb, var(--color-danger, #cd4945) 10%, transparent);
   }
 
   /* Scrollbar styling */
@@ -771,11 +780,11 @@
   }
 
   .panel-body::-webkit-scrollbar-thumb {
-    background: #313244;
+    background: var(--color-surface-1, #2d3136);
     border-radius: 3px;
   }
 
   .panel-body::-webkit-scrollbar-thumb:hover {
-    background: #45475a;
+    background: var(--color-surface-2, #393e45);
   }
 </style>

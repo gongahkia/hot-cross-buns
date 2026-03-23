@@ -7,9 +7,9 @@
 
   const PRIORITY_COLORS: Record<number, string> = {
     0: 'transparent',
-    1: '#89b4fa',
-    2: '#fab387',
-    3: '#f38ba8',
+    1: 'var(--color-priority-low)',
+    2: 'var(--color-priority-med)',
+    3: 'var(--color-priority-high)',
   };
 
   function formatDueDate(dueDate: string | null): { label: string; overdue: boolean } | null {
@@ -79,7 +79,7 @@
       {#each task.tags as tag (tag.id)}
         <span
           class="tag-pill"
-          style:--tag-color={tag.color ?? '#cba6f7'}
+          style:--tag-color={tag.color ?? 'var(--color-tag-default)'}
         >
           {tag.name}
         </span>
@@ -102,7 +102,7 @@
   }
 
   .task-row:hover {
-    background: var(--color-surface-1, #45475a);
+    background: var(--color-surface-hover, #2a2e33);
   }
 
   .task-row.indent {
@@ -114,29 +114,29 @@
     height: 18px;
     min-width: 18px;
     border-radius: 4px;
-    border: 2px solid var(--color-border, #45475a);
+    border: 2px solid var(--color-border, #32353a);
     background: transparent;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     padding: 0;
-    color: var(--color-bg-primary, #1e1e2e);
+    color: var(--color-on-accent, #f7f7f5);
     transition: all 150ms cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
   .checkbox:hover {
-    border-color: var(--color-accent, #89b4fa);
+    border-color: var(--color-accent, #6c93c7);
   }
 
   .checkbox:focus-visible {
-    outline: 2px solid var(--color-accent, #89b4fa);
+    outline: 2px solid var(--color-accent, #6c93c7);
     outline-offset: 2px;
   }
 
   .checkbox.checked {
-    background: var(--color-accent, #89b4fa);
-    border-color: var(--color-accent, #89b4fa);
+    background: var(--color-accent, #6c93c7);
+    border-color: var(--color-accent, #6c93c7);
   }
 
   .task-title {
@@ -144,7 +144,7 @@
     font-size: 14px;
     font-weight: 500;
     line-height: 1.5;
-    color: var(--color-text-primary, #cdd6f4);
+    color: var(--color-text-primary, #d4d4d4);
     background: none;
     border: none;
     padding: 0;
@@ -156,18 +156,18 @@
   }
 
   .task-title:hover {
-    color: var(--color-accent, #89b4fa);
+    color: var(--color-accent, #6c93c7);
   }
 
   .task-title:focus-visible {
-    outline: 2px solid var(--color-accent, #89b4fa);
+    outline: 2px solid var(--color-accent, #6c93c7);
     outline-offset: 2px;
     border-radius: 4px;
   }
 
   .completed .task-title {
     text-decoration: line-through;
-    color: var(--color-text-muted, #a6adc8);
+    color: var(--color-text-muted, #90918d);
   }
 
   .due-badge {
@@ -175,15 +175,15 @@
     line-height: 1.4;
     padding: 2px 8px;
     border-radius: 8px;
-    background: var(--color-surface-1, #45475a);
-    color: var(--color-text-secondary, #bac2de);
+    background: var(--color-surface-0, #25282c);
+    color: var(--color-text-secondary, #b6b6b2);
     white-space: nowrap;
     flex-shrink: 0;
   }
 
   .due-badge.overdue {
-    background: color-mix(in srgb, var(--color-danger, #f38ba8) 20%, transparent);
-    color: var(--color-danger, #f38ba8);
+    background: color-mix(in srgb, var(--color-danger, #cd4945) 14%, transparent);
+    color: var(--color-danger, #cd4945);
   }
 
   .tag-pills {
@@ -197,7 +197,8 @@
     line-height: 1.4;
     padding: 2px 8px;
     border-radius: 8px;
-    background: color-mix(in srgb, var(--tag-color) 20%, transparent);
+    background: color-mix(in srgb, var(--tag-color) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--tag-color) 20%, transparent);
     color: var(--tag-color);
     white-space: nowrap;
   }

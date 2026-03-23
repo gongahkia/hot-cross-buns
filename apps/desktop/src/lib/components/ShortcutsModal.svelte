@@ -57,7 +57,7 @@
   .shortcuts-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--color-overlay, rgba(8, 8, 8, 0.56));
     z-index: 200;
     display: flex;
     align-items: center;
@@ -82,8 +82,8 @@
   }
 
   .shortcuts-modal {
-    background: #1e1e2e;
-    border: 1px solid #313244;
+    background: var(--color-panel, #202225);
+    border: 1px solid var(--color-border-subtle, #292c30);
     border-radius: 12px;
     width: 420px;
     max-width: 90vw;
@@ -91,7 +91,7 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow-overlay, 0 20px 56px rgba(0, 0, 0, 0.48));
     animation: slideUp 200ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 
@@ -100,20 +100,20 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px;
-    border-bottom: 1px solid #313244;
+    border-bottom: 1px solid var(--color-border-subtle, #292c30);
   }
 
   .modal-title {
     margin: 0;
     font-size: 15px;
     font-weight: 600;
-    color: #cdd6f4;
+    color: var(--color-text-primary, #d4d4d4);
   }
 
   .modal-close {
     background: none;
     border: none;
-    color: #a6adc8;
+    color: var(--color-text-muted, #90918d);
     font-size: 16px;
     cursor: pointer;
     padding: 4px 8px;
@@ -123,8 +123,8 @@
   }
 
   .modal-close:hover {
-    background: #313244;
-    color: #cdd6f4;
+    background: var(--color-surface-hover, #2a2e33);
+    color: var(--color-text-primary, #d4d4d4);
   }
 
   .shortcuts-grid {
@@ -146,41 +146,41 @@
     min-width: 130px;
     display: inline-block;
     padding: 4px 10px;
-    background: #181825;
-    border: 1px solid #313244;
+    background: var(--color-input, #17181a);
+    border: 1px solid var(--color-border, #32353a);
     border-radius: 6px;
     font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
     font-size: 12px;
     font-weight: 500;
-    color: #cba6f7;
+    color: var(--color-accent, #6c93c7);
     text-align: center;
     white-space: nowrap;
   }
 
   .shortcut-desc {
     font-size: 13px;
-    color: #bac2de;
+    color: var(--color-text-secondary, #b6b6b2);
   }
 
   .modal-footer {
     padding: 12px 20px;
-    border-top: 1px solid #313244;
+    border-top: 1px solid var(--color-border-subtle, #292c30);
     display: flex;
     justify-content: center;
   }
 
   .footer-hint {
     font-size: 12px;
-    color: #6c7086;
+    color: var(--color-text-faint, #70726f);
   }
 
   .inline-kbd {
     padding: 1px 6px;
-    background: #181825;
-    border: 1px solid #313244;
+    background: var(--color-input, #17181a);
+    border: 1px solid var(--color-border, #32353a);
     border-radius: 4px;
     font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
     font-size: 11px;
-    color: #a6adc8;
+    color: var(--color-text-muted, #90918d);
   }
 </style>

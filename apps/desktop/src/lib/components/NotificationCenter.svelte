@@ -102,13 +102,13 @@
     background: none;
     border: none;
     border-radius: 6px;
-    color: #cdd6f4;
+    color: var(--color-text-secondary, #b6b6b2);
     cursor: pointer;
     transition: background 200ms ease;
   }
 
   .bell-button:hover {
-    background: #313244;
+    background: var(--color-surface-hover, #2a2e33);
   }
 
   .bell-icon {
@@ -124,8 +124,8 @@
     height: 16px;
     padding: 0 4px;
     border-radius: 8px;
-    background: #f38ba8;
-    color: #1e1e2e;
+    background: var(--color-danger, #cd4945);
+    color: var(--color-on-accent, #f7f7f5);
     font-size: 10px;
     font-weight: 700;
     line-height: 16px;
@@ -138,10 +138,10 @@
     right: 0;
     width: 320px;
     max-height: 400px;
-    background: #181825;
-    border: 1px solid #313244;
-    border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    background: var(--color-panel, #202225);
+    border: 1px solid var(--color-border-subtle, #292c30);
+    border-radius: 12px;
+    box-shadow: var(--shadow-overlay, 0 20px 56px rgba(0, 0, 0, 0.48));
     z-index: 300;
     display: flex;
     flex-direction: column;
@@ -152,19 +152,19 @@
     align-items: center;
     justify-content: space-between;
     padding: 10px 12px;
-    border-bottom: 1px solid #313244;
+    border-bottom: 1px solid var(--color-border-subtle, #292c30);
   }
 
   .dropdown-title {
     font-size: 13px;
     font-weight: 600;
-    color: #cdd6f4;
+    color: var(--color-text-primary, #d4d4d4);
   }
 
   .mark-all-btn {
     background: none;
     border: none;
-    color: #89b4fa;
+    color: var(--color-accent, #6c93c7);
     font-size: 12px;
     cursor: pointer;
     font-family: inherit;
@@ -177,7 +177,7 @@
   .empty-state {
     padding: 24px;
     text-align: center;
-    color: #6c7086;
+    color: var(--color-text-muted, #90918d);
     font-size: 13px;
   }
 
@@ -195,7 +195,7 @@
   }
 
   .notification-list::-webkit-scrollbar-thumb {
-    background: #313244;
+    background: var(--color-surface-1, #2d3136);
     border-radius: 3px;
   }
 
@@ -205,21 +205,21 @@
     padding: 8px 10px;
     border: none;
     background: none;
-    color: #cdd6f4;
+    color: var(--color-text-primary, #d4d4d4);
     font-size: 13px;
     cursor: pointer;
-    border-radius: 6px;
+    border-radius: 8px;
     transition: background 200ms ease;
     font-family: inherit;
     text-align: left;
   }
 
   .notification-item:hover {
-    background: #313244;
+    background: var(--color-surface-hover, #2a2e33);
   }
 
   .notification-item.unread {
-    background: rgba(137, 180, 250, 0.06);
+    background: var(--color-accent-soft, rgba(108, 147, 199, 0.16));
   }
 
   .notification-content {
@@ -238,7 +238,7 @@
 
   .notification-message {
     font-size: 11px;
-    color: #6c7086;
+    color: var(--color-text-muted, #90918d);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

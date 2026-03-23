@@ -25,9 +25,9 @@
   };
 
   const PRIORITY_COLORS: Record<number, string> = {
-    1: '#89b4fa',
-    2: '#fab387',
-    3: '#f38ba8',
+    1: 'var(--color-priority-low)',
+    2: 'var(--color-priority-med)',
+    3: 'var(--color-priority-high)',
   };
 
   function handleSortChange(e: Event) {
@@ -119,7 +119,7 @@
           <button
             class="chip"
             class:active={$currentFilters.tagIds.includes(tag.id)}
-            style:--chip-color={tag.color ?? '#cba6f7'}
+            style:--chip-color={tag.color ?? 'var(--color-tag-default)'}
             onclick={() => toggleTag(tag.id)}
             aria-pressed={$currentFilters.tagIds.includes(tag.id)}
           >
@@ -182,7 +182,7 @@
     flex-direction: column;
     gap: 8px;
     padding: 8px 12px;
-    border-bottom: 1px solid var(--color-border, #45475a);
+    border-bottom: 1px solid var(--color-border-subtle, #292c30);
   }
 
   .filter-controls {
@@ -194,7 +194,7 @@
 
   .sort-label {
     font-size: 12px;
-    color: var(--color-text-secondary, #bac2de);
+    color: var(--color-text-secondary, #b6b6b2);
     display: flex;
     align-items: center;
     gap: 4px;
@@ -202,28 +202,29 @@
 
   .sort-label select {
     font-size: 12px;
-    background: var(--color-surface-1, #45475a);
-    color: var(--color-text-primary, #cdd6f4);
-    border: 1px solid var(--color-border, #45475a);
-    border-radius: 4px;
-    padding: 2px 6px;
+    background: var(--color-input, #17181a);
+    color: var(--color-text-primary, #d4d4d4);
+    border: 1px solid var(--color-border, #32353a);
+    border-radius: 8px;
+    padding: 4px 8px;
+    font-family: inherit;
   }
 
   .toggle-btn {
     font-size: 11px;
-    padding: 3px 10px;
-    border-radius: 12px;
-    border: 1px solid var(--color-border, #45475a);
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--color-border, #32353a);
     background: transparent;
-    color: var(--color-text-secondary, #bac2de);
+    color: var(--color-text-secondary, #b6b6b2);
     cursor: pointer;
     transition: all 150ms ease;
   }
 
   .toggle-btn.active {
-    background: var(--color-accent, #89b4fa);
-    color: var(--color-bg-primary, #1e1e2e);
-    border-color: var(--color-accent, #89b4fa);
+    background: var(--color-accent-soft, rgba(108, 147, 199, 0.16));
+    color: var(--color-accent, #6c93c7);
+    border-color: color-mix(in srgb, var(--color-accent, #6c93c7) 35%, var(--color-border, #32353a));
   }
 
   .priority-chips,
@@ -234,17 +235,17 @@
 
   .chip {
     font-size: 11px;
-    padding: 2px 8px;
-    border-radius: 10px;
-    border: 1px solid var(--chip-color, #45475a);
+    padding: 4px 9px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--chip-color, var(--color-border, #32353a)) 40%, var(--color-border, #32353a));
     background: transparent;
-    color: var(--chip-color, #bac2de);
+    color: var(--chip-color, var(--color-text-secondary, #b6b6b2));
     cursor: pointer;
     transition: all 150ms ease;
   }
 
   .chip.active {
-    background: color-mix(in srgb, var(--chip-color) 25%, transparent);
+    background: color-mix(in srgb, var(--chip-color) 14%, transparent);
   }
 
   .active-pills {
@@ -261,14 +262,14 @@
     font-size: 11px;
     padding: 2px 8px;
     border-radius: 10px;
-    background: var(--color-surface-1, #45475a);
-    color: var(--color-text-primary, #cdd6f4);
+    background: var(--color-surface-0, #25282c);
+    color: var(--color-text-primary, #d4d4d4);
   }
 
   .pill-remove {
     background: none;
     border: none;
-    color: var(--color-text-muted, #a6adc8);
+    color: var(--color-text-muted, #90918d);
     cursor: pointer;
     font-size: 14px;
     line-height: 1;
@@ -276,14 +277,14 @@
   }
 
   .pill-remove:hover {
-    color: var(--color-danger, #f38ba8);
+    color: var(--color-danger, #cd4945);
   }
 
   .clear-btn {
     font-size: 11px;
     background: none;
     border: none;
-    color: var(--color-accent, #89b4fa);
+    color: var(--color-accent, #6c93c7);
     cursor: pointer;
     padding: 2px 4px;
     text-decoration: underline;

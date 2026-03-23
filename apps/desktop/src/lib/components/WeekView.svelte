@@ -2,7 +2,6 @@
   import { invoke } from '@tauri-apps/api/core';
   import type { Task } from '$lib/types';
   import { taskMutationVersion } from '$lib/stores/tasks';
-  import { selectedTaskId } from '$lib/stores/ui';
   import TaskRow from './TaskRow.svelte';
 
   const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -116,11 +115,15 @@
 <div class="week-view">
   <header class="week-header">
     <button class="week-nav-btn" onclick={prevWeek} aria-label="Previous week">
-      &#9664;
+      <svg viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        <path d="M7.5 2.25L3.75 6L7.5 9.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
     </button>
     <h2 class="week-label">{weekLabel}</h2>
     <button class="week-nav-btn" onclick={nextWeek} aria-label="Next week">
-      &#9654;
+      <svg viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        <path d="M4.5 2.25L8.25 6L4.5 9.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
     </button>
     <button class="week-today-btn" onclick={goToThisWeek}>This Week</button>
   </header>
@@ -168,35 +171,39 @@
   .week-label {
     font-size: 18px;
     font-weight: 600;
-    color: var(--color-text-primary, #cdd6f4);
+    color: var(--color-text-primary, #d4d4d4);
     margin: 0;
     min-width: 220px;
     text-align: center;
   }
 
   .week-nav-btn {
-    background: none;
-    border: 1px solid var(--color-border-subtle, #313244);
-    border-radius: 6px;
-    color: var(--color-text-primary, #cdd6f4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: var(--color-panel, #202225);
+    border: 1px solid var(--color-border, #32353a);
+    border-radius: 8px;
+    color: var(--color-text-primary, #d4d4d4);
     cursor: pointer;
-    padding: 4px 10px;
-    font-size: 12px;
+    padding: 0;
     transition: background 150ms ease;
     font-family: inherit;
   }
 
   .week-nav-btn:hover {
-    background: var(--color-surface-0, #313244);
+    background: var(--color-surface-hover, #2a2e33);
   }
 
   .week-today-btn {
-    background: var(--color-surface-0, #313244);
-    border: 1px solid var(--color-border-subtle, #313244);
-    border-radius: 6px;
-    color: var(--color-text-primary, #cdd6f4);
+    background: var(--color-panel, #202225);
+    border: 1px solid var(--color-border, #32353a);
+    border-radius: 8px;
+    color: var(--color-text-primary, #d4d4d4);
     cursor: pointer;
-    padding: 4px 12px;
+    padding: 6px 12px;
     font-size: 12px;
     font-family: inherit;
     margin-left: auto;
@@ -204,7 +211,7 @@
   }
 
   .week-today-btn:hover {
-    background: var(--color-surface-1, #45475a);
+    background: var(--color-surface-hover, #2a2e33);
   }
 
   .week-grid {
@@ -212,9 +219,9 @@
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 1px;
-    background: var(--color-border-subtle, #313244);
-    border: 1px solid var(--color-border-subtle, #313244);
-    border-radius: 8px;
+    background: var(--color-border-subtle, #292c30);
+    border: 1px solid var(--color-border-subtle, #292c30);
+    border-radius: 12px;
     overflow: hidden;
     min-height: 0;
   }
@@ -222,13 +229,13 @@
   .week-column {
     display: flex;
     flex-direction: column;
-    background: var(--color-bg-primary, #1e1e2e);
+    background: var(--color-panel, #202225);
     min-height: 0;
     overflow: hidden;
   }
 
   .week-column.is-today {
-    background: color-mix(in srgb, var(--color-accent, #89b4fa) 5%, var(--color-bg-primary, #1e1e2e));
+    background: color-mix(in srgb, var(--color-accent, #6c93c7) 6%, var(--color-panel, #202225));
   }
 
   .column-header {
@@ -236,16 +243,16 @@
     font-size: 12px;
     font-weight: 600;
     text-align: center;
-    color: var(--color-text-muted, #a6adc8);
-    border-bottom: 1px solid var(--color-border-subtle, #313244);
+    color: var(--color-text-muted, #90918d);
+    border-bottom: 1px solid var(--color-border-subtle, #292c30);
     flex-shrink: 0;
     text-transform: uppercase;
     letter-spacing: 0.3px;
   }
 
   .column-header.is-today {
-    color: var(--color-accent, #89b4fa);
-    background: color-mix(in srgb, var(--color-accent, #89b4fa) 10%, transparent);
+    color: var(--color-accent, #6c93c7);
+    background: var(--color-accent-soft, rgba(108, 147, 199, 0.16));
   }
 
   .column-tasks {
@@ -257,7 +264,7 @@
   .column-empty {
     padding: 12px 8px;
     font-size: 11px;
-    color: var(--color-text-faint, #6c7086);
+    color: var(--color-text-faint, #70726f);
     text-align: center;
     font-style: italic;
   }

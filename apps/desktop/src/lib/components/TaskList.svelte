@@ -11,33 +11,13 @@
   let newTaskTitle = $state('');
   let collapsedParents = $state<Set<string>>(new Set());
 
-  let currentListId = $derived.by(() => {
-    let value: string | null = null;
-    const unsub = selectedListId.subscribe((v) => (value = v));
-    unsub();
-    return value;
-  });
+  let currentListId = $derived($selectedListId);
 
-  let currentList = $derived.by(() => {
-    let listArray: import('$lib/types').List[] = [];
-    const unsub = lists.subscribe((v) => (listArray = v));
-    unsub();
-    return listArray.find((l) => l.id === currentListId) ?? null;
-  });
+  let currentList = $derived($lists.find((l) => l.id === currentListId) ?? null);
 
-  let allTasks = $derived.by(() => {
-    let value: Task[] = [];
-    const unsub = tasks.subscribe((v) => (value = v));
-    unsub();
-    return value;
-  });
+  let allTasks = $derived($tasks);
 
-  let showCompleted = $derived.by(() => {
-    let value = true;
-    const unsub = showCompletedTasks.subscribe((v) => (value = v));
-    unsub();
-    return value;
-  });
+  let showCompleted = $derived($showCompletedTasks);
 
   $effect(() => {
     const listId = currentListId;

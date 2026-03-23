@@ -41,19 +41,9 @@
     });
   }
 
-  let hasSelectedList = $derived.by(() => {
-    let value: string | null = null;
-    const unsub = selectedListId.subscribe((v) => (value = v));
-    unsub();
-    return value !== null;
-  });
+  let hasSelectedList = $derived($selectedListId !== null);
 
-  let activeView = $derived.by(() => {
-    let value: string = 'list';
-    const unsub = currentView.subscribe((v) => (value = v));
-    unsub();
-    return value;
-  });
+  let activeView = $derived($currentView);
 
   async function ensureViewModule(view: string) {
     if (view === 'today' && !todayViewModule) {
@@ -275,10 +265,12 @@
   :global(body) {
     margin: 0;
     padding: 0;
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif);
     font-size: 13px;
-    background: var(--color-bg-primary, #1e1e2e);
-    color: var(--color-text-primary, #cdd6f4);
+    background: var(--color-bg-primary, #191919);
+    color: var(--color-text-primary, #d4d4d4);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
   .app {
@@ -300,8 +292,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 0 16px;
-    border-bottom: 1px solid var(--color-border-subtle, #313244);
-    background: var(--color-bg-primary, #1e1e2e);
+    border-bottom: 1px solid var(--color-border-subtle, #292c30);
+    background: var(--color-panel, #202225);
   }
 
   .toolbar-title {
@@ -322,7 +314,7 @@
   }
 
   .empty-state {
-    color: var(--color-text-muted, #a6adc8);
+    color: var(--color-text-muted, #90918d);
     font-size: 14px;
     display: flex;
     align-items: center;
