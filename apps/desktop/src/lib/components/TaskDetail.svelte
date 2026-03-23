@@ -3,6 +3,7 @@
   import { tags, tagTask, untagTask } from '$lib/stores/tags';
   import { lists } from '$lib/stores/lists';
   import { selectedTaskId } from '$lib/stores/ui';
+  import { invoke } from '@tauri-apps/api/core';
   import type { Task, Tag } from '$lib/types';
 
   let task: Task | null = $state(null);
@@ -13,6 +14,7 @@
   let recurrenceValue = $state('');
   let newSubtaskTitle = $state('');
   let showTagDropdown = $state(false);
+  let previewDates: string[] = $state([]);
   let visible = $state(false);
 
   let titleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -63,6 +65,18 @@
     } else {
       visible = false;
       task = null;
+    }
+  });
+
+  $effect(() => {
+    const rule = recurrenceValue;
+    const start = dueDateValue;
+    if (rule && start) {
+      invoke<string[]>('preview_recurrence', { rule, startDate: start, count: 5 })
+        .then((dates) => { previewDates = dates; })
+        .catch(() => { previewDates = []; });
+    } else {
+      previewDates = [];
     }
   });
 
@@ -309,6 +323,15 @@
             {/each}
           </select>
         </section>
+
+        {#if previewDates.length > 0}
+          <div class="recurrence-preview">
+            <span class="preview-label">Upcoming</span>
+            {#each previewDates as dateStr}
+              <span class="preview-date">{formatDate(dateStr)}</span>
+            {/each}
+          </div>
+        {/if}
 
         <!-- Tags -->
         <section class="field-group">
@@ -768,6 +791,29 @@
 
   .delete-btn:hover {
     background: color-mix(in srgb, var(--color-danger, #cd4945) 10%, transparent);
+  }
+
+  /* Recurrence preview */
+  .recurrence-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    padding: 6px 0;
+  }
+  .preview-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted, #90918d);
+    width: 100%;
+  }
+  .preview-date {
+    font-size: 12px;
+    color: var(--color-text-secondary, #b6b6b2);
+    background: var(--color-surface-0, #25282c);
+    padding: 2px 8px;
+    border-radius: 6px;
   }
 
   /* Scrollbar styling */

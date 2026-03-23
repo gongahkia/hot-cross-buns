@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { lists, addList } from '$lib/stores/lists';
+  import { lists, addList, editList, removeList } from '$lib/stores/lists';
+  import ContextMenu from './ContextMenu.svelte';
+  import ColorPicker from './ColorPicker.svelte';
   import { tasks } from '$lib/stores/tasks';
   import { tags } from '$lib/stores/tags';
   import { currentView, selectedListId, type ViewMode } from '$lib/stores/ui';
@@ -12,6 +14,16 @@
   let newListName = $state('');
   let inputRef: HTMLInputElement | undefined = $state(undefined);
   let showSyncSettings = $state(false);
+  let contextMenuOpen = $state(false);
+  let contextMenuX = $state(0);
+  let contextMenuY = $state(0);
+  let contextListId: string | null = $state(null);
+  let renamingListId: string | null = $state(null);
+  let renameValue = $state('');
+  let renameInputRef: HTMLInputElement | undefined = $state(undefined);
+  let colorPickerListId: string | null = $state(null);
+  let colorPickerX = $state(0);
+  let colorPickerY = $state(0);
   const DEFAULT_LIST_COLOR = 'var(--color-list-default)';
   const DEFAULT_TAG_COLOR = 'var(--color-tag-default)';
 
@@ -70,6 +82,80 @@
       cancelNewList();
     }
   }
+
+  function openListContextMenu(e: MouseEvent, listId: string) {
+    e.preventDefault();
+    contextMenuX = e.clientX;
+    contextMenuY = e.clientY;
+    contextListId = listId;
+    contextMenuOpen = true;
+  }
+
+  function startRenameList() {
+    if (!contextListId) return;
+    const list = ($lists).find((l: List) => l.id === contextListId);
+    if (!list) return;
+    renamingListId = contextListId;
+    renameValue = list.name;
+    contextMenuOpen = false;
+    queueMicrotask(() => {
+      renameInputRef?.focus();
+      renameInputRef?.select();
+    });
+  }
+
+  async function confirmRename() {
+    if (renamingListId && renameValue.trim()) {
+      await editList(renamingListId, { name: renameValue.trim() });
+    }
+    renamingListId = null;
+    renameValue = '';
+  }
+
+  function cancelRename() {
+    renamingListId = null;
+    renameValue = '';
+  }
+
+  function handleRenameKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter') confirmRename();
+    else if (e.key === 'Escape') cancelRename();
+  }
+
+  function openColorPicker() {
+    colorPickerListId = contextListId;
+    const rect = document.querySelector(`.list-item[data-list-id="${contextListId}"]`)?.getBoundingClientRect();
+    colorPickerX = rect ? rect.right + 8 : contextMenuX;
+    colorPickerY = rect ? rect.top : contextMenuY;
+    contextMenuOpen = false;
+  }
+
+  async function handleColorSelect(color: string) {
+    if (colorPickerListId) {
+      await editList(colorPickerListId, { color });
+    }
+    colorPickerListId = null;
+  }
+
+  async function deleteList() {
+    if (!contextListId) return;
+    contextMenuOpen = false;
+    const confirmed = window.confirm('Delete this list? Tasks in it will be removed.');
+    if (!confirmed) return;
+    const deletingId = contextListId;
+    if ($selectedListId === deletingId) {
+      const inbox = ($lists).find((l: List) => l.isInbox);
+      if (inbox) selectList(inbox.id);
+    }
+    await removeList(deletingId);
+  }
+
+  let contextMenuItems = $derived(contextListId ? [
+    { label: 'Rename', action: startRenameList },
+    { label: 'Change Color', action: openColorPicker },
+    { separator: true as const },
+    { label: 'Delete', action: deleteList, danger: true },
+  ] : []);
 </script>
 
 <aside class="sidebar">
@@ -153,14 +239,29 @@
       <button
         class="list-item"
         class:active={$currentView === 'list' && $selectedListId === list.id}
+        data-list-id={list.id}
         onclick={() => selectList(list.id)}
+        oncontextmenu={(e) => openListContextMenu(e, list.id)}
       >
         <span
           class="list-color-dot"
           style:background-color={list.color ?? DEFAULT_LIST_COLOR}
         ></span>
-        <span class="list-name">{list.name}</span>
-        {#if taskCountForList(list.id) > 0}
+        {#if renamingListId === list.id}
+          <!-- svelte-ignore a11y_autofocus -->
+          <input
+            bind:this={renameInputRef}
+            bind:value={renameValue}
+            class="rename-input"
+            type="text"
+            onkeydown={handleRenameKeydown}
+            onblur={confirmRename}
+            onclick={(e) => e.stopPropagation()}
+          />
+        {:else}
+          <span class="list-name">{list.name}</span>
+        {/if}
+        {#if taskCountForList(list.id) > 0 && renamingListId !== list.id}
           <span class="task-count">{taskCountForList(list.id)}</span>
         {/if}
       </button>
@@ -270,6 +371,17 @@
     </button>
   </div>
 </aside>
+
+<ContextMenu open={contextMenuOpen} x={contextMenuX} y={contextMenuY} items={contextMenuItems} onclose={() => (contextMenuOpen = false)} />
+
+{#if colorPickerListId}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="color-picker-overlay" onclick={() => (colorPickerListId = null)}></div>
+  <div class="color-picker-popover" style="left: {colorPickerX}px; top: {colorPickerY}px">
+    <ColorPicker selected={($lists).find((l) => l.id === colorPickerListId)?.color ?? ''} onselect={handleColorSelect} />
+  </div>
+{/if}
 
 <SyncSettings open={showSyncSettings} onclose={() => (showSyncSettings = false)} />
 
@@ -528,5 +640,34 @@
   .gear-btn:hover {
     background: var(--color-surface-hover, #2a2e33);
     color: var(--color-text-primary, #d4d4d4);
+  }
+
+  .rename-input {
+    flex: 1;
+    padding: 2px 6px;
+    border-radius: 6px;
+    border: 1px solid var(--color-accent, #6c93c7);
+    background: var(--color-input, #17181a);
+    color: var(--color-text-primary, #d4d4d4);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    min-width: 0;
+  }
+
+  .color-picker-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 299;
+  }
+
+  .color-picker-popover {
+    position: fixed;
+    z-index: 300;
+    background: var(--color-panel, #202225);
+    border: 1px solid var(--color-border-subtle, #292c30);
+    border-radius: 12px;
+    padding: 12px;
+    box-shadow: var(--shadow-overlay, 0 20px 56px rgba(0, 0, 0, 0.48));
   }
 </style>

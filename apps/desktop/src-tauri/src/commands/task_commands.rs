@@ -10,6 +10,12 @@ use crate::services::reminder;
 use crate::state::AppState;
 use crate::sync::changes;
 
+#[derive(serde::Serialize)]
+pub struct CompletionStats {
+    pub today: u32,
+    pub streak: u32,
+}
+
 /// Return the current UTC time formatted as an ISO 8601 string (e.g. "2026-03-22T10:30:00Z").
 fn iso8601_now() -> String {
     let dur = std::time::SystemTime::now()
@@ -496,6 +502,11 @@ pub fn update_task(
         if v == 1 {
             set_clauses.push(format!("completed_at = ?{}", params_boxed.len() + 1));
             params_boxed.push(Box::new(now.clone()));
+            let log_id = Uuid::now_v7().to_string();
+            let _ = conn.execute(
+                "INSERT OR IGNORE INTO completion_log (id, task_id, completed_at) VALUES (?1, ?2, ?3)",
+                params![log_id, id, now],
+            );
         } else {
             set_clauses.push(format!("completed_at = ?{}", params_boxed.len() + 1));
             params_boxed.push(Box::new(None::<String>));
@@ -815,4 +826,32 @@ pub fn complete_recurring_task(state: State<'_, AppState>, id: String) -> Result
     )?;
 
     Ok(updated_task)
+}
+
+#[tauri::command]
+pub fn get_completion_stats(state: State<'_, AppState>) -> Result<CompletionStats, String> {
+    let conn = db::get_connection(&state.db_path)?;
+    let today: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM completion_log WHERE date(completed_at) = date('now')",
+        [],
+        |row| row.get(0),
+    ).unwrap_or(0);
+    let streak: i64 = conn.query_row(
+        "WITH RECURSIVE dates(d, n) AS (
+            SELECT date('now'), 0
+            UNION ALL
+            SELECT date(d, '-1 day'), n + 1 FROM dates
+            WHERE EXISTS (
+                SELECT 1 FROM completion_log WHERE date(completed_at) = date(d, '-1 day')
+            )
+        )
+        SELECT CASE
+            WHEN EXISTS (SELECT 1 FROM completion_log WHERE date(completed_at) = date('now'))
+            THEN (SELECT MAX(n) + 1 FROM dates)
+            ELSE 0
+        END",
+        [],
+        |row| row.get(0),
+    ).unwrap_or(0);
+    Ok(CompletionStats { today: today as u32, streak: streak as u32 })
 }

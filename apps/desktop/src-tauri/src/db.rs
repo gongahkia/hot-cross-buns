@@ -122,6 +122,17 @@ fn apply_runtime_migrations(conn: &Connection) -> Result<(), String> {
     let _ = conn.execute_batch(
         "ALTER TABLE sync_meta ADD COLUMN new_value TEXT NOT NULL DEFAULT '';",
     );
+    let _ = conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS completion_log (
+            id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL,
+            completed_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_completion_log_date ON completion_log(completed_at);"
+    );
+    let _ = conn.execute_batch("ALTER TABLE tasks ADD COLUMN scheduled_start TEXT");
+    let _ = conn.execute_batch("ALTER TABLE tasks ADD COLUMN scheduled_end TEXT");
+    let _ = conn.execute_batch("ALTER TABLE tasks ADD COLUMN estimated_minutes INTEGER DEFAULT 30");
     Ok(())
 }
 
