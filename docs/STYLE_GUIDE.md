@@ -1,6 +1,6 @@
 # Style Guide
 
-Code conventions for TickClone. All rules are enforced by tooling; CI fails on violations.
+Code conventions for Cross 2. All rules are enforced by tooling; CI fails on violations.
 
 See also: [CONTRIBUTING.md](./CONTRIBUTING.md) for PR process, [ARCHITECTURE.md](./ARCHITECTURE.md) for project structure.
 

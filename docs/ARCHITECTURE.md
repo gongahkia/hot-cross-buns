@@ -1,6 +1,6 @@
 # Architecture
 
-TickClone is intentionally split into two products with different responsibilities:
+Cross 2 is intentionally split into two products with different responsibilities:
 
 - `apps/desktop` is the primary product: a local-first desktop task manager.
 - `services/server` is supporting infrastructure: a self-hosted sync API for users who want multiple devices.

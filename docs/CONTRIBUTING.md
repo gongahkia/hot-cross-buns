@@ -36,7 +36,7 @@ Server setup:
 docker compose up -d db
 
 cd services/server
-DATABASE_URL=postgres://tickclone:changeme@localhost:5432/tickclone?sslmode=disable go run ./cmd/server
+DATABASE_URL=postgres://cross2:changeme@localhost:5432/cross2?sslmode=disable go run ./cmd/server
 ```
 
 ## Required Checks Before A PR
