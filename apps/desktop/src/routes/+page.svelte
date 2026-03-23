@@ -5,6 +5,7 @@
   import TaskDetail from '$lib/components/TaskDetail.svelte';
   import ShortcutsModal from '$lib/components/ShortcutsModal.svelte';
   import SearchBar from '$lib/components/SearchBar.svelte';
+  import Onboarding from '$lib/components/Onboarding.svelte';
   import { selectedListId, selectedTaskId, currentView } from '$lib/stores/ui';
   import { editTask, removeTask } from '$lib/stores/tasks';
   import { loadLists } from '$lib/stores/lists';
@@ -18,6 +19,7 @@
   type CalendarViewModule = typeof import('$lib/components/CalendarView.svelte');
 
   let showShortcuts = $state(false);
+  let showOnboarding = $state(false);
   let appReady = $state(false);
   let startupError = $state<string | null>(null);
   let todayViewModule = $state<TodayViewModule | null>(null);
@@ -52,6 +54,21 @@
     }
   }
 
+  function hasSeenOnboarding(): boolean {
+    if (typeof localStorage === 'undefined') {
+      return true;
+    }
+
+    return localStorage.getItem('tickclone:onboardingSeen') === 'true';
+  }
+
+  function markOnboardingSeen() {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('tickclone:onboardingSeen', 'true');
+    }
+    showOnboarding = false;
+  }
+
   $effect(() => {
     void ensureViewModule(activeView);
   });
@@ -66,11 +83,13 @@
           loadedLists.find((list: List) => list.isInbox) ?? loadedLists[0] ?? null;
 
         selectedListId.set(defaultList?.id ?? null);
+        showOnboarding = !hasSeenOnboarding() && loadedLists.length <= 1;
         startupError = null;
       } catch (err) {
         console.error('Failed to bootstrap desktop data:', err);
         startupError = 'Could not load your lists.';
         selectedListId.set(null);
+        showOnboarding = false;
       } finally {
         appReady = true;
         markBootstrapCompleted();
@@ -167,6 +186,9 @@
 
 <TaskDetail />
 <ShortcutsModal open={showShortcuts} onclose={() => (showShortcuts = false)} />
+{#if showOnboarding}
+  <Onboarding onDone={markOnboardingSeen} />
+{/if}
 
 <style>
   :global(body) {
