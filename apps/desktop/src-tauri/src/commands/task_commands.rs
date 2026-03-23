@@ -70,13 +70,17 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
         created_at: row.get(12)?,
         updated_at: row.get(13)?,
         deleted_at: row.get(14)?,
+        scheduled_start: row.get(15)?,
+        scheduled_end: row.get(16)?,
+        estimated_minutes: row.get(17)?,
         subtasks: Vec::new(),
         tags: Vec::new(),
     })
 }
 
 const TASK_COLUMNS: &str = "id, list_id, parent_task_id, title, content, priority, status, \
-    due_date, due_timezone, recurrence_rule, sort_order, completed_at, created_at, updated_at, deleted_at";
+    due_date, due_timezone, recurrence_rule, sort_order, completed_at, created_at, updated_at, deleted_at, \
+    scheduled_start, scheduled_end, estimated_minutes";
 
 /// Fetch tags for a set of task IDs and return them grouped by task_id.
 fn fetch_tags_for_tasks(
@@ -475,6 +479,9 @@ pub fn update_task(
     due_timezone: Option<String>,
     recurrence_rule: Option<String>,
     sort_order: Option<i32>,
+    scheduled_start: Option<String>,
+    scheduled_end: Option<String>,
+    estimated_minutes: Option<i32>,
 ) -> Result<Task, String> {
     let conn = db::get_connection(&state.db_path)?;
     let now = iso8601_now();
@@ -526,6 +533,18 @@ pub fn update_task(
     }
     if let Some(v) = sort_order {
         set_clauses.push(format!("sort_order = ?{}", params_boxed.len() + 1));
+        params_boxed.push(Box::new(v));
+    }
+    if let Some(ref v) = scheduled_start {
+        set_clauses.push(format!("scheduled_start = ?{}", params_boxed.len() + 1));
+        params_boxed.push(Box::new(v.clone()));
+    }
+    if let Some(ref v) = scheduled_end {
+        set_clauses.push(format!("scheduled_end = ?{}", params_boxed.len() + 1));
+        params_boxed.push(Box::new(v.clone()));
+    }
+    if let Some(v) = estimated_minutes {
+        set_clauses.push(format!("estimated_minutes = ?{}", params_boxed.len() + 1));
         params_boxed.push(Box::new(v));
     }
 
@@ -587,6 +606,15 @@ pub fn update_task(
     }
     if let Some(value) = sort_order {
         changes::record_field_change(&conn, "task", &task.id, "sort_order", &value)?;
+    }
+    if let Some(ref value) = scheduled_start {
+        changes::record_field_change(&conn, "task", &task.id, "scheduled_start", value)?;
+    }
+    if let Some(ref value) = scheduled_end {
+        changes::record_field_change(&conn, "task", &task.id, "scheduled_end", value)?;
+    }
+    if let Some(value) = estimated_minutes {
+        changes::record_field_change(&conn, "task", &task.id, "estimated_minutes", &value)?;
     }
 
     Ok(task)
@@ -1010,4 +1038,135 @@ pub fn bulk_move_tasks(
         }
     }
     Ok(())
+}
+
+fn attach_tags(conn: &rusqlite::Connection, mut tasks: Vec<Task>) -> Result<Vec<Task>, String> {
+    if tasks.is_empty() { return Ok(tasks); }
+    let all_ids: Vec<String> = tasks.iter().map(|t| t.id.clone()).collect();
+    let tag_map = fetch_tags_for_tasks(conn, &all_ids)?;
+    for t in &mut tasks {
+        t.tags = tag_map.get(&t.id).cloned().unwrap_or_default();
+    }
+    Ok(tasks)
+}
+
+#[tauri::command]
+pub fn get_scheduled_tasks(
+    state: State<'_, AppState>,
+    date: String,
+) -> Result<Vec<Task>, String> {
+    let conn = db::get_connection(&state.db_path)?;
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {} FROM tasks WHERE date(scheduled_start) = ?1 AND deleted_at IS NULL AND status = 0 ORDER BY scheduled_start ASC",
+        TASK_COLUMNS
+    )).map_err(|e| e.to_string())?;
+    let tasks = stmt.query_map(params![date], row_to_task)
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect::<Vec<_>>();
+    attach_tags(&conn, tasks)
+}
+
+#[tauri::command]
+pub fn get_unscheduled_tasks(
+    state: State<'_, AppState>,
+) -> Result<Vec<Task>, String> {
+    let conn = db::get_connection(&state.db_path)?;
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {} FROM tasks WHERE (scheduled_start IS NULL OR scheduled_start = '') AND deleted_at IS NULL AND status = 0 AND parent_task_id IS NULL ORDER BY priority DESC, created_at ASC",
+        TASK_COLUMNS
+    )).map_err(|e| e.to_string())?;
+    let tasks = stmt.query_map([], row_to_task)
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect::<Vec<_>>();
+    attach_tags(&conn, tasks)
+}
+
+#[tauri::command]
+pub fn auto_schedule_tasks(
+    state: State<'_, AppState>,
+    date: String,
+    start_hour: u32,
+    end_hour: u32,
+) -> Result<Vec<Task>, String> {
+    let conn = db::get_connection(&state.db_path)?;
+    let now_str = iso8601_now();
+    let mut scheduled_stmt = conn.prepare(&format!(
+        "SELECT {} FROM tasks WHERE date(scheduled_start) = ?1 AND deleted_at IS NULL AND status = 0 ORDER BY scheduled_start ASC",
+        TASK_COLUMNS
+    )).map_err(|e| e.to_string())?;
+    let existing: Vec<Task> = scheduled_stmt.query_map(params![&date], row_to_task)
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+    let mut occupied: Vec<(u32, u32)> = Vec::new();
+    for task in &existing {
+        if let (Some(start), Some(end)) = (&task.scheduled_start, &task.scheduled_end) {
+            if let (Some(s_min), Some(e_min)) = (time_to_minutes(start), time_to_minutes(end)) {
+                occupied.push((s_min, e_min));
+            }
+        }
+    }
+    occupied.sort_by_key(|&(s, _)| s);
+    let mut unscheduled_stmt = conn.prepare(&format!(
+        "SELECT {} FROM tasks WHERE (scheduled_start IS NULL OR scheduled_start = '') AND deleted_at IS NULL AND status = 0 AND parent_task_id IS NULL ORDER BY priority DESC, created_at ASC LIMIT 50",
+        TASK_COLUMNS
+    )).map_err(|e| e.to_string())?;
+    let unscheduled: Vec<Task> = unscheduled_stmt.query_map([], row_to_task)
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+    let mut placed: Vec<Task> = Vec::new();
+    let mut current_minute = start_hour * 60;
+    let end_minute = end_hour * 60;
+    for task in &unscheduled {
+        let duration = task.estimated_minutes.unwrap_or(30) as u32;
+        if duration == 0 { continue; }
+        loop {
+            if current_minute + duration > end_minute { break; }
+            let slot_end = current_minute + duration;
+            let conflict = occupied.iter().any(|&(os, oe)| {
+                current_minute < oe && slot_end > os
+            });
+            if !conflict {
+                let start_time = format!("{}T{:02}:{:02}:00", date, current_minute / 60, current_minute % 60);
+                let end_time = format!("{}T{:02}:{:02}:00", date, slot_end / 60, slot_end % 60);
+                conn.execute(
+                    "UPDATE tasks SET scheduled_start = ?1, scheduled_end = ?2, updated_at = ?3 WHERE id = ?4",
+                    params![start_time, end_time, now_str, task.id],
+                ).map_err(|e| e.to_string())?;
+                occupied.push((current_minute, slot_end));
+                occupied.sort_by_key(|&(s, _)| s);
+                let mut placed_task = task.clone();
+                placed_task.scheduled_start = Some(start_time);
+                placed_task.scheduled_end = Some(end_time);
+                placed.push(placed_task);
+                current_minute = slot_end;
+                break;
+            } else {
+                let max_end = occupied.iter()
+                    .filter(|&&(os, _)| os <= current_minute)
+                    .map(|&(_, oe)| oe)
+                    .max()
+                    .unwrap_or(current_minute + 15);
+                current_minute = snap_to_15(max_end);
+            }
+        }
+    }
+    Ok(placed)
+}
+
+fn time_to_minutes(iso: &str) -> Option<u32> {
+    let t_pos = iso.find('T')?;
+    let time_part = &iso[t_pos + 1..];
+    let parts: Vec<&str> = time_part.split(':').collect();
+    if parts.len() < 2 { return None; }
+    let h: u32 = parts[0].parse().ok()?;
+    let m: u32 = parts[1].parse().ok()?;
+    Some(h * 60 + m)
+}
+
+fn snap_to_15(minutes: u32) -> u32 {
+    ((minutes + 14) / 15) * 15
 }

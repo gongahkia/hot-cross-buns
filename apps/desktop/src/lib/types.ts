@@ -64,6 +64,9 @@ export interface Task {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  scheduledStart: string | null;
+  scheduledEnd: string | null;
+  estimatedMinutes: number | null;
   subtasks: Task[];
   tags: Tag[];
 }
@@ -78,4 +81,7 @@ export interface TaskUpdatePayload {
   dueTimezone?: string;
   recurrenceRule?: string;
   sortOrder?: number;
+  scheduledStart?: string;
+  scheduledEnd?: string;
+  estimatedMinutes?: number;
 }

@@ -29,6 +29,9 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     createdAt: overrides.createdAt ?? '2026-03-22T00:00:00Z',
     updatedAt: overrides.updatedAt ?? '2026-03-22T00:00:00Z',
     deletedAt: overrides.deletedAt ?? null,
+    scheduledStart: overrides.scheduledStart ?? null,
+    scheduledEnd: overrides.scheduledEnd ?? null,
+    estimatedMinutes: overrides.estimatedMinutes ?? null,
     subtasks: overrides.subtasks ?? [],
     tags: overrides.tags ?? [],
   };
@@ -97,6 +100,9 @@ describe('tasks store', () => {
         dueTimezone: null,
         recurrenceRule: null,
         sortOrder: null,
+        scheduledStart: null,
+        scheduledEnd: null,
+        estimatedMinutes: null,
       });
 
       return makeTask({

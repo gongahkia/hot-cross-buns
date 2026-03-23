@@ -206,7 +206,7 @@
   let contextMenuItems = $derived(contextListId ? [
     { label: 'Rename', action: startRenameList },
     { label: 'Change Color', action: openColorPicker },
-    { separator: true as const },
+    { label: '', separator: true },
     { label: 'Delete', action: deleteList, danger: true },
   ] : []);
 </script>
@@ -262,6 +262,21 @@
         </svg>
       </span>
       <span class="nav-label">Calendar</span>
+    </button>
+
+    <button
+      class="nav-item"
+      class:active={$currentView === 'schedule'}
+      onclick={() => selectView('schedule')}
+    >
+      <span class="nav-icon" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none">
+          <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.4"/>
+          <path d="M2 6h12M6 2v12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          <path d="M8.5 8.5h3M8.5 11h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="nav-label">Schedule</span>
     </button>
   </nav>
 

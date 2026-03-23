@@ -1,6 +1,6 @@
 import { writable } from 'svelte/store';
 
-export type ViewMode = 'list' | 'today' | 'calendar' | 'week' | 'smart-filter';
+export type ViewMode = 'list' | 'today' | 'calendar' | 'week' | 'smart-filter' | 'schedule';
 export type SmartFilterType = 'overdue' | 'due-this-week' | 'high-priority' | 'untagged';
 export const selectedSmartFilter = writable<SmartFilterType>('overdue');
 

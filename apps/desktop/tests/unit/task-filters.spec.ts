@@ -21,6 +21,9 @@ function createTask(overrides: Partial<Task>): Task {
     createdAt: overrides.createdAt ?? '2026-03-23T00:00:00Z',
     updatedAt: overrides.updatedAt ?? '2026-03-23T00:00:00Z',
     deletedAt: overrides.deletedAt ?? null,
+    scheduledStart: overrides.scheduledStart ?? null,
+    scheduledEnd: overrides.scheduledEnd ?? null,
+    estimatedMinutes: overrides.estimatedMinutes ?? null,
     subtasks: overrides.subtasks ?? [],
     tags: overrides.tags ?? [],
   };

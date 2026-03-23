@@ -87,6 +87,9 @@ export async function editTask(
     dueTimezone: fields.dueTimezone ?? null,
     recurrenceRule: fields.recurrenceRule ?? null,
     sortOrder: fields.sortOrder ?? null,
+    scheduledStart: fields.scheduledStart ?? null,
+    scheduledEnd: fields.scheduledEnd ?? null,
+    estimatedMinutes: fields.estimatedMinutes ?? null,
   });
   tasks.update((current) =>
     current.map((task) => (task.id === id ? updated : task))

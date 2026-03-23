@@ -21,9 +21,10 @@ use commands::tag_commands::{
     add_tag_to_task, create_tag, delete_tag, get_tags, remove_tag_from_task, update_tag,
 };
 use commands::task_commands::{
-    bulk_delete_tasks, bulk_move_tasks, bulk_update_tasks, complete_recurring_task, create_task,
-    delete_task, get_completion_stats, get_high_priority_tasks, get_overdue_tasks, get_task,
-    get_tasks_by_list, get_tasks_due_this_week, get_tasks_due_today, get_tasks_in_range,
+    auto_schedule_tasks, bulk_delete_tasks, bulk_move_tasks, bulk_update_tasks,
+    complete_recurring_task, create_task, delete_task, get_completion_stats,
+    get_high_priority_tasks, get_overdue_tasks, get_scheduled_tasks, get_task, get_tasks_by_list,
+    get_tasks_due_this_week, get_tasks_due_today, get_tasks_in_range, get_unscheduled_tasks,
     get_untagged_tasks, move_task, preview_recurrence, search_tasks, update_task,
 };
 
@@ -33,6 +34,23 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        if let Some(window) = app.get_webview_window("capture") {
+                            if window.is_visible().unwrap_or(false) {
+                                let _ = window.hide();
+                            } else {
+                                let _ = window.center();
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                    }
+                })
+                .build(),
+        )
         .setup(|app| {
             let setup_started = std::time::Instant::now();
             let app_data_dir = app
@@ -77,6 +95,14 @@ pub fn run() {
 
             if !tray_disabled {
                 services::tray::setup_tray(app)?;
+            }
+
+            { // register global shortcut for quick capture
+                use tauri_plugin_global_shortcut::GlobalShortcutExt;
+                let shortcut: tauri_plugin_global_shortcut::Shortcut =
+                    "CmdOrCtrl+Shift+Space".parse().unwrap();
+                app.global_shortcut().register(shortcut)
+                    .map_err(|e| format!("Failed to register global shortcut: {}", e))?;
             }
 
             services::startup::log_startup_timing("tauri setup", setup_started);
@@ -125,6 +151,9 @@ pub fn run() {
             bulk_update_tasks,
             bulk_delete_tasks,
             bulk_move_tasks,
+            get_scheduled_tasks,
+            get_unscheduled_tasks,
+            auto_schedule_tasks,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

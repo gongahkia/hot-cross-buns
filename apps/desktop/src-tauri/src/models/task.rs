@@ -20,6 +20,9 @@ pub struct Task {
     pub created_at: String,
     pub updated_at: String,
     pub deleted_at: Option<String>,
+    pub scheduled_start: Option<String>,
+    pub scheduled_end: Option<String>,
+    pub estimated_minutes: Option<i32>,
     pub subtasks: Vec<Task>,
     pub tags: Vec<Tag>,
 }

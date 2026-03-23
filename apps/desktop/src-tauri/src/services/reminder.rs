@@ -49,6 +49,9 @@ pub fn check_due_tasks(conn: &Connection) -> Vec<Task> {
             created_at: row.get(12)?,
             updated_at: row.get(13)?,
             deleted_at: row.get(14)?,
+            scheduled_start: None,
+            scheduled_end: None,
+            estimated_minutes: None,
             subtasks: Vec::new(),
             tags: Vec::new(),
         })

@@ -126,6 +126,9 @@ mod tests {
             created_at: "2026-03-22T00:00:00Z".to_string(),
             updated_at: "2026-03-22T00:00:00Z".to_string(),
             deleted_at: None,
+            scheduled_start: None,
+            scheduled_end: None,
+            estimated_minutes: None,
             subtasks: Vec::new(),
             tags: Vec::new(),
         };

@@ -2,5 +2,9 @@
 	"/": [
 		"src/routes/+layout.ts",
 		"src/routes/+layout.ts"
+	],
+	"/capture": [
+		"src/routes/+layout.ts",
+		"src/routes/+layout.ts"
 	]
 }
