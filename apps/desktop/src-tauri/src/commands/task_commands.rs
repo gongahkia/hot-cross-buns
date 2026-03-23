@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::db;
 use crate::models::{Tag, Task};
+use crate::services::reminder;
 use crate::state::AppState;
 use crate::sync::changes;
 
@@ -547,6 +548,10 @@ pub fn update_task(
 
     let task = load_task_full(&conn, &id)?;
 
+    if due_date.is_some() || status.is_some() {
+        reminder::clear_notified(&conn, &id);
+    }
+
     if let Some(ref value) = title {
         changes::record_field_change(&conn, "task", &task.id, "title", value)?;
     }
@@ -602,8 +607,10 @@ pub fn delete_task(state: State<'_, AppState>, id: String) -> Result<(), String>
     .map_err(|e| format!("Failed to soft-delete subtasks: {}", e))?;
 
     changes::record_deleted_at(&conn, "task", &id, &now)?;
+    reminder::clear_notified(&conn, &id);
     for subtask_id in subtask_ids {
         changes::record_deleted_at(&conn, "task", &subtask_id, &now)?;
+        reminder::clear_notified(&conn, &subtask_id);
     }
 
     Ok(())
@@ -784,6 +791,7 @@ pub fn complete_recurring_task(state: State<'_, AppState>, id: String) -> Result
     .map_err(|e| format!("Failed to advance recurring task: {}", e))?;
 
     let updated_task = load_task_full(&conn, &id)?;
+    reminder::clear_notified(&conn, &updated_task.id);
     changes::record_field_change(
         &conn,
         "task",

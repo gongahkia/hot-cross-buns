@@ -1,18 +1,21 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { invoke } from '@tauri-apps/api/core';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import TaskList from '$lib/components/TaskList.svelte';
   import TaskDetail from '$lib/components/TaskDetail.svelte';
   import ShortcutsModal from '$lib/components/ShortcutsModal.svelte';
   import SearchBar from '$lib/components/SearchBar.svelte';
+  import NotificationCenter from '$lib/components/NotificationCenter.svelte';
   import Onboarding from '$lib/components/Onboarding.svelte';
   import { selectedListId, selectedTaskId, currentView } from '$lib/stores/ui';
   import { editTask, removeTask } from '$lib/stores/tasks';
+  import { addNotification } from '$lib/stores/notifications';
   import { loadLists } from '$lib/stores/lists';
   import { loadTags } from '$lib/stores/tags';
   import { registerShortcuts } from '$lib/services/shortcuts';
   import { markBootstrapCompleted, markFirstInteractive } from '$lib/services/startup';
-  import type { List } from '$lib/types';
+  import type { List, Task } from '$lib/types';
 
   type TodayViewModule = typeof import('$lib/components/TodayView.svelte');
   type WeekViewModule = typeof import('$lib/components/WeekView.svelte');
@@ -74,6 +77,40 @@
   });
 
   onMount(() => {
+    let notificationPoll: ReturnType<typeof setInterval> | undefined;
+
+    function notificationMessage(task: Task): string {
+      if (!task.dueDate) {
+        return 'Due soon';
+      }
+
+      const parsed = new Date(task.dueDate);
+      if (Number.isNaN(parsed.getTime())) {
+        return `Due at ${task.dueDate}`;
+      }
+
+      return `Due at ${parsed.toLocaleTimeString([], {
+        hour: 'numeric',
+        minute: '2-digit',
+      })}`;
+    }
+
+    async function pollDueNotifications() {
+      try {
+        const dueSoonTasks = await invoke<Task[]>('drain_due_notifications');
+        for (const task of dueSoonTasks) {
+          addNotification({
+            taskId: task.id,
+            listId: task.listId,
+            title: task.title,
+            message: notificationMessage(task),
+          });
+        }
+      } catch (err) {
+        console.error('Failed to poll due notifications:', err);
+      }
+    }
+
     async function bootstrapApp() {
       try {
         const loadedLists = await loadLists();
@@ -139,8 +176,17 @@
     });
 
     void bootstrapApp();
+    void pollDueNotifications();
+    notificationPoll = setInterval(() => {
+      void pollDueNotifications();
+    }, 60_000);
 
-    return cleanup;
+    return () => {
+      cleanup();
+      if (notificationPoll !== undefined) {
+        clearInterval(notificationPoll);
+      }
+    };
   });
 </script>
 
@@ -150,7 +196,10 @@
   <main class="content">
     <header class="toolbar">
       <span class="toolbar-title">TickClone</span>
-      <SearchBar />
+      <div class="toolbar-actions">
+        <SearchBar />
+        <NotificationCenter />
+      </div>
     </header>
     <div class="main-area">
       {#if !appReady}
@@ -217,6 +266,7 @@
     height: 48px;
     display: flex;
     align-items: center;
+    justify-content: space-between;
     padding: 0 16px;
     border-bottom: 1px solid var(--color-border-subtle, #313244);
     background: var(--color-bg-primary, #1e1e2e);
@@ -225,6 +275,13 @@
   .toolbar-title {
     font-size: 14px;
     font-weight: 500;
+  }
+
+  .toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
   }
 
   .main-area {

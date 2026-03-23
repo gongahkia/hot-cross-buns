@@ -81,6 +81,11 @@ CREATE TABLE IF NOT EXISTS sync_settings (
     last_synced_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS notified_tasks (
+    task_id TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+    notified_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_tasks_list_id ON tasks(list_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_date);

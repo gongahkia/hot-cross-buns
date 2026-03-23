@@ -12,6 +12,7 @@ use tauri::Manager;
 use commands::bench_commands::seed_benchmark_data;
 use commands::data_commands::{export_csv, export_data, import_data};
 use commands::list_commands::{create_list, delete_list, get_lists, update_list};
+use commands::reminder_commands::drain_due_notifications;
 use commands::sync_commands::{
     dismiss_sync_conflict, get_sync_health, get_sync_settings, list_sync_conflicts,
     resolve_sync_conflict, save_sync_settings, sync_now,
@@ -99,6 +100,7 @@ pub fn run() {
             export_csv,
             export_data,
             import_data,
+            drain_due_notifications,
             get_sync_settings,
             get_sync_health,
             save_sync_settings,

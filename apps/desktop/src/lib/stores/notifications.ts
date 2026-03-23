@@ -3,6 +3,7 @@ import { writable } from 'svelte/store';
 export interface Notification {
   id: string;
   taskId: string;
+  listId: string;
   title: string;
   message: string;
   read: boolean;

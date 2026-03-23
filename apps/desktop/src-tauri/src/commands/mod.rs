@@ -1,6 +1,7 @@
 pub mod bench_commands;
 pub mod data_commands;
 pub mod list_commands;
+pub mod reminder_commands;
 pub mod sync_commands;
 pub mod tag_commands;
 pub mod task_commands;

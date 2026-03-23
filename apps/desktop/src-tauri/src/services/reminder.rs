@@ -21,8 +21,9 @@ pub fn check_due_tasks(conn: &Connection) -> Vec<Task> {
         WHERE deleted_at IS NULL
           AND status = 0
           AND due_date IS NOT NULL
-          AND due_date <= datetime('now', '+15 minutes')
-          AND due_date >= datetime('now')
+          AND datetime(due_date) IS NOT NULL
+          AND datetime(due_date) <= datetime('now', '+15 minutes')
+          AND datetime(due_date) >= datetime('now')
           AND id NOT IN (SELECT task_id FROM notified_tasks)
     "#;
 
@@ -76,4 +77,73 @@ pub fn mark_notified(conn: &Connection, task_id: &str) {
         "INSERT OR IGNORE INTO notified_tasks (task_id, notified_at) VALUES (?1, datetime('now'))",
         [task_id],
     );
+}
+
+/// Clear the notified marker for a task so it can be surfaced again if its
+/// due date or completion state changes.
+pub fn clear_notified(conn: &Connection, task_id: &str) {
+    let _ = conn.execute("DELETE FROM notified_tasks WHERE task_id = ?1", [task_id]);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db;
+    use std::path::PathBuf;
+    use tempfile::TempDir;
+
+    fn setup_test_db() -> (TempDir, PathBuf) {
+        let tmp = TempDir::new().expect("failed to create temp dir");
+        let db_path = tmp.path().to_path_buf();
+        let conn = db::init_db(&db_path).expect("failed to init db");
+
+        conn.execute(
+            "INSERT INTO lists (id, name, color, sort_order, is_inbox, created_at, updated_at)
+             VALUES ('list-1', 'Inbox', NULL, 0, 1, datetime('now'), datetime('now'))",
+            [],
+        )
+        .expect("insert list");
+
+        (tmp, db_path)
+    }
+
+    #[test]
+    fn test_check_due_tasks_returns_due_soon_items_once() {
+        let (_tmp, db_path) = setup_test_db();
+        let conn = db::get_connection(&db_path).expect("open db");
+
+        conn.execute(
+            "INSERT INTO tasks (id, list_id, title, priority, status, due_date, sort_order, created_at, updated_at)
+             VALUES ('task-1', 'list-1', 'Soon', 0, 0, datetime('now', '+10 minutes'), 0, datetime('now'), datetime('now'))",
+            [],
+        )
+        .expect("insert task");
+
+        let due = check_due_tasks(&conn);
+        assert_eq!(due.len(), 1);
+        assert_eq!(due[0].id, "task-1");
+
+        mark_notified(&conn, "task-1");
+        let after_mark = check_due_tasks(&conn);
+        assert!(after_mark.is_empty());
+    }
+
+    #[test]
+    fn test_clear_notified_rearms_task() {
+        let (_tmp, db_path) = setup_test_db();
+        let conn = db::get_connection(&db_path).expect("open db");
+
+        conn.execute(
+            "INSERT INTO tasks (id, list_id, title, priority, status, due_date, sort_order, created_at, updated_at)
+             VALUES ('task-1', 'list-1', 'Soon', 0, 0, datetime('now', '+5 minutes'), 0, datetime('now'), datetime('now'))",
+            [],
+        )
+        .expect("insert task");
+
+        mark_notified(&conn, "task-1");
+        clear_notified(&conn, "task-1");
+
+        let due = check_due_tasks(&conn);
+        assert_eq!(due.len(), 1);
+    }
 }

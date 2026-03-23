@@ -5,7 +5,7 @@
     markAllRead,
     type Notification,
   } from '$lib/stores/notifications';
-  import { selectedTaskId } from '$lib/stores/ui';
+  import { currentView, selectedListId, selectedTaskId } from '$lib/stores/ui';
 
   let open = $state(false);
 
@@ -20,6 +20,8 @@
 
   function handleNotificationClick(n: Notification) {
     markRead(n.id);
+    selectedListId.set(n.listId);
+    currentView.set('list');
     selectedTaskId.set(n.taskId);
     open = false;
   }
