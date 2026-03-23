@@ -1,9 +1,13 @@
+pub mod area;
+pub mod heading;
 pub mod list;
 pub mod sync_conflict;
 pub mod sync_settings;
 pub mod tag;
 pub mod task;
 
+pub use area::Area;
+pub use heading::Heading;
 pub use list::List;
 pub use sync_conflict::SyncConflict;
 pub use sync_settings::SyncSettings;

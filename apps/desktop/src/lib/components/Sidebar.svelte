@@ -1,5 +1,6 @@
 <script lang="ts">
   import { lists, addList, editList, removeList } from '$lib/stores/lists';
+  import { areas, loadAreas, addArea, editArea, removeArea } from '$lib/stores/areas';
   import ContextMenu from './ContextMenu.svelte';
   import ColorPicker from './ColorPicker.svelte';
   import { tasks, taskMutationVersion } from '$lib/stores/tasks';
@@ -7,8 +8,9 @@
   import { tags } from '$lib/stores/tags';
   import { currentView, selectedListId, selectedSmartFilter, type ViewMode, type SmartFilterType } from '$lib/stores/ui';
   import { theme, cycleTheme } from '$lib/stores/theme';
-  import type { List } from '$lib/types';
+  import type { List, Area } from '$lib/types';
   import SyncSettings from './SyncSettings.svelte';
+  import { onMount } from 'svelte';
 
   let tagsExpanded = $state(true);
   let creatingList = $state(false);
@@ -29,6 +31,27 @@
   let dragOverListId: string | null = $state(null);
   const DEFAULT_LIST_COLOR = 'var(--color-list-default)';
   const DEFAULT_TAG_COLOR = 'var(--color-tag-default)';
+  const DEFAULT_AREA_COLOR = 'var(--color-accent, #6c93c7)';
+
+  // area state
+  let collapsedAreas: Record<string, boolean> = $state({});
+  let creatingArea = $state(false);
+  let newAreaName = $state('');
+  let areaInputRef: HTMLInputElement | undefined = $state(undefined);
+  let areaContextMenuOpen = $state(false);
+  let areaContextMenuX = $state(0);
+  let areaContextMenuY = $state(0);
+  let contextAreaId: string | null = $state(null);
+  let renamingAreaId: string | null = $state(null);
+  let areaRenameValue = $state('');
+  let areaRenameInputRef: HTMLInputElement | undefined = $state(undefined);
+  let areaColorPickerId: string | null = $state(null);
+  let areaColorPickerX = $state(0);
+  let areaColorPickerY = $state(0);
+  let draggedAreaId: string | null = $state(null);
+  let dragOverAreaId: string | null = $state(null);
+
+  onMount(() => { loadAreas(); });
 
   let overdueCount = $state(0);
 
@@ -46,6 +69,20 @@
       .filter((l: List) => !l.isInbox)
       .sort((a: List, b: List) => a.sortOrder - b.sortOrder)
   );
+  let sortedAreas = $derived(($areas).sort((a: Area, b: Area) => a.sortOrder - b.sortOrder));
+  let listsGroupedByArea = $derived.by(() => {
+    const map = new Map<string, List[]>();
+    for (const list of userLists) {
+      const key = list.areaId ?? '__none__';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(list);
+    }
+    return map;
+  });
+  let uncategorizedLists = $derived(listsGroupedByArea.get('__none__') ?? []);
+  function listsForArea(areaId: string): List[] {
+    return listsGroupedByArea.get(areaId) ?? [];
+  }
 
   function taskCountForList(listId: string): number {
     return ($tasks).filter((t) => t.listId === listId && t.status === 0).length;
@@ -203,11 +240,125 @@
     dragOverListId = null;
   }
 
+  // area functions
+  function toggleArea(areaId: string) {
+    collapsedAreas[areaId] = !collapsedAreas[areaId];
+  }
+  function startCreatingArea() {
+    creatingArea = true;
+    newAreaName = '';
+    queueMicrotask(() => { areaInputRef?.focus(); });
+  }
+  async function confirmNewArea() {
+    const name = newAreaName.trim();
+    if (name) {
+      try { await addArea(name); } catch (err) { console.error('Failed to create area:', err); }
+    }
+    creatingArea = false;
+    newAreaName = '';
+  }
+  function cancelNewArea() { creatingArea = false; newAreaName = ''; }
+  function handleNewAreaKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter') confirmNewArea();
+    else if (e.key === 'Escape') cancelNewArea();
+  }
+  function openAreaContextMenu(e: MouseEvent, areaId: string) {
+    e.preventDefault();
+    areaContextMenuX = e.clientX;
+    areaContextMenuY = e.clientY;
+    contextAreaId = areaId;
+    areaContextMenuOpen = true;
+  }
+  function startRenameArea() {
+    if (!contextAreaId) return;
+    const area = ($areas).find((a: Area) => a.id === contextAreaId);
+    if (!area) return;
+    renamingAreaId = contextAreaId;
+    areaRenameValue = area.name;
+    areaContextMenuOpen = false;
+    queueMicrotask(() => { areaRenameInputRef?.focus(); areaRenameInputRef?.select(); });
+  }
+  async function confirmAreaRename() {
+    if (renamingAreaId && areaRenameValue.trim()) {
+      await editArea(renamingAreaId, { name: areaRenameValue.trim() });
+    }
+    renamingAreaId = null;
+    areaRenameValue = '';
+  }
+  function cancelAreaRename() { renamingAreaId = null; areaRenameValue = ''; }
+  function handleAreaRenameKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter') confirmAreaRename();
+    else if (e.key === 'Escape') cancelAreaRename();
+  }
+  function openAreaColorPicker() {
+    areaColorPickerId = contextAreaId;
+    const rect = document.querySelector(`.area-header[data-area-id="${contextAreaId}"]`)?.getBoundingClientRect();
+    areaColorPickerX = rect ? rect.right + 8 : areaContextMenuX;
+    areaColorPickerY = rect ? rect.top : areaContextMenuY;
+    areaContextMenuOpen = false;
+  }
+  async function handleAreaColorSelect(color: string) {
+    if (areaColorPickerId) { await editArea(areaColorPickerId, { color }); }
+    areaColorPickerId = null;
+  }
+  async function deleteArea() {
+    if (!contextAreaId) return;
+    areaContextMenuOpen = false;
+    const confirmed = window.confirm('Delete this area? Lists in it will become uncategorized.');
+    if (!confirmed) return;
+    await removeArea(contextAreaId);
+  }
+  function handleAreaDragStart(e: DragEvent, area: Area) {
+    draggedAreaId = area.id;
+    e.dataTransfer!.effectAllowed = 'move';
+    e.dataTransfer!.setData('text/plain', area.id);
+  }
+  function handleAreaDragOver(e: DragEvent, areaId: string) {
+    e.preventDefault();
+    e.dataTransfer!.dropEffect = 'move';
+    dragOverAreaId = areaId;
+  }
+  async function handleAreaDrop(e: DragEvent, targetArea: Area) {
+    e.preventDefault();
+    if (!draggedAreaId || draggedAreaId === targetArea.id) {
+      draggedAreaId = null; dragOverAreaId = null; return;
+    }
+    const current = [...sortedAreas];
+    const dragIdx = current.findIndex(a => a.id === draggedAreaId);
+    const targetIdx = current.findIndex(a => a.id === targetArea.id);
+    if (dragIdx < 0 || targetIdx < 0) return;
+    const [moved] = current.splice(dragIdx, 1);
+    current.splice(targetIdx, 0, moved);
+    for (let i = 0; i < current.length; i++) {
+      if (current[i].sortOrder !== i) await editArea(current[i].id, { sortOrder: i });
+    }
+    draggedAreaId = null; dragOverAreaId = null;
+  }
+  function handleAreaDragEnd() { draggedAreaId = null; dragOverAreaId = null; }
+
+  // "Move to Area" submenu for list context menu
+  let moveToAreaSubmenu = $derived.by(() => {
+    const items: { label: string; action: () => void }[] = [];
+    items.push({ label: 'None', action: () => { if (contextListId) editList(contextListId, { areaId: null }); } });
+    for (const area of sortedAreas) {
+      items.push({ label: area.name, action: () => { if (contextListId) editList(contextListId, { areaId: area.id }); } });
+    }
+    return items;
+  });
+
   let contextMenuItems = $derived(contextListId ? [
     { label: 'Rename', action: startRenameList },
     { label: 'Change Color', action: openColorPicker },
+    { label: 'Move to Area', submenu: moveToAreaSubmenu },
     { label: '', separator: true },
     { label: 'Delete', action: deleteList, danger: true },
+  ] : []);
+
+  let areaContextMenuItems = $derived(contextAreaId ? [
+    { label: 'Rename', action: startRenameArea },
+    { label: 'Change Color', action: openAreaColorPicker },
+    { label: '', separator: true },
+    { label: 'Delete', action: deleteArea, danger: true },
   ] : []);
 </script>
 
@@ -232,6 +383,21 @@
       {#if overdueCount > 0}
         <span class="overdue-badge">{overdueCount}</span>
       {/if}
+    </button>
+
+    <button
+      class="nav-item"
+      class:active={$currentView === 'upcoming'}
+      onclick={() => selectView('upcoming')}
+    >
+      <span class="nav-icon" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none">
+          <rect x="2" y="3" width="12" height="10.5" rx="2" stroke="currentColor" stroke-width="1.4" />
+          <path d="M5 1.75V4.25M11 1.75V4.25M2 6h12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+          <path d="M5 9l2 2 4-4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </span>
+      <span class="nav-label">Upcoming</span>
     </button>
 
     <button
@@ -277,6 +443,20 @@
         </svg>
       </span>
       <span class="nav-label">Schedule</span>
+    </button>
+
+    <button
+      class="nav-item"
+      class:active={$currentView === 'timeline'}
+      onclick={() => selectView('timeline')}
+    >
+      <span class="nav-icon" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none">
+          <rect x="2" y="3" width="12" height="10" rx="2" stroke="currentColor" stroke-width="1.4"/>
+          <path d="M4.5 6h3M6.5 9h4M5 12h2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="nav-label">Timeline</span>
     </button>
   </nav>
 
@@ -330,45 +510,122 @@
       </button>
     {/if}
 
-    {#each userLists as list (list.id)}
-      <button
-        class="list-item"
-        class:active={$currentView === 'list' && $selectedListId === list.id}
-        class:dragging={draggedListId === list.id}
-        class:drag-over={dragOverListId === list.id}
-        data-list-id={list.id}
-        draggable="true"
-        onclick={() => selectList(list.id)}
-        oncontextmenu={(e) => openListContextMenu(e, list.id)}
-        ondragstart={(e) => handleListDragStart(e, list)}
-        ondragover={(e) => handleListDragOver(e, list.id)}
-        ondrop={(e) => handleListDrop(e, list)}
-        ondragend={handleDragEnd}
-        ondragleave={() => { if (dragOverListId === list.id) dragOverListId = null; }}
-      >
-        <span
-          class="list-color-dot"
-          style:background-color={list.color ?? DEFAULT_LIST_COLOR}
-        ></span>
-        {#if renamingListId === list.id}
-          <!-- svelte-ignore a11y_autofocus -->
-          <input
-            bind:this={renameInputRef}
-            bind:value={renameValue}
-            class="rename-input"
-            type="text"
-            onkeydown={handleRenameKeydown}
-            onblur={confirmRename}
-            onclick={(e) => e.stopPropagation()}
-          />
-        {:else}
-          <span class="list-name">{list.name}</span>
+    {#each sortedAreas as area (area.id)}
+      {@const areaLists = listsForArea(area.id)}
+      {#if areaLists.length > 0}
+        <button
+          class="area-header section-toggle"
+          data-area-id={area.id}
+          draggable="true"
+          class:dragging={draggedAreaId === area.id}
+          class:drag-over={dragOverAreaId === area.id}
+          onclick={() => toggleArea(area.id)}
+          oncontextmenu={(e) => openAreaContextMenu(e, area.id)}
+          ondragstart={(e) => handleAreaDragStart(e, area)}
+          ondragover={(e) => handleAreaDragOver(e, area.id)}
+          ondrop={(e) => handleAreaDrop(e, area)}
+          ondragend={handleAreaDragEnd}
+          ondragleave={() => { if (dragOverAreaId === area.id) dragOverAreaId = null; }}
+        >
+          <span class="area-color-dot" style:background-color={area.color ?? DEFAULT_AREA_COLOR}></span>
+          {#if renamingAreaId === area.id}
+            <!-- svelte-ignore a11y_autofocus -->
+            <input
+              bind:this={areaRenameInputRef}
+              bind:value={areaRenameValue}
+              class="rename-input"
+              type="text"
+              onkeydown={handleAreaRenameKeydown}
+              onblur={confirmAreaRename}
+              onclick={(e) => e.stopPropagation()}
+            />
+          {:else}
+            <span class="area-name">{area.name}</span>
+          {/if}
+          <span class="area-count">{areaLists.length}</span>
+          <svg class="toggle-arrow" class:expanded={!collapsedAreas[area.id]} viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <path d="M4 2.5L7.5 6L4 9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
+        {#if !collapsedAreas[area.id]}
+          {#each areaLists as list (list.id)}
+            <button
+              class="list-item area-child"
+              class:active={$currentView === 'list' && $selectedListId === list.id}
+              class:dragging={draggedListId === list.id}
+              class:drag-over={dragOverListId === list.id}
+              data-list-id={list.id}
+              draggable="true"
+              onclick={() => selectList(list.id)}
+              oncontextmenu={(e) => openListContextMenu(e, list.id)}
+              ondragstart={(e) => handleListDragStart(e, list)}
+              ondragover={(e) => handleListDragOver(e, list.id)}
+              ondrop={(e) => handleListDrop(e, list)}
+              ondragend={handleDragEnd}
+              ondragleave={() => { if (dragOverListId === list.id) dragOverListId = null; }}
+            >
+              <span class="list-color-dot" style:background-color={list.color ?? DEFAULT_LIST_COLOR}></span>
+              {#if renamingListId === list.id}
+                <!-- svelte-ignore a11y_autofocus -->
+                <input
+                  bind:this={renameInputRef}
+                  bind:value={renameValue}
+                  class="rename-input"
+                  type="text"
+                  onkeydown={handleRenameKeydown}
+                  onblur={confirmRename}
+                  onclick={(e) => e.stopPropagation()}
+                />
+              {:else}
+                <span class="list-name">{list.name}</span>
+              {/if}
+              {#if taskCountForList(list.id) > 0 && renamingListId !== list.id}
+                <span class="task-count">{taskCountForList(list.id)}</span>
+              {/if}
+            </button>
+          {/each}
         {/if}
-        {#if taskCountForList(list.id) > 0 && renamingListId !== list.id}
-          <span class="task-count">{taskCountForList(list.id)}</span>
-        {/if}
-      </button>
+      {/if}
     {/each}
+
+    {#if uncategorizedLists.length > 0}
+      {#each uncategorizedLists as list (list.id)}
+        <button
+          class="list-item"
+          class:active={$currentView === 'list' && $selectedListId === list.id}
+          class:dragging={draggedListId === list.id}
+          class:drag-over={dragOverListId === list.id}
+          data-list-id={list.id}
+          draggable="true"
+          onclick={() => selectList(list.id)}
+          oncontextmenu={(e) => openListContextMenu(e, list.id)}
+          ondragstart={(e) => handleListDragStart(e, list)}
+          ondragover={(e) => handleListDragOver(e, list.id)}
+          ondrop={(e) => handleListDrop(e, list)}
+          ondragend={handleDragEnd}
+          ondragleave={() => { if (dragOverListId === list.id) dragOverListId = null; }}
+        >
+          <span class="list-color-dot" style:background-color={list.color ?? DEFAULT_LIST_COLOR}></span>
+          {#if renamingListId === list.id}
+            <!-- svelte-ignore a11y_autofocus -->
+            <input
+              bind:this={renameInputRef}
+              bind:value={renameValue}
+              class="rename-input"
+              type="text"
+              onkeydown={handleRenameKeydown}
+              onblur={confirmRename}
+              onclick={(e) => e.stopPropagation()}
+            />
+          {:else}
+            <span class="list-name">{list.name}</span>
+          {/if}
+          {#if taskCountForList(list.id) > 0 && renamingListId !== list.id}
+            <span class="task-count">{taskCountForList(list.id)}</span>
+          {/if}
+        </button>
+      {/each}
+    {/if}
 
     {#if creatingList}
       <div class="new-list-input-row">
@@ -391,6 +648,30 @@
         </svg>
       </span>
       <span class="nav-label">New List</span>
+    </button>
+
+    {#if creatingArea}
+      <div class="new-list-input-row">
+        <input
+          bind:this={areaInputRef}
+          bind:value={newAreaName}
+          class="new-list-input"
+          type="text"
+          placeholder="Area name..."
+          onkeydown={handleNewAreaKeydown}
+          onblur={cancelNewArea}
+        />
+      </div>
+    {/if}
+
+    <button class="new-list-btn" onclick={startCreatingArea}>
+      <span class="nav-icon" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none">
+          <rect x="3" y="3" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.4" />
+          <path d="M8 5.5v5M5.5 8h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+        </svg>
+      </span>
+      <span class="nav-label">New Area</span>
     </button>
   </div>
 
@@ -476,6 +757,16 @@
 </aside>
 
 <ContextMenu open={contextMenuOpen} x={contextMenuX} y={contextMenuY} items={contextMenuItems} onclose={() => (contextMenuOpen = false)} />
+<ContextMenu open={areaContextMenuOpen} x={areaContextMenuX} y={areaContextMenuY} items={areaContextMenuItems} onclose={() => (areaContextMenuOpen = false)} />
+
+{#if areaColorPickerId}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="color-picker-overlay" onclick={() => (areaColorPickerId = null)}></div>
+  <div class="color-picker-popover" style="left: {areaColorPickerX}px; top: {areaColorPickerY}px">
+    <ColorPicker selected={($areas).find((a) => a.id === areaColorPickerId)?.color ?? ''} onselect={handleAreaColorSelect} />
+  </div>
+{/if}
 
 {#if colorPickerListId}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -787,5 +1078,40 @@
     margin-left: auto;
     flex-shrink: 0;
     line-height: 1.4;
+  }
+
+  .area-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    margin-top: 4px;
+  }
+  .area-header.dragging { opacity: 0.4; }
+  .area-header.drag-over { border-top: 2px solid var(--color-accent, #6c93c7); margin-top: 2px; }
+  .area-color-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .area-name {
+    flex: 1;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-muted, #90918d);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .area-count {
+    font-size: 10px;
+    color: var(--color-text-muted, #90918d);
+    flex-shrink: 0;
+  }
+  .list-item.area-child {
+    padding-left: 24px;
   }
 </style>

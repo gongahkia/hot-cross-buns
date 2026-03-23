@@ -3,12 +3,23 @@
 
 PRAGMA foreign_keys = ON;
 
+CREATE TABLE IF NOT EXISTS areas (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    color TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS lists (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     color TEXT,
     sort_order INTEGER NOT NULL DEFAULT 0,
     is_inbox INTEGER NOT NULL DEFAULT 0,
+    area_id TEXT REFERENCES areas(id),
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT
@@ -22,10 +33,12 @@ CREATE TABLE IF NOT EXISTS tasks (
     content TEXT,
     priority INTEGER NOT NULL DEFAULT 0 CHECK (priority IN (0, 1, 2, 3)),
     status INTEGER NOT NULL DEFAULT 0 CHECK (status IN (0, 1)),
+    start_date TEXT,
     due_date TEXT,
     due_timezone TEXT,
     recurrence_rule TEXT,
     sort_order INTEGER NOT NULL DEFAULT 0,
+    heading_id TEXT REFERENCES headings(id),
     completed_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -45,6 +58,18 @@ CREATE TABLE IF NOT EXISTS task_tags (
     PRIMARY KEY (task_id, tag_id)
 );
 
+CREATE TABLE IF NOT EXISTS headings (
+    id TEXT PRIMARY KEY,
+    list_id TEXT NOT NULL REFERENCES lists(id),
+    name TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_headings_list_id ON headings(list_id);
+
 CREATE TABLE IF NOT EXISTS sync_meta (
     entity_type TEXT NOT NULL,
     entity_id TEXT NOT NULL,
@@ -56,6 +81,7 @@ CREATE TABLE IF NOT EXISTS sync_meta (
 
 CREATE INDEX IF NOT EXISTS idx_tasks_list_id ON tasks(list_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_start ON tasks(start_date);
 CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_date);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_task_tags_tag ON task_tags(tag_id);

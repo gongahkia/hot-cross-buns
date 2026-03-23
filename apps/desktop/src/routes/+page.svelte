@@ -9,6 +9,7 @@
   import SearchBar from '$lib/components/SearchBar.svelte';
   import NotificationCenter from '$lib/components/NotificationCenter.svelte';
   import Onboarding from '$lib/components/Onboarding.svelte';
+  import CommandPalette from '$lib/components/CommandPalette.svelte';
   import { selectedListId, selectedTaskId, currentView } from '$lib/stores/ui';
   import { editTask, removeTask } from '$lib/stores/tasks';
   import { addNotification } from '$lib/stores/notifications';
@@ -22,7 +23,9 @@
   type WeekViewModule = typeof import('$lib/components/WeekView.svelte');
   type CalendarViewModule = typeof import('$lib/components/CalendarView.svelte');
   type SmartFilterViewModule = typeof import('$lib/components/SmartFilterView.svelte');
+  type UpcomingViewModule = typeof import('$lib/components/UpcomingView.svelte');
   type ScheduleViewModule = typeof import('$lib/components/ScheduleView.svelte');
+  type TimelineViewModule = typeof import('$lib/components/TimelineView.svelte');
 
   let showShortcuts = $state(false);
   let showOnboarding = $state(false);
@@ -32,7 +35,9 @@
   let weekViewModule = $state<WeekViewModule | null>(null);
   let calendarViewModule = $state<CalendarViewModule | null>(null);
   let smartFilterViewModule = $state<SmartFilterViewModule | null>(null);
+  let upcomingViewModule = $state<UpcomingViewModule | null>(null);
   let scheduleViewModule = $state<ScheduleViewModule | null>(null);
+  let timelineViewModule = $state<TimelineViewModule | null>(null);
 
   function defaultListFrom(lists: List[]): List | null {
     return lists.find((list) => list.isInbox) ?? lists[0] ?? null;
@@ -54,6 +59,10 @@
       todayViewModule = await import('$lib/components/TodayView.svelte');
     }
 
+    if (view === 'upcoming' && !upcomingViewModule) {
+      upcomingViewModule = await import('$lib/components/UpcomingView.svelte');
+    }
+
     if (view === 'week' && !weekViewModule) {
       weekViewModule = await import('$lib/components/WeekView.svelte');
     }
@@ -68,6 +77,10 @@
 
     if (view === 'schedule' && !scheduleViewModule) {
       scheduleViewModule = await import('$lib/components/ScheduleView.svelte');
+    }
+
+    if (view === 'timeline' && !timelineViewModule) {
+      timelineViewModule = await import('$lib/components/TimelineView.svelte');
     }
   }
 
@@ -246,6 +259,12 @@
         {:else}
           <p class="empty-state">Loading calendar...</p>
         {/if}
+      {:else if activeView === 'upcoming'}
+        {#if upcomingViewModule}
+          <upcomingViewModule.default />
+        {:else}
+          <p class="empty-state">Loading upcoming...</p>
+        {/if}
       {:else if activeView === 'week'}
         {#if weekViewModule}
           <weekViewModule.default />
@@ -264,6 +283,12 @@
         {:else}
           <p class="empty-state">Loading schedule...</p>
         {/if}
+      {:else if activeView === 'timeline'}
+        {#if timelineViewModule}
+          <timelineViewModule.default />
+        {:else}
+          <p class="empty-state">Loading timeline...</p>
+        {/if}
       {:else if activeView === 'today'}
         {#if todayViewModule}
           <todayViewModule.default />
@@ -281,6 +306,7 @@
 
 <TaskDetail />
 <ShortcutsModal open={showShortcuts} onclose={() => (showShortcuts = false)} />
+<CommandPalette />
 {#if showOnboarding}
   <Onboarding onDone={markOnboardingSeen} />
 {/if}

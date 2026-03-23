@@ -9,7 +9,11 @@ mod sync;
 use state::AppState;
 use tauri::Manager;
 
+use commands::area_commands::{create_area, delete_area, get_areas, update_area};
 use commands::bench_commands::seed_benchmark_data;
+use commands::heading_commands::{
+    create_heading, delete_heading, get_headings_by_list, update_heading,
+};
 use commands::data_commands::{export_csv, export_data, import_data};
 use commands::list_commands::{create_list, delete_list, get_lists, update_list};
 use commands::reminder_commands::drain_due_notifications;
@@ -110,6 +114,10 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            create_area,
+            get_areas,
+            update_area,
+            delete_area,
             create_list,
             get_lists,
             update_list,
@@ -154,6 +162,10 @@ pub fn run() {
             get_scheduled_tasks,
             get_unscheduled_tasks,
             auto_schedule_tasks,
+            create_heading,
+            get_headings_by_list,
+            update_heading,
+            delete_heading,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

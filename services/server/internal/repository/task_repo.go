@@ -47,12 +47,12 @@ func (r *TaskRepository) CreateTask(ctx context.Context, pool *pgxpool.Pool, use
 
 	_, err := pool.Exec(ctx,
 		`INSERT INTO tasks (id, user_id, list_id, parent_task_id, title, content,
-		 priority, status, due_date, due_timezone, recurrence_rule, sort_order,
-		 completed_at, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+		 priority, status, start_date, due_date, due_timezone, recurrence_rule, sort_order,
+		 heading_id, completed_at, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
 		task.ID, task.UserID, task.ListID, task.ParentTaskID, task.Title, task.Content,
-		task.Priority, task.Status, task.DueDate, task.DueTimezone, task.RecurrenceRule,
-		task.SortOrder, task.CompletedAt, task.CreatedAt, task.UpdatedAt,
+		task.Priority, task.Status, task.StartDate, task.DueDate, task.DueTimezone, task.RecurrenceRule,
+		task.SortOrder, task.HeadingID, task.CompletedAt, task.CreatedAt, task.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert task: %w", err)
@@ -70,8 +70,8 @@ func (r *TaskRepository) GetTasksByList(ctx context.Context, pool *pgxpool.Pool,
 
 	query := fmt.Sprintf(`
 		SELECT t.id, t.user_id, t.list_id, t.parent_task_id, t.title, t.content,
-		       t.priority, t.status, t.due_date, t.due_timezone, t.recurrence_rule,
-		       t.sort_order, t.completed_at, t.created_at, t.updated_at, t.deleted_at
+		       t.priority, t.status, t.start_date, t.due_date, t.due_timezone, t.recurrence_rule,
+		       t.sort_order, t.heading_id, t.completed_at, t.created_at, t.updated_at, t.deleted_at
 		FROM tasks t
 		WHERE t.user_id = $1 AND t.list_id = $2 AND t.parent_task_id IS NULL
 		      AND t.deleted_at IS NULL%s
@@ -116,16 +116,16 @@ func (r *TaskRepository) GetTasksByList(ctx context.Context, pool *pgxpool.Pool,
 func (r *TaskRepository) GetTaskByID(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID, taskID uuid.UUID) (*models.Task, error) {
 	row := pool.QueryRow(ctx, `
 		SELECT t.id, t.user_id, t.list_id, t.parent_task_id, t.title, t.content,
-		       t.priority, t.status, t.due_date, t.due_timezone, t.recurrence_rule,
-		       t.sort_order, t.completed_at, t.created_at, t.updated_at, t.deleted_at
+		       t.priority, t.status, t.start_date, t.due_date, t.due_timezone, t.recurrence_rule,
+		       t.sort_order, t.heading_id, t.completed_at, t.created_at, t.updated_at, t.deleted_at
 		FROM tasks t
 		WHERE t.id = $1 AND t.user_id = $2 AND t.deleted_at IS NULL`, taskID, userID)
 
 	var t models.Task
 	err := row.Scan(
 		&t.ID, &t.UserID, &t.ListID, &t.ParentTaskID, &t.Title, &t.Content,
-		&t.Priority, &t.Status, &t.DueDate, &t.DueTimezone, &t.RecurrenceRule,
-		&t.SortOrder, &t.CompletedAt, &t.CreatedAt, &t.UpdatedAt, &t.DeletedAt,
+		&t.Priority, &t.Status, &t.StartDate, &t.DueDate, &t.DueTimezone, &t.RecurrenceRule,
+		&t.SortOrder, &t.HeadingID, &t.CompletedAt, &t.CreatedAt, &t.UpdatedAt, &t.DeletedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -265,8 +265,8 @@ func (r *TaskRepository) getSubtasks(ctx context.Context, pool *pgxpool.Pool, us
 
 	query := fmt.Sprintf(`
 		SELECT t.id, t.user_id, t.list_id, t.parent_task_id, t.title, t.content,
-		       t.priority, t.status, t.due_date, t.due_timezone, t.recurrence_rule,
-		       t.sort_order, t.completed_at, t.created_at, t.updated_at, t.deleted_at
+		       t.priority, t.status, t.start_date, t.due_date, t.due_timezone, t.recurrence_rule,
+		       t.sort_order, t.heading_id, t.completed_at, t.created_at, t.updated_at, t.deleted_at
 		FROM tasks t
 		WHERE t.parent_task_id = $1 AND t.user_id = $2 AND t.deleted_at IS NULL%s
 		ORDER BY t.sort_order, t.created_at`, statusFilter)
@@ -339,7 +339,7 @@ func (r *TaskRepository) getTaskTags(ctx context.Context, pool *pgxpool.Pool, ta
 func scanTask(rows pgx.Rows, t *models.Task) error {
 	return rows.Scan(
 		&t.ID, &t.UserID, &t.ListID, &t.ParentTaskID, &t.Title, &t.Content,
-		&t.Priority, &t.Status, &t.DueDate, &t.DueTimezone, &t.RecurrenceRule,
-		&t.SortOrder, &t.CompletedAt, &t.CreatedAt, &t.UpdatedAt, &t.DeletedAt,
+		&t.Priority, &t.Status, &t.StartDate, &t.DueDate, &t.DueTimezone, &t.RecurrenceRule,
+		&t.SortOrder, &t.HeadingID, &t.CompletedAt, &t.CreatedAt, &t.UpdatedAt, &t.DeletedAt,
 	)
 }

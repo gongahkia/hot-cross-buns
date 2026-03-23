@@ -45,10 +45,12 @@ struct ExportTask {
     content: Option<String>,
     priority: i32,
     status: i32,
+    start_date: Option<String>,
     due_date: Option<String>,
     due_timezone: Option<String>,
     recurrence_rule: Option<String>,
     sort_order: i32,
+    heading_id: Option<String>,
     completed_at: Option<String>,
     created_at: String,
     updated_at: String,
@@ -98,9 +100,10 @@ fn row_to_list(row: &rusqlite::Row) -> rusqlite::Result<List> {
         color: row.get(2)?,
         sort_order: row.get(3)?,
         is_inbox: is_inbox_int != 0,
-        created_at: row.get(5)?,
-        updated_at: row.get(6)?,
-        deleted_at: row.get(7)?,
+        area_id: row.get(5)?,
+        created_at: row.get(6)?,
+        updated_at: row.get(7)?,
+        deleted_at: row.get(8)?,
     })
 }
 
@@ -113,14 +116,16 @@ fn row_to_export_task(row: &rusqlite::Row) -> rusqlite::Result<ExportTask> {
         content: row.get(4)?,
         priority: row.get(5)?,
         status: row.get(6)?,
-        due_date: row.get(7)?,
-        due_timezone: row.get(8)?,
-        recurrence_rule: row.get(9)?,
-        sort_order: row.get(10)?,
-        completed_at: row.get(11)?,
-        created_at: row.get(12)?,
-        updated_at: row.get(13)?,
-        deleted_at: row.get(14)?,
+        start_date: row.get(7)?,
+        due_date: row.get(8)?,
+        due_timezone: row.get(9)?,
+        recurrence_rule: row.get(10)?,
+        sort_order: row.get(11)?,
+        heading_id: row.get(12)?,
+        completed_at: row.get(13)?,
+        created_at: row.get(14)?,
+        updated_at: row.get(15)?,
+        deleted_at: row.get(16)?,
     })
 }
 
@@ -137,7 +142,7 @@ fn build_export_envelope(conn: &rusqlite::Connection) -> Result<ExportEnvelope, 
     // Query all non-deleted lists.
     let mut list_stmt = conn
         .prepare(
-            "SELECT id, name, color, sort_order, is_inbox, created_at, updated_at, deleted_at \
+            "SELECT id, name, color, sort_order, is_inbox, area_id, created_at, updated_at, deleted_at \
              FROM lists WHERE deleted_at IS NULL ORDER BY sort_order",
         )
         .map_err(|e| format!("Failed to prepare lists query: {}", e))?;
@@ -151,7 +156,7 @@ fn build_export_envelope(conn: &rusqlite::Connection) -> Result<ExportEnvelope, 
     let mut task_stmt = conn
         .prepare(
             "SELECT id, list_id, parent_task_id, title, content, priority, status, \
-             due_date, due_timezone, recurrence_rule, sort_order, completed_at, \
+             start_date, due_date, due_timezone, recurrence_rule, sort_order, heading_id, completed_at, \
              created_at, updated_at, deleted_at \
              FROM tasks WHERE deleted_at IS NULL ORDER BY sort_order",
         )
@@ -358,9 +363,9 @@ pub fn import_data(
         for task in &envelope.tasks {
             conn.execute(
                 "INSERT OR REPLACE INTO tasks (id, list_id, parent_task_id, title, content, \
-                 priority, status, due_date, due_timezone, recurrence_rule, sort_order, \
-                 completed_at, created_at, updated_at, deleted_at) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+                 priority, status, start_date, due_date, due_timezone, recurrence_rule, sort_order, \
+                 heading_id, completed_at, created_at, updated_at, deleted_at) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
                 rusqlite::params![
                     task.id,
                     task.list_id,
@@ -369,10 +374,12 @@ pub fn import_data(
                     task.content,
                     task.priority,
                     task.status,
+                    task.start_date,
                     task.due_date,
                     task.due_timezone,
                     task.recurrence_rule,
                     task.sort_order,
+                    task.heading_id,
                     task.completed_at,
                     task.created_at,
                     task.updated_at,

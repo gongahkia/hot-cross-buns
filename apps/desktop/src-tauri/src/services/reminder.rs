@@ -15,7 +15,7 @@ pub fn check_due_tasks(conn: &Connection) -> Vec<Task> {
     // as long as both sides use the same format.
     let sql = r#"
         SELECT id, list_id, parent_task_id, title, content, priority, status,
-               due_date, due_timezone, recurrence_rule, sort_order,
+               start_date, due_date, due_timezone, recurrence_rule, sort_order,
                completed_at, created_at, updated_at, deleted_at
         FROM tasks
         WHERE deleted_at IS NULL
@@ -41,14 +41,16 @@ pub fn check_due_tasks(conn: &Connection) -> Vec<Task> {
             content: row.get(4)?,
             priority: row.get(5)?,
             status: row.get(6)?,
-            due_date: row.get(7)?,
-            due_timezone: row.get(8)?,
-            recurrence_rule: row.get(9)?,
-            sort_order: row.get(10)?,
-            completed_at: row.get(11)?,
-            created_at: row.get(12)?,
-            updated_at: row.get(13)?,
-            deleted_at: row.get(14)?,
+            start_date: row.get(7)?,
+            due_date: row.get(8)?,
+            due_timezone: row.get(9)?,
+            recurrence_rule: row.get(10)?,
+            sort_order: row.get(11)?,
+            heading_id: None,
+            completed_at: row.get(12)?,
+            created_at: row.get(13)?,
+            updated_at: row.get(14)?,
+            deleted_at: row.get(15)?,
             scheduled_start: None,
             scheduled_end: None,
             estimated_minutes: None,

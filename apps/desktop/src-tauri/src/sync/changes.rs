@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::models::{List, Tag, Task};
+use crate::models::{Area, List, Tag, Task};
 
 use super::tracker;
 
@@ -24,6 +24,10 @@ pub fn record_serialized_change<T: Serialize>(
     let json = serde_json::to_string(value)
         .map_err(|e| format!("Failed to serialize sync change value: {}", e))?;
     tracker::record_change(conn, entity_type, entity_id, field_name, &json)
+}
+
+pub fn record_area_upsert(conn: &rusqlite::Connection, area: &Area) -> Result<(), String> {
+    record_serialized_change(conn, "area", &area.id, "_upsert", area)
 }
 
 pub fn record_list_upsert(conn: &rusqlite::Connection, list: &List) -> Result<(), String> {
@@ -118,10 +122,12 @@ mod tests {
             content: Some("Ship sync".to_string()),
             priority: 2,
             status: 0,
+            start_date: None,
             due_date: Some("2026-03-23T09:00:00Z".to_string()),
             due_timezone: Some("Asia/Singapore".to_string()),
             recurrence_rule: None,
             sort_order: 4,
+            heading_id: None,
             completed_at: None,
             created_at: "2026-03-22T00:00:00Z".to_string(),
             updated_at: "2026-03-22T00:00:00Z".to_string(),
@@ -212,6 +218,7 @@ mod tests {
             color: None,
             sort_order: 0,
             is_inbox: true,
+            area_id: None,
             created_at: "2026-03-22T00:00:00Z".to_string(),
             updated_at: "2026-03-22T00:00:00Z".to_string(),
             deleted_at: None,

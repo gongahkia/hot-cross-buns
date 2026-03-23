@@ -44,7 +44,7 @@
     try {
       const [scheduled, unscheduled] = await Promise.all([
         invoke<Task[]>('get_scheduled_tasks', { date: currentDate }),
-        invoke<Task[]>('get_unscheduled_tasks'),
+        invoke<Task[]>('get_unscheduled_tasks', { date: currentDate }),
       ]);
       scheduledTasks = scheduled;
       unscheduledTasks = unscheduled;
@@ -143,6 +143,19 @@
     3: 'var(--color-priority-high)',
   };
 
+  function formatShortDate(iso: string): string {
+    const d = new Date(iso.slice(0, 10) + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+  function dateRangeBadge(task: Task): string | null {
+    const s = task.startDate;
+    const d = task.dueDate;
+    if (s && d) return `${formatShortDate(s)}–${formatShortDate(d)}`;
+    if (d) return `by ${formatShortDate(d)}`;
+    if (s) return `from ${formatShortDate(s)}`;
+    return null;
+  }
+
   let hours = $derived(Array.from({ length: TOTAL_HOURS }, (_, i) => START_HOUR + i));
   let isToday = $derived(currentDate === todayStr());
 </script>
@@ -177,6 +190,9 @@
             style:border-left-color={PRIORITY_COLORS[task.priority] ?? 'transparent'}
           >
             <span class="pool-task-title">{task.title}</span>
+            {#if dateRangeBadge(task)}
+              <span class="pool-task-dates">{dateRangeBadge(task)}</span>
+            {/if}
             <span class="pool-task-duration">{task.estimatedMinutes ?? 30}m</span>
           </div>
         {/each}
@@ -270,6 +286,12 @@
   }
   .pool-task:hover { background: var(--color-surface-hover, #2a2e33); }
   .pool-task-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pool-task-dates {
+    font-size: 10px; color: var(--color-text-muted, #90918d);
+    background: var(--color-surface-1, #2d3136);
+    padding: 1px 5px; border-radius: 3px; flex-shrink: 0;
+    white-space: nowrap;
+  }
   .pool-task-duration {
     font-size: 11px; color: var(--color-text-muted, #90918d);
     background: var(--color-surface-0, #25282c);

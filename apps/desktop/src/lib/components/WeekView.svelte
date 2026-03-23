@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import type { Task } from '$lib/types';
-  import { taskMutationVersion } from '$lib/stores/tasks';
+  import { editTask, taskMutationVersion } from '$lib/stores/tasks';
   import TaskRow from './TaskRow.svelte';
 
   const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -110,6 +110,27 @@
     const label = DAY_LABELS[day.getDay() === 0 ? 6 : day.getDay() - 1];
     return `${label} ${day.getDate()}`;
   }
+
+  let dragOverDate: string | null = $state(null);
+
+  function handleDragOver(e: DragEvent, dateStr: string) {
+    e.preventDefault();
+    e.dataTransfer!.dropEffect = 'move';
+    dragOverDate = dateStr;
+  }
+
+  function handleDragLeave(e: DragEvent, dateStr: string) {
+    if (dragOverDate === dateStr) dragOverDate = null;
+  }
+
+  async function handleTaskDrop(e: DragEvent, dateStr: string) {
+    e.preventDefault();
+    dragOverDate = null;
+    const taskId = e.dataTransfer?.getData('text/x-task-id');
+    if (!taskId) return;
+    const field = e.shiftKey ? 'startDate' : 'dueDate';
+    await editTask(taskId, { [field]: dateStr });
+  }
 </script>
 
 <div class="week-view">
@@ -132,7 +153,15 @@
     {#each weekDays as day, i}
       {@const dateStr = fmt(day)}
       {@const dayTasks = tasksByDate[dateStr] ?? []}
-      <div class="week-column" class:is-today={dateStr === today}>
+      <div
+        class="week-column"
+        class:is-today={dateStr === today}
+        class:drag-over={dragOverDate === dateStr}
+        role="region"
+        ondragover={(e) => handleDragOver(e, dateStr)}
+        ondragleave={(e) => handleDragLeave(e, dateStr)}
+        ondrop={(e) => handleTaskDrop(e, dateStr)}
+      >
         <div class="column-header" class:is-today={dateStr === today}>
           {columnHeader(day)}
         </div>
@@ -236,6 +265,11 @@
 
   .week-column.is-today {
     background: color-mix(in srgb, var(--color-accent, #6c93c7) 6%, var(--color-panel, #202225));
+  }
+
+  .week-column.drag-over {
+    background: var(--color-surface-active, #30353b);
+    box-shadow: inset 0 0 0 2px var(--color-accent, #6c93c7);
   }
 
   .column-header {

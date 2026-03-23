@@ -58,15 +58,15 @@ func CompleteRecurringTask(ctx context.Context, pool *pgxpool.Pool, userID, task
 	var task models.Task
 	err = tx.QueryRow(ctx, `
 		SELECT id, user_id, list_id, parent_task_id, title, content,
-		       priority, status, due_date, due_timezone, recurrence_rule,
-		       sort_order, completed_at, created_at, updated_at, deleted_at
+		       priority, status, start_date, due_date, due_timezone, recurrence_rule,
+		       sort_order, heading_id, completed_at, created_at, updated_at, deleted_at
 		FROM tasks
 		WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
 		taskID, userID,
 	).Scan(
 		&task.ID, &task.UserID, &task.ListID, &task.ParentTaskID, &task.Title, &task.Content,
-		&task.Priority, &task.Status, &task.DueDate, &task.DueTimezone, &task.RecurrenceRule,
-		&task.SortOrder, &task.CompletedAt, &task.CreatedAt, &task.UpdatedAt, &task.DeletedAt,
+		&task.Priority, &task.Status, &task.StartDate, &task.DueDate, &task.DueTimezone, &task.RecurrenceRule,
+		&task.SortOrder, &task.HeadingID, &task.CompletedAt, &task.CreatedAt, &task.UpdatedAt, &task.DeletedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -122,23 +122,25 @@ func CompleteRecurringTask(ctx context.Context, pool *pgxpool.Pool, userID, task
 		Content:        task.Content,
 		Priority:       task.Priority,
 		Status:         0,
+		StartDate:      task.StartDate,
 		DueDate:        &nextDue,
 		DueTimezone:    task.DueTimezone,
 		RecurrenceRule: task.RecurrenceRule,
 		SortOrder:      task.SortOrder,
+		HeadingID:      task.HeadingID,
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
 
 	_, err = tx.Exec(ctx, `
 		INSERT INTO tasks (id, user_id, list_id, parent_task_id, title, content,
-		       priority, status, due_date, due_timezone, recurrence_rule, sort_order,
-		       completed_at, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+		       priority, status, start_date, due_date, due_timezone, recurrence_rule, sort_order,
+		       heading_id, completed_at, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
 		nextTask.ID, nextTask.UserID, nextTask.ListID, nextTask.ParentTaskID,
 		nextTask.Title, nextTask.Content, nextTask.Priority, nextTask.Status,
-		nextTask.DueDate, nextTask.DueTimezone, nextTask.RecurrenceRule,
-		nextTask.SortOrder, nextTask.CompletedAt, nextTask.CreatedAt, nextTask.UpdatedAt,
+		nextTask.StartDate, nextTask.DueDate, nextTask.DueTimezone, nextTask.RecurrenceRule,
+		nextTask.SortOrder, nextTask.HeadingID, nextTask.CompletedAt, nextTask.CreatedAt, nextTask.UpdatedAt,
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("insert next task: %w", err)

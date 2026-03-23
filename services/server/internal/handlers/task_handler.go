@@ -158,6 +158,9 @@ func (h *TaskHandler) UpdateTask(c echo.Context) error {
 	if payload.Status != nil {
 		fields["status"] = *payload.Status
 	}
+	if payload.StartDate != nil {
+		fields["start_date"] = *payload.StartDate
+	}
 	if payload.DueDate != nil {
 		fields["due_date"] = *payload.DueDate
 	}
@@ -169,6 +172,9 @@ func (h *TaskHandler) UpdateTask(c echo.Context) error {
 	}
 	if payload.SortOrder != nil {
 		fields["sort_order"] = *payload.SortOrder
+	}
+	if payload.HeadingID != nil {
+		fields["heading_id"] = *payload.HeadingID
 	}
 
 	updated, err := h.Repo.UpdateTask(c.Request().Context(), h.Pool, userID, taskID, fields)

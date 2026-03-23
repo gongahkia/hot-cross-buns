@@ -62,24 +62,26 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
         content: row.get(4)?,
         priority: row.get(5)?,
         status: row.get(6)?,
-        due_date: row.get(7)?,
-        due_timezone: row.get(8)?,
-        recurrence_rule: row.get(9)?,
-        sort_order: row.get(10)?,
-        completed_at: row.get(11)?,
-        created_at: row.get(12)?,
-        updated_at: row.get(13)?,
-        deleted_at: row.get(14)?,
-        scheduled_start: row.get(15)?,
-        scheduled_end: row.get(16)?,
-        estimated_minutes: row.get(17)?,
+        start_date: row.get(7)?,
+        due_date: row.get(8)?,
+        due_timezone: row.get(9)?,
+        recurrence_rule: row.get(10)?,
+        sort_order: row.get(11)?,
+        heading_id: row.get(12)?,
+        completed_at: row.get(13)?,
+        created_at: row.get(14)?,
+        updated_at: row.get(15)?,
+        deleted_at: row.get(16)?,
+        scheduled_start: row.get(17)?,
+        scheduled_end: row.get(18)?,
+        estimated_minutes: row.get(19)?,
         subtasks: Vec::new(),
         tags: Vec::new(),
     })
 }
 
 const TASK_COLUMNS: &str = "id, list_id, parent_task_id, title, content, priority, status, \
-    due_date, due_timezone, recurrence_rule, sort_order, completed_at, created_at, updated_at, deleted_at, \
+    start_date, due_date, due_timezone, recurrence_rule, sort_order, heading_id, completed_at, created_at, updated_at, deleted_at, \
     scheduled_start, scheduled_end, estimated_minutes";
 
 /// Fetch tags for a set of task IDs and return them grouped by task_id.
@@ -202,10 +204,12 @@ pub fn create_task(
     title: String,
     content: Option<String>,
     priority: Option<i32>,
+    start_date: Option<String>,
     due_date: Option<String>,
     due_timezone: Option<String>,
     recurrence_rule: Option<String>,
     parent_task_id: Option<String>,
+    heading_id: Option<String>,
 ) -> Result<Task, String> {
     let conn = db::get_connection(&state.db_path)?;
 
@@ -230,8 +234,8 @@ pub fn create_task(
 
     conn.execute(
         "INSERT INTO tasks (id, list_id, parent_task_id, title, content, priority, status, \
-         due_date, due_timezone, recurrence_rule, sort_order, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7, ?8, ?9, 0, ?10, ?11)",
+         start_date, due_date, due_timezone, recurrence_rule, sort_order, heading_id, created_at, updated_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7, ?8, ?9, ?10, 0, ?11, ?12, ?13)",
         params![
             id,
             list_id,
@@ -239,9 +243,11 @@ pub fn create_task(
             title,
             content,
             priority,
+            start_date,
             due_date,
             due_timezone,
             recurrence_rule,
+            heading_id,
             now,
             now,
         ],
@@ -475,10 +481,12 @@ pub fn update_task(
     content: Option<String>,
     priority: Option<i32>,
     status: Option<i32>,
+    start_date: Option<String>,
     due_date: Option<String>,
     due_timezone: Option<String>,
     recurrence_rule: Option<String>,
     sort_order: Option<i32>,
+    heading_id: Option<String>,
     scheduled_start: Option<String>,
     scheduled_end: Option<String>,
     estimated_minutes: Option<i32>,
@@ -519,6 +527,10 @@ pub fn update_task(
             params_boxed.push(Box::new(None::<String>));
         }
     }
+    if let Some(ref v) = start_date {
+        set_clauses.push(format!("start_date = ?{}", params_boxed.len() + 1));
+        params_boxed.push(Box::new(v.clone()));
+    }
     if let Some(ref v) = due_date {
         set_clauses.push(format!("due_date = ?{}", params_boxed.len() + 1));
         params_boxed.push(Box::new(v.clone()));
@@ -534,6 +546,10 @@ pub fn update_task(
     if let Some(v) = sort_order {
         set_clauses.push(format!("sort_order = ?{}", params_boxed.len() + 1));
         params_boxed.push(Box::new(v));
+    }
+    if let Some(ref v) = heading_id {
+        set_clauses.push(format!("heading_id = ?{}", params_boxed.len() + 1));
+        params_boxed.push(Box::new(v.clone()));
     }
     if let Some(ref v) = scheduled_start {
         set_clauses.push(format!("scheduled_start = ?{}", params_boxed.len() + 1));
@@ -595,6 +611,9 @@ pub fn update_task(
         changes::record_field_change(&conn, "task", &task.id, "status", &value)?;
         changes::record_field_change(&conn, "task", &task.id, "completed_at", &task.completed_at)?;
     }
+    if let Some(ref value) = start_date {
+        changes::record_field_change(&conn, "task", &task.id, "start_date", value)?;
+    }
     if let Some(ref value) = due_date {
         changes::record_field_change(&conn, "task", &task.id, "due_date", value)?;
     }
@@ -606,6 +625,9 @@ pub fn update_task(
     }
     if let Some(value) = sort_order {
         changes::record_field_change(&conn, "task", &task.id, "sort_order", &value)?;
+    }
+    if let Some(ref value) = heading_id {
+        changes::record_field_change(&conn, "task", &task.id, "heading_id", value)?;
     }
     if let Some(ref value) = scheduled_start {
         changes::record_field_change(&conn, "task", &task.id, "scheduled_start", value)?;
@@ -1070,16 +1092,36 @@ pub fn get_scheduled_tasks(
 #[tauri::command]
 pub fn get_unscheduled_tasks(
     state: State<'_, AppState>,
+    date: Option<String>,
 ) -> Result<Vec<Task>, String> {
     let conn = db::get_connection(&state.db_path)?;
-    let mut stmt = conn.prepare(&format!(
-        "SELECT {} FROM tasks WHERE (scheduled_start IS NULL OR scheduled_start = '') AND deleted_at IS NULL AND status = 0 AND parent_task_id IS NULL ORDER BY priority DESC, created_at ASC",
-        TASK_COLUMNS
-    )).map_err(|e| e.to_string())?;
-    let tasks = stmt.query_map([], row_to_task)
-        .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
-        .collect::<Vec<_>>();
+    let tasks = if let Some(ref d) = date {
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {} FROM tasks WHERE (scheduled_start IS NULL OR scheduled_start = '') \
+             AND deleted_at IS NULL AND status = 0 AND parent_task_id IS NULL \
+             AND (start_date IS NULL OR date(start_date) <= ?1) \
+             AND (due_date IS NULL OR date(due_date) >= ?1) \
+             ORDER BY priority DESC, created_at ASC",
+            TASK_COLUMNS
+        )).map_err(|e| e.to_string())?;
+        let rows = stmt.query_map(params![d], row_to_task)
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            .collect::<Vec<_>>();
+        rows
+    } else {
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {} FROM tasks WHERE (scheduled_start IS NULL OR scheduled_start = '') \
+             AND deleted_at IS NULL AND status = 0 AND parent_task_id IS NULL \
+             ORDER BY priority DESC, created_at ASC",
+            TASK_COLUMNS
+        )).map_err(|e| e.to_string())?;
+        let rows = stmt.query_map([], row_to_task)
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            .collect::<Vec<_>>();
+        rows
+    };
     attach_tags(&conn, tasks)
 }
 
@@ -1110,10 +1152,14 @@ pub fn auto_schedule_tasks(
     }
     occupied.sort_by_key(|&(s, _)| s);
     let mut unscheduled_stmt = conn.prepare(&format!(
-        "SELECT {} FROM tasks WHERE (scheduled_start IS NULL OR scheduled_start = '') AND deleted_at IS NULL AND status = 0 AND parent_task_id IS NULL ORDER BY priority DESC, created_at ASC LIMIT 50",
+        "SELECT {} FROM tasks WHERE (scheduled_start IS NULL OR scheduled_start = '') \
+         AND deleted_at IS NULL AND status = 0 AND parent_task_id IS NULL \
+         AND (start_date IS NULL OR date(start_date) <= ?1) \
+         AND (due_date IS NULL OR date(due_date) >= ?1) \
+         ORDER BY priority DESC, created_at ASC LIMIT 50",
         TASK_COLUMNS
     )).map_err(|e| e.to_string())?;
-    let unscheduled: Vec<Task> = unscheduled_stmt.query_map([], row_to_task)
+    let unscheduled: Vec<Task> = unscheduled_stmt.query_map(params![&date], row_to_task)
         .map_err(|e| e.to_string())?
         .filter_map(|r| r.ok())
         .collect();

@@ -16,10 +16,12 @@ type Task struct {
 	Content        *string    `json:"content"`
 	Priority       int        `json:"priority" validate:"gte=0,lte=3"`
 	Status         int        `json:"status"`
+	StartDate      *time.Time `json:"startDate"`
 	DueDate        *time.Time `json:"dueDate"`
 	DueTimezone    *string    `json:"dueTimezone"`
 	RecurrenceRule *string    `json:"recurrenceRule"`
 	SortOrder      int        `json:"sortOrder"`
+	HeadingID      *uuid.UUID `json:"headingId"`
 	CompletedAt    *time.Time `json:"completedAt"`
 	CreatedAt      time.Time  `json:"createdAt"`
 	UpdatedAt      time.Time  `json:"updatedAt"`
@@ -36,8 +38,10 @@ type TaskUpdatePayload struct {
 	Content        *string    `json:"content"`
 	Priority       *int       `json:"priority"`
 	Status         *int       `json:"status"`
+	StartDate      *time.Time `json:"startDate"`
 	DueDate        *time.Time `json:"dueDate"`
 	DueTimezone    *string    `json:"dueTimezone"`
 	RecurrenceRule *string    `json:"recurrenceRule"`
 	SortOrder      *int       `json:"sortOrder"`
+	HeadingID      *uuid.UUID `json:"headingId"`
 }

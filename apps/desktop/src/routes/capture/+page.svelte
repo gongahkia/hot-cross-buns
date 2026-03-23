@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import { getCurrentWindow } from '@tauri-apps/api/window';
-  import { parseQuickAdd } from '$lib/services/nlp-quickadd';
+  import { parseTaskInput } from '$lib/services/nlp-parse';
 
   let input = $state('');
   let lists: { id: string; name: string; isInbox: boolean }[] = $state([]);
@@ -21,13 +21,14 @@
     if (!input.trim() || !selectedListId || submitting) return;
     submitting = true;
     try {
-      const parsed = parseQuickAdd(input);
+      const parsed = parseTaskInput(input);
       await invoke('create_task', {
         listId: selectedListId,
         title: parsed.title,
         dueDate: parsed.dueDate ?? null,
+        startDate: parsed.startDate ?? null,
         priority: parsed.priority ?? null,
-        recurrenceRule: parsed.recurrenceRule ?? null,
+        recurrenceRule: null,
       });
       input = '';
       await getCurrentWindow().hide();
@@ -47,7 +48,7 @@
     }
   }
 
-  let preview = $derived(input.trim() ? parseQuickAdd(input) : null);
+  let preview = $derived(input.trim() ? parseTaskInput(input) : null);
 </script>
 
 <div class="capture-window" onkeydown={handleKeydown}>
@@ -65,11 +66,13 @@
     placeholder="Add a task... (try: Buy milk tomorrow #groceries !high)"
     autofocus
   />
-  {#if preview && (preview.dueDate || preview.priority || preview.tagNames.length > 0)}
+  {#if preview && (preview.dueDate || preview.startDate || preview.priority !== undefined || preview.tags.length > 0 || preview.estimatedMinutes)}
     <div class="capture-preview">
-      {#if preview.dueDate}<span class="chip date">{preview.dueDate}</span>{/if}
+      {#if preview.startDate && preview.dueDate}<span class="chip date">{preview.startDate} - {preview.dueDate}</span>
+      {:else if preview.dueDate}<span class="chip date">{preview.dueDate}</span>{/if}
       {#if preview.priority}<span class="chip pri">{'!' + ['', 'Low', 'Med', 'High'][preview.priority]}</span>{/if}
-      {#each preview.tagNames as tag}<span class="chip tag">#{tag}</span>{/each}
+      {#if preview.estimatedMinutes}<span class="chip dur">{preview.estimatedMinutes}m</span>{/if}
+      {#each preview.tags as tag}<span class="chip tag">#{tag}</span>{/each}
     </div>
   {/if}
   <div class="capture-footer">

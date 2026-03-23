@@ -12,6 +12,7 @@ function makeList(overrides: Partial<List> = {}): List {
     color: overrides.color ?? null,
     sortOrder: overrides.sortOrder ?? 0,
     isInbox: overrides.isInbox ?? false,
+    areaId: overrides.areaId ?? null,
     createdAt: overrides.createdAt ?? '2026-03-22T00:00:00Z',
     updatedAt: overrides.updatedAt ?? '2026-03-22T00:00:00Z',
     deletedAt: overrides.deletedAt ?? null,
@@ -100,6 +101,7 @@ describe('lists store', () => {
         name: 'Projects Renamed',
         color: '#123456',
         sortOrder: 1,
+        areaId: null,
       });
       return makeList({
         id: 'projects',

@@ -50,6 +50,7 @@ export async function addTask(params: {
   title: string;
   content?: string;
   priority?: number;
+  startDate?: string;
   dueDate?: string;
   dueTimezone?: string;
   recurrenceRule?: string;
@@ -60,6 +61,7 @@ export async function addTask(params: {
     title: params.title,
     content: params.content ?? null,
     priority: params.priority ?? null,
+    startDate: params.startDate ?? null,
     dueDate: params.dueDate ?? null,
     dueTimezone: params.dueTimezone ?? null,
     recurrenceRule: params.recurrenceRule ?? null,
@@ -83,10 +85,12 @@ export async function editTask(
     content: fields.content ?? null,
     priority: fields.priority ?? null,
     status: fields.status ?? null,
+    startDate: fields.startDate ?? null,
     dueDate: fields.dueDate ?? null,
     dueTimezone: fields.dueTimezone ?? null,
     recurrenceRule: fields.recurrenceRule ?? null,
     sortOrder: fields.sortOrder ?? null,
+    headingId: fields.headingId ?? null,
     scheduledStart: fields.scheduledStart ?? null,
     scheduledEnd: fields.scheduledEnd ?? null,
     estimatedMinutes: fields.estimatedMinutes ?? null,

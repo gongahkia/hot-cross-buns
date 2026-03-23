@@ -61,6 +61,8 @@
   class:selected={isSelected}
   style:border-left-color={borderColor}
   role="listitem"
+  draggable="true"
+  ondragstart={(e) => { e.dataTransfer!.effectAllowed = 'move'; e.dataTransfer!.setData('text/x-task-id', task.id); }}
 >
   <button
     class="checkbox"

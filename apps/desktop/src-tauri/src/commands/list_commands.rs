@@ -46,6 +46,8 @@ fn days_to_ymd(epoch_days: i64) -> (i64, u32, u32) {
     (y, m, d)
 }
 
+const LIST_COLUMNS: &str = "id, name, color, sort_order, is_inbox, area_id, created_at, updated_at, deleted_at";
+
 fn row_to_list(row: &rusqlite::Row) -> rusqlite::Result<List> {
     let is_inbox_int: i32 = row.get(4)?;
     Ok(List {
@@ -54,9 +56,10 @@ fn row_to_list(row: &rusqlite::Row) -> rusqlite::Result<List> {
         color: row.get(2)?,
         sort_order: row.get(3)?,
         is_inbox: is_inbox_int != 0,
-        created_at: row.get(5)?,
-        updated_at: row.get(6)?,
-        deleted_at: row.get(7)?,
+        area_id: row.get(5)?,
+        created_at: row.get(6)?,
+        updated_at: row.get(7)?,
+        deleted_at: row.get(8)?,
     })
 }
 
@@ -93,7 +96,7 @@ fn ensure_inbox_list(conn: &rusqlite::Connection) -> Result<(), String> {
 
     let inbox = conn
         .query_row(
-            "SELECT id, name, color, sort_order, is_inbox, created_at, updated_at, deleted_at FROM lists WHERE is_inbox = 1 AND deleted_at IS NULL LIMIT 1",
+            &format!("SELECT {} FROM lists WHERE is_inbox = 1 AND deleted_at IS NULL LIMIT 1", LIST_COLUMNS),
             [],
             row_to_list,
         )
@@ -107,8 +110,10 @@ fn ensure_inbox_list(conn: &rusqlite::Connection) -> Result<(), String> {
 fn load_lists(conn: &rusqlite::Connection) -> Result<Vec<List>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, name, color, sort_order, is_inbox, created_at, updated_at, deleted_at \
-             FROM lists WHERE deleted_at IS NULL ORDER BY is_inbox DESC, sort_order, created_at",
+            &format!(
+                "SELECT {} FROM lists WHERE deleted_at IS NULL ORDER BY is_inbox DESC, sort_order, created_at",
+                LIST_COLUMNS
+            ),
         )
         .map_err(|e| format!("Failed to prepare statement: {}", e))?;
 
@@ -125,6 +130,7 @@ pub fn create_list(
     state: State<'_, AppState>,
     name: String,
     color: Option<String>,
+    area_id: Option<String>,
 ) -> Result<List, String> {
     let conn = db::get_connection(&state.db_path)?;
     let id = Uuid::now_v7().to_string();
@@ -132,14 +138,14 @@ pub fn create_list(
     let sort_order = next_list_sort_order(&conn)?;
 
     conn.execute(
-        "INSERT INTO lists (id, name, color, sort_order, is_inbox, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, 0, ?5, ?5)",
-        rusqlite::params![id, name, color, sort_order, now],
+        "INSERT INTO lists (id, name, color, sort_order, is_inbox, area_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, 0, ?5, ?6, ?6)",
+        rusqlite::params![id, name, color, sort_order, area_id, now],
     )
     .map_err(|e| format!("Failed to insert list: {}", e))?;
 
     let list = conn
         .query_row(
-            "SELECT id, name, color, sort_order, is_inbox, created_at, updated_at, deleted_at FROM lists WHERE id = ?1",
+            &format!("SELECT {} FROM lists WHERE id = ?1", LIST_COLUMNS),
             rusqlite::params![id],
             row_to_list,
         )
@@ -164,6 +170,7 @@ pub fn update_list(
     name: Option<String>,
     color: Option<String>,
     sort_order: Option<i32>,
+    area_id: Option<String>,
 ) -> Result<List, String> {
     let conn = db::get_connection(&state.db_path)?;
     let now = iso8601_now();
@@ -183,6 +190,10 @@ pub fn update_list(
     if let Some(s) = sort_order {
         set_clauses.push(format!("sort_order = ?{}", params.len() + 1));
         params.push(Box::new(s));
+    }
+    if let Some(ref a) = area_id {
+        set_clauses.push(format!("area_id = ?{}", params.len() + 1));
+        params.push(Box::new(a.clone()));
     }
 
     if set_clauses.is_empty() {
@@ -214,7 +225,7 @@ pub fn update_list(
 
     let list = conn
         .query_row(
-            "SELECT id, name, color, sort_order, is_inbox, created_at, updated_at, deleted_at FROM lists WHERE id = ?1",
+            &format!("SELECT {} FROM lists WHERE id = ?1", LIST_COLUMNS),
             rusqlite::params![id],
             row_to_list,
         )
@@ -228,6 +239,9 @@ pub fn update_list(
     }
     if let Some(value) = sort_order {
         changes::record_field_change(&conn, "list", &list.id, "sort_order", &value)?;
+    }
+    if let Some(ref value) = area_id {
+        changes::record_field_change(&conn, "list", &list.id, "area_id", value)?;
     }
 
     Ok(list)
@@ -304,8 +318,7 @@ mod tests {
         // Read it back via row_to_list.
         let list = conn
             .query_row(
-                "SELECT id, name, color, sort_order, is_inbox, created_at, updated_at, deleted_at \
-                 FROM lists WHERE id = ?1",
+                &format!("SELECT {} FROM lists WHERE id = ?1", LIST_COLUMNS),
                 rusqlite::params![id],
                 row_to_list,
             )

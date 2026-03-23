@@ -11,8 +11,10 @@
     loadCalendarTasks,
   } from '$lib/stores/calendar';
   import { lists } from '$lib/stores/lists';
-  import { addTask, taskMutationVersion } from '$lib/stores/tasks';
+  import { addTask, editTask, taskMutationVersion } from '$lib/stores/tasks';
   import { selectedTaskId } from '$lib/stores/ui';
+  import { parseTaskInput } from '$lib/services/nlp-parse';
+  import { tags, tagTask, addTag } from '$lib/stores/tags';
   import type { Task } from '$lib/types';
 
   const MAX_VISIBLE_TASKS = 3;
@@ -143,21 +145,60 @@
     }
   }
 
+  let dragOverDate: string | null = $state(null);
+
+  function handleDragOver(e: DragEvent, cell: DayCell) {
+    e.preventDefault();
+    e.dataTransfer!.dropEffect = 'move';
+    dragOverDate = cell.date;
+  }
+
+  function handleDragLeave(e: DragEvent, cell: DayCell) {
+    if (dragOverDate === cell.date) dragOverDate = null;
+  }
+
+  async function handleTaskDrop(e: DragEvent, cell: DayCell) {
+    e.preventDefault();
+    dragOverDate = null;
+    const taskId = e.dataTransfer?.getData('text/x-task-id');
+    if (!taskId) return;
+    const field = e.shiftKey ? 'startDate' : 'dueDate';
+    await editTask(taskId, { [field]: cell.date });
+  }
+
   async function handleQuickAdd(e: Event, cell: DayCell) {
-    // Only trigger on direct click on empty area (not on a task chip)
-    const target = e.target as HTMLElement;
+    const target = e.target as HTMLElement; // only trigger on empty area
     if (target.closest('.cal-task-chip') || target.closest('.cal-more-badge')) return;
-
     if (!quickAddListId) return;
-
-    const title = prompt('New task title:');
-    if (!title?.trim()) return;
-
-    await addTask({
-      listId: quickAddListId,
-      title: title.trim(),
-      dueDate: cell.date,
-    });
+    const rawInput = prompt('New task (supports #tags !priority 30m dates):');
+    if (!rawInput?.trim()) return;
+    const parsed = parseTaskInput(rawInput);
+    if (!parsed.title) return;
+    try {
+      const created = await addTask({
+        listId: quickAddListId,
+        title: parsed.title,
+        dueDate: parsed.dueDate ?? cell.date,
+        startDate: parsed.startDate,
+        priority: parsed.priority,
+      });
+      if (created && parsed.estimatedMinutes) {
+        await editTask(created.id, { estimatedMinutes: parsed.estimatedMinutes });
+      }
+      if (created && parsed.tags.length > 0) {
+        for (const tagName of parsed.tags) {
+          let existing = ($tags).find((t) => t.name.toLowerCase() === tagName.toLowerCase());
+          if (!existing) {
+            try { existing = await addTag(tagName); } catch { continue; }
+          }
+          if (existing) {
+            try { await tagTask(created.id, existing.id); } catch {} // best-effort
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to create task:', err);
+    }
   }
 </script>
 
@@ -193,10 +234,14 @@
             class:other-month={!cell.isCurrentMonth}
             class:is-today={cell.date === today}
             class:is-selected={cell.isCurrentMonth && cell.day === $selectedDay}
+            class:drag-over={dragOverDate === cell.date}
             role="button"
             tabindex={cell.isCurrentMonth ? 0 : -1}
             onclick={(e) => { handleDayClick(cell); handleQuickAdd(e, cell); }}
             onkeydown={(e) => handleDayKeydown(e, cell)}
+            ondragover={(e) => handleDragOver(e, cell)}
+            ondragleave={(e) => handleDragLeave(e, cell)}
+            ondrop={(e) => handleTaskDrop(e, cell)}
           >
             <span class="cal-day-number">{cell.day}</span>
             <div class="cal-day-tasks">
@@ -352,6 +397,11 @@
   }
 
   .cal-day-cell.is-selected {
+    background: var(--color-surface-active, #30353b);
+    box-shadow: inset 0 0 0 2px var(--color-accent, #6c93c7);
+  }
+
+  .cal-day-cell.drag-over {
     background: var(--color-surface-active, #30353b);
     box-shadow: inset 0 0 0 2px var(--color-accent, #6c93c7);
   }

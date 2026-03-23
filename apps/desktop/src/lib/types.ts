@@ -1,11 +1,22 @@
 // Cross 2 shared type definitions
 
+export interface Area {
+  id: string;
+  name: string;
+  color: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
 export interface List {
   id: string;
   name: string;
   color: string | null;
   sortOrder: number;
   isInbox: boolean;
+  areaId: string | null;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
@@ -56,10 +67,12 @@ export interface Task {
   content: string | null;
   priority: number;
   status: number;
+  startDate: string | null;
   dueDate: string | null;
   dueTimezone: string | null;
   recurrenceRule: string | null;
   sortOrder: number;
+  headingId: string | null;
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -71,16 +84,28 @@ export interface Task {
   tags: Tag[];
 }
 
+export interface Heading {
+  id: string;
+  listId: string;
+  name: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
 export interface TaskUpdatePayload {
   id: string;
   title?: string;
   content?: string;
   priority?: number;
   status?: number;
+  startDate?: string;
   dueDate?: string;
   dueTimezone?: string;
   recurrenceRule?: string;
   sortOrder?: number;
+  headingId?: string;
   scheduledStart?: string;
   scheduledEnd?: string;
   estimatedMinutes?: number;

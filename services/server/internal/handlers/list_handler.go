@@ -44,9 +44,10 @@ type createListRequest struct {
 }
 
 type updateListRequest struct {
-	Name      *string `json:"name"`
-	Color     *string `json:"color"`
-	SortOrder *int    `json:"sortOrder"`
+	Name      *string    `json:"name"`
+	Color     *string    `json:"color"`
+	SortOrder *int       `json:"sortOrder"`
+	AreaID    *uuid.UUID `json:"areaId"`
 }
 
 // --- handlers ---
@@ -143,7 +144,7 @@ func (h *ListHandler) UpdateList(c echo.Context) error {
 			[]string{"name: Required, must be 1-255 characters."})
 	}
 
-	list, err := h.Repo.UpdateList(c.Request().Context(), h.App.DB, userID, listID, req.Name, req.Color, req.SortOrder)
+	list, err := h.Repo.UpdateList(c.Request().Context(), h.App.DB, userID, listID, req.Name, req.Color, req.SortOrder, req.AreaID)
 	if err != nil {
 		slog.Error("failed to update list", "error", err, "userID", userID, "listID", listID)
 		return apiError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred.", nil)

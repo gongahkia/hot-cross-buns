@@ -10,13 +10,24 @@
   let task: Task | null = $state(null);
   let titleValue = $state('');
   let contentValue = $state('');
+  let startDateValue = $state('');
   let dueDateValue = $state('');
   let dueTimeValue = $state('');
+  let estimatedMinutesValue: number | null = $state(null);
   let recurrenceValue = $state('');
   let newSubtaskTitle = $state('');
   let showTagDropdown = $state(false);
   let previewDates: string[] = $state([]);
   let visible = $state(false);
+
+  const durationPresets = [
+    { label: '15m', minutes: 15 },
+    { label: '30m', minutes: 30 },
+    { label: '1h', minutes: 60 },
+    { label: '2h', minutes: 120 },
+    { label: '4h', minutes: 240 },
+    { label: '8h', minutes: 480 },
+  ] as const;
 
   let titleTimer: ReturnType<typeof setTimeout> | null = null;
   let contentTimer: ReturnType<typeof setTimeout> | null = null;
@@ -49,8 +60,10 @@
       if (found) {
         titleValue = found.title;
         contentValue = found.content ?? '';
+        startDateValue = found.startDate ? found.startDate.slice(0, 10) : '';
         dueDateValue = found.dueDate ? found.dueDate.slice(0, 10) : '';
         dueTimeValue = found.dueDate && found.dueDate.length > 10 ? found.dueDate.slice(11, 16) : '';
+        estimatedMinutesValue = found.estimatedMinutes ?? null;
         recurrenceValue = found.recurrenceRule ?? '';
       }
       requestAnimationFrame(() => {
@@ -130,6 +143,37 @@
   function setPriority(level: number) {
     if (task) {
       editTask(task.id, { priority: level });
+    }
+  }
+
+  function onStartDateChange(e: Event) {
+    const target = e.target as HTMLInputElement;
+    startDateValue = target.value;
+    saveStartDate();
+  }
+
+  function saveStartDate() {
+    if (!task) return;
+    if (!startDateValue) {
+      editTask(task.id, { startDate: undefined });
+      return;
+    }
+    editTask(task.id, { startDate: startDateValue });
+  }
+
+  function setEstimatedMinutes(minutes: number | null) {
+    if (!task) return;
+    estimatedMinutesValue = minutes;
+    editTask(task.id, { estimatedMinutes: minutes ?? undefined });
+  }
+
+  function onCustomMinutesInput(e: Event) {
+    const target = e.target as HTMLInputElement;
+    const val = parseInt(target.value, 10);
+    if (isNaN(val) || val <= 0) {
+      setEstimatedMinutes(null);
+    } else {
+      setEstimatedMinutes(val);
     }
   }
 
@@ -220,6 +264,28 @@
     }
   }
 
+  function formatShortDate(iso: string): string {
+    try {
+      return new Date(iso).toLocaleDateString(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch {
+      return iso;
+    }
+  }
+
+  let dateRangeBadge = $derived(
+    startDateValue && dueDateValue
+      ? `${formatShortDate(startDateValue)} → ${formatShortDate(dueDateValue)}`
+      : null
+  );
+
+  let isPresetMatch = $derived(
+    estimatedMinutesValue !== null && durationPresets.some((p) => p.minutes === estimatedMinutesValue)
+  );
+
   function onSubtaskKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter') {
       handleAddSubtask();
@@ -283,9 +349,20 @@
           </div>
         </section>
 
-        <!-- Due Date & Time -->
+        <!-- Start Date -->
         <section class="field-group">
-          <span class="field-label">Due Date</span>
+          <span class="field-label">Start Date</span>
+          <input
+            class="field-input date-input"
+            type="date"
+            value={startDateValue}
+            onchange={onStartDateChange}
+          />
+        </section>
+
+        <!-- Deadline (Due Date & Time) -->
+        <section class="field-group">
+          <span class="field-label">Deadline</span>
           <div class="date-row">
             <input
               class="field-input date-input"
@@ -300,6 +377,35 @@
               onchange={onDueTimeChange}
             />
           </div>
+          {#if dateRangeBadge}
+            <span class="date-range-badge">{dateRangeBadge}</span>
+          {/if}
+        </section>
+
+        <!-- Estimated Duration -->
+        <section class="field-group">
+          <span class="field-label">Estimated Duration</span>
+          <div class="duration-row">
+            {#each durationPresets as preset}
+              <button
+                class="duration-btn"
+                class:active={estimatedMinutesValue === preset.minutes}
+                onclick={() => setEstimatedMinutes(estimatedMinutesValue === preset.minutes ? null : preset.minutes)}
+              >
+                {preset.label}
+              </button>
+            {/each}
+          </div>
+          {#if !isPresetMatch}
+            <input
+              class="field-input duration-custom-input"
+              type="number"
+              min="1"
+              placeholder="Custom minutes"
+              value={estimatedMinutesValue ?? ''}
+              oninput={onCustomMinutesInput}
+            />
+          {/if}
         </section>
 
         <!-- Recurrence -->
@@ -798,6 +904,56 @@
     background: var(--color-surface-0, #25282c);
     padding: 2px 8px;
     border-radius: 6px;
+  }
+
+  /* Date range badge */
+  .date-range-badge {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-accent, #6c93c7);
+    background: color-mix(in srgb, var(--color-accent, #6c93c7) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-accent, #6c93c7) 20%, transparent);
+    border-radius: 8px;
+    padding: 4px 10px;
+    margin-top: 2px;
+    width: fit-content;
+  }
+
+  /* Duration */
+  .duration-row {
+    display: flex;
+    gap: 6px;
+  }
+
+  .duration-btn {
+    flex: 1;
+    padding: 6px 0;
+    border: 1px solid var(--color-border, #32353a);
+    border-radius: 8px;
+    background: var(--color-input, #17181a);
+    color: var(--color-text-muted, #90918d);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 200ms ease;
+    font-family: inherit;
+  }
+
+  .duration-btn:hover {
+    border-color: var(--color-accent, #6c93c7);
+    color: var(--color-accent, #6c93c7);
+  }
+
+  .duration-btn.active {
+    background: color-mix(in srgb, var(--color-accent, #6c93c7) 15%, transparent);
+    border-color: var(--color-accent, #6c93c7);
+    color: var(--color-accent, #6c93c7);
+  }
+
+  .duration-custom-input {
+    width: 140px;
+    margin-top: 4px;
   }
 
   /* Scrollbar styling */
