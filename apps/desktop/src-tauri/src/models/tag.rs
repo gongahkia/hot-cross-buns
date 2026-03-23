@@ -7,4 +7,5 @@ pub struct Tag {
     pub name: String,
     pub color: Option<String>,
     pub created_at: String,
+    pub deleted_at: Option<String>,
 }

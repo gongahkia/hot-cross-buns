@@ -1,6 +1,7 @@
 import { writable } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
 import type { Task, TaskUpdatePayload } from '$lib/types';
+import { markSelectedListHydrated } from '$lib/services/startup';
 
 export const tasks = writable<Task[]>([]);
 export const taskMutationVersion = writable(0);
@@ -37,6 +38,7 @@ export async function loadTasks(
   });
   const flat = flattenTasks(result);
   tasks.set(flat);
+  markSelectedListHydrated();
   return flat;
 }
 

@@ -50,8 +50,25 @@ CREATE TABLE IF NOT EXISTS sync_meta (
     entity_type TEXT NOT NULL,
     entity_id TEXT NOT NULL,
     field_name TEXT NOT NULL,
+    new_value TEXT NOT NULL DEFAULT '',
     updated_at TEXT NOT NULL,
     device_id TEXT NOT NULL,
+    PRIMARY KEY (entity_type, entity_id, field_name)
+);
+
+CREATE TABLE IF NOT EXISTS sync_conflicts (
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    field_name TEXT NOT NULL,
+    local_value TEXT NOT NULL,
+    remote_value TEXT NOT NULL,
+    local_updated_at TEXT NOT NULL,
+    remote_updated_at TEXT NOT NULL,
+    local_device_id TEXT,
+    remote_device_id TEXT,
+    resolution_status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
     PRIMARY KEY (entity_type, entity_id, field_name)
 );
 
@@ -69,6 +86,7 @@ CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_date);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_task_tags_tag ON task_tags(tag_id);
+CREATE INDEX IF NOT EXISTS idx_sync_conflicts_status ON sync_conflicts(resolution_status);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS tasks_fts USING fts5(title, content, content=tasks, content_rowid=rowid);
 
@@ -96,6 +114,9 @@ fn apply_pragmas(conn: &Connection) -> Result<(), String> {
 
 fn apply_runtime_migrations(conn: &Connection) -> Result<(), String> {
     let _ = conn.execute_batch("ALTER TABLE tags ADD COLUMN deleted_at TEXT");
+    let _ = conn.execute_batch(
+        "ALTER TABLE sync_meta ADD COLUMN new_value TEXT NOT NULL DEFAULT '';",
+    );
     Ok(())
 }
 

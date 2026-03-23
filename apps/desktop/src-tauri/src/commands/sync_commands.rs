@@ -1,9 +1,10 @@
+use rusqlite::OptionalExtension;
 use serde::Serialize;
 use tauri::State;
 use uuid::Uuid;
 
 use crate::db;
-use crate::models::SyncSettings;
+use crate::models::{SyncConflict, SyncSettings};
 use crate::state::AppState;
 use crate::sync::client::{PullResult, PushResult, SyncChangePayload, SyncClient};
 use crate::sync::settings::{get_or_create_sync_settings, save_sync_settings_record};
@@ -15,6 +16,14 @@ pub struct SyncStatus {
     pub pushed: u32,
     pub pulled: u32,
     pub conflicts: u32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncHealth {
+    pub pending_changes: u32,
+    pub conflict_count: u32,
+    pub last_sync_error: Option<String>,
 }
 
 fn tracked_change_to_transport(
@@ -95,9 +104,121 @@ pub fn save_sync_settings(
     save_sync_settings_record(&conn, &settings)
 }
 
+#[tauri::command]
+pub fn get_sync_health(state: State<'_, AppState>) -> Result<SyncHealth, String> {
+    let conn = db::get_connection(&state.db_path)?;
+
+    Ok(SyncHealth {
+        pending_changes: tracker::count_pending_changes(&conn)?,
+        conflict_count: tracker::count_sync_conflicts(&conn)?,
+        last_sync_error: get_last_sync_error(&conn),
+    })
+}
+
+#[tauri::command]
+pub fn list_sync_conflicts(state: State<'_, AppState>) -> Result<Vec<SyncConflict>, String> {
+    let conn = db::get_connection(&state.db_path)?;
+    tracker::list_sync_conflicts(&conn)
+}
+
+#[tauri::command]
+pub fn resolve_sync_conflict(
+    state: State<'_, AppState>,
+    entity_type: String,
+    entity_id: String,
+    field_name: String,
+    resolution: String,
+) -> Result<(), String> {
+    let conn = db::get_connection(&state.db_path)?;
+    let conflict = tracker::get_conflict(&conn, &entity_type, &entity_id, &field_name)?
+        .ok_or_else(|| "Sync conflict not found".to_string())?;
+
+    match resolution.as_str() {
+        "keep_local" => {
+            let local_value = get_latest_local_value(
+                &conn,
+                &conflict.entity_type,
+                &conflict.entity_id,
+                &conflict.field_name,
+            )?
+            .unwrap_or(conflict.local_value.clone());
+
+            tracker::record_change(
+                &conn,
+                &conflict.entity_type,
+                &conflict.entity_id,
+                &conflict.field_name,
+                &local_value,
+            )?;
+            tracker::resolve_conflict_status(
+                &conn,
+                &conflict.entity_type,
+                &conflict.entity_id,
+                &conflict.field_name,
+                "resolved_keep_local",
+            )?;
+        }
+        "apply_remote" => {
+            let remote_change = tracker::TrackedChange {
+                entity_type: conflict.entity_type.clone(),
+                entity_id: conflict.entity_id.clone(),
+                field_name: conflict.field_name.clone(),
+                new_value: conflict.remote_value.clone(),
+                updated_at: conflict.remote_updated_at.clone(),
+                device_id: conflict
+                    .remote_device_id
+                    .clone()
+                    .unwrap_or_else(|| "remote".to_string()),
+            };
+
+            tracker::apply_remote_change_force(&conn, &remote_change)?;
+            tracker::resolve_conflict_status(
+                &conn,
+                &conflict.entity_type,
+                &conflict.entity_id,
+                &conflict.field_name,
+                "resolved_apply_remote",
+            )?;
+        }
+        other => {
+            return Err(format!("Unknown sync conflict resolution: {}", other));
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn dismiss_sync_conflict(
+    state: State<'_, AppState>,
+    entity_type: String,
+    entity_id: String,
+    field_name: String,
+) -> Result<(), String> {
+    let conn = db::get_connection(&state.db_path)?;
+    tracker::resolve_conflict_status(&conn, &entity_type, &entity_id, &field_name, "dismissed")
+}
+
 /// Perform a full sync cycle: push local changes, then pull and apply remote changes.
 #[tauri::command]
 pub async fn sync_now(state: State<'_, AppState>) -> Result<SyncStatus, String> {
+    let result = run_sync(&state).await;
+
+    if let Ok(conn) = db::get_connection(&state.db_path) {
+        match &result {
+            Ok(_) => {
+                let _ = clear_last_sync_error(&conn);
+            }
+            Err(err) => {
+                let _ = save_last_sync_error(&conn, err);
+            }
+        }
+    }
+
+    result
+}
+
+async fn run_sync(state: &State<'_, AppState>) -> Result<SyncStatus, String> {
     let conn = db::get_connection(&state.db_path)?;
     let settings = get_or_create_sync_settings(&conn)?;
 
@@ -137,21 +258,18 @@ pub async fn sync_now(state: State<'_, AppState>) -> Result<SyncStatus, String> 
     let pulled_count = pull_result.changes.len() as u32;
 
     // 4. Apply each remote change locally.
-    let mut conflicts = push_result
-        .as_ref()
-        .map(|result| result.conflicts)
-        .unwrap_or(0);
     for change in &pull_result.changes {
         let local_change = transport_change_to_tracked(change);
-        if tracker::apply_remote_change(&conn, &local_change).is_err() {
-            conflicts += 1;
-        }
+        tracker::apply_remote_change(&conn, &local_change)?;
     }
 
     // 5. Persist the new sync timestamp.
     let synced_at = resolved_sync_watermark(&pull_result);
     save_last_sync_time(&conn, &settings.device_id, &synced_at);
     save_last_synced_at(&conn, &settings, &synced_at)?;
+    clear_last_sync_error(&conn)?;
+
+    let conflicts = tracker::count_sync_conflicts(&conn)?;
 
     Ok(SyncStatus {
         pushed: pushed_count,
@@ -175,6 +293,23 @@ fn get_last_sync_time(conn: &rusqlite::Connection) -> String {
     .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string())
 }
 
+fn get_latest_local_value(
+    conn: &rusqlite::Connection,
+    entity_type: &str,
+    entity_id: &str,
+    field_name: &str,
+) -> Result<Option<String>, String> {
+    let device_id = get_or_create_sync_settings(conn)?.device_id;
+    conn.query_row(
+        "SELECT new_value FROM sync_meta
+         WHERE entity_type = ?1 AND entity_id = ?2 AND field_name = ?3 AND device_id = ?4",
+        rusqlite::params![entity_type, entity_id, field_name, device_id],
+        |row| row.get(0),
+    )
+    .optional()
+    .map_err(|e| format!("Failed to read latest local sync value: {}", e))
+}
+
 /// Persist the current time as the last-sync timestamp.
 fn save_last_sync_time(conn: &rusqlite::Connection, device_id: &str, synced_at: &str) {
     let _ = tracker::ensure_new_value_column(conn);
@@ -185,6 +320,44 @@ fn save_last_sync_time(conn: &rusqlite::Connection, device_id: &str, synced_at: 
          DO UPDATE SET new_value = ?1, updated_at = ?1",
         rusqlite::params![synced_at, device_id],
     );
+}
+
+fn save_last_sync_error(conn: &rusqlite::Connection, message: &str) -> Result<(), String> {
+    let device_id = get_or_create_sync_settings(conn)?.device_id;
+    let _ = tracker::ensure_new_value_column(conn);
+    conn.execute(
+        "INSERT INTO sync_meta (entity_type, entity_id, field_name, new_value, updated_at, device_id)
+         VALUES ('__sync', 'last_error', 'message', ?1, ?2, ?3)
+         ON CONFLICT (entity_type, entity_id, field_name)
+         DO UPDATE SET new_value = excluded.new_value, updated_at = excluded.updated_at, device_id = excluded.device_id",
+        rusqlite::params![message, iso8601_now(), device_id],
+    )
+    .map_err(|e| format!("Failed to save last sync error: {}", e))?;
+
+    Ok(())
+}
+
+fn clear_last_sync_error(conn: &rusqlite::Connection) -> Result<(), String> {
+    conn.execute(
+        "DELETE FROM sync_meta
+         WHERE entity_type = '__sync' AND entity_id = 'last_error' AND field_name = 'message'",
+        [],
+    )
+    .map_err(|e| format!("Failed to clear last sync error: {}", e))?;
+
+    Ok(())
+}
+
+fn get_last_sync_error(conn: &rusqlite::Connection) -> Option<String> {
+    conn.query_row(
+        "SELECT new_value FROM sync_meta
+         WHERE entity_type = '__sync' AND entity_id = 'last_error' AND field_name = 'message'",
+        [],
+        |row| row.get(0),
+    )
+    .optional()
+    .ok()
+    .flatten()
 }
 
 fn save_last_synced_at(

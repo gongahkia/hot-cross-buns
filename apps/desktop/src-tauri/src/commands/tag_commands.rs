@@ -81,6 +81,7 @@ pub fn create_tag(
         name,
         color,
         created_at,
+        deleted_at: None,
     };
     changes::record_tag_upsert(&conn, &tag)?;
 
@@ -93,7 +94,7 @@ pub fn get_tags(state: State<'_, AppState>) -> Result<Vec<Tag>, String> {
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, name, color, created_at FROM tags WHERE deleted_at IS NULL ORDER BY name",
+            "SELECT id, name, color, created_at, deleted_at FROM tags WHERE deleted_at IS NULL ORDER BY name",
         )
         .map_err(|e| format!("Failed to prepare query: {}", e))?;
 
@@ -104,6 +105,7 @@ pub fn get_tags(state: State<'_, AppState>) -> Result<Vec<Tag>, String> {
                 name: row.get(1)?,
                 color: row.get(2)?,
                 created_at: row.get(3)?,
+                deleted_at: row.get(4)?,
             })
         })
         .map_err(|e| format!("Failed to query tags: {}", e))?
@@ -125,7 +127,7 @@ pub fn update_tag(
     // Fetch the existing tag first.
     let mut tag: Tag = conn
         .query_row(
-            "SELECT id, name, color, created_at FROM tags WHERE id = ?1 AND deleted_at IS NULL",
+            "SELECT id, name, color, created_at, deleted_at FROM tags WHERE id = ?1 AND deleted_at IS NULL",
             rusqlite::params![id],
             |row| {
                 Ok(Tag {
@@ -133,6 +135,7 @@ pub fn update_tag(
                     name: row.get(1)?,
                     color: row.get(2)?,
                     created_at: row.get(3)?,
+                    deleted_at: row.get(4)?,
                 })
             },
         )

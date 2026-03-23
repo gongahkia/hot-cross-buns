@@ -108,6 +108,7 @@ fn fetch_tags_for_tasks(
                     name: row.get(2)?,
                     color: row.get(3)?,
                     created_at: row.get(4)?,
+                    deleted_at: None,
                 },
             ))
         })

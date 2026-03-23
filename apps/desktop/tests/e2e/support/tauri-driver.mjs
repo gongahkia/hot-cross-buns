@@ -90,7 +90,11 @@ async function resolveApplicationBinary() {
   throw new Error(`Could not find the built desktop binary. Tried: ${candidates.join(', ')}`);
 }
 
-async function writeLaunchScript(profileDir) {
+function shellEscape(value) {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
+async function writeLaunchScript(profileDir, env = {}) {
   const binaryPath = await resolveApplicationBinary();
   const scriptPath = path.join(profileDir, process.platform === 'win32' ? 'launch-app.cmd' : 'launch-app.sh');
   const dataHome = path.join(profileDir, 'data');
@@ -104,6 +108,7 @@ async function writeLaunchScript(profileDir) {
       '@echo off',
       `set "XDG_DATA_HOME=${dataHome}"`,
       `set "HOME=${homeDir}"`,
+      ...Object.entries(env).map(([key, value]) => `set "${key}=${value}"`),
       `"${binaryPath}" %*`,
       '',
     ].join('\r\n');
@@ -111,9 +116,10 @@ async function writeLaunchScript(profileDir) {
   } else {
     const script = [
       '#!/bin/sh',
-      `export XDG_DATA_HOME='${dataHome}'`,
-      `export HOME='${homeDir}'`,
-      `exec '${binaryPath}' "$@"`,
+      `export XDG_DATA_HOME=${shellEscape(dataHome)}`,
+      `export HOME=${shellEscape(homeDir)}`,
+      ...Object.entries(env).map(([key, value]) => `export ${key}=${shellEscape(value)}`),
+      `exec ${shellEscape(binaryPath)} "$@"`,
       '',
     ].join('\n');
     await fs.writeFile(scriptPath, script, 'utf8');
@@ -160,8 +166,8 @@ export async function createProfileDir(prefix = 'tickclone-e2e-') {
   return fs.mkdtemp(path.join(os.tmpdir(), prefix));
 }
 
-export async function launchApp(profileDir) {
-  const application = await writeLaunchScript(profileDir);
+export async function launchApp(profileDir, options = {}) {
+  const application = await writeLaunchScript(profileDir, options.env ?? {});
   const capabilities = new Capabilities();
   capabilities.setBrowserName('wry');
   capabilities.set('tauri:options', { application });
@@ -175,9 +181,9 @@ export async function launchApp(profileDir) {
   return currentDriver;
 }
 
-export async function restartApp(profileDir) {
+export async function restartApp(profileDir, options = {}) {
   await quitApp();
-  return launchApp(profileDir);
+  return launchApp(profileDir, options);
 }
 
 export async function quitApp() {
@@ -198,6 +204,10 @@ export function getDriver() {
   }
 
   return currentDriver;
+}
+
+export async function executeScript(script, ...args) {
+  return getDriver().executeScript(script, ...args);
 }
 
 export async function cleanupProfileDir(profileDir) {

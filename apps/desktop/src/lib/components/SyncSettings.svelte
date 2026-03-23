@@ -1,9 +1,21 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
   import { invoke } from '@tauri-apps/api/core';
-  import type { SyncSettings as SyncSettingsRecord } from '$lib/types';
+  import { exportCsvBackup, exportJsonBackup, chooseImportJsonPayload } from '$lib/services/portability';
+  import { loadLists } from '$lib/stores/lists';
+  import { loadTags } from '$lib/stores/tags';
+  import { loadTasks, taskMutationVersion, tasks } from '$lib/stores/tasks';
+  import { currentView, selectedListId, showCompletedTasks } from '$lib/stores/ui';
+  import type { SyncConflict, SyncHealth, SyncSettings as SyncSettingsRecord } from '$lib/types';
 
   let { open = false, onclose }: { open: boolean; onclose: () => void } = $props();
+
+  interface ImportResult {
+    lists: number;
+    tasks: number;
+    tags: number;
+  }
 
   let serverUrl = $state('');
   let authToken = $state('');
@@ -14,6 +26,10 @@
   let lastSyncedAt = $state<Date | null>(null);
   let syncSummary = $state<{ pushed: number; pulled: number; conflicts: number } | null>(null);
   let settingsLoaded = $state(false);
+  let syncHealth = $state<SyncHealth | null>(null);
+  let syncConflicts = $state<SyncConflict[]>([]);
+  let dataStatus = $state<string | null>(null);
+  let dataError = $state<string | null>(null);
 
   let showMagicLinkForm = $state(false);
   let magicLinkEmail = $state('');
@@ -32,10 +48,21 @@
     lastSyncedAt = settings.lastSyncedAt ? new Date(settings.lastSyncedAt) : null;
   }
 
+  async function refreshSyncDiagnostics() {
+    const [health, conflicts] = await Promise.all([
+      invoke<SyncHealth>('get_sync_health'),
+      invoke<SyncConflict[]>('list_sync_conflicts'),
+    ]);
+
+    syncHealth = health;
+    syncConflicts = conflicts;
+  }
+
   async function loadSavedSettings() {
     try {
       const settings = await invoke<SyncSettingsRecord>('get_sync_settings');
       applySettings(settings);
+      await refreshSyncDiagnostics();
       if (settings.autoSyncEnabled) {
         startAutoSync();
       }
@@ -121,12 +148,109 @@
       syncSummary = result;
       const saved = await invoke<SyncSettingsRecord>('get_sync_settings');
       applySettings(saved);
+      await refreshSyncDiagnostics();
       syncStatus = 'success';
     } catch (err: unknown) {
       syncStatus = err instanceof Error ? err.message : String(err);
+      await refreshSyncDiagnostics().catch(() => undefined);
     } finally {
       syncing = false;
     }
+  }
+
+  async function refreshImportedWorkspace() {
+    const loadedLists = await loadLists();
+    await loadTags();
+
+    const defaultList = loadedLists.find((list) => list.isInbox) ?? loadedLists[0] ?? null;
+    currentView.set('list');
+    selectedListId.set(defaultList?.id ?? null);
+
+    if (defaultList) {
+      await loadTasks(defaultList.id, get(showCompletedTasks));
+    } else {
+      tasks.set([]);
+    }
+
+    taskMutationVersion.update((value) => value + 1);
+  }
+
+  async function handleExportJson() {
+    dataStatus = null;
+    dataError = null;
+
+    try {
+      const target = await exportJsonBackup();
+      if (target) {
+        dataStatus = `Saved JSON backup to ${target}`;
+      }
+    } catch (err: unknown) {
+      dataError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  async function handleExportCsv() {
+    dataStatus = null;
+    dataError = null;
+
+    try {
+      const target = await exportCsvBackup();
+      if (target) {
+        dataStatus = `Saved CSV export to ${target}`;
+      }
+    } catch (err: unknown) {
+      dataError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  async function handleImportJson() {
+    dataStatus = null;
+    dataError = null;
+
+    try {
+      const payload = await chooseImportJsonPayload();
+      if (!payload) {
+        return;
+      }
+
+      const result = await invoke<ImportResult>('import_data', { jsonData: payload });
+      await refreshImportedWorkspace();
+      await refreshSyncDiagnostics();
+      dataStatus = `Imported ${result.lists} lists, ${result.tasks} tasks, and ${result.tags} tags.`;
+    } catch (err: unknown) {
+      dataError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  function prettyConflictValue(raw: string): string {
+    try {
+      return JSON.stringify(JSON.parse(raw), null, 2);
+    } catch {
+      return raw;
+    }
+  }
+
+  function conflictLabel(conflict: SyncConflict): string {
+    return `${conflict.entityType}.${conflict.fieldName}`;
+  }
+
+  async function resolveConflict(conflict: SyncConflict, resolution: 'keep_local' | 'apply_remote') {
+    await invoke('resolve_sync_conflict', {
+      entityType: conflict.entityType,
+      entityId: conflict.entityId,
+      fieldName: conflict.fieldName,
+      resolution,
+    });
+    await refreshSyncDiagnostics();
+  }
+
+  async function dismissConflict(conflict: SyncConflict) {
+    await invoke('dismiss_sync_conflict', {
+      entityType: conflict.entityType,
+      entityId: conflict.entityId,
+      fieldName: conflict.fieldName,
+    });
+    await refreshSyncDiagnostics();
   }
 
   function handleMagicLink() {
@@ -374,6 +498,23 @@
           </button>
         </div>
 
+        <div class="health-card">
+          <div class="health-title">Sync Health</div>
+          <div class="health-grid">
+            <div class="health-metric">
+              <span class="health-label">Pending changes</span>
+              <strong>{syncHealth?.pendingChanges ?? 0}</strong>
+            </div>
+            <div class="health-metric">
+              <span class="health-label">Open conflicts</span>
+              <strong>{syncHealth?.conflictCount ?? 0}</strong>
+            </div>
+          </div>
+          {#if syncHealth?.lastSyncError}
+            <div class="sync-error">{syncHealth.lastSyncError}</div>
+          {/if}
+        </div>
+
         {#if lastSyncedLabel}
           <div class="last-synced">
             Last synced: {lastSyncedLabel}
@@ -389,6 +530,59 @@
         {#if syncStatus && syncStatus !== 'success'}
           <div class="sync-error">
             {syncStatus}
+          </div>
+        {/if}
+
+        <div class="portability-card">
+          <div class="health-title">Portability</div>
+          <div class="portability-actions">
+            <button class="secondary-btn" onclick={handleExportJson}>Export JSON</button>
+            <button class="secondary-btn" onclick={handleExportCsv}>Export CSV</button>
+            <button class="secondary-btn" onclick={handleImportJson}>Import JSON</button>
+          </div>
+          <p class="field-hint">
+            JSON is the full-fidelity backup format. CSV exports active tasks for interoperability.
+          </p>
+          {#if dataStatus}
+            <div class="sync-summary">{dataStatus}</div>
+          {/if}
+          {#if dataError}
+            <div class="sync-error">{dataError}</div>
+          {/if}
+        </div>
+
+        {#if syncConflicts.length > 0}
+          <div class="conflicts-card">
+            <div class="health-title">Conflict Review</div>
+            {#each syncConflicts as conflict (`${conflict.entityType}:${conflict.entityId}:${conflict.fieldName}`)}
+              <div class="conflict-item">
+                <div class="conflict-header">
+                  <strong>{conflictLabel(conflict)}</strong>
+                  <span class="conflict-meta">{conflict.entityId}</span>
+                </div>
+                <div class="conflict-columns">
+                  <div class="conflict-column">
+                    <span class="health-label">Local</span>
+                    <pre>{prettyConflictValue(conflict.localValue)}</pre>
+                  </div>
+                  <div class="conflict-column">
+                    <span class="health-label">Remote</span>
+                    <pre>{prettyConflictValue(conflict.remoteValue)}</pre>
+                  </div>
+                </div>
+                <div class="conflict-actions">
+                  <button class="secondary-btn" onclick={() => resolveConflict(conflict, 'keep_local')}>
+                    Keep Local
+                  </button>
+                  <button class="secondary-btn" onclick={() => resolveConflict(conflict, 'apply_remote')}>
+                    Apply Remote
+                  </button>
+                  <button class="ghost-btn" onclick={() => dismissConflict(conflict)}>
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            {/each}
           </div>
         {/if}
       </div>
@@ -518,6 +712,137 @@
 
   .field-input::placeholder {
     color: #6c7086;
+  }
+
+  .field-hint {
+    margin: 0;
+    font-size: 12px;
+    color: #a6adc8;
+    line-height: 1.4;
+  }
+
+  .health-card,
+  .portability-card,
+  .conflicts-card {
+    border: 1px solid #313244;
+    border-radius: 10px;
+    padding: 12px;
+    background: #181825;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .health-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #bac2de;
+  }
+
+  .health-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .health-metric {
+    padding: 10px;
+    border-radius: 8px;
+    background: #11111b;
+    border: 1px solid #313244;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .health-metric strong {
+    font-size: 18px;
+    color: #cdd6f4;
+  }
+
+  .health-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #a6adc8;
+  }
+
+  .portability-actions,
+  .conflict-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .secondary-btn,
+  .ghost-btn {
+    border-radius: 8px;
+    border: 1px solid #45475a;
+    background: #11111b;
+    color: #cdd6f4;
+    font-size: 12px;
+    font-family: inherit;
+    padding: 8px 12px;
+    cursor: pointer;
+  }
+
+  .secondary-btn:hover,
+  .ghost-btn:hover {
+    background: #313244;
+  }
+
+  .ghost-btn {
+    color: #a6adc8;
+  }
+
+  .conflict-item {
+    border: 1px solid #313244;
+    border-radius: 8px;
+    background: #11111b;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .conflict-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: baseline;
+    color: #cdd6f4;
+  }
+
+  .conflict-meta {
+    font-size: 11px;
+    color: #a6adc8;
+  }
+
+  .conflict-columns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .conflict-column {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .conflict-column pre {
+    margin: 0;
+    padding: 8px;
+    border-radius: 8px;
+    background: #1e1e2e;
+    border: 1px solid #313244;
+    color: #cdd6f4;
+    font-size: 11px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
 
   .magic-link-btn {

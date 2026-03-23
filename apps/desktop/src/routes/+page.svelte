@@ -3,9 +3,6 @@
   import Sidebar from '$lib/components/Sidebar.svelte';
   import TaskList from '$lib/components/TaskList.svelte';
   import TaskDetail from '$lib/components/TaskDetail.svelte';
-  import TodayView from '$lib/components/TodayView.svelte';
-  import CalendarView from '$lib/components/CalendarView.svelte';
-  import WeekView from '$lib/components/WeekView.svelte';
   import ShortcutsModal from '$lib/components/ShortcutsModal.svelte';
   import SearchBar from '$lib/components/SearchBar.svelte';
   import { selectedListId, selectedTaskId, currentView } from '$lib/stores/ui';
@@ -13,11 +10,19 @@
   import { loadLists } from '$lib/stores/lists';
   import { loadTags } from '$lib/stores/tags';
   import { registerShortcuts } from '$lib/services/shortcuts';
+  import { markBootstrapCompleted, markFirstInteractive } from '$lib/services/startup';
   import type { List } from '$lib/types';
+
+  type TodayViewModule = typeof import('$lib/components/TodayView.svelte');
+  type WeekViewModule = typeof import('$lib/components/WeekView.svelte');
+  type CalendarViewModule = typeof import('$lib/components/CalendarView.svelte');
 
   let showShortcuts = $state(false);
   let appReady = $state(false);
   let startupError = $state<string | null>(null);
+  let todayViewModule = $state<TodayViewModule | null>(null);
+  let weekViewModule = $state<WeekViewModule | null>(null);
+  let calendarViewModule = $state<CalendarViewModule | null>(null);
 
   let hasSelectedList = $derived.by(() => {
     let value: string | null = null;
@@ -31,6 +36,24 @@
     const unsub = currentView.subscribe((v) => (value = v));
     unsub();
     return value;
+  });
+
+  async function ensureViewModule(view: string) {
+    if (view === 'today' && !todayViewModule) {
+      todayViewModule = await import('$lib/components/TodayView.svelte');
+    }
+
+    if (view === 'week' && !weekViewModule) {
+      weekViewModule = await import('$lib/components/WeekView.svelte');
+    }
+
+    if (view === 'calendar' && !calendarViewModule) {
+      calendarViewModule = await import('$lib/components/CalendarView.svelte');
+    }
+  }
+
+  $effect(() => {
+    void ensureViewModule(activeView);
   });
 
   onMount(() => {
@@ -50,6 +73,10 @@
         selectedListId.set(null);
       } finally {
         appReady = true;
+        markBootstrapCompleted();
+        requestAnimationFrame(() => {
+          markFirstInteractive();
+        });
       }
     }
 
@@ -112,11 +139,23 @@
       {:else if startupError}
         <p class="empty-state">{startupError}</p>
       {:else if activeView === 'calendar'}
-        <CalendarView />
+        {#if calendarViewModule}
+          <calendarViewModule.default />
+        {:else}
+          <p class="empty-state">Loading calendar...</p>
+        {/if}
       {:else if activeView === 'week'}
-        <WeekView />
+        {#if weekViewModule}
+          <weekViewModule.default />
+        {:else}
+          <p class="empty-state">Loading week view...</p>
+        {/if}
       {:else if activeView === 'today'}
-        <TodayView />
+        {#if todayViewModule}
+          <todayViewModule.default />
+        {:else}
+          <p class="empty-state">Loading today...</p>
+        {/if}
       {:else if hasSelectedList}
         <TaskList />
       {:else}

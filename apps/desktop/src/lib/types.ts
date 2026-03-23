@@ -16,6 +16,7 @@ export interface Tag {
   name: string;
   color: string | null;
   createdAt: string;
+  deletedAt?: string | null;
 }
 
 export interface SyncSettings {
@@ -24,6 +25,27 @@ export interface SyncSettings {
   deviceId: string;
   autoSyncEnabled: boolean;
   lastSyncedAt: string | null;
+}
+
+export interface SyncHealth {
+  pendingChanges: number;
+  conflictCount: number;
+  lastSyncError: string | null;
+}
+
+export interface SyncConflict {
+  entityType: string;
+  entityId: string;
+  fieldName: string;
+  localValue: string;
+  remoteValue: string;
+  localUpdatedAt: string;
+  remoteUpdatedAt: string;
+  localDeviceId: string | null;
+  remoteDeviceId: string | null;
+  resolutionStatus: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Task {

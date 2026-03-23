@@ -1,6 +1,6 @@
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 
-use crate::models::{List, Task};
+use crate::models::{List, SyncConflict, Task};
 
 use super::changes::{parse_task_tag_entity_id, TagSnapshot};
 use super::settings;
@@ -13,6 +13,13 @@ pub struct TrackedChange {
     pub new_value: String,
     pub updated_at: String,
     pub device_id: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RemoteApplyOutcome {
+    Applied,
+    ConflictStored,
+    LocalAlreadyCurrent,
 }
 
 /// Ensure the sync_meta table has the new_value column.
@@ -52,18 +59,31 @@ pub fn record_change(
 /// Fetch all pending changes that were recorded at or after `since`.
 pub fn get_pending_changes(conn: &Connection, since: &str) -> Vec<TrackedChange> {
     let _ = ensure_new_value_column(conn);
+    let device_id = match settings::get_or_create_sync_settings(conn) {
+        Ok(settings) => settings.device_id,
+        Err(_) => return Vec::new(),
+    };
 
     let mut stmt = match conn.prepare(
         "SELECT entity_type, entity_id, field_name, new_value, updated_at, device_id
          FROM sync_meta
-         WHERE updated_at >= ?1
+         WHERE entity_type != '__sync'
+           AND updated_at > ?1
+           AND device_id = ?2
+           AND NOT EXISTS (
+             SELECT 1 FROM sync_conflicts sc
+             WHERE sc.entity_type = sync_meta.entity_type
+               AND sc.entity_id = sync_meta.entity_id
+               AND sc.field_name = sync_meta.field_name
+               AND sc.resolution_status IN ('pending', 'dismissed')
+           )
          ORDER BY updated_at ASC",
     ) {
         Ok(s) => s,
         Err(_) => return Vec::new(),
     };
 
-    let rows = match stmt.query_map(rusqlite::params![since], |row| {
+    let rows = match stmt.query_map(rusqlite::params![since, device_id], |row| {
         Ok(TrackedChange {
             entity_type: row.get(0)?,
             entity_id: row.get(1)?,
@@ -82,20 +102,57 @@ pub fn get_pending_changes(conn: &Connection, since: &str) -> Vec<TrackedChange>
 
 /// Apply a single remote change to the local database.
 ///
-pub fn apply_remote_change(conn: &Connection, change: &TrackedChange) -> Result<(), String> {
+pub fn apply_remote_change(
+    conn: &Connection,
+    change: &TrackedChange,
+) -> Result<RemoteApplyOutcome, String> {
     ensure_new_value_column(conn)?;
 
-    match (change.entity_type.as_str(), change.field_name.as_str()) {
-        ("list", "_upsert") => apply_list_upsert(conn, change)?,
-        ("task", "_upsert") => apply_task_upsert(conn, change)?,
-        ("tag", "_upsert") => apply_tag_upsert(conn, change)?,
-        ("task_tag", "present") => apply_task_tag_change(conn, change)?,
-        _ => apply_field_change(conn, change)?,
+    if let Some(local_change) =
+        get_local_pending_change(conn, &change.entity_type, &change.entity_id, &change.field_name)?
+    {
+        if local_change.new_value == change.new_value {
+            resolve_conflict_status(
+                conn,
+                &change.entity_type,
+                &change.entity_id,
+                &change.field_name,
+                "resolved_remote_match",
+            )?;
+            return Ok(RemoteApplyOutcome::LocalAlreadyCurrent);
+        }
+
+        upsert_conflict(conn, &local_change, change, "pending")?;
+        return Ok(RemoteApplyOutcome::ConflictStored);
     }
 
-    record_applied_change(conn, change)?;
+    if has_unresolved_conflict(conn, &change.entity_type, &change.entity_id, &change.field_name)? {
+        let local_fallback = get_conflict(conn, &change.entity_type, &change.entity_id, &change.field_name)?
+            .map(|conflict| TrackedChange {
+                entity_type: conflict.entity_type,
+                entity_id: conflict.entity_id,
+                field_name: conflict.field_name,
+                new_value: conflict.local_value,
+                updated_at: conflict.local_updated_at,
+                device_id: conflict
+                    .local_device_id
+                    .unwrap_or_else(|| "local".to_string()),
+            })
+            .unwrap_or_else(|| TrackedChange {
+                entity_type: change.entity_type.clone(),
+                entity_id: change.entity_id.clone(),
+                field_name: change.field_name.clone(),
+                new_value: "null".to_string(),
+                updated_at: current_sync_watermark(conn),
+                device_id: "local".to_string(),
+            });
 
-    Ok(())
+        upsert_conflict(conn, &local_fallback, change, "pending")?;
+        return Ok(RemoteApplyOutcome::ConflictStored);
+    }
+
+    apply_remote_change_force(conn, change)?;
+    Ok(RemoteApplyOutcome::Applied)
 }
 
 fn apply_field_change(conn: &Connection, change: &TrackedChange) -> Result<(), String> {
@@ -291,26 +348,221 @@ fn apply_task_tag_change(conn: &Connection, change: &TrackedChange) -> Result<()
     Ok(())
 }
 
-fn record_applied_change(conn: &Connection, change: &TrackedChange) -> Result<(), String> {
-    conn.execute(
-        "INSERT INTO sync_meta (entity_type, entity_id, field_name, new_value, updated_at, device_id)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-         ON CONFLICT (entity_type, entity_id, field_name)
-         DO UPDATE SET new_value = ?4, updated_at = ?5, device_id = ?6",
-        rusqlite::params![
-            change.entity_type,
-            change.entity_id,
-            change.field_name,
-            change.new_value,
-            change.updated_at,
-            change.device_id
-        ],
-    )
-    .map_err(|e| format!("Failed to record applied sync change: {}", e))?;
+pub fn apply_remote_change_force(conn: &Connection, change: &TrackedChange) -> Result<(), String> {
+    match (change.entity_type.as_str(), change.field_name.as_str()) {
+        ("list", "_upsert") => apply_list_upsert(conn, change)?,
+        ("task", "_upsert") => apply_task_upsert(conn, change)?,
+        ("tag", "_upsert") => apply_tag_upsert(conn, change)?,
+        ("task_tag", "present") => apply_task_tag_change(conn, change)?,
+        _ => apply_field_change(conn, change)?,
+    }
 
     Ok(())
 }
 
+fn current_sync_watermark(conn: &Connection) -> String {
+    conn.query_row(
+        "SELECT new_value FROM sync_meta
+         WHERE entity_type = '__sync' AND entity_id = 'last_sync' AND field_name = 'timestamp'",
+        [],
+        |row| row.get::<_, String>(0),
+    )
+    .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string())
+}
+
+fn get_local_pending_change(
+    conn: &Connection,
+    entity_type: &str,
+    entity_id: &str,
+    field_name: &str,
+) -> Result<Option<TrackedChange>, String> {
+    let current_device_id = settings::get_or_create_sync_settings(conn)?.device_id;
+    let watermark = current_sync_watermark(conn);
+
+    conn.query_row(
+        "SELECT entity_type, entity_id, field_name, new_value, updated_at, device_id
+         FROM sync_meta
+         WHERE entity_type = ?1
+           AND entity_id = ?2
+           AND field_name = ?3
+           AND device_id = ?4
+           AND updated_at > ?5",
+        rusqlite::params![
+            entity_type,
+            entity_id,
+            field_name,
+            current_device_id,
+            watermark
+        ],
+        |row| {
+            Ok(TrackedChange {
+                entity_type: row.get(0)?,
+                entity_id: row.get(1)?,
+                field_name: row.get(2)?,
+                new_value: row.get(3)?,
+                updated_at: row.get(4)?,
+                device_id: row.get(5)?,
+            })
+        },
+    )
+    .optional()
+    .map_err(|e| format!("Failed to query local pending change: {}", e))
+}
+
+fn has_unresolved_conflict(
+    conn: &Connection,
+    entity_type: &str,
+    entity_id: &str,
+    field_name: &str,
+) -> Result<bool, String> {
+    let count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sync_conflicts
+             WHERE entity_type = ?1
+               AND entity_id = ?2
+               AND field_name = ?3
+               AND resolution_status IN ('pending', 'dismissed')",
+            rusqlite::params![entity_type, entity_id, field_name],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Failed to query sync conflict state: {}", e))?;
+
+    Ok(count > 0)
+}
+
+fn row_to_conflict(row: &rusqlite::Row) -> rusqlite::Result<SyncConflict> {
+    Ok(SyncConflict {
+        entity_type: row.get(0)?,
+        entity_id: row.get(1)?,
+        field_name: row.get(2)?,
+        local_value: row.get(3)?,
+        remote_value: row.get(4)?,
+        local_updated_at: row.get(5)?,
+        remote_updated_at: row.get(6)?,
+        local_device_id: row.get(7)?,
+        remote_device_id: row.get(8)?,
+        resolution_status: row.get(9)?,
+        created_at: row.get(10)?,
+        updated_at: row.get(11)?,
+    })
+}
+
+pub fn get_conflict(
+    conn: &Connection,
+    entity_type: &str,
+    entity_id: &str,
+    field_name: &str,
+) -> Result<Option<SyncConflict>, String> {
+    conn.query_row(
+        "SELECT entity_type, entity_id, field_name, local_value, remote_value, local_updated_at,
+                remote_updated_at, local_device_id, remote_device_id, resolution_status, created_at,
+                updated_at
+         FROM sync_conflicts
+         WHERE entity_type = ?1 AND entity_id = ?2 AND field_name = ?3",
+        rusqlite::params![entity_type, entity_id, field_name],
+        row_to_conflict,
+    )
+    .optional()
+    .map_err(|e| format!("Failed to read sync conflict: {}", e))
+}
+
+pub fn list_sync_conflicts(conn: &Connection) -> Result<Vec<SyncConflict>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT entity_type, entity_id, field_name, local_value, remote_value, local_updated_at,
+                    remote_updated_at, local_device_id, remote_device_id, resolution_status, created_at,
+                    updated_at
+             FROM sync_conflicts
+             WHERE resolution_status = 'pending'
+             ORDER BY updated_at DESC",
+        )
+        .map_err(|e| format!("Failed to prepare sync conflicts query: {}", e))?;
+
+    let rows = stmt
+        .query_map([], row_to_conflict)
+        .map_err(|e| format!("Failed to query sync conflicts: {}", e))?;
+
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("Failed to read sync conflict row: {}", e))
+}
+
+pub fn count_sync_conflicts(conn: &Connection) -> Result<u32, String> {
+    let count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sync_conflicts WHERE resolution_status = 'pending'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Failed to count sync conflicts: {}", e))?;
+
+    Ok(count as u32)
+}
+
+pub fn count_pending_changes(conn: &Connection) -> Result<u32, String> {
+    let since = current_sync_watermark(conn);
+    Ok(get_pending_changes(conn, &since).len() as u32)
+}
+
+pub fn resolve_conflict_status(
+    conn: &Connection,
+    entity_type: &str,
+    entity_id: &str,
+    field_name: &str,
+    status: &str,
+) -> Result<(), String> {
+    let now = iso8601_now();
+    conn.execute(
+        "UPDATE sync_conflicts
+         SET resolution_status = ?4, updated_at = ?5
+         WHERE entity_type = ?1 AND entity_id = ?2 AND field_name = ?3",
+        rusqlite::params![entity_type, entity_id, field_name, status, now],
+    )
+    .map_err(|e| format!("Failed to update sync conflict status: {}", e))?;
+
+    Ok(())
+}
+
+pub fn upsert_conflict(
+    conn: &Connection,
+    local_change: &TrackedChange,
+    remote_change: &TrackedChange,
+    status: &str,
+) -> Result<(), String> {
+    let now = iso8601_now();
+
+    conn.execute(
+        "INSERT INTO sync_conflicts (
+            entity_type, entity_id, field_name, local_value, remote_value,
+            local_updated_at, remote_updated_at, local_device_id, remote_device_id,
+            resolution_status, created_at, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11)
+         ON CONFLICT(entity_type, entity_id, field_name) DO UPDATE SET
+            local_value = excluded.local_value,
+            remote_value = excluded.remote_value,
+            local_updated_at = excluded.local_updated_at,
+            remote_updated_at = excluded.remote_updated_at,
+            local_device_id = excluded.local_device_id,
+            remote_device_id = excluded.remote_device_id,
+            resolution_status = excluded.resolution_status,
+            updated_at = excluded.updated_at",
+        rusqlite::params![
+            &local_change.entity_type,
+            &local_change.entity_id,
+            &local_change.field_name,
+            &local_change.new_value,
+            &remote_change.new_value,
+            &local_change.updated_at,
+            &remote_change.updated_at,
+            Some(local_change.device_id.clone()),
+            Some(remote_change.device_id.clone()),
+            status,
+            now,
+        ],
+    )
+    .map_err(|e| format!("Failed to store sync conflict: {}", e))?;
+
+    Ok(())
+}
 fn json_text_to_sql_value(raw: &str) -> Result<rusqlite::types::Value, String> {
     let parsed = serde_json::from_str::<serde_json::Value>(raw)
         .unwrap_or_else(|_| serde_json::Value::String(raw.to_string()));
@@ -457,7 +709,8 @@ mod tests {
             device_id: "device-b".to_string(),
         };
 
-        apply_remote_change(&conn, &change).expect("apply list upsert");
+        let outcome = apply_remote_change(&conn, &change).expect("apply list upsert");
+        assert_eq!(outcome, RemoteApplyOutcome::Applied);
 
         let row: (String, i32) = conn
             .query_row(
@@ -490,7 +743,8 @@ mod tests {
             updated_at: "2026-03-23T00:00:00Z".to_string(),
             device_id: "device-b".to_string(),
         };
-        apply_remote_change(&conn, &delete_change).expect("apply delete timestamp");
+        let outcome = apply_remote_change(&conn, &delete_change).expect("apply delete timestamp");
+        assert_eq!(outcome, RemoteApplyOutcome::Applied);
 
         let deleted_at: Option<String> = conn
             .query_row(
@@ -506,7 +760,8 @@ mod tests {
             updated_at: "2026-03-24T00:00:00Z".to_string(),
             ..delete_change
         };
-        apply_remote_change(&conn, &restore_change).expect("apply null deleted_at");
+        let outcome = apply_remote_change(&conn, &restore_change).expect("apply null deleted_at");
+        assert_eq!(outcome, RemoteApplyOutcome::Applied);
 
         let restored_deleted_at: Option<String> = conn
             .query_row(
@@ -549,7 +804,8 @@ mod tests {
             updated_at: "2026-03-22T00:00:00Z".to_string(),
             device_id: "device-b".to_string(),
         };
-        apply_remote_change(&conn, &add_change).expect("apply task_tag add");
+        let outcome = apply_remote_change(&conn, &add_change).expect("apply task_tag add");
+        assert_eq!(outcome, RemoteApplyOutcome::Applied);
 
         let count: i64 = conn
             .query_row(
@@ -565,7 +821,8 @@ mod tests {
             updated_at: "2026-03-22T00:01:00Z".to_string(),
             ..add_change
         };
-        apply_remote_change(&conn, &remove_change).expect("apply task_tag remove");
+        let outcome = apply_remote_change(&conn, &remove_change).expect("apply task_tag remove");
+        assert_eq!(outcome, RemoteApplyOutcome::Applied);
 
         let count_after_remove: i64 = conn
             .query_row(
@@ -575,5 +832,51 @@ mod tests {
             )
             .expect("count task_tags after remove");
         assert_eq!(count_after_remove, 0);
+    }
+
+    #[test]
+    fn test_apply_remote_change_preserves_local_value_and_records_conflict() {
+        let (_tmp, db_path) = setup_test_db();
+        let conn = db::get_connection(&db_path).expect("failed to open connection");
+
+        conn.execute(
+            "INSERT INTO lists (id, name, color, sort_order, is_inbox, created_at, updated_at)
+             VALUES ('list-1', 'Inbox', NULL, 0, 1, '2026-03-22T00:00:00Z', '2026-03-22T00:00:00Z')",
+            [],
+        )
+        .expect("insert list");
+        conn.execute(
+            "INSERT INTO tasks (id, list_id, title, priority, status, sort_order, created_at, updated_at)
+             VALUES ('task-1', 'list-1', 'Local draft', 0, 0, 0, '2026-03-22T00:00:00Z', '2026-03-22T00:00:00Z')",
+            [],
+        )
+        .expect("insert task");
+
+        record_change(&conn, "task", "task-1", "title", "\"Local draft\"")
+            .expect("record local sync change");
+
+        let remote_change = TrackedChange {
+            entity_type: "task".to_string(),
+            entity_id: "task-1".to_string(),
+            field_name: "title".to_string(),
+            new_value: "\"Remote rewrite\"".to_string(),
+            updated_at: "2026-03-24T00:00:00Z".to_string(),
+            device_id: "remote".to_string(),
+        };
+
+        let outcome =
+            apply_remote_change(&conn, &remote_change).expect("apply remote conflicting change");
+        assert_eq!(outcome, RemoteApplyOutcome::ConflictStored);
+
+        let task_title: String = conn
+            .query_row("SELECT title FROM tasks WHERE id = 'task-1'", [], |row| row.get(0))
+            .expect("read local task title");
+        assert_eq!(task_title, "Local draft");
+
+        let conflicts = list_sync_conflicts(&conn).expect("list sync conflicts");
+        assert_eq!(conflicts.len(), 1);
+        assert_eq!(conflicts[0].field_name, "title");
+        assert_eq!(conflicts[0].local_value, "\"Local draft\"");
+        assert_eq!(conflicts[0].remote_value, "\"Remote rewrite\"");
     }
 }

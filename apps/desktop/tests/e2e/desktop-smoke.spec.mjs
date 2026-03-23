@@ -9,6 +9,7 @@ import {
   click,
   createProfileDir,
   ensureDriverEnvironment,
+  executeScript,
   launchApp,
   listButtonByName,
   quitApp,
@@ -27,7 +28,12 @@ describe('TickClone desktop smoke tests', function () {
 
   let activeProfileDir;
 
-  before(async () => {
+  before(async function () {
+    if (process.platform !== 'linux') {
+      this.skip();
+      return;
+    }
+
     await ensureDriverEnvironment();
   });
 
@@ -118,6 +124,23 @@ describe('TickClone desktop smoke tests', function () {
       await fakeSyncServer.close();
     }
   });
+
+  it('records cold-start metrics under the CI regression ceiling for a benchmark-sized dataset', async () => {
+    activeProfileDir = await createProfileDir();
+    await launchApp(activeProfileDir, {
+      env: {
+        TICKCLONE_BENCHMARK_SEED: '2000',
+      },
+    });
+
+    await waitForVisible(By.css('.sidebar'));
+
+    const metrics = await waitForStartupMetrics();
+    expect(metrics.bootstrapCompletedAt).to.be.a('number');
+    expect(metrics.selectedListHydratedAt).to.be.a('number');
+    expect(metrics.firstInteractiveAt).to.be.a('number');
+    expect(metrics.firstInteractiveAt).to.be.lessThan(3000);
+  });
 });
 
 async function startFakeSyncServer(requestLog) {
@@ -202,6 +225,21 @@ async function waitForSyncRequests(requestLog, expectedCount) {
   }
 
   throw new Error(`Timed out waiting for ${expectedCount} sync requests`);
+}
+
+async function waitForStartupMetrics() {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < 15000) {
+    const metrics = await executeScript(() => window.__TICKCLONE_STARTUP_METRICS__ ?? null);
+    if (metrics?.firstInteractiveAt !== null) {
+      return metrics;
+    }
+
+    await sleep(200);
+  }
+
+  throw new Error('Timed out waiting for startup metrics');
 }
 
 async function readJsonBody(request) {

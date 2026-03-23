@@ -40,7 +40,7 @@ pub fn record_tag_upsert(conn: &rusqlite::Connection, tag: &Tag) -> Result<(), S
         name: tag.name.clone(),
         color: tag.color.clone(),
         created_at: tag.created_at.clone(),
-        deleted_at: None,
+        deleted_at: tag.deleted_at.clone(),
     };
 
     record_serialized_change(conn, "tag", &tag.id, "_upsert", &snapshot)
@@ -180,6 +180,7 @@ mod tests {
             name: "Urgent".to_string(),
             color: Some("#ff0000".to_string()),
             created_at: "2026-03-22T00:00:00Z".to_string(),
+            deleted_at: None,
         };
 
         record_tag_upsert(&conn, &tag).expect("record tag upsert");
