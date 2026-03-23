@@ -4,13 +4,13 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: tickclone
-      POSTGRES_USER: tickclone
+      POSTGRES_DB: cross2
+      POSTGRES_USER: cross2
       POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tickclone"]
+      test: ["CMD-SHELL", "pg_isready -U cross2"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -20,7 +20,7 @@ services:
     ports:
       - "${PORT:-8080}:8080"
     environment:
-      DATABASE_URL: postgres://tickclone:${DB_PASSWORD:-changeme}@db:5432/tickclone?sslmode=disable
+      DATABASE_URL: postgres://cross2:${DB_PASSWORD:-changeme}@db:5432/cross2?sslmode=disable
       AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
       MAGIC_LINK_SECRET: ${MAGIC_LINK_SECRET:-change-this-to-a-32-char-secret!}
       SMTP_HOST: ${SMTP_HOST:-}
