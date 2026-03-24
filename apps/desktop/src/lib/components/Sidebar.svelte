@@ -221,7 +221,11 @@
       dragOverListId = null;
       return;
     }
-    const currentLists = [...userLists]; // already sorted by sortOrder
+    const draggedList = userLists.find(l => l.id === draggedListId);
+    if (draggedList && draggedList.areaId !== targetList.areaId) {
+      await editList(draggedListId, { areaId: targetList.areaId ?? null });
+    }
+    const currentLists = [...userLists];
     const dragIdx = currentLists.findIndex(l => l.id === draggedListId);
     const targetIdx = currentLists.findIndex(l => l.id === targetList.id);
     if (dragIdx < 0 || targetIdx < 0) return;
@@ -320,6 +324,11 @@
   }
   async function handleAreaDrop(e: DragEvent, targetArea: Area) {
     e.preventDefault();
+    if (draggedListId) { // list dropped onto area header — move list into area
+      await editList(draggedListId, { areaId: targetArea.id });
+      draggedListId = null; dragOverListId = null; dragOverAreaId = null;
+      return;
+    }
     if (!draggedAreaId || draggedAreaId === targetArea.id) {
       draggedAreaId = null; dragOverAreaId = null; return;
     }

@@ -132,8 +132,11 @@ export async function moveTask(
 }
 
 /**
- * Mark a task as complete (status = 1).
+ * Toggle a task between complete (status = 1) and incomplete (status = 0).
  */
 export async function completeTask(id: string): Promise<Task> {
-  return editTask(id, { status: 1 });
+  let current: Task | undefined;
+  tasks.subscribe(t => { current = t.find(x => x.id === id); })();
+  const newStatus = current?.status === 1 ? 0 : 1;
+  return editTask(id, { status: newStatus });
 }
