@@ -265,7 +265,7 @@
                 </button>
               {/each}
               {#if dayTasks.length > MAX_VISIBLE_TASKS}
-                <span class="cal-more-badge">+{dayTasks.length - MAX_VISIBLE_TASKS} more</span>
+                <button class="cal-more-badge" onclick={(e) => { e.stopPropagation(); handleDayClick(cell); }}>+{dayTasks.length - MAX_VISIBLE_TASKS} more</button>
               {/if}
             </div>
           </div>
@@ -474,7 +474,19 @@
   .cal-more-badge {
     font-size: 9px;
     color: var(--color-text-muted, #90918d);
-    padding: 0 4px;
+    padding: 1px 4px;
     flex-shrink: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    border-radius: 3px;
+    transition: background 100ms ease;
+  }
+
+  .cal-more-badge:hover {
+    background: var(--color-surface-hover, #2a2e33);
+    color: var(--color-accent, #6c93c7);
   }
 </style>
