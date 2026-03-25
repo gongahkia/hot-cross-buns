@@ -20,6 +20,13 @@
   const MAX_VISIBLE_TASKS = 3;
   const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+  function isoWeekNumber(date: Date): number {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  }
+
   // Reactive reload whenever month/year changes
   $effect(() => {
     const m = $currentMonth;
@@ -220,6 +227,7 @@
 
   <div class="cal-grid">
     <div class="cal-weekday-row">
+      <div class="cal-weekday cal-week-num-header"></div>
       {#each DAY_LABELS as label}
         <div class="cal-weekday">{label}</div>
       {/each}
@@ -227,6 +235,7 @@
 
     {#each calendarWeeks as week}
       <div class="cal-week-row">
+        <span class="cal-week-num">W{isoWeekNumber(new Date(week[0].date))}</span>
         {#each week as cell}
           {@const dayTasks = tasksByDate[cell.date] ?? []}
           <div
@@ -339,7 +348,7 @@
 
   .cal-weekday-row {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
+    grid-template-columns: 32px repeat(7, 1fr);
     flex-shrink: 0;
   }
 
@@ -355,9 +364,25 @@
 
   .cal-week-row {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
+    grid-template-columns: 32px repeat(7, 1fr);
     flex: 1;
     min-height: 0;
+  }
+
+  .cal-week-num-header {
+    width: 32px;
+  }
+
+  .cal-week-num {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 4px;
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--color-text-muted, #90918d);
+    opacity: 0.6;
+    user-select: none;
   }
 
   .cal-day-cell {
