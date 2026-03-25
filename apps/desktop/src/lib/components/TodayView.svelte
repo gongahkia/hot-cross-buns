@@ -49,22 +49,6 @@
     loadData();
   });
 
-  // Group tasks by list_id, preserving order.
-  function groupByList(taskList: Task[]): { listId: string; tasks: Task[] }[] {
-    const map = new Map<string, Task[]>();
-    const order: string[] = [];
-    for (const t of taskList) {
-      if (!map.has(t.listId)) {
-        map.set(t.listId, []);
-        order.push(t.listId);
-      }
-      map.get(t.listId)!.push(t);
-    }
-    return order.map((listId) => ({ listId, tasks: map.get(listId)! }));
-  }
-
-  let overdueGroups = $derived(groupByList(overdueTasks));
-  let todayGroups = $derived(groupByList(todayTasks));
   let totalCount = $derived(todayTasks.length + overdueTasks.length);
 
   let completedToday = $state(0);
@@ -81,9 +65,6 @@
     return listMap.get(listId)?.name ?? 'Unknown';
   }
 
-  function getListColor(listId: string): string {
-    return listMap.get(listId)?.color ?? 'var(--color-list-default)';
-  }
 </script>
 
 <div class="today-view">
@@ -102,44 +83,28 @@
   </div>
 
   <div class="today-content">
-    {#if overdueGroups.length > 0}
+    {#if overdueTasks.length > 0}
       <div class="overdue-section">
         <div class="section-label overdue-label">Overdue</div>
-        {#each overdueGroups as group (group.listId)}
-          <div class="list-group">
-            <div class="list-sub-header">
-              <span class="list-dot" style:background-color={getListColor(group.listId)}></span>
-              <span class="list-name">{getListName(group.listId)}</span>
-            </div>
-            {#each group.tasks as task (task.id)}
-              <TaskRow {task} />
-              {#each task.subtasks as subtask (subtask.id)}
-                <TaskRow task={subtask} indent={true} />
-              {/each}
-            {/each}
-          </div>
+        {#each overdueTasks as task (task.id)}
+          <TaskRow {task} listName={getListName(task.listId)} />
+          {#each task.subtasks as subtask (subtask.id)}
+            <TaskRow task={subtask} indent={true} listName={getListName(subtask.listId)} />
+          {/each}
         {/each}
       </div>
     {/if}
 
-    {#if todayGroups.length > 0}
+    {#if todayTasks.length > 0}
       <div class="today-section">
-        {#if overdueGroups.length > 0}
+        {#if overdueTasks.length > 0}
           <div class="section-label today-label">Due Today</div>
         {/if}
-        {#each todayGroups as group (group.listId)}
-          <div class="list-group">
-            <div class="list-sub-header">
-              <span class="list-dot" style:background-color={getListColor(group.listId)}></span>
-              <span class="list-name">{getListName(group.listId)}</span>
-            </div>
-            {#each group.tasks as task (task.id)}
-              <TaskRow {task} />
-              {#each task.subtasks as subtask (subtask.id)}
-                <TaskRow task={subtask} indent={true} />
-              {/each}
-            {/each}
-          </div>
+        {#each todayTasks as task (task.id)}
+          <TaskRow {task} listName={getListName(task.listId)} />
+          {#each task.subtasks as subtask (subtask.id)}
+            <TaskRow task={subtask} indent={true} listName={getListName(subtask.listId)} />
+          {/each}
         {/each}
       </div>
     {/if}
@@ -238,32 +203,6 @@
 
   .today-section {
     margin-left: 12px;
-  }
-
-  .list-group {
-    margin-bottom: 4px;
-  }
-
-  .list-sub-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px 2px;
-  }
-
-  .list-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  .list-name {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--color-text-secondary, #bac2de);
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
   }
 
   .empty-state {
