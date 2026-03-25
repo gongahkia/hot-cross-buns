@@ -2,9 +2,16 @@
   import { invoke } from '@tauri-apps/api/core';
   import type { Task } from '$lib/types';
   import { editTask, taskMutationVersion } from '$lib/stores/tasks';
+  import { lists } from '$lib/stores/lists';
   import TaskRow from './TaskRow.svelte';
 
   const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  let listColorMap = $derived.by(() => {
+    const m: Record<string, string> = {};
+    for (const l of $lists) { if (l.color) m[l.id] = l.color; }
+    return m;
+  });
 
   /** The Monday of the currently displayed week. */
   let weekStart = $state(getMonday(new Date()));
@@ -175,7 +182,9 @@
         <div class="column-tasks">
           {#if dayTasks.length > 0}
             {#each dayTasks as task (task.id)}
-              <TaskRow {task} />
+              <div class="week-task-wrapper" style:border-left-color={listColorMap[task.listId] ?? 'transparent'}>
+                <TaskRow {task} />
+              </div>
             {/each}
           {:else}
             <div class="column-empty">No tasks</div>
@@ -308,6 +317,11 @@
     flex: 1;
     overflow-y: auto;
     padding: 4px 0;
+  }
+
+  .week-task-wrapper {
+    border-left: 3px solid transparent;
+    border-radius: 3px;
   }
 
   .column-empty {
