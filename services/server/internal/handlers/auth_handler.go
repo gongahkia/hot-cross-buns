@@ -62,7 +62,7 @@ func (h *AuthHandler) RequestMagicLink(c echo.Context) error {
 
 	token, err := h.AuthService.GenerateMagicLink(c.Request().Context(), h.App.DB, req.Email)
 	if err != nil {
-		slog.Error("failed to generate magic link", "error", err, "email", req.Email)
+		slog.Error("failed to generate magic link", "error", err)
 		return c.JSON(http.StatusOK, map[string]string{
 			"message": "If that email is registered, a link has been sent.",
 		})
