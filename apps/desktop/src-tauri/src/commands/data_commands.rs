@@ -101,6 +101,7 @@ fn row_to_list(row: &rusqlite::Row) -> rusqlite::Result<List> {
         sort_order: row.get(3)?,
         is_inbox: is_inbox_int != 0,
         area_id: row.get(5)?,
+        description: row.get(9)?,
         created_at: row.get(6)?,
         updated_at: row.get(7)?,
         deleted_at: row.get(8)?,
@@ -142,7 +143,7 @@ fn build_export_envelope(conn: &rusqlite::Connection) -> Result<ExportEnvelope, 
     // Query all non-deleted lists.
     let mut list_stmt = conn
         .prepare(
-            "SELECT id, name, color, sort_order, is_inbox, area_id, created_at, updated_at, deleted_at \
+            "SELECT id, name, color, sort_order, is_inbox, area_id, created_at, updated_at, deleted_at, description \
              FROM lists WHERE deleted_at IS NULL ORDER BY sort_order",
         )
         .map_err(|e| format!("Failed to prepare lists query: {}", e))?;
