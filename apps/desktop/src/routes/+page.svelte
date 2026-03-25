@@ -29,6 +29,7 @@
   type TagFilterViewModule = typeof import('$lib/components/TagFilterView.svelte');
   type Next7DaysViewModule = typeof import('$lib/components/Next7DaysView.svelte');
   type AreaViewModule = typeof import('$lib/components/AreaView.svelte');
+  type SavedFilterViewModule = typeof import('$lib/components/SavedFilterView.svelte');
 
   let showShortcuts = $state(false);
   let showOnboarding = $state(false);
@@ -44,6 +45,7 @@
   let tagFilterViewModule = $state<TagFilterViewModule | null>(null);
   let next7DaysViewModule = $state<Next7DaysViewModule | null>(null);
   let areaViewModule = $state<AreaViewModule | null>(null);
+  let savedFilterViewModule = $state<SavedFilterViewModule | null>(null);
 
   function defaultListFrom(lists: List[]): List | null {
     return lists.find((list) => list.isInbox) ?? lists[0] ?? null;
@@ -99,6 +101,10 @@
 
     if (view === 'area-view' && !areaViewModule) {
       areaViewModule = await import('$lib/components/AreaView.svelte');
+    }
+
+    if (view === 'saved-filter' && !savedFilterViewModule) {
+      savedFilterViewModule = await import('$lib/components/SavedFilterView.svelte');
     }
   }
 
@@ -318,6 +324,12 @@
           <timelineViewModule.default />
         {:else}
           <p class="empty-state">Loading timeline...</p>
+        {/if}
+      {:else if activeView === 'saved-filter'}
+        {#if savedFilterViewModule}
+          <savedFilterViewModule.default />
+        {:else}
+          <p class="empty-state">Loading filter...</p>
         {/if}
       {:else if activeView === 'area-view'}
         {#if areaViewModule}
