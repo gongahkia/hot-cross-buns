@@ -197,6 +197,18 @@
       switchToCalendar() {
         currentView.set('calendar');
       },
+      switchToWeek() {
+        currentView.set('week');
+      },
+      switchToSchedule() {
+        currentView.set('schedule');
+      },
+      switchToUpcoming() {
+        currentView.set('upcoming');
+      },
+      switchToNext7Days() {
+        currentView.set('next7days');
+      },
       showShortcutsModal() {
         showShortcuts = true;
       },
