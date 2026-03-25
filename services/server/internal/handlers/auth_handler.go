@@ -77,7 +77,7 @@ func (h *AuthHandler) RequestMagicLink(c echo.Context) error {
 			}
 		}()
 	} else {
-		slog.Warn("SMTP not configured, magic link not emailed", "token", token)
+		slog.Warn("SMTP not configured, magic link not emailed")
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{
