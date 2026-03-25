@@ -35,7 +35,7 @@ use commands::task_commands::{
     complete_recurring_task, create_task, delete_task, get_completion_stats,
     get_high_priority_tasks, get_overdue_tasks, get_scheduled_tasks, get_task, get_tasks_by_list,
     get_tasks_due_this_week, get_tasks_due_today, get_tasks_in_range, get_unscheduled_tasks,
-    get_untagged_tasks, move_task, preview_recurrence, search_tasks, update_task,
+    get_untagged_tasks, get_completed_tasks, move_task, preview_recurrence, search_tasks, update_task,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -180,6 +180,7 @@ pub fn run() {
             update_saved_filter,
             delete_saved_filter,
             get_tasks_by_saved_filter,
+            get_completed_tasks,
             add_attachment,
             list_attachments,
             remove_attachment,
