@@ -1,4 +1,5 @@
 pub mod area;
+pub mod attachment;
 pub mod heading;
 pub mod list;
 pub mod saved_filter;
@@ -8,6 +9,7 @@ pub mod tag;
 pub mod task;
 
 pub use area::Area;
+pub use attachment::Attachment;
 pub use heading::Heading;
 pub use list::List;
 pub use saved_filter::SavedFilter;
