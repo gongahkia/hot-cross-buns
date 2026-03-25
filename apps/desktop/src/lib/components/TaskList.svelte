@@ -85,11 +85,26 @@
     [...allHeadings].sort((a, b) => a.sortOrder - b.sortOrder)
   );
 
+  // tag filter pills
+  let activeTagFilter: string | null = $state(null);
+  let listTags = $derived.by(() => {
+    const seen = new Map<string, { id: string; name: string; color: string | null }>();
+    for (const t of allTasks) {
+      if (t.tags) for (const tag of t.tags) { if (!seen.has(tag.id)) seen.set(tag.id, tag); }
+    }
+    return [...seen.values()];
+  });
+
+  function matchesTagFilter(t: Task): boolean {
+    if (!activeTagFilter) return true;
+    return t.tags?.some((tag) => tag.id === activeTagFilter) ?? false;
+  }
+
   // tasks with no heading, active
   let ungroupedTasks = $derived.by(() =>
     sortTasks(
       allTasks.filter(
-        (t) => !t.parentTaskId && t.status === 0 && !t.headingId && matchesTaskFilters(t, $currentFilters)
+        (t) => !t.parentTaskId && t.status === 0 && !t.headingId && matchesTaskFilters(t, $currentFilters) && matchesTagFilter(t)
       ),
       $currentSort,
     ),
@@ -99,7 +114,7 @@
   function tasksForHeading(headingId: string): Task[] {
     return sortTasks(
       allTasks.filter(
-        (t) => !t.parentTaskId && t.status === 0 && t.headingId === headingId && matchesTaskFilters(t, $currentFilters)
+        (t) => !t.parentTaskId && t.status === 0 && t.headingId === headingId && matchesTaskFilters(t, $currentFilters) && matchesTagFilter(t)
       ),
       $currentSort,
     );
@@ -108,7 +123,7 @@
   let completedTasks = $derived.by(() =>
     sortTasks(
       allTasks.filter(
-        (t) => !t.parentTaskId && t.status === 1 && matchesTaskFilters(t, $currentFilters)
+        (t) => !t.parentTaskId && t.status === 1 && matchesTaskFilters(t, $currentFilters) && matchesTagFilter(t)
       ),
       $currentSort,
     ),
@@ -379,6 +394,20 @@
       {:else}
         <button class="list-description list-description-placeholder" onclick={startEditDescription}>Add a description...</button>
       {/if}
+    {/if}
+
+    {#if listTags.length > 0}
+      <div class="tag-pill-bar">
+        <button class="tag-filter-pill" class:active={!activeTagFilter} onclick={() => (activeTagFilter = null)}>All</button>
+        {#each listTags as tag (tag.id)}
+          <button
+            class="tag-filter-pill"
+            class:active={activeTagFilter === tag.id}
+            style:--pill-color={tag.color ?? 'var(--color-tag-default)'}
+            onclick={() => (activeTagFilter = activeTagFilter === tag.id ? null : tag.id)}
+          >{tag.name}</button>
+        {/each}
+      </div>
     {/if}
 
     <div class="quick-add">
@@ -663,6 +692,31 @@
   }
   .list-description:hover { color: var(--color-text-primary, #d4d4d4); }
   .list-description-placeholder { color: var(--color-text-muted, #90918d); font-style: italic; }
+  .tag-pill-bar {
+    display: flex;
+    gap: 6px;
+    padding: 0 16px 8px;
+    overflow-x: auto;
+    flex-shrink: 0;
+  }
+  .tag-filter-pill {
+    padding: 3px 10px;
+    border-radius: 12px;
+    border: 1px solid var(--color-border, #32353a);
+    background: none;
+    font-size: 12px;
+    color: var(--color-text-secondary, #b6b6b2);
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .tag-filter-pill:hover { background: var(--color-surface-hover, #2a2e33); }
+  .tag-filter-pill.active {
+    background: color-mix(in srgb, var(--pill-color, var(--color-accent, #6c93c7)) 18%, transparent);
+    border-color: color-mix(in srgb, var(--pill-color, var(--color-accent, #6c93c7)) 40%, transparent);
+    color: var(--pill-color, var(--color-accent, #6c93c7));
+    font-weight: 600;
+  }
   .list-description-edit {
     display: block;
     width: calc(100% - 32px);
