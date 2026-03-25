@@ -52,6 +52,7 @@
   let isSelected = $derived($selectedTaskIds.has(task.id));
   let borderColor = $derived(PRIORITY_COLORS[task.priority] ?? 'transparent');
   let dueBadge = $derived(formatDueDate(task.dueDate));
+  let isTodayFlag = $derived(dueBadge?.label === 'Today' && !dueBadge?.overdue);
 </script>
 
 <div
@@ -96,7 +97,8 @@
   {/if}
 
   {#if dueBadge}
-    <span class="due-badge" class:overdue={dueBadge.overdue}>
+    <span class="due-badge" class:overdue={dueBadge.overdue} class:today-flag={isTodayFlag}>
+      {#if isTodayFlag}<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3 2v12M3 2l8 3.5L3 9" fill="currentColor"/></svg>{/if}
       {dueBadge.label}
     </span>
   {/if}
@@ -235,6 +237,14 @@
   .due-badge.overdue {
     background: color-mix(in srgb, var(--color-danger, #cd4945) 14%, transparent);
     color: var(--color-danger, #cd4945);
+  }
+  .due-badge.today-flag {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    background: color-mix(in srgb, var(--color-danger, #cd4945) 12%, transparent);
+    color: var(--color-danger, #cd4945);
+    font-weight: 600;
   }
 
   .subtask-indicator {
