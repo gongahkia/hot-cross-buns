@@ -40,7 +40,7 @@ export async function addList(name: string, color?: string): Promise<List> {
  */
 export async function editList(
   id: string,
-  updates: { name?: string; color?: string; sortOrder?: number; areaId?: string | null }
+  updates: { name?: string; color?: string; sortOrder?: number; areaId?: string | null; description?: string }
 ): Promise<List> {
   const updated = await invoke<List>('update_list', {
     id,
@@ -48,6 +48,7 @@ export async function editList(
     color: updates.color ?? null,
     sortOrder: updates.sortOrder ?? null,
     areaId: updates.areaId !== undefined ? updates.areaId : null,
+    description: updates.description ?? null,
   });
   lists.update((current) =>
     sortLists(current.map((list) => (list.id === id ? updated : list)))
