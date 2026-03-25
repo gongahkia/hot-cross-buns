@@ -169,6 +169,18 @@ fn apply_runtime_migrations(conn: &Connection) -> Result<(), String> {
             updated_at TEXT NOT NULL
         );"
     );
+    let _ = conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS task_attachments (
+            id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+            filename TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            mime_type TEXT,
+            size INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_attachments_task ON task_attachments(task_id);"
+    );
     Ok(())
 }
 
