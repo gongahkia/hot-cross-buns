@@ -596,6 +596,20 @@
       </span>
       <span class="nav-label">Timeline</span>
     </button>
+
+    <button
+      class="nav-item"
+      class:active={$currentView === 'logbook'}
+      onclick={() => selectView('logbook')}
+    >
+      <span class="nav-icon" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none">
+          <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.4"/>
+          <path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span class="nav-label">Logbook</span>
+    </button>
   </nav>
 
   <div class="sidebar-divider"></div>
