@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -71,7 +72,8 @@ func (h *TagHandler) CreateTag(c echo.Context) error {
 	}
 
 	if err := h.Repo.CreateTag(c.Request().Context(), h.Pool, userID, tag); err != nil {
-		return c.JSON(http.StatusInternalServerError, newError("INTERNAL_ERROR", err.Error()))
+		slog.Error("failed to create tag", "error", err)
+		return c.JSON(http.StatusInternalServerError, newError("INTERNAL_ERROR", "failed to create tag"))
 	}
 
 	return c.JSON(http.StatusCreated, tag)
@@ -86,7 +88,8 @@ func (h *TagHandler) GetTags(c echo.Context) error {
 
 	tags, err := h.Repo.GetTagsByUser(c.Request().Context(), h.Pool, userID)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, newError("INTERNAL_ERROR", err.Error()))
+		slog.Error("failed to get tags", "error", err)
+		return c.JSON(http.StatusInternalServerError, newError("INTERNAL_ERROR", "failed to fetch tags"))
 	}
 
 	if tags == nil {
@@ -114,7 +117,8 @@ func (h *TagHandler) UpdateTag(c echo.Context) error {
 
 	updated, err := h.Repo.UpdateTag(c.Request().Context(), h.Pool, userID, tagID, req.Name, req.Color)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, newError("INTERNAL_ERROR", err.Error()))
+		slog.Error("failed to update tag", "error", err)
+		return c.JSON(http.StatusInternalServerError, newError("INTERNAL_ERROR", "failed to update tag"))
 	}
 
 	return c.JSON(http.StatusOK, updated)
@@ -133,7 +137,8 @@ func (h *TagHandler) DeleteTag(c echo.Context) error {
 	}
 
 	if err := h.Repo.DeleteTag(c.Request().Context(), h.Pool, userID, tagID); err != nil {
-		return c.JSON(http.StatusInternalServerError, newError("INTERNAL_ERROR", err.Error()))
+		slog.Error("failed to delete tag", "error", err)
+		return c.JSON(http.StatusInternalServerError, newError("INTERNAL_ERROR", "failed to delete tag"))
 	}
 
 	return c.NoContent(http.StatusNoContent)
@@ -157,7 +162,8 @@ func (h *TagHandler) AddTagToTask(c echo.Context) error {
 	}
 
 	if err := h.Repo.AddTagToTask(c.Request().Context(), h.Pool, userID, taskID, tagID); err != nil {
-		return c.JSON(http.StatusInternalServerError, newError("INTERNAL_ERROR", err.Error()))
+		slog.Error("failed to add tag to task", "error", err)
+		return c.JSON(http.StatusInternalServerError, newError("INTERNAL_ERROR", "failed to add tag to task"))
 	}
 
 	return c.NoContent(http.StatusNoContent)
@@ -181,7 +187,8 @@ func (h *TagHandler) RemoveTagFromTask(c echo.Context) error {
 	}
 
 	if err := h.Repo.RemoveTagFromTask(c.Request().Context(), h.Pool, userID, taskID, tagID); err != nil {
-		return c.JSON(http.StatusInternalServerError, newError("INTERNAL_ERROR", err.Error()))
+		slog.Error("failed to remove tag from task", "error", err)
+		return c.JSON(http.StatusInternalServerError, newError("INTERNAL_ERROR", "failed to remove tag from task"))
 	}
 
 	return c.NoContent(http.StatusNoContent)
@@ -201,7 +208,8 @@ func (h *TagHandler) GetTasksByTag(c echo.Context) error {
 
 	tasks, err := h.Repo.GetTasksByTag(c.Request().Context(), h.Pool, userID, tagID)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, newError("INTERNAL_ERROR", err.Error()))
+		slog.Error("failed to get tasks by tag", "error", err)
+		return c.JSON(http.StatusInternalServerError, newError("INTERNAL_ERROR", "failed to fetch tasks"))
 	}
 
 	if tasks == nil {

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -52,7 +53,8 @@ func (h *SyncHandler) Push(c echo.Context) error {
 
 	accepted, conflicts, err := services.PushChanges(c.Request().Context(), h.Pool, userID, payload)
 	if err != nil {
-		return apiError(c, http.StatusInternalServerError, "SYNC_PUSH_FAILED", err.Error(), nil)
+		slog.Error("sync push failed", "error", err)
+		return apiError(c, http.StatusInternalServerError, "SYNC_PUSH_FAILED", "failed to apply changes", nil)
 	}
 
 	return c.JSON(http.StatusOK, models.PushResponse{
@@ -81,7 +83,8 @@ func (h *SyncHandler) Pull(c echo.Context) error {
 
 	resp, err := services.PullChanges(c.Request().Context(), h.Pool, userID, payload)
 	if err != nil {
-		return apiError(c, http.StatusInternalServerError, "SYNC_PULL_FAILED", err.Error(), nil)
+		slog.Error("sync pull failed", "error", err)
+		return apiError(c, http.StatusInternalServerError, "SYNC_PULL_FAILED", "failed to fetch changes", nil)
 	}
 
 	return c.JSON(http.StatusOK, resp)
