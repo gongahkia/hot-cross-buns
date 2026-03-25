@@ -61,6 +61,7 @@ func newServer(application *app.App) *echo.Echo {
 	e.HideBanner = true
 
 	e.Use(middleware.Recover())
+	e.Use(middleware.BodyLimit("1M"))
 	e.Use(middleware.SecureWithConfig(middleware.SecureConfig{
 		XSSProtection:         "1; mode=block",
 		ContentTypeNosniff:    "nosniff",
