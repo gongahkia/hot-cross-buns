@@ -15,6 +15,10 @@ use commands::heading_commands::{
     create_heading, delete_heading, get_headings_by_list, update_heading,
 };
 use commands::data_commands::{export_csv, export_data, import_data};
+use commands::filter_commands::{
+    create_saved_filter, delete_saved_filter, get_saved_filters, get_tasks_by_saved_filter,
+    update_saved_filter,
+};
 use commands::list_commands::{create_list, delete_list, get_lists, update_list};
 use commands::reminder_commands::drain_due_notifications;
 use commands::sync_commands::{
@@ -170,6 +174,11 @@ pub fn run() {
             get_headings_by_list,
             update_heading,
             delete_heading,
+            create_saved_filter,
+            get_saved_filters,
+            update_saved_filter,
+            delete_saved_filter,
+            get_tasks_by_saved_filter,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
