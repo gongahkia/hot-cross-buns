@@ -1,4 +1,5 @@
 pub mod area_commands;
+pub mod attachment_commands;
 pub mod bench_commands;
 pub mod data_commands;
 pub mod filter_commands;
