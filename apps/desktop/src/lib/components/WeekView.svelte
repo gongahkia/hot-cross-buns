@@ -185,28 +185,30 @@
         <div class="column-header" class:is-today={dateStr === today}>
           {columnHeader(day)}
         </div>
-        {@const allDayTasks = dayTasks.filter(isAllDay)}
-        {@const timedTasks = dayTasks.filter(t => !isAllDay(t))}
-        {#if allDayTasks.length > 0}
-          <div class="allday-section">
-            {#each allDayTasks as task (task.id)}
-              <div class="week-task-wrapper allday" style:border-left-color={listColorMap[task.listId] ?? 'transparent'}>
-                <TaskRow {task} />
-              </div>
-            {/each}
+        {#if true}
+          {@const allDayTasks = dayTasks.filter(isAllDay)}
+          {@const timedTasks = dayTasks.filter(t => !isAllDay(t))}
+          {#if allDayTasks.length > 0}
+            <div class="allday-section">
+              {#each allDayTasks as task (task.id)}
+                <div class="week-task-wrapper allday" style:border-left-color={listColorMap[task.listId] ?? 'transparent'}>
+                  <TaskRow {task} />
+                </div>
+              {/each}
+            </div>
+          {/if}
+          <div class="column-tasks">
+            {#if timedTasks.length > 0}
+              {#each timedTasks as task (task.id)}
+                <div class="week-task-wrapper" style:border-left-color={listColorMap[task.listId] ?? 'transparent'}>
+                  <TaskRow {task} />
+                </div>
+              {/each}
+            {:else if allDayTasks.length === 0}
+              <div class="column-empty">No tasks</div>
+            {/if}
           </div>
         {/if}
-        <div class="column-tasks">
-          {#if timedTasks.length > 0}
-            {#each timedTasks as task (task.id)}
-              <div class="week-task-wrapper" style:border-left-color={listColorMap[task.listId] ?? 'transparent'}>
-                <TaskRow {task} />
-              </div>
-            {/each}
-          {:else if allDayTasks.length === 0}
-            <div class="column-empty">No tasks</div>
-          {/if}
-        </div>
       </div>
     {/each}
   </div>

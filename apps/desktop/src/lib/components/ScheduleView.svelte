@@ -205,6 +205,7 @@
       <div class="pool-header">Unscheduled ({timedUnscheduled.length})</div>
       <div class="pool-list">
         {#each timedUnscheduled as task (task.id)}
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
             class="pool-task"
             draggable="true"

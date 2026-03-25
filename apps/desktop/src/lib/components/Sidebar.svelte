@@ -658,7 +658,7 @@
               <svg viewBox="0 0 16 16" fill="none"><path d="M2 4h12l-3 4v4l-2 1V8L2 4Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
             </span>
             <span class="nav-label">{filter.name}</span>
-            <button class="saved-filter-delete" onclick={(e) => handleDeleteSavedFilter(e, filter.id)} aria-label="Delete filter" title="Delete filter">&times;</button>
+            <span class="saved-filter-delete" role="button" tabindex="0" onclick={(e) => handleDeleteSavedFilter(e, filter.id)} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleDeleteSavedFilter(e, filter.id); }} aria-label="Delete filter" title="Delete filter">&times;</span>
           </button>
         {/each}
         <button class="new-list-btn" onclick={handleSaveCurrentFilter}>
@@ -700,6 +700,7 @@
     {#each sortedAreas as area (area.id)}
       {@const areaLists = listsForArea(area.id)}
       {#if areaLists.length > 0}
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="area-header section-toggle"
           class:active={$currentView === 'area-view' && $selectedAreaId === area.id}

@@ -51,6 +51,7 @@
   let preview = $derived(input.trim() ? parseTaskInput(input) : null);
 </script>
 
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="capture-window" onkeydown={handleKeydown}>
   <div class="capture-header">
     <select class="list-select" bind:value={selectedListId}>
@@ -59,6 +60,7 @@
       {/each}
     </select>
   </div>
+  <!-- svelte-ignore a11y_autofocus -->
   <input
     class="capture-input"
     type="text"
