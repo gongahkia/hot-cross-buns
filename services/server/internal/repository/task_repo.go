@@ -149,11 +149,37 @@ func (r *TaskRepository) GetTaskByID(ctx context.Context, pool *pgxpool.Pool, us
 	return &t, nil
 }
 
+// allowedTaskUpdateColumns is the set of columns that may be dynamically set
+// via UpdateTask. Any key not in this set is rejected to prevent SQL injection
+// through caller-supplied map keys.
+var allowedTaskUpdateColumns = map[string]bool{
+	"title":           true,
+	"content":         true,
+	"list_id":         true,
+	"parent_task_id":  true,
+	"priority":        true,
+	"status":          true,
+	"start_date":      true,
+	"due_date":        true,
+	"due_timezone":    true,
+	"recurrence_rule": true,
+	"sort_order":      true,
+	"heading_id":      true,
+	"completed_at":    true,
+	"updated_at":      true,
+}
+
 // UpdateTask partially updates a task. If status is changed to 1 (completed),
 // completed_at is set automatically. Returns the updated task.
 func (r *TaskRepository) UpdateTask(ctx context.Context, pool *pgxpool.Pool, userID uuid.UUID, taskID uuid.UUID, fields map[string]interface{}) (*models.Task, error) {
 	if len(fields) == 0 {
 		return r.GetTaskByID(ctx, pool, userID, taskID)
+	}
+
+	for col := range fields {
+		if !allowedTaskUpdateColumns[col] {
+			return nil, fmt.Errorf("disallowed column: %s", col)
+		}
 	}
 
 	// Auto-set completed_at when status changes
