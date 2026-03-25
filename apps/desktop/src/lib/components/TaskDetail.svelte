@@ -193,6 +193,15 @@
     saveDueDate();
   }
 
+  function setDueToday() {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    dueDateValue = `${yyyy}-${mm}-${dd}`;
+    saveDueDate();
+  }
+
   function saveDueDate() {
     if (!task) return;
     if (!dueDateValue) {
@@ -414,6 +423,10 @@
               value={dueTimeValue}
               onchange={onDueTimeChange}
             />
+            <button class="today-flag-btn" onclick={setDueToday} title="Set due today">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 2v12M3 2l8 3.5L3 9" fill="currentColor"/></svg>
+              Today
+            </button>
           </div>
           {#if dateRangeBadge}
             <span class="date-range-badge">{dateRangeBadge}</span>
@@ -740,6 +753,25 @@
   .date-row {
     display: flex;
     gap: 8px;
+    align-items: center;
+  }
+  .today-flag-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border: 1px solid color-mix(in srgb, var(--color-danger, #cd4945) 30%, transparent);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--color-danger, #cd4945) 10%, transparent);
+    color: var(--color-danger, #cd4945);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .today-flag-btn:hover {
+    background: color-mix(in srgb, var(--color-danger, #cd4945) 18%, transparent);
   }
 
   .date-input {
