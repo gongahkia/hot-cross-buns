@@ -72,6 +72,7 @@
     const listId = currentListId;
     const includeCompleted = showCompleted;
     const _taskMutationVersion = $taskMutationVersion;
+    activeTagFilter = null; // reset tag filter on list switch
     if (!listId) {
       tasks.set([]);
       headings.set([]);
