@@ -30,6 +30,7 @@
   type Next7DaysViewModule = typeof import('$lib/components/Next7DaysView.svelte');
   type AreaViewModule = typeof import('$lib/components/AreaView.svelte');
   type SavedFilterViewModule = typeof import('$lib/components/SavedFilterView.svelte');
+  type LogbookViewModule = typeof import('$lib/components/LogbookView.svelte');
 
   let showShortcuts = $state(false);
   let showOnboarding = $state(false);
@@ -46,6 +47,7 @@
   let next7DaysViewModule = $state<Next7DaysViewModule | null>(null);
   let areaViewModule = $state<AreaViewModule | null>(null);
   let savedFilterViewModule = $state<SavedFilterViewModule | null>(null);
+  let logbookViewModule = $state<LogbookViewModule | null>(null);
 
   function defaultListFrom(lists: List[]): List | null {
     return lists.find((list) => list.isInbox) ?? lists[0] ?? null;
@@ -105,6 +107,10 @@
 
     if (view === 'saved-filter' && !savedFilterViewModule) {
       savedFilterViewModule = await import('$lib/components/SavedFilterView.svelte');
+    }
+
+    if (view === 'logbook' && !logbookViewModule) {
+      logbookViewModule = await import('$lib/components/LogbookView.svelte');
     }
   }
 
@@ -354,6 +360,12 @@
           <todayViewModule.default />
         {:else}
           <p class="empty-state">Loading today...</p>
+        {/if}
+      {:else if activeView === 'logbook'}
+        {#if logbookViewModule}
+          <logbookViewModule.default />
+        {:else}
+          <p class="empty-state">Loading logbook...</p>
         {/if}
       {:else if hasSelectedList}
         <TaskList />
