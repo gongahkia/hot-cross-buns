@@ -26,6 +26,7 @@
   type UpcomingViewModule = typeof import('$lib/components/UpcomingView.svelte');
   type ScheduleViewModule = typeof import('$lib/components/ScheduleView.svelte');
   type TimelineViewModule = typeof import('$lib/components/TimelineView.svelte');
+  type TagFilterViewModule = typeof import('$lib/components/TagFilterView.svelte');
 
   let showShortcuts = $state(false);
   let showOnboarding = $state(false);
@@ -38,6 +39,7 @@
   let upcomingViewModule = $state<UpcomingViewModule | null>(null);
   let scheduleViewModule = $state<ScheduleViewModule | null>(null);
   let timelineViewModule = $state<TimelineViewModule | null>(null);
+  let tagFilterViewModule = $state<TagFilterViewModule | null>(null);
 
   function defaultListFrom(lists: List[]): List | null {
     return lists.find((list) => list.isInbox) ?? lists[0] ?? null;
@@ -81,6 +83,10 @@
 
     if (view === 'timeline' && !timelineViewModule) {
       timelineViewModule = await import('$lib/components/TimelineView.svelte');
+    }
+
+    if (view === 'tag-filter' && !tagFilterViewModule) {
+      tagFilterViewModule = await import('$lib/components/TagFilterView.svelte');
     }
   }
 
@@ -300,6 +306,12 @@
           <timelineViewModule.default />
         {:else}
           <p class="empty-state">Loading timeline...</p>
+        {/if}
+      {:else if activeView === 'tag-filter'}
+        {#if tagFilterViewModule}
+          <tagFilterViewModule.default />
+        {:else}
+          <p class="empty-state">Loading tag filter...</p>
         {/if}
       {:else if activeView === 'today'}
         {#if todayViewModule}
