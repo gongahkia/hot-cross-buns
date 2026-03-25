@@ -343,8 +343,8 @@ pub fn import_data(
         for list in &envelope.lists {
             let is_inbox: i32 = if list.is_inbox { 1 } else { 0 };
             conn.execute(
-                "INSERT OR REPLACE INTO lists (id, name, color, sort_order, is_inbox, created_at, updated_at, deleted_at) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                "INSERT OR REPLACE INTO lists (id, name, color, sort_order, is_inbox, created_at, updated_at, deleted_at, description) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 rusqlite::params![
                     list.id,
                     list.name,
@@ -354,6 +354,7 @@ pub fn import_data(
                     list.created_at,
                     list.updated_at,
                     list.deleted_at,
+                    list.description,
                 ],
             )
             .map_err(|e| format!("Failed to import list '{}': {}", list.id, e))?;
