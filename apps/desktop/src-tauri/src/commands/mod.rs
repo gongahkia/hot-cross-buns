@@ -1,6 +1,7 @@
 pub mod area_commands;
 pub mod bench_commands;
 pub mod data_commands;
+pub mod filter_commands;
 pub mod heading_commands;
 pub mod list_commands;
 pub mod reminder_commands;
