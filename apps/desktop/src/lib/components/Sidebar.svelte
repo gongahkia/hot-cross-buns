@@ -8,11 +8,49 @@
   import { tags } from '$lib/stores/tags';
   import { currentView, selectedListId, selectedSmartFilter, selectedTagId, selectedAreaId, selectedSavedFilterId, type ViewMode, type SmartFilterType } from '$lib/stores/ui';
   import { theme, cycleTheme } from '$lib/stores/theme';
-  import type { List, Area, SavedFilter } from '$lib/types';
+  import type { List, Area, SavedFilter, Task } from '$lib/types';
   import { savedFilters, loadSavedFilters, addSavedFilter, removeSavedFilter } from '$lib/stores/savedFilters';
   import { currentFilters } from '$lib/stores/filters';
+  import { selectedTaskId } from '$lib/stores/ui';
   import SyncSettings from './SyncSettings.svelte';
   import { onMount } from 'svelte';
+
+  // quick find state
+  let quickFindQuery = $state('');
+  let quickFindResults: Task[] = $state([]);
+  let quickFindOpen = $state(false);
+  let quickFindTimeout: ReturnType<typeof setTimeout> | undefined = $state(undefined);
+
+  function handleQuickFindInput(e: Event) {
+    const val = (e.target as HTMLInputElement).value;
+    quickFindQuery = val;
+    clearTimeout(quickFindTimeout);
+    if (!val.trim()) { quickFindResults = []; quickFindOpen = false; return; }
+    quickFindTimeout = setTimeout(async () => {
+      try {
+        const results = await invoke<Task[]>('search_tasks', { query: val.trim() });
+        quickFindResults = results.slice(0, 10);
+        quickFindOpen = quickFindResults.length > 0;
+      } catch { quickFindResults = []; quickFindOpen = false; }
+    }, 200);
+  }
+
+  function selectQuickFindResult(task: Task) {
+    selectedListId.set(task.listId);
+    selectedTaskId.set(task.id);
+    currentView.set('list');
+    quickFindQuery = '';
+    quickFindResults = [];
+    quickFindOpen = false;
+  }
+
+  function handleQuickFindKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') { quickFindQuery = ''; quickFindResults = []; quickFindOpen = false; }
+  }
+
+  function handleQuickFindBlur() {
+    setTimeout(() => { quickFindOpen = false; }, 150); // delay so click on result registers
+  }
 
   let tagsExpanded = $state(true);
   let creatingList = $state(false);
@@ -425,6 +463,31 @@
 <aside class="sidebar">
   <div class="sidebar-header">
     <h2>Cross 2</h2>
+  </div>
+
+  <div class="quick-find">
+    <div class="quick-find-input-wrap">
+      <svg class="quick-find-icon" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.4"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      <input
+        type="text"
+        class="quick-find-input"
+        placeholder="Quick Find"
+        bind:value={quickFindQuery}
+        oninput={handleQuickFindInput}
+        onkeydown={handleQuickFindKeydown}
+        onblur={handleQuickFindBlur}
+        onfocus={() => { if (quickFindResults.length > 0) quickFindOpen = true; }}
+      />
+    </div>
+    {#if quickFindOpen}
+      <div class="quick-find-results">
+        {#each quickFindResults as task (task.id)}
+          <button class="quick-find-result" onmousedown={() => selectQuickFindResult(task)}>
+            <span class="qf-title">{task.title}</span>
+          </button>
+        {/each}
+      </div>
+    {/if}
   </div>
 
   <nav class="sidebar-nav">
@@ -914,8 +977,70 @@
   }
 
   .sidebar-header {
-    padding: 18px 16px 14px;
+    padding: 18px 16px 8px;
+  }
+
+  .quick-find {
+    position: relative;
+    padding: 0 10px 10px;
     border-bottom: 1px solid var(--color-border-subtle, #292c30);
+  }
+  .quick-find-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--color-surface-0, #25282c);
+    border-radius: 6px;
+    padding: 5px 8px;
+  }
+  .quick-find-icon {
+    width: 14px;
+    height: 14px;
+    color: var(--color-text-muted, #90918d);
+    flex-shrink: 0;
+  }
+  .quick-find-input {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    font-size: 12px;
+    color: var(--color-text-primary, #d4d4d4);
+  }
+  .quick-find-input::placeholder {
+    color: var(--color-text-muted, #90918d);
+  }
+  .quick-find-results {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    top: 100%;
+    background: var(--color-surface-0, #25282c);
+    border: 1px solid var(--color-border, #32353a);
+    border-radius: 6px;
+    z-index: 100;
+    max-height: 240px;
+    overflow-y: auto;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  .quick-find-result {
+    display: block;
+    width: 100%;
+    padding: 6px 10px;
+    background: none;
+    border: none;
+    text-align: left;
+    font-size: 13px;
+    color: var(--color-text-primary, #d4d4d4);
+    cursor: pointer;
+  }
+  .quick-find-result:hover {
+    background: var(--color-surface-hover, #2a2e33);
+  }
+  .qf-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .sidebar-header h2 {
