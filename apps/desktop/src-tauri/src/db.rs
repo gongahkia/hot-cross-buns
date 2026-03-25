@@ -181,6 +181,7 @@ fn apply_runtime_migrations(conn: &Connection) -> Result<(), String> {
         );
         CREATE INDEX IF NOT EXISTS idx_attachments_task ON task_attachments(task_id);"
     );
+    let _ = conn.execute_batch("ALTER TABLE lists ADD COLUMN description TEXT");
     Ok(())
 }
 
