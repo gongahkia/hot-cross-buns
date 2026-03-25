@@ -57,6 +57,13 @@
 
   let today = $derived.by(() => fmt(new Date()));
 
+  function isoWeekNumber(date: Date): number {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  }
+
   let weekLabel = $derived.by(() => {
     const start = weekDays[0];
     const end = weekDays[6];
@@ -140,7 +147,7 @@
         <path d="M7.5 2.25L3.75 6L7.5 9.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
     </button>
-    <h2 class="week-label">{weekLabel}</h2>
+    <h2 class="week-label"><span class="week-num-badge">W{isoWeekNumber(weekStart)}</span> {weekLabel}</h2>
     <button class="week-nav-btn" onclick={nextWeek} aria-label="Next week">
       <svg width="16" height="16" viewBox="0 0 12 12" fill="none" aria-hidden="true">
         <path d="M4.5 2.25L8.25 6L4.5 9.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
@@ -195,6 +202,14 @@
     gap: 12px;
     margin-bottom: 16px;
     flex-shrink: 0;
+  }
+
+  .week-num-badge {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--color-text-muted, #90918d);
+    opacity: 0.7;
+    margin-right: 4px;
   }
 
   .week-label {
