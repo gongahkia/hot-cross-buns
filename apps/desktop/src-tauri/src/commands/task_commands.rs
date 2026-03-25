@@ -780,6 +780,19 @@ pub fn preview_recurrence(
 pub fn search_tasks(state: State<'_, AppState>, query: String) -> Result<Vec<Task>, String> {
     let conn = db::get_connection(&state.db_path)?;
 
+    // build FTS5 prefix query: each token gets a trailing * for prefix matching
+    let fts_query: String = query
+        .split_whitespace()
+        .map(|term| {
+            let sanitized: String = term.chars().filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-').collect();
+            format!("{}*", sanitized)
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    if fts_query.trim().is_empty() || fts_query.trim() == "*" {
+        return Ok(Vec::new());
+    }
+
     let sql = format!(
         "SELECT {} FROM tasks JOIN tasks_fts ON tasks.rowid = tasks_fts.rowid \
          WHERE tasks_fts MATCH ?1 AND tasks.deleted_at IS NULL \
@@ -795,7 +808,7 @@ pub fn search_tasks(state: State<'_, AppState>, query: String) -> Result<Vec<Tas
         .prepare(&sql)
         .map_err(|e| format!("Failed to prepare search query: {}", e))?;
     let tasks: Vec<Task> = stmt
-        .query_map(params![query], row_to_task)
+        .query_map(params![fts_query], row_to_task)
         .map_err(|e| format!("Failed to search tasks: {}", e))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("Failed to read search result row: {}", e))?;
