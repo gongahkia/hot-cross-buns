@@ -94,6 +94,16 @@ export interface Heading {
   deletedAt: string | null;
 }
 
+export interface Attachment {
+  id: string;
+  taskId: string;
+  filename: string;
+  filePath: string;
+  mimeType: string | null;
+  size: number;
+  createdAt: string;
+}
+
 export interface SavedFilter {
   id: string;
   name: string;
