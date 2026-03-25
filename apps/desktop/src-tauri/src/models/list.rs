@@ -9,6 +9,7 @@ pub struct List {
     pub sort_order: i32,
     pub is_inbox: bool,
     pub area_id: Option<String>,
+    pub description: Option<String>,
     pub created_at: String,
     pub updated_at: String,
     pub deleted_at: Option<String>,
