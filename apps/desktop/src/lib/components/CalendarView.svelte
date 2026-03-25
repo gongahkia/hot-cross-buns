@@ -95,6 +95,12 @@
     date: string; // "YYYY-MM-DD"
   }
 
+  let listColorMap = $derived.by(() => {
+    const m: Record<string, string> = {};
+    for (const l of $lists) { if (l.color) m[l.id] = l.color; }
+    return m;
+  });
+
   // Map tasks by date for quick lookup
   let tasksByDate = $derived.by(() => {
     const map: Record<string, Task[]> = {};
@@ -257,7 +263,7 @@
               {#each dayTasks.slice(0, MAX_VISIBLE_TASKS) as task (task.id)}
                 <button
                   class="cal-task-chip"
-                  style:border-left-color={priorityColor(task.priority)}
+                  style:border-left-color={listColorMap[task.listId] ?? priorityColor(task.priority)}
                   onclick={(e) => handleTaskClick(e, task)}
                   title={task.title}
                 >
