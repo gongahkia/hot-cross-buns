@@ -40,7 +40,7 @@ func loadConfig() *app.Config {
 		SMTPFrom:        getEnv("SMTP_FROM", ""),
 		SMTPUser:        getEnv("SMTP_USER", ""),
 		SMTPPass:        getEnv("SMTP_PASS", ""),
-		CORSOrigins:     getEnv("CORS_ORIGINS", "*"),
+		CORSOrigins:     getEnv("CORS_ORIGINS", "http://localhost:1420"),
 		AuthRequired:    getEnv("AUTH_REQUIRED", "false") == "true",
 	}
 }
