@@ -6,9 +6,11 @@
   import { tasks, taskMutationVersion } from '$lib/stores/tasks';
   import { invoke } from '@tauri-apps/api/core';
   import { tags } from '$lib/stores/tags';
-  import { currentView, selectedListId, selectedSmartFilter, selectedTagId, selectedAreaId, type ViewMode, type SmartFilterType } from '$lib/stores/ui';
+  import { currentView, selectedListId, selectedSmartFilter, selectedTagId, selectedAreaId, selectedSavedFilterId, type ViewMode, type SmartFilterType } from '$lib/stores/ui';
   import { theme, cycleTheme } from '$lib/stores/theme';
-  import type { List, Area } from '$lib/types';
+  import type { List, Area, SavedFilter } from '$lib/types';
+  import { savedFilters, loadSavedFilters, addSavedFilter, removeSavedFilter } from '$lib/stores/savedFilters';
+  import { currentFilters } from '$lib/stores/filters';
   import SyncSettings from './SyncSettings.svelte';
   import { onMount } from 'svelte';
 
@@ -51,7 +53,7 @@
   let draggedAreaId: string | null = $state(null);
   let dragOverAreaId: string | null = $state(null);
 
-  onMount(() => { loadAreas(); });
+  onMount(() => { loadAreas(); loadSavedFilters(); });
 
   let overdueCount = $state(0);
 
@@ -78,6 +80,28 @@
   function selectTag(tagId: string) {
     selectedTagId.set(tagId);
     currentView.set('tag-filter');
+  }
+
+  function selectSavedFilter(filterId: string) {
+    selectedSavedFilterId.set(filterId);
+    currentView.set('saved-filter');
+  }
+
+  let savedFiltersExpanded = $state(true);
+
+  async function handleSaveCurrentFilter() {
+    const name = prompt('Filter name:');
+    if (!name?.trim()) return;
+    let f: any = {};
+    const unsub = currentFilters.subscribe(v => { f = v; });
+    unsub();
+    const config = JSON.stringify(f);
+    await addSavedFilter(name.trim(), config);
+  }
+
+  async function handleDeleteSavedFilter(e: MouseEvent, id: string) {
+    e.stopPropagation();
+    await removeSavedFilter(id);
   }
 
   // Derived values from stores using Svelte 5 $-prefix auto-subscription
@@ -534,6 +558,41 @@
       <span class="nav-label">Untagged</span>
     </button>
   </div>
+
+  {#if $savedFilters.length > 0 || savedFiltersExpanded}
+    <div class="sidebar-section">
+      <button
+        class="section-header section-toggle"
+        onclick={() => (savedFiltersExpanded = !savedFiltersExpanded)}
+      >
+        <span class="section-title">Saved Filters</span>
+        <svg class="toggle-arrow" class:expanded={savedFiltersExpanded} viewBox="0 0 12 12" fill="none" aria-hidden="true">
+          <path d="M4 2.5L7.5 6L4 9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+      {#if savedFiltersExpanded}
+        {#each $savedFilters as filter (filter.id)}
+          <button
+            class="nav-item"
+            class:active={$currentView === 'saved-filter' && $selectedSavedFilterId === filter.id}
+            onclick={() => selectSavedFilter(filter.id)}
+          >
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="none"><path d="M2 4h12l-3 4v4l-2 1V8L2 4Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+            </span>
+            <span class="nav-label">{filter.name}</span>
+            <button class="saved-filter-delete" onclick={(e) => handleDeleteSavedFilter(e, filter.id)} aria-label="Delete filter" title="Delete filter">&times;</button>
+          </button>
+        {/each}
+        <button class="new-list-btn" onclick={handleSaveCurrentFilter}>
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none"><path d="M8 3.25v9.5M3.25 8h9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          </span>
+          <span class="nav-label">Save Filter</span>
+        </button>
+      {/if}
+    </div>
+  {/if}
 
   <div class="sidebar-divider"></div>
 
@@ -1031,6 +1090,16 @@
     background: var(--color-surface-active, #30353b);
     color: var(--color-text-primary, #d4d4d4);
   }
+
+  .saved-filter-delete {
+    background: none; border: none; cursor: pointer;
+    color: var(--color-text-muted, #90918d);
+    font-size: 14px; padding: 0 4px; line-height: 1;
+    border-radius: 4px; margin-left: auto; opacity: 0;
+    transition: opacity 150ms ease;
+  }
+  .nav-item:hover .saved-filter-delete { opacity: 1; }
+  .saved-filter-delete:hover { color: var(--color-priority-high, #e06c60); }
 
   .tag-color-dot {
     width: 8px;
