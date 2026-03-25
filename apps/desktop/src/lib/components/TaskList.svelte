@@ -3,7 +3,7 @@
   import FilterBar from './FilterBar.svelte';
   import ContextMenu from './ContextMenu.svelte';
   import { tasks, addTask, loadTasks, editTask, taskMutationVersion } from '$lib/stores/tasks';
-  import { lists } from '$lib/stores/lists';
+  import { lists, editList } from '$lib/stores/lists';
   import { headings, loadHeadings, addHeading, editHeading, removeHeading } from '$lib/stores/headings';
   import { selectedListId, showCompletedTasks } from '$lib/stores/ui';
   import { currentFilters, currentSort } from '$lib/stores/filters';
@@ -15,6 +15,26 @@
 
   let newTaskTitle = $state('');
   let collapsedParents = $state<Set<string>>(new Set());
+
+  // description editing
+  let editingDescription = $state(false);
+  let descriptionValue = $state('');
+  let descriptionInputRef: HTMLTextAreaElement | undefined = $state(undefined);
+
+  function startEditDescription() {
+    descriptionValue = currentList?.description ?? '';
+    editingDescription = true;
+    queueMicrotask(() => { descriptionInputRef?.focus(); });
+  }
+
+  async function saveDescription() {
+    editingDescription = false;
+    if (!currentList) return;
+    const val = descriptionValue.trim();
+    if (val !== (currentList.description ?? '')) {
+      await editList(currentList.id, { description: val || '' });
+    }
+  }
   let quickAddPreview = $derived.by(() => newTaskTitle.trim() ? parseTaskInput(newTaskTitle) : null);
   let currentListId = $derived($selectedListId);
   let currentList = $derived($lists.find((l) => l.id === currentListId) ?? null);
@@ -343,6 +363,24 @@
       <span class="task-count">{taskCount}</span>
     </div>
 
+    {#if currentList}
+      {#if editingDescription}
+        <textarea
+          class="list-description-edit"
+          bind:value={descriptionValue}
+          onblur={saveDescription}
+          onkeydown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveDescription(); } if (e.key === 'Escape') { editingDescription = false; } }}
+          bind:this={descriptionInputRef}
+          placeholder="Add a description..."
+          rows="2"
+        ></textarea>
+      {:else if currentList.description}
+        <button class="list-description" onclick={startEditDescription}>{currentList.description}</button>
+      {:else}
+        <button class="list-description list-description-placeholder" onclick={startEditDescription}>Add a description...</button>
+      {/if}
+    {/if}
+
     <div class="quick-add">
       <span class="quick-add-icon">+</span>
       <input
@@ -609,7 +647,36 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 16px 16px 8px;
+    padding: 16px 16px 4px;
+  }
+  .list-description {
+    display: block;
+    width: 100%;
+    padding: 0 16px 8px;
+    background: none;
+    border: none;
+    text-align: left;
+    font-size: 13px;
+    color: var(--color-text-secondary, #b6b6b2);
+    cursor: pointer;
+    line-height: 1.4;
+  }
+  .list-description:hover { color: var(--color-text-primary, #d4d4d4); }
+  .list-description-placeholder { color: var(--color-text-muted, #90918d); font-style: italic; }
+  .list-description-edit {
+    display: block;
+    width: calc(100% - 32px);
+    margin: 0 16px 8px;
+    padding: 4px 6px;
+    background: var(--color-surface-0, #25282c);
+    border: 1px solid var(--color-border, #32353a);
+    border-radius: 4px;
+    font-size: 13px;
+    color: var(--color-text-primary, #d4d4d4);
+    resize: vertical;
+    outline: none;
+    font-family: inherit;
+    line-height: 1.4;
   }
   .list-name {
     margin: 0;
