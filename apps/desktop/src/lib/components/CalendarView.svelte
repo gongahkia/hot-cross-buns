@@ -114,6 +114,47 @@
     return map;
   });
 
+  interface SpanBar {
+    task: Task;
+    startCol: number; // 0-based column in the week row (0=Mon)
+    endCol: number; // exclusive
+    lane: number;
+  }
+
+  let multiDayBars = $derived.by(() => {
+    const result: Map<number, SpanBar[]> = new Map(); // weekIndex -> bars
+    const multiDayTasks = $calendarTasks.filter(t => t.startDate && t.dueDate && t.startDate.substring(0, 10) !== t.dueDate.substring(0, 10));
+    if (multiDayTasks.length === 0 || calendarWeeks.length === 0) return result;
+    for (const task of multiDayTasks) {
+      const tStart = task.startDate!.substring(0, 10);
+      const tEnd = task.dueDate!.substring(0, 10);
+      for (let wi = 0; wi < calendarWeeks.length; wi++) {
+        const week = calendarWeeks[wi];
+        const weekStart = week[0].date;
+        const weekEnd = week[6].date;
+        if (tEnd < weekStart || tStart > weekEnd) continue; // no overlap
+        const startCol = tStart <= weekStart ? 0 : week.findIndex(c => c.date === tStart);
+        const endIdx = tEnd >= weekEnd ? 7 : week.findIndex(c => c.date === tEnd) + 1;
+        if (startCol < 0 || endIdx <= 0) continue;
+        if (!result.has(wi)) result.set(wi, []);
+        const bars = result.get(wi)!;
+        // greedy lane allocation
+        let lane = 0;
+        while (bars.some(b => b.lane === lane && !(endIdx <= b.startCol || startCol >= b.endCol))) lane++;
+        bars.push({ task, startCol: Math.max(startCol, 0), endCol: endIdx, lane });
+      }
+    }
+    return result;
+  });
+
+  let multiDayTaskIds = $derived.by(() => {
+    const ids = new Set<string>();
+    for (const bars of multiDayBars.values()) {
+      for (const b of bars) ids.add(b.task.id);
+    }
+    return ids;
+  });
+
   let today = $derived.by(() => {
     const now = new Date();
     return formatDateParts(now.getFullYear(), now.getMonth(), now.getDate());
@@ -239,11 +280,28 @@
       {/each}
     </div>
 
-    {#each calendarWeeks as week}
+    {#each calendarWeeks as week, wi}
+      {@const weekBars = multiDayBars.get(wi) ?? []}
+      {#if weekBars.length > 0}
+        <div class="cal-span-row">
+          <div class="cal-week-num-header"></div>
+          <div class="cal-span-area">
+            {#each weekBars as bar}
+              <div
+                class="cal-span-bar"
+                style="grid-column: {bar.startCol + 1} / {bar.endCol + 1}; grid-row: {bar.lane + 1}; background-color: {listColorMap[bar.task.listId] ?? 'var(--color-accent, #6c93c7)'};"
+                title={bar.task.title}
+              >
+                {bar.task.title}
+              </div>
+            {/each}
+          </div>
+        </div>
+      {/if}
       <div class="cal-week-row">
         <span class="cal-week-num">W{isoWeekNumber(new Date(week[0].date))}</span>
         {#each week as cell}
-          {@const dayTasks = tasksByDate[cell.date] ?? []}
+          {@const dayTasks = (tasksByDate[cell.date] ?? []).filter(t => !multiDayTaskIds.has(t.id))}
           <div
             class="cal-day-cell"
             class:other-month={!cell.isCurrentMonth}
@@ -373,6 +431,32 @@
     grid-template-columns: 32px repeat(7, 1fr);
     flex: 1;
     min-height: 0;
+  }
+
+  .cal-span-row {
+    display: grid;
+    grid-template-columns: 32px 1fr;
+    flex-shrink: 0;
+  }
+
+  .cal-span-area {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px 2px;
+    padding: 1px 0;
+  }
+
+  .cal-span-bar {
+    font-size: 9px;
+    line-height: 1.4;
+    padding: 1px 6px;
+    border-radius: 3px;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0.85;
+    min-height: 16px;
   }
 
   .cal-week-num-header {
