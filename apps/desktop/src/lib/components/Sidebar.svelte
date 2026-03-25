@@ -106,8 +106,17 @@
     return ($tasks).filter((t) => t.listId === listId && t.status === 0).length;
   }
 
+  function taskCountForArea(areaId: string): number {
+    return listsForArea(areaId).reduce((sum, l) => sum + taskCountForList(l.id), 0);
+  }
+
   function selectView(view: ViewMode) {
     currentView.set(view);
+  }
+
+  function selectArea(areaId: string) {
+    selectedAreaId.set(areaId);
+    currentView.set('area-view');
   }
 
   function selectList(id: string) {
@@ -555,13 +564,13 @@
     {#each sortedAreas as area (area.id)}
       {@const areaLists = listsForArea(area.id)}
       {#if areaLists.length > 0}
-        <button
+        <div
           class="area-header section-toggle"
+          class:active={$currentView === 'area-view' && $selectedAreaId === area.id}
           data-area-id={area.id}
           draggable="true"
           class:dragging={draggedAreaId === area.id}
           class:drag-over={dragOverAreaId === area.id}
-          onclick={() => toggleArea(area.id)}
           oncontextmenu={(e) => openAreaContextMenu(e, area.id)}
           ondragstart={(e) => handleAreaDragStart(e, area)}
           ondragover={(e) => handleAreaDragOver(e, area.id)}
@@ -582,13 +591,19 @@
               onclick={(e) => e.stopPropagation()}
             />
           {:else}
-            <span class="area-name">{area.name}</span>
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <span class="area-name" onclick={() => selectArea(area.id)}>{area.name}</span>
           {/if}
-          <span class="area-count">{areaLists.length}</span>
-          <svg class="toggle-arrow" class:expanded={!collapsedAreas[area.id]} viewBox="0 0 12 12" fill="none" aria-hidden="true">
+          {#if taskCountForArea(area.id) > 0}
+            <span class="area-count">{taskCountForArea(area.id)}</span>
+          {/if}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <svg class="toggle-arrow" class:expanded={!collapsedAreas[area.id]} viewBox="0 0 12 12" fill="none" aria-hidden="true" onclick={(e) => { e.stopPropagation(); toggleArea(area.id); }}>
             <path d="M4 2.5L7.5 6L4 9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
-        </button>
+        </div>
         {#if !collapsedAreas[area.id]}
           {#each areaLists as list (list.id)}
             <button
