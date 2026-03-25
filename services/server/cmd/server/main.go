@@ -61,6 +61,13 @@ func newServer(application *app.App) *echo.Echo {
 	e.HideBanner = true
 
 	e.Use(middleware.Recover())
+	e.Use(middleware.SecureWithConfig(middleware.SecureConfig{
+		XSSProtection:         "1; mode=block",
+		ContentTypeNosniff:    "nosniff",
+		XFrameOptions:         "DENY",
+		ReferrerPolicy:        "strict-origin-when-cross-origin",
+		ContentSecurityPolicy: "default-src 'self'",
+	}))
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: strings.Split(application.Config.CORSOrigins, ","),
 	}))
