@@ -4,7 +4,8 @@
   import { lists } from '$lib/stores/lists';
   import { selectedTaskId } from '$lib/stores/ui';
   import { invoke } from '@tauri-apps/api/core';
-  import type { Task, Tag } from '$lib/types';
+  import type { Task, Tag, Attachment } from '$lib/types';
+  import { convertFileSrc } from '@tauri-apps/api/core';
   import RecurrenceBuilder from './RecurrenceBuilder.svelte';
 
   let task: Task | null = $state(null);
@@ -19,6 +20,7 @@
   let showTagDropdown = $state(false);
   let previewDates: string[] = $state([]);
   let visible = $state(false);
+  let attachments: Attachment[] = $state([]);
 
   const durationPresets = [
     { label: '15m', minutes: 15 },
@@ -66,12 +68,14 @@
         estimatedMinutesValue = found.estimatedMinutes ?? null;
         recurrenceValue = found.recurrenceRule ?? '';
       }
+      loadAttachments(id);
       requestAnimationFrame(() => {
         visible = true;
       });
     } else {
       visible = false;
       task = null;
+      attachments = [];
     }
   });
 
@@ -243,6 +247,40 @@
     if (newListId !== task.listId) {
       await moveTask(task.id, newListId, task.sortOrder);
     }
+  }
+
+  async function loadAttachments(taskId: string) {
+    try {
+      attachments = await invoke<Attachment[]>('list_attachments', { taskId });
+    } catch { attachments = []; }
+  }
+
+  async function handleAttachFile() {
+    if (!task) return;
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const selected = await open({ multiple: true });
+    if (!selected) return;
+    const paths = Array.isArray(selected) ? selected : [selected];
+    for (const p of paths) {
+      const sourcePath = typeof p === 'string' ? p : p.path;
+      await invoke('add_attachment', { taskId: task.id, sourcePath });
+    }
+    await loadAttachments(task.id);
+  }
+
+  async function handleRemoveAttachment(attachmentId: string) {
+    await invoke('remove_attachment', { attachmentId });
+    if (task) await loadAttachments(task.id);
+  }
+
+  function isImage(mime: string | null): boolean {
+    return !!mime && mime.startsWith('image/');
+  }
+
+  function formatFileSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   async function handleDelete() {
@@ -510,6 +548,30 @@
           </select>
         </section>
       </div>
+
+      <!-- Attachments -->
+      <section class="detail-section">
+        <div class="section-label">
+          Attachments
+          <button class="attach-btn" onclick={handleAttachFile}>+ Attach</button>
+        </div>
+        {#if attachments.length > 0}
+          <div class="attachment-list">
+            {#each attachments as att (att.id)}
+              <div class="attachment-item">
+                {#if isImage(att.mimeType)}
+                  <img class="attachment-thumb" src={convertFileSrc(att.filePath)} alt={att.filename} />
+                {/if}
+                <div class="attachment-info">
+                  <span class="attachment-name">{att.filename}</span>
+                  <span class="attachment-size">{formatFileSize(att.size)}</span>
+                </div>
+                <button class="attachment-remove" onclick={() => handleRemoveAttachment(att.id)} title="Remove">&times;</button>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </section>
 
       <!-- Footer -->
       <div class="panel-footer">
@@ -882,6 +944,38 @@
   .delete-btn:hover {
     background: color-mix(in srgb, var(--color-danger, #cd4945) 10%, transparent);
   }
+
+  /* Attachments */
+  .attach-btn {
+    background: none; border: none; cursor: pointer;
+    color: var(--color-accent, #6c93c7); font-size: 11px;
+    padding: 2px 6px; border-radius: 4px; margin-left: 8px;
+    font-family: inherit;
+  }
+  .attach-btn:hover { background: var(--color-surface-hover, #2a2e33); }
+  .attachment-list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+  .attachment-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 8px; border-radius: 6px;
+    background: var(--color-surface-0, #25282c);
+    border: 1px solid var(--color-border-subtle, #292c30);
+  }
+  .attachment-thumb {
+    width: 40px; height: 40px; object-fit: cover;
+    border-radius: 4px; flex-shrink: 0;
+  }
+  .attachment-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .attachment-name {
+    font-size: 12px; color: var(--color-text-primary, #d4d4d4);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .attachment-size { font-size: 10px; color: var(--color-text-muted, #90918d); }
+  .attachment-remove {
+    background: none; border: none; cursor: pointer;
+    color: var(--color-text-muted, #90918d); font-size: 16px;
+    padding: 2px 6px; border-radius: 4px; flex-shrink: 0;
+  }
+  .attachment-remove:hover { color: var(--color-priority-high, #e06c60); }
 
   /* Recurrence preview */
   .recurrence-preview {
