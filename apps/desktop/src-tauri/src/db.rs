@@ -159,6 +159,16 @@ fn apply_runtime_migrations(conn: &Connection) -> Result<(), String> {
         CREATE INDEX IF NOT EXISTS idx_headings_list_id ON headings(list_id);"
     );
     let _ = conn.execute_batch("ALTER TABLE tasks ADD COLUMN heading_id TEXT");
+    let _ = conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS saved_filters (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            config TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );"
+    );
     Ok(())
 }
 
