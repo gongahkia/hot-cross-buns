@@ -46,7 +46,7 @@ fn days_to_ymd(epoch_days: i64) -> (i64, u32, u32) {
     (y, m, d)
 }
 
-const LIST_COLUMNS: &str = "id, name, color, sort_order, is_inbox, area_id, created_at, updated_at, deleted_at";
+const LIST_COLUMNS: &str = "id, name, color, sort_order, is_inbox, area_id, created_at, updated_at, deleted_at, description";
 
 fn row_to_list(row: &rusqlite::Row) -> rusqlite::Result<List> {
     let is_inbox_int: i32 = row.get(4)?;
@@ -57,6 +57,7 @@ fn row_to_list(row: &rusqlite::Row) -> rusqlite::Result<List> {
         sort_order: row.get(3)?,
         is_inbox: is_inbox_int != 0,
         area_id: row.get(5)?,
+        description: row.get(9)?,
         created_at: row.get(6)?,
         updated_at: row.get(7)?,
         deleted_at: row.get(8)?,
@@ -131,6 +132,7 @@ pub fn create_list(
     name: String,
     color: Option<String>,
     area_id: Option<String>,
+    description: Option<String>,
 ) -> Result<List, String> {
     let conn = db::get_connection(&state.db_path)?;
     let id = Uuid::now_v7().to_string();
@@ -138,8 +140,8 @@ pub fn create_list(
     let sort_order = next_list_sort_order(&conn)?;
 
     conn.execute(
-        "INSERT INTO lists (id, name, color, sort_order, is_inbox, area_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, 0, ?5, ?6, ?6)",
-        rusqlite::params![id, name, color, sort_order, area_id, now],
+        "INSERT INTO lists (id, name, color, sort_order, is_inbox, area_id, description, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, 0, ?5, ?6, ?7, ?7)",
+        rusqlite::params![id, name, color, sort_order, area_id, description, now],
     )
     .map_err(|e| format!("Failed to insert list: {}", e))?;
 
@@ -171,6 +173,7 @@ pub fn update_list(
     color: Option<String>,
     sort_order: Option<i32>,
     area_id: Option<String>,
+    description: Option<String>,
 ) -> Result<List, String> {
     let conn = db::get_connection(&state.db_path)?;
     let now = iso8601_now();
@@ -194,6 +197,10 @@ pub fn update_list(
     if let Some(ref a) = area_id {
         set_clauses.push(format!("area_id = ?{}", params.len() + 1));
         params.push(Box::new(a.clone()));
+    }
+    if let Some(ref d) = description {
+        set_clauses.push(format!("description = ?{}", params.len() + 1));
+        params.push(Box::new(d.clone()));
     }
 
     if set_clauses.is_empty() {
@@ -242,6 +249,9 @@ pub fn update_list(
     }
     if let Some(ref value) = area_id {
         changes::record_field_change(&conn, "list", &list.id, "area_id", value)?;
+    }
+    if let Some(ref value) = description {
+        changes::record_field_change(&conn, "list", &list.id, "description", value)?;
     }
 
     Ok(list)
