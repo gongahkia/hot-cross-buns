@@ -156,6 +156,15 @@
     return null;
   }
 
+  function isAllDay(task: Task): boolean {
+    if (task.scheduledStart && task.scheduledStart.includes('T')) return false;
+    if (task.dueDate && task.dueDate.includes('T')) return false;
+    return true;
+  }
+
+  let allDayScheduled = $derived(unscheduledTasks.filter(isAllDay));
+  let timedUnscheduled = $derived(unscheduledTasks.filter(t => !isAllDay(t)));
+
   let hours = $derived(Array.from({ length: TOTAL_HOURS }, (_, i) => START_HOUR + i));
   let isToday = $derived(currentDate === todayStr());
 </script>
@@ -177,12 +186,25 @@
     </button>
   </div>
 
+  {#if allDayScheduled.length > 0}
+    <div class="allday-section">
+      <div class="allday-label">All Day</div>
+      <div class="allday-tasks">
+        {#each allDayScheduled as task (task.id)}
+          <div class="allday-chip" style:border-left-color={PRIORITY_COLORS[task.priority] ?? 'transparent'}>
+            {task.title}
+          </div>
+        {/each}
+      </div>
+    </div>
+  {/if}
+
   <div class="schedule-body">
     <!-- unscheduled task pool -->
     <aside class="task-pool">
-      <div class="pool-header">Unscheduled ({unscheduledTasks.length})</div>
+      <div class="pool-header">Unscheduled ({timedUnscheduled.length})</div>
       <div class="pool-list">
-        {#each unscheduledTasks as task (task.id)}
+        {#each timedUnscheduled as task (task.id)}
           <div
             class="pool-task"
             draggable="true"
@@ -231,6 +253,25 @@
 </div>
 
 <style>
+  .allday-section {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 16px; flex-shrink: 0;
+    border-bottom: 1px solid var(--color-border-subtle, #292c30);
+  }
+  .allday-label {
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    color: var(--color-text-muted, #90918d);
+    min-width: 50px;
+  }
+  .allday-tasks { display: flex; flex-wrap: wrap; gap: 4px; }
+  .allday-chip {
+    font-size: 11px; padding: 2px 8px;
+    background: var(--color-surface-0, #25282c);
+    border: 1px solid var(--color-border-subtle, #292c30);
+    border-left: 3px solid var(--color-border, #32353a);
+    border-radius: 4px;
+    color: var(--color-text-primary, #d4d4d4);
+  }
   .schedule-view { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
   .schedule-header {
     display: flex; align-items: center; gap: 12px;
