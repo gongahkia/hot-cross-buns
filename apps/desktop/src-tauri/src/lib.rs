@@ -22,7 +22,8 @@ use commands::sync_commands::{
     resolve_sync_conflict, save_sync_settings, sync_now,
 };
 use commands::tag_commands::{
-    add_tag_to_task, create_tag, delete_tag, get_tags, remove_tag_from_task, update_tag,
+    add_tag_to_task, create_tag, delete_tag, get_tag_task_counts, get_tags, get_tasks_by_tag,
+    remove_tag_from_task, update_tag,
 };
 use commands::task_commands::{
     auto_schedule_tasks, bulk_delete_tasks, bulk_move_tasks, bulk_update_tasks,
@@ -129,6 +130,8 @@ pub fn run() {
             delete_tag,
             add_tag_to_task,
             remove_tag_from_task,
+            get_tag_task_counts,
+            get_tasks_by_tag,
             create_task,
             get_tasks_by_list,
             get_tasks_in_range,
