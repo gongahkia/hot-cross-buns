@@ -17,6 +17,7 @@ export interface List {
   sortOrder: number;
   isInbox: boolean;
   areaId: string | null;
+  description: string | null;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
