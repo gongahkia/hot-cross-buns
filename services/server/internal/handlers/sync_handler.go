@@ -50,6 +50,10 @@ func (h *SyncHandler) Push(c echo.Context) error {
 	if len(payload.Changes) == 0 {
 		return apiError(c, http.StatusBadRequest, "VALIDATION_ERROR", "changes must not be empty", nil)
 	}
+	const maxChangesPerPush = 500
+	if len(payload.Changes) > maxChangesPerPush {
+		return apiError(c, http.StatusBadRequest, "VALIDATION_ERROR", "too many changes in a single push (max 500)", nil)
+	}
 
 	accepted, conflicts, err := services.PushChanges(c.Request().Context(), h.Pool, userID, payload)
 	if err != nil {
