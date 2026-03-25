@@ -94,6 +94,15 @@ export interface Heading {
   deletedAt: string | null;
 }
 
+export interface SavedFilter {
+  id: string;
+  name: string;
+  config: string; // JSON: {priorities, tagIds, dueBefore, dueAfter}
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface TaskUpdatePayload {
   id: string;
   title?: string;
