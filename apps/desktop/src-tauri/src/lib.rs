@@ -10,6 +10,7 @@ use state::AppState;
 use tauri::Manager;
 
 use commands::area_commands::{create_area, delete_area, get_areas, get_tasks_by_area, update_area};
+use commands::attachment_commands::{add_attachment, list_attachments, remove_attachment};
 use commands::bench_commands::seed_benchmark_data;
 use commands::heading_commands::{
     create_heading, delete_heading, get_headings_by_list, update_heading,
@@ -179,6 +180,9 @@ pub fn run() {
             update_saved_filter,
             delete_saved_filter,
             get_tasks_by_saved_filter,
+            add_attachment,
+            list_attachments,
+            remove_attachment,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
