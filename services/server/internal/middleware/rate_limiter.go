@@ -5,6 +5,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -95,6 +96,38 @@ func RateLimiterMiddleware(config RateLimiterConfig) echo.MiddlewareFunc {
 			return next(c)
 		}
 	}
+}
+
+// PathRateLimiterMiddleware applies different per-IP rate limits based on the
+// request path prefix. Entries in overrides are checked in order; the first
+// matching prefix wins. If no prefix matches, the base config is used.
+func PathRateLimiterMiddleware(base RateLimiterConfig, overrides []PathRateLimit) echo.MiddlewareFunc {
+	baseMW := RateLimiterMiddleware(base)
+	overrideMWs := make([]struct {
+		prefix string
+		mw     echo.MiddlewareFunc
+	}, len(overrides))
+	for i, o := range overrides {
+		overrideMWs[i].prefix = o.PathPrefix
+		overrideMWs[i].mw = RateLimiterMiddleware(o.Config)
+	}
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			path := c.Request().URL.Path
+			for _, o := range overrideMWs {
+				if strings.HasPrefix(path, o.prefix) {
+					return o.mw(next)(c)
+				}
+			}
+			return baseMW(next)(c)
+		}
+	}
+}
+
+// PathRateLimit pairs a URL path prefix with a rate limit config.
+type PathRateLimit struct {
+	PathPrefix string
+	Config     RateLimiterConfig
 }
 
 // extractIP returns the client IP from the request, stripping the port if present.

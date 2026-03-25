@@ -83,6 +83,11 @@ func newServer(application *app.App) *echo.Echo {
 		}
 	})
 
+	e.Use(authmw.PathRateLimiterMiddleware(authmw.GeneralRateLimit, []authmw.PathRateLimit{
+		{PathPrefix: "/api/v1/auth/", Config: authmw.AuthRateLimit},
+		{PathPrefix: "/api/v1/sync/", Config: authmw.SyncRateLimit},
+	}))
+
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]string{
 			"status": "ok",
