@@ -9,7 +9,7 @@ mod sync;
 use state::AppState;
 use tauri::Manager;
 
-use commands::area_commands::{create_area, delete_area, get_areas, update_area};
+use commands::area_commands::{create_area, delete_area, get_areas, get_tasks_by_area, update_area};
 use commands::bench_commands::seed_benchmark_data;
 use commands::heading_commands::{
     create_heading, delete_heading, get_headings_by_list, update_heading,
@@ -119,6 +119,7 @@ pub fn run() {
             get_areas,
             update_area,
             delete_area,
+            get_tasks_by_area,
             create_list,
             get_lists,
             update_list,
