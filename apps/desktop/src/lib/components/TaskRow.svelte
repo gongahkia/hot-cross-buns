@@ -83,6 +83,13 @@
     {task.title}
   </button>
 
+  {#if task.subtasks?.length > 0}
+    <span class="subtask-indicator">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M3 8h10M3 12h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      {task.subtasks.length}
+    </span>
+  {/if}
+
   {#if dueBadge}
     <span class="due-badge" class:overdue={dueBadge.overdue}>
       {dueBadge.label}
@@ -210,6 +217,15 @@
   .due-badge.overdue {
     background: color-mix(in srgb, var(--color-danger, #cd4945) 14%, transparent);
     color: var(--color-danger, #cd4945);
+  }
+
+  .subtask-indicator {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    color: var(--color-text-muted, #90918d);
+    flex-shrink: 0;
   }
 
   .tag-pills {
