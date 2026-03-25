@@ -6,7 +6,7 @@
   import { tasks, taskMutationVersion } from '$lib/stores/tasks';
   import { invoke } from '@tauri-apps/api/core';
   import { tags } from '$lib/stores/tags';
-  import { currentView, selectedListId, selectedSmartFilter, type ViewMode, type SmartFilterType } from '$lib/stores/ui';
+  import { currentView, selectedListId, selectedSmartFilter, selectedTagId, selectedAreaId, type ViewMode, type SmartFilterType } from '$lib/stores/ui';
   import { theme, cycleTheme } from '$lib/stores/theme';
   import type { List, Area } from '$lib/types';
   import SyncSettings from './SyncSettings.svelte';
@@ -61,6 +61,24 @@
       .then((tasks) => { overdueCount = tasks.length; })
       .catch(() => { overdueCount = 0; });
   });
+
+  let tagCounts: Record<string, number> = $state({});
+
+  $effect(() => {
+    const _v = $taskMutationVersion;
+    invoke<{tag_id: string; count: number}[]>('get_tag_task_counts')
+      .then((counts) => {
+        const m: Record<string, number> = {};
+        for (const c of counts) m[c.tag_id] = c.count;
+        tagCounts = m;
+      })
+      .catch(() => { tagCounts = {}; });
+  });
+
+  function selectTag(tagId: string) {
+    selectedTagId.set(tagId);
+    currentView.set('tag-filter');
+  }
 
   // Derived values from stores using Svelte 5 $-prefix auto-subscription
   let inboxList = $derived(($lists).find((l: List) => l.isInbox));
@@ -699,13 +717,20 @@
 
     {#if tagsExpanded}
       {#each $tags as tag (tag.id)}
-        <div class="tag-item">
+        <button
+          class="tag-item"
+          class:active={$currentView === 'tag-filter' && $selectedTagId === tag.id}
+          onclick={() => selectTag(tag.id)}
+        >
           <span
             class="tag-color-dot"
             style:background-color={tag.color ?? DEFAULT_TAG_COLOR}
           ></span>
           <span class="tag-name">{tag.name}</span>
-        </div>
+          {#if tagCounts[tag.id]}
+            <span class="task-count">{tagCounts[tag.id]}</span>
+          {/if}
+        </button>
       {/each}
       {#if $tags.length === 0}
         <div class="empty-hint">No tags yet</div>
@@ -959,6 +984,22 @@
     border-radius: 6px;
     font-size: 13px;
     color: var(--color-text-secondary, #b6b6b2);
+    width: 100%;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    transition: background 150ms ease;
+  }
+
+  .tag-item:hover {
+    background: var(--color-surface-hover, #2a2e33);
+  }
+
+  .tag-item.active {
+    background: var(--color-surface-active, #30353b);
+    color: var(--color-text-primary, #d4d4d4);
   }
 
   .tag-color-dot {
