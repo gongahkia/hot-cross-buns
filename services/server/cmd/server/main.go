@@ -135,6 +135,10 @@ func main() {
 		slog.Error("DATABASE_URL is required")
 		os.Exit(1)
 	}
+	if cfg.AuthRequired && len(cfg.MagicLinkSecret) < 32 {
+		slog.Error("MAGIC_LINK_SECRET must be at least 32 characters when AUTH_REQUIRED=true")
+		os.Exit(1)
+	}
 
 	// Run migrations
 	migrationsPath := getEnv("MIGRATIONS_PATH", "migrations")
