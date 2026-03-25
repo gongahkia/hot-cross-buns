@@ -1,12 +1,19 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
-  import type { Task } from '$lib/types';
+  import type { Task, List } from '$lib/types';
   import { selectedSmartFilter, type SmartFilterType } from '$lib/stores/ui';
   import { taskMutationVersion } from '$lib/stores/tasks';
+  import { lists } from '$lib/stores/lists';
   import TaskRow from './TaskRow.svelte';
 
   let tasks: Task[] = $state([]);
   let loading = $state(false);
+  let listMap: Map<string, List> = $state(new Map());
+  $effect(() => {
+    const unsub = lists.subscribe((all) => { const m = new Map<string, List>(); for (const l of all) m.set(l.id, l); listMap = m; });
+    return unsub;
+  });
+  function getListName(id: string): string { return listMap.get(id)?.name ?? ''; }
 
   const FILTER_CONFIG: Record<SmartFilterType, { title: string; command: string }> = {
     'overdue': { title: 'Overdue', command: 'get_overdue_tasks' },
@@ -36,10 +43,10 @@
   <div class="filter-content">
     {#if tasks.length > 0}
       {#each tasks as task (task.id)}
-        <TaskRow {task} />
+        <TaskRow {task} listName={getListName(task.listId)} />
         {#if task.subtasks}
           {#each task.subtasks as subtask (subtask.id)}
-            <TaskRow task={subtask} indent={true} />
+            <TaskRow task={subtask} indent={true} listName={getListName(subtask.listId)} />
           {/each}
         {/if}
       {/each}

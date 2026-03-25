@@ -1,12 +1,19 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
-  import type { Task } from '$lib/types';
+  import type { Task, List } from '$lib/types';
   import { taskMutationVersion } from '$lib/stores/tasks';
+  import { lists } from '$lib/stores/lists';
   import TaskRow from './TaskRow.svelte';
 
   let overdueTasks: Task[] = $state([]);
   let rangeTasks: Task[] = $state([]);
   let loading = $state(false);
+  let listMap: Map<string, List> = $state(new Map());
+  $effect(() => {
+    const unsub = lists.subscribe((all) => { const m = new Map<string, List>(); for (const l of all) m.set(l.id, l); listMap = m; });
+    return unsub;
+  });
+  function getListName(id: string): string { return listMap.get(id)?.name ?? ''; }
 
   function fmt(d: Date): string {
     const y = d.getFullYear();
@@ -74,7 +81,7 @@
       <div class="day-group">
         <div class="day-header overdue">Overdue <span class="day-count">{overdueTasks.length}</span></div>
         {#each overdueTasks as task (task.id)}
-          <TaskRow {task} />
+          <TaskRow {task} listName={getListName(task.listId)} />
         {/each}
       </div>
     {/if}
@@ -84,7 +91,7 @@
         <div class="day-group">
           <div class="day-header">{dayLabel(day)} <span class="day-count">{dayTasks.length}</span></div>
           {#each dayTasks as task (task.id)}
-            <TaskRow {task} />
+            <TaskRow {task} listName={getListName(task.listId)} />
           {/each}
         </div>
       {/if}
