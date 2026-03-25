@@ -1,10 +1,70 @@
+use std::collections::HashMap;
 use tauri::State;
 use uuid::Uuid;
 
 use crate::db;
-use crate::models::Area;
+use crate::models::{Area, Tag, Task};
 use crate::state::AppState;
 use crate::sync::changes;
+
+const TASK_COLUMNS: &str = "id, list_id, parent_task_id, title, content, priority, status, \
+    start_date, due_date, due_timezone, recurrence_rule, sort_order, heading_id, completed_at, created_at, updated_at, deleted_at, \
+    scheduled_start, scheduled_end, estimated_minutes";
+
+fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
+    Ok(Task {
+        id: row.get(0)?,
+        list_id: row.get(1)?,
+        parent_task_id: row.get(2)?,
+        title: row.get(3)?,
+        content: row.get(4)?,
+        priority: row.get(5)?,
+        status: row.get(6)?,
+        start_date: row.get(7)?,
+        due_date: row.get(8)?,
+        due_timezone: row.get(9)?,
+        recurrence_rule: row.get(10)?,
+        sort_order: row.get(11)?,
+        heading_id: row.get(12)?,
+        completed_at: row.get(13)?,
+        created_at: row.get(14)?,
+        updated_at: row.get(15)?,
+        deleted_at: row.get(16)?,
+        scheduled_start: row.get(17)?,
+        scheduled_end: row.get(18)?,
+        estimated_minutes: row.get(19)?,
+        subtasks: Vec::new(),
+        tags: Vec::new(),
+    })
+}
+
+fn fetch_tags_for_tasks(
+    conn: &rusqlite::Connection,
+    task_ids: &[String],
+) -> Result<HashMap<String, Vec<Tag>>, String> {
+    if task_ids.is_empty() { return Ok(HashMap::new()); }
+    let placeholders: Vec<String> = (1..=task_ids.len()).map(|i| format!("?{}", i)).collect();
+    let sql = format!(
+        "SELECT tt.task_id, t.id, t.name, t.color, t.created_at, t.deleted_at \
+         FROM task_tags tt JOIN tags t ON t.id = tt.tag_id \
+         WHERE tt.task_id IN ({}) AND t.deleted_at IS NULL ORDER BY t.name",
+        placeholders.join(", ")
+    );
+    let mut stmt = conn.prepare(&sql).map_err(|e| format!("Failed to prepare tag fetch: {}", e))?;
+    let params: Vec<&dyn rusqlite::types::ToSql> = task_ids.iter().map(|id| id as &dyn rusqlite::types::ToSql).collect();
+    let rows = stmt.query_map(params.as_slice(), |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            Tag { id: row.get(1)?, name: row.get(2)?, color: row.get(3)?, created_at: row.get(4)?, deleted_at: row.get(5)? },
+        ))
+    }).map_err(|e| format!("Failed to fetch tags: {}", e))?;
+    let mut map: HashMap<String, Vec<Tag>> = HashMap::new();
+    for r in rows {
+        let (task_id, tag) = r.map_err(|e| format!("Failed to read tag row: {}", e))?;
+        map.entry(task_id).or_default().push(tag);
+    }
+    Ok(map)
+}
 
 fn iso8601_now() -> String {
     let dur = std::time::SystemTime::now()
@@ -173,4 +233,28 @@ pub fn delete_area(state: State<'_, AppState>, id: String) -> Result<(), String>
     .map_err(|e| format!("Failed to disassociate lists from deleted area: {}", e))?;
     changes::record_deleted_at(&conn, "area", &id, &now)?;
     Ok(())
+}
+
+#[tauri::command]
+pub fn get_tasks_by_area(state: State<'_, AppState>, area_id: String) -> Result<Vec<Task>, String> {
+    let conn = db::get_connection(&state.db_path)?;
+    let sql = format!(
+        "SELECT {} FROM tasks WHERE list_id IN \
+         (SELECT id FROM lists WHERE area_id = ?1 AND deleted_at IS NULL) \
+         AND deleted_at IS NULL AND status = 0 AND parent_task_id IS NULL \
+         ORDER BY priority DESC, created_at DESC",
+        TASK_COLUMNS
+    );
+    let mut stmt = conn.prepare(&sql).map_err(|e| format!("Failed to prepare query: {}", e))?;
+    let mut tasks: Vec<Task> = stmt.query_map(rusqlite::params![area_id], row_to_task)
+        .map_err(|e| format!("Failed to query tasks by area: {}", e))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("Failed to read task row: {}", e))?;
+    if tasks.is_empty() { return Ok(tasks); }
+    let all_ids: Vec<String> = tasks.iter().map(|t| t.id.clone()).collect();
+    let tag_map = fetch_tags_for_tasks(&conn, &all_ids)?;
+    for t in &mut tasks {
+        t.tags = tag_map.get(&t.id).cloned().unwrap_or_default();
+    }
+    Ok(tasks)
 }
