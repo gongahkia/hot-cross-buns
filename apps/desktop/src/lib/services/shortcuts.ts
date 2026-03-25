@@ -7,6 +7,10 @@ export interface ShortcutCallbacks {
   setPriority: (level: number) => void;
   switchToToday: () => void;
   switchToCalendar: () => void;
+  switchToWeek: () => void;
+  switchToSchedule: () => void;
+  switchToUpcoming: () => void;
+  switchToNext7Days: () => void;
   showShortcutsModal: () => void;
 }
 
@@ -76,6 +80,22 @@ export function registerShortcuts(callbacks: ShortcutCallbacks): () => void {
       case 'c':
         e.preventDefault();
         callbacks.switchToCalendar();
+        break;
+      case 'w':
+        e.preventDefault();
+        callbacks.switchToWeek();
+        break;
+      case 's':
+        e.preventDefault();
+        callbacks.switchToSchedule();
+        break;
+      case 'u':
+        e.preventDefault();
+        callbacks.switchToUpcoming();
+        break;
+      case '7':
+        e.preventDefault();
+        callbacks.switchToNext7Days();
         break;
       case '?':
         e.preventDefault();
