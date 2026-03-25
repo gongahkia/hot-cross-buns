@@ -1216,3 +1216,36 @@ fn time_to_minutes(iso: &str) -> Option<u32> {
 fn snap_to_15(minutes: u32) -> u32 {
     ((minutes + 14) / 15) * 15
 }
+
+#[tauri::command]
+pub fn get_completed_tasks(
+    state: State<'_, AppState>,
+    limit: Option<u32>,
+    offset: Option<u32>,
+) -> Result<Vec<Task>, String> {
+    let conn = db::get_connection(&state.db_path)?;
+    let lim = limit.unwrap_or(100);
+    let off = offset.unwrap_or(0);
+    let sql = format!(
+        "SELECT {} FROM tasks WHERE deleted_at IS NULL AND status = 1 \
+         AND parent_task_id IS NULL \
+         ORDER BY completed_at DESC LIMIT ?1 OFFSET ?2",
+        TASK_COLUMNS
+    );
+    let mut stmt = conn
+        .prepare(&sql)
+        .map_err(|e| format!("Failed to prepare completed query: {}", e))?;
+    let top_tasks: Vec<Task> = stmt
+        .query_map(params![lim, off], row_to_task)
+        .map_err(|e| format!("Failed to query completed tasks: {}", e))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("Failed to read completed task row: {}", e))?;
+    if top_tasks.is_empty() { return Ok(Vec::new()); }
+    let top_ids: Vec<String> = top_tasks.iter().map(|t| t.id.clone()).collect();
+    let tag_map = fetch_tags_for_tasks(&conn, &top_ids)?;
+    let tasks = top_tasks.into_iter().map(|mut t| {
+        t.tags = tag_map.get(&t.id).cloned().unwrap_or_default();
+        t
+    }).collect();
+    Ok(tasks)
+}
