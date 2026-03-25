@@ -414,6 +414,21 @@
 
     <button
       class="nav-item"
+      class:active={$currentView === 'next7days'}
+      onclick={() => selectView('next7days')}
+    >
+      <span class="nav-icon" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none">
+          <rect x="2" y="3" width="12" height="10.5" rx="2" stroke="currentColor" stroke-width="1.4" />
+          <path d="M5 1.75V4.25M11 1.75V4.25M2 6h12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+          <text x="8" y="11.5" font-size="5" font-weight="bold" fill="currentColor" text-anchor="middle">7</text>
+        </svg>
+      </span>
+      <span class="nav-label">Next 7 Days</span>
+    </button>
+
+    <button
+      class="nav-item"
       class:active={$currentView === 'upcoming'}
       onclick={() => selectView('upcoming')}
     >
