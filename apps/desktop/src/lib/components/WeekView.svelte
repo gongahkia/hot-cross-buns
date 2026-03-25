@@ -62,6 +62,12 @@
     return map;
   });
 
+  function isAllDay(task: Task): boolean {
+    if (task.scheduledStart && task.scheduledStart.includes('T')) return false;
+    if (task.dueDate && task.dueDate.includes('T')) return false;
+    return true;
+  }
+
   let today = $derived.by(() => fmt(new Date()));
 
   function isoWeekNumber(date: Date): number {
@@ -179,14 +185,25 @@
         <div class="column-header" class:is-today={dateStr === today}>
           {columnHeader(day)}
         </div>
+        {@const allDayTasks = dayTasks.filter(isAllDay)}
+        {@const timedTasks = dayTasks.filter(t => !isAllDay(t))}
+        {#if allDayTasks.length > 0}
+          <div class="allday-section">
+            {#each allDayTasks as task (task.id)}
+              <div class="week-task-wrapper allday" style:border-left-color={listColorMap[task.listId] ?? 'transparent'}>
+                <TaskRow {task} />
+              </div>
+            {/each}
+          </div>
+        {/if}
         <div class="column-tasks">
-          {#if dayTasks.length > 0}
-            {#each dayTasks as task (task.id)}
+          {#if timedTasks.length > 0}
+            {#each timedTasks as task (task.id)}
               <div class="week-task-wrapper" style:border-left-color={listColorMap[task.listId] ?? 'transparent'}>
                 <TaskRow {task} />
               </div>
             {/each}
-          {:else}
+          {:else if allDayTasks.length === 0}
             <div class="column-empty">No tasks</div>
           {/if}
         </div>
@@ -322,6 +339,16 @@
   .week-task-wrapper {
     border-left: 3px solid transparent;
     border-radius: 3px;
+  }
+
+  .allday-section {
+    border-bottom: 1px solid var(--color-border-subtle, #292c30);
+    padding-bottom: 4px;
+    margin-bottom: 4px;
+  }
+
+  .week-task-wrapper.allday {
+    opacity: 0.85;
   }
 
   .column-empty {
