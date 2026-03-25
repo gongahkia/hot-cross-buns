@@ -4,7 +4,7 @@
   import { selectedTaskId } from '$lib/stores/ui';
   import { selectedTaskIds, toggleSelect, clearSelection } from '$lib/stores/selection';
 
-  let { task, indent = false }: { task: Task; indent?: boolean } = $props();
+  let { task, indent = false, listName }: { task: Task; indent?: boolean; listName?: string } = $props();
 
   const PRIORITY_COLORS: Record<number, string> = {
     0: 'transparent',
@@ -79,9 +79,14 @@
     {/if}
   </button>
 
-  <button class="task-title" onclick={handleClick} aria-label="Select task: {task.title}">
-    {task.title}
-  </button>
+  <div class="title-col">
+    <button class="task-title" onclick={handleClick} aria-label="Select task: {task.title}">
+      {task.title}
+    </button>
+    {#if listName}
+      <span class="list-subtitle">{listName}</span>
+    {/if}
+  </div>
 
   {#if task.subtasks?.length > 0}
     <span class="subtask-indicator">
@@ -172,8 +177,21 @@
     100% { transform: scale(1); opacity: 1; }
   }
 
-  .task-title {
+  .title-col {
     flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .list-subtitle {
+    font-size: 11px;
+    color: var(--color-text-muted, #90918d);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.3;
+  }
+  .task-title {
     font-size: 14px;
     font-weight: 500;
     line-height: 1.5;
