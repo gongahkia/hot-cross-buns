@@ -9,10 +9,6 @@
     { key: '0', description: 'Clear priority' },
     { key: 'T', description: 'Switch to Today view' },
     { key: 'C', description: 'Switch to Calendar view' },
-    { key: 'W', description: 'Switch to Week view' },
-    { key: 'S', description: 'Switch to Schedule view' },
-    { key: 'U', description: 'Switch to Upcoming view' },
-    { key: '7', description: 'Switch to Next 7 Days view' },
     { key: '?', description: 'Show this help' },
     { key: '\u2318K / Ctrl+K', description: 'Open command palette' },
   ];

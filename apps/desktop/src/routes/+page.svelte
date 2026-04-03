@@ -6,7 +6,6 @@
   import TaskList from '$lib/components/TaskList.svelte';
   import TaskDetail from '$lib/components/TaskDetail.svelte';
   import ShortcutsModal from '$lib/components/ShortcutsModal.svelte';
-  import SearchBar from '$lib/components/SearchBar.svelte';
   import NotificationCenter from '$lib/components/NotificationCenter.svelte';
   import Onboarding from '$lib/components/Onboarding.svelte';
   import CommandPalette from '$lib/components/CommandPalette.svelte';
@@ -19,35 +18,22 @@
   import { markBootstrapCompleted, markFirstInteractive } from '$lib/services/startup';
   import type { List, Task } from '$lib/types';
 
-  type TodayViewModule = typeof import('$lib/components/TodayView.svelte');
-  type WeekViewModule = typeof import('$lib/components/WeekView.svelte');
-  type CalendarViewModule = typeof import('$lib/components/CalendarView.svelte');
-  type SmartFilterViewModule = typeof import('$lib/components/SmartFilterView.svelte');
-  type UpcomingViewModule = typeof import('$lib/components/UpcomingView.svelte');
-  type ScheduleViewModule = typeof import('$lib/components/ScheduleView.svelte');
-  type TimelineViewModule = typeof import('$lib/components/TimelineView.svelte');
-  type TagFilterViewModule = typeof import('$lib/components/TagFilterView.svelte');
-  type Next7DaysViewModule = typeof import('$lib/components/Next7DaysView.svelte');
-  type AreaViewModule = typeof import('$lib/components/AreaView.svelte');
-  type SavedFilterViewModule = typeof import('$lib/components/SavedFilterView.svelte');
-  type LogbookViewModule = typeof import('$lib/components/LogbookView.svelte');
+  type ViewModule = { default: import('svelte').Component };
+  const viewModules: Record<string, ViewModule | null> = $state({});
+  const VIEW_MAP: Record<string, () => Promise<ViewModule>> = {
+    'today': () => import('$lib/components/TodayView.svelte'),
+    'calendar': () => import('$lib/components/CalendarView.svelte'),
+    'smart-filter': () => import('$lib/components/SmartFilterView.svelte'),
+    'tag-filter': () => import('$lib/components/TagFilterView.svelte'),
+    'area-view': () => import('$lib/components/AreaView.svelte'),
+    'saved-filter': () => import('$lib/components/SavedFilterView.svelte'),
+    'logbook': () => import('$lib/components/LogbookView.svelte'),
+  };
 
   let showShortcuts = $state(false);
   let showOnboarding = $state(false);
   let appReady = $state(false);
   let startupError = $state<string | null>(null);
-  let todayViewModule = $state<TodayViewModule | null>(null);
-  let weekViewModule = $state<WeekViewModule | null>(null);
-  let calendarViewModule = $state<CalendarViewModule | null>(null);
-  let smartFilterViewModule = $state<SmartFilterViewModule | null>(null);
-  let upcomingViewModule = $state<UpcomingViewModule | null>(null);
-  let scheduleViewModule = $state<ScheduleViewModule | null>(null);
-  let timelineViewModule = $state<TimelineViewModule | null>(null);
-  let tagFilterViewModule = $state<TagFilterViewModule | null>(null);
-  let next7DaysViewModule = $state<Next7DaysViewModule | null>(null);
-  let areaViewModule = $state<AreaViewModule | null>(null);
-  let savedFilterViewModule = $state<SavedFilterViewModule | null>(null);
-  let logbookViewModule = $state<LogbookViewModule | null>(null);
 
   function defaultListFrom(lists: List[]): List | null {
     return lists.find((list) => list.isInbox) ?? lists[0] ?? null;
@@ -61,64 +47,18 @@
   }
 
   let hasSelectedList = $derived($selectedListId !== null);
-
   let activeView = $derived($currentView);
+  let ActiveComponent = $derived(viewModules[activeView]?.default ?? null);
+  let isLazyView = $derived(activeView in VIEW_MAP);
 
   async function ensureViewModule(view: string) {
-    if (view === 'today' && !todayViewModule) {
-      todayViewModule = await import('$lib/components/TodayView.svelte');
-    }
-
-    if (view === 'upcoming' && !upcomingViewModule) {
-      upcomingViewModule = await import('$lib/components/UpcomingView.svelte');
-    }
-
-    if (view === 'week' && !weekViewModule) {
-      weekViewModule = await import('$lib/components/WeekView.svelte');
-    }
-
-    if (view === 'calendar' && !calendarViewModule) {
-      calendarViewModule = await import('$lib/components/CalendarView.svelte');
-    }
-
-    if (view === 'smart-filter' && !smartFilterViewModule) {
-      smartFilterViewModule = await import('$lib/components/SmartFilterView.svelte');
-    }
-
-    if (view === 'schedule' && !scheduleViewModule) {
-      scheduleViewModule = await import('$lib/components/ScheduleView.svelte');
-    }
-
-    if (view === 'timeline' && !timelineViewModule) {
-      timelineViewModule = await import('$lib/components/TimelineView.svelte');
-    }
-
-    if (view === 'tag-filter' && !tagFilterViewModule) {
-      tagFilterViewModule = await import('$lib/components/TagFilterView.svelte');
-    }
-
-    if (view === 'next7days' && !next7DaysViewModule) {
-      next7DaysViewModule = await import('$lib/components/Next7DaysView.svelte');
-    }
-
-    if (view === 'area-view' && !areaViewModule) {
-      areaViewModule = await import('$lib/components/AreaView.svelte');
-    }
-
-    if (view === 'saved-filter' && !savedFilterViewModule) {
-      savedFilterViewModule = await import('$lib/components/SavedFilterView.svelte');
-    }
-
-    if (view === 'logbook' && !logbookViewModule) {
-      logbookViewModule = await import('$lib/components/LogbookView.svelte');
+    if (view in VIEW_MAP && !viewModules[view]) {
+      viewModules[view] = await VIEW_MAP[view]();
     }
   }
 
   function hasSeenOnboarding(): boolean {
-    if (typeof localStorage === 'undefined') {
-      return true;
-    }
-
+    if (typeof localStorage === 'undefined') return true;
     return localStorage.getItem('cross2:onboardingSeen') === 'true';
   }
 
@@ -138,19 +78,10 @@
     let removeTrayQuickAddListener: (() => void) | undefined;
 
     function notificationMessage(task: Task): string {
-      if (!task.dueDate) {
-        return 'Due soon';
-      }
-
+      if (!task.dueDate) return 'Due soon';
       const parsed = new Date(task.dueDate);
-      if (Number.isNaN(parsed.getTime())) {
-        return `Due at ${task.dueDate}`;
-      }
-
-      return `Due at ${parsed.toLocaleTimeString([], {
-        hour: 'numeric',
-        minute: '2-digit',
-      })}`;
+      if (Number.isNaN(parsed.getTime())) return `Due at ${task.dueDate}`;
+      return `Due at ${parsed.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
     }
 
     async function pollDueNotifications() {
@@ -173,9 +104,7 @@
       try {
         const loadedLists = await loadLists();
         await loadTags();
-
         const defaultList = defaultListFrom(loadedLists);
-
         selectedListId.set(defaultList?.id ?? null);
         showOnboarding = !hasSeenOnboarding() && loadedLists.length <= 1;
         startupError = null;
@@ -187,18 +116,14 @@
       } finally {
         appReady = true;
         markBootstrapCompleted();
-        requestAnimationFrame(() => {
-          markFirstInteractive();
-        });
+        requestAnimationFrame(() => { markFirstInteractive(); });
       }
     }
 
     const cleanup = registerShortcuts({
       focusQuickAdd() {
         const input = document.querySelector<HTMLInputElement>('.quick-add-input');
-        if (input) {
-          input.focus();
-        }
+        if (input) input.focus();
       },
       closeDetail() {
         selectedTaskId.set(null);
@@ -217,64 +142,35 @@
         let taskId: string | null = null;
         const unsub = selectedTaskId.subscribe((v) => (taskId = v));
         unsub();
-        if (taskId) {
-          editTask(taskId, { priority: level });
-        }
+        if (taskId) editTask(taskId, { priority: level });
       },
-      switchToToday() {
-        currentView.set('today');
-      },
-      switchToCalendar() {
-        currentView.set('calendar');
-      },
-      switchToWeek() {
-        currentView.set('week');
-      },
-      switchToSchedule() {
-        currentView.set('schedule');
-      },
-      switchToUpcoming() {
-        currentView.set('upcoming');
-      },
-      switchToNext7Days() {
-        currentView.set('next7days');
-      },
-      showShortcutsModal() {
-        showShortcuts = true;
-      },
+      switchToToday() { currentView.set('today'); },
+      switchToCalendar() { currentView.set('calendar'); },
+      showShortcutsModal() { showShortcuts = true; },
     });
 
     void listen('tray://quick-add-task', async () => {
       currentView.set('list');
       selectedTaskId.set(null);
-
       let selectedList: string | null = null;
       const unsub = selectedListId.subscribe((value) => (selectedList = value));
       unsub();
-
       if (!selectedList) {
         const loadedLists = await loadLists();
         const defaultList = defaultListFrom(loadedLists);
         selectedListId.set(defaultList?.id ?? null);
       }
-
       await focusQuickAddInput();
-    }).then((unlisten) => {
-      removeTrayQuickAddListener = unlisten;
-    });
+    }).then((unlisten) => { removeTrayQuickAddListener = unlisten; });
 
     void bootstrapApp();
     void pollDueNotifications();
-    notificationPoll = setInterval(() => {
-      void pollDueNotifications();
-    }, 60_000);
+    notificationPoll = setInterval(() => { void pollDueNotifications(); }, 60_000);
 
     return () => {
       cleanup();
       removeTrayQuickAddListener?.();
-      if (notificationPoll !== undefined) {
-        clearInterval(notificationPoll);
-      }
+      if (notificationPoll !== undefined) clearInterval(notificationPoll);
     };
   });
 </script>
@@ -284,9 +180,7 @@
 
   <main class="content">
     <header class="toolbar">
-      <span class="toolbar-title">Cross 2</span>
       <div class="toolbar-actions">
-        <SearchBar />
         <NotificationCenter />
       </div>
     </header>
@@ -295,77 +189,11 @@
         <p class="empty-state">Loading your workspace...</p>
       {:else if startupError}
         <p class="empty-state">{startupError}</p>
-      {:else if activeView === 'calendar'}
-        {#if calendarViewModule}
-          <calendarViewModule.default />
+      {:else if isLazyView}
+        {#if ActiveComponent}
+          <ActiveComponent />
         {:else}
-          <p class="empty-state">Loading calendar...</p>
-        {/if}
-      {:else if activeView === 'upcoming'}
-        {#if upcomingViewModule}
-          <upcomingViewModule.default />
-        {:else}
-          <p class="empty-state">Loading upcoming...</p>
-        {/if}
-      {:else if activeView === 'week'}
-        {#if weekViewModule}
-          <weekViewModule.default />
-        {:else}
-          <p class="empty-state">Loading week view...</p>
-        {/if}
-      {:else if activeView === 'smart-filter'}
-        {#if smartFilterViewModule}
-          <smartFilterViewModule.default />
-        {:else}
-          <p class="empty-state">Loading filters...</p>
-        {/if}
-      {:else if activeView === 'schedule'}
-        {#if scheduleViewModule}
-          <scheduleViewModule.default />
-        {:else}
-          <p class="empty-state">Loading schedule...</p>
-        {/if}
-      {:else if activeView === 'timeline'}
-        {#if timelineViewModule}
-          <timelineViewModule.default />
-        {:else}
-          <p class="empty-state">Loading timeline...</p>
-        {/if}
-      {:else if activeView === 'saved-filter'}
-        {#if savedFilterViewModule}
-          <savedFilterViewModule.default />
-        {:else}
-          <p class="empty-state">Loading filter...</p>
-        {/if}
-      {:else if activeView === 'area-view'}
-        {#if areaViewModule}
-          <areaViewModule.default />
-        {:else}
-          <p class="empty-state">Loading area view...</p>
-        {/if}
-      {:else if activeView === 'next7days'}
-        {#if next7DaysViewModule}
-          <next7DaysViewModule.default />
-        {:else}
-          <p class="empty-state">Loading next 7 days...</p>
-        {/if}
-      {:else if activeView === 'tag-filter'}
-        {#if tagFilterViewModule}
-          <tagFilterViewModule.default />
-        {:else}
-          <p class="empty-state">Loading tag filter...</p>
-        {/if}
-      {:else if activeView === 'today'}
-        {#if todayViewModule}
-          <todayViewModule.default />
-        {:else}
-          <p class="empty-state">Loading today...</p>
-        {/if}
-      {:else if activeView === 'logbook'}
-        {#if logbookViewModule}
-          <logbookViewModule.default />
-        {:else}
-          <p class="empty-state">Loading logbook...</p>
+          <p class="empty-state">Loading...</p>
         {/if}
       {:else if hasSelectedList}
         <TaskList />
@@ -412,15 +240,10 @@
     height: 48px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     padding: 0 16px;
     border-bottom: 1px solid var(--color-border-subtle, #292c30);
     background: var(--color-panel, #202225);
-  }
-
-  .toolbar-title {
-    font-size: 14px;
-    font-weight: 500;
   }
 
   .toolbar-actions {

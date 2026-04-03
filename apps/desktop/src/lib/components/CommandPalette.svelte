@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { get } from 'svelte/store';
   import { invoke } from '@tauri-apps/api/core';
-  import { currentView, selectedListId, selectedTaskId } from '$lib/stores/ui';
+  import { currentView, selectedListId, selectedTaskId, calendarSubView, type CalendarSubView } from '$lib/stores/ui';
   import { lists } from '$lib/stores/lists';
   import { tags } from '$lib/stores/tags';
   import { areas } from '$lib/stores/areas';
@@ -22,13 +22,17 @@
     items: PaletteResult[];
   };
 
+  const CALENDAR_SUB_VIEWS: CalendarSubView[] = ['week', 'next7days', 'upcoming', 'schedule', 'timeline'];
+
   const STATIC_VIEWS: PaletteResult[] = [
     { type: 'view', id: 'today', label: 'Today' },
-    { type: 'view', id: 'upcoming', label: 'Upcoming' },
-    { type: 'view', id: 'week', label: 'Week' },
     { type: 'view', id: 'calendar', label: 'Calendar' },
-    { type: 'view', id: 'schedule', label: 'Schedule' },
-    { type: 'view', id: 'timeline', label: 'Timeline' },
+    { type: 'view', id: 'calendar:week', label: 'Calendar — Week' },
+    { type: 'view', id: 'calendar:next7days', label: 'Calendar — Next 7 Days' },
+    { type: 'view', id: 'calendar:upcoming', label: 'Calendar — Upcoming' },
+    { type: 'view', id: 'calendar:schedule', label: 'Calendar — Schedule' },
+    { type: 'view', id: 'calendar:timeline', label: 'Calendar — Timeline' },
+    { type: 'view', id: 'logbook', label: 'Logbook' },
   ];
 
   let open = $state(false);
@@ -113,7 +117,12 @@
   function selectResult(result: PaletteResult) {
     switch (result.type) {
       case 'view':
-        currentView.set(result.id as any);
+        if (result.id.startsWith('calendar:')) {
+          currentView.set('calendar');
+          calendarSubView.set(result.id.split(':')[1] as CalendarSubView);
+        } else {
+          currentView.set(result.id as any);
+        }
         break;
       case 'list':
         selectedListId.set(result.id);

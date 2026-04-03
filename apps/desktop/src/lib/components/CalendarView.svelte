@@ -13,9 +13,30 @@
   import { lists } from '$lib/stores/lists';
   import { addTask, editTask, taskMutationVersion } from '$lib/stores/tasks';
   import { selectedTaskId } from '$lib/stores/ui';
+  import { calendarSubView, type CalendarSubView } from '$lib/stores/ui';
   import { parseTaskInput } from '$lib/services/nlp-parse';
   import { tags, tagTask, addTag } from '$lib/stores/tags';
   import type { Task } from '$lib/types';
+  import WeekView from './WeekView.svelte';
+  import Next7DaysView from './Next7DaysView.svelte';
+  import UpcomingView from './UpcomingView.svelte';
+  import ScheduleView from './ScheduleView.svelte';
+  import TimelineView from './TimelineView.svelte';
+
+  const SUB_VIEW_OPTIONS: { value: CalendarSubView; label: string }[] = [
+    { value: 'month', label: 'Month' },
+    { value: 'week', label: 'Week' },
+    { value: 'next7days', label: 'Next 7 Days' },
+    { value: 'upcoming', label: 'Upcoming' },
+    { value: 'schedule', label: 'Schedule' },
+    { value: 'timeline', label: 'Timeline' },
+  ];
+
+  let activeSubView = $derived($calendarSubView);
+
+  function setSubView(e: Event) {
+    calendarSubView.set((e.target as HTMLSelectElement).value as CalendarSubView);
+  }
 
   const MAX_VISIBLE_TASKS = 3;
   const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -258,85 +279,104 @@
 
 <div class="calendar-view">
   <header class="cal-header">
-    <button class="cal-nav-btn" onclick={prevMonth} aria-label="Previous month">
-      <svg width="16" height="16" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-        <path d="M7.5 2.25L3.75 6L7.5 9.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
-      </svg>
-    </button>
-    <h2 class="cal-month-label">{$monthLabel}</h2>
-    <button class="cal-nav-btn" onclick={nextMonth} aria-label="Next month">
-      <svg width="16" height="16" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-        <path d="M4.5 2.25L8.25 6L4.5 9.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
-      </svg>
-    </button>
-    <button class="cal-today-btn" onclick={goToToday}>Today</button>
+    <select class="cal-subview-select" value={activeSubView} onchange={setSubView}>
+      {#each SUB_VIEW_OPTIONS as opt}
+        <option value={opt.value}>{opt.label}</option>
+      {/each}
+    </select>
+    {#if activeSubView === 'month'}
+      <button class="cal-nav-btn" onclick={prevMonth} aria-label="Previous month">
+        <svg width="16" height="16" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+          <path d="M7.5 2.25L3.75 6L7.5 9.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+      <h2 class="cal-month-label">{$monthLabel}</h2>
+      <button class="cal-nav-btn" onclick={nextMonth} aria-label="Next month">
+        <svg width="16" height="16" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+          <path d="M4.5 2.25L8.25 6L4.5 9.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+      <button class="cal-today-btn" onclick={goToToday}>Today</button>
+    {/if}
   </header>
 
-  <div class="cal-grid">
-    <div class="cal-weekday-row">
-      <div class="cal-weekday cal-week-num-header"></div>
-      {#each DAY_LABELS as label}
-        <div class="cal-weekday">{label}</div>
-      {/each}
-    </div>
-
-    {#each calendarWeeks as week, wi}
-      {@const weekBars = multiDayBars.get(wi) ?? []}
-      {#if weekBars.length > 0}
-        <div class="cal-span-row">
-          <div class="cal-week-num-header"></div>
-          <div class="cal-span-area">
-            {#each weekBars as bar}
-              <div
-                class="cal-span-bar"
-                style="grid-column: {bar.startCol + 1} / {bar.endCol + 1}; grid-row: {bar.lane + 1}; background-color: {listColorMap[bar.task.listId] ?? 'var(--color-accent, #6c93c7)'};"
-                title={bar.task.title}
-              >
-                {bar.task.title}
-              </div>
-            {/each}
-          </div>
-        </div>
-      {/if}
-      <div class="cal-week-row">
-        <span class="cal-week-num">W{isoWeekNumber(new Date(week[0].date))}</span>
-        {#each week as cell}
-          {@const dayTasks = (tasksByDate[cell.date] ?? []).filter(t => !multiDayTaskIds.has(t.id))}
-          <div
-            class="cal-day-cell"
-            class:other-month={!cell.isCurrentMonth}
-            class:is-today={cell.date === today}
-            class:is-selected={cell.isCurrentMonth && cell.day === $selectedDay}
-            class:drag-over={dragOverDate === cell.date}
-            role="button"
-            tabindex={cell.isCurrentMonth ? 0 : -1}
-            onclick={(e) => { handleDayClick(cell); handleQuickAdd(e, cell); }}
-            onkeydown={(e) => handleDayKeydown(e, cell)}
-            ondragover={(e) => handleDragOver(e, cell)}
-            ondragleave={(e) => handleDragLeave(e, cell)}
-            ondrop={(e) => handleTaskDrop(e, cell)}
-          >
-            <span class="cal-day-number">{cell.day}</span>
-            <div class="cal-day-tasks">
-              {#each dayTasks.slice(0, MAX_VISIBLE_TASKS) as task (task.id)}
-                <button
-                  class="cal-task-chip"
-                  style:border-left-color={listColorMap[task.listId] ?? priorityColor(task.priority)}
-                  onclick={(e) => handleTaskClick(e, task)}
-                  title={task.title}
-                >
-                  {task.title}
-                </button>
-              {/each}
-              {#if dayTasks.length > MAX_VISIBLE_TASKS}
-                <button class="cal-more-badge" onclick={(e) => { e.stopPropagation(); handleDayClick(cell); }}>+{dayTasks.length - MAX_VISIBLE_TASKS} more</button>
-              {/if}
-            </div>
-          </div>
+  {#if activeSubView === 'week'}
+    <WeekView />
+  {:else if activeSubView === 'next7days'}
+    <Next7DaysView />
+  {:else if activeSubView === 'upcoming'}
+    <UpcomingView />
+  {:else if activeSubView === 'schedule'}
+    <ScheduleView />
+  {:else if activeSubView === 'timeline'}
+    <TimelineView />
+  {:else}
+    <div class="cal-grid">
+      <div class="cal-weekday-row">
+        <div class="cal-weekday cal-week-num-header"></div>
+        {#each DAY_LABELS as label}
+          <div class="cal-weekday">{label}</div>
         {/each}
       </div>
-    {/each}
-  </div>
+
+      {#each calendarWeeks as week, wi}
+        {@const weekBars = multiDayBars.get(wi) ?? []}
+        {#if weekBars.length > 0}
+          <div class="cal-span-row">
+            <div class="cal-week-num-header"></div>
+            <div class="cal-span-area">
+              {#each weekBars as bar}
+                <div
+                  class="cal-span-bar"
+                  style="grid-column: {bar.startCol + 1} / {bar.endCol + 1}; grid-row: {bar.lane + 1}; background-color: {listColorMap[bar.task.listId] ?? 'var(--color-accent, #6c93c7)'};"
+                  title={bar.task.title}
+                >
+                  {bar.task.title}
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+        <div class="cal-week-row">
+          <span class="cal-week-num">W{isoWeekNumber(new Date(week[0].date))}</span>
+          {#each week as cell}
+            {@const dayTasks = (tasksByDate[cell.date] ?? []).filter(t => !multiDayTaskIds.has(t.id))}
+            <div
+              class="cal-day-cell"
+              class:other-month={!cell.isCurrentMonth}
+              class:is-today={cell.date === today}
+              class:is-selected={cell.isCurrentMonth && cell.day === $selectedDay}
+              class:drag-over={dragOverDate === cell.date}
+              role="button"
+              tabindex={cell.isCurrentMonth ? 0 : -1}
+              onclick={(e) => { handleDayClick(cell); handleQuickAdd(e, cell); }}
+              onkeydown={(e) => handleDayKeydown(e, cell)}
+              ondragover={(e) => handleDragOver(e, cell)}
+              ondragleave={(e) => handleDragLeave(e, cell)}
+              ondrop={(e) => handleTaskDrop(e, cell)}
+            >
+              <span class="cal-day-number">{cell.day}</span>
+              <div class="cal-day-tasks">
+                {#each dayTasks.slice(0, MAX_VISIBLE_TASKS) as task (task.id)}
+                  <button
+                    class="cal-task-chip"
+                    style:border-left-color={listColorMap[task.listId] ?? priorityColor(task.priority)}
+                    onclick={(e) => handleTaskClick(e, task)}
+                    title={task.title}
+                  >
+                    {task.title}
+                  </button>
+                {/each}
+                {#if dayTasks.length > MAX_VISIBLE_TASKS}
+                  <button class="cal-more-badge" onclick={(e) => { e.stopPropagation(); handleDayClick(cell); }}>+{dayTasks.length - MAX_VISIBLE_TASKS} more</button>
+                {/if}
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/each}
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -356,6 +396,22 @@
     margin-bottom: 16px;
     flex-shrink: 0;
   }
+
+  .cal-subview-select {
+    background: var(--color-panel, #202225);
+    border: 1px solid var(--color-border, #32353a);
+    border-radius: 8px;
+    color: var(--color-text-primary, #d4d4d4);
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    padding: 6px 10px;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 150ms ease;
+  }
+  .cal-subview-select:hover { border-color: var(--color-accent, #6c93c7); }
+  .cal-subview-select:focus { border-color: var(--color-accent, #6c93c7); }
 
   .cal-month-label {
     font-size: 18px;

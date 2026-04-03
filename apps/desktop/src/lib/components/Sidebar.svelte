@@ -510,51 +510,6 @@
 
     <button
       class="nav-item"
-      class:active={$currentView === 'next7days'}
-      onclick={() => selectView('next7days')}
-    >
-      <span class="nav-icon" aria-hidden="true">
-        <svg viewBox="0 0 16 16" fill="none">
-          <rect x="2" y="3" width="12" height="10.5" rx="2" stroke="currentColor" stroke-width="1.4" />
-          <path d="M5 1.75V4.25M11 1.75V4.25M2 6h12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
-          <text x="8" y="11.5" font-size="5" font-weight="bold" fill="currentColor" text-anchor="middle">7</text>
-        </svg>
-      </span>
-      <span class="nav-label">Next 7 Days</span>
-    </button>
-
-    <button
-      class="nav-item"
-      class:active={$currentView === 'upcoming'}
-      onclick={() => selectView('upcoming')}
-    >
-      <span class="nav-icon" aria-hidden="true">
-        <svg viewBox="0 0 16 16" fill="none">
-          <rect x="2" y="3" width="12" height="10.5" rx="2" stroke="currentColor" stroke-width="1.4" />
-          <path d="M5 1.75V4.25M11 1.75V4.25M2 6h12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
-          <path d="M5 9l2 2 4-4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-      </span>
-      <span class="nav-label">Upcoming</span>
-    </button>
-
-    <button
-      class="nav-item"
-      class:active={$currentView === 'week'}
-      onclick={() => selectView('week')}
-    >
-      <span class="nav-icon" aria-hidden="true">
-        <svg viewBox="0 0 16 16" fill="none">
-          <rect x="2" y="3" width="12" height="10.5" rx="2" stroke="currentColor" stroke-width="1.4" />
-          <path d="M5 1.75V4.25M11 1.75V4.25M2 6h12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
-          <path d="M5 8.5h2M9 8.5h2M5 11h2M9 11h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
-        </svg>
-      </span>
-      <span class="nav-label">Week</span>
-    </button>
-
-    <button
-      class="nav-item"
       class:active={$currentView === 'calendar'}
       onclick={() => selectView('calendar')}
     >
@@ -566,35 +521,6 @@
         </svg>
       </span>
       <span class="nav-label">Calendar</span>
-    </button>
-
-    <button
-      class="nav-item"
-      class:active={$currentView === 'schedule'}
-      onclick={() => selectView('schedule')}
-    >
-      <span class="nav-icon" aria-hidden="true">
-        <svg viewBox="0 0 16 16" fill="none">
-          <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.4"/>
-          <path d="M2 6h12M6 2v12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-          <path d="M8.5 8.5h3M8.5 11h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-        </svg>
-      </span>
-      <span class="nav-label">Schedule</span>
-    </button>
-
-    <button
-      class="nav-item"
-      class:active={$currentView === 'timeline'}
-      onclick={() => selectView('timeline')}
-    >
-      <span class="nav-icon" aria-hidden="true">
-        <svg viewBox="0 0 16 16" fill="none">
-          <rect x="2" y="3" width="12" height="10" rx="2" stroke="currentColor" stroke-width="1.4"/>
-          <path d="M4.5 6h3M6.5 9h4M5 12h2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-        </svg>
-      </span>
-      <span class="nav-label">Timeline</span>
     </button>
 
     <button
