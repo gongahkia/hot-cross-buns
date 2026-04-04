@@ -13,3 +13,5 @@ export const calendarSubView = writable<CalendarSubView>('month');
 export const selectedTagId = writable<string | null>(null);
 export const selectedAreaId = writable<string | null>(null);
 export const selectedSavedFilterId = writable<string | null>(null);
+export const showSyncSettings = writable(false);
+export const showShortcutsModal = writable(false);

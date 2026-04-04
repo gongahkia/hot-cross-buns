@@ -9,7 +9,7 @@
   import NotificationCenter from '$lib/components/NotificationCenter.svelte';
   import Onboarding from '$lib/components/Onboarding.svelte';
   import CommandPalette from '$lib/components/CommandPalette.svelte';
-  import { selectedListId, selectedTaskId, currentView } from '$lib/stores/ui';
+  import { selectedListId, selectedTaskId, currentView, showShortcutsModal } from '$lib/stores/ui';
   import { editTask, removeTask } from '$lib/stores/tasks';
   import { addNotification } from '$lib/stores/notifications';
   import { loadLists } from '$lib/stores/lists';
@@ -30,7 +30,7 @@
     'logbook': () => import('$lib/components/LogbookView.svelte'),
   };
 
-  let showShortcuts = $state(false);
+  let showShortcuts = $derived($showShortcutsModal);
   let showOnboarding = $state(false);
   let appReady = $state(false);
   let startupError = $state<string | null>(null);
@@ -127,7 +127,7 @@
       },
       closeDetail() {
         selectedTaskId.set(null);
-        showShortcuts = false;
+        showShortcutsModal.set(false);
       },
       deleteSelectedTask() {
         let taskId: string | null = null;
@@ -146,7 +146,7 @@
       },
       switchToToday() { currentView.set('today'); },
       switchToCalendar() { currentView.set('calendar'); },
-      showShortcutsModal() { showShortcuts = true; },
+      showShortcutsModal() { showShortcutsModal.set(true); },
     });
 
     void listen('tray://quick-add-task', async () => {
@@ -205,7 +205,7 @@
 </div>
 
 <TaskDetail />
-<ShortcutsModal open={showShortcuts} onclose={() => (showShortcuts = false)} />
+<ShortcutsModal open={showShortcuts} onclose={() => showShortcutsModal.set(false)} />
 <CommandPalette />
 {#if showOnboarding}
   <Onboarding onDone={markOnboardingSeen} />

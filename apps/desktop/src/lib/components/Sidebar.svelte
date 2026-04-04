@@ -6,7 +6,7 @@
   import { tasks, taskMutationVersion } from '$lib/stores/tasks';
   import { invoke } from '@tauri-apps/api/core';
   import { tags } from '$lib/stores/tags';
-  import { currentView, selectedListId, selectedSmartFilter, selectedTagId, selectedAreaId, selectedSavedFilterId, type ViewMode, type SmartFilterType } from '$lib/stores/ui';
+  import { currentView, selectedListId, selectedSmartFilter, selectedTagId, selectedAreaId, selectedSavedFilterId, showSyncSettings, type ViewMode, type SmartFilterType } from '$lib/stores/ui';
   import { theme, cycleTheme } from '$lib/stores/theme';
   import type { List, Area, SavedFilter, Task } from '$lib/types';
   import { savedFilters, loadSavedFilters, addSavedFilter, removeSavedFilter } from '$lib/stores/savedFilters';
@@ -56,7 +56,7 @@
   let creatingList = $state(false);
   let newListName = $state('');
   let inputRef: HTMLInputElement | undefined = $state(undefined);
-  let showSyncSettings = $state(false);
+  let showSyncSettingsLocal = $derived($showSyncSettings);
   let contextMenuOpen = $state(false);
   let contextMenuX = $state(0);
   let contextMenuY = $state(0);
@@ -862,7 +862,7 @@
 
     <button
       class="gear-btn"
-      onclick={() => (showSyncSettings = true)}
+      onclick={() => showSyncSettings.set(true)}
       aria-label="Sync settings"
       title="Sync settings"
     >
@@ -904,7 +904,7 @@
   </div>
 {/if}
 
-<SyncSettings open={showSyncSettings} onclose={() => (showSyncSettings = false)} />
+<SyncSettings open={showSyncSettingsLocal} onclose={() => showSyncSettings.set(false)} />
 
 <style>
   .sidebar {

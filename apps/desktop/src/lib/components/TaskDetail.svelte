@@ -6,11 +6,15 @@
   import { invoke } from '@tauri-apps/api/core';
   import type { Task, Tag, Attachment } from '$lib/types';
   import { convertFileSrc } from '@tauri-apps/api/core';
+  import { marked } from 'marked';
   import RecurrenceBuilder from './RecurrenceBuilder.svelte';
+
+  marked.setOptions({ breaks: true, gfm: true });
 
   let task: Task | null = $state(null);
   let titleValue = $state('');
   let contentValue = $state('');
+  let contentEditing = $state(false);
   let startDateValue = $state('');
   let dueDateValue = $state('');
   let dueTimeValue = $state('');
@@ -333,6 +337,20 @@
     estimatedMinutesValue !== null && durationPresets.some((p) => p.minutes === estimatedMinutesValue)
   );
 
+  let renderedContent = $derived(contentValue ? marked.parse(contentValue) as string : '');
+
+  function startContentEdit() {
+    contentEditing = true;
+    requestAnimationFrame(() => {
+      const el = document.getElementById('task-content') as HTMLTextAreaElement | null;
+      if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+    });
+  }
+
+  function finishContentEdit() {
+    contentEditing = false;
+  }
+
   function onSubtaskKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter') {
       handleAddSubtask();
@@ -366,17 +384,37 @@
           />
         </section>
 
-        <!-- Content / Notes -->
+        <!-- Content / Notes (Markdown) -->
         <section class="field-group">
-          <label class="field-label" for="task-content">Notes</label>
-          <textarea
-            id="task-content"
-            class="field-input content-textarea"
-            value={contentValue}
-            oninput={onContentInput}
-            rows="4"
-            placeholder="Add notes..."
-          ></textarea>
+          <div class="content-header">
+            <label class="field-label" for="task-content">Notes</label>
+            {#if contentValue || contentEditing}
+              <button class="content-toggle-btn" onclick={() => contentEditing ? finishContentEdit() : startContentEdit()}>
+                {contentEditing ? 'Preview' : 'Edit'}
+              </button>
+            {/if}
+          </div>
+          {#if contentEditing}
+            <textarea
+              id="task-content"
+              class="field-input content-textarea"
+              value={contentValue}
+              oninput={onContentInput}
+              onblur={finishContentEdit}
+              rows="6"
+              placeholder="Markdown supported..."
+            ></textarea>
+          {:else if contentValue}
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div class="content-rendered" onclick={startContentEdit}>
+              {@html renderedContent}
+            </div>
+          {:else}
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div class="content-placeholder" onclick={startContentEdit}>Add notes...</div>
+          {/if}
         </section>
 
         <!-- Priority -->
@@ -712,10 +750,129 @@
     padding: 10px 12px;
   }
 
+  .content-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .content-toggle-btn {
+    background: none;
+    border: 1px solid var(--color-border, #32353a);
+    border-radius: 5px;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--color-text-muted, #90918d);
+    cursor: pointer;
+    font-family: inherit;
+    transition: color 150ms ease, border-color 150ms ease;
+  }
+  .content-toggle-btn:hover {
+    color: var(--color-accent, #6c93c7);
+    border-color: var(--color-accent, #6c93c7);
+  }
   .content-textarea {
     resize: vertical;
-    min-height: 80px;
+    min-height: 100px;
     line-height: 1.5;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 12px;
+  }
+  .content-rendered {
+    background: var(--color-input, #17181a);
+    border: 1px solid var(--color-border, #32353a);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--color-text-primary, #d4d4d4);
+    cursor: text;
+    min-height: 40px;
+    overflow-wrap: break-word;
+  }
+  .content-rendered :global(h1),
+  .content-rendered :global(h2),
+  .content-rendered :global(h3) {
+    margin: 8px 0 4px;
+    font-weight: 600;
+    color: var(--color-text-primary, #d4d4d4);
+  }
+  .content-rendered :global(h1) { font-size: 16px; }
+  .content-rendered :global(h2) { font-size: 14px; }
+  .content-rendered :global(h3) { font-size: 13px; }
+  .content-rendered :global(p) { margin: 4px 0; }
+  .content-rendered :global(ul),
+  .content-rendered :global(ol) {
+    margin: 4px 0;
+    padding-left: 20px;
+  }
+  .content-rendered :global(li) { margin: 2px 0; }
+  .content-rendered :global(code) {
+    background: var(--color-surface-0, #25282c);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 12px;
+  }
+  .content-rendered :global(pre) {
+    background: var(--color-surface-0, #25282c);
+    padding: 8px 10px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 6px 0;
+  }
+  .content-rendered :global(pre code) {
+    background: none;
+    padding: 0;
+  }
+  .content-rendered :global(blockquote) {
+    border-left: 3px solid var(--color-accent, #6c93c7);
+    margin: 6px 0;
+    padding: 2px 10px;
+    color: var(--color-text-secondary, #b6b6b2);
+  }
+  .content-rendered :global(a) {
+    color: var(--color-accent, #6c93c7);
+    text-decoration: none;
+  }
+  .content-rendered :global(a:hover) {
+    text-decoration: underline;
+  }
+  .content-rendered :global(hr) {
+    border: none;
+    border-top: 1px solid var(--color-border-subtle, #292c30);
+    margin: 8px 0;
+  }
+  .content-rendered :global(table) {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 6px 0;
+    font-size: 12px;
+  }
+  .content-rendered :global(th),
+  .content-rendered :global(td) {
+    border: 1px solid var(--color-border, #32353a);
+    padding: 4px 8px;
+    text-align: left;
+  }
+  .content-rendered :global(th) {
+    background: var(--color-surface-0, #25282c);
+    font-weight: 600;
+  }
+  .content-rendered :global(input[type="checkbox"]) {
+    accent-color: var(--color-accent, #6c93c7);
+    margin-right: 4px;
+  }
+  .content-placeholder {
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--color-text-faint, #70726f);
+    cursor: text;
+    border: 1px dashed var(--color-border, #32353a);
+    border-radius: 8px;
+  }
+  .content-placeholder:hover {
+    border-color: var(--color-text-muted, #90918d);
   }
 
   /* Priority */

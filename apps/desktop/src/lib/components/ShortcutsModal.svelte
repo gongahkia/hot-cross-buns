@@ -10,7 +10,8 @@
     { key: 'T', description: 'Switch to Today view' },
     { key: 'C', description: 'Switch to Calendar view' },
     { key: '?', description: 'Show this help' },
-    { key: '\u2318K / Ctrl+K', description: 'Open command palette' },
+    { key: '\u2318K / Ctrl+K', description: 'Open search palette' },
+    { key: '\u2318\u21e7P / Ctrl+P', description: 'Open command palette' },
   ];
 
   function handleOverlayClick(e: MouseEvent) {
