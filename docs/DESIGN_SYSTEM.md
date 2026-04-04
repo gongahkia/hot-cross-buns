@@ -1,6 +1,6 @@
 # Design System
 
-Visual design tokens and component specs for Cross 2. All values map to CSS custom properties and Tailwind config.
+Visual design tokens and component specs for Hot Cross Buns. All values map to CSS custom properties and Tailwind config.
 
 See also: [STYLE_GUIDE.md](./STYLE_GUIDE.md) for code conventions, [ARCHITECTURE.md](./ARCHITECTURE.md) for component file locations.
 

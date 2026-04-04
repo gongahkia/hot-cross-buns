@@ -1,6 +1,6 @@
 # Desktop App
 
-This is the Tauri desktop client for Cross 2.
+This is the Tauri desktop client for Hot Cross Buns.
 
 ## What Lives Here
 

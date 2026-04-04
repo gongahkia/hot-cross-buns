@@ -1,4 +1,4 @@
-# Cross 2 — PRD (`todo.md`)
+# Hot Cross Buns — PRD (`todo.md`)
 
 > **Architecture:** Local-first desktop productivity app with optional self-hosted sync.
 >
@@ -73,7 +73,7 @@ blockedBy: [none]
    - `npm create tauri-app@latest apps/desktop -- --template svelte-ts`
    - Verify `apps/desktop/package.json` has `svelte@^5.0.0`, `@sveltejs/vite-plugin-svelte`, TypeScript, and Vite.
 3. Initialize the Go module:
-   - `cd services/server && go mod init github.com/<user>/cross-2-server`
+   - `cd services/server && go mod init github.com/<user>/hot-cross-buns-server`
    - Add Echo framework: `go get github.com/labstack/echo/v4`
 4. Create `docker-compose.yml` for local PostgreSQL:
    ```yaml
@@ -83,13 +83,13 @@ blockedBy: [none]
        ports:
          - "5432:5432"
        environment:
-         POSTGRES_DB: cross2
-         POSTGRES_USER: cross2
+         POSTGRES_DB: hotcrossbuns
+         POSTGRES_USER: hotcrossbuns
          POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
        volumes:
          - pgdata:/var/lib/postgresql/data
        healthcheck:
-         test: ["CMD-SHELL", "pg_isready -U cross2"]
+         test: ["CMD-SHELL", "pg_isready -U hotcrossbuns"]
          interval: 5s   # WHY: pg typically starts within 5s; frequent checks speed up docker compose up
          timeout: 5s
          retries: 5
@@ -183,7 +183,7 @@ blockedBy: [0]
 **PURPOSE** — Bootstraps the Go server project with Echo, structured logging, config loading, and graceful shutdown — the foundation for every subsequent server task.
 
 **WHAT TO DO**
-1. Initialize `services/server/` as a Go module: `go mod init github.com/<user>/cross-2-server`.
+1. Initialize `services/server/` as a Go module: `go mod init github.com/<user>/hot-cross-buns-server`.
 2. Create `services/server/cmd/server/main.go`:
    - Load config from environment variables using `github.com/caarlos0/env/v11`: `PORT` (default `8080`), `DATABASE_URL` (required), `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`, `MAGIC_LINK_SECRET` (required, 32+ char — WHY: 256-bit minimum for HS256 JWT signing per RFC 7518 sec 3.2), `CORS_ORIGINS` (comma-separated, default `*`).
    - Initialize `slog.Logger` with JSON handler to stdout.
@@ -196,7 +196,7 @@ blockedBy: [0]
 - [x] `go build ./cmd/server` compiles with zero errors.
 - [x] Running the binary with `DATABASE_URL=postgres://...` set, then `curl localhost:8080/health` returns HTTP 200 with JSON containing `"status":"ok"`.
 - [x] Sending `SIGTERM` to the process causes it to shut down within 10s with a log line indicating graceful shutdown.
-- [x] `docker build -t cross-2-server ./services/server` succeeds.
+- [x] `docker build -t hot-cross-buns-server ./services/server` succeeds.
 
 ---
 
@@ -461,15 +461,15 @@ blockedBy: [0]
 1. In the monorepo, ensure `apps/desktop/` contains the Tauri 2 + Svelte 5 project (initialized in Task 0).
 2. Ensure `apps/desktop/src-tauri/Cargo.toml` targets Tauri 2.x with features: `["shell-open"]`.
 3. Configure `apps/desktop/src-tauri/tauri.conf.json`:
-   - `productName`: `"Cross 2"`, `identifier`: `"com.cross2.app"`.
-   - Window: `title: "Cross 2"`, `width: 1200`, `height: 800` (WHY: 1200x800 is the most common default for productivity apps — large enough to show sidebar + list + detail without scrolling), `minWidth: 800`, `minHeight: 600`.
+   - `productName`: `"Hot Cross Buns"`, `identifier`: `"com.hotcrossbuns.app"`.
+   - Window: `title: "Hot Cross Buns"`, `width: 1200`, `height: 800` (WHY: 1200x800 is the most common default for productivity apps — large enough to show sidebar + list + detail without scrolling), `minWidth: 800`, `minHeight: 600`.
    - Allow list for IPC commands (to be populated in later tasks).
 4. Verify `apps/desktop/package.json` has Svelte 5 (`svelte@^5.0.0`), `@sveltejs/vite-plugin-svelte`, TypeScript, and Vite.
-5. Create `apps/desktop/src/App.svelte` with a placeholder layout: 250px left sidebar (WHY: 250px fits ~20 characters of list name which covers 95% of typical list names), remaining content area, top toolbar. Use CSS grid. Display "Cross 2" in the toolbar.
+5. Create `apps/desktop/src/App.svelte` with a placeholder layout: 250px left sidebar (WHY: 250px fits ~20 characters of list name which covers 95% of typical list names), remaining content area, top toolbar. Use CSS grid. Display "Hot Cross Buns" in the toolbar.
 6. Verify the dev loop: `cd apps/desktop && npm run tauri dev` launches a native window on the current platform.
 
 **DONE WHEN**
-- [x] `npm run tauri dev` compiles and opens a native window titled "Cross 2" with the sidebar + content layout visible.
+- [x] `npm run tauri dev` compiles and opens a native window titled "Hot Cross Buns" with the sidebar + content layout visible.
 - [x] `npm run tauri build` produces a distributable binary for the current platform without errors.
 - [x] The Svelte version in `node_modules/svelte/package.json` is 5.x.
 
@@ -483,7 +483,7 @@ blockedBy: [1, 14]
 **WHAT TO DO**
 1. Add `rusqlite` (with `bundled` feature) and `serde`/`serde_json` to `src-tauri/Cargo.toml`.
 2. Create `src-tauri/src/db.rs`:
-   - `pub fn init_db(app_data_dir: &Path) -> Result<Connection>` — opens or creates `cross2.db` in the app data directory. Runs `PRAGMA foreign_keys=ON`, `PRAGMA journal_mode=WAL` (WHY: WAL mode allows concurrent readers during writes, preventing UI freezes during sync operations). Executes the canonical schema SQL (embed it via `include_str!("../../schema/canonical.sql")` — copy the schema file into the Tauri project or use a shared path).
+   - `pub fn init_db(app_data_dir: &Path) -> Result<Connection>` — opens or creates `hotcrossbuns.db` in the app data directory. Runs `PRAGMA foreign_keys=ON`, `PRAGMA journal_mode=WAL` (WHY: WAL mode allows concurrent readers during writes, preventing UI freezes during sync operations). Executes the canonical schema SQL (embed it via `include_str!("../../schema/canonical.sql")` — copy the schema file into the Tauri project or use a shared path).
    - `pub fn get_connection(app_data_dir: &Path) -> Result<Connection>` — opens existing DB with same PRAGMAs.
 3. Create `src-tauri/src/state.rs`:
    - `pub struct AppState { pub db_path: PathBuf }` — stored as Tauri managed state.
@@ -491,7 +491,7 @@ blockedBy: [1, 14]
    - On app setup, resolve `app.path().app_data_dir()`, call `init_db`, store `AppState` via `app.manage()`.
 
 **DONE WHEN**
-- [x] Launching the app creates `cross2.db` in the platform-appropriate app data directory (e.g., `~/.local/share/com.cross2.app/` on Linux).
+- [x] Launching the app creates `hotcrossbuns.db` in the platform-appropriate app data directory (e.g., `~/.local/share/com.hotcrossbuns.app/` on Linux).
 - [x] The database contains all 5 tables from the canonical schema with correct columns.
 - [x] Relaunching the app does not error or recreate existing tables.
 
@@ -945,13 +945,13 @@ blockedBy: [4, 5]
      db:
        image: postgres:16-alpine
        environment:
-         POSTGRES_DB: cross2
-         POSTGRES_USER: cross2
+         POSTGRES_DB: hotcrossbuns
+         POSTGRES_USER: hotcrossbuns
          POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
        volumes:
          - pgdata:/var/lib/postgresql/data
        healthcheck:
-         test: ["CMD-SHELL", "pg_isready -U cross2"]
+         test: ["CMD-SHELL", "pg_isready -U hotcrossbuns"]
          interval: 5s
          timeout: 5s
          retries: 5
@@ -960,7 +960,7 @@ blockedBy: [4, 5]
        ports:
          - "${PORT:-8080}:8080"
        environment:
-         DATABASE_URL: postgres://cross2:${DB_PASSWORD:-changeme}@db:5432/cross2?sslmode=disable
+         DATABASE_URL: postgres://hotcrossbuns:${DB_PASSWORD:-changeme}@db:5432/hotcrossbuns?sslmode=disable
          AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
          MAGIC_LINK_SECRET: ${MAGIC_LINK_SECRET:-change-this-to-a-32-char-secret!}
          SMTP_HOST: ${SMTP_HOST:-}
@@ -1203,7 +1203,7 @@ blockedBy: [14]
 1. Install `@playwright/test` and configure for WebDriver-based testing of the Tauri webview.
 2. Create `apps/desktop/tests/e2e/` directory.
 3. Test cases:
-   - `app-launch.spec.ts`: verify the app window opens with the correct title "Cross 2" and the sidebar is visible.
+   - `app-launch.spec.ts`: verify the app window opens with the correct title "Hot Cross Buns" and the sidebar is visible.
    - `list-management.spec.ts`: click "+ New List" -> type "Groceries" -> press Enter -> verify list appears in sidebar -> click delete -> verify list removed.
    - `task-workflow.spec.ts`: select Inbox -> type "Buy milk" in quick-add -> press Enter -> verify task appears -> click checkbox -> verify task moves to completed section.
    - `navigation.spec.ts`: click "Today" -> verify Today view renders -> click "Calendar" -> verify calendar grid renders.
@@ -1237,7 +1237,7 @@ blockedBy: [36, 37, 38, 39]
          postgres:
            image: postgres:16-alpine
            env:
-             POSTGRES_DB: cross2_test
+             POSTGRES_DB: hotcrossbuns_test
              POSTGRES_USER: test
              POSTGRES_PASSWORD: test
            ports: ["5432:5432"]
@@ -1249,7 +1249,7 @@ blockedBy: [36, 37, 38, 39]
            with: { go-version: '1.22' }
          - run: cd services/server && go test ./... -v -cover
            env:
-             DATABASE_URL: postgres://test:test@localhost:5432/cross2_test?sslmode=disable
+             DATABASE_URL: postgres://test:test@localhost:5432/hotcrossbuns_test?sslmode=disable
              MAGIC_LINK_SECRET: test-secret-at-least-32-characters!
      tauri-test:
        runs-on: ubuntu-latest
@@ -1638,7 +1638,7 @@ blockedBy: [14, 21]
 **WHAT TO DO**
 1. Enable the `tray-icon` plugin in Tauri 2: add `tauri-plugin-tray-icon` to `src-tauri/Cargo.toml`.
 2. Create a system tray icon with a context menu:
-   - "Open Cross 2" — shows/focuses the main window.
+   - "Open Hot Cross Buns" — shows/focuses the main window.
    - "Quick Add Task" — opens a small floating window (300x100px — WHY: minimal size for a single-line input; avoids disrupting the user's workflow) with just a task title input. On Enter, creates the task in the Inbox and closes the window.
    - "Today's Tasks" — submenu listing up to 5 tasks due today (WHY: 5 tasks is a quick glanceable summary; more would make the tray menu unwieldy) with checkboxes to complete them inline.
    - "Quit" — exits the app.
@@ -1837,7 +1837,7 @@ blockedBy: [20, 21]
 1. Create `apps/desktop/src/lib/components/Onboarding.svelte`:
    - First-run detection: check for a `onboarding_complete` key in the `settings` table.
    - 3-step walkthrough overlay (WHY: 3 steps is the sweet spot for onboarding; more causes drop-off):
-     a. "Welcome to Cross 2" — brief intro, show the sidebar and explain lists.
+     a. "Welcome to Hot Cross Buns" — brief intro, show the sidebar and explain lists.
      b. "Quick Add" — highlight the quick-add input, explain NLP date parsing.
      c. "Stay Synced" — explain optional sync setup.
    - "Skip" button on each step, "Done" on last step. Sets `onboarding_complete=true`.

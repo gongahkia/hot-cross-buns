@@ -65,15 +65,15 @@ async function resolveApplicationBinary() {
   const candidates = [];
   if (process.platform === 'darwin') {
     candidates.push(
-      path.join(SRC_TAURI_ROOT, 'target', 'debug', 'Cross 2.app', 'Contents', 'MacOS', 'Cross 2'),
-      path.join(SRC_TAURI_ROOT, 'target', 'debug', 'cross-2')
+      path.join(SRC_TAURI_ROOT, 'target', 'debug', 'Hot Cross Buns.app', 'Contents', 'MacOS', 'Hot Cross Buns'),
+      path.join(SRC_TAURI_ROOT, 'target', 'debug', 'hot-cross-buns')
     );
   } else if (process.platform === 'win32') {
-    candidates.push(path.join(SRC_TAURI_ROOT, 'target', 'debug', 'cross-2.exe'));
+    candidates.push(path.join(SRC_TAURI_ROOT, 'target', 'debug', 'hot-cross-buns.exe'));
   } else {
     candidates.push(
-      path.join(SRC_TAURI_ROOT, 'target', 'debug', 'cross-2'),
-      path.join(SRC_TAURI_ROOT, 'target', 'debug', 'Cross 2')
+      path.join(SRC_TAURI_ROOT, 'target', 'debug', 'hot-cross-buns'),
+      path.join(SRC_TAURI_ROOT, 'target', 'debug', 'Hot Cross Buns')
     );
   }
 
@@ -162,7 +162,7 @@ export async function shutdownDriverEnvironment() {
   }
 }
 
-export async function createProfileDir(prefix = 'cross2-e2e-') {
+export async function createProfileDir(prefix = 'hotcrossbuns-e2e-') {
   return fs.mkdtemp(path.join(os.tmpdir(), prefix));
 }
 

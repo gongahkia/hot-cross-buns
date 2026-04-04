@@ -23,7 +23,7 @@ import {
   waitForVisible,
 } from './support/tauri-driver.mjs';
 
-describe('Cross 2 desktop smoke tests', function () {
+describe('Hot Cross Buns desktop smoke tests', function () {
   this.timeout(180000);
 
   let activeProfileDir;
@@ -129,7 +129,7 @@ describe('Cross 2 desktop smoke tests', function () {
     activeProfileDir = await createProfileDir();
     await launchApp(activeProfileDir, {
       env: {
-        CROSS2_BENCHMARK_SEED: '2000',
+        HOTCROSSBUNS_BENCHMARK_SEED: '2000',
       },
     });
 
@@ -231,7 +231,7 @@ async function waitForStartupMetrics() {
   const startedAt = Date.now();
 
   while (Date.now() - startedAt < 15000) {
-    const metrics = await executeScript(() => window.__CROSS2_STARTUP_METRICS__ ?? null);
+    const metrics = await executeScript(() => window.__HOTCROSSBUNS_STARTUP_METRICS__ ?? null);
     if (metrics?.firstInteractiveAt !== null) {
       return metrics;
     }

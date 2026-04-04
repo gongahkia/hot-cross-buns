@@ -1,4 +1,4 @@
-// NLP task input parser for Cross 2.
+// NLP task input parser for Hot Cross Buns.
 // pure TS, zero deps. never throws.
 
 export interface ParsedTask {

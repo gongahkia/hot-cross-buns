@@ -1,4 +1,4 @@
-module github.com/gongahkia/cross-2-server
+module github.com/gongahkia/hot-cross-buns-server
 
 go 1.25.0
 

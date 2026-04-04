@@ -7,8 +7,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 
-	"github.com/gongahkia/cross-2-server/internal/models"
-	"github.com/gongahkia/cross-2-server/internal/services"
+	"github.com/gongahkia/hot-cross-buns-server/internal/models"
+	"github.com/gongahkia/hot-cross-buns-server/internal/services"
 )
 
 // SyncHandler holds dependencies for sync HTTP handlers.

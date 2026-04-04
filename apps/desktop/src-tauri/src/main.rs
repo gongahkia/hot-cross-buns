@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    cross_2_lib::run()
+    hot_cross_buns_lib::run()
 }

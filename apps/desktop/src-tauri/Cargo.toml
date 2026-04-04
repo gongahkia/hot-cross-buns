@@ -1,12 +1,12 @@
 [package]
-name = "cross-2"
+name = "hot-cross-buns"
 version = "0.1.0"
-description = "Cross 2 - Local-first desktop task manager"
+description = "Hot Cross Buns - Local-first desktop task manager"
 authors = ["gongahkia"]
 edition = "2021"
 
 [lib]
-name = "cross_2_lib"
+name = "hot_cross_buns_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

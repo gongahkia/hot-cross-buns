@@ -1,4 +1,4 @@
--- Cross 2 PostgreSQL schema
+-- Hot Cross Buns PostgreSQL schema
 
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -8,9 +8,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
-	"github.com/gongahkia/cross-2-server/internal/app"
-	"github.com/gongahkia/cross-2-server/internal/models"
-	"github.com/gongahkia/cross-2-server/internal/repository"
+	"github.com/gongahkia/hot-cross-buns-server/internal/app"
+	"github.com/gongahkia/hot-cross-buns-server/internal/models"
+	"github.com/gongahkia/hot-cross-buns-server/internal/repository"
 )
 
 // ListHandler handles HTTP requests for list CRUD operations.

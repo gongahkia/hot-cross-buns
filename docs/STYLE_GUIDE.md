@@ -1,6 +1,6 @@
 # Style Guide
 
-Code conventions for Cross 2. All rules are enforced by tooling; CI fails on violations.
+Code conventions for Hot Cross Buns. All rules are enforced by tooling; CI fails on violations.
 
 See also: [CONTRIBUTING.md](./CONTRIBUTING.md) for PR process, [ARCHITECTURE.md](./ARCHITECTURE.md) for project structure.
 
@@ -99,7 +99,7 @@ import (
     "github.com/labstack/echo/v4"
     "github.com/jackc/pgx/v5/pgxpool"
 
-    "cross-2/internal/models"
+    "hot-cross-buns/internal/models"
 )
 ```
 

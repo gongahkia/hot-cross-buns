@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/gongahkia/cross-2-server/internal/models"
+	"github.com/gongahkia/hot-cross-buns-server/internal/models"
 )
 
 // TagRepository provides CRUD operations for tags and task-tag associations.

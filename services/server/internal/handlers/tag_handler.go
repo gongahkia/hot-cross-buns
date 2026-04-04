@@ -8,8 +8,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 
-	"github.com/gongahkia/cross-2-server/internal/models"
-	"github.com/gongahkia/cross-2-server/internal/repository"
+	"github.com/gongahkia/hot-cross-buns-server/internal/models"
+	"github.com/gongahkia/hot-cross-buns-server/internal/repository"
 )
 
 // TagHandler exposes HTTP endpoints for tag CRUD and task-tag associations.

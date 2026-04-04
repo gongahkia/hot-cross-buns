@@ -1,4 +1,4 @@
-// Natural language date parser for Cross 2.
+// Natural language date parser for Hot Cross Buns.
 // Regex-based — no external dependencies.
 
 export interface ParsedDate {

@@ -26,7 +26,7 @@ async function pickSavePath(
 
 export async function exportJsonBackup(): Promise<string | null> {
   const target = await pickSavePath(
-    `cross2-backup-${todayStamp()}.json`,
+    `hotcrossbuns-backup-${todayStamp()}.json`,
     ['json'],
     'JSON Backup'
   );
@@ -42,7 +42,7 @@ export async function exportJsonBackup(): Promise<string | null> {
 
 export async function exportCsvBackup(): Promise<string | null> {
   const target = await pickSavePath(
-    `cross2-tasks-${todayStamp()}.csv`,
+    `hotcrossbuns-tasks-${todayStamp()}.csv`,
     ['csv'],
     'CSV Export'
   );

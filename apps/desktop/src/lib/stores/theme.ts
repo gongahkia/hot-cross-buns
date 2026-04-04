@@ -2,7 +2,7 @@ import { writable } from 'svelte/store';
 
 export type ThemeChoice = 'light' | 'dark' | 'system';
 
-const STORAGE_KEY = 'cross2-theme';
+const STORAGE_KEY = 'hotcrossbuns-theme';
 
 function getStoredTheme(): ThemeChoice {
   try {

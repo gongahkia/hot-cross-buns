@@ -1,6 +1,6 @@
 # API Conventions
 
-REST API patterns for the Cross 2 sync server. All endpoints live under `/api/v1`.
+REST API patterns for the Hot Cross Buns sync server. All endpoints live under `/api/v1`.
 
 See also: [ARCHITECTURE.md](./ARCHITECTURE.md) for data models, [STYLE_GUIDE.md](./STYLE_GUIDE.md) for Go naming.
 

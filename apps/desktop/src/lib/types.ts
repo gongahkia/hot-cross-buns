@@ -1,4 +1,4 @@
-// Cross 2 shared type definitions
+// Hot Cross Buns shared type definitions
 
 export interface Area {
   id: string;

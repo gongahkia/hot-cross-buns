@@ -59,12 +59,12 @@
 
   function hasSeenOnboarding(): boolean {
     if (typeof localStorage === 'undefined') return true;
-    return localStorage.getItem('cross2:onboardingSeen') === 'true';
+    return localStorage.getItem('hotcrossbuns:onboardingSeen') === 'true';
   }
 
   function markOnboardingSeen() {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('cross2:onboardingSeen', 'true');
+      localStorage.setItem('hotcrossbuns:onboardingSeen', 'true');
     }
     showOnboarding = false;
   }

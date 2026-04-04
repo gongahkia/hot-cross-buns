@@ -1,4 +1,4 @@
--- Cross 2 canonical schema (SQLite)
+-- Hot Cross Buns canonical schema (SQLite)
 -- All clients must implement this schema locally.
 
 PRAGMA foreign_keys = ON;

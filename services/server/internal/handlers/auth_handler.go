@@ -7,8 +7,8 @@ import (
 
 	"github.com/labstack/echo/v4"
 
-	"github.com/gongahkia/cross-2-server/internal/app"
-	"github.com/gongahkia/cross-2-server/internal/services"
+	"github.com/gongahkia/hot-cross-buns-server/internal/app"
+	"github.com/gongahkia/hot-cross-buns-server/internal/services"
 )
 
 // AuthHandler holds dependencies for authentication HTTP handlers.

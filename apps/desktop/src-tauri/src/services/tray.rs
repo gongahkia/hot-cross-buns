@@ -1,7 +1,7 @@
-/// System tray integration for Cross 2.
+/// System tray integration for Hot Cross Buns.
 ///
 /// Creates a tray icon with a context menu containing:
-/// - "Open Cross 2" -- shows/focuses the main window
+/// - "Open Hot Cross Buns" -- shows/focuses the main window
 /// - "Quick Add Task" -- emits a custom event for the frontend
 /// - Separator
 /// - "Quit" -- exits the application
@@ -16,7 +16,7 @@ use tauri::{Emitter, Manager};
 ///
 /// Call this from the Tauri `setup` closure, passing a reference to the `App`.
 pub fn setup_tray(app: &tauri::App) -> Result<(), String> {
-    let open_item = MenuItemBuilder::with_id("open", "Open Cross 2")
+    let open_item = MenuItemBuilder::with_id("open", "Open Hot Cross Buns")
         .build(app)
         .map_err(|e| format!("Failed to build 'Open' menu item: {e}"))?;
 
@@ -37,7 +37,7 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), String> {
         .map_err(|e| format!("Failed to build tray menu: {e}"))?;
 
     TrayIconBuilder::new()
-        .tooltip("Cross 2")
+        .tooltip("Hot Cross Buns")
         .menu(&menu)
         .on_menu_event(|app_handle, event| match event.id().as_ref() {
             "open" => {

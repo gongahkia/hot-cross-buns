@@ -1,6 +1,6 @@
-# Cross 2
+# Hot Cross Buns
 
-Cross 2 is a desktop-first, local-first task manager. The desktop app owns the primary experience: lists, tasks, tags, planning views, and persistence all work against a local SQLite database. The Go server exists to support optional self-hosted sync between devices.
+Hot Cross Buns is a desktop-first, local-first task manager. The desktop app owns the primary experience: lists, tasks, tags, planning views, and persistence all work against a local SQLite database. The Go server exists to support optional self-hosted sync between devices.
 
 ## Current Scope
 
@@ -19,7 +19,7 @@ Current non-goals for this repo:
 ## Repo Layout
 
 ```text
-cross-2/
+hot-cross-buns/
   apps/desktop/      Tauri desktop app (Svelte frontend + Rust commands)
   services/server/   Go sync server
   schema/            Reference SQL schema files
@@ -68,7 +68,7 @@ The server now requires `DATABASE_URL` at boot.
 docker compose up -d db
 
 cd services/server
-DATABASE_URL=postgres://cross2:changeme@localhost:5432/cross2?sslmode=disable go run ./cmd/server
+DATABASE_URL=postgres://hotcrossbuns:changeme@localhost:5432/hotcrossbuns?sslmode=disable go run ./cmd/server
 ```
 
 Server verification:

@@ -185,13 +185,13 @@ fn apply_runtime_migrations(conn: &Connection) -> Result<(), String> {
     Ok(())
 }
 
-/// Creates (or opens) cross2.db inside `app_data_dir`, applies PRAGMAs,
+/// Creates (or opens) hotcrossbuns.db inside `app_data_dir`, applies PRAGMAs,
 /// and runs the canonical schema.
 pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
     std::fs::create_dir_all(app_data_dir)
         .map_err(|e| format!("Failed to create app data dir: {}", e))?;
 
-    let db_path = app_data_dir.join("cross2.db");
+    let db_path = app_data_dir.join("hotcrossbuns.db");
     let conn = Connection::open(&db_path).map_err(|e| format!("Failed to open database: {}", e))?;
 
     apply_pragmas(&conn)?;
@@ -203,9 +203,9 @@ pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
     Ok(conn)
 }
 
-/// Opens an existing cross2.db with the standard PRAGMAs applied.
+/// Opens an existing hotcrossbuns.db with the standard PRAGMAs applied.
 pub fn get_connection(app_data_dir: &Path) -> Result<Connection, String> {
-    let db_path = app_data_dir.join("cross2.db");
+    let db_path = app_data_dir.join("hotcrossbuns.db");
     let conn = Connection::open(&db_path).map_err(|e| format!("Failed to open database: {}", e))?;
 
     apply_pragmas(&conn)?;

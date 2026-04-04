@@ -1,6 +1,6 @@
 # Architecture
 
-Cross 2 is intentionally split into two products with different responsibilities:
+Hot Cross Buns is intentionally split into two products with different responsibilities:
 
 - `apps/desktop` is the primary product: a local-first desktop task manager.
 - `services/server` is supporting infrastructure: a self-hosted sync API for users who want multiple devices.
@@ -10,7 +10,7 @@ The architecture is designed so the desktop app remains useful without the serve
 ## Monorepo Structure
 
 ```text
-cross-2/
+hot-cross-buns/
   apps/desktop/
     src/                  Svelte UI, stores, and route entrypoints
     src-tauri/src/

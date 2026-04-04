@@ -1,4 +1,4 @@
--- Cross 2 seed data for development and testing
+-- Hot Cross Buns seed data for development and testing
 
 -- Lists
 INSERT INTO lists (id, name, color, sort_order, is_inbox, created_at, updated_at) VALUES

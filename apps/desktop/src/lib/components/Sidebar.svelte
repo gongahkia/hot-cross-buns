@@ -462,7 +462,7 @@
 
 <aside class="sidebar">
   <div class="sidebar-header">
-    <h2>Cross 2</h2>
+    <h2>Hot Cross Buns</h2>
   </div>
 
   <div class="quick-find">

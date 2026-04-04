@@ -13,8 +13,8 @@ type EmailService struct{}
 func (s *EmailService) SendMagicLink(toEmail, token, smtpHost, smtpPort, smtpFrom, smtpUser, smtpPass string) error {
 	addr := fmt.Sprintf("%s:%s", smtpHost, smtpPort)
 
-	subject := "Your Cross 2 Magic Link"
-	body := fmt.Sprintf("Click the link below to sign in to Cross 2:\n\nToken: %s\n\nThis link expires in 15 minutes.", token)
+	subject := "Your Hot Cross Buns Magic Link"
+	body := fmt.Sprintf("Click the link below to sign in to Hot Cross Buns:\n\nToken: %s\n\nThis link expires in 15 minutes.", token)
 
 	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=\"utf-8\"\r\n\r\n%s",
 		smtpFrom, toEmail, subject, body,

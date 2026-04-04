@@ -6,7 +6,7 @@
 
   const steps = [
     {
-      title: 'Welcome to Cross 2',
+      title: 'Welcome to Hot Cross Buns',
       description: 'A fast, keyboard-driven task manager built for people who get things done.',
       illustration: 'task-list',
     },
