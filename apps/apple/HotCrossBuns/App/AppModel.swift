@@ -33,9 +33,18 @@ final class AppModel {
     }
 
     static func bootstrap() -> AppModel {
-        AppModel(
+        let tokenProvider = GoogleSignInAccessTokenProvider()
+        let transport = GoogleAPITransport(
+            baseURL: URL(string: "https://www.googleapis.com")!,
+            tokenProvider: tokenProvider
+        )
+
+        return AppModel(
             authService: GoogleAuthService(),
-            syncScheduler: SyncScheduler(),
+            syncScheduler: SyncScheduler(
+                tasksClient: GoogleTasksClient(transport: transport),
+                calendarClient: GoogleCalendarClient(transport: transport)
+            ),
             cacheStore: LocalCacheStore()
         )
     }
@@ -98,13 +107,19 @@ final class AppModel {
     }
 
     func refreshNow() async {
+        guard account != nil else {
+            syncState = .failed(message: "Connect Google before syncing.")
+            return
+        }
+
         syncState = .syncing(startedAt: Date())
         do {
-            let signedInAccount = account
-            let syncedState = try await syncScheduler.syncNow(mode: settings.syncMode)
+            let syncedState = try await syncScheduler.syncNow(
+                mode: settings.syncMode,
+                baseState: currentCachedState()
+            )
             apply(syncedState)
-            account = signedInAccount
-            authState = signedInAccount.map(AuthState.signedIn) ?? .signedOut
+            authState = syncedState.account.map(AuthState.signedIn) ?? .signedOut
             syncState = .synced(at: Date())
             await saveCurrentState()
         } catch {
