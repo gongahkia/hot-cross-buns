@@ -74,6 +74,9 @@ struct StoreView: View {
             .searchable(text: $searchQuery, placement: .sidebar, prompt: "Filter")
             .toolbar {
                 ToolbarItemGroup {
+                    if model.pendingMutations.count > 0 {
+                        PendingSyncPill(count: model.pendingMutations.count)
+                    }
                     filterMenu
                     Button {
                         router.present(.manageTaskLists)

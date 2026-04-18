@@ -131,10 +131,10 @@ Dogfood with a real account for at least one workday on macOS. Smoke checklist (
 ## 9. Deferred work
 
 Not in scope for this push, listed here so nothing is lost:
-- Offline `PendingMutation` queue (type exists in Models; writer/replayer not wired in Services).
-- etag / `If-Match` conditional writes — etags are captured on read but not sent on write; currently last-write-wins vs. Google web UI.
-- Calendar grid view (day/week/month).
-- Task → calendar event time-blocking drag.
+- Offline `PendingMutation` queue — **creates are wired** (optimistic local IDs remapped on accept, transient errors retried, replay triggered on refresh + scenePhase active, pending count visible in Calendar/Store headers). **Updates and deletes still fail fast on network error** rather than queueing — extending them requires etag-snapshot-per-mutation and localID remap for updates targeting pending creates; designed out of this push.
+- etag / `If-Match` conditional writes — **wired** for task update/delete and event update/delete. 412 triggers a refresh so the user sees the winning state before retrying. Series-level event updates/deletes intentionally omit the If-Match since the series ID diverges from instance etag.
+- Calendar grid view (day/week/month) — **wired** (agenda/week/month picker in `CalendarHomeView`).
+- Task → calendar event time-blocking drag — **wired** (`WeekGridView` day columns are drop destinations for `DraggedTask`; creates a 60-minute event with `hcb://task/<id>` back-link).
 - Subtask hierarchy, task reorder, bulk operations, filters.
 - RRULE editing, attendees / guest-email policy, "this and following" delete.
 - Crash reporting.
