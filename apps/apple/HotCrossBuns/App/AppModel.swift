@@ -49,6 +49,22 @@ final class AppModel {
     func loadInitialState() async {
         let cachedState = await cacheStore.loadCachedState()
         apply(cachedState)
+        authState = cachedState.account.map(AuthState.signedIn) ?? .signedOut
+    }
+
+    func restoreGoogleSession() async {
+        do {
+            guard let restoredAccount = try await authService.restorePreviousSignIn() else {
+                account = nil
+                authState = .signedOut
+                return
+            }
+
+            account = restoredAccount
+            authState = .signedIn(restoredAccount)
+        } catch {
+            authState = .failed(error.localizedDescription)
+        }
     }
 
     func connectGoogleAccount() async {
@@ -58,17 +74,39 @@ final class AppModel {
             self.account = account
             authState = .signedIn(account)
             syncState = .idle
+            await saveCurrentState()
         } catch {
             authState = .failed(error.localizedDescription)
         }
     }
 
+    func disconnectGoogleAccount() async {
+        do {
+            try await authService.disconnect()
+        } catch {
+            authService.signOut()
+        }
+
+        account = nil
+        authState = .signedOut
+        syncState = .idle
+        await saveCurrentState()
+    }
+
+    func handleAuthRedirect(_ url: URL) {
+        _ = authService.handleRedirectURL(url)
+    }
+
     func refreshNow() async {
         syncState = .syncing(startedAt: Date())
         do {
+            let signedInAccount = account
             let syncedState = try await syncScheduler.syncNow(mode: settings.syncMode)
             apply(syncedState)
+            account = signedInAccount
+            authState = signedInAccount.map(AuthState.signedIn) ?? .signedOut
             syncState = .synced(at: Date())
+            await saveCurrentState()
         } catch {
             syncState = .failed(message: error.localizedDescription)
         }
@@ -76,6 +114,9 @@ final class AppModel {
 
     func updateSyncMode(_ mode: SyncMode) {
         settings.syncMode = mode
+        Task {
+            await saveCurrentState()
+        }
     }
 
     func toggleCalendar(_ calendarID: CalendarListMirror.ID) {
@@ -84,6 +125,9 @@ final class AppModel {
         }
         calendars[index].isSelected.toggle()
         rebuildSnapshots()
+        Task {
+            await saveCurrentState()
+        }
     }
 
     func task(id: TaskMirror.ID) -> TaskMirror? {
@@ -108,6 +152,21 @@ final class AppModel {
         apply(.preview)
         authState = .signedIn(.preview)
         syncState = .synced(at: Date())
+    }
+
+    private func currentCachedState() -> CachedAppState {
+        CachedAppState(
+            account: account,
+            taskLists: taskLists,
+            tasks: tasks,
+            calendars: calendars,
+            events: events,
+            settings: settings
+        )
+    }
+
+    private func saveCurrentState() async {
+        await cacheStore.save(currentCachedState())
     }
 
     private func rebuildSnapshots(referenceDate: Date = Date()) {

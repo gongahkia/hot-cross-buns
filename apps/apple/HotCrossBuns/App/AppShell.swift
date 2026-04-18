@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct AppShell: View {
+    @Environment(AppModel.self) private var model
     @State private var selectedTab: AppTab = .today
     @State private var tabRouter = TabRouter()
 
@@ -17,6 +18,13 @@ struct AppShell: View {
                 .tabItem { tab.label }
                 .tag(tab)
             }
+        }
+        .task {
+            await model.loadInitialState()
+            await model.restoreGoogleSession()
+        }
+        .onOpenURL { url in
+            model.handleAuthRedirect(url)
         }
     }
 }

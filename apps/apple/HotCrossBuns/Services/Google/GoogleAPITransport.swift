@@ -1,12 +1,14 @@
 import Foundation
 
 protocol AccessTokenProviding: Sendable {
+    @MainActor
     func accessToken() async throws -> String
 }
 
 struct StaticAccessTokenProvider: AccessTokenProviding {
     var token: String
 
+    @MainActor
     func accessToken() async throws -> String {
         token
     }
