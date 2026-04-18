@@ -16,23 +16,36 @@ struct GoogleTasksClient: Sendable {
 
     func listTasks(taskListID: String, updatedMin: Date?) async throws -> [TaskMirror] {
         let encodedTaskListID = taskListID.googlePathComponentEncoded
-        var queryItems = [
+        let baseQueryItems = [
             URLQueryItem(name: "showCompleted", value: "true"),
             URLQueryItem(name: "showDeleted", value: "true"),
             URLQueryItem(name: "showHidden", value: "true"),
             URLQueryItem(name: "maxResults", value: "100")
         ]
+        var pageToken: String?
+        var tasks: [TaskMirror] = []
 
-        if let updatedMin {
-            queryItems.append(URLQueryItem(name: "updatedMin", value: ISO8601DateFormatter.google.string(from: updatedMin)))
-        }
+        repeat {
+            var queryItems = baseQueryItems
 
-        let response: GoogleTasksResponse = try await transport.get(
-            path: "/tasks/v1/lists/\(encodedTaskListID)/tasks",
-            queryItems: queryItems
-        )
+            if let updatedMin {
+                queryItems.append(URLQueryItem(name: "updatedMin", value: ISO8601DateFormatter.google.string(from: updatedMin)))
+            }
 
-        return response.items.map { $0.mirror(taskListID: taskListID) }
+            if let pageToken {
+                queryItems.append(URLQueryItem(name: "pageToken", value: pageToken))
+            }
+
+            let response: GoogleTasksResponse = try await transport.get(
+                path: "/tasks/v1/lists/\(encodedTaskListID)/tasks",
+                queryItems: queryItems
+            )
+
+            tasks.append(contentsOf: response.items.map { $0.mirror(taskListID: taskListID) })
+            pageToken = response.nextPageToken
+        } while pageToken != nil
+
+        return tasks
     }
 
     func insertTask(
@@ -127,6 +140,7 @@ private struct GoogleTaskListDTO: Decodable, Sendable {
 
 private struct GoogleTasksResponse: Decodable, Sendable {
     var items: [GoogleTaskDTO]
+    var nextPageToken: String?
 }
 
 private struct GoogleTaskDTO: Decodable, Sendable {

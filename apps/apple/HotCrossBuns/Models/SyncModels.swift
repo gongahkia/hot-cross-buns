@@ -60,6 +60,16 @@ struct SyncCheckpoint: Identifiable, Hashable, Codable, Sendable {
     var lastSuccessfulSyncAt: Date?
 }
 
+extension SyncCheckpoint {
+    static func stableID(
+        accountID: GoogleAccount.ID,
+        resourceType: SyncResourceType,
+        resourceID: String
+    ) -> String {
+        "\(accountID)::\(resourceType.rawValue)::\(resourceID)"
+    }
+}
+
 enum SyncResourceType: String, Hashable, Codable, Sendable {
     case taskList
     case calendar

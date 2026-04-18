@@ -23,26 +23,41 @@ struct GoogleCalendarClient: Sendable {
 
     func listEvents(calendarID: String, syncToken: String?, timeMin: Date = Date()) async throws -> GoogleCalendarEventsPage {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
-        var queryItems = [
+        let baseQueryItems = [
             URLQueryItem(name: "singleEvents", value: "true"),
             URLQueryItem(name: "showDeleted", value: "true"),
             URLQueryItem(name: "maxResults", value: "250")
         ]
+        var pageToken: String?
+        var events: [CalendarEventMirror] = []
+        var nextSyncToken: String?
 
-        if let syncToken, !syncToken.isEmpty {
-            queryItems.append(URLQueryItem(name: "syncToken", value: syncToken))
-        } else {
-            queryItems.append(URLQueryItem(name: "timeMin", value: ISO8601DateFormatter.google.string(from: timeMin)))
-        }
+        repeat {
+            var queryItems = baseQueryItems
 
-        let response: GoogleEventsResponse = try await transport.get(
-            path: "/calendar/v3/calendars/\(encodedCalendarID)/events",
-            queryItems: queryItems
-        )
+            if let syncToken, !syncToken.isEmpty {
+                queryItems.append(URLQueryItem(name: "syncToken", value: syncToken))
+            } else {
+                queryItems.append(URLQueryItem(name: "timeMin", value: ISO8601DateFormatter.google.string(from: timeMin)))
+            }
+
+            if let pageToken {
+                queryItems.append(URLQueryItem(name: "pageToken", value: pageToken))
+            }
+
+            let response: GoogleEventsResponse = try await transport.get(
+                path: "/calendar/v3/calendars/\(encodedCalendarID)/events",
+                queryItems: queryItems
+            )
+
+            events.append(contentsOf: response.items.map { $0.mirror(calendarID: calendarID) })
+            nextSyncToken = response.nextSyncToken ?? nextSyncToken
+            pageToken = response.nextPageToken
+        } while pageToken != nil
 
         return GoogleCalendarEventsPage(
-            events: response.items.map { $0.mirror(calendarID: calendarID) },
-            nextSyncToken: response.nextSyncToken
+            events: events,
+            nextSyncToken: nextSyncToken
         )
     }
 
@@ -124,6 +139,7 @@ private struct GoogleCalendarListItemDTO: Decodable, Sendable {
 
 private struct GoogleEventsResponse: Decodable, Sendable {
     var items: [GoogleEventDTO]
+    var nextPageToken: String?
     var nextSyncToken: String?
 }
 
@@ -132,21 +148,22 @@ private struct GoogleEventDTO: Decodable, Sendable {
     var summary: String?
     var description: String?
     var status: String?
-    var start: GoogleEventDateDTO
-    var end: GoogleEventDateDTO
+    var start: GoogleEventDateDTO?
+    var end: GoogleEventDateDTO?
     var recurrence: [String]?
     var etag: String?
     var updated: Date?
 
     func mirror(calendarID: String) -> CalendarEventMirror {
-        CalendarEventMirror(
+        let fallbackDate = updated ?? Date()
+        return CalendarEventMirror(
             id: id,
             calendarID: calendarID,
             summary: summary ?? "Untitled event",
             details: description ?? "",
-            startDate: start.resolvedDate,
-            endDate: end.resolvedDate,
-            isAllDay: start.date != nil,
+            startDate: start?.resolvedDate ?? fallbackDate,
+            endDate: end?.resolvedDate ?? fallbackDate,
+            isAllDay: start?.date != nil,
             status: CalendarEventStatus(rawValue: status ?? "confirmed") ?? .confirmed,
             recurrence: recurrence ?? [],
             etag: etag,
