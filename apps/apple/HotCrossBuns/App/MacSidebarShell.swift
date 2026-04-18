@@ -57,13 +57,8 @@ struct MacSidebarShell: View {
         layoutZoomLadder[max(0, min(zoomStep, layoutZoomLadder.count - 1))]
     }
 
-    private var sidebarToggleAnimation: Animation {
-        .smooth(duration: 0.34, extraBounce: 0.04)
-    }
-
     private let expandedSidebarWidth: CGFloat = 240
     private let collapsedSidebarWidth: CGFloat = 64
-    private let sidebarToggleLockNanoseconds: UInt64 = 420_000_000
 
     private var currentSidebarWidth: CGFloat {
         isSidebarCollapsed ? collapsedSidebarWidth : expandedSidebarWidth
@@ -82,8 +77,6 @@ struct MacSidebarShell: View {
     @State private var appShortcutMonitor: Any?
     @State private var collapsedVimFocus: CollapsedVimFocus = .detail
     @State private var isVimDetailFocused = false
-    @State private var isSidebarTransitioning = false
-    @State private var sidebarTransitionUnlockTask: Task<Void, Never>?
 
     private enum CollapsedVimFocus {
         case sidebar
@@ -167,7 +160,6 @@ struct MacSidebarShell: View {
             }
             .onDisappear {
                 uninstallAppShortcutMonitor()
-                resetSidebarTransitionLock()
             }
             .onChange(of: model.settings.enableVimKeybindings) { _, newValue in
                 vimMonitor.isEnabled = newValue
@@ -245,25 +237,11 @@ struct MacSidebarShell: View {
 
     @ViewBuilder
     private var sidebar: some View {
-        ZStack(alignment: .topLeading) {
+        Group {
             if isSidebarCollapsed {
                 collapsedSidebar
-                    .id("collapsedSidebar")
-                    .transition(
-                        .asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.96, anchor: .top)),
-                            removal: .opacity.combined(with: .move(edge: .leading))
-                        )
-                    )
             } else {
                 expandedSidebar
-                    .id("expandedSidebar")
-                    .transition(
-                        .asymmetric(
-                            insertion: .opacity.combined(with: .move(edge: .leading)),
-                            removal: .opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading))
-                        )
-                    )
             }
         }
         .frame(width: currentSidebarWidth, alignment: .topLeading)
@@ -273,7 +251,6 @@ struct MacSidebarShell: View {
             max: currentSidebarWidth
         )
         .clipped()
-        .animation(sidebarToggleAnimation, value: isSidebarCollapsed)
     }
 
     private var collapseToggle: some View {
@@ -284,41 +261,18 @@ struct MacSidebarShell: View {
                 .font(.system(size: 13, weight: .semibold))
         }
         .buttonStyle(.borderless)
-        .allowsHitTesting(isSidebarTransitioning == false)
         .help(isSidebarCollapsed ? "Expand sidebar (⌘S)" : "Collapse to icons (⌘S)")
         .accessibilityLabel(isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar to icons")
     }
 
     private func toggleSidebarCollapsed() {
-        guard isSidebarTransitioning == false else { return }
-
-        isSidebarTransitioning = true
-        withAnimation(sidebarToggleAnimation) {
-            let shouldCollapse = isSidebarCollapsed == false
-            isSidebarCollapsed = shouldCollapse
-            // After toggling sidebar density, reset Vim navigation focus to sidebar.
-            setVimFocus(detail: false)
-            if shouldCollapse {
-                collapsedVimFocus = .sidebar
-            }
+        let shouldCollapse = isSidebarCollapsed == false
+        isSidebarCollapsed = shouldCollapse
+        // After toggling sidebar density, reset Vim navigation focus to sidebar.
+        setVimFocus(detail: false)
+        if shouldCollapse {
+            collapsedVimFocus = .sidebar
         }
-
-        sidebarTransitionUnlockTask?.cancel()
-        sidebarTransitionUnlockTask = Task { @MainActor in
-            do {
-                try await Task.sleep(nanoseconds: sidebarToggleLockNanoseconds)
-            } catch {
-                return
-            }
-            isSidebarTransitioning = false
-            sidebarTransitionUnlockTask = nil
-        }
-    }
-
-    private func resetSidebarTransitionLock() {
-        sidebarTransitionUnlockTask?.cancel()
-        sidebarTransitionUnlockTask = nil
-        isSidebarTransitioning = false
     }
 
     private var collapsedSidebar: some View {
@@ -690,7 +644,6 @@ struct MacSidebarShell: View {
         let plainKey = event.charactersIgnoringModifiers?.first
         switch (rawKey, plainKey) {
         case (_, "s") where modifiers == [.command]:
-            // Keep Cmd-S outside the transient sidebar buttons; both variants coexist during transition.
             toggleSidebarCollapsed()
             return true
         case ("+", _), (_, "="):
