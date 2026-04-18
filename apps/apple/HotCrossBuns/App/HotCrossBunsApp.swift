@@ -28,15 +28,22 @@ struct HotCrossBunsApp: App {
             }
         }
 
-        MenuBarExtra("Hot Cross Buns", systemImage: menuBarSymbol, isInserted: menuBarInsertedBinding) {
+        MenuBarExtra(isInserted: menuBarInsertedBinding) {
             MenuBarExtraContent()
                 .environment(appModel)
+        } label: {
+            Image("MenuBarIcon")
+                .renderingMode(.template)
+                .overlay(alignment: .topTrailing) {
+                    if appModel.todaySnapshot.overdueCount > 0 {
+                        Circle()
+                            .fill(Color.accentColor)
+                            .frame(width: 5, height: 5)
+                            .offset(x: 1, y: -1)
+                    }
+                }
         }
         .menuBarExtraStyle(.window)
-    }
-
-    private var menuBarSymbol: String {
-        appModel.todaySnapshot.overdueCount > 0 ? "checkmark.circle.badge.exclamationmark" : "checkmark.circle"
     }
 
     private var menuBarInsertedBinding: Binding<Bool> {
