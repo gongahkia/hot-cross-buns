@@ -116,7 +116,19 @@ final class AppModel {
         _ = authService.handleRedirectURL(url)
     }
 
+    func refreshForCurrentSyncMode() async {
+        guard settings.syncMode != .manual else {
+            return
+        }
+
+        await refreshNow()
+    }
+
     func refreshNow() async {
+        if case .syncing = syncState {
+            return
+        }
+
         guard account != nil else {
             syncState = .failed(message: "Connect Google before syncing.")
             return
