@@ -59,6 +59,7 @@ enum AppRoute: Hashable {
 
 enum SheetDestination: Identifiable, Hashable {
     case addTask
+    case quickAddTask
     case addEvent
     case syncSettings
     case diagnostics
@@ -68,6 +69,8 @@ enum SheetDestination: Identifiable, Hashable {
         switch self {
         case .addTask:
             "addTask"
+        case .quickAddTask:
+            "quickAddTask"
         case .addEvent:
             "addEvent"
         case .syncSettings:
@@ -97,6 +100,8 @@ extension View {
             switch destination {
             case .addTask:
                 AddTaskSheet()
+            case .quickAddTask:
+                QuickAddView()
             case .addEvent:
                 AddEventSheet()
             case .syncSettings:

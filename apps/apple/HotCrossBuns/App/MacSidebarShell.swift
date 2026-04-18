@@ -175,7 +175,7 @@ struct MacSidebarShell: View {
     }
 
     private func configureCommandActions() {
-        appCommandActions.newTask = { presentSheet(.addTask, on: .tasks) }
+        appCommandActions.newTask = { presentSheet(.quickAddTask, on: .tasks) }
         appCommandActions.newEvent = { presentSheet(.addEvent, on: .calendar) }
         appCommandActions.refresh = { Task { await model.refreshNow() } }
         appCommandActions.forceResync = { Task { await model.forceFullResync() } }
@@ -190,10 +190,20 @@ struct MacSidebarShell: View {
             CommandPaletteCommand(
                 id: "new-task",
                 title: "New Task",
-                subtitle: "Create a task in Google Tasks",
-                symbol: "checklist",
+                subtitle: "Natural-language quick add",
+                symbol: "sparkles",
                 shortcut: "Cmd+N",
-                keywords: ["task", "create", "new"]
+                keywords: ["task", "create", "new", "quick", "add"]
+            ) {
+                presentSheet(.quickAddTask, on: .tasks)
+            },
+            CommandPaletteCommand(
+                id: "new-task-detailed",
+                title: "New Task (Detailed)",
+                subtitle: "Fill out the full task form",
+                symbol: "checklist",
+                shortcut: "Cmd+Shift+T",
+                keywords: ["task", "detailed", "form"]
             ) {
                 presentSheet(.addTask, on: .tasks)
             },
