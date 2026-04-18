@@ -78,6 +78,10 @@ First launch presents a setup flow for Google Sign-In, sync mode, task-list/cale
 
 The Search tab queries the local cache for synced tasks and calendar events by title, notes/details, source list/calendar, and status. Search is intentionally local-first so it remains fast and does not spend Google API quota per keystroke.
 
+## Error UX
+
+Sync and Google connection failures surface in a global banner with dismiss and retry actions. Google API status codes are translated into user-actionable messages where possible.
+
 ## Sync
 
 Manual refresh now performs authenticated read-sync against Google Tasks task lists/tasks and Google Calendar calendar lists/events. Initial sync performs full reads for selected resources; later syncs use Google Tasks `updatedMin` checkpoints and Google Calendar `nextSyncToken` checkpoints. Offline mutation replay is still pending.
