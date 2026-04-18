@@ -123,25 +123,14 @@ struct MacSidebarShell: View {
 
             Divider()
 
-            List(SidebarItem.allCases, selection: sidebarSelectionBinding) { item in
-                NavigationLink(value: item) {
-                    if isSidebarCollapsed {
-                        Image(systemName: item.systemImage)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.vertical, 4)
-                    } else {
-                        Label {
-                            HStack {
-                                Text(item.title)
-                                Spacer()
-                                if let badge = badge(for: item) {
-                                    Text(badge)
-                                        .font(.caption.monospacedDigit())
-                                        .foregroundStyle(.secondary)
-                                }
+            List(selection: sidebarSelectionBinding) {
+                ForEach(SidebarSection.allCases, id: \.self) { section in
+                    let items = section.items
+                    if items.isEmpty == false {
+                        Section(header: sectionHeader(section)) {
+                            ForEach(items) { item in
+                                sidebarRow(for: item)
                             }
-                        } icon: {
-                            Image(systemName: item.systemImage)
                         }
                     }
                 }
@@ -309,8 +298,67 @@ struct MacSidebarShell: View {
         case .tasks:
             let count = model.tasks.filter { $0.isCompleted == false && $0.isDeleted == false }.count
             return count > 0 ? "\(count)" : nil
+        case .overdue:
+            let count = SmartListFilter.overdue.count(in: visibleTasksForSidebar)
+            return count > 0 ? "\(count)" : nil
+        case .dueToday:
+            let count = SmartListFilter.dueToday.count(in: visibleTasksForSidebar)
+            return count > 0 ? "\(count)" : nil
+        case .next7Days:
+            let count = SmartListFilter.next7Days.count(in: visibleTasksForSidebar)
+            return count > 0 ? "\(count)" : nil
+        case .noDate:
+            let count = SmartListFilter.noDate.count(in: visibleTasksForSidebar)
+            return count > 0 ? "\(count)" : nil
         default:
             return nil
+        }
+    }
+
+    private var visibleTasksForSidebar: [TaskMirror] {
+        let visibleTaskListIDs: Set<TaskListMirror.ID> = {
+            if model.settings.hasConfiguredTaskListSelection {
+                return model.settings.selectedTaskListIDs
+            }
+            return Set(model.taskLists.map(\.id))
+        }()
+        return model.tasks.filter { visibleTaskListIDs.contains($0.taskListID) }
+    }
+
+    @ViewBuilder
+    private func sectionHeader(_ section: SidebarSection) -> some View {
+        if section.title.isEmpty || isSidebarCollapsed {
+            EmptyView()
+        } else {
+            Text(section.title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+        }
+    }
+
+    @ViewBuilder
+    private func sidebarRow(for item: SidebarItem) -> some View {
+        NavigationLink(value: item) {
+            if isSidebarCollapsed {
+                Image(systemName: item.systemImage)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 4)
+            } else {
+                Label {
+                    HStack {
+                        Text(item.title)
+                        Spacer()
+                        if let badgeValue = badge(for: item) {
+                            Text(badgeValue)
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } icon: {
+                    Image(systemName: item.systemImage)
+                }
+            }
         }
     }
 
