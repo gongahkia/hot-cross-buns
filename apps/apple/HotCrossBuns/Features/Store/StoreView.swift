@@ -509,7 +509,7 @@ private struct StoreTaskRow: View {
                     }
                 }
                 if !task.notes.isEmpty {
-                    Text(task.notes)
+                    Text.markdown(task.notes)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -551,7 +551,7 @@ private struct StoreSmartRow: View {
                     }
                 }
                 if !task.notes.isEmpty {
-                    Text(task.notes)
+                    Text.markdown(task.notes)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)

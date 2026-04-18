@@ -75,9 +75,10 @@ struct GoogleCalendarClient: Sendable {
         sendUpdates: String = "none"
     ) async throws -> CalendarEventMirror {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
+        let htmlDetails = MarkdownHTML.markdownToCalendarHTML(details)
         let requestBody = GoogleEventMutationDTO(
             summary: summary,
-            description: details.isEmpty ? nil : details,
+            description: htmlDetails.isEmpty ? nil : htmlDetails,
             location: location.isEmpty ? nil : location,
             start: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.string(from: startDate) : nil, dateTime: isAllDay ? nil : startDate),
             end: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.exclusiveEndString(from: endDate) : nil, dateTime: isAllDay ? nil : endDate),
@@ -111,9 +112,10 @@ struct GoogleCalendarClient: Sendable {
     ) async throws -> CalendarEventMirror {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
         let encodedEventID = eventID.googlePathComponentEncoded
+        let htmlDetails = MarkdownHTML.markdownToCalendarHTML(details)
         let requestBody = GoogleEventMutationDTO(
             summary: summary,
-            description: details,
+            description: htmlDetails,
             location: location,
             start: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.string(from: startDate) : nil, dateTime: isAllDay ? nil : startDate),
             end: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.exclusiveEndString(from: endDate) : nil, dateTime: isAllDay ? nil : endDate),
@@ -201,11 +203,17 @@ private struct GoogleEventDTO: Decodable, Sendable {
 
     func mirror(calendarID: String) -> CalendarEventMirror {
         let fallbackDate = updated ?? Date()
+        let renderedDetails: String
+        if let description, description.isEmpty == false {
+            renderedDetails = MarkdownHTML.calendarHTMLToMarkdown(description)
+        } else {
+            renderedDetails = ""
+        }
         return CalendarEventMirror(
             id: id,
             calendarID: calendarID,
             summary: summary ?? "Untitled event",
-            details: description ?? "",
+            details: renderedDetails,
             startDate: start?.resolvedDate ?? fallbackDate,
             endDate: end?.resolvedDate ?? fallbackDate,
             isAllDay: start?.date != nil,

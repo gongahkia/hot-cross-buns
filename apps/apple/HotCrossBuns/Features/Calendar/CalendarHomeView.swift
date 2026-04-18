@@ -498,9 +498,7 @@ struct AddEventSheet: View {
                 } else {
                     Section("Event") {
                         TextField("Summary", text: $summary)
-                        TextField("Details", text: $details, axis: .vertical)
-                            .lineLimit(3...6)
-                            .enableWritingTools()
+                        MarkdownEditor(text: $details, placeholder: "Details (markdown supported)", minHeight: 90, maxHeight: 200)
                         TextField("Location", text: $location)
                     }
 
@@ -658,9 +656,7 @@ struct EditEventSheet: View {
             Form {
                 Section("Event") {
                     TextField("Summary", text: $summary)
-                    TextField("Details", text: $details, axis: .vertical)
-                        .lineLimit(3...6)
-                        .enableWritingTools()
+                    MarkdownEditor(text: $details, placeholder: "Details (markdown supported)", minHeight: 90, maxHeight: 200)
                     TextField("Location", text: $location)
                 }
 

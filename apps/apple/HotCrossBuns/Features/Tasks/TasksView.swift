@@ -17,7 +17,7 @@ struct TaskDetailView: View {
                             .font(.system(.largeTitle, design: .serif, weight: .bold))
                             .foregroundStyle(AppColor.ink)
                         if !task.notes.isEmpty {
-                            Text(task.notes)
+                            Text.markdown(task.notes)
                                 .font(.body)
                                 .foregroundStyle(.secondary)
                         }
@@ -147,9 +147,7 @@ struct AddTaskSheet: View {
                 } else {
                     Section("Task") {
                         TextField("Title", text: $title)
-                        TextField("Notes", text: $notes, axis: .vertical)
-                            .lineLimit(3...6)
-                            .enableWritingTools()
+                        MarkdownEditor(text: $notes, placeholder: "Notes (markdown supported)", minHeight: 90, maxHeight: 200)
                     }
 
                     Section("Destination") {
@@ -243,9 +241,7 @@ struct EditTaskSheet: View {
             Form {
                 Section("Task") {
                     TextField("Title", text: $title)
-                    TextField("Notes", text: $notes, axis: .vertical)
-                        .lineLimit(3...6)
-                        .enableWritingTools()
+                    MarkdownEditor(text: $notes, placeholder: "Notes (markdown supported)", minHeight: 90, maxHeight: 200)
                 }
 
                 Section("Due date") {
