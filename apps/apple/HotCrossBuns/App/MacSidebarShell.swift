@@ -13,9 +13,6 @@ struct MacSidebarShell: View {
         .xSmall, .small, .medium, .large, .xLarge, .xxLarge, .xxxLarge,
         .accessibility1, .accessibility2, .accessibility3
     ]
-    private let zoomWindowScaleLadder: [CGFloat] = [
-        0.84, 0.9, 0.96, 1.0, 1.08, 1.16, 1.24, 1.32, 1.4, 1.48
-    ]
 
     private var dynamicTypeSize: DynamicTypeSize {
         zoomLadder[max(0, min(zoomStep, zoomLadder.count - 1))]
@@ -124,9 +121,6 @@ struct MacSidebarShell: View {
             if newValue == .detailOnly {
                 sidebarVisibility = .all
             }
-        }
-        .onChange(of: zoomStep) { oldValue, newValue in
-            applyWindowZoom(from: oldValue, to: newValue)
         }
         .task {
             await model.loadInitialState()
@@ -535,38 +529,6 @@ struct MacSidebarShell: View {
         default:
             return false
         }
-    }
-
-    private func applyWindowZoom(from oldStep: Int, to newStep: Int) {
-        guard oldStep != newStep else { return }
-        guard let window = NSApp.keyWindow ?? NSApp.mainWindow else { return }
-        guard window.styleMask.contains(.fullScreen) == false else { return }
-
-        let oldIndex = max(0, min(oldStep, zoomWindowScaleLadder.count - 1))
-        let newIndex = max(0, min(newStep, zoomWindowScaleLadder.count - 1))
-        let oldScale = zoomWindowScaleLadder[oldIndex]
-        let newScale = zoomWindowScaleLadder[newIndex]
-        guard oldScale > 0 else { return }
-
-        let ratio = newScale / oldScale
-        guard ratio.isFinite, ratio > 0 else { return }
-
-        var frame = window.frame
-        let newWidth = frame.size.width * ratio
-        let newHeight = frame.size.height * ratio
-        let minSize = window.minSize
-
-        let clampedWidth = max(newWidth, minSize.width)
-        let clampedHeight = max(newHeight, minSize.height)
-        let deltaX = clampedWidth - frame.size.width
-        let deltaY = clampedHeight - frame.size.height
-
-        frame.origin.x -= deltaX / 2
-        frame.origin.y -= deltaY / 2
-        frame.size = NSSize(width: clampedWidth, height: clampedHeight)
-
-        let constrained = window.constrainFrameRect(frame, to: window.screen)
-        window.setFrame(constrained, display: true, animate: true)
     }
 
     private var commandPaletteCommands: [CommandPaletteCommand] {
