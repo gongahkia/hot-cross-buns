@@ -327,6 +327,7 @@ struct AddTaskSheet: View {
                         TextField("Title", text: $title)
                         TextField("Notes", text: $notes, axis: .vertical)
                             .lineLimit(3...6)
+                            .enableWritingTools()
                     }
 
                     Section("Destination") {
@@ -422,6 +423,7 @@ struct EditTaskSheet: View {
                     TextField("Title", text: $title)
                     TextField("Notes", text: $notes, axis: .vertical)
                         .lineLimit(3...6)
+                        .enableWritingTools()
                 }
 
                 Section("Due date") {

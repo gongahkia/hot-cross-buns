@@ -467,6 +467,7 @@ struct AddEventSheet: View {
                         TextField("Summary", text: $summary)
                         TextField("Details", text: $details, axis: .vertical)
                             .lineLimit(3...6)
+                            .enableWritingTools()
                     }
 
                     Section("Calendar") {
@@ -604,6 +605,7 @@ struct EditEventSheet: View {
                     TextField("Summary", text: $summary)
                     TextField("Details", text: $details, axis: .vertical)
                         .lineLimit(3...6)
+                        .enableWritingTools()
                 }
 
                 Section("Time") {

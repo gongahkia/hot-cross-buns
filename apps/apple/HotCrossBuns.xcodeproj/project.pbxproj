@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		025714D0F603A7346F61A495 /* NaturalLanguageTaskParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 451F7A551BAF39DA361383F4 /* NaturalLanguageTaskParser.swift */; };
 		041DE1465AD215C7A592AE13 /* CalendarDropComputer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09D526E7EC054A5BAA2ED4E3 /* CalendarDropComputer.swift */; };
+		059AE0B64C498B89F429CAD7 /* WritingTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE2B7538589A7F84C7AD1094 /* WritingTools.swift */; };
 		05D2E8C1B772FA0D7DF885CB /* LocalNotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84B5C3ED3789B4EFFAEEB89E /* LocalNotificationScheduler.swift */; };
 		06BEC9D87D21345A636AADB8 /* CalendarMirror.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B56113BE89523BF7D0AE8EA /* CalendarMirror.swift */; };
 		0B34E2B98DDDD5FDEA69E1DB /* VimHud.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9339ABE2548F1E94C5297FEF /* VimHud.swift */; };
@@ -170,6 +171,7 @@
 		FB9745E7FFF1CDB75E4D4820 /* ModelPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPersistenceTests.swift; sourceTree = "<group>"; };
 		FC17D333E0AC22B77270A396 /* GoogleAccount.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAccount.swift; sourceTree = "<group>"; };
 		FDB427444279DD0F8E4B2281 /* QuickAddView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddView.swift; sourceTree = "<group>"; };
+		FE2B7538589A7F84C7AD1094 /* WritingTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritingTools.swift; sourceTree = "<group>"; };
 		FE4353BBFBCECA1F1E1EDF1B /* AppSettingsMacSurfacesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsMacSurfacesTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -469,6 +471,7 @@
 			isa = PBXGroup;
 			children = (
 				CC9C2158939F77166D48250B /* DesignTokens.swift */,
+				FE2B7538589A7F84C7AD1094 /* WritingTools.swift */,
 			);
 			path = Design;
 			sourceTree = "<group>";
@@ -647,6 +650,7 @@
 				1E6A7C7E3264A42EF264A860 /* VimKeyboardMonitor.swift in Sources */,
 				87ED382937C47396AA2BC11E /* VimTranslator.swift in Sources */,
 				9167E1BAB8A8328329A8AE07 /* WeekGridView.swift in Sources */,
+				059AE0B64C498B89F429CAD7 /* WritingTools.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

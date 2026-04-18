@@ -77,6 +77,7 @@ struct TaskInspectorView: View {
                     TextEditor(text: $draft.notes)
                         .font(.body)
                         .scrollContentBackground(.hidden)
+                        .enableWritingTools()
                         .frame(minHeight: 120, maxHeight: 240)
                         .padding(10)
                         .background(
