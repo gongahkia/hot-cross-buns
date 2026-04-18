@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		00CCA68431BB2A4FF0CF05C5 /* TagExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60A02AA0EB32C0C012F2AF0 /* TagExtractor.swift */; };
 		025714D0F603A7346F61A495 /* NaturalLanguageTaskParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 451F7A551BAF39DA361383F4 /* NaturalLanguageTaskParser.swift */; };
 		041DE1465AD215C7A592AE13 /* CalendarDropComputer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09D526E7EC054A5BAA2ED4E3 /* CalendarDropComputer.swift */; };
 		059AE0B64C498B89F429CAD7 /* WritingTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE2B7538589A7F84C7AD1094 /* WritingTools.swift */; };
@@ -14,6 +15,7 @@
 		06BEC9D87D21345A636AADB8 /* CalendarMirror.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B56113BE89523BF7D0AE8EA /* CalendarMirror.swift */; };
 		0B34E2B98DDDD5FDEA69E1DB /* VimHud.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9339ABE2548F1E94C5297FEF /* VimHud.swift */; };
 		0C684E4902EA8C1B8C94322E /* CalendarGridLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7CCAAA53D6C1875F338A5B /* CalendarGridLayoutTests.swift */; };
+		13640CDC60E0A19C38BDFE38 /* TagExtractorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F03D73411CAA330A1556C797 /* TagExtractorTests.swift */; };
 		1A0E75ED9924EC602590FEBA /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB15E1D3EF730B024771A746 /* SettingsView.swift */; };
 		1B7F6F790CF80AF97AB3E65C /* HotCrossBunsIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF84D26BB3BD8AD0DB3337B8 /* HotCrossBunsIntents.swift */; };
 		1D14CFF9E1E31D6FC0995EAA /* ISO8601DateFormatter+Google.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B5A02F709EC80DD855D2C87 /* ISO8601DateFormatter+Google.swift */; };
@@ -166,6 +168,8 @@
 		DAC3322BC3706CFF61AE52DB /* TaskHierarchyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskHierarchyTests.swift; sourceTree = "<group>"; };
 		DF84D26BB3BD8AD0DB3337B8 /* HotCrossBunsIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotCrossBunsIntents.swift; sourceTree = "<group>"; };
 		E2BC795AF619D093596D767D /* MacSidebarShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSidebarShell.swift; sourceTree = "<group>"; };
+		E60A02AA0EB32C0C012F2AF0 /* TagExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagExtractor.swift; sourceTree = "<group>"; };
+		F03D73411CAA330A1556C797 /* TagExtractorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagExtractorTests.swift; sourceTree = "<group>"; };
 		F0EF302AF854336F06AFD4BE /* TaskStarring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskStarring.swift; sourceTree = "<group>"; };
 		F18883C2377F57F108328C03 /* SmartListFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartListFilter.swift; sourceTree = "<group>"; };
 		F2263C896865029DCEC3A53B /* CalendarHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarHomeView.swift; sourceTree = "<group>"; };
@@ -381,6 +385,7 @@
 				D8AF38F4F743ECB0079BDD30 /* SmartListFilterTests.swift */,
 				5958F04B434E20A3436A5CC0 /* SpotlightIdentifierTests.swift */,
 				1A15AB7A557A7163BEA80ECC /* SyncSchedulerTombstonePurgeTests.swift */,
+				F03D73411CAA330A1556C797 /* TagExtractorTests.swift */,
 				AB94773FE862AC2922886257 /* TaskDraftTests.swift */,
 				DAC3322BC3706CFF61AE52DB /* TaskHierarchyTests.swift */,
 				4DE3C9162F20EE6482E67FCB /* TaskStarringTests.swift */,
@@ -429,6 +434,7 @@
 				FC17D333E0AC22B77270A396 /* GoogleAccount.swift */,
 				1622469DA249EE1B10188D98 /* Snapshots.swift */,
 				46640F8301E1D6444BE62A73 /* SyncModels.swift */,
+				E60A02AA0EB32C0C012F2AF0 /* TagExtractor.swift */,
 				BD404C87FD0BC2462B844C8C /* TaskHierarchy.swift */,
 				165DF0F051694E742FB59FB7 /* TaskMirror.swift */,
 				F0EF302AF854336F06AFD4BE /* TaskStarring.swift */,
@@ -644,6 +650,7 @@
 				34DF4A454B9BAB7772BA611F /* SpotlightIndexer.swift in Sources */,
 				28206596F2C65EB227EA1448 /* SyncModels.swift in Sources */,
 				82A686E7646A807876A3FBF4 /* SyncScheduler.swift in Sources */,
+				00CCA68431BB2A4FF0CF05C5 /* TagExtractor.swift in Sources */,
 				C3D0742271A897D59B1B7CE6 /* TaskDrawerPanel.swift in Sources */,
 				804FDD2DCFA8CC6E75971B58 /* TaskHierarchy.swift in Sources */,
 				843376C55956307CFD28B153 /* TaskInspectorView.swift in Sources */,
@@ -677,6 +684,7 @@
 				823DFA52ED02235FC5C1F640 /* SmartListFilterTests.swift in Sources */,
 				90318AA2282A7731DA05F9F5 /* SpotlightIdentifierTests.swift in Sources */,
 				CDE181FCDB04EB34924DF98B /* SyncSchedulerTombstonePurgeTests.swift in Sources */,
+				13640CDC60E0A19C38BDFE38 /* TagExtractorTests.swift in Sources */,
 				93306BD12C07C443CE082AFB /* TaskDraftTests.swift in Sources */,
 				D11457A3B187BDE2CD571614 /* TaskHierarchyTests.swift in Sources */,
 				69F1DEC55EB9E9C72799607D /* TaskStarringTests.swift in Sources */,
