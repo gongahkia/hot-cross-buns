@@ -363,7 +363,8 @@ final class AppModel {
                 taskID: task.id,
                 title: trimmedTitle,
                 notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
-                dueDate: dueDate
+                dueDate: dueDate,
+                ifMatch: task.etag
             )
             upsert(updatedTask)
             endMutation(error: nil)
@@ -371,6 +372,9 @@ final class AppModel {
             await synchronizeLocalNotifications()
             return true
         } catch {
+            if let apiError = error as? GoogleAPIError, apiError == .preconditionFailed {
+                await refreshNow()
+            }
             endMutation(error: error)
             return false
         }
@@ -500,7 +504,8 @@ final class AppModel {
                 startDate: startDate,
                 endDate: endDate,
                 isAllDay: isAllDay,
-                reminderMinutes: reminderMinutes
+                reminderMinutes: reminderMinutes,
+                ifMatch: eventToUpdate.etag
             )
             if calendarID != event.calendarID {
                 removeEvent(id: event.id)
@@ -511,6 +516,9 @@ final class AppModel {
             await synchronizeLocalNotifications()
             return true
         } catch {
+            if let apiError = error as? GoogleAPIError, apiError == .preconditionFailed {
+                await refreshNow()
+            }
             endMutation(error: error)
             return false
         }

@@ -42,10 +42,11 @@ struct GoogleAPITransport: Sendable {
         path: String,
         queryItems: [URLQueryItem] = [],
         body: Body? = nil,
+        ifMatch: String? = nil,
         encoder: JSONEncoder = .googleAPI,
         decoder: JSONDecoder = .googleAPI
     ) async throws -> Response {
-        var request = try await makeRequest(method: method, path: path, queryItems: queryItems)
+        var request = try await makeRequest(method: method, path: path, queryItems: queryItems, ifMatch: ifMatch)
 
         if let body {
             request.httpBody = try encoder.encode(body)
@@ -62,9 +63,10 @@ struct GoogleAPITransport: Sendable {
         path: String,
         queryItems: [URLQueryItem] = [],
         body: Body? = nil,
+        ifMatch: String? = nil,
         encoder: JSONEncoder = .googleAPI
     ) async throws {
-        var request = try await makeRequest(method: method, path: path, queryItems: queryItems)
+        var request = try await makeRequest(method: method, path: path, queryItems: queryItems, ifMatch: ifMatch)
 
         if let body {
             request.httpBody = try encoder.encode(body)
@@ -78,16 +80,18 @@ struct GoogleAPITransport: Sendable {
     func send(
         method: String,
         path: String,
-        queryItems: [URLQueryItem] = []
+        queryItems: [URLQueryItem] = [],
+        ifMatch: String? = nil
     ) async throws {
         let emptyBody: EmptyRequestBody? = nil
-        try await send(method: method, path: path, queryItems: queryItems, body: emptyBody)
+        try await send(method: method, path: path, queryItems: queryItems, body: emptyBody, ifMatch: ifMatch)
     }
 
     func request<Response: Decodable & Sendable>(
         method: String = "GET",
         path: String,
         queryItems: [URLQueryItem] = [],
+        ifMatch: String? = nil,
         decoder: JSONDecoder = .googleAPI
     ) async throws -> Response {
         let emptyBody: EmptyRequestBody? = nil
@@ -96,6 +100,7 @@ struct GoogleAPITransport: Sendable {
             path: path,
             queryItems: queryItems,
             body: emptyBody,
+            ifMatch: ifMatch,
             decoder: decoder
         )
     }
@@ -103,7 +108,8 @@ struct GoogleAPITransport: Sendable {
     private func makeRequest(
         method: String,
         path: String,
-        queryItems: [URLQueryItem]
+        queryItems: [URLQueryItem],
+        ifMatch: String? = nil
     ) async throws -> URLRequest {
         var components = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)
         components?.queryItems = queryItems.isEmpty ? nil : queryItems
@@ -116,12 +122,19 @@ struct GoogleAPITransport: Sendable {
         request.httpMethod = method
         request.setValue("Bearer \(try await tokenProvider.accessToken())", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let ifMatch, ifMatch.isEmpty == false {
+            request.setValue(ifMatch, forHTTPHeaderField: "If-Match")
+        }
         return request
     }
 
     private func validate(response: URLResponse, data: Data) throws {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw GoogleAPIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 412 {
+            throw GoogleAPIError.preconditionFailed
         }
 
         guard (200..<300).contains(httpResponse.statusCode) else {
@@ -135,6 +148,7 @@ private struct EmptyRequestBody: Encodable, Sendable {}
 enum GoogleAPIError: LocalizedError, Equatable {
     case invalidURL
     case invalidResponse
+    case preconditionFailed
     case httpStatus(Int, String?)
 
     var errorDescription: String? {
@@ -143,6 +157,8 @@ enum GoogleAPIError: LocalizedError, Equatable {
             "The Google API request URL could not be built."
         case .invalidResponse:
             "Google returned an invalid response."
+        case .preconditionFailed:
+            "This item was changed elsewhere since you loaded it. Refresh and try again."
         case .httpStatus(let status, let body):
             statusMessage(status: status, body: body)
         }
