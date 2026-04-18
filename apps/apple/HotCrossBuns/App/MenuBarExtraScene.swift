@@ -35,10 +35,25 @@ private struct CompactMenuBarPanel: View {
             Divider()
             overview
             Divider()
+            MenuBarQuickAddRow()
+            Divider()
             MenuBarQuickActions()
         }
         .padding(14)
         .frame(width: 300)
+    }
+
+    private var overview: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            StatusLine(label: "Due today", value: "\(model.todaySnapshot.dueTasks.count)")
+            StatusLine(label: "Overdue", value: "\(model.todaySnapshot.overdueCount)")
+            StatusLine(label: "Events today", value: "\(model.todaySnapshot.scheduledEvents.count)")
+            if let lastSync = model.lastSuccessfulSyncAt {
+                StatusLine(label: "Last sync", value: lastSync.formatted(date: .omitted, time: .shortened))
+            } else {
+                StatusLine(label: "Last sync", value: "Never")
+            }
+        }
     }
 }
 
@@ -56,6 +71,8 @@ private struct DetailedMenuBarPanel: View {
             dayGrid
             Divider()
             agenda
+            Divider()
+            MenuBarQuickAddRow()
             Divider()
             MenuBarQuickActions()
         }
@@ -304,6 +321,76 @@ private struct DetailedMenuBarPanel: View {
             return "Tomorrow"
         }
         return day.formatted(.dateTime.weekday(.wide))
+    }
+}
+
+private struct MenuBarQuickAddRow: View {
+    @Environment(AppModel.self) private var model
+    @State private var input: String = ""
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(AppColor.ember)
+                TextField("Add a task — tmr 9am #work", text: $input)
+                    .textFieldStyle(.plain)
+                    .font(.subheadline)
+                    .onSubmit { Task { await submit() } }
+                if isSubmitting {
+                    ProgressView().controlSize(.small)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(.quaternary.opacity(0.5))
+            )
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.caption2)
+                    .foregroundStyle(AppColor.ember)
+            }
+        }
+        .disabled(model.account == nil || model.taskLists.isEmpty)
+    }
+
+    private func submit() async {
+        let parsed = NaturalLanguageTaskParser().parse(input)
+        guard parsed.title.isEmpty == false else { return }
+        guard let listID = resolvedListID(hint: parsed.taskListHint) else {
+            errorMessage = "Connect Google and pick a task list first."
+            return
+        }
+        isSubmitting = true
+        errorMessage = nil
+        let created = await model.createTask(
+            title: parsed.title,
+            notes: "",
+            dueDate: parsed.dueDate,
+            taskListID: listID
+        )
+        isSubmitting = false
+        if created {
+            input = ""
+        } else {
+            errorMessage = model.lastMutationError ?? "Couldn't add task."
+        }
+    }
+
+    private func resolvedListID(hint: String?) -> TaskListMirror.ID? {
+        if let hint {
+            if let exact = model.taskLists.first(where: { $0.title.localizedCaseInsensitiveCompare(hint) == .orderedSame }) {
+                return exact.id
+            }
+            if let fuzzy = model.taskLists.first(where: { $0.title.localizedCaseInsensitiveContains(hint) }) {
+                return fuzzy.id
+            }
+        }
+        return model.taskLists.first?.id
     }
 }
 
