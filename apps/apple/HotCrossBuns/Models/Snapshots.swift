@@ -87,7 +87,7 @@ struct TaskListSectionSnapshot: Identifiable, Equatable, Sendable {
     }
 }
 
-struct CachedAppState: Sendable {
+struct CachedAppState: Codable, Sendable {
     var account: GoogleAccount?
     var taskLists: [TaskListMirror]
     var tasks: [TaskMirror]

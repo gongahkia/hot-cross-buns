@@ -57,3 +57,7 @@ xcodebuild \
   GOOGLE_MACOS_REVERSED_CLIENT_ID='com.googleusercontent.apps.your-reversed-client-id' \
   build
 ```
+
+## Local Cache
+
+The current cache is a JSON app-state snapshot in Application Support. It is intentionally small and replaceable: it preserves account metadata, task/calendar mirrors, and user settings so launch does not depend on an immediate Google round trip. A SQLite-backed cache can replace this once the sync checkpoint and mutation schema are stable.
