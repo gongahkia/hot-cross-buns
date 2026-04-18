@@ -66,6 +66,12 @@ The current cache is a JSON app-state snapshot in Application Support. It is int
 
 Manual refresh now performs authenticated read-sync against Google Tasks task lists/tasks and Google Calendar calendar lists/events. Calendar reads currently fetch from the start of the current day, while Tasks performs full-list reads; incremental checkpoints and offline mutation replay are still pending.
 
+Sync modes are active:
+
+- Manual only syncs when the user taps refresh.
+- Balanced syncs after launch/restore and when the scene becomes active.
+- Near real-time does the balanced behavior plus foreground polling every 90 seconds.
+
 ## Task Writes
 
 The Tasks tab includes an online create-task flow backed by Google Tasks `tasks.insert`. It requires a signed-in Google account and at least one loaded task list from refresh. Offline queueing, edits, deletes, and conflict handling are still pending.

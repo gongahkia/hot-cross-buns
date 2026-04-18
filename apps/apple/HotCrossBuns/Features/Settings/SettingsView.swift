@@ -180,7 +180,7 @@ struct SyncSettingsSheet: View {
                 }
 
                 Section("Reality check") {
-                    Text("Calendar can use incremental sync tokens. Tasks uses updatedMin polling and periodic reconciliation. True push on iOS would need a webhook-to-APNs relay later.")
+                    Text("Manual only refreshes on request. Balanced refreshes on launch and foreground. Near real-time adds foreground polling every 90 seconds. True push on iOS would need a webhook-to-APNs relay later.")
                         .font(.callout)
                 }
             }
