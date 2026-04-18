@@ -184,7 +184,8 @@ final class AppModel {
         title: String,
         notes: String,
         dueDate: Date?,
-        taskListID: TaskListMirror.ID
+        taskListID: TaskListMirror.ID,
+        parentID: TaskMirror.ID? = nil
     ) async -> Bool {
         guard requireAccount(mutationDescription: "creating tasks") else {
             return false
@@ -196,12 +197,67 @@ final class AppModel {
                 taskListID: taskListID,
                 title: title.trimmingCharacters(in: .whitespacesAndNewlines),
                 notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
-                dueDate: dueDate
+                dueDate: dueDate,
+                parent: parentID
             )
             upsert(task)
             endMutation(error: nil)
             await saveCurrentState()
             await synchronizeLocalNotifications()
+            return true
+        } catch {
+            endMutation(error: error)
+            return false
+        }
+    }
+
+    func indentTask(_ task: TaskMirror) async -> Bool {
+        guard requireAccount(mutationDescription: "indenting tasks") else { return false }
+        guard TaskHierarchy.canIndent(task, within: tasks) else {
+            lastMutationError = "This task can't be indented."
+            return false
+        }
+        guard let sibling = TaskHierarchy.precedingSibling(of: task, in: tasks) else {
+            lastMutationError = "Indent needs a task above it in the same list."
+            return false
+        }
+
+        beginMutation()
+        do {
+            let moved = try await tasksClient.moveTask(
+                taskListID: task.taskListID,
+                taskID: task.id,
+                parent: sibling.id,
+                previous: nil
+            )
+            upsert(moved)
+            endMutation(error: nil)
+            await saveCurrentState()
+            return true
+        } catch {
+            endMutation(error: error)
+            return false
+        }
+    }
+
+    func outdentTask(_ task: TaskMirror) async -> Bool {
+        guard requireAccount(mutationDescription: "outdenting tasks") else { return false }
+        guard TaskHierarchy.canOutdent(task) else {
+            lastMutationError = "This task isn't nested."
+            return false
+        }
+
+        beginMutation()
+        do {
+            let moved = try await tasksClient.moveTask(
+                taskListID: task.taskListID,
+                taskID: task.id,
+                parent: nil,
+                previous: task.parentID
+            )
+            upsert(moved)
+            endMutation(error: nil)
+            await saveCurrentState()
             return true
         } catch {
             endMutation(error: error)

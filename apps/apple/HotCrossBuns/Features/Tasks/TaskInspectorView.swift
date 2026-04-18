@@ -93,6 +93,10 @@ struct TaskInspectorView: View {
 
                 taskListSection
 
+                subtasksSection
+
+                hierarchyControls
+
                 actionButtons
 
                 metadataSection
@@ -254,6 +258,114 @@ struct TaskInspectorView: View {
             .keyboardShortcut(.delete, modifiers: [.command])
         }
         .disabled(model.isMutating)
+    }
+
+    private var children: [TaskMirror] {
+        TaskHierarchy.sortByPosition(
+            model.tasks.filter { $0.parentID == task.id && $0.isDeleted == false }
+        )
+    }
+
+    private var isSubtask: Bool { task.parentID != nil }
+
+    @State private var newSubtaskTitle: String = ""
+    @State private var isAddingSubtask: Bool = false
+
+    @ViewBuilder
+    private var subtasksSection: some View {
+        if isSubtask {
+            EmptyView()
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionLabel("SUBTASKS")
+                ForEach(children) { child in
+                    HStack(spacing: 10) {
+                        Button {
+                            Task { await model.setTaskCompleted(!child.isCompleted, task: child) }
+                        } label: {
+                            Image(systemName: child.isCompleted ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(child.isCompleted ? AppColor.moss : AppColor.ember)
+                        }
+                        .buttonStyle(.plain)
+                        Text(child.title)
+                            .font(.subheadline)
+                            .strikethrough(child.isCompleted, color: .secondary)
+                            .foregroundStyle(child.isCompleted ? .secondary : AppColor.ink)
+                        Spacer(minLength: 0)
+                        Button(role: .destructive) {
+                            Task { await model.deleteTask(child) }
+                        } label: {
+                            Image(systemName: "xmark.circle")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.vertical, 2)
+                }
+
+                HStack(spacing: 8) {
+                    Image(systemName: "plus.circle")
+                        .foregroundStyle(AppColor.ember)
+                    TextField("Add a subtask", text: $newSubtaskTitle)
+                        .textFieldStyle(.plain)
+                        .onSubmit { Task { await addSubtask() } }
+                    if isAddingSubtask { ProgressView().controlSize(.small) }
+                }
+                .padding(10)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(AppColor.cream.opacity(0.5))
+                )
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var hierarchyControls: some View {
+        HStack(spacing: 8) {
+            if TaskHierarchy.canIndent(task, within: model.tasks) {
+                Button {
+                    Task { await model.indentTask(task) }
+                } label: {
+                    Label("Indent", systemImage: "increase.indent")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .keyboardShortcut(.tab, modifiers: [])
+            }
+            if TaskHierarchy.canOutdent(task) {
+                Button {
+                    Task { await model.outdentTask(task) }
+                } label: {
+                    Label("Outdent", systemImage: "decrease.indent")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .keyboardShortcut(.tab, modifiers: [.shift])
+            }
+        }
+        .disabled(model.isMutating)
+    }
+
+    private func addSubtask() async {
+        let trimmed = newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return }
+        isAddingSubtask = true
+        let created = await model.createTask(
+            title: trimmed,
+            notes: "",
+            dueDate: nil,
+            taskListID: task.taskListID,
+            parentID: task.id
+        )
+        isAddingSubtask = false
+        if created { newSubtaskTitle = "" }
     }
 
     private var metadataSection: some View {

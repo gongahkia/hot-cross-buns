@@ -77,7 +77,9 @@ struct GoogleTasksClient: Sendable {
         taskListID: String,
         title: String,
         notes: String,
-        dueDate: Date?
+        dueDate: Date?,
+        parent: String? = nil,
+        previous: String? = nil
     ) async throws -> TaskMirror {
         let encodedTaskListID = taskListID.googlePathComponentEncoded
         let requestBody = GoogleTaskMutationDTO(
@@ -85,10 +87,33 @@ struct GoogleTasksClient: Sendable {
             notes: notes.isEmpty ? nil : notes,
             due: dueDate
         )
+        var queryItems: [URLQueryItem] = []
+        if let parent { queryItems.append(URLQueryItem(name: "parent", value: parent)) }
+        if let previous { queryItems.append(URLQueryItem(name: "previous", value: previous)) }
         let response: GoogleTaskDTO = try await transport.request(
             method: "POST",
             path: "/tasks/v1/lists/\(encodedTaskListID)/tasks",
+            queryItems: queryItems,
             body: requestBody
+        )
+        return response.mirror(taskListID: taskListID)
+    }
+
+    func moveTask(
+        taskListID: String,
+        taskID: String,
+        parent: String?,
+        previous: String?
+    ) async throws -> TaskMirror {
+        let encodedTaskListID = taskListID.googlePathComponentEncoded
+        let encodedTaskID = taskID.googlePathComponentEncoded
+        var queryItems: [URLQueryItem] = []
+        if let parent { queryItems.append(URLQueryItem(name: "parent", value: parent)) }
+        if let previous { queryItems.append(URLQueryItem(name: "previous", value: previous)) }
+        let response: GoogleTaskDTO = try await transport.request(
+            method: "POST",
+            path: "/tasks/v1/lists/\(encodedTaskListID)/tasks/\(encodedTaskID)/move",
+            queryItems: queryItems
         )
         return response.mirror(taskListID: taskListID)
     }
