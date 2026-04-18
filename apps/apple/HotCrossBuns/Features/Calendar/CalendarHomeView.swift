@@ -16,6 +16,7 @@ struct CalendarHomeView: View {
             CalendarTodayStatusHeader(
                 snapshot: model.todaySnapshot,
                 syncState: model.syncState,
+                pendingCount: model.pendingMutations.count,
                 refresh: { Task { await model.refreshNow() } }
             )
             Divider()
@@ -835,6 +836,7 @@ private enum EventReminderOption: Int, CaseIterable, Identifiable {
 struct CalendarTodayStatusHeader: View {
     let snapshot: TodaySnapshot
     let syncState: SyncState
+    let pendingCount: Int
     let refresh: () -> Void
 
     var body: some View {
@@ -843,9 +845,14 @@ struct CalendarTodayStatusHeader: View {
                 Text(snapshot.date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
                     .font(.headline)
                     .foregroundStyle(AppColor.ink)
-                Text(syncState.title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Text(syncState.title)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if pendingCount > 0 {
+                        PendingSyncPill(count: pendingCount)
+                    }
+                }
             }
             Spacer(minLength: 12)
             StatusPill(value: "\(snapshot.dueTasks.count)", label: "Tasks")
@@ -860,6 +867,22 @@ struct CalendarTodayStatusHeader: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
+    }
+}
+
+struct PendingSyncPill: View {
+    let count: Int
+
+    var body: some View {
+        Label("\(count) pending", systemImage: "icloud.slash")
+            .font(.caption2.weight(.semibold).monospacedDigit())
+            .labelStyle(.titleAndIcon)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(AppColor.ember.opacity(0.18)))
+            .foregroundStyle(AppColor.ember)
+            .help("Tasks or events created while offline are waiting for Google to accept them.")
+            .accessibilityLabel("\(count) pending sync operations")
     }
 }
 
