@@ -59,12 +59,15 @@ enum AppRoute: Hashable {
 
 enum SheetDestination: Identifiable, Hashable {
     case addTask
+    case addEvent
     case syncSettings
 
     var id: String {
         switch self {
         case .addTask:
             "addTask"
+        case .addEvent:
+            "addEvent"
         case .syncSettings:
             "syncSettings"
         }
@@ -88,6 +91,8 @@ extension View {
             switch destination {
             case .addTask:
                 AddTaskSheet()
+            case .addEvent:
+                AddEventSheet()
             case .syncSettings:
                 SyncSettingsSheet()
             }

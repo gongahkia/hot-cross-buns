@@ -6,6 +6,7 @@ import Observation
 final class AppModel {
     private let authService: GoogleAuthService
     private let tasksClient: GoogleTasksClient
+    private let calendarClient: GoogleCalendarClient
     private let syncScheduler: SyncScheduler
     private let cacheStore: LocalCacheStore
 
@@ -24,12 +25,14 @@ final class AppModel {
     init(
         authService: GoogleAuthService,
         tasksClient: GoogleTasksClient,
+        calendarClient: GoogleCalendarClient,
         syncScheduler: SyncScheduler,
         cacheStore: LocalCacheStore,
         settings: AppSettings = .default
     ) {
         self.authService = authService
         self.tasksClient = tasksClient
+        self.calendarClient = calendarClient
         self.syncScheduler = syncScheduler
         self.cacheStore = cacheStore
         self.settings = settings
@@ -43,12 +46,14 @@ final class AppModel {
         )
 
         let tasksClient = GoogleTasksClient(transport: transport)
+        let calendarClient = GoogleCalendarClient(transport: transport)
         return AppModel(
             authService: GoogleAuthService(),
             tasksClient: tasksClient,
+            calendarClient: calendarClient,
             syncScheduler: SyncScheduler(
                 tasksClient: tasksClient,
-                calendarClient: GoogleCalendarClient(transport: transport)
+                calendarClient: calendarClient
             ),
             cacheStore: LocalCacheStore()
         )
@@ -161,6 +166,42 @@ final class AppModel {
         }
     }
 
+    func createEvent(
+        summary: String,
+        details: String,
+        startDate: Date,
+        endDate: Date,
+        calendarID: CalendarListMirror.ID
+    ) async -> Bool {
+        guard account != nil else {
+            syncState = .failed(message: "Connect Google before creating events.")
+            return false
+        }
+
+        guard endDate > startDate else {
+            syncState = .failed(message: "Event end time must be after the start time.")
+            return false
+        }
+
+        syncState = .syncing(startedAt: Date())
+        do {
+            let event = try await calendarClient.insertEvent(
+                calendarID: calendarID,
+                summary: summary.trimmingCharacters(in: .whitespacesAndNewlines),
+                details: details.trimmingCharacters(in: .whitespacesAndNewlines),
+                startDate: startDate,
+                endDate: endDate
+            )
+            upsert(event)
+            syncState = .synced(at: Date())
+            await saveCurrentState()
+            return true
+        } catch {
+            syncState = .failed(message: error.localizedDescription)
+            return false
+        }
+    }
+
     func updateSyncMode(_ mode: SyncMode) {
         settings.syncMode = mode
         Task {
@@ -208,6 +249,15 @@ final class AppModel {
             tasks[index] = task
         } else {
             tasks.append(task)
+        }
+        rebuildSnapshots()
+    }
+
+    private func upsert(_ event: CalendarEventMirror) {
+        if let index = events.firstIndex(where: { $0.id == event.id }) {
+            events[index] = event
+        } else {
+            events.append(event)
         }
         rebuildSnapshots()
     }
