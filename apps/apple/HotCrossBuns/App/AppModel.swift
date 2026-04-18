@@ -5,6 +5,7 @@ import Observation
 @Observable
 final class AppModel {
     private let authService: GoogleAuthService
+    private let tasksClient: GoogleTasksClient
     private let syncScheduler: SyncScheduler
     private let cacheStore: LocalCacheStore
 
@@ -22,11 +23,13 @@ final class AppModel {
 
     init(
         authService: GoogleAuthService,
+        tasksClient: GoogleTasksClient,
         syncScheduler: SyncScheduler,
         cacheStore: LocalCacheStore,
         settings: AppSettings = .default
     ) {
         self.authService = authService
+        self.tasksClient = tasksClient
         self.syncScheduler = syncScheduler
         self.cacheStore = cacheStore
         self.settings = settings
@@ -39,10 +42,12 @@ final class AppModel {
             tokenProvider: tokenProvider
         )
 
+        let tasksClient = GoogleTasksClient(transport: transport)
         return AppModel(
             authService: GoogleAuthService(),
+            tasksClient: tasksClient,
             syncScheduler: SyncScheduler(
-                tasksClient: GoogleTasksClient(transport: transport),
+                tasksClient: tasksClient,
                 calendarClient: GoogleCalendarClient(transport: transport)
             ),
             cacheStore: LocalCacheStore()
@@ -127,6 +132,35 @@ final class AppModel {
         }
     }
 
+    func createTask(
+        title: String,
+        notes: String,
+        dueDate: Date?,
+        taskListID: TaskListMirror.ID
+    ) async -> Bool {
+        guard account != nil else {
+            syncState = .failed(message: "Connect Google before creating tasks.")
+            return false
+        }
+
+        syncState = .syncing(startedAt: Date())
+        do {
+            let task = try await tasksClient.insertTask(
+                taskListID: taskListID,
+                title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+                notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
+                dueDate: dueDate
+            )
+            upsert(task)
+            syncState = .synced(at: Date())
+            await saveCurrentState()
+            return true
+        } catch {
+            syncState = .failed(message: error.localizedDescription)
+            return false
+        }
+    }
+
     func updateSyncMode(_ mode: SyncMode) {
         settings.syncMode = mode
         Task {
@@ -167,6 +201,15 @@ final class AppModel {
         apply(.preview)
         authState = .signedIn(.preview)
         syncState = .synced(at: Date())
+    }
+
+    private func upsert(_ task: TaskMirror) {
+        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+            tasks[index] = task
+        } else {
+            tasks.append(task)
+        }
+        rebuildSnapshots()
     }
 
     private func currentCachedState() -> CachedAppState {

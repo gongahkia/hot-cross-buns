@@ -32,23 +32,27 @@ struct GoogleTasksClient: Sendable {
             queryItems: queryItems
         )
 
-        return response.items.map { item in
-            TaskMirror(
-                id: item.id,
-                taskListID: taskListID,
-                parentID: item.parent,
-                title: item.title,
-                notes: item.notes ?? "",
-                status: TaskStatus(rawValue: item.status) ?? .needsAction,
-                dueDate: item.due,
-                completedAt: item.completed,
-                isDeleted: item.deleted ?? false,
-                isHidden: item.hidden ?? false,
-                position: item.position,
-                etag: item.etag,
-                updatedAt: item.updated
-            )
-        }
+        return response.items.map { $0.mirror(taskListID: taskListID) }
+    }
+
+    func insertTask(
+        taskListID: String,
+        title: String,
+        notes: String,
+        dueDate: Date?
+    ) async throws -> TaskMirror {
+        let encodedTaskListID = taskListID.googlePathComponentEncoded
+        let requestBody = GoogleTaskMutationDTO(
+            title: title,
+            notes: notes.isEmpty ? nil : notes,
+            due: dueDate
+        )
+        let response: GoogleTaskDTO = try await transport.request(
+            method: "POST",
+            path: "/tasks/v1/lists/\(encodedTaskListID)/tasks",
+            body: requestBody
+        )
+        return response.mirror(taskListID: taskListID)
     }
 }
 
@@ -80,6 +84,30 @@ private struct GoogleTaskDTO: Decodable, Sendable {
     var position: String?
     var etag: String?
     var updated: Date?
+
+    func mirror(taskListID: String) -> TaskMirror {
+        TaskMirror(
+            id: id,
+            taskListID: taskListID,
+            parentID: parent,
+            title: title,
+            notes: notes ?? "",
+            status: TaskStatus(rawValue: status) ?? .needsAction,
+            dueDate: due,
+            completedAt: completed,
+            isDeleted: deleted ?? false,
+            isHidden: hidden ?? false,
+            position: position,
+            etag: etag,
+            updatedAt: updated
+        )
+    }
+}
+
+private struct GoogleTaskMutationDTO: Encodable, Sendable {
+    var title: String
+    var notes: String?
+    var due: Date?
 }
 
 private extension String {
