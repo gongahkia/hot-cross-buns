@@ -61,8 +61,8 @@ struct LocalNotificationScheduler {
         referenceDate: Date,
         calendar: Calendar
     ) -> [UNNotificationRequest] {
-        let taskRequests = tasks.compactMap { task in
-            taskNotificationRequest(for: task, referenceDate: referenceDate, calendar: calendar)
+        let taskRequests = tasks.flatMap { task in
+            taskNotificationRequests(for: task, referenceDate: referenceDate, calendar: calendar)
         }
         let eventRequests = events.compactMap { event in
             eventNotificationRequest(for: event, referenceDate: referenceDate, calendar: calendar)
@@ -73,35 +73,47 @@ struct LocalNotificationScheduler {
         }.map(\.request)
     }
 
-    private func taskNotificationRequest(
+    private func taskNotificationRequests(
         for task: TaskMirror,
         referenceDate: Date,
         calendar: Calendar
-    ) -> ScheduledNotification? {
+    ) -> [ScheduledNotification] {
         guard task.isCompleted == false, task.isDeleted == false, let dueDate = task.dueDate else {
-            return nil
+            return []
         }
 
-        var components = calendar.dateComponents([.year, .month, .day], from: dueDate)
-        components.hour = 9
-        components.minute = 0
+        let parsed = TaskReminderMarkers.offsetsInDays(from: task.notes)
+        let offsets = parsed.isEmpty ? [0] : parsed
 
-        guard let notificationDate = calendar.date(from: components), notificationDate > referenceDate else {
-            return nil
+        return offsets.compactMap { offsetDays in
+            guard let reminderDay = calendar.date(byAdding: .day, value: offsetDays, to: dueDate) else { return nil }
+            var components = calendar.dateComponents([.year, .month, .day], from: reminderDay)
+            components.hour = 9
+            components.minute = 0
+
+            guard let notificationDate = calendar.date(from: components), notificationDate > referenceDate else {
+                return nil
+            }
+
+            let content = UNMutableNotificationContent()
+            content.title = titleForOffset(offsetDays: offsetDays)
+            content.body = TaskStarring.displayTitle(for: task)
+            content.sound = .default
+
+            let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+            let identifier = Self.notificationPrefix + "task." + task.id + ".d" + String(offsetDays)
+            let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+            return ScheduledNotification(sortDate: notificationDate, request: request)
         }
+    }
 
-        let content = UNMutableNotificationContent()
-        content.title = "Task due today"
-        content.body = task.title
-        content.sound = .default
-
-        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
-        let request = UNNotificationRequest(
-            identifier: Self.notificationPrefix + "task." + task.id,
-            content: content,
-            trigger: trigger
-        )
-        return ScheduledNotification(sortDate: notificationDate, request: request)
+    private func titleForOffset(offsetDays: Int) -> String {
+        switch offsetDays {
+        case 0: return "Task due today"
+        case -1: return "Task due tomorrow"
+        case ..<(-1): return "Task due in \(-offsetDays) days"
+        default: return "Task reminder"
+        }
     }
 
     private func eventNotificationRequest(
