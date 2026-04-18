@@ -6,6 +6,7 @@ struct TasksView: View {
     @State private var selection: TaskMirror.ID?
     @State private var isInspectorPresented = true
     @State private var searchQuery: String = ""
+    @SceneStorage("tasksShowCompleted") private var showCompleted: Bool = true
 
     var body: some View {
         List(selection: $selection) {
@@ -48,6 +49,12 @@ struct TasksView: View {
                 } label: {
                     Label("Add Task", systemImage: "plus")
                 }
+
+                Toggle(isOn: $showCompleted) {
+                    Label("Show Completed", systemImage: showCompleted ? "checkmark.circle.fill" : "checkmark.circle")
+                }
+                .toggleStyle(.button)
+                .help("Show completed tasks")
 
                 Button {
                     isInspectorPresented.toggle()
@@ -93,8 +100,19 @@ struct TasksView: View {
 
     private func filteredSections() -> [TaskListSectionSnapshot] {
         let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard query.isEmpty == false else { return model.taskSections }
-        return model.taskSections.compactMap { section in
+        let sections: [TaskListSectionSnapshot]
+        if showCompleted {
+            sections = model.taskSections
+        } else {
+            sections = model.taskSections.map { section in
+                TaskListSectionSnapshot(
+                    taskList: section.taskList,
+                    tasks: section.tasks.filter { $0.isCompleted == false }
+                )
+            }
+        }
+        guard query.isEmpty == false else { return sections }
+        return sections.compactMap { section in
             let tasks = section.tasks.filter { matches(task: $0, query: query) }
             guard tasks.isEmpty == false else { return nil }
             return TaskListSectionSnapshot(taskList: section.taskList, tasks: tasks)
