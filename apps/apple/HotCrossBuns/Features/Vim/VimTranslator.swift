@@ -9,6 +9,7 @@ enum VimAction: Equatable, Sendable {
     case deleteSelection
     case openCommandPalette
     case focusSearch
+    case toggleCheatsheet
 }
 
 struct VimTranslator: Equatable {
@@ -39,6 +40,7 @@ struct VimTranslator: Equatable {
         case ":": return .openCommandPalette
         case "/": return .focusSearch
         case "G": return .scrollBottom
+        case "?": return .toggleCheatsheet
         case "g", "d":
             pending = character
             return nil
