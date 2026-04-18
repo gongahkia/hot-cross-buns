@@ -13,6 +13,12 @@ struct CalendarHomeView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            CalendarTodayStatusHeader(
+                snapshot: model.todaySnapshot,
+                syncState: model.syncState,
+                refresh: { Task { await model.refreshNow() } }
+            )
+            Divider()
             navigationBar
             Divider()
             Group {
@@ -823,6 +829,59 @@ private enum EventReminderOption: Int, CaseIterable, Identifiable {
         }
 
         self.init(rawValue: minutes)
+    }
+}
+
+struct CalendarTodayStatusHeader: View {
+    let snapshot: TodaySnapshot
+    let syncState: SyncState
+    let refresh: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(snapshot.date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
+                    .font(.headline)
+                    .foregroundStyle(AppColor.ink)
+                Text(syncState.title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 12)
+            StatusPill(value: "\(snapshot.dueTasks.count)", label: "Tasks")
+            StatusPill(value: "\(snapshot.scheduledEvents.count)", label: "Events")
+            StatusPill(value: "\(snapshot.overdueCount)", label: "Overdue", tint: snapshot.overdueCount > 0 ? AppColor.ember : nil)
+            Button(action: refresh) {
+                Label("Refresh", systemImage: "arrow.clockwise")
+                    .labelStyle(.iconOnly)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityLabel("Refresh Google data")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+    }
+}
+
+private struct StatusPill: View {
+    let value: String
+    let label: String
+    var tint: Color? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(value)
+                .font(.title3.bold().monospacedDigit())
+                .foregroundStyle(tint ?? AppColor.ink)
+            Text(label)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 10)
+        .background(
+            Capsule().fill((tint ?? AppColor.cream).opacity(0.35))
+        )
     }
 }
 
