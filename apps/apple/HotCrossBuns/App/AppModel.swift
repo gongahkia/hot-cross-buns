@@ -191,6 +191,84 @@ final class AppModel {
         }
     }
 
+    func createTaskList(title: String) async -> Bool {
+        guard account != nil else {
+            syncState = .failed(message: "Connect Google before creating task lists.")
+            return false
+        }
+
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedTitle.isEmpty == false else {
+            syncState = .failed(message: "Task list title cannot be empty.")
+            return false
+        }
+
+        syncState = .syncing(startedAt: Date())
+        do {
+            let taskList = try await tasksClient.insertTaskList(title: trimmedTitle)
+            upsert(taskList)
+
+            if settings.hasConfiguredTaskListSelection {
+                settings.selectedTaskListIDs.insert(taskList.id)
+            }
+
+            syncState = .synced(at: Date())
+            await saveCurrentState()
+            return true
+        } catch {
+            syncState = .failed(message: error.localizedDescription)
+            return false
+        }
+    }
+
+    func updateTaskList(_ taskList: TaskListMirror, title: String) async -> Bool {
+        guard account != nil else {
+            syncState = .failed(message: "Connect Google before updating task lists.")
+            return false
+        }
+
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedTitle.isEmpty == false else {
+            syncState = .failed(message: "Task list title cannot be empty.")
+            return false
+        }
+
+        syncState = .syncing(startedAt: Date())
+        do {
+            let updatedTaskList = try await tasksClient.updateTaskList(
+                taskListID: taskList.id,
+                title: trimmedTitle
+            )
+            upsert(updatedTaskList)
+            syncState = .synced(at: Date())
+            await saveCurrentState()
+            return true
+        } catch {
+            syncState = .failed(message: error.localizedDescription)
+            return false
+        }
+    }
+
+    func deleteTaskList(_ taskList: TaskListMirror) async -> Bool {
+        guard account != nil else {
+            syncState = .failed(message: "Connect Google before deleting task lists.")
+            return false
+        }
+
+        syncState = .syncing(startedAt: Date())
+        do {
+            try await tasksClient.deleteTaskList(taskListID: taskList.id)
+            removeTaskList(id: taskList.id)
+            syncState = .synced(at: Date())
+            await saveCurrentState()
+            await synchronizeLocalNotifications()
+            return true
+        } catch {
+            syncState = .failed(message: error.localizedDescription)
+            return false
+        }
+    }
+
     func updateTask(
         _ task: TaskMirror,
         title: String,
@@ -545,6 +623,25 @@ final class AppModel {
             tasks[index] = task
         } else {
             tasks.append(task)
+        }
+        rebuildSnapshots()
+    }
+
+    private func upsert(_ taskList: TaskListMirror) {
+        if let index = taskLists.firstIndex(where: { $0.id == taskList.id }) {
+            taskLists[index] = taskList
+        } else {
+            taskLists.append(taskList)
+        }
+        rebuildSnapshots()
+    }
+
+    private func removeTaskList(id: TaskListMirror.ID) {
+        taskLists.removeAll { $0.id == id }
+        tasks.removeAll { $0.taskListID == id }
+        settings.selectedTaskListIDs.remove(id)
+        syncCheckpoints.removeAll { checkpoint in
+            checkpoint.resourceType == .taskList && checkpoint.resourceID == id
         }
         rebuildSnapshots()
     }

@@ -37,10 +37,18 @@ struct TasksView: View {
         .appBackground()
         .navigationTitle("Google Tasks")
         .toolbar {
-            Button {
-                router.present(.addTask)
-            } label: {
-                Label("Add Task", systemImage: "plus")
+            ToolbarItemGroup {
+                Button {
+                    router.present(.manageTaskLists)
+                } label: {
+                    Label("Manage Lists", systemImage: "list.bullet.rectangle")
+                }
+
+                Button {
+                    router.present(.addTask)
+                } label: {
+                    Label("Add Task", systemImage: "plus")
+                }
             }
         }
     }
@@ -380,6 +388,267 @@ struct EditTaskSheet: View {
             notes: notes,
             dueDate: hasDueDate ? Calendar.current.startOfDay(for: dueDate) : nil
         )
+
+        if didSave {
+            dismiss()
+        }
+    }
+}
+
+struct ManageTaskListsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var model
+    @State private var editor: TaskListEditor?
+    @State private var taskListPendingDeletion: TaskListMirror?
+    @State private var isMutating = false
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    if model.taskLists.isEmpty {
+                        ContentUnavailableView(
+                            "No task lists loaded",
+                            systemImage: "checklist",
+                            description: Text("Connect Google and refresh before managing lists.")
+                        )
+                    } else {
+                        ForEach(model.taskLists) { taskList in
+                            TaskListManagementRow(
+                                taskList: taskList,
+                                taskCount: taskCount(for: taskList.id),
+                                isSelected: model.isTaskListSelected(taskList.id),
+                                rename: {
+                                    editor = .rename(taskList)
+                                },
+                                delete: {
+                                    taskListPendingDeletion = taskList
+                                }
+                            )
+                            .disabled(isMutating)
+                        }
+                    }
+                } footer: {
+                    Text("Deleting a task list deletes the list and its tasks from Google Tasks. Some Google-owned default lists may not be deletable.")
+                }
+            }
+            .navigationTitle("Task Lists")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                    .disabled(isMutating)
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        editor = .create
+                    } label: {
+                        Label("New List", systemImage: "plus")
+                    }
+                    .disabled(model.account == nil || isMutating)
+                }
+            }
+            .overlay {
+                if isMutating {
+                    ProgressView("Updating...")
+                        .padding(18)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+            }
+            .sheet(item: $editor) { editor in
+                TaskListEditorSheet(editor: editor)
+            }
+            .confirmationDialog(
+                "Delete task list?",
+                isPresented: deleteConfirmationBinding,
+                titleVisibility: .visible
+            ) {
+                if let taskListPendingDeletion {
+                    Button("Delete \(taskListPendingDeletion.title)", role: .destructive) {
+                        Task {
+                            await delete(taskListPendingDeletion)
+                        }
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                if let taskListPendingDeletion {
+                    Text("This deletes \"\(taskListPendingDeletion.title)\" and all tasks in it from Google Tasks.")
+                }
+            }
+        }
+        .interactiveDismissDisabled(isMutating)
+    }
+
+    private var deleteConfirmationBinding: Binding<Bool> {
+        Binding(
+            get: { taskListPendingDeletion != nil },
+            set: { isPresented in
+                if isPresented == false {
+                    taskListPendingDeletion = nil
+                }
+            }
+        )
+    }
+
+    private func taskCount(for taskListID: TaskListMirror.ID) -> Int {
+        model.tasks.filter { $0.taskListID == taskListID && !$0.isDeleted }.count
+    }
+
+    private func delete(_ taskList: TaskListMirror) async {
+        isMutating = true
+        defer {
+            isMutating = false
+            taskListPendingDeletion = nil
+        }
+        _ = await model.deleteTaskList(taskList)
+    }
+}
+
+private struct TaskListManagementRow: View {
+    let taskList: TaskListMirror
+    let taskCount: Int
+    let isSelected: Bool
+    let rename: () -> Void
+    let delete: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(isSelected ? AppColor.moss : .secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(taskList.title)
+                    .font(.headline)
+                Text("\(taskCount) active \(taskCount == 1 ? "task" : "tasks")")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+            Menu {
+                Button(action: rename) {
+                    Label("Rename", systemImage: "pencil")
+                }
+                Button(role: .destructive, action: delete) {
+                    Label("Delete", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.title3)
+            }
+            .menuStyle(.button)
+        }
+        .contentShape(Rectangle())
+        .swipeActions {
+            Button(role: .destructive, action: delete) {
+                Label("Delete", systemImage: "trash")
+            }
+            Button(action: rename) {
+                Label("Rename", systemImage: "pencil")
+            }
+            .tint(AppColor.blue)
+        }
+    }
+}
+
+private enum TaskListEditor: Identifiable, Hashable {
+    case create
+    case rename(TaskListMirror)
+
+    var id: String {
+        switch self {
+        case .create:
+            "create"
+        case .rename(let taskList):
+            "rename-\(taskList.id)"
+        }
+    }
+
+    var navigationTitle: String {
+        switch self {
+        case .create:
+            "New Task List"
+        case .rename:
+            "Rename Task List"
+        }
+    }
+
+    var confirmationTitle: String {
+        switch self {
+        case .create:
+            "Create"
+        case .rename:
+            "Save"
+        }
+    }
+
+    var initialTitle: String {
+        switch self {
+        case .create:
+            ""
+        case .rename(let taskList):
+            taskList.title
+        }
+    }
+}
+
+private struct TaskListEditorSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var model
+    let editor: TaskListEditor
+    @State private var title: String
+    @State private var isSaving = false
+
+    init(editor: TaskListEditor) {
+        self.editor = editor
+        _title = State(initialValue: editor.initialTitle)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Task list") {
+                    TextField("Title", text: $title)
+                }
+            }
+            .navigationTitle(editor.navigationTitle)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .disabled(isSaving)
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(editor.confirmationTitle) {
+                        Task {
+                            await save()
+                        }
+                    }
+                    .disabled(canSave == false || isSaving)
+                }
+            }
+        }
+        .interactiveDismissDisabled(isSaving)
+    }
+
+    private var canSave: Bool {
+        title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false && model.account != nil
+    }
+
+    private func save() async {
+        isSaving = true
+        defer { isSaving = false }
+
+        let didSave: Bool
+        switch editor {
+        case .create:
+            didSave = await model.createTaskList(title: title)
+        case .rename(let taskList):
+            didSave = await model.updateTaskList(taskList, title: title)
+        }
 
         if didSave {
             dismiss()
