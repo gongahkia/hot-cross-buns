@@ -385,6 +385,20 @@ final class AppModel {
         }
     }
 
+    func completeOnboarding() {
+        settings.hasCompletedOnboarding = true
+        Task {
+            await saveCurrentState()
+        }
+    }
+
+    func resetOnboarding() {
+        settings.hasCompletedOnboarding = false
+        Task {
+            await saveCurrentState()
+        }
+    }
+
     func toggleCalendar(_ calendarID: CalendarListMirror.ID) {
         guard let index = calendars.firstIndex(where: { $0.id == calendarID }) else {
             return

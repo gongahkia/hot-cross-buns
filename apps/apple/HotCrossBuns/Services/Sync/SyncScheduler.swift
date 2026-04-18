@@ -66,7 +66,8 @@ actor SyncScheduler {
                 hasConfiguredTaskListSelection: baseState.settings.hasConfiguredTaskListSelection
                     || baseState.settings.selectedTaskListIDs.isEmpty == false
                     || selectedTaskListIDs.isEmpty == false,
-                enableLocalNotifications: baseState.settings.enableLocalNotifications
+                enableLocalNotifications: baseState.settings.enableLocalNotifications,
+                hasCompletedOnboarding: baseState.settings.hasCompletedOnboarding
             ),
             syncCheckpoints: mergeCheckpoints(
                 existing: baseState.syncCheckpoints,

@@ -239,7 +239,8 @@ struct CachedAppState: Codable, Sendable {
                 syncMode: .balanced,
                 selectedCalendarIDs: [primary.id, planning.id],
                 selectedTaskListIDs: [inbox.id, focus.id],
-                enableLocalNotifications: true
+                enableLocalNotifications: true,
+                hasCompletedOnboarding: true
             )
         )
     }
