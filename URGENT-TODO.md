@@ -139,7 +139,4 @@ Not in scope for this push, listed here so nothing is lost:
 - RRULE editing, attendees / guest-email policy, "this and following" delete.
 - Crash reporting.
 - SQLite migration for the local cache.
-- Native markdown editor for task notes and event descriptions.
-  - Google Tasks `notes` is plain text on the wire — markdown rendering is purely client-side; store the raw markdown as the note body.
-  - Google Calendar event `description` accepts a limited HTML subset (links, `<b>`, `<i>`, `<u>`, `<br>`, `<ul>`/`<ol>`/`<li>`). Transpile markdown → that HTML subset on write, and parse HTML → markdown on read so the Calendar web UI keeps rendering rich descriptions while our Mac UI shows native markdown editing.
-  - Preserve a raw-html fallback for event descriptions that contain unsupported tags so we do not destroy formatting authored elsewhere.
+- Native markdown editor for task notes and event descriptions — **wired**. Google Tasks `notes` is stored as plaintext markdown; `MarkdownEditor` in Add/Edit sheets and the inspector. Google Calendar event `description` is transpiled through `MarkdownHTML` (md → HTML subset on write, HTML → md on read). Unknown HTML tags in incoming descriptions are preserved verbatim on the next write so formatting authored elsewhere is not destroyed.

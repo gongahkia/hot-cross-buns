@@ -74,29 +74,8 @@ struct TaskInspectorView: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     sectionLabel("NOTES")
-                    TextEditor(text: $draft.notes)
-                        .font(.body)
-                        .scrollContentBackground(.hidden)
-                        .enableWritingTools()
-                        .frame(minHeight: 120, maxHeight: 240)
-                        .padding(10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(AppColor.cream.opacity(0.6))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(AppColor.cardStroke, lineWidth: 0.8)
-                        )
-                        .focused($focusedField, equals: .notes)
+                    MarkdownEditor(text: $draft.notes, placeholder: "Notes (markdown supported)", minHeight: 120, maxHeight: 240)
                         .onChange(of: draft.notes) { _, _ in scheduleSave() }
-
-                    if notesForPreview.isEmpty == false, focusedField != .notes {
-                        Text.markdown(notesForPreview)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 2)
-                    }
                 }
 
                 dueDateSection
