@@ -29,9 +29,10 @@ open HotCrossBuns.xcodeproj
 ```bash
 xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBuns -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
 xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO
+xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 'platform=macOS' test CODE_SIGNING_ALLOWED=NO
 ```
 
-The macOS build command is verified in this repo. The iOS command requires the matching iOS simulator platform components installed in Xcode.
+The macOS build and test commands are verified in this repo. The iOS command requires the matching iOS simulator platform components installed in Xcode.
 
 ## Package macOS DMG
 

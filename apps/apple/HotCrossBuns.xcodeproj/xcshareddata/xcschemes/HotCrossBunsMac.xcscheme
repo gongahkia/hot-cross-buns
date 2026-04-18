@@ -39,6 +39,17 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "045A02CEF69A5B42D8D9ED33"
+               BuildableName = "HotCrossBunsMacTests.xctest"
+               BlueprintName = "HotCrossBunsMacTests"
+               ReferencedContainer = "container:HotCrossBuns.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>
