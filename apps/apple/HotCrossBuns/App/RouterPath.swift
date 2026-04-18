@@ -24,27 +24,27 @@ final class RouterPath {
 @MainActor
 @Observable
 final class TabRouter {
-    private var routers: [AppTab: RouterPath] = [:]
+    private var routers: [String: RouterPath] = [:]
 
-    func router(for tab: AppTab) -> RouterPath {
-        if let router = routers[tab] {
+    func router(for key: String) -> RouterPath {
+        if let router = routers[key] {
             return router
         }
         let router = RouterPath()
-        routers[tab] = router
+        routers[key] = router
         return router
     }
 
-    func binding(for tab: AppTab) -> Binding<[AppRoute]> {
-        let router = router(for: tab)
+    func binding(for key: String) -> Binding<[AppRoute]> {
+        let router = router(for: key)
         return Binding(
             get: { router.path },
             set: { router.path = $0 }
         )
     }
 
-    func sheetBinding(for tab: AppTab) -> Binding<SheetDestination?> {
-        let router = router(for: tab)
+    func sheetBinding(for key: String) -> Binding<SheetDestination?> {
+        let router = router(for: key)
         return Binding(
             get: { router.presentedSheet },
             set: { router.presentedSheet = $0 }

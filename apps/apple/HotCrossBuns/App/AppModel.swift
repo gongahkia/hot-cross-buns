@@ -10,10 +10,13 @@ final class AppModel {
     private let syncScheduler: SyncScheduler
     private let cacheStore: LocalCacheStore
     private let notificationScheduler: LocalNotificationScheduler
+    private let spotlightIndexer: SpotlightIndexer
 
     private(set) var account: GoogleAccount?
     private(set) var authState: AuthState = .signedOut
     private(set) var syncState: SyncState = .idle
+    private(set) var isMutating: Bool = false
+    private(set) var lastMutationError: String?
     private(set) var taskLists: [TaskListMirror] = []
     private(set) var tasks: [TaskMirror] = []
     private(set) var calendars: [CalendarListMirror] = []
@@ -36,6 +39,7 @@ final class AppModel {
         syncScheduler: SyncScheduler,
         cacheStore: LocalCacheStore,
         notificationScheduler: LocalNotificationScheduler = LocalNotificationScheduler(),
+        spotlightIndexer: SpotlightIndexer = SpotlightIndexer(),
         settings: AppSettings = .default
     ) {
         self.authService = authService
@@ -44,6 +48,7 @@ final class AppModel {
         self.syncScheduler = syncScheduler
         self.cacheStore = cacheStore
         self.notificationScheduler = notificationScheduler
+        self.spotlightIndexer = spotlightIndexer
         self.settings = settings
     }
 
@@ -121,6 +126,7 @@ final class AppModel {
         authState = .signedOut
         syncState = .idle
         await saveCurrentState()
+        await spotlightIndexer.removeAll()
     }
 
     func handleAuthRedirect(_ url: URL) {
@@ -135,14 +141,25 @@ final class AppModel {
         await refreshNow()
     }
 
-    func refreshNow() async {
+    enum RefreshOutcome: Sendable {
+        case skipped
+        case succeeded
+        case failed(Error)
+    }
+
+    @discardableResult
+    func refreshNow() async -> RefreshOutcome {
         if case .syncing = syncState {
-            return
+            return .skipped
+        }
+
+        if isMutating {
+            return .skipped // defer refresh until mutation settles to avoid state races
         }
 
         guard account != nil else {
             syncState = .failed(message: "Connect Google before syncing.")
-            return
+            return .skipped
         }
 
         syncState = .syncing(startedAt: Date())
@@ -156,8 +173,10 @@ final class AppModel {
             syncState = .synced(at: Date())
             await saveCurrentState()
             await synchronizeLocalNotifications()
+            return .succeeded
         } catch {
             syncState = .failed(message: error.localizedDescription)
+            return .failed(error)
         }
     }
 
@@ -167,12 +186,11 @@ final class AppModel {
         dueDate: Date?,
         taskListID: TaskListMirror.ID
     ) async -> Bool {
-        guard account != nil else {
-            syncState = .failed(message: "Connect Google before creating tasks.")
+        guard requireAccount(mutationDescription: "creating tasks") else {
             return false
         }
 
-        syncState = .syncing(startedAt: Date())
+        beginMutation()
         do {
             let task = try await tasksClient.insertTask(
                 taskListID: taskListID,
@@ -181,29 +199,28 @@ final class AppModel {
                 dueDate: dueDate
             )
             upsert(task)
-            syncState = .synced(at: Date())
+            endMutation(error: nil)
             await saveCurrentState()
             await synchronizeLocalNotifications()
             return true
         } catch {
-            syncState = .failed(message: error.localizedDescription)
+            endMutation(error: error)
             return false
         }
     }
 
     func createTaskList(title: String) async -> Bool {
-        guard account != nil else {
-            syncState = .failed(message: "Connect Google before creating task lists.")
+        guard requireAccount(mutationDescription: "creating task lists") else {
             return false
         }
 
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedTitle.isEmpty == false else {
-            syncState = .failed(message: "Task list title cannot be empty.")
+            lastMutationError = "Task list title cannot be empty."
             return false
         }
 
-        syncState = .syncing(startedAt: Date())
+        beginMutation()
         do {
             let taskList = try await tasksClient.insertTaskList(title: trimmedTitle)
             upsert(taskList)
@@ -212,59 +229,57 @@ final class AppModel {
                 settings.selectedTaskListIDs.insert(taskList.id)
             }
 
-            syncState = .synced(at: Date())
+            endMutation(error: nil)
             await saveCurrentState()
             return true
         } catch {
-            syncState = .failed(message: error.localizedDescription)
+            endMutation(error: error)
             return false
         }
     }
 
     func updateTaskList(_ taskList: TaskListMirror, title: String) async -> Bool {
-        guard account != nil else {
-            syncState = .failed(message: "Connect Google before updating task lists.")
+        guard requireAccount(mutationDescription: "updating task lists") else {
             return false
         }
 
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedTitle.isEmpty == false else {
-            syncState = .failed(message: "Task list title cannot be empty.")
+            lastMutationError = "Task list title cannot be empty."
             return false
         }
 
-        syncState = .syncing(startedAt: Date())
+        beginMutation()
         do {
             let updatedTaskList = try await tasksClient.updateTaskList(
                 taskListID: taskList.id,
                 title: trimmedTitle
             )
             upsert(updatedTaskList)
-            syncState = .synced(at: Date())
+            endMutation(error: nil)
             await saveCurrentState()
             return true
         } catch {
-            syncState = .failed(message: error.localizedDescription)
+            endMutation(error: error)
             return false
         }
     }
 
     func deleteTaskList(_ taskList: TaskListMirror) async -> Bool {
-        guard account != nil else {
-            syncState = .failed(message: "Connect Google before deleting task lists.")
+        guard requireAccount(mutationDescription: "deleting task lists") else {
             return false
         }
 
-        syncState = .syncing(startedAt: Date())
+        beginMutation()
         do {
             try await tasksClient.deleteTaskList(taskListID: taskList.id)
             removeTaskList(id: taskList.id)
-            syncState = .synced(at: Date())
+            endMutation(error: nil)
             await saveCurrentState()
             await synchronizeLocalNotifications()
             return true
         } catch {
-            syncState = .failed(message: error.localizedDescription)
+            endMutation(error: error)
             return false
         }
     }
@@ -275,18 +290,17 @@ final class AppModel {
         notes: String,
         dueDate: Date?
     ) async -> Bool {
-        guard account != nil else {
-            syncState = .failed(message: "Connect Google before updating tasks.")
+        guard requireAccount(mutationDescription: "updating tasks") else {
             return false
         }
 
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedTitle.isEmpty == false else {
-            syncState = .failed(message: "Task title cannot be empty.")
+            lastMutationError = "Task title cannot be empty."
             return false
         }
 
-        syncState = .syncing(startedAt: Date())
+        beginMutation()
         do {
             let updatedTask = try await tasksClient.updateTask(
                 taskListID: task.taskListID,
@@ -296,52 +310,50 @@ final class AppModel {
                 dueDate: dueDate
             )
             upsert(updatedTask)
-            syncState = .synced(at: Date())
+            endMutation(error: nil)
             await saveCurrentState()
             await synchronizeLocalNotifications()
             return true
         } catch {
-            syncState = .failed(message: error.localizedDescription)
+            endMutation(error: error)
             return false
         }
     }
 
     func setTaskCompleted(_ isCompleted: Bool, task: TaskMirror) async -> Bool {
-        guard account != nil else {
-            syncState = .failed(message: "Connect Google before updating tasks.")
+        guard requireAccount(mutationDescription: "updating tasks") else {
             return false
         }
 
-        syncState = .syncing(startedAt: Date())
+        beginMutation()
         do {
             let updatedTask = try await tasksClient.setTaskCompleted(isCompleted, task: task)
             upsert(updatedTask)
-            syncState = .synced(at: Date())
+            endMutation(error: nil)
             await saveCurrentState()
             await synchronizeLocalNotifications()
             return true
         } catch {
-            syncState = .failed(message: error.localizedDescription)
+            endMutation(error: error)
             return false
         }
     }
 
     func deleteTask(_ task: TaskMirror) async -> Bool {
-        guard account != nil else {
-            syncState = .failed(message: "Connect Google before deleting tasks.")
+        guard requireAccount(mutationDescription: "deleting tasks") else {
             return false
         }
 
-        syncState = .syncing(startedAt: Date())
+        beginMutation()
         do {
             try await tasksClient.deleteTask(taskListID: task.taskListID, taskID: task.id)
             removeTask(id: task.id)
-            syncState = .synced(at: Date())
+            endMutation(error: nil)
             await saveCurrentState()
             await synchronizeLocalNotifications()
             return true
         } catch {
-            syncState = .failed(message: error.localizedDescription)
+            endMutation(error: error)
             return false
         }
     }
@@ -355,17 +367,16 @@ final class AppModel {
         reminderMinutes: Int?,
         calendarID: CalendarListMirror.ID
     ) async -> Bool {
-        guard account != nil else {
-            syncState = .failed(message: "Connect Google before creating events.")
+        guard requireAccount(mutationDescription: "creating events") else {
             return false
         }
 
         guard isValidEventRange(startDate: startDate, endDate: endDate, isAllDay: isAllDay) else {
-            syncState = .failed(message: isAllDay ? "All-day event end date cannot be before the start date." : "Event end time must be after the start time.")
+            lastMutationError = isAllDay ? "All-day event end date cannot be before the start date." : "Event end time must be after the start time."
             return false
         }
 
-        syncState = .syncing(startedAt: Date())
+        beginMutation()
         do {
             let event = try await calendarClient.insertEvent(
                 calendarID: calendarID,
@@ -377,12 +388,12 @@ final class AppModel {
                 reminderMinutes: reminderMinutes
             )
             upsert(event)
-            syncState = .synced(at: Date())
+            endMutation(error: nil)
             await saveCurrentState()
             await synchronizeLocalNotifications()
             return true
         } catch {
-            syncState = .failed(message: error.localizedDescription)
+            endMutation(error: error)
             return false
         }
     }
@@ -397,23 +408,22 @@ final class AppModel {
         reminderMinutes: Int?,
         calendarID: CalendarListMirror.ID
     ) async -> Bool {
-        guard account != nil else {
-            syncState = .failed(message: "Connect Google before updating events.")
+        guard requireAccount(mutationDescription: "updating events") else {
             return false
         }
 
         let trimmedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedSummary.isEmpty == false else {
-            syncState = .failed(message: "Event summary cannot be empty.")
+            lastMutationError = "Event summary cannot be empty."
             return false
         }
 
         guard isValidEventRange(startDate: startDate, endDate: endDate, isAllDay: isAllDay) else {
-            syncState = .failed(message: isAllDay ? "All-day event end date cannot be before the start date." : "Event end time must be after the start time.")
+            lastMutationError = isAllDay ? "All-day event end date cannot be before the start date." : "Event end time must be after the start time."
             return false
         }
 
-        syncState = .syncing(startedAt: Date())
+        beginMutation()
         do {
             let eventToUpdate: CalendarEventMirror
             if calendarID != event.calendarID {
@@ -440,32 +450,31 @@ final class AppModel {
                 removeEvent(id: event.id)
             }
             upsert(updatedEvent)
-            syncState = .synced(at: Date())
+            endMutation(error: nil)
             await saveCurrentState()
             await synchronizeLocalNotifications()
             return true
         } catch {
-            syncState = .failed(message: error.localizedDescription)
+            endMutation(error: error)
             return false
         }
     }
 
     func deleteEvent(_ event: CalendarEventMirror) async -> Bool {
-        guard account != nil else {
-            syncState = .failed(message: "Connect Google before deleting events.")
+        guard requireAccount(mutationDescription: "deleting events") else {
             return false
         }
 
-        syncState = .syncing(startedAt: Date())
+        beginMutation()
         do {
             try await calendarClient.deleteEvent(calendarID: event.calendarID, eventID: event.id)
             removeEvent(id: event.id)
-            syncState = .synced(at: Date())
+            endMutation(error: nil)
             await saveCurrentState()
             await synchronizeLocalNotifications()
             return true
         } catch {
-            syncState = .failed(message: error.localizedDescription)
+            endMutation(error: error)
             return false
         }
     }
@@ -475,6 +484,30 @@ final class AppModel {
         Task {
             await saveCurrentState()
         }
+    }
+
+    func setShowMenuBarExtra(_ isEnabled: Bool) {
+        guard settings.showMenuBarExtra != isEnabled else {
+            return
+        }
+        settings.showMenuBarExtra = isEnabled
+        Task { await saveCurrentState() }
+    }
+
+    func setShowDockBadge(_ isEnabled: Bool) {
+        guard settings.showDockBadge != isEnabled else {
+            return
+        }
+        settings.showDockBadge = isEnabled
+        Task { await saveCurrentState() }
+    }
+
+    func setShowDetailedMenuBar(_ isEnabled: Bool) {
+        guard settings.showDetailedMenuBar != isEnabled else {
+            return
+        }
+        settings.showDetailedMenuBar = isEnabled
+        Task { await saveCurrentState() }
     }
 
     func updateLocalNotificationsEnabled(_ isEnabled: Bool) {
@@ -507,6 +540,28 @@ final class AppModel {
         if case .failed = authState {
             authState = account.map(AuthState.signedIn) ?? .signedOut
         }
+
+        lastMutationError = nil
+    }
+
+    private func requireAccount(mutationDescription: String) -> Bool {
+        guard account != nil else {
+            lastMutationError = "Connect Google before \(mutationDescription)."
+            return false
+        }
+        return true
+    }
+
+    private func beginMutation() {
+        isMutating = true
+        lastMutationError = nil
+    }
+
+    private func endMutation(error: Error?) {
+        isMutating = false
+        if let error {
+            lastMutationError = error.localizedDescription
+        }
     }
 
     func forceFullResync() async {
@@ -525,6 +580,7 @@ final class AppModel {
         rebuildSnapshots()
         syncState = .idle
         await saveCurrentState()
+        await spotlightIndexer.removeAll()
         await synchronizeLocalNotifications()
 
         if account != nil {
@@ -712,6 +768,7 @@ final class AppModel {
             settings: settings,
             requestAuthorization: requestAuthorization
         )
+        await spotlightIndexer.update(tasks: tasks, events: events)
     }
 
     private func rebuildSnapshots(referenceDate: Date = Date()) {

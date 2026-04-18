@@ -269,9 +269,11 @@ actor SyncScheduler {
             tasksByID[task.id] = task
         }
 
-        return tasksByID.values.sorted { lhs, rhs in
-            (lhs.dueDate ?? lhs.updatedAt ?? .distantFuture) < (rhs.dueDate ?? rhs.updatedAt ?? .distantFuture)
-        }
+        return tasksByID.values
+            .filter { $0.isDeleted == false } // purge tombstones post-merge
+            .sorted { lhs, rhs in
+                (lhs.dueDate ?? lhs.updatedAt ?? .distantFuture) < (rhs.dueDate ?? rhs.updatedAt ?? .distantFuture)
+            }
     }
 
     private func mergeEvents(existing: [CalendarEventMirror], results: [CalendarSyncResult]) -> [CalendarEventMirror] {
@@ -286,9 +288,11 @@ actor SyncScheduler {
             eventsByID[event.id] = event
         }
 
-        return eventsByID.values.sorted { lhs, rhs in
-            lhs.startDate < rhs.startDate
-        }
+        return eventsByID.values
+            .filter { $0.status != .cancelled } // purge cancellations post-merge
+            .sorted { lhs, rhs in
+                lhs.startDate < rhs.startDate
+            }
     }
 
     private func mergeCheckpoints(
