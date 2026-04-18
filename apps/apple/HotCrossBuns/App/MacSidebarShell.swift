@@ -5,7 +5,7 @@ import SwiftUI
 struct MacSidebarShell: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
-    @SceneStorage("sidebarSelection") private var storedSelection: String = SidebarItem.today.rawValue
+    @SceneStorage("sidebarSelection") private var storedSelection: String = SidebarItem.calendar.rawValue
     @SceneStorage("sidebarCollapsed") private var isSidebarCollapsed = false
     @SceneStorage("uiZoomStep") private var zoomStep: Int = 3 // legacy default; migrated on first launch
     @SceneStorage("uiZoomScaleMigrationVersion") private var zoomScaleMigrationVersion: Int = 0
@@ -64,8 +64,7 @@ struct MacSidebarShell: View {
         isSidebarCollapsed ? collapsedSidebarWidth : expandedSidebarWidth
     }
 
-    @State private var selection: SidebarItem = .today
-    @State private var activeCustomFilterID: CustomFilterDefinition.ID?
+    @State private var selection: SidebarItem = .calendar
     @State private var sidebarVisibility: NavigationSplitViewVisibility = .all
     @State private var tabRouter = TabRouter()
     @State private var isPresentingOnboarding = false
@@ -85,7 +84,6 @@ struct MacSidebarShell: View {
 
     private enum CollapsedSidebarDestination: Equatable {
         case item(SidebarItem)
-        case customFilter(CustomFilterDefinition.ID)
     }
 
     var body: some View {
@@ -124,13 +122,11 @@ struct MacSidebarShell: View {
                 CommandPaletteView(
                     commands: commandPaletteCommands,
                     onSelectTask: { task in
-                        selection = .tasks
-                        activeCustomFilterID = nil
-                        tabRouter.router(for: sidebarItemKey(.tasks)).navigate(to: .task(task.id))
+                        selection = .store
+                        tabRouter.router(for: sidebarItemKey(.store)).navigate(to: .task(task.id))
                     },
                     onSelectEvent: { event in
                         selection = .calendar
-                        activeCustomFilterID = nil
                         tabRouter.router(for: sidebarItemKey(.calendar)).navigate(to: .event(event.id))
                     }
                 )
@@ -151,7 +147,7 @@ struct MacSidebarShell: View {
             }
             .focusedSceneValue(\.appCommandActions, appCommandActions)
             .onAppear {
-                selection = SidebarItem(rawValue: storedSelection) ?? .today
+                selection = SidebarItem(rawValue: storedSelection) ?? .calendar
                 migrateZoomStepIfNeeded()
                 configureCommandActions()
                 configureVimMonitor()
@@ -227,8 +223,8 @@ struct MacSidebarShell: View {
 
         switch identifier {
         case .task(let id):
-            selection = .tasks
-            tabRouter.router(for: sidebarItemKey(.tasks)).navigate(to: .task(id))
+            selection = .store
+            tabRouter.router(for: sidebarItemKey(.store)).navigate(to: .task(id))
         case .event(let id):
             selection = .calendar
             tabRouter.router(for: sidebarItemKey(.calendar)).navigate(to: .event(id))
@@ -281,25 +277,8 @@ struct MacSidebarShell: View {
                 .padding(.vertical, 10)
             Divider()
             List {
-                ForEach(SidebarSection.allCases, id: \.self) { section in
-                    if section == .custom {
-                        if model.settings.customFilters.isEmpty == false {
-                            Section(header: collapsedSectionHeader(section)) {
-                                ForEach(model.settings.customFilters) { filter in
-                                    collapsedCustomFilterButton(filter)
-                                }
-                            }
-                        }
-                    } else {
-                        let items = section.items
-                        if items.isEmpty == false {
-                            Section(header: collapsedSectionHeader(section)) {
-                                ForEach(items) { item in
-                                    collapsedItemButton(item)
-                                }
-                            }
-                        }
-                    }
+                ForEach(SidebarItem.allCases) { item in
+                    collapsedItemButton(item)
                 }
             }
             .listStyle(.sidebar)
@@ -308,28 +287,16 @@ struct MacSidebarShell: View {
         .toolbar(removing: .sidebarToggle)
     }
 
-    @ViewBuilder
-    private func collapsedSectionHeader(_ section: SidebarSection) -> some View {
-        if section.title.isEmpty {
-            EmptyView()
-        } else {
-            sectionHeader(section)
-                .hidden()
-                .accessibilityHidden(true)
-        }
-    }
-
     private var collapsedIconColumn: CGFloat {
         28
     }
 
     private func collapsedItemButton(_ item: SidebarItem) -> some View {
-        let isSelected = activeCustomFilterID == nil && selection == item
+        let isSelected = selection == item
         return Button {
             collapsedVimFocus = .sidebar
             setVimFocus(detail: false)
             selection = item
-            activeCustomFilterID = nil
         } label: {
             HStack {
                 Spacer()
@@ -341,25 +308,6 @@ struct MacSidebarShell: View {
         .buttonStyle(.plain)
         .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
         .help(item.title)
-    }
-
-    private func collapsedCustomFilterButton(_ filter: CustomFilterDefinition) -> some View {
-        let isSelected = activeCustomFilterID == filter.id
-        return Button {
-            collapsedVimFocus = .sidebar
-            setVimFocus(detail: false)
-            activeCustomFilterID = filter.id
-        } label: {
-            HStack {
-                Spacer()
-                collapsedSidebarIcon(systemImage: filter.systemImage, isSelected: isSelected)
-                Spacer()
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
-        .help(filter.name)
     }
 
     private func collapsedSidebarIcon(systemImage: String, isSelected: Bool) -> some View {
@@ -388,25 +336,8 @@ struct MacSidebarShell: View {
             Divider()
 
             List(selection: sidebarSelectionBinding) {
-                ForEach(SidebarSection.allCases, id: \.self) { section in
-                    if section == .custom {
-                        if model.settings.customFilters.isEmpty == false {
-                            Section(header: sectionHeader(section)) {
-                                ForEach(model.settings.customFilters) { filter in
-                                    customFilterRow(filter)
-                                }
-                            }
-                        }
-                    } else {
-                        let items = section.items
-                        if items.isEmpty == false {
-                            Section(header: sectionHeader(section)) {
-                                ForEach(items) { item in
-                                    sidebarRow(for: item)
-                                }
-                            }
-                        }
-                    }
+                ForEach(SidebarItem.allCases) { item in
+                    sidebarRow(for: item)
                 }
             }
             .listStyle(.sidebar)
@@ -417,16 +348,11 @@ struct MacSidebarShell: View {
 
     @ViewBuilder
     private var detail: some View {
-        let routerKey = activeCustomFilterID.map { "custom-\($0.uuidString)" } ?? sidebarItemKey(selection)
+        let routerKey = sidebarItemKey(selection)
         let router = tabRouter.router(for: routerKey)
         NavigationStack(path: tabRouter.binding(for: routerKey)) {
-            if let filterID = activeCustomFilterID {
-                CustomFilterView(filterID: filterID)
-                    .withAppDestinations()
-            } else {
-                selection.makeContentView()
-                    .withAppDestinations()
-            }
+            selection.makeContentView()
+                .withAppDestinations()
         }
         .environment(router)
         .withSheetDestinations(sheet: tabRouter.sheetBinding(for: routerKey))
@@ -434,32 +360,13 @@ struct MacSidebarShell: View {
 
     private var sidebarSelectionBinding: Binding<SidebarItem?> {
         Binding(
-            get: { activeCustomFilterID == nil ? selection : nil },
+            get: { selection },
             set: { newValue in
                 if let newValue {
                     selection = newValue
-                    activeCustomFilterID = nil
                 }
             }
         )
-    }
-
-    @ViewBuilder
-    private func customFilterRow(_ filter: CustomFilterDefinition) -> some View {
-        Button {
-            activeCustomFilterID = filter.id
-        } label: {
-            HStack {
-                Label(filter.name, systemImage: filter.systemImage)
-                Spacer()
-                if activeCustomFilterID == filter.id {
-                    Image(systemName: "chevron.right.circle.fill")
-                        .foregroundStyle(AppColor.ember)
-                }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 
     private var nearRealtimeLoopID: String {
@@ -500,31 +407,17 @@ struct MacSidebarShell: View {
     }
 
     private var collapsedSidebarDestinations: [CollapsedSidebarDestination] {
-        var destinations: [CollapsedSidebarDestination] = []
-        for section in SidebarSection.allCases {
-            if section == .custom {
-                destinations.append(contentsOf: model.settings.customFilters.map { .customFilter($0.id) })
-            } else {
-                destinations.append(contentsOf: section.items.map { .item($0) })
-            }
-        }
-        return destinations
+        SidebarItem.allCases.map { .item($0) }
     }
 
     private var activeCollapsedSidebarDestination: CollapsedSidebarDestination {
-        if let activeCustomFilterID {
-            return .customFilter(activeCustomFilterID)
-        }
-        return .item(selection)
+        .item(selection)
     }
 
     private func selectCollapsedSidebarDestination(_ destination: CollapsedSidebarDestination) {
         switch destination {
         case .item(let item):
             selection = item
-            activeCustomFilterID = nil
-        case .customFilter(let id):
-            activeCustomFilterID = id
         }
     }
 
@@ -578,7 +471,7 @@ struct MacSidebarShell: View {
     }
 
     private func configureCommandActions() {
-        appCommandActions.newTask = { presentSheet(.quickAddTask, on: .tasks) }
+        appCommandActions.newTask = { presentSheet(.quickAddTask, on: .store) }
         appCommandActions.newEvent = { presentSheet(.addEvent, on: .calendar) }
         appCommandActions.refresh = { Task { await model.refreshNow() } }
         appCommandActions.forceResync = { Task { await model.forceFullResync() } }
@@ -670,7 +563,7 @@ struct MacSidebarShell: View {
                 shortcut: "Cmd+N",
                 keywords: ["task", "create", "new", "quick", "add"]
             ) {
-                presentSheet(.quickAddTask, on: .tasks)
+                presentSheet(.quickAddTask, on: .store)
             },
             CommandPaletteCommand(
                 id: "new-task-detailed",
@@ -680,7 +573,7 @@ struct MacSidebarShell: View {
                 shortcut: "Cmd+Shift+T",
                 keywords: ["task", "detailed", "form"]
             ) {
-                presentSheet(.addTask, on: .tasks)
+                presentSheet(.addTask, on: .store)
             },
             CommandPaletteCommand(
                 id: "new-event",
@@ -723,70 +616,36 @@ struct MacSidebarShell: View {
                 presentSheet(.diagnostics, on: selection)
             },
             CommandPaletteCommand(
-                id: "go-today",
-                title: "Go to Today",
-                subtitle: "Open Today dashboard",
-                symbol: "sun.max",
-                shortcut: "Cmd+1",
-                keywords: ["today", "dashboard"]
-            ) {
-                selection = .today
-            },
-            CommandPaletteCommand(
-                id: "go-tasks",
-                title: "Go to Tasks",
-                subtitle: "Open Google Tasks section",
-                symbol: "checklist",
-                shortcut: "Cmd+2",
-                keywords: ["tasks", "list"]
-            ) {
-                selection = .tasks
-            },
-            CommandPaletteCommand(
                 id: "go-calendar",
                 title: "Go to Calendar",
-                subtitle: "Open Google Calendar section",
+                subtitle: "Google Calendar grid with today status",
                 symbol: "calendar",
-                shortcut: "Cmd+3",
-                keywords: ["calendar", "events"]
+                shortcut: "Cmd+1",
+                keywords: ["calendar", "events", "today", "forecast"]
             ) {
                 selection = .calendar
             },
             CommandPaletteCommand(
-                id: "go-settings",
-                title: "Go to Settings",
-                subtitle: "Open settings and preferences",
-                symbol: "gearshape",
-                shortcut: "Cmd+4",
-                keywords: ["settings", "preferences"]
+                id: "go-store",
+                title: "Go to Store",
+                subtitle: "Tasks, notes, smart lists, and saved filters",
+                symbol: "brain.head.profile",
+                shortcut: "Cmd+2",
+                keywords: ["store", "tasks", "notes", "lists", "review"]
             ) {
-                selection = .settings
+                selection = .store
             }
         ]
     }
 
     private func badge(for item: SidebarItem) -> String? {
         switch item {
-        case .today:
-            let count = model.todaySnapshot.dueTasks.count
+        case .calendar:
+            let count = model.todaySnapshot.scheduledEvents.count
             return count > 0 ? "\(count)" : nil
-        case .tasks:
-            let count = model.tasks.filter { $0.isCompleted == false && $0.isDeleted == false }.count
+        case .store:
+            let count = visibleTasksForSidebar.filter { $0.isCompleted == false && $0.isDeleted == false }.count
             return count > 0 ? "\(count)" : nil
-        case .overdue:
-            let count = SmartListFilter.overdue.count(in: visibleTasksForSidebar)
-            return count > 0 ? "\(count)" : nil
-        case .dueToday:
-            let count = SmartListFilter.dueToday.count(in: visibleTasksForSidebar)
-            return count > 0 ? "\(count)" : nil
-        case .next7Days:
-            let count = SmartListFilter.next7Days.count(in: visibleTasksForSidebar)
-            return count > 0 ? "\(count)" : nil
-        case .noDate:
-            let count = SmartListFilter.noDate.count(in: visibleTasksForSidebar)
-            return count > 0 ? "\(count)" : nil
-        default:
-            return nil
         }
     }
 
@@ -798,18 +657,6 @@ struct MacSidebarShell: View {
             return Set(model.taskLists.map(\.id))
         }()
         return model.tasks.filter { visibleTaskListIDs.contains($0.taskListID) }
-    }
-
-    @ViewBuilder
-    private func sectionHeader(_ section: SidebarSection) -> some View {
-        if section.title.isEmpty {
-            EmptyView()
-        } else {
-            Text(section.title)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-        }
     }
 
     @ViewBuilder
@@ -875,11 +722,13 @@ struct MacSidebarShell: View {
 
         switch route {
         case .addTask:
-            presentSheet(.addTask, on: .tasks)
+            presentSheet(.addTask, on: .store)
         case .addEvent:
             presentSheet(.addEvent, on: .calendar)
-        case .today:
-            selection = .today
+        case .store:
+            selection = .store
+        case .calendar:
+            selection = .calendar
         }
     }
 }
