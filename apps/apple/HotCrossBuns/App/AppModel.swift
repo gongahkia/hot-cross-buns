@@ -236,6 +236,37 @@ final class AppModel {
         return true
     }
 
+    func moveTaskToList(_ task: TaskMirror, toTaskListID: TaskListMirror.ID) async -> Bool {
+        guard task.taskListID != toTaskListID else { return true }
+        guard requireAccount(mutationDescription: "moving tasks") else { return false }
+
+        beginMutation()
+        do {
+            let inserted = try await tasksClient.insertTask(
+                taskListID: toTaskListID,
+                title: task.title,
+                notes: task.notes,
+                dueDate: task.dueDate,
+                parent: nil
+            )
+            let wasCompleted = task.isCompleted
+            var finalTask = inserted
+            if wasCompleted {
+                finalTask = try await tasksClient.setTaskCompleted(true, task: inserted)
+            }
+            try await tasksClient.deleteTask(taskListID: task.taskListID, taskID: task.id)
+            removeTask(id: task.id)
+            upsert(finalTask)
+            endMutation(error: nil)
+            await saveCurrentState()
+            await synchronizeLocalNotifications()
+            return true
+        } catch {
+            endMutation(error: error)
+            return false
+        }
+    }
+
     func indentTask(_ task: TaskMirror) async -> Bool {
         guard requireAccount(mutationDescription: "indenting tasks") else { return false }
         guard TaskHierarchy.canIndent(task, within: tasks) else {
