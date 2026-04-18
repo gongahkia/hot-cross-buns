@@ -17,9 +17,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
 
-        let today = NSMenuItem(title: "Go to Today", action: #selector(dockGoToToday), keyEquivalent: "")
-        today.target = self
-        menu.addItem(today)
+        let calendar = NSMenuItem(title: "Go to Calendar", action: #selector(dockGoToCalendar), keyEquivalent: "")
+        calendar.target = self
+        menu.addItem(calendar)
+
+        let store = NSMenuItem(title: "Go to Store", action: #selector(dockGoToStore), keyEquivalent: "")
+        store.target = self
+        menu.addItem(store)
 
         return menu
     }
@@ -34,8 +38,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    @objc private func dockGoToToday() {
-        AppIntentHandoff.save(.today)
+    @objc private func dockGoToCalendar() {
+        AppIntentHandoff.save(.calendar)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc private func dockGoToStore() {
+        AppIntentHandoff.save(.store)
         NSApp.activate(ignoringOtherApps: true)
     }
 
