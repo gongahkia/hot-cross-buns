@@ -23,14 +23,25 @@ struct AddGoogleCalendarEventIntent: AppIntent {
     }
 }
 
-struct OpenHotCrossBunsTodayIntent: AppIntent {
-    static var title: LocalizedStringResource = "Open Today in Hot Cross Buns"
-    static var description = IntentDescription("Open the Today view in Hot Cross Buns.")
+struct OpenHotCrossBunsCalendarIntent: AppIntent {
+    static var title: LocalizedStringResource = "Open Calendar in Hot Cross Buns"
+    static var description = IntentDescription("Open the Calendar view in Hot Cross Buns.")
     static var openAppWhenRun = true
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        AppIntentHandoff.save(.today)
-        return .result(dialog: "Opening Today.")
+        AppIntentHandoff.save(.calendar)
+        return .result(dialog: "Opening Calendar.")
+    }
+}
+
+struct OpenHotCrossBunsStoreIntent: AppIntent {
+    static var title: LocalizedStringResource = "Open Store in Hot Cross Buns"
+    static var description = IntentDescription("Open the Store view (tasks and notes) in Hot Cross Buns.")
+    static var openAppWhenRun = true
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        AppIntentHandoff.save(.store)
+        return .result(dialog: "Opening Store.")
     }
 }
 
@@ -59,13 +70,23 @@ struct HotCrossBunsShortcuts: AppShortcutsProvider {
         )
 
         AppShortcut(
-            intent: OpenHotCrossBunsTodayIntent(),
+            intent: OpenHotCrossBunsCalendarIntent(),
             phrases: [
-                "Open today in \(.applicationName)",
+                "Open calendar in \(.applicationName)",
                 "Show my day in \(.applicationName)"
             ],
-            shortTitle: "Open Today",
-            systemImageName: "sun.max"
+            shortTitle: "Open Calendar",
+            systemImageName: "calendar"
+        )
+
+        AppShortcut(
+            intent: OpenHotCrossBunsStoreIntent(),
+            phrases: [
+                "Open store in \(.applicationName)",
+                "Show my tasks in \(.applicationName)"
+            ],
+            shortTitle: "Open Store",
+            systemImageName: "brain.head.profile"
         )
     }
 }
