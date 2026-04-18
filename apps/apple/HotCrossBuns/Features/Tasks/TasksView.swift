@@ -130,9 +130,17 @@ private struct TaskListRow: View {
                 .foregroundStyle(task.isCompleted ? AppColor.moss : AppColor.ember)
                 .font(indentLevel > 0 ? .body : .title3)
             VStack(alignment: .leading, spacing: 5) {
-                Text(task.title)
-                    .font(indentLevel > 0 ? .subheadline.weight(.medium) : .headline)
-                    .foregroundStyle(AppColor.ink)
+                HStack(spacing: 6) {
+                    Text(task.title)
+                        .font(indentLevel > 0 ? .subheadline.weight(.medium) : .headline)
+                        .foregroundStyle(AppColor.ink)
+                    if OptimisticID.isPending(task.id) {
+                        Image(systemName: "icloud.slash")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .help("Pending sync with Google")
+                    }
+                }
                 if !task.notes.isEmpty {
                     Text(task.notes)
                         .font(.subheadline)

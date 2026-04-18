@@ -73,6 +73,8 @@ extension SyncCheckpoint {
 enum SyncResourceType: String, Hashable, Codable, Sendable {
     case taskList
     case calendar
+    case task
+    case event
 }
 
 struct PendingMutation: Identifiable, Hashable, Codable, Sendable {

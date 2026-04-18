@@ -52,6 +52,7 @@
 		9167E1BAB8A8328329A8AE07 /* WeekGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 365DC96473F7469BD2250779 /* WeekGridView.swift */; };
 		930995A716E764A31379E6C7 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = A52E5E4859F66796AFABAB97 /* GoogleSignIn */; };
 		93306BD12C07C443CE082AFB /* TaskDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB94773FE862AC2922886257 /* TaskDraftTests.swift */; };
+		981EAEC817813AB5AC211094 /* OptimisticWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9947809DE2CC9C0058C3BA2 /* OptimisticWriterTests.swift */; };
 		9ABDB68F86970E1A10FE8184 /* ForecastBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD3A5E1617A36FD0134FB67E /* ForecastBuilder.swift */; };
 		9D509BB5F19F366E80487377 /* RouterPath.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF08213B82A11D35A48E9669 /* RouterPath.swift */; };
 		9EBF3A8E77C96C14106AB758 /* AppSettingsMacSurfacesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE4353BBFBCECA1F1E1EDF1B /* AppSettingsMacSurfacesTests.swift */; };
@@ -71,6 +72,7 @@
 		D469641DB76139A358F0A8CB /* TasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 141ADCA673635CA9F5DA0BD1 /* TasksView.swift */; };
 		D569DDF00E3A25CFF189D40F /* HotCrossBunsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE5B824BD3DB57E2FA17ECE2 /* HotCrossBunsApp.swift */; };
 		D5F3BF67D13D6303ED82BC24 /* MacSidebarShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2BC795AF619D093596D767D /* MacSidebarShell.swift */; };
+		D6CEEB629BAA00D100C52E52 /* OptimisticWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1E03BB899FDA9756E7C268E /* OptimisticWriter.swift */; };
 		DB349B0AB6AD7E665A85B0BB /* GoogleAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD3E985540BFEBDABB373283 /* GoogleAuthService.swift */; };
 		DB5ADCDFB8079412E90E134D /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C53FB727DF9706A6FF5B6429 /* SearchView.swift */; };
 		E219DD1B1AD052112F17BD50 /* AppStatusBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFA7DEBBF786934A5D85FE41 /* AppStatusBanner.swift */; };
@@ -135,6 +137,7 @@
 		AB94773FE862AC2922886257 /* TaskDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDraftTests.swift; sourceTree = "<group>"; };
 		AE5B824BD3DB57E2FA17ECE2 /* HotCrossBunsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotCrossBunsApp.swift; sourceTree = "<group>"; };
 		AF08213B82A11D35A48E9669 /* RouterPath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouterPath.swift; sourceTree = "<group>"; };
+		B1E03BB899FDA9756E7C268E /* OptimisticWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimisticWriter.swift; sourceTree = "<group>"; };
 		B73DF47EA023580C762E1BE3 /* VimKeyboardMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VimKeyboardMonitor.swift; sourceTree = "<group>"; };
 		B79FBFAB7AA899E2C59E1956 /* VimTranslatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VimTranslatorTests.swift; sourceTree = "<group>"; };
 		BD3A5E1617A36FD0134FB67E /* ForecastBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForecastBuilder.swift; sourceTree = "<group>"; };
@@ -142,6 +145,7 @@
 		BFA7DEBBF786934A5D85FE41 /* AppStatusBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStatusBanner.swift; sourceTree = "<group>"; };
 		C53FB727DF9706A6FF5B6429 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		C87A46A9588504FF6B780BF1 /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
+		C9947809DE2CC9C0058C3BA2 /* OptimisticWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimisticWriterTests.swift; sourceTree = "<group>"; };
 		CC9C2158939F77166D48250B /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
 		CD3E985540BFEBDABB373283 /* GoogleAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAuthService.swift; sourceTree = "<group>"; };
 		D8AF38F4F743ECB0079BDD30 /* SmartListFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartListFilterTests.swift; sourceTree = "<group>"; };
@@ -177,6 +181,7 @@
 			isa = PBXGroup;
 			children = (
 				4A0A69B82085B489B5F595CF /* BackoffPolicy.swift */,
+				B1E03BB899FDA9756E7C268E /* OptimisticWriter.swift */,
 				049F4CDAC1343692B257156B /* SyncScheduler.swift */,
 			);
 			path = Sync;
@@ -343,6 +348,7 @@
 				2316DAFF7860DC61BD91AF52 /* ForecastBuilderTests.swift */,
 				FB9745E7FFF1CDB75E4D4820 /* ModelPersistenceTests.swift */,
 				4B3C9FACB76521CB9850BC84 /* NaturalLanguageTaskParserTests.swift */,
+				C9947809DE2CC9C0058C3BA2 /* OptimisticWriterTests.swift */,
 				D8AF38F4F743ECB0079BDD30 /* SmartListFilterTests.swift */,
 				5958F04B434E20A3436A5CC0 /* SpotlightIdentifierTests.swift */,
 				1A15AB7A557A7163BEA80ECC /* SyncSchedulerTombstonePurgeTests.swift */,
@@ -591,6 +597,7 @@
 				7D80AADD28F287E415B0ED05 /* MonthGridView.swift in Sources */,
 				025714D0F603A7346F61A495 /* NaturalLanguageTaskParser.swift in Sources */,
 				827C84F1E10F6B534F590F1B /* OnboardingView.swift in Sources */,
+				D6CEEB629BAA00D100C52E52 /* OptimisticWriter.swift in Sources */,
 				4D00CE67951243CCE90386B4 /* QuickAddView.swift in Sources */,
 				9D509BB5F19F366E80487377 /* RouterPath.swift in Sources */,
 				DB5ADCDFB8079412E90E134D /* SearchView.swift in Sources */,
@@ -627,6 +634,7 @@
 				870B6E741963A990B14961F4 /* ForecastBuilderTests.swift in Sources */,
 				90939888F987285A40E2C421 /* ModelPersistenceTests.swift in Sources */,
 				B961C661A38D5CE2845E6580 /* NaturalLanguageTaskParserTests.swift in Sources */,
+				981EAEC817813AB5AC211094 /* OptimisticWriterTests.swift in Sources */,
 				823DFA52ED02235FC5C1F640 /* SmartListFilterTests.swift in Sources */,
 				90318AA2282A7731DA05F9F5 /* SpotlightIdentifierTests.swift in Sources */,
 				CDE181FCDB04EB34924DF98B /* SyncSchedulerTombstonePurgeTests.swift in Sources */,
