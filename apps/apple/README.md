@@ -80,6 +80,8 @@ Sync modes are active:
 - Balanced syncs after launch/restore and when the scene becomes active.
 - Near real-time does the balanced behavior plus foreground polling every 90 seconds.
 
+Settings persist selected calendars and selected task lists. Empty selections are respected after the user has configured them, rather than falling back to Google defaults.
+
 ## Task Writes
 
 The Tasks tab includes online create, edit, complete/reopen, and delete flows backed by Google Tasks `tasks.insert`, `tasks.patch`, and `tasks.delete`. These require a signed-in Google account and loaded task lists from refresh. Offline queueing, conflict handling, task reordering, and task-list management are still pending.

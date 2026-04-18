@@ -94,7 +94,44 @@ struct AppSettings: Hashable, Codable, Sendable {
     var syncMode: SyncMode
     var selectedCalendarIDs: Set<CalendarListMirror.ID>
     var selectedTaskListIDs: Set<TaskListMirror.ID>
+    var hasConfiguredCalendarSelection: Bool
+    var hasConfiguredTaskListSelection: Bool
     var enableLocalNotifications: Bool
+
+    init(
+        syncMode: SyncMode,
+        selectedCalendarIDs: Set<CalendarListMirror.ID>,
+        selectedTaskListIDs: Set<TaskListMirror.ID>,
+        hasConfiguredCalendarSelection: Bool = false,
+        hasConfiguredTaskListSelection: Bool = false,
+        enableLocalNotifications: Bool
+    ) {
+        self.syncMode = syncMode
+        self.selectedCalendarIDs = selectedCalendarIDs
+        self.selectedTaskListIDs = selectedTaskListIDs
+        self.hasConfiguredCalendarSelection = hasConfiguredCalendarSelection
+        self.hasConfiguredTaskListSelection = hasConfiguredTaskListSelection
+        self.enableLocalNotifications = enableLocalNotifications
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case syncMode
+        case selectedCalendarIDs
+        case selectedTaskListIDs
+        case hasConfiguredCalendarSelection
+        case hasConfiguredTaskListSelection
+        case enableLocalNotifications
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        syncMode = try container.decodeIfPresent(SyncMode.self, forKey: .syncMode) ?? .balanced
+        selectedCalendarIDs = try container.decodeIfPresent(Set<CalendarListMirror.ID>.self, forKey: .selectedCalendarIDs) ?? []
+        selectedTaskListIDs = try container.decodeIfPresent(Set<TaskListMirror.ID>.self, forKey: .selectedTaskListIDs) ?? []
+        hasConfiguredCalendarSelection = try container.decodeIfPresent(Bool.self, forKey: .hasConfiguredCalendarSelection) ?? false
+        hasConfiguredTaskListSelection = try container.decodeIfPresent(Bool.self, forKey: .hasConfiguredTaskListSelection) ?? false
+        enableLocalNotifications = try container.decodeIfPresent(Bool.self, forKey: .enableLocalNotifications) ?? true
+    }
 
     static let `default` = AppSettings(
         syncMode: .balanced,
