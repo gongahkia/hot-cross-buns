@@ -229,6 +229,8 @@ struct TaskInspectorView: View {
         )
     }
 
+    @State private var pendingMoveListID: TaskListMirror.ID?
+
     private var taskListSection: some View {
         HStack(spacing: 10) {
             Image(systemName: "list.bullet")
@@ -237,8 +239,18 @@ struct TaskInspectorView: View {
                 Text("LIST")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.secondary)
-                Text(currentListTitle)
-                    .font(.subheadline.weight(.medium))
+                Picker("Task list", selection: Binding(
+                    get: { task.taskListID },
+                    set: { newID in
+                        if newID != task.taskListID { pendingMoveListID = newID }
+                    }
+                )) {
+                    ForEach(model.taskLists) { list in
+                        Text(list.title).tag(list.id)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
             }
             Spacer(minLength: 0)
         }
@@ -247,6 +259,27 @@ struct TaskInspectorView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(.ultraThinMaterial)
         )
+        .confirmationDialog(
+            "Move task to another list?",
+            isPresented: Binding(
+                get: { pendingMoveListID != nil },
+                set: { if $0 == false { pendingMoveListID = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let newID = pendingMoveListID,
+               let target = model.taskLists.first(where: { $0.id == newID }) {
+                Button("Move to \(target.title)") {
+                    Task {
+                        _ = await model.moveTaskToList(task, toTaskListID: newID)
+                        pendingMoveListID = nil
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) { pendingMoveListID = nil }
+        } message: {
+            Text("Google Tasks doesn't support moving between lists natively. The task will be recreated in the new list and the old copy deleted. Its Google ID will change.")
+        }
     }
 
     private var currentListTitle: String {
