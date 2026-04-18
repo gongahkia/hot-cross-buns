@@ -67,6 +67,41 @@ struct GoogleCalendarClient: Sendable {
         )
         return response.mirror(calendarID: calendarID)
     }
+
+    func updateEvent(
+        calendarID: String,
+        eventID: String,
+        summary: String,
+        details: String,
+        startDate: Date,
+        endDate: Date
+    ) async throws -> CalendarEventMirror {
+        let encodedCalendarID = calendarID.googlePathComponentEncoded
+        let encodedEventID = eventID.googlePathComponentEncoded
+        let requestBody = GoogleEventMutationDTO(
+            summary: summary,
+            description: details,
+            start: GoogleEventMutationDateDTO(dateTime: startDate),
+            end: GoogleEventMutationDateDTO(dateTime: endDate)
+        )
+        let response: GoogleEventDTO = try await transport.request(
+            method: "PATCH",
+            path: "/calendar/v3/calendars/\(encodedCalendarID)/events/\(encodedEventID)",
+            queryItems: [URLQueryItem(name: "sendUpdates", value: "none")],
+            body: requestBody
+        )
+        return response.mirror(calendarID: calendarID)
+    }
+
+    func deleteEvent(calendarID: String, eventID: String) async throws {
+        let encodedCalendarID = calendarID.googlePathComponentEncoded
+        let encodedEventID = eventID.googlePathComponentEncoded
+        try await transport.send(
+            method: "DELETE",
+            path: "/calendar/v3/calendars/\(encodedCalendarID)/events/\(encodedEventID)",
+            queryItems: [URLQueryItem(name: "sendUpdates", value: "none")]
+        )
+    }
 }
 
 struct GoogleCalendarEventsPage: Sendable {
