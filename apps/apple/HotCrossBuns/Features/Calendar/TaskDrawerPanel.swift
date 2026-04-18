@@ -5,19 +5,6 @@ struct TaskDrawerPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: "checklist")
-                    .foregroundStyle(AppColor.ember)
-                Text("Schedule")
-                    .font(.headline)
-                Spacer(minLength: 0)
-            }
-            Text("Drag a task onto the calendar to create a 60-minute event linked back to the task.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Divider()
-
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 6) {
                     if undatedTasks.isEmpty {

@@ -28,9 +28,15 @@ struct HotCrossBunsApp: App {
             }
         }
 
-        MenuBarExtra("Hot Cross Buns", image: "MenuBarIcon", isInserted: menuBarInsertedBinding) {
+        MenuBarExtra(isInserted: menuBarInsertedBinding) {
             MenuBarExtraContent()
                 .environment(appModel)
+        } label: {
+            Image("MenuBarIcon")
+                .renderingMode(.template)
+                .foregroundStyle(.black)
+                .frame(width: 18, height: 18)
+                .accessibilityLabel("Hot Cross Buns")
         }
         .menuBarExtraStyle(.window)
     }
