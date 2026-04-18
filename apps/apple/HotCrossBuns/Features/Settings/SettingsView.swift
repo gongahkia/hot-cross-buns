@@ -88,6 +88,13 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Keyboard") {
+                Toggle("Vim keybindings", isOn: vimBinding)
+                Text("Modal navigation in lists and sidebar. j/k move, gg top, G bottom, x toggle complete, dd delete, : command palette, / search. Text editors keep native shortcuts.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Task lists") {
                 if model.taskLists.isEmpty {
                     Text("Refresh after connecting Google to load task lists.")
@@ -137,6 +144,13 @@ struct SettingsView: View {
         Binding(
             get: { model.settings.showDetailedMenuBar },
             set: { model.setShowDetailedMenuBar($0) }
+        )
+    }
+
+    private var vimBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.enableVimKeybindings },
+            set: { model.setEnableVimKeybindings($0) }
         )
     }
 
