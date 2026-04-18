@@ -58,12 +58,14 @@
 		B95B2E7C989D7B9D7A107623 /* AppShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51DF623C9EB45B4EF2B2B17C /* AppShell.swift */; };
 		BC7D8CC009E6C9F77091C482 /* CalendarMirror.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B56113BE89523BF7D0AE8EA /* CalendarMirror.swift */; };
 		C22F4B23E5FBAB647FF3F156 /* GoogleAccount.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC17D333E0AC22B77270A396 /* GoogleAccount.swift */; };
+		C4593C8C6C7B1060121B6421 /* AppStatusBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFA7DEBBF786934A5D85FE41 /* AppStatusBanner.swift */; };
 		CA88E64D44A6311F83CF03CA /* HotCrossBunsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE5B824BD3DB57E2FA17ECE2 /* HotCrossBunsApp.swift */; };
 		D469641DB76139A358F0A8CB /* TasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 141ADCA673635CA9F5DA0BD1 /* TasksView.swift */; };
 		D569DDF00E3A25CFF189D40F /* HotCrossBunsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE5B824BD3DB57E2FA17ECE2 /* HotCrossBunsApp.swift */; };
 		DB349B0AB6AD7E665A85B0BB /* GoogleAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD3E985540BFEBDABB373283 /* GoogleAuthService.swift */; };
 		DB5ADCDFB8079412E90E134D /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C53FB727DF9706A6FF5B6429 /* SearchView.swift */; };
 		DCE940F573172CDA1F7789B4 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 892DDFFD7ECD0890E98DEC1C /* AppModel.swift */; };
+		E219DD1B1AD052112F17BD50 /* AppStatusBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFA7DEBBF786934A5D85FE41 /* AppStatusBanner.swift */; };
 		EDD93694D9CD9932FFED92EF /* GoogleTasksClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4E896952661629A01EB26B0 /* GoogleTasksClient.swift */; };
 /* End PBXBuildFile section */
 
@@ -90,6 +92,7 @@
 		AE5B824BD3DB57E2FA17ECE2 /* HotCrossBunsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotCrossBunsApp.swift; sourceTree = "<group>"; };
 		AE917B3D83E7CCB7735C48F5 /* HotCrossBuns.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = HotCrossBuns.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF08213B82A11D35A48E9669 /* RouterPath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouterPath.swift; sourceTree = "<group>"; };
+		BFA7DEBBF786934A5D85FE41 /* AppStatusBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStatusBanner.swift; sourceTree = "<group>"; };
 		C53FB727DF9706A6FF5B6429 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		C87A46A9588504FF6B780BF1 /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
 		CC9C2158939F77166D48250B /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
@@ -193,6 +196,7 @@
 				B9B594EE20C535DF5364C911 /* Onboarding */,
 				A054EDB30C0D63E2D5131BBA /* Search */,
 				F98E7C3900FABC4B1976BB82 /* Settings */,
+				A8A8597ECC59F5DA91D6D5C9 /* Status */,
 				467F16808E7CAC7CA139CF9C /* Tasks */,
 				22CA56C69E5BA5F8DD46F6E2 /* Today */,
 			);
@@ -238,6 +242,14 @@
 				C53FB727DF9706A6FF5B6429 /* SearchView.swift */,
 			);
 			path = Search;
+			sourceTree = "<group>";
+		};
+		A8A8597ECC59F5DA91D6D5C9 /* Status */ = {
+			isa = PBXGroup;
+			children = (
+				BFA7DEBBF786934A5D85FE41 /* AppStatusBanner.swift */,
+			);
+			path = Status;
 			sourceTree = "<group>";
 		};
 		AD83D94A981707DBA33EF3AF /* Models */ = {
@@ -401,6 +413,7 @@
 				B2D69FAFF7FB7BFDDD816728 /* AppIntentHandoff.swift in Sources */,
 				1D9C5B69B8A123DB5CA67B87 /* AppModel.swift in Sources */,
 				B95B2E7C989D7B9D7A107623 /* AppShell.swift in Sources */,
+				E219DD1B1AD052112F17BD50 /* AppStatusBanner.swift in Sources */,
 				4ADCD454DACDE6A22C74B828 /* AppTab.swift in Sources */,
 				523A574D6D48B12B4587E086 /* CalendarHomeView.swift in Sources */,
 				06BEC9D87D21345A636AADB8 /* CalendarMirror.swift in Sources */,
@@ -435,6 +448,7 @@
 				87B5F16679955B0DF4F0E73F /* AppIntentHandoff.swift in Sources */,
 				DCE940F573172CDA1F7789B4 /* AppModel.swift in Sources */,
 				7240D7D111042A40AC94EF74 /* AppShell.swift in Sources */,
+				C4593C8C6C7B1060121B6421 /* AppStatusBanner.swift in Sources */,
 				4931720342DCE4704F25B8D6 /* AppTab.swift in Sources */,
 				0356DF79855ED0FCAD6006BE /* CalendarHomeView.swift in Sources */,
 				BC7D8CC009E6C9F77091C482 /* CalendarMirror.swift in Sources */,

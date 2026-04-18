@@ -143,9 +143,34 @@ enum GoogleAPIError: LocalizedError, Equatable {
             "The Google API request URL could not be built."
         case .invalidResponse:
             "Google returned an invalid response."
-        case .httpStatus(let status, _):
+        case .httpStatus(let status, let body):
+            statusMessage(status: status, body: body)
+        }
+    }
+
+    private func statusMessage(status: Int, body: String?) -> String {
+        let baseMessage = switch status {
+        case 401:
+            "Google authorization expired. Reconnect your account."
+        case 403:
+            "Google denied access. Check granted Tasks and Calendar permissions."
+        case 404:
+            "Google could not find that task, calendar, or event. Refresh and try again."
+        case 410:
+            "Google sync state expired. A full refresh is required."
+        case 429:
+            "Google rate-limited the app. Wait briefly and retry."
+        case 500...599:
+            "Google is temporarily unavailable. Retry shortly."
+        default:
             "Google API request failed with status \(status)."
         }
+
+        guard let body, body.isEmpty == false else {
+            return baseMessage
+        }
+
+        return baseMessage + " " + body.prefix(180)
     }
 }
 

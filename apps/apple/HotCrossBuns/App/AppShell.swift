@@ -42,6 +42,20 @@ struct AppShell: View {
         .onOpenURL { url in
             model.handleAuthRedirect(url)
         }
+        .safeAreaInset(edge: .top) {
+            AppStatusBanner(
+                syncState: model.syncState,
+                authState: model.authState,
+                retry: {
+                    Task {
+                        await model.refreshNow()
+                    }
+                },
+                dismiss: {
+                    model.clearFailureState()
+                }
+            )
+        }
         .sheet(isPresented: onboardingBinding) {
             OnboardingView()
                 .environment(model)

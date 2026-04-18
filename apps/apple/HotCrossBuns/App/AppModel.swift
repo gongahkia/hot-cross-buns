@@ -399,6 +399,16 @@ final class AppModel {
         }
     }
 
+    func clearFailureState() {
+        if case .failed = syncState {
+            syncState = .idle
+        }
+
+        if case .failed = authState {
+            authState = account.map(AuthState.signedIn) ?? .signedOut
+        }
+    }
+
     func toggleCalendar(_ calendarID: CalendarListMirror.ID) {
         guard let index = calendars.firstIndex(where: { $0.id == calendarID }) else {
             return
