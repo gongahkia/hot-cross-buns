@@ -5,6 +5,7 @@ struct HotCrossBunsApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var appModel = AppModel.bootstrap()
     @State private var updater = UpdaterController()
+    @State private var settingsRouter = RouterPath()
 
     var body: some Scene {
         Window("Hot Cross Buns", id: "main") {
@@ -26,6 +27,24 @@ struct HotCrossBunsApp: App {
                     updater.checkForUpdates()
                 }
             }
+        }
+
+        Settings {
+            NavigationStack(path: Binding(
+                get: { settingsRouter.path },
+                set: { settingsRouter.path = $0 }
+            )) {
+                SettingsView()
+                    .withAppDestinations()
+            }
+            .environment(appModel)
+            .environment(updater)
+            .environment(settingsRouter)
+            .withSheetDestinations(sheet: Binding(
+                get: { settingsRouter.presentedSheet },
+                set: { settingsRouter.presentedSheet = $0 }
+            ))
+            .frame(minWidth: 540, idealWidth: 620, minHeight: 620, idealHeight: 720)
         }
 
         MenuBarExtra(isInserted: menuBarInsertedBinding) {
