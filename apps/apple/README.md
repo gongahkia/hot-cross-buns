@@ -86,4 +86,4 @@ The Tasks tab includes online create, edit, complete/reopen, and delete flows ba
 
 ## Calendar Writes
 
-The Calendar tab includes an online create-event flow backed by Google Calendar `events.insert`. It currently creates timed events only; all-day events, recurrence, attendees, reminders, edits, and deletes are later product slices.
+The Calendar tab includes online timed-event create, edit, and delete flows backed by Google Calendar `events.insert`, `events.patch`, and `events.delete`. All-day event creation/editing, recurrence, attendees, reminders, event moves, and conflict handling are later product slices.

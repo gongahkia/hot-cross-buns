@@ -288,6 +288,73 @@ final class AppModel {
         }
     }
 
+    func updateEvent(
+        _ event: CalendarEventMirror,
+        summary: String,
+        details: String,
+        startDate: Date,
+        endDate: Date
+    ) async -> Bool {
+        guard account != nil else {
+            syncState = .failed(message: "Connect Google before updating events.")
+            return false
+        }
+
+        guard event.isAllDay == false else {
+            syncState = .failed(message: "All-day event editing is not implemented yet.")
+            return false
+        }
+
+        let trimmedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedSummary.isEmpty == false else {
+            syncState = .failed(message: "Event summary cannot be empty.")
+            return false
+        }
+
+        guard endDate > startDate else {
+            syncState = .failed(message: "Event end time must be after the start time.")
+            return false
+        }
+
+        syncState = .syncing(startedAt: Date())
+        do {
+            let updatedEvent = try await calendarClient.updateEvent(
+                calendarID: event.calendarID,
+                eventID: event.id,
+                summary: trimmedSummary,
+                details: details.trimmingCharacters(in: .whitespacesAndNewlines),
+                startDate: startDate,
+                endDate: endDate
+            )
+            upsert(updatedEvent)
+            syncState = .synced(at: Date())
+            await saveCurrentState()
+            return true
+        } catch {
+            syncState = .failed(message: error.localizedDescription)
+            return false
+        }
+    }
+
+    func deleteEvent(_ event: CalendarEventMirror) async -> Bool {
+        guard account != nil else {
+            syncState = .failed(message: "Connect Google before deleting events.")
+            return false
+        }
+
+        syncState = .syncing(startedAt: Date())
+        do {
+            try await calendarClient.deleteEvent(calendarID: event.calendarID, eventID: event.id)
+            removeEvent(id: event.id)
+            syncState = .synced(at: Date())
+            await saveCurrentState()
+            return true
+        } catch {
+            syncState = .failed(message: error.localizedDescription)
+            return false
+        }
+    }
+
     func updateSyncMode(_ mode: SyncMode) {
         settings.syncMode = mode
         Task {
@@ -350,6 +417,11 @@ final class AppModel {
         } else {
             events.append(event)
         }
+        rebuildSnapshots()
+    }
+
+    private func removeEvent(id: CalendarEventMirror.ID) {
+        events.removeAll { $0.id == id }
         rebuildSnapshots()
     }
 

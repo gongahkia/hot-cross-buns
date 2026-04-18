@@ -108,8 +108,12 @@ private struct CalendarBadgeRow: View {
 }
 
 struct EventDetailView: View {
+    @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
     let eventID: CalendarEventMirror.ID
+    @State private var isEditing = false
+    @State private var isMutating = false
+    @State private var isConfirmingDelete = false
 
     var body: some View {
         Group {
@@ -127,17 +131,87 @@ struct EventDetailView: View {
                         DetailField(label: "Starts", value: event.startDate.formatted(date: .abbreviated, time: .shortened))
                         DetailField(label: "Ends", value: event.endDate.formatted(date: .abbreviated, time: .shortened))
                         DetailField(label: "Calendar ID", value: event.calendarID)
+                        EventActionPanel(
+                            event: event,
+                            isMutating: isMutating,
+                            onEdit: {
+                                isEditing = true
+                            },
+                            onDelete: {
+                                isConfirmingDelete = true
+                            }
+                        )
                         DetailField(label: "Google ID", value: event.id)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(20)
                 }
                 .appBackground()
+                .sheet(isPresented: $isEditing) {
+                    EditEventSheet(event: event)
+                }
+                .confirmationDialog(
+                    "Delete this event?",
+                    isPresented: $isConfirmingDelete,
+                    titleVisibility: .visible
+                ) {
+                    Button("Delete Event", role: .destructive) {
+                        Task {
+                            await delete(event)
+                        }
+                    }
+
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("This deletes the event from Google Calendar without sending guest updates.")
+                }
             } else {
                 ContentUnavailableView("Event not found", systemImage: "calendar.badge.exclamationmark", description: Text("This event may have been deleted in Google Calendar."))
             }
         }
         .navigationTitle("Event")
+    }
+
+    private func delete(_ event: CalendarEventMirror) async {
+        isMutating = true
+        defer { isMutating = false }
+        let didDelete = await model.deleteEvent(event)
+        if didDelete {
+            dismiss()
+        }
+    }
+}
+
+private struct EventActionPanel: View {
+    let event: CalendarEventMirror
+    let isMutating: Bool
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button(action: onEdit) {
+                Label("Edit Event", systemImage: "square.and.pencil")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(AppColor.blue)
+            .disabled(event.isAllDay || isMutating)
+
+            if event.isAllDay {
+                Text("All-day event editing is pending; delete still works.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Button(role: .destructive, action: onDelete) {
+                Label("Delete Event", systemImage: "trash")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .disabled(isMutating)
+        }
+        .cardSurface(cornerRadius: 22)
     }
 }
 
@@ -241,6 +315,94 @@ struct AddEventSheet: View {
         )
 
         if didCreate {
+            dismiss()
+        }
+    }
+}
+
+struct EditEventSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var model
+    let event: CalendarEventMirror
+    @State private var summary: String
+    @State private var details: String
+    @State private var startDate: Date
+    @State private var endDate: Date
+    @State private var isSaving = false
+
+    init(event: CalendarEventMirror) {
+        self.event = event
+        _summary = State(initialValue: event.summary)
+        _details = State(initialValue: event.details)
+        _startDate = State(initialValue: event.startDate)
+        _endDate = State(initialValue: event.endDate)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Event") {
+                    TextField("Summary", text: $summary)
+                    TextField("Details", text: $details, axis: .vertical)
+                        .lineLimit(3...6)
+                }
+
+                Section("Time") {
+                    DatePicker("Starts", selection: $startDate)
+                    DatePicker("Ends", selection: $endDate)
+                    if endDate <= startDate {
+                        Text("End time must be after start time.")
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
+                }
+
+                Section("Calendar") {
+                    DetailField(label: "Calendar ID", value: event.calendarID)
+                }
+            }
+            .navigationTitle("Edit Event")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .disabled(isSaving)
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task {
+                            await saveEvent()
+                        }
+                    }
+                    .disabled(canSave == false || isSaving)
+                }
+            }
+        }
+        .interactiveDismissDisabled(isSaving)
+    }
+
+    private var canSave: Bool {
+        summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            && endDate > startDate
+            && model.account != nil
+            && event.isAllDay == false
+    }
+
+    private func saveEvent() async {
+        isSaving = true
+        defer { isSaving = false }
+
+        let didSave = await model.updateEvent(
+            event,
+            summary: summary,
+            details: details,
+            startDate: startDate,
+            endDate: endDate
+        )
+
+        if didSave {
             dismiss()
         }
     }
