@@ -269,6 +269,8 @@ final class AppModel {
         details: String,
         startDate: Date,
         endDate: Date,
+        isAllDay: Bool,
+        reminderMinutes: Int?,
         calendarID: CalendarListMirror.ID
     ) async -> Bool {
         guard account != nil else {
@@ -276,8 +278,8 @@ final class AppModel {
             return false
         }
 
-        guard endDate > startDate else {
-            syncState = .failed(message: "Event end time must be after the start time.")
+        guard isValidEventRange(startDate: startDate, endDate: endDate, isAllDay: isAllDay) else {
+            syncState = .failed(message: isAllDay ? "All-day event end date cannot be before the start date." : "Event end time must be after the start time.")
             return false
         }
 
@@ -288,7 +290,9 @@ final class AppModel {
                 summary: summary.trimmingCharacters(in: .whitespacesAndNewlines),
                 details: details.trimmingCharacters(in: .whitespacesAndNewlines),
                 startDate: startDate,
-                endDate: endDate
+                endDate: endDate,
+                isAllDay: isAllDay,
+                reminderMinutes: reminderMinutes
             )
             upsert(event)
             syncState = .synced(at: Date())
@@ -306,15 +310,12 @@ final class AppModel {
         summary: String,
         details: String,
         startDate: Date,
-        endDate: Date
+        endDate: Date,
+        isAllDay: Bool,
+        reminderMinutes: Int?
     ) async -> Bool {
         guard account != nil else {
             syncState = .failed(message: "Connect Google before updating events.")
-            return false
-        }
-
-        guard event.isAllDay == false else {
-            syncState = .failed(message: "All-day event editing is not implemented yet.")
             return false
         }
 
@@ -324,8 +325,8 @@ final class AppModel {
             return false
         }
 
-        guard endDate > startDate else {
-            syncState = .failed(message: "Event end time must be after the start time.")
+        guard isValidEventRange(startDate: startDate, endDate: endDate, isAllDay: isAllDay) else {
+            syncState = .failed(message: isAllDay ? "All-day event end date cannot be before the start date." : "Event end time must be after the start time.")
             return false
         }
 
@@ -337,7 +338,9 @@ final class AppModel {
                 summary: trimmedSummary,
                 details: details.trimmingCharacters(in: .whitespacesAndNewlines),
                 startDate: startDate,
-                endDate: endDate
+                endDate: endDate,
+                isAllDay: isAllDay,
+                reminderMinutes: reminderMinutes
             )
             upsert(updatedEvent)
             syncState = .synced(at: Date())
@@ -522,6 +525,14 @@ final class AppModel {
 
     private func saveCurrentState() async {
         await cacheStore.save(currentCachedState())
+    }
+
+    private func isValidEventRange(startDate: Date, endDate: Date, isAllDay: Bool) -> Bool {
+        if isAllDay {
+            return Calendar.current.startOfDay(for: endDate) >= Calendar.current.startOfDay(for: startDate)
+        }
+
+        return endDate > startDate
     }
 
     private func synchronizeLocalNotifications(requestAuthorization: Bool = false) async {

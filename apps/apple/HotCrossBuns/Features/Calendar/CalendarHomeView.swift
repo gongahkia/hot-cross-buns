@@ -128,8 +128,11 @@ struct EventDetailView: View {
                                 .font(.body)
                                 .foregroundStyle(.secondary)
                         }
-                        DetailField(label: "Starts", value: event.startDate.formatted(date: .abbreviated, time: .shortened))
-                        DetailField(label: "Ends", value: event.endDate.formatted(date: .abbreviated, time: .shortened))
+                        DetailField(label: "Starts", value: formattedStart(for: event))
+                        DetailField(label: "Ends", value: formattedEnd(for: event))
+                        if event.reminderMinutes.isEmpty == false {
+                            DetailField(label: "Reminders", value: event.reminderMinutes.map(reminderLabel).joined(separator: ", "))
+                        }
                         DetailField(label: "Calendar ID", value: event.calendarID)
                         EventActionPanel(
                             event: event,
@@ -172,6 +175,25 @@ struct EventDetailView: View {
         .navigationTitle("Event")
     }
 
+    private func formattedStart(for event: CalendarEventMirror) -> String {
+        event.isAllDay
+            ? event.startDate.formatted(date: .abbreviated, time: .omitted)
+            : event.startDate.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private func formattedEnd(for event: CalendarEventMirror) -> String {
+        if event.isAllDay {
+            let inclusiveEndDate = Calendar.current.date(byAdding: .day, value: -1, to: event.endDate) ?? event.endDate
+            return inclusiveEndDate.formatted(date: .abbreviated, time: .omitted)
+        }
+
+        return event.endDate.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private func reminderLabel(_ minutes: Int) -> String {
+        EventReminderOption(minutes: minutes)?.title ?? "\(minutes) minutes before"
+    }
+
     private func delete(_ event: CalendarEventMirror) async {
         isMutating = true
         defer { isMutating = false }
@@ -196,13 +218,7 @@ private struct EventActionPanel: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(AppColor.blue)
-            .disabled(event.isAllDay || isMutating)
-
-            if event.isAllDay {
-                Text("All-day event editing is pending; delete still works.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
+            .disabled(isMutating)
 
             Button(role: .destructive, action: onDelete) {
                 Label("Delete Event", systemImage: "trash")
@@ -223,6 +239,8 @@ struct AddEventSheet: View {
     @State private var details = ""
     @State private var startDate = Date()
     @State private var endDate = Date().addingTimeInterval(3600)
+    @State private var isAllDay = false
+    @State private var reminderOption: EventReminderOption = .fifteenMinutes
     @State private var isSaving = false
 
     var body: some View {
@@ -252,12 +270,21 @@ struct AddEventSheet: View {
                     }
 
                     Section("Time") {
-                        DatePicker("Starts", selection: $startDate)
-                        DatePicker("Ends", selection: $endDate)
-                        if endDate <= startDate {
-                            Text("End time must be after start time.")
+                        Toggle("All-day event", isOn: $isAllDay)
+                        DatePicker("Starts", selection: $startDate, displayedComponents: isAllDay ? [.date] : [.date, .hourAndMinute])
+                        DatePicker("Ends", selection: $endDate, displayedComponents: isAllDay ? [.date] : [.date, .hourAndMinute])
+                        if isValidDateRange == false {
+                            Text(isAllDay ? "End date cannot be before start date." : "End time must be after start time.")
                                 .font(.footnote)
                                 .foregroundStyle(.red)
+                        }
+                    }
+
+                    Section("Reminder") {
+                        Picker("Alert", selection: $reminderOption) {
+                            ForEach(EventReminderOption.allCases) { option in
+                                Text(option.title).tag(option)
+                            }
                         }
                     }
                 }
@@ -294,8 +321,16 @@ struct AddEventSheet: View {
     private var canCreate: Bool {
         summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             && selectedCalendarID != nil
-            && endDate > startDate
+            && isValidDateRange
             && model.account != nil
+    }
+
+    private var isValidDateRange: Bool {
+        if isAllDay {
+            return Calendar.current.startOfDay(for: endDate) >= Calendar.current.startOfDay(for: startDate)
+        }
+
+        return endDate > startDate
     }
 
     private func createEvent() async {
@@ -309,14 +344,24 @@ struct AddEventSheet: View {
         let didCreate = await model.createEvent(
             summary: summary,
             details: details,
-            startDate: startDate,
-            endDate: endDate,
+            startDate: normalizedStartDate,
+            endDate: normalizedEndDate,
+            isAllDay: isAllDay,
+            reminderMinutes: reminderOption.minutes,
             calendarID: selectedCalendarID
         )
 
         if didCreate {
             dismiss()
         }
+    }
+
+    private var normalizedStartDate: Date {
+        isAllDay ? Calendar.current.startOfDay(for: startDate) : startDate
+    }
+
+    private var normalizedEndDate: Date {
+        isAllDay ? Calendar.current.startOfDay(for: endDate) : endDate
     }
 }
 
@@ -328,6 +373,8 @@ struct EditEventSheet: View {
     @State private var details: String
     @State private var startDate: Date
     @State private var endDate: Date
+    @State private var isAllDay: Bool
+    @State private var reminderOption: EventReminderOption
     @State private var isSaving = false
 
     init(event: CalendarEventMirror) {
@@ -335,7 +382,9 @@ struct EditEventSheet: View {
         _summary = State(initialValue: event.summary)
         _details = State(initialValue: event.details)
         _startDate = State(initialValue: event.startDate)
-        _endDate = State(initialValue: event.endDate)
+        _endDate = State(initialValue: event.isAllDay ? Calendar.current.date(byAdding: .day, value: -1, to: event.endDate) ?? event.endDate : event.endDate)
+        _isAllDay = State(initialValue: event.isAllDay)
+        _reminderOption = State(initialValue: EventReminderOption(minutes: event.reminderMinutes.first) ?? .none)
     }
 
     var body: some View {
@@ -348,12 +397,21 @@ struct EditEventSheet: View {
                 }
 
                 Section("Time") {
-                    DatePicker("Starts", selection: $startDate)
-                    DatePicker("Ends", selection: $endDate)
-                    if endDate <= startDate {
-                        Text("End time must be after start time.")
+                    Toggle("All-day event", isOn: $isAllDay)
+                    DatePicker("Starts", selection: $startDate, displayedComponents: isAllDay ? [.date] : [.date, .hourAndMinute])
+                    DatePicker("Ends", selection: $endDate, displayedComponents: isAllDay ? [.date] : [.date, .hourAndMinute])
+                    if isValidDateRange == false {
+                        Text(isAllDay ? "End date cannot be before start date." : "End time must be after start time.")
                             .font(.footnote)
                             .foregroundStyle(.red)
+                    }
+                }
+
+                Section("Reminder") {
+                    Picker("Alert", selection: $reminderOption) {
+                        ForEach(EventReminderOption.allCases) { option in
+                            Text(option.title).tag(option)
+                        }
                     }
                 }
 
@@ -385,9 +443,16 @@ struct EditEventSheet: View {
 
     private var canSave: Bool {
         summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-            && endDate > startDate
+            && isValidDateRange
             && model.account != nil
-            && event.isAllDay == false
+    }
+
+    private var isValidDateRange: Bool {
+        if isAllDay {
+            return Calendar.current.startOfDay(for: endDate) >= Calendar.current.startOfDay(for: startDate)
+        }
+
+        return endDate > startDate
     }
 
     private func saveEvent() async {
@@ -398,13 +463,67 @@ struct EditEventSheet: View {
             event,
             summary: summary,
             details: details,
-            startDate: startDate,
-            endDate: endDate
+            startDate: normalizedStartDate,
+            endDate: normalizedEndDate,
+            isAllDay: isAllDay,
+            reminderMinutes: reminderOption.minutes
         )
 
         if didSave {
             dismiss()
         }
+    }
+
+    private var normalizedStartDate: Date {
+        isAllDay ? Calendar.current.startOfDay(for: startDate) : startDate
+    }
+
+    private var normalizedEndDate: Date {
+        isAllDay ? Calendar.current.startOfDay(for: endDate) : endDate
+    }
+}
+
+private enum EventReminderOption: Int, CaseIterable, Identifiable {
+    case none = -1
+    case atStart = 0
+    case tenMinutes = 10
+    case fifteenMinutes = 15
+    case thirtyMinutes = 30
+    case oneHour = 60
+    case oneDay = 1440
+
+    var id: Int { rawValue }
+
+    var minutes: Int? {
+        rawValue < 0 ? nil : rawValue
+    }
+
+    var title: String {
+        switch self {
+        case .none:
+            "Calendar default"
+        case .atStart:
+            "At start"
+        case .tenMinutes:
+            "10 minutes before"
+        case .fifteenMinutes:
+            "15 minutes before"
+        case .thirtyMinutes:
+            "30 minutes before"
+        case .oneHour:
+            "1 hour before"
+        case .oneDay:
+            "1 day before"
+        }
+    }
+
+    init?(minutes: Int?) {
+        guard let minutes else {
+            self = .none
+            return
+        }
+
+        self.init(rawValue: minutes)
     }
 }
 

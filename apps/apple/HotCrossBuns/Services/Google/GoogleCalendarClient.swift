@@ -66,14 +66,17 @@ struct GoogleCalendarClient: Sendable {
         summary: String,
         details: String,
         startDate: Date,
-        endDate: Date
+        endDate: Date,
+        isAllDay: Bool,
+        reminderMinutes: Int?
     ) async throws -> CalendarEventMirror {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
         let requestBody = GoogleEventMutationDTO(
             summary: summary,
             description: details.isEmpty ? nil : details,
-            start: GoogleEventMutationDateDTO(dateTime: startDate),
-            end: GoogleEventMutationDateDTO(dateTime: endDate)
+            start: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.string(from: startDate) : nil, dateTime: isAllDay ? nil : startDate),
+            end: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.exclusiveEndString(from: endDate) : nil, dateTime: isAllDay ? nil : endDate),
+            reminders: GoogleEventMutationRemindersDTO.custom(minutes: reminderMinutes)
         )
         let response: GoogleEventDTO = try await transport.request(
             method: "POST",
@@ -89,15 +92,18 @@ struct GoogleCalendarClient: Sendable {
         summary: String,
         details: String,
         startDate: Date,
-        endDate: Date
+        endDate: Date,
+        isAllDay: Bool,
+        reminderMinutes: Int?
     ) async throws -> CalendarEventMirror {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
         let encodedEventID = eventID.googlePathComponentEncoded
         let requestBody = GoogleEventMutationDTO(
             summary: summary,
             description: details,
-            start: GoogleEventMutationDateDTO(dateTime: startDate),
-            end: GoogleEventMutationDateDTO(dateTime: endDate)
+            start: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.string(from: startDate) : nil, dateTime: isAllDay ? nil : startDate),
+            end: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.exclusiveEndString(from: endDate) : nil, dateTime: isAllDay ? nil : endDate),
+            reminders: GoogleEventMutationRemindersDTO.custom(minutes: reminderMinutes)
         )
         let response: GoogleEventDTO = try await transport.request(
             method: "PATCH",
@@ -151,6 +157,7 @@ private struct GoogleEventDTO: Decodable, Sendable {
     var start: GoogleEventDateDTO?
     var end: GoogleEventDateDTO?
     var recurrence: [String]?
+    var reminders: GoogleEventRemindersDTO?
     var etag: String?
     var updated: Date?
 
@@ -167,7 +174,8 @@ private struct GoogleEventDTO: Decodable, Sendable {
             status: CalendarEventStatus(rawValue: status ?? "confirmed") ?? .confirmed,
             recurrence: recurrence ?? [],
             etag: etag,
-            updatedAt: updated
+            updatedAt: updated,
+            reminderMinutes: reminders?.customPopupMinutes ?? []
         )
     }
 }
@@ -181,15 +189,77 @@ private struct GoogleEventDateDTO: Decodable, Sendable {
     }
 }
 
+private struct GoogleEventRemindersDTO: Decodable, Sendable {
+    var useDefault: Bool?
+    var overrides: [GoogleEventReminderDTO]?
+
+    var customPopupMinutes: [Int] {
+        guard useDefault == false else {
+            return []
+        }
+
+        return overrides?
+            .filter { $0.method == "popup" }
+            .map(\.minutes)
+            .sorted() ?? []
+    }
+}
+
+private struct GoogleEventReminderDTO: Decodable, Sendable {
+    var method: String
+    var minutes: Int
+}
+
 private struct GoogleEventMutationDTO: Encodable, Sendable {
     var summary: String
     var description: String?
     var start: GoogleEventMutationDateDTO
     var end: GoogleEventMutationDateDTO
+    var reminders: GoogleEventMutationRemindersDTO?
 }
 
 private struct GoogleEventMutationDateDTO: Encodable, Sendable {
-    var dateTime: Date
+    var date: String?
+    var dateTime: Date?
+}
+
+private struct GoogleEventMutationRemindersDTO: Encodable, Sendable {
+    var useDefault: Bool
+    var overrides: [GoogleEventMutationReminderDTO]?
+
+    static func custom(minutes: Int?) -> GoogleEventMutationRemindersDTO? {
+        guard let minutes else {
+            return nil
+        }
+
+        return GoogleEventMutationRemindersDTO(
+            useDefault: false,
+            overrides: [GoogleEventMutationReminderDTO(method: "popup", minutes: minutes)]
+        )
+    }
+}
+
+private struct GoogleEventMutationReminderDTO: Encodable, Sendable {
+    var method: String
+    var minutes: Int
+}
+
+private enum GoogleDateOnlyFormatter {
+    static let calendar = Calendar(identifier: .gregorian)
+
+    static func string(from date: Date) -> String {
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        guard let year = components.year, let month = components.month, let day = components.day else {
+            return "1970-01-01"
+        }
+
+        return String(format: "%04d-%02d-%02d", year, month, day)
+    }
+
+    static func exclusiveEndString(from inclusiveEndDate: Date) -> String {
+        let nextDay = calendar.date(byAdding: .day, value: 1, to: inclusiveEndDate) ?? inclusiveEndDate
+        return string(from: nextDay)
+    }
 }
 
 private extension String {
