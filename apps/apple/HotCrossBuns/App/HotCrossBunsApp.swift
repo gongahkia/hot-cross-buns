@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct HotCrossBunsApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var appModel = AppModel.bootstrap()
     @State private var updater = UpdaterController()
 
