@@ -540,7 +540,9 @@ final class AppModel {
         reminderMinutes: Int?,
         calendarID: CalendarListMirror.ID,
         location: String = "",
-        recurrence: [String] = []
+        recurrence: [String] = [],
+        attendeeEmails: [String] = [],
+        notifyGuests: Bool = false
     ) async -> Bool {
         guard requireAccount(mutationDescription: "creating events") else {
             return false
@@ -555,6 +557,9 @@ final class AppModel {
         let trimmedDetails = details.trimmingCharacters(in: .whitespacesAndNewlines)
         let localID = OptimisticID.generate()
         let trimmedLocation = location.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanedEmails = attendeeEmails
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.isEmpty == false }
         let optimisticEvent = CalendarEventMirror(
             id: localID,
             calendarID: calendarID,
@@ -568,7 +573,8 @@ final class AppModel {
             etag: nil,
             updatedAt: Date(),
             reminderMinutes: reminderMinutes.map { [$0] } ?? [],
-            location: trimmedLocation
+            location: trimmedLocation,
+            attendeeEmails: cleanedEmails
         )
         upsert(optimisticEvent)
 
@@ -583,7 +589,9 @@ final class AppModel {
                 isAllDay: isAllDay,
                 reminderMinutes: reminderMinutes,
                 location: trimmedLocation,
-                recurrence: recurrence
+                recurrence: recurrence,
+                attendeeEmails: cleanedEmails,
+                notifyGuests: notifyGuests
             )
             let mutation = try PendingMutation.eventCreate(payload: payload)
             pendingMutations.append(mutation)
@@ -614,6 +622,8 @@ final class AppModel {
         calendarID: CalendarListMirror.ID,
         location: String = "",
         recurrence: [String]? = nil,
+        attendeeEmails: [String]? = nil,
+        notifyGuests: Bool = false,
         scope: RecurringEventScope = .thisOccurrence
     ) async -> Bool {
         guard requireAccount(mutationDescription: "updating events") else {
@@ -648,6 +658,9 @@ final class AppModel {
                 ? CalendarEventInstance.seriesID(from: eventToUpdate.id)
                 : eventToUpdate.id
 
+            let cleanedEmails = (attendeeEmails ?? eventToUpdate.attendeeEmails)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { $0.isEmpty == false }
             let updatedEvent = try await calendarClient.updateEvent(
                 calendarID: eventToUpdate.calendarID,
                 eventID: targetEventID,
@@ -659,6 +672,8 @@ final class AppModel {
                 reminderMinutes: reminderMinutes,
                 location: location.trimmingCharacters(in: .whitespacesAndNewlines),
                 recurrence: recurrence ?? eventToUpdate.recurrence,
+                attendeeEmails: cleanedEmails,
+                sendUpdates: notifyGuests ? "all" : "none",
                 ifMatch: scope == .allInSeries ? nil : eventToUpdate.etag
             )
             if calendarID != event.calendarID {
@@ -847,7 +862,9 @@ final class AppModel {
                 isAllDay: payload.isAllDay,
                 reminderMinutes: payload.reminderMinutes,
                 location: payload.location,
-                recurrence: payload.recurrence
+                recurrence: payload.recurrence,
+                attendeeEmails: payload.attendeeEmails,
+                sendUpdates: payload.notifyGuests ? "all" : "none"
             )
             removeEvent(id: payload.localID)
             upsert(created)

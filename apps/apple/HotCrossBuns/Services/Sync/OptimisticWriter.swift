@@ -32,6 +32,8 @@ struct PendingEventCreatePayload: Codable, Sendable, Equatable {
     var reminderMinutes: Int?
     var location: String = ""
     var recurrence: [String] = []
+    var attendeeEmails: [String] = []
+    var notifyGuests: Bool = false
 }
 
 enum PendingMutationEncoder {
