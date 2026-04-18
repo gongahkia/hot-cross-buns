@@ -61,3 +61,7 @@ xcodebuild \
 ## Local Cache
 
 The current cache is a JSON app-state snapshot in Application Support. It is intentionally small and replaceable: it preserves account metadata, task/calendar mirrors, and user settings so launch does not depend on an immediate Google round trip. A SQLite-backed cache can replace this once the sync checkpoint and mutation schema are stable.
+
+## Sync
+
+Manual refresh now performs authenticated read-sync against Google Tasks task lists/tasks and Google Calendar calendar lists/events. Calendar reads currently fetch from the start of the current day, while Tasks performs full-list reads; incremental checkpoints and offline mutation replay are still pending.

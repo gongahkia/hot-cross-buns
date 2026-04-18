@@ -15,6 +15,7 @@ struct GoogleTasksClient: Sendable {
     }
 
     func listTasks(taskListID: String, updatedMin: Date?) async throws -> [TaskMirror] {
+        let encodedTaskListID = taskListID.googlePathComponentEncoded
         var queryItems = [
             URLQueryItem(name: "showCompleted", value: "true"),
             URLQueryItem(name: "showDeleted", value: "true"),
@@ -27,7 +28,7 @@ struct GoogleTasksClient: Sendable {
         }
 
         let response: GoogleTasksResponse = try await transport.get(
-            path: "/tasks/v1/lists/\(taskListID)/tasks",
+            path: "/tasks/v1/lists/\(encodedTaskListID)/tasks",
             queryItems: queryItems
         )
 
@@ -79,4 +80,12 @@ private struct GoogleTaskDTO: Decodable, Sendable {
     var position: String?
     var etag: String?
     var updated: Date?
+}
+
+private extension String {
+    var googlePathComponentEncoded: String {
+        var allowedCharacters = CharacterSet.urlPathAllowed
+        allowedCharacters.remove(charactersIn: "/?#")
+        return addingPercentEncoding(withAllowedCharacters: allowedCharacters) ?? self
+    }
 }

@@ -21,7 +21,8 @@ struct GoogleCalendarClient: Sendable {
         }
     }
 
-    func listEvents(calendarID: String, syncToken: String?) async throws -> GoogleCalendarEventsPage {
+    func listEvents(calendarID: String, syncToken: String?, timeMin: Date = Date()) async throws -> GoogleCalendarEventsPage {
+        let encodedCalendarID = calendarID.googlePathComponentEncoded
         var queryItems = [
             URLQueryItem(name: "singleEvents", value: "true"),
             URLQueryItem(name: "showDeleted", value: "true"),
@@ -31,11 +32,11 @@ struct GoogleCalendarClient: Sendable {
         if let syncToken, !syncToken.isEmpty {
             queryItems.append(URLQueryItem(name: "syncToken", value: syncToken))
         } else {
-            queryItems.append(URLQueryItem(name: "timeMin", value: ISO8601DateFormatter.google.string(from: Date())))
+            queryItems.append(URLQueryItem(name: "timeMin", value: ISO8601DateFormatter.google.string(from: timeMin)))
         }
 
         let response: GoogleEventsResponse = try await transport.get(
-            path: "/calendar/v3/calendars/\(calendarID)/events",
+            path: "/calendar/v3/calendars/\(encodedCalendarID)/events",
             queryItems: queryItems
         )
 
@@ -101,5 +102,13 @@ private struct GoogleEventDateDTO: Decodable, Sendable {
 
     var resolvedDate: Date {
         dateTime ?? date ?? Date()
+    }
+}
+
+private extension String {
+    var googlePathComponentEncoded: String {
+        var allowedCharacters = CharacterSet.urlPathAllowed
+        allowedCharacters.remove(charactersIn: "/?#")
+        return addingPercentEncoding(withAllowedCharacters: allowedCharacters) ?? self
     }
 }
