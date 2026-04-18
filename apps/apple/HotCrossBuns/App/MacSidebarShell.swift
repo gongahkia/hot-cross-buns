@@ -43,9 +43,15 @@ struct MacSidebarShell: View {
             selection = SidebarItem(rawValue: storedSelection) ?? .today
             configureCommandActions()
             configureVimMonitor()
+            configureGlobalHotkey()
         }
         .onChange(of: model.settings.enableVimKeybindings) { _, newValue in
             vimMonitor.isEnabled = newValue
+        }
+        .onChange(of: model.settings.enableGlobalHotkey) { _, newValue in
+            if let delegate = NSApp.delegate as? AppDelegate {
+                delegate.setGlobalHotkeyEnabled(newValue)
+            }
         }
         .onChange(of: selection) { _, newValue in
             storedSelection = newValue.rawValue
@@ -177,6 +183,11 @@ struct MacSidebarShell: View {
             scenePhase == .active ? "active" : "inactive",
             model.account?.id ?? "signed-out"
         ].joined(separator: ":")
+    }
+
+    private func configureGlobalHotkey() {
+        guard let delegate = NSApp.delegate as? AppDelegate else { return }
+        delegate.setGlobalHotkeyEnabled(model.settings.enableGlobalHotkey)
     }
 
     private func configureVimMonitor() {
