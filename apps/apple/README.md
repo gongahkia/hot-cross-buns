@@ -86,6 +86,10 @@ Settings persist selected calendars and selected task lists. Empty selections ar
 
 Local reminders are opt-in from Settings. When enabled, the app requests notification permission and schedules up to 64 pending device-local notifications for incomplete due tasks and upcoming non-cancelled Calendar events. Task reminders fire at 9:00 AM on the due date; timed event reminders fire 15 minutes before start; all-day event reminders fire at 9:00 AM.
 
+## App Intents
+
+The app exposes first-pass App Shortcuts for opening the task editor, opening the event editor, and opening Today. These are foreground handoff intents: Shortcuts writes a pending route, opens the app, and the SwiftUI shell presents the relevant destination. Direct background Google mutations are intentionally deferred until the offline mutation queue and conflict policy are stronger.
+
 ## Task Writes
 
 The Tasks tab includes online create, edit, complete/reopen, and delete flows backed by Google Tasks `tasks.insert`, `tasks.patch`, and `tasks.delete`. These require a signed-in Google account and loaded task lists from refresh. Offline queueing, conflict handling, task reordering, and task-list management are still pending.
