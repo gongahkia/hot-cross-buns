@@ -57,9 +57,14 @@ struct AppCommands: Commands {
 
         CommandMenu("View") {
             ForEach(SidebarItem.allCases) { item in
-                Button(item.title) { actions?.switchTo(item) }
-                    .keyboardShortcut(item.keyboardEquivalent, modifiers: [.command])
-                    .disabled(actions == nil)
+                if let shortcut = item.keyboardEquivalent {
+                    Button(item.title) { actions?.switchTo(item) }
+                        .keyboardShortcut(shortcut, modifiers: [.command])
+                        .disabled(actions == nil)
+                } else {
+                    Button(item.title) { actions?.switchTo(item) }
+                        .disabled(actions == nil)
+                }
             }
             Divider()
             Button("Focus Search") { actions?.focusSearch() }
