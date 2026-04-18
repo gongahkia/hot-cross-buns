@@ -45,17 +45,7 @@ struct GoogleAPITransport: Sendable {
         encoder: JSONEncoder = .googleAPI,
         decoder: JSONDecoder = .googleAPI
     ) async throws -> Response {
-        var components = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)
-        components?.queryItems = queryItems.isEmpty ? nil : queryItems
-
-        guard let url = components?.url else {
-            throw GoogleAPIError.invalidURL
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        request.setValue("Bearer \(try await tokenProvider.accessToken())", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        var request = try await makeRequest(method: method, path: path, queryItems: queryItems)
 
         if let body {
             request.httpBody = try encoder.encode(body)
@@ -65,6 +55,33 @@ struct GoogleAPITransport: Sendable {
         let (data, response) = try await urlSession.data(for: request)
         try validate(response: response, data: data)
         return try decoder.decode(Response.self, from: data)
+    }
+
+    func send<Body: Encodable & Sendable>(
+        method: String,
+        path: String,
+        queryItems: [URLQueryItem] = [],
+        body: Body? = nil,
+        encoder: JSONEncoder = .googleAPI
+    ) async throws {
+        var request = try await makeRequest(method: method, path: path, queryItems: queryItems)
+
+        if let body {
+            request.httpBody = try encoder.encode(body)
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+
+        let (data, response) = try await urlSession.data(for: request)
+        try validate(response: response, data: data)
+    }
+
+    func send(
+        method: String,
+        path: String,
+        queryItems: [URLQueryItem] = []
+    ) async throws {
+        let emptyBody: EmptyRequestBody? = nil
+        try await send(method: method, path: path, queryItems: queryItems, body: emptyBody)
     }
 
     func request<Response: Decodable & Sendable>(
@@ -81,6 +98,25 @@ struct GoogleAPITransport: Sendable {
             body: emptyBody,
             decoder: decoder
         )
+    }
+
+    private func makeRequest(
+        method: String,
+        path: String,
+        queryItems: [URLQueryItem]
+    ) async throws -> URLRequest {
+        var components = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)
+        components?.queryItems = queryItems.isEmpty ? nil : queryItems
+
+        guard let url = components?.url else {
+            throw GoogleAPIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("Bearer \(try await tokenProvider.accessToken())", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        return request
     }
 
     private func validate(response: URLResponse, data: Data) throws {

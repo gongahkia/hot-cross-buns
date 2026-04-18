@@ -178,6 +178,80 @@ final class AppModel {
         }
     }
 
+    func updateTask(
+        _ task: TaskMirror,
+        title: String,
+        notes: String,
+        dueDate: Date?
+    ) async -> Bool {
+        guard account != nil else {
+            syncState = .failed(message: "Connect Google before updating tasks.")
+            return false
+        }
+
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedTitle.isEmpty == false else {
+            syncState = .failed(message: "Task title cannot be empty.")
+            return false
+        }
+
+        syncState = .syncing(startedAt: Date())
+        do {
+            let updatedTask = try await tasksClient.updateTask(
+                taskListID: task.taskListID,
+                taskID: task.id,
+                title: trimmedTitle,
+                notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
+                dueDate: dueDate
+            )
+            upsert(updatedTask)
+            syncState = .synced(at: Date())
+            await saveCurrentState()
+            return true
+        } catch {
+            syncState = .failed(message: error.localizedDescription)
+            return false
+        }
+    }
+
+    func setTaskCompleted(_ isCompleted: Bool, task: TaskMirror) async -> Bool {
+        guard account != nil else {
+            syncState = .failed(message: "Connect Google before updating tasks.")
+            return false
+        }
+
+        syncState = .syncing(startedAt: Date())
+        do {
+            let updatedTask = try await tasksClient.setTaskCompleted(isCompleted, task: task)
+            upsert(updatedTask)
+            syncState = .synced(at: Date())
+            await saveCurrentState()
+            return true
+        } catch {
+            syncState = .failed(message: error.localizedDescription)
+            return false
+        }
+    }
+
+    func deleteTask(_ task: TaskMirror) async -> Bool {
+        guard account != nil else {
+            syncState = .failed(message: "Connect Google before deleting tasks.")
+            return false
+        }
+
+        syncState = .syncing(startedAt: Date())
+        do {
+            try await tasksClient.deleteTask(taskListID: task.taskListID, taskID: task.id)
+            removeTask(id: task.id)
+            syncState = .synced(at: Date())
+            await saveCurrentState()
+            return true
+        } catch {
+            syncState = .failed(message: error.localizedDescription)
+            return false
+        }
+    }
+
     func createEvent(
         summary: String,
         details: String,
@@ -262,6 +336,11 @@ final class AppModel {
         } else {
             tasks.append(task)
         }
+        rebuildSnapshots()
+    }
+
+    private func removeTask(id: TaskMirror.ID) {
+        tasks.removeAll { $0.id == id }
         rebuildSnapshots()
     }
 

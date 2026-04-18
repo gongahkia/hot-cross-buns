@@ -82,7 +82,7 @@ Sync modes are active:
 
 ## Task Writes
 
-The Tasks tab includes an online create-task flow backed by Google Tasks `tasks.insert`. It requires a signed-in Google account and at least one loaded task list from refresh. Offline queueing, edits, deletes, and conflict handling are still pending.
+The Tasks tab includes online create, edit, complete/reopen, and delete flows backed by Google Tasks `tasks.insert`, `tasks.patch`, and `tasks.delete`. These require a signed-in Google account and loaded task lists from refresh. Offline queueing, conflict handling, task reordering, and task-list management are still pending.
 
 ## Calendar Writes
 

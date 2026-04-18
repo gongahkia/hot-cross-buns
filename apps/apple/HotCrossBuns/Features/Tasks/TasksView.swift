@@ -19,6 +19,16 @@ struct TasksView: View {
                                 TaskListRow(task: task)
                             }
                             .buttonStyle(.plain)
+                            .swipeActions(edge: .leading) {
+                                Button {
+                                    Task {
+                                        await model.setTaskCompleted(!task.isCompleted, task: task)
+                                    }
+                                } label: {
+                                    Label(task.isCompleted ? "Reopen" : "Complete", systemImage: task.isCompleted ? "arrow.uturn.backward.circle" : "checkmark.circle")
+                                }
+                                .tint(task.isCompleted ? AppColor.blue : AppColor.moss)
+                            }
                         }
                     }
                 }
@@ -81,8 +91,12 @@ private struct TaskListRow: View {
 }
 
 struct TaskDetailView: View {
+    @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
     let taskID: TaskMirror.ID
+    @State private var isEditing = false
+    @State private var isMutating = false
+    @State private var isConfirmingDelete = false
 
     var body: some View {
         Group {
@@ -101,17 +115,101 @@ struct TaskDetailView: View {
                         if let dueDate = task.dueDate {
                             DetailField(label: "Due", value: dueDate.formatted(date: .abbreviated, time: .omitted))
                         }
+                        TaskActionPanel(
+                            task: task,
+                            isMutating: isMutating,
+                            onToggleCompletion: {
+                                Task {
+                                    await setCompletion(for: task)
+                                }
+                            },
+                            onEdit: {
+                                isEditing = true
+                            },
+                            onDelete: {
+                                isConfirmingDelete = true
+                            }
+                        )
                         DetailField(label: "Google ID", value: task.id)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(20)
                 }
                 .appBackground()
+                .sheet(isPresented: $isEditing) {
+                    EditTaskSheet(task: task)
+                }
+                .confirmationDialog(
+                    "Delete this task?",
+                    isPresented: $isConfirmingDelete,
+                    titleVisibility: .visible
+                ) {
+                    Button("Delete Task", role: .destructive) {
+                        Task {
+                            await delete(task)
+                        }
+                    }
+
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("This deletes the task from Google Tasks.")
+                }
             } else {
                 ContentUnavailableView("Task not found", systemImage: "checklist", description: Text("This task may have been deleted in Google Tasks."))
             }
         }
         .navigationTitle("Task")
+    }
+
+    private func setCompletion(for task: TaskMirror) async {
+        isMutating = true
+        defer { isMutating = false }
+        _ = await model.setTaskCompleted(!task.isCompleted, task: task)
+    }
+
+    private func delete(_ task: TaskMirror) async {
+        isMutating = true
+        defer { isMutating = false }
+        let didDelete = await model.deleteTask(task)
+        if didDelete {
+            dismiss()
+        }
+    }
+}
+
+private struct TaskActionPanel: View {
+    let task: TaskMirror
+    let isMutating: Bool
+    let onToggleCompletion: () -> Void
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Button(action: onToggleCompletion) {
+                Label(
+                    task.isCompleted ? "Mark Needs Action" : "Mark Complete",
+                    systemImage: task.isCompleted ? "arrow.uturn.backward.circle" : "checkmark.circle.fill"
+                )
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(task.isCompleted ? AppColor.blue : AppColor.moss)
+
+            Button(action: onEdit) {
+                Label("Edit Details", systemImage: "square.and.pencil")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+
+            Button(role: .destructive, action: onDelete) {
+                Label("Delete Task", systemImage: "trash")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+        }
+        .disabled(isMutating)
+        .cardSurface(cornerRadius: 22)
     }
 }
 
@@ -206,6 +304,84 @@ struct AddTaskSheet: View {
         )
 
         if didCreate {
+            dismiss()
+        }
+    }
+}
+
+struct EditTaskSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var model
+    let task: TaskMirror
+    @State private var title: String
+    @State private var notes: String
+    @State private var hasDueDate: Bool
+    @State private var dueDate: Date
+    @State private var isSaving = false
+
+    init(task: TaskMirror) {
+        self.task = task
+        _title = State(initialValue: task.title)
+        _notes = State(initialValue: task.notes)
+        _hasDueDate = State(initialValue: task.dueDate != nil)
+        _dueDate = State(initialValue: task.dueDate ?? Date())
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Task") {
+                    TextField("Title", text: $title)
+                    TextField("Notes", text: $notes, axis: .vertical)
+                        .lineLimit(3...6)
+                }
+
+                Section("Due date") {
+                    Toggle("Set due date", isOn: $hasDueDate)
+                    if hasDueDate {
+                        DatePicker("Due", selection: $dueDate, displayedComponents: [.date])
+                    }
+                }
+            }
+            .navigationTitle("Edit Task")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .disabled(isSaving)
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task {
+                            await saveTask()
+                        }
+                    }
+                    .disabled(canSave == false || isSaving)
+                }
+            }
+        }
+        .interactiveDismissDisabled(isSaving)
+    }
+
+    private var canSave: Bool {
+        title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            && model.account != nil
+    }
+
+    private func saveTask() async {
+        isSaving = true
+        defer { isSaving = false }
+
+        let didSave = await model.updateTask(
+            task,
+            title: title,
+            notes: notes,
+            dueDate: hasDueDate ? Calendar.current.startOfDay(for: dueDate) : nil
+        )
+
+        if didSave {
             dismiss()
         }
     }

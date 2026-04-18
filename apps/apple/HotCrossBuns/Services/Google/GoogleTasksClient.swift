@@ -54,6 +54,64 @@ struct GoogleTasksClient: Sendable {
         )
         return response.mirror(taskListID: taskListID)
     }
+
+    func updateTask(
+        taskListID: String,
+        taskID: String,
+        title: String,
+        notes: String,
+        dueDate: Date?
+    ) async throws -> TaskMirror {
+        try await patchTask(
+            taskListID: taskListID,
+            taskID: taskID,
+            body: GoogleTaskPatchDTO(
+                title: title,
+                notes: .value(notes),
+                status: nil,
+                due: dueDate.map(NullableField.value) ?? .null,
+                completed: .omitted
+            )
+        )
+    }
+
+    func setTaskCompleted(_ isCompleted: Bool, task: TaskMirror) async throws -> TaskMirror {
+        try await patchTask(
+            taskListID: task.taskListID,
+            taskID: task.id,
+            body: GoogleTaskPatchDTO(
+                title: nil,
+                notes: .omitted,
+                status: isCompleted ? .completed : .needsAction,
+                due: .omitted,
+                completed: isCompleted ? .value(Date()) : .null
+            )
+        )
+    }
+
+    func deleteTask(taskListID: String, taskID: String) async throws {
+        let encodedTaskListID = taskListID.googlePathComponentEncoded
+        let encodedTaskID = taskID.googlePathComponentEncoded
+        try await transport.send(
+            method: "DELETE",
+            path: "/tasks/v1/lists/\(encodedTaskListID)/tasks/\(encodedTaskID)"
+        )
+    }
+
+    private func patchTask(
+        taskListID: String,
+        taskID: String,
+        body: GoogleTaskPatchDTO
+    ) async throws -> TaskMirror {
+        let encodedTaskListID = taskListID.googlePathComponentEncoded
+        let encodedTaskID = taskID.googlePathComponentEncoded
+        let response: GoogleTaskDTO = try await transport.request(
+            method: "PATCH",
+            path: "/tasks/v1/lists/\(encodedTaskListID)/tasks/\(encodedTaskID)",
+            body: body
+        )
+        return response.mirror(taskListID: taskListID)
+    }
 }
 
 private struct GoogleTaskListsResponse: Decodable, Sendable {
@@ -108,6 +166,65 @@ private struct GoogleTaskMutationDTO: Encodable, Sendable {
     var title: String
     var notes: String?
     var due: Date?
+}
+
+private struct GoogleTaskPatchDTO: Encodable, Sendable {
+    var title: String?
+    var notes: NullableField<String>
+    var status: TaskStatus?
+    var due: NullableField<Date>
+    var completed: NullableField<Date>
+
+    enum CodingKeys: String, CodingKey {
+        case title
+        case notes
+        case status
+        case due
+        case completed
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(title, forKey: .title)
+        try container.encodeIfPresent(status, forKey: .status)
+        try container.encode(notes, forKey: .notes)
+        try container.encode(due, forKey: .due)
+        try container.encode(completed, forKey: .completed)
+    }
+}
+
+private enum NullableField<Value: Encodable & Sendable>: Encodable, Sendable {
+    case omitted
+    case null
+    case value(Value)
+
+    func encode(to encoder: Encoder) throws {
+        switch self {
+        case .omitted:
+            break
+        case .null:
+            var container = encoder.singleValueContainer()
+            try container.encodeNil()
+        case .value(let value):
+            try value.encode(to: encoder)
+        }
+    }
+}
+
+private extension KeyedEncodingContainer {
+    mutating func encode<Value: Encodable & Sendable>(
+        _ value: NullableField<Value>,
+        forKey key: Key
+    ) throws {
+        switch value {
+        case .omitted:
+            break
+        case .null:
+            try encodeNil(forKey: key)
+        case .value(let wrappedValue):
+            try encode(wrappedValue, forKey: key)
+        }
+    }
 }
 
 private extension String {
