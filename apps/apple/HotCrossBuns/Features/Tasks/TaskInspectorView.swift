@@ -311,6 +311,15 @@ struct TaskInspectorView: View {
             .keyboardShortcut(.delete, modifiers: [.command])
 
             Button {
+                Task { _ = await model.duplicateTask(task) }
+            } label: {
+                Label("Duplicate", systemImage: "plus.square.on.square")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .keyboardShortcut("d", modifiers: [.command])
+
+            Button {
                 copyAsMarkdown()
             } label: {
                 Label("Copy as Markdown", systemImage: "doc.on.clipboard")

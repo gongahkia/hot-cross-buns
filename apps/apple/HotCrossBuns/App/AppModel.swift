@@ -236,6 +236,29 @@ final class AppModel {
         return true
     }
 
+    func duplicateTask(_ task: TaskMirror) async -> Bool {
+        await createTask(
+            title: task.title,
+            notes: task.notes,
+            dueDate: task.dueDate,
+            taskListID: task.taskListID,
+            parentID: task.parentID
+        )
+    }
+
+    func duplicateEvent(_ event: CalendarEventMirror) async -> Bool {
+        await createEvent(
+            summary: event.summary,
+            details: event.details,
+            startDate: event.startDate,
+            endDate: event.endDate,
+            isAllDay: event.isAllDay,
+            reminderMinutes: event.reminderMinutes.first,
+            calendarID: event.calendarID,
+            location: event.location
+        )
+    }
+
     func moveTaskToList(_ task: TaskMirror, toTaskListID: TaskListMirror.ID) async -> Bool {
         guard task.taskListID != toTaskListID else { return true }
         guard requireAccount(mutationDescription: "moving tasks") else { return false }
