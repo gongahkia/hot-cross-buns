@@ -163,6 +163,7 @@ final class AppModel {
         }
 
         syncState = .syncing(startedAt: Date())
+        await replayPendingMutations()
         do {
             let syncedState = try await syncScheduler.syncNow(
                 mode: settings.syncMode,
@@ -191,24 +192,47 @@ final class AppModel {
             return false
         }
 
-        beginMutation()
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        let localID = OptimisticID.generate()
+
+        let optimisticTask = TaskMirror(
+            id: localID,
+            taskListID: taskListID,
+            parentID: parentID,
+            title: trimmedTitle,
+            notes: trimmedNotes,
+            status: .needsAction,
+            dueDate: dueDate,
+            completedAt: nil,
+            isDeleted: false,
+            isHidden: false,
+            position: nil,
+            etag: nil,
+            updatedAt: Date()
+        )
+        upsert(optimisticTask)
+
         do {
-            let task = try await tasksClient.insertTask(
+            let payload = PendingTaskCreatePayload(
+                localID: localID,
                 taskListID: taskListID,
-                title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-                notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
+                title: trimmedTitle,
+                notes: trimmedNotes,
                 dueDate: dueDate,
-                parent: parentID
+                parentID: parentID.flatMap { OptimisticID.isPending($0) ? nil : $0 }
             )
-            upsert(task)
-            endMutation(error: nil)
+            let mutation = try PendingMutation.taskCreate(payload: payload)
+            pendingMutations.append(mutation)
             await saveCurrentState()
-            await synchronizeLocalNotifications()
-            return true
         } catch {
-            endMutation(error: error)
+            removeTask(id: localID)
+            lastMutationError = "Could not queue task for sync: \(error.localizedDescription)"
             return false
         }
+
+        Task { await replayPendingMutations() }
+        return true
     }
 
     func indentTask(_ task: TaskMirror) async -> Bool {
@@ -436,26 +460,47 @@ final class AppModel {
             return false
         }
 
-        beginMutation()
+        let trimmedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedDetails = details.trimmingCharacters(in: .whitespacesAndNewlines)
+        let localID = OptimisticID.generate()
+        let optimisticEvent = CalendarEventMirror(
+            id: localID,
+            calendarID: calendarID,
+            summary: trimmedSummary,
+            details: trimmedDetails,
+            startDate: startDate,
+            endDate: endDate,
+            isAllDay: isAllDay,
+            status: .confirmed,
+            recurrence: [],
+            etag: nil,
+            updatedAt: Date(),
+            reminderMinutes: reminderMinutes.map { [$0] } ?? []
+        )
+        upsert(optimisticEvent)
+
         do {
-            let event = try await calendarClient.insertEvent(
+            let payload = PendingEventCreatePayload(
+                localID: localID,
                 calendarID: calendarID,
-                summary: summary.trimmingCharacters(in: .whitespacesAndNewlines),
-                details: details.trimmingCharacters(in: .whitespacesAndNewlines),
+                summary: trimmedSummary,
+                details: trimmedDetails,
                 startDate: startDate,
                 endDate: endDate,
                 isAllDay: isAllDay,
                 reminderMinutes: reminderMinutes
             )
-            upsert(event)
-            endMutation(error: nil)
+            let mutation = try PendingMutation.eventCreate(payload: payload)
+            pendingMutations.append(mutation)
             await saveCurrentState()
-            await synchronizeLocalNotifications()
-            return true
         } catch {
-            endMutation(error: error)
+            removeEvent(id: localID)
+            lastMutationError = "Could not queue event for sync: \(error.localizedDescription)"
             return false
         }
+
+        Task { await replayPendingMutations() }
+        return true
     }
 
     func updateEvent(
@@ -612,6 +657,87 @@ final class AppModel {
         }
 
         lastMutationError = nil
+    }
+
+    func replayPendingMutations() async {
+        guard account != nil else { return }
+        guard pendingMutations.isEmpty == false else { return }
+
+        let snapshot = pendingMutations
+        for mutation in snapshot {
+            guard pendingMutations.contains(where: { $0.id == mutation.id }) else { continue }
+            await replay(mutation)
+        }
+    }
+
+    private func replay(_ mutation: PendingMutation) async {
+        switch (mutation.resourceType, mutation.action) {
+        case (.task, .create):
+            await replayTaskCreate(mutation)
+        case (.event, .create):
+            await replayEventCreate(mutation)
+        default:
+            pendingMutations.removeAll { $0.id == mutation.id }
+        }
+    }
+
+    private func replayTaskCreate(_ mutation: PendingMutation) async {
+        do {
+            let payload = try PendingMutationEncoder.decodeTaskCreate(mutation.payload)
+            let parent = payload.parentID.flatMap { id -> String? in
+                OptimisticID.isPending(id) ? nil : id
+            }
+            let created = try await tasksClient.insertTask(
+                taskListID: payload.taskListID,
+                title: payload.title,
+                notes: payload.notes,
+                dueDate: payload.dueDate,
+                parent: parent
+            )
+            removeTask(id: payload.localID)
+            upsert(created)
+            pendingMutations.removeAll { $0.id == mutation.id }
+            await saveCurrentState()
+            await synchronizeLocalNotifications()
+        } catch let error as GoogleAPIError where error.isTransient {
+            lastMutationError = "Sync will retry: \(error.localizedDescription)"
+        } catch {
+            if let payload = try? PendingMutationEncoder.decodeTaskCreate(mutation.payload) {
+                removeTask(id: payload.localID)
+            }
+            pendingMutations.removeAll { $0.id == mutation.id }
+            lastMutationError = "Task couldn't be created: \(error.localizedDescription)"
+            await saveCurrentState()
+        }
+    }
+
+    private func replayEventCreate(_ mutation: PendingMutation) async {
+        do {
+            let payload = try PendingMutationEncoder.decodeEventCreate(mutation.payload)
+            let created = try await calendarClient.insertEvent(
+                calendarID: payload.calendarID,
+                summary: payload.summary,
+                details: payload.details,
+                startDate: payload.startDate,
+                endDate: payload.endDate,
+                isAllDay: payload.isAllDay,
+                reminderMinutes: payload.reminderMinutes
+            )
+            removeEvent(id: payload.localID)
+            upsert(created)
+            pendingMutations.removeAll { $0.id == mutation.id }
+            await saveCurrentState()
+            await synchronizeLocalNotifications()
+        } catch let error as GoogleAPIError where error.isTransient {
+            lastMutationError = "Sync will retry: \(error.localizedDescription)"
+        } catch {
+            if let payload = try? PendingMutationEncoder.decodeEventCreate(mutation.payload) {
+                removeEvent(id: payload.localID)
+            }
+            pendingMutations.removeAll { $0.id == mutation.id }
+            lastMutationError = "Event couldn't be created: \(error.localizedDescription)"
+            await saveCurrentState()
+        }
     }
 
     private func requireAccount(mutationDescription: String) -> Bool {
