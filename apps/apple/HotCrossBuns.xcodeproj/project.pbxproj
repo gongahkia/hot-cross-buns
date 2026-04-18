@@ -34,6 +34,7 @@
 		5049BDF0BCBF8FAE6B9344DB /* LocalCacheStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D35E61D1B3B91A6E21DCC27 /* LocalCacheStore.swift */; };
 		523A574D6D48B12B4587E086 /* CalendarHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2263C896865029DCEC3A53B /* CalendarHomeView.swift */; };
 		5453BF08EC35AD66E95038D7 /* TasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 141ADCA673635CA9F5DA0BD1 /* TasksView.swift */; };
+		61E276C2555F3F36F976E697 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CDBE097FFF4A48F2BCDE315 /* DiagnosticsView.swift */; };
 		6781A77091B43C2BBAAEC36A /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 8630D5999C10C8D0FF9DB5A1 /* GoogleSignInSwift */; };
 		6DD5F7BECB92EE882F0DFCB8 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB15E1D3EF730B024771A746 /* SettingsView.swift */; };
 		7092CA5C7D2C3A052185B566 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC9C2158939F77166D48250B /* DesignTokens.swift */; };
@@ -48,6 +49,7 @@
 		8FAD7F292A1D64CD98B53282 /* TaskMirror.swift in Sources */ = {isa = PBXBuildFile; fileRef = 165DF0F051694E742FB59FB7 /* TaskMirror.swift */; };
 		930995A716E764A31379E6C7 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = A52E5E4859F66796AFABAB97 /* GoogleSignIn */; };
 		9B8F655CC0A7DB0E043E814C /* ISO8601DateFormatter+Google.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B5A02F709EC80DD855D2C87 /* ISO8601DateFormatter+Google.swift */; };
+		9C5CB77D0D49AC5DC8F5DF1F /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CDBE097FFF4A48F2BCDE315 /* DiagnosticsView.swift */; };
 		9D509BB5F19F366E80487377 /* RouterPath.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF08213B82A11D35A48E9669 /* RouterPath.swift */; };
 		9DA7E2B80EE8B8987CD1A78F /* Snapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1622469DA249EE1B10188D98 /* Snapshots.swift */; };
 		9F69E7A5E505909E9A050DBF /* GoogleAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD3E985540BFEBDABB373283 /* GoogleAuthService.swift */; };
@@ -84,6 +86,7 @@
 		515AE22366D9FEE4138091FF /* GoogleCalendarClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleCalendarClient.swift; sourceTree = "<group>"; };
 		51DF623C9EB45B4EF2B2B17C /* AppShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShell.swift; sourceTree = "<group>"; };
 		58E08646E1A0BF9F12E1180E /* AppTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTab.swift; sourceTree = "<group>"; };
+		5CDBE097FFF4A48F2BCDE315 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
 		6EC332C6DC51DB8C6B72B7A7 /* GoogleAPITransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAPITransport.swift; sourceTree = "<group>"; };
 		84B5C3ED3789B4EFFAEEB89E /* LocalNotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNotificationScheduler.swift; sourceTree = "<group>"; };
 		892DDFFD7ECD0890E98DEC1C /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
@@ -315,6 +318,7 @@
 		F98E7C3900FABC4B1976BB82 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				5CDBE097FFF4A48F2BCDE315 /* DiagnosticsView.swift */,
 				AB15E1D3EF730B024771A746 /* SettingsView.swift */,
 			);
 			path = Settings;
@@ -418,6 +422,7 @@
 				523A574D6D48B12B4587E086 /* CalendarHomeView.swift in Sources */,
 				06BEC9D87D21345A636AADB8 /* CalendarMirror.swift in Sources */,
 				7092CA5C7D2C3A052185B566 /* DesignTokens.swift in Sources */,
+				61E276C2555F3F36F976E697 /* DiagnosticsView.swift in Sources */,
 				8CF3F07B84CA27F8F2DEF4A8 /* GoogleAPITransport.swift in Sources */,
 				C22F4B23E5FBAB647FF3F156 /* GoogleAccount.swift in Sources */,
 				DB349B0AB6AD7E665A85B0BB /* GoogleAuthService.swift in Sources */,
@@ -453,6 +458,7 @@
 				0356DF79855ED0FCAD6006BE /* CalendarHomeView.swift in Sources */,
 				BC7D8CC009E6C9F77091C482 /* CalendarMirror.swift in Sources */,
 				349B700A53DEC9F56483C5AC /* DesignTokens.swift in Sources */,
+				9C5CB77D0D49AC5DC8F5DF1F /* DiagnosticsView.swift in Sources */,
 				A64BDF6E27C688C541A97DC2 /* GoogleAPITransport.swift in Sources */,
 				AA38ADE1844A7F7E5875BD7F /* GoogleAccount.swift in Sources */,
 				9F69E7A5E505909E9A050DBF /* GoogleAuthService.swift in Sources */,

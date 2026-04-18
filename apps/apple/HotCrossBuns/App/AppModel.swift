@@ -25,6 +25,10 @@ final class AppModel {
     private(set) var pendingMutations: [PendingMutation] = []
     var settings: AppSettings
 
+    var lastSuccessfulSyncAt: Date? {
+        syncCheckpoints.compactMap(\.lastSuccessfulSyncAt).max()
+    }
+
     init(
         authService: GoogleAuthService,
         tasksClient: GoogleTasksClient,
@@ -410,6 +414,60 @@ final class AppModel {
         if case .failed = authState {
             authState = account.map(AuthState.signedIn) ?? .signedOut
         }
+    }
+
+    func forceFullResync() async {
+        syncCheckpoints = []
+        await saveCurrentState()
+        await refreshNow()
+    }
+
+    func clearCachedGoogleDataAndRefresh() async {
+        taskLists = []
+        tasks = []
+        calendars = []
+        events = []
+        syncCheckpoints = []
+        pendingMutations = []
+        rebuildSnapshots()
+        syncState = .idle
+        await saveCurrentState()
+        await synchronizeLocalNotifications()
+
+        if account != nil {
+            await refreshNow()
+        }
+    }
+
+    func cacheFilePath() async -> String {
+        await cacheStore.cacheFilePath() ?? "In-memory cache only"
+    }
+
+    func diagnosticSummary(cachePath: String) -> String {
+        let accountLabel = account?.displayName ?? authState.title
+        let lastSync = lastSuccessfulSyncAt?.formatted(date: .abbreviated, time: .standard) ?? "Never"
+        let selectedTaskLists = settings.hasConfiguredTaskListSelection ? settings.selectedTaskListIDs.count : taskLists.count
+        let selectedCalendars = settings.hasConfiguredCalendarSelection ? settings.selectedCalendarIDs.count : calendars.filter(\.isSelected).count
+
+        return """
+        Hot Cross Buns Diagnostics
+        Account: \(accountLabel)
+        Auth state: \(authState.title)
+        Sync state: \(syncState.title)
+        Sync mode: \(settings.syncMode.title)
+        Last successful sync: \(lastSync)
+        Task lists: \(taskLists.count)
+        Selected task lists: \(selectedTaskLists)
+        Tasks: \(tasks.count)
+        Calendars: \(calendars.count)
+        Selected calendars: \(selectedCalendars)
+        Events: \(events.count)
+        Sync checkpoints: \(syncCheckpoints.count)
+        Pending writes: \(pendingMutations.count)
+        Local reminders: \(settings.enableLocalNotifications ? "enabled" : "disabled")
+        Onboarding: \(settings.hasCompletedOnboarding ? "completed" : "not completed")
+        Cache path: \(cachePath)
+        """
     }
 
     func toggleCalendar(_ calendarID: CalendarListMirror.ID) {
