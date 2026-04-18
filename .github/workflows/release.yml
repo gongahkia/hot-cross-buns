@@ -1,92 +1,18 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
-
-permissions:
-  contents: write
-  packages: write
+  workflow_dispatch:
 
 jobs:
-  # -----------------------------------------------------------------------
-  # Desktop build matrix (macOS, Linux, Windows)
-  # -----------------------------------------------------------------------
-  desktop-build:
-    name: Desktop – ${{ matrix.target }}
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: macos-arm64
-            runner: macos-latest
-          - target: linux-x64
-            runner: ubuntu-latest
-          - target: windows-x64
-            runner: windows-latest
+  apple-release-placeholder:
+    name: Apple Release Placeholder
+    runs-on: macos-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: apps/desktop/package-lock.json
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
+      - name: Explain current release status
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
-      - name: Install frontend dependencies
-        working-directory: apps/desktop
-        run: npm ci
-
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          projectPath: apps/desktop
-
-  # -----------------------------------------------------------------------
-  # Server Docker image – push to ghcr.io (Task 44)
-  # -----------------------------------------------------------------------
-  build-server:
-    name: Server Docker Image
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository }}/server
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: services/server
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          echo "The Tauri desktop and server release pipelines are deprecated."
+          echo "apps/apple now contains the SwiftUI rewrite shell."
+          echo "Add Developer ID signing, notarization, and DMG packaging after Google OAuth configuration is in place."

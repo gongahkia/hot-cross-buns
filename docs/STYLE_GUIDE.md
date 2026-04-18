@@ -1,6 +1,6 @@
 # Style Guide
 
-Code conventions for Hot Cross Buns. All rules are enforced by tooling; CI fails on violations.
+Code conventions for Hot Cross Buns.
 
 See also: [CONTRIBUTING.md](./CONTRIBUTING.md) for PR process, [ARCHITECTURE.md](./ARCHITECTURE.md) for project structure.
 
@@ -10,15 +10,15 @@ See also: [CONTRIBUTING.md](./CONTRIBUTING.md) for PR process, [ARCHITECTURE.md]
 
 | Language | Formatter | Config Location | Command |
 |---|---|---|---|
-| TypeScript / Svelte | Prettier 3.x | `.prettierrc` in `client/` | `npx prettier --write .` |
-| Rust | rustfmt | `rustfmt.toml` in `client/src-tauri/` | `cargo fmt` |
-| Go | gofmt + goimports | (built-in) | `gofmt -w . && goimports -w .` |
+| Swift | Xcode / swift-format once configured | `apps/apple/` | `swift-format` or Xcode Format |
+| TypeScript / Svelte legacy | Prettier 3.x | `apps/desktop/` | `npm run format` once configured |
+| Rust legacy | rustfmt | `apps/desktop/src-tauri/` | `cargo fmt` |
 
 ### Pre-commit Hooks
 
-- Use `husky` (configured in `client/package.json`) and a root-level pre-commit script
-- Hooks run: `prettier --check`, `cargo fmt --check`, `gofmt -l`, `tsc --noEmit`
-- CI runs identical checks; merge is blocked on failure
+- Add hooks after `apps/apple` exists.
+- Swift checks should cover formatting, build, and unit tests.
+- Legacy Tauri checks are optional while the app is deprecated.
 
 ### Prettier Config
 
@@ -56,22 +56,24 @@ use_field_init_shorthand = true
 | Rust functions / variables | snake_case | `create_task`, `db_path` |
 | Rust types / structs | PascalCase | `AppState`, `TaskUpdatePayload` |
 | Rust constants | UPPER_SNAKE_CASE | `MAX_BATCH_SIZE` |
-| Go exported functions / types | PascalCase | `CreateList`, `SyncPushPayload` |
-| Go unexported functions / vars | camelCase | `parseRRule`, `defaultUser` |
-| Go files | snake_case | `list_handler.go`, `auth_service.go` |
+| Swift types | PascalCase | `TaskSyncService`, `CalendarEventMirror` |
+| Swift values / functions | lowerCamelCase | `selectedCalendarID`, `syncNow()` |
+| Swift enum cases | lowerCamelCase | `nearRealtime` |
+| Swift files | PascalCase by primary type | `TaskSyncService.swift` |
 | SQL tables | snake_case, plural | `tasks`, `task_tags`, `sync_log` |
 | SQL columns | snake_case | `created_at`, `parent_task_id` |
 | CSS custom properties | kebab-case with `--` prefix | `--color-bg-primary`, `--radius-md` |
 | Tailwind classes | per Tailwind convention | `text-sm`, `bg-surface-0` |
-| REST endpoints | kebab-case, plural nouns | `/api/v1/tasks`, `/api/v1/magic-links` |
-| Environment variables | UPPER_SNAKE_CASE | `DATABASE_URL`, `AUTH_REQUIRED` |
+| Google resource IDs | preserve upstream casing | `taskListID`, `calendarID` |
 
 ---
 
 ## File Organization
 
-- One component per file (Svelte)
-- One struct per file when it has associated methods (Rust, Go); small related types can share a file
+- One SwiftUI screen or component per file when practical.
+- Keep Google API adapters, sync scheduling, persistence, and UI in separate modules.
+- One component per file in legacy Svelte.
+- One struct per file when it has associated methods in legacy Rust; small related types can share a file.
 - Group imports in all languages: **stdlib → external → internal**, separated by blank lines
 
 **TypeScript:**
@@ -90,19 +92,6 @@ import { lists } from '$lib/stores/lists';
 import TaskRow from './TaskRow.svelte';
 ```
 
-**Go:**
-```go
-import (
-    "context"
-    "fmt"
-
-    "github.com/labstack/echo/v4"
-    "github.com/jackc/pgx/v5/pgxpool"
-
-    "hot-cross-buns/internal/models"
-)
-```
-
 **Rust:**
 ```rust
 use std::path::PathBuf;
@@ -119,15 +108,12 @@ use crate::error::AppError;
 
 ## Error Handling
 
-### Go (Server)
+### Swift
 
-- Wrap errors with context: `fmt.Errorf("create list: %w", err)`
-- Structured logging with `slog`:
-  ```go
-  slog.Error("failed to create list", "error", err, "userID", userID)
-  ```
-- HTTP errors return the standard error envelope (see [API_CONVENTIONS.md](./API_CONVENTIONS.md))
-- Never expose internal error details to the client in production
+- Define domain-specific error types for auth, Google API, cache, and sync failures.
+- Preserve underlying errors for diagnostics, but show human-readable messages in UI.
+- Use explicit loading, empty, error, and offline states in SwiftUI.
+- Never log OAuth access tokens, refresh tokens, authorization codes, or full event/task descriptions.
 
 ### Rust (Tauri)
 
@@ -158,7 +144,7 @@ use crate::error::AppError;
 
 - Code should be self-documenting; avoid redundant comments
 - Add `WHY:` comments for non-obvious decisions (matches PRD style)
-- Go: doc comments on all exported functions — `// FunctionName does X.`
+- Swift: document public types and non-obvious sync behavior.
 - Rust: doc comments on all `pub` items — `/// Does X.`
 - TypeScript: JSDoc only on exported functions in `services/` and `stores/`
 - No `TODO` comments in committed code — track in issues instead
@@ -169,7 +155,7 @@ use crate::error::AppError;
 
 | Layer | Library | Format | Output |
 |---|---|---|---|
-| Go server | `slog` | JSON | stdout |
+| Swift app | `Logger` / `OSLog` | structured | Console.app / unified logging |
 | Rust / Tauri | `tracing` + `tracing-subscriber` | JSON (release), pretty (dev) | stdout / file |
 | TypeScript | `console.*` (dev only) | browser console | devtools |
 

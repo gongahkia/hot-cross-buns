@@ -11,100 +11,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # -----------------------------------------------------------------------
-  # Server (Go) tests
-  # -----------------------------------------------------------------------
-  server-test:
-    name: Server Tests
-    runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: hotcrossbuns_test
-          POSTGRES_USER: hotcrossbuns
-          POSTGRES_PASSWORD: testpass
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U hotcrossbuns"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
-
-    defaults:
-      run:
-        working-directory: services/server
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: services/server/go.mod
-
-      - name: Run Go tests
-        env:
-          DATABASE_URL: postgres://hotcrossbuns:testpass@localhost:5432/hotcrossbuns_test?sslmode=disable
-          INTEGRATION_TEST: "1"
-        run: go test -v -race -count=1 ./...
-
-  # -----------------------------------------------------------------------
-  # Desktop checks
-  # -----------------------------------------------------------------------
-  desktop-test:
-    name: Desktop Checks
+  repo-hygiene:
+    name: Repository Hygiene
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: apps/desktop/package-lock.json
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Linux dependencies
+      - name: Verify legacy Go sync server is removed
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            curl \
-            file \
-            libappindicator3-dev \
-            libssl-dev \
-            libwebkit2gtk-4.1-dev \
-            libxdo-dev \
-            librsvg2-dev \
-            patchelf \
-            webkit2gtk-driver \
-            wget \
-            xvfb
+          test ! -d services/server
+          test ! -f docker-compose.yml
+          ! grep -R "services/server" README.md docs
 
-      - name: Install dependencies
-        working-directory: apps/desktop
-        run: npm ci
+  apple-build:
+    name: Apple macOS Build
+    runs-on: macos-latest
 
-      - name: Install tauri-driver
-        run: cargo install tauri-driver --locked
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Run frontend type and Svelte checks
-        working-directory: apps/desktop
-        run: npm run check
+      - name: Install XcodeGen
+        run: brew install xcodegen
 
-      - name: Run frontend tests
-        working-directory: apps/desktop
-        run: npm test
+      - name: Generate Xcode project
+        working-directory: apps/apple
+        run: xcodegen generate
 
-      - name: Run Rust tests
-        working-directory: apps/desktop/src-tauri
-        run: cargo test
-
-      - name: Run desktop E2E smoke tests
-        working-directory: apps/desktop
-        run: xvfb-run -a npm run test:e2e
+      - name: Build macOS target
+        working-directory: apps/apple
+        run: xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO

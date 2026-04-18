@@ -15,10 +15,11 @@ build/
 target/
 *.rs.bk
 
-# Go
-server/cmd/server/server
-server/*.exe
-vendor/
+# Xcode
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.xcode.env.local
 
 # SQLite
 *.db
@@ -37,11 +38,7 @@ Thumbs.db
 *.swo
 *~
 
-# Docker
-docker-compose.override.yml
-
 # Test
 coverage/
 playwright-report/
 test-results/
-services/server/server

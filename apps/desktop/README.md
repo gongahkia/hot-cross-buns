@@ -1,11 +1,13 @@
 # Desktop App
 
-This is the Tauri desktop client for Hot Cross Buns.
+This is the deprecated Tauri desktop client for Hot Cross Buns.
+
+It remains in the repo as reference material for product behavior while the project moves toward a greenfield SwiftUI app backed by Google Tasks and Google Calendar.
 
 ## What Lives Here
 
 - `src/`: Svelte UI, stores, and route entrypoints
-- `src-tauri/`: Rust command handlers, SQLite setup, sync client, and app bootstrap
+- `src-tauri/`: Rust command handlers, SQLite setup, legacy sync client, and app bootstrap
 - `tests/`: frontend test scaffolding
 
 ## Commands
@@ -38,6 +40,6 @@ cargo test
 
 ## Notes
 
-- The desktop app is designed to be useful without the sync server.
-- Local data is stored in SQLite through the Tauri layer.
-- Sync settings are persisted locally and reused for manual sync and auto-sync while the app is open.
+- This app is deprecated and should not be used as the foundation for the Apple-native rebuild.
+- The old Go sync server has been removed from the repo.
+- The local SQLite and sync code are useful as behavior references, not as the new canonical schema.

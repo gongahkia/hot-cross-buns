@@ -1,118 +1,119 @@
 # Architecture
 
-Hot Cross Buns is intentionally split into two products with different responsibilities:
+Hot Cross Buns is moving to an Apple-native Google Tasks and Google Calendar client.
 
-- `apps/desktop` is the primary product: a local-first desktop task manager.
-- `services/server` is supporting infrastructure: a self-hosted sync API for users who want multiple devices.
+The old architecture was a Tauri desktop app plus an optional Go/PostgreSQL sync server. That server has been removed. The remaining Tauri app is legacy reference material, not the target product.
 
-The architecture is designed so the desktop app remains useful without the server.
-
-## Monorepo Structure
+## Target Architecture
 
 ```text
-hot-cross-buns/
-  apps/desktop/
-    src/                  Svelte UI, stores, and route entrypoints
-    src-tauri/src/
-      commands/           Tauri command surface for list/task/tag/sync/data operations
-      models/             Rust-side DTOs serialized to the frontend
-      services/           Recurrence, maintenance, reminders, undo support
-      sync/               Sync client, change tracker, worker scaffolding
-      db.rs               SQLite schema and connection setup
-      lib.rs              Tauri bootstrap and command registration
-  services/server/
-    cmd/server/           Real server entrypoint and startup assembly
-    internal/handlers/    Echo handlers for auth, lists, tasks, tags, sync
-    internal/repository/  PostgreSQL data access
-    internal/services/    Auth and sync domain logic
-    migrations/           PostgreSQL schema migrations
+apps/apple SwiftUI app
+  -> GoogleAuthService
+  -> TaskSyncService      -> Google Tasks API
+  -> CalendarSyncService  -> Google Calendar API
+  -> LocalCacheStore      -> local SQLite or SwiftData cache
+  -> SyncScheduler        -> foreground polling, background refresh, manual refresh
 ```
-
-## Desktop Runtime
-
-High-level flow:
-
-```text
-Svelte UI
-  -> store actions
-  -> Tauri invoke commands
-  -> Rust command handlers
-  -> SQLite
-```
-
-Key properties:
-
-- The desktop database is SQLite with WAL mode enabled.
-- Startup bootstraps the local model by ensuring an Inbox exists, loading lists, and hydrating tags.
-- Task views are derived from persisted local data, not transient in-memory placeholders.
-- Sync configuration is also persisted locally in SQLite through a singleton `sync_settings` row.
-
-Important desktop tables:
-
-- `lists`
-- `tasks`
-- `tags`
-- `task_tags`
-- `sync_meta`
-- `sync_settings`
-
-The `sync_meta` table records field-level change timestamps for sync. The `sync_settings` table stores the saved server URL, auth token, device ID, auto-sync preference, and last successful sync time.
-
-## Server Runtime
-
-The Go server is a real API process, not a passive helper:
-
-```text
-Echo server
-  -> middleware
-  -> /api/v1 route group
-  -> auth/list/task/tag/sync handlers
-  -> repositories/services
-  -> PostgreSQL
-```
-
-Key properties:
-
-- `DATABASE_URL` is required at boot.
-- Migrations run before the server starts accepting requests.
-- The live startup path now registers the same `/api/v1` handlers the integration tests exercise.
-- `/health` is always available.
-- In local-first mode (`AUTH_REQUIRED=false`), the middleware resolves a default local user so the API can still serve a single-user desktop client without login.
-
-## Sync Model
-
-Current sync behavior is deliberately narrow:
-
-- Desktop remains authoritative for day-to-day interaction.
-- Manual sync is triggered from the desktop settings panel.
-- Auto-sync currently runs from a frontend timer while the desktop app is open.
-- Conflict handling is field-level last-write-wins based on timestamps.
-
-Sync cycle:
-
-```text
-collect local changes
-  -> push to /api/v1/sync/push
-  -> pull from /api/v1/sync/pull
-  -> apply remote changes locally
-  -> update local sync timestamps
-```
-
-This is good enough for a solo-user, self-hosted sync story. It is not yet positioned as a collaboration platform.
 
 ## Product Boundaries
 
-This repo is strongest when understood as:
+The target product is strongest when understood as:
 
-- desktop-first
-- local-first
-- single-user
-- optional self-hosted sync
+- Apple-first: iOS, iPadOS, and macOS are the supported platforms.
+- Google-native: Google Tasks and Google Calendar are the source of truth.
+- Offline-capable: local data is a cache, not a separate canonical database.
+- Single-user first: personal/internal use before public distribution.
+- Serverless by default: no custom sync backend unless webhook relay becomes necessary.
 
 It is not currently optimized for:
 
-- multi-user collaboration
-- mobile parity
-- a wide “all productivity software” scope
+- Windows, Linux, or Android parity.
+- Collaboration beyond what Google already supports.
+- App-specific task features that cannot be represented in Google Tasks or Calendar.
+- Google Drive file management.
 
-Those are separate product decisions, not implicit outcomes of the current architecture.
+## Current Apple App Structure
+
+```text
+apps/apple/
+  project.yml                         XcodeGen project spec
+  HotCrossBuns.xcodeproj/             Generated project for Xcode users
+  HotCrossBuns/App/                   SwiftUI app entrypoint, tab shell, routing, root model
+  HotCrossBuns/Features/              Today, Tasks, Calendar, Settings screens
+  HotCrossBuns/Models/                Google mirror models, sync state, snapshots
+  HotCrossBuns/Services/Auth/         Google auth boundary
+  HotCrossBuns/Services/Google/       Google Tasks and Calendar REST clients
+  HotCrossBuns/Services/Persistence/  Local cache boundary
+  HotCrossBuns/Services/Sync/         Sync scheduler boundary
+```
+
+The current implementation intentionally uses mock cached data and compile-time-safe Google client skeletons. Real Google Sign-In requires OAuth client IDs, URL schemes, and secure token storage wiring before API calls can be made.
+
+## Source Of Truth
+
+Use Google-native source of truth for the first Apple-native version.
+
+The local cache should store:
+
+- Google account identity metadata.
+- Task lists, tasks, calendar lists, and events mirrored from Google.
+- Sync checkpoints such as Calendar `nextSyncToken` values and Tasks `updatedMin` watermarks.
+- Local UI preferences and sync settings.
+- Pending local mutations when offline.
+
+The local cache should not become an independent sync model. If data cannot be represented in Google Tasks or Calendar, treat it as local-only until there is a deliberate product reason to add another cloud storage layer.
+
+## Google Tasks Mapping
+
+Google Tasks should back task-oriented data:
+
+- task lists
+- task title
+- notes/details
+- due date
+- completion status
+- parent/subtask relationships
+- deleted/hidden/completed filtering
+
+Important constraint: Google Tasks due dates are date-based through the public API. Time-specific scheduling belongs in Google Calendar, not Google Tasks.
+
+## Google Calendar Mapping
+
+Google Calendar should back scheduled data:
+
+- events
+- time blocks
+- recurring events
+- reminders exposed by Calendar
+- calendar selection and visibility
+- app metadata for calendar events via private extended properties when useful
+
+Calendar supports incremental sync tokens, so the app should avoid full calendar reloads after the initial sync.
+
+## Sync Model
+
+Baseline sync should be configurable:
+
+- Manual: refresh only when the user requests it.
+- Balanced: refresh on app launch, foreground activation, pull-to-refresh, and periodic foreground timers.
+- Near real-time: shorter foreground polling intervals plus background refresh where Apple permits it.
+
+True push is not fully serverless:
+
+- Google Calendar push notifications require an HTTPS webhook receiver.
+- Google Tasks does not expose the same Calendar-style webhook flow in the public Tasks API documentation.
+- iOS apps cannot receive Google webhook POSTs directly, so a future push path would need a small webhook relay that sends APNs notifications to devices.
+
+That relay should be considered notification infrastructure only, not a resurrection of the old data sync server.
+
+## Legacy Tauri App
+
+`apps/desktop` remains useful as reference for product interactions:
+
+- task list layout
+- planning views
+- filtering behavior
+- command palette ideas
+- import/export ideas
+
+Do not preserve its Rust/SQLite schema as the new canonical model. It was designed for local-first Tauri sync, not Google-native data ownership.

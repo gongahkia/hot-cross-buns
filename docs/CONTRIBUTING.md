@@ -1,28 +1,46 @@
 # Contributing
 
-This repo has two main execution surfaces:
+This repo is in a transition state.
 
-- `apps/desktop` for the Tauri desktop client
-- `services/server` for the Go sync server
+The old Go/PostgreSQL sync server has been removed. The existing Tauri app is deprecated and remains only as reference material while the Apple-native Google Tasks/Calendar app is designed.
 
-Keep changes scoped and keep the history reviewable. For CRUD-heavy work, prefer atomic commits by subsystem so rollback is straightforward.
+## Current Execution Surfaces
+
+- `apps/apple`: primary SwiftUI rewrite for iOS, iPadOS, and macOS.
+- `apps/desktop`: deprecated Tauri/Svelte/Rust desktop app retained for reference.
+- `docs`: active product and architecture direction.
+- `schema`: historical SQLite schema from the deprecated app.
 
 ## Local Setup
 
-Prerequisites:
+Apple app prerequisites:
+
+- Xcode 15+ or newer
+- XcodeGen 2.45+
+
+Apple app setup:
+
+```bash
+cd apps/apple
+xcodegen generate
+open HotCrossBuns.xcodeproj
+```
+
+Verified Apple check:
+
+```bash
+cd apps/apple
+xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO
+```
+
+iOS simulator/device builds require the matching iOS platform components installed in Xcode.
+
+Legacy desktop prerequisites:
 
 - Node.js 20+
 - Rust stable
-- Go 1.22+
-- Docker
 
-Linux contributors also need Tauri system packages:
-
-```bash
-sudo apt install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-```
-
-Desktop setup:
+Legacy desktop setup:
 
 ```bash
 cd apps/desktop
@@ -30,18 +48,7 @@ npm ci
 npm run tauri dev
 ```
 
-Server setup:
-
-```bash
-docker compose up -d db
-
-cd services/server
-DATABASE_URL=postgres://hotcrossbuns:changeme@localhost:5432/hotcrossbuns?sslmode=disable go run ./cmd/server
-```
-
-## Required Checks Before A PR
-
-Desktop:
+Legacy checks:
 
 ```bash
 cd apps/desktop
@@ -52,14 +59,19 @@ cd src-tauri
 cargo test
 ```
 
-Server:
+Known status: the legacy desktop checks were failing before the Apple-native pivot. Do not spend time stabilizing deprecated Tauri code unless the change directly supports extracting product behavior for the Swift rebuild.
 
-```bash
-cd services/server
-go test ./...
-```
+## Future Apple App Standards
 
-If you change CI, docs, or commands, make sure those files still match the commands above.
+When `apps/apple` is created:
+
+- Prefer SwiftUI-native navigation and state ownership.
+- Keep views small and focused.
+- Keep Google API adapters separate from UI code.
+- Store OAuth tokens in Keychain-backed storage.
+- Treat Google Tasks and Google Calendar as source of truth.
+- Keep local persistence as cache, settings, sync checkpoints, and pending offline mutations.
+- Avoid adding a backend unless implementing webhook-to-APNs relay infrastructure.
 
 ## Git And Commits
 
@@ -71,40 +83,27 @@ type(scope): summary
 
 Examples:
 
-- `feat(desktop): harden task CRUD and view hydration`
-- `fix(server): register api routes and fail fast on invalid boot`
-- `chore(repo): align ci and docs with current workflow`
+- `docs(repo): document apple-native google architecture`
+- `chore(repo): remove legacy go sync server`
+- `feat(apple): add google sign-in shell`
 
-Recommended scopes in this repo:
+Recommended scopes:
 
+- `apple`
 - `desktop`
-- `server`
+- `docs`
 - `repo`
 - `sync`
 - `ci`
-- `docs`
 
 ## Review Standard
 
 Changes should hold up under technical questioning. That means:
 
-- the docs describe what the code actually does
-- commands in README/CONTRIBUTING/CI are runnable
-- offline-first behavior stays intact for desktop changes
-- server changes preserve the real `/api/v1` contract
-- tests cover boot paths or handler paths when behavior changes materially
+- docs describe what the code actually does
+- commands in README/CONTRIBUTING/CI are runnable or explicitly marked legacy
+- Google API scopes are justified and minimal
+- local data does not become an accidental second source of truth
+- sync behavior is explicit about polling, background limitations, and conflict handling
 
-## Environment Variables
-
-The root [`.env.example`](./.env.example) is the source of truth for server-side env vars.
-
-Important ones:
-
-- `DATABASE_URL`: required for running `services/server`
-- `PORT`: optional server port override
-- `AUTH_REQUIRED`: toggles local-first mode vs authenticated mode
-- `MAGIC_LINK_SECRET`: needed for JWT-backed auth
-- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`: needed only for magic-link email delivery
-- `CORS_ORIGINS`: allowed server origins
-
-Never commit real secrets.
+Never commit real secrets, OAuth client secrets, signing credentials, provisioning profiles, or notarization credentials.

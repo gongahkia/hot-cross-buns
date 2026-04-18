@@ -1,47 +1,59 @@
 # Hot Cross Buns
 
-Hot Cross Buns is a desktop-first, local-first task manager. The desktop app owns the primary experience: lists, tasks, tags, planning views, and persistence all work against a local SQLite database. The Go server exists to support optional self-hosted sync between devices.
+Hot Cross Buns is being redirected from a Tauri local-first desktop task manager into an Apple-native personal planner backed by Google Tasks and Google Calendar.
 
-## Current Scope
+## Current Status
 
-- Offline-first desktop app built with Tauri + Svelte
-- Local SQLite persistence for lists, tasks, tags, recurrence, and sync metadata
-- Planning views for list, today, week, and calendar workflows
-- Optional self-hosted sync server built with Echo + PostgreSQL
-- Persisted sync settings on desktop (`serverUrl`, `authToken`, `deviceId`, `autoSyncEnabled`, `lastSyncedAt`)
+- The Go/PostgreSQL self-hosted sync server has been removed.
+- The Tauri desktop app in `apps/desktop` is deprecated and kept only as a legacy reference while the Apple app is designed.
+- The primary app now starts in `apps/apple` as a greenfield SwiftUI app for iOS, iPadOS, and macOS.
+- Starting fresh is acceptable; this repo no longer assumes migration from the existing local SQLite database.
+- Google Drive is intentionally out of scope for the first Apple-native version.
 
-Current non-goals for this repo:
+## Target Product Direction
 
-- Collaboration and shared workspaces
-- Mobile clients
-- Broad adjacent features like habits, docs, or notes systems
+The new product should be an Apple-first wrapper around Google Tasks and Google Calendar:
+
+- Google Tasks API is the canonical store for task lists, tasks, subtasks, notes, due dates, and completion state.
+- Google Calendar API is the canonical store for calendar events, time-blocking, reminders, and scheduled work.
+- Local storage exists as a cache for offline reads, fast launch, search, sync checkpoints, and conflict handling.
+- No custom sync server should exist by default. Google is the sync backend.
+- Real-time-ish sync should be configurable, with polling as the baseline and webhook/APNs relay treated as an optional later enhancement.
+
+See [APPLE_GOOGLE_REFACTOR_PLAN.md](./docs/APPLE_GOOGLE_REFACTOR_PLAN.md) for the current refactor plan and platform tradeoffs.
 
 ## Repo Layout
 
 ```text
 hot-cross-buns/
-  apps/desktop/      Tauri desktop app (Svelte frontend + Rust commands)
-  services/server/   Go sync server
-  schema/            Reference SQL schema files
-  docker-compose.yml Local PostgreSQL + server stack
+  apps/apple/     Primary SwiftUI rewrite for iOS, iPadOS, and macOS
+  apps/desktop/   Deprecated Tauri desktop app retained as reference material
+  docs/           Current architecture, refactor plan, design, and contribution notes
+  schema/         Historical SQLite schema from the deprecated local-first app
 ```
 
-## Prerequisites
+## Apple App
 
-- Node.js 20+
-- Rust stable
-- Go 1.22+
-- Docker
-
-Linux desktop builds also need the usual Tauri system packages:
+Generate and open the Xcode project:
 
 ```bash
-sudo apt install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+cd apps/apple
+xcodegen generate
+open HotCrossBuns.xcodeproj
 ```
 
-## Run The Desktop App
+Verified macOS build command:
 
-The desktop app does not need the sync server to be useful.
+```bash
+cd apps/apple
+xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO
+```
+
+iOS builds require the matching iOS platform components installed in Xcode.
+
+## Legacy Desktop App
+
+The existing desktop app can still be inspected or run while it remains in the repo, but it is not the target architecture.
 
 ```bash
 cd apps/desktop
@@ -49,7 +61,7 @@ npm ci
 npm run tauri dev
 ```
 
-Useful desktop verification commands:
+Useful legacy verification commands:
 
 ```bash
 cd apps/desktop
@@ -60,53 +72,21 @@ cd src-tauri
 cargo test
 ```
 
-## Run The Sync Server
+Known status: the legacy desktop checks were already failing before this pivot and should not block the Apple-native rebuild.
 
-The server now requires `DATABASE_URL` at boot.
+## Future Apple App
 
-```bash
-docker compose up -d db
+The intended implementation path is:
 
-cd services/server
-DATABASE_URL=postgres://hotcrossbuns:changeme@localhost:5432/hotcrossbuns?sslmode=disable go run ./cmd/server
-```
-
-Server verification:
-
-```bash
-cd services/server
-go test ./...
-```
-
-If you prefer the full stack through Docker:
-
-```bash
-docker compose up --build
-```
-
-## Environment
-
-The root [`.env.example`](./.env.example) contains the server-side environment variables used by Docker and local server runs.
-
-Important variables:
-
-- `DATABASE_URL`: required for `services/server`
-- `PORT`: HTTP port for the sync server
-- `AUTH_REQUIRED`: when `false`, the server runs in local-first single-user mode
-- `MAGIC_LINK_SECRET`: required if you want JWT-backed authenticated sessions
-- `SMTP_*`: required only when you actually want magic-link email delivery
-
-## Product Notes
-
-- The desktop app always reads and writes locally first.
-- Sync is optional and configured from the desktop settings panel.
-- Manual sync uses the saved sync settings.
-- Auto-sync currently runs from a frontend timer while the desktop app is open.
-- The server exposes REST endpoints under `/api/v1` and a health check at `/health`.
+1. Continue building `apps/apple` as the native SwiftUI app.
+2. Add Google Sign-In and request Google Tasks/Calendar scopes incrementally.
+3. Build a local cache and sync engine around Google Tasks `updatedMin` polling and Google Calendar incremental sync tokens.
+4. Ship macOS builds as signed and notarized Developer ID DMGs for website distribution.
+5. Use TestFlight/App Store or internal device distribution only if iOS distribution expands beyond personal/internal testing.
 
 ## Related Docs
 
-- [ARCHITECTURE.md](./ARCHITECTURE.md)
-- [CONTRIBUTING.md](./CONTRIBUTING.md)
-- [API_CONVENTIONS.md](./API_CONVENTIONS.md)
+- [ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+- [APPLE_GOOGLE_REFACTOR_PLAN.md](./docs/APPLE_GOOGLE_REFACTOR_PLAN.md)
+- [CONTRIBUTING.md](./docs/CONTRIBUTING.md)
 - [apps/desktop/README.md](./apps/desktop/README.md)
