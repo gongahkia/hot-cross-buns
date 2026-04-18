@@ -299,6 +299,9 @@ struct EventDetailView: View {
                         }
                         DetailField(label: "Starts", value: formattedStart(for: event))
                         DetailField(label: "Ends", value: formattedEnd(for: event))
+                        if event.location.isEmpty == false {
+                            DetailField(label: "Location", value: event.location)
+                        }
                         if event.reminderMinutes.isEmpty == false {
                             DetailField(label: "Reminders", value: event.reminderMinutes.map(reminderLabel).joined(separator: ", "))
                         }
@@ -445,6 +448,7 @@ struct AddEventSheet: View {
     @State private var selectedCalendarID: CalendarListMirror.ID?
     @State private var summary = ""
     @State private var details = ""
+    @State private var location = ""
     @State private var startDate = Date()
     @State private var endDate = Date().addingTimeInterval(3600)
     @State private var isAllDay = false
@@ -468,6 +472,7 @@ struct AddEventSheet: View {
                         TextField("Details", text: $details, axis: .vertical)
                             .lineLimit(3...6)
                             .enableWritingTools()
+                        TextField("Location", text: $location)
                     }
 
                     Section("Calendar") {
@@ -557,7 +562,8 @@ struct AddEventSheet: View {
             endDate: normalizedEndDate,
             isAllDay: isAllDay,
             reminderMinutes: reminderOption.minutes,
-            calendarID: selectedCalendarID
+            calendarID: selectedCalendarID,
+            location: location
         )
 
         if didCreate {
@@ -580,6 +586,7 @@ struct EditEventSheet: View {
     let event: CalendarEventMirror
     @State private var summary: String
     @State private var details: String
+    @State private var location: String
     @State private var startDate: Date
     @State private var endDate: Date
     @State private var isAllDay: Bool
@@ -591,6 +598,7 @@ struct EditEventSheet: View {
         self.event = event
         _summary = State(initialValue: event.summary)
         _details = State(initialValue: event.details)
+        _location = State(initialValue: event.location)
         _startDate = State(initialValue: event.startDate)
         _endDate = State(initialValue: event.isAllDay ? Calendar.current.date(byAdding: .day, value: -1, to: event.endDate) ?? event.endDate : event.endDate)
         _isAllDay = State(initialValue: event.isAllDay)
@@ -606,6 +614,7 @@ struct EditEventSheet: View {
                     TextField("Details", text: $details, axis: .vertical)
                         .lineLimit(3...6)
                         .enableWritingTools()
+                    TextField("Location", text: $location)
                 }
 
                 Section("Time") {
@@ -688,7 +697,8 @@ struct EditEventSheet: View {
             endDate: normalizedEndDate,
             isAllDay: isAllDay,
             reminderMinutes: reminderOption.minutes,
-            calendarID: selectedCalendarID
+            calendarID: selectedCalendarID,
+            location: location
         )
 
         if didSave {

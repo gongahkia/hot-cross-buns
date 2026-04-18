@@ -68,12 +68,14 @@ struct GoogleCalendarClient: Sendable {
         startDate: Date,
         endDate: Date,
         isAllDay: Bool,
-        reminderMinutes: Int?
+        reminderMinutes: Int?,
+        location: String = ""
     ) async throws -> CalendarEventMirror {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
         let requestBody = GoogleEventMutationDTO(
             summary: summary,
             description: details.isEmpty ? nil : details,
+            location: location.isEmpty ? nil : location,
             start: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.string(from: startDate) : nil, dateTime: isAllDay ? nil : startDate),
             end: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.exclusiveEndString(from: endDate) : nil, dateTime: isAllDay ? nil : endDate),
             reminders: GoogleEventMutationRemindersDTO.custom(minutes: reminderMinutes)
@@ -95,6 +97,7 @@ struct GoogleCalendarClient: Sendable {
         endDate: Date,
         isAllDay: Bool,
         reminderMinutes: Int?,
+        location: String = "",
         ifMatch: String? = nil
     ) async throws -> CalendarEventMirror {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
@@ -102,6 +105,7 @@ struct GoogleCalendarClient: Sendable {
         let requestBody = GoogleEventMutationDTO(
             summary: summary,
             description: details,
+            location: location,
             start: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.string(from: startDate) : nil, dateTime: isAllDay ? nil : startDate),
             end: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.exclusiveEndString(from: endDate) : nil, dateTime: isAllDay ? nil : endDate),
             reminders: GoogleEventMutationRemindersDTO.custom(minutes: reminderMinutes)
@@ -173,6 +177,7 @@ private struct GoogleEventDTO: Decodable, Sendable {
     var id: String
     var summary: String?
     var description: String?
+    var location: String?
     var status: String?
     var start: GoogleEventDateDTO?
     var end: GoogleEventDateDTO?
@@ -195,7 +200,8 @@ private struct GoogleEventDTO: Decodable, Sendable {
             recurrence: recurrence ?? [],
             etag: etag,
             updatedAt: updated,
-            reminderMinutes: reminders?.customPopupMinutes ?? []
+            reminderMinutes: reminders?.customPopupMinutes ?? [],
+            location: location ?? ""
         )
     }
 }
@@ -233,6 +239,7 @@ private struct GoogleEventReminderDTO: Decodable, Sendable {
 private struct GoogleEventMutationDTO: Encodable, Sendable {
     var summary: String
     var description: String?
+    var location: String?
     var start: GoogleEventMutationDateDTO
     var end: GoogleEventMutationDateDTO
     var reminders: GoogleEventMutationRemindersDTO?

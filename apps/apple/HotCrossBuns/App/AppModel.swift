@@ -470,7 +470,8 @@ final class AppModel {
         endDate: Date,
         isAllDay: Bool,
         reminderMinutes: Int?,
-        calendarID: CalendarListMirror.ID
+        calendarID: CalendarListMirror.ID,
+        location: String = ""
     ) async -> Bool {
         guard requireAccount(mutationDescription: "creating events") else {
             return false
@@ -484,6 +485,7 @@ final class AppModel {
         let trimmedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedDetails = details.trimmingCharacters(in: .whitespacesAndNewlines)
         let localID = OptimisticID.generate()
+        let trimmedLocation = location.trimmingCharacters(in: .whitespacesAndNewlines)
         let optimisticEvent = CalendarEventMirror(
             id: localID,
             calendarID: calendarID,
@@ -496,7 +498,8 @@ final class AppModel {
             recurrence: [],
             etag: nil,
             updatedAt: Date(),
-            reminderMinutes: reminderMinutes.map { [$0] } ?? []
+            reminderMinutes: reminderMinutes.map { [$0] } ?? [],
+            location: trimmedLocation
         )
         upsert(optimisticEvent)
 
@@ -509,7 +512,8 @@ final class AppModel {
                 startDate: startDate,
                 endDate: endDate,
                 isAllDay: isAllDay,
-                reminderMinutes: reminderMinutes
+                reminderMinutes: reminderMinutes,
+                location: trimmedLocation
             )
             let mutation = try PendingMutation.eventCreate(payload: payload)
             pendingMutations.append(mutation)
@@ -532,7 +536,8 @@ final class AppModel {
         endDate: Date,
         isAllDay: Bool,
         reminderMinutes: Int?,
-        calendarID: CalendarListMirror.ID
+        calendarID: CalendarListMirror.ID,
+        location: String = ""
     ) async -> Bool {
         guard requireAccount(mutationDescription: "updating events") else {
             return false
@@ -571,6 +576,7 @@ final class AppModel {
                 endDate: endDate,
                 isAllDay: isAllDay,
                 reminderMinutes: reminderMinutes,
+                location: location.trimmingCharacters(in: .whitespacesAndNewlines),
                 ifMatch: eventToUpdate.etag
             )
             if calendarID != event.calendarID {
@@ -748,7 +754,8 @@ final class AppModel {
                 startDate: payload.startDate,
                 endDate: payload.endDate,
                 isAllDay: payload.isAllDay,
-                reminderMinutes: payload.reminderMinutes
+                reminderMinutes: payload.reminderMinutes,
+                location: payload.location
             )
             removeEvent(id: payload.localID)
             upsert(created)

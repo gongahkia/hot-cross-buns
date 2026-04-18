@@ -25,6 +25,9 @@ enum EventMarkdownExporter {
         if let calendarTitle, calendarTitle.isEmpty == false {
             lines.append("- Calendar: \(calendarTitle)")
         }
+        if event.location.isEmpty == false {
+            lines.append("- Location: \(event.location)")
+        }
         if event.isAllDay {
             lines.append("- When: \(event.startDate.formatted(.dateTime.weekday(.wide).month(.wide).day().year())) (all day)")
         } else {
@@ -65,6 +68,10 @@ enum EventICSExporter {
 
         if event.details.isEmpty == false {
             lines.append("DESCRIPTION:\(escape(event.details))")
+        }
+
+        if event.location.isEmpty == false {
+            lines.append("LOCATION:\(escape(event.location))")
         }
 
         for minutes in event.reminderMinutes {
