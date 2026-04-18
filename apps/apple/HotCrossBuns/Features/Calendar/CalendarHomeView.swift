@@ -462,6 +462,7 @@ struct AddEventSheet: View {
     @State private var endDate = Date().addingTimeInterval(3600)
     @State private var isAllDay = false
     @State private var reminderOption: EventReminderOption = .fifteenMinutes
+    @State private var recurrenceRule: RecurrenceRule?
     @State private var isSaving = false
 
     var body: some View {
@@ -501,6 +502,10 @@ struct AddEventSheet: View {
                                 .font(.footnote)
                                 .foregroundStyle(.red)
                         }
+                    }
+
+                    Section("Repeat") {
+                        RecurrenceEditor(rule: $recurrenceRule)
                     }
 
                     Section("Reminder") {
@@ -572,7 +577,8 @@ struct AddEventSheet: View {
             isAllDay: isAllDay,
             reminderMinutes: reminderOption.minutes,
             calendarID: selectedCalendarID,
-            location: location
+            location: location,
+            recurrence: recurrenceRule.map { [$0.rruleString()] } ?? []
         )
 
         if didCreate {
@@ -601,6 +607,7 @@ struct EditEventSheet: View {
     @State private var isAllDay: Bool
     @State private var reminderOption: EventReminderOption
     @State private var selectedCalendarID: CalendarListMirror.ID?
+    @State private var recurrenceRule: RecurrenceRule?
     @State private var isSaving = false
 
     init(event: CalendarEventMirror) {
@@ -613,6 +620,7 @@ struct EditEventSheet: View {
         _isAllDay = State(initialValue: event.isAllDay)
         _reminderOption = State(initialValue: EventReminderOption(minutes: event.reminderMinutes.first) ?? .none)
         _selectedCalendarID = State(initialValue: event.calendarID)
+        _recurrenceRule = State(initialValue: event.recurrence.lazy.compactMap(RecurrenceRule.parse).first)
     }
 
     var body: some View {
@@ -635,6 +643,10 @@ struct EditEventSheet: View {
                             .font(.footnote)
                             .foregroundStyle(.red)
                     }
+                }
+
+                Section("Repeat") {
+                    RecurrenceEditor(rule: $recurrenceRule)
                 }
 
                 Section("Reminder") {
@@ -707,7 +719,8 @@ struct EditEventSheet: View {
             isAllDay: isAllDay,
             reminderMinutes: reminderOption.minutes,
             calendarID: selectedCalendarID,
-            location: location
+            location: location,
+            recurrence: recurrenceRule.map { [$0.rruleString()] } ?? []
         )
 
         if didSave {

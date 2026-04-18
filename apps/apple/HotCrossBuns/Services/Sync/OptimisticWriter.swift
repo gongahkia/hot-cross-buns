@@ -31,6 +31,7 @@ struct PendingEventCreatePayload: Codable, Sendable, Equatable {
     var isAllDay: Bool
     var reminderMinutes: Int?
     var location: String = ""
+    var recurrence: [String] = []
 }
 
 enum PendingMutationEncoder {

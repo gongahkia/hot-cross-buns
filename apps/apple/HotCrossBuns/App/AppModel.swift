@@ -539,7 +539,8 @@ final class AppModel {
         isAllDay: Bool,
         reminderMinutes: Int?,
         calendarID: CalendarListMirror.ID,
-        location: String = ""
+        location: String = "",
+        recurrence: [String] = []
     ) async -> Bool {
         guard requireAccount(mutationDescription: "creating events") else {
             return false
@@ -563,7 +564,7 @@ final class AppModel {
             endDate: endDate,
             isAllDay: isAllDay,
             status: .confirmed,
-            recurrence: [],
+            recurrence: recurrence,
             etag: nil,
             updatedAt: Date(),
             reminderMinutes: reminderMinutes.map { [$0] } ?? [],
@@ -581,7 +582,8 @@ final class AppModel {
                 endDate: endDate,
                 isAllDay: isAllDay,
                 reminderMinutes: reminderMinutes,
-                location: trimmedLocation
+                location: trimmedLocation,
+                recurrence: recurrence
             )
             let mutation = try PendingMutation.eventCreate(payload: payload)
             pendingMutations.append(mutation)
@@ -605,7 +607,8 @@ final class AppModel {
         isAllDay: Bool,
         reminderMinutes: Int?,
         calendarID: CalendarListMirror.ID,
-        location: String = ""
+        location: String = "",
+        recurrence: [String]? = nil
     ) async -> Bool {
         guard requireAccount(mutationDescription: "updating events") else {
             return false
@@ -645,6 +648,7 @@ final class AppModel {
                 isAllDay: isAllDay,
                 reminderMinutes: reminderMinutes,
                 location: location.trimmingCharacters(in: .whitespacesAndNewlines),
+                recurrence: recurrence ?? eventToUpdate.recurrence,
                 ifMatch: eventToUpdate.etag
             )
             if calendarID != event.calendarID {
@@ -823,7 +827,8 @@ final class AppModel {
                 endDate: payload.endDate,
                 isAllDay: payload.isAllDay,
                 reminderMinutes: payload.reminderMinutes,
-                location: payload.location
+                location: payload.location,
+                recurrence: payload.recurrence
             )
             removeEvent(id: payload.localID)
             upsert(created)
