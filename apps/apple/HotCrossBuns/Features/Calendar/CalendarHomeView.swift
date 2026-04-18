@@ -375,6 +375,7 @@ struct EditEventSheet: View {
     @State private var endDate: Date
     @State private var isAllDay: Bool
     @State private var reminderOption: EventReminderOption
+    @State private var selectedCalendarID: CalendarListMirror.ID?
     @State private var isSaving = false
 
     init(event: CalendarEventMirror) {
@@ -385,6 +386,7 @@ struct EditEventSheet: View {
         _endDate = State(initialValue: event.isAllDay ? Calendar.current.date(byAdding: .day, value: -1, to: event.endDate) ?? event.endDate : event.endDate)
         _isAllDay = State(initialValue: event.isAllDay)
         _reminderOption = State(initialValue: EventReminderOption(minutes: event.reminderMinutes.first) ?? .none)
+        _selectedCalendarID = State(initialValue: event.calendarID)
     }
 
     var body: some View {
@@ -416,7 +418,11 @@ struct EditEventSheet: View {
                 }
 
                 Section("Calendar") {
-                    DetailField(label: "Calendar ID", value: event.calendarID)
+                    Picker("Calendar", selection: $selectedCalendarID) {
+                        ForEach(model.calendars) { calendar in
+                            Text(calendar.summary).tag(Optional(calendar.id))
+                        }
+                    }
                 }
             }
             .navigationTitle("Edit Event")
@@ -444,6 +450,7 @@ struct EditEventSheet: View {
     private var canSave: Bool {
         summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             && isValidDateRange
+            && selectedCalendarID != nil
             && model.account != nil
     }
 
@@ -456,6 +463,10 @@ struct EditEventSheet: View {
     }
 
     private func saveEvent() async {
+        guard let selectedCalendarID else {
+            return
+        }
+
         isSaving = true
         defer { isSaving = false }
 
@@ -466,7 +477,8 @@ struct EditEventSheet: View {
             startDate: normalizedStartDate,
             endDate: normalizedEndDate,
             isAllDay: isAllDay,
-            reminderMinutes: reminderOption.minutes
+            reminderMinutes: reminderOption.minutes,
+            calendarID: selectedCalendarID
         )
 
         if didSave {

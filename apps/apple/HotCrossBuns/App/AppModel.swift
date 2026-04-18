@@ -394,7 +394,8 @@ final class AppModel {
         startDate: Date,
         endDate: Date,
         isAllDay: Bool,
-        reminderMinutes: Int?
+        reminderMinutes: Int?,
+        calendarID: CalendarListMirror.ID
     ) async -> Bool {
         guard account != nil else {
             syncState = .failed(message: "Connect Google before updating events.")
@@ -414,9 +415,20 @@ final class AppModel {
 
         syncState = .syncing(startedAt: Date())
         do {
+            let eventToUpdate: CalendarEventMirror
+            if calendarID != event.calendarID {
+                eventToUpdate = try await calendarClient.moveEvent(
+                    calendarID: event.calendarID,
+                    eventID: event.id,
+                    destinationCalendarID: calendarID
+                )
+            } else {
+                eventToUpdate = event
+            }
+
             let updatedEvent = try await calendarClient.updateEvent(
-                calendarID: event.calendarID,
-                eventID: event.id,
+                calendarID: eventToUpdate.calendarID,
+                eventID: eventToUpdate.id,
                 summary: trimmedSummary,
                 details: details.trimmingCharacters(in: .whitespacesAndNewlines),
                 startDate: startDate,
@@ -424,6 +436,9 @@ final class AppModel {
                 isAllDay: isAllDay,
                 reminderMinutes: reminderMinutes
             )
+            if calendarID != event.calendarID {
+                removeEvent(id: event.id)
+            }
             upsert(updatedEvent)
             syncState = .synced(at: Date())
             await saveCurrentState()
