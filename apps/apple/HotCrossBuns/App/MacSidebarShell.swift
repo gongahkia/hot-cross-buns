@@ -7,6 +7,7 @@ struct MacSidebarShell: View {
     @SceneStorage("sidebarSelection") private var storedSelection: String = SidebarItem.today.rawValue
     @SceneStorage("sidebarCollapsed") private var isSidebarCollapsed = false
     @State private var selection: SidebarItem = .today
+    @State private var activeCustomFilterID: CustomFilterDefinition.ID?
     @State private var sidebarVisibility: NavigationSplitViewVisibility = .all
     @State private var tabRouter = TabRouter()
     @State private var isPresentingOnboarding = false
@@ -146,11 +147,21 @@ struct MacSidebarShell: View {
 
             List(selection: sidebarSelectionBinding) {
                 ForEach(SidebarSection.allCases, id: \.self) { section in
-                    let items = section.items
-                    if items.isEmpty == false {
-                        Section(header: sectionHeader(section)) {
-                            ForEach(items) { item in
-                                sidebarRow(for: item)
+                    if section == .custom {
+                        if model.settings.customFilters.isEmpty == false {
+                            Section(header: sectionHeader(section)) {
+                                ForEach(model.settings.customFilters) { filter in
+                                    customFilterRow(filter)
+                                }
+                            }
+                        }
+                    } else {
+                        let items = section.items
+                        if items.isEmpty == false {
+                            Section(header: sectionHeader(section)) {
+                                ForEach(items) { item in
+                                    sidebarRow(for: item)
+                                }
                             }
                         }
                     }
@@ -167,24 +178,49 @@ struct MacSidebarShell: View {
 
     @ViewBuilder
     private var detail: some View {
-        let router = tabRouter.router(for: sidebarItemKey(selection))
-        NavigationStack(path: tabRouter.binding(for: sidebarItemKey(selection))) {
-            selection.makeContentView()
-                .withAppDestinations()
+        let routerKey = activeCustomFilterID.map { "custom-\($0.uuidString)" } ?? sidebarItemKey(selection)
+        let router = tabRouter.router(for: routerKey)
+        NavigationStack(path: tabRouter.binding(for: routerKey)) {
+            if let filterID = activeCustomFilterID {
+                CustomFilterView(filterID: filterID)
+                    .withAppDestinations()
+            } else {
+                selection.makeContentView()
+                    .withAppDestinations()
+            }
         }
         .environment(router)
-        .withSheetDestinations(sheet: tabRouter.sheetBinding(for: sidebarItemKey(selection)))
+        .withSheetDestinations(sheet: tabRouter.sheetBinding(for: routerKey))
     }
 
     private var sidebarSelectionBinding: Binding<SidebarItem?> {
         Binding(
-            get: { selection },
+            get: { activeCustomFilterID == nil ? selection : nil },
             set: { newValue in
                 if let newValue {
                     selection = newValue
+                    activeCustomFilterID = nil
                 }
             }
         )
+    }
+
+    @ViewBuilder
+    private func customFilterRow(_ filter: CustomFilterDefinition) -> some View {
+        Button {
+            activeCustomFilterID = filter.id
+        } label: {
+            HStack {
+                Label(filter.name, systemImage: filter.systemImage)
+                Spacer()
+                if activeCustomFilterID == filter.id {
+                    Image(systemName: "chevron.right.circle.fill")
+                        .foregroundStyle(AppColor.ember)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var nearRealtimeLoopID: String {
