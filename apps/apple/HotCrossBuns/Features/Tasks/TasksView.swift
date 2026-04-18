@@ -196,9 +196,19 @@ private struct TaskListRow: View {
                             .font(.caption)
                             .foregroundStyle(.yellow)
                     }
-                    Text(TaskStarring.displayTitle(for: task))
+                    Text(TagExtractor.stripped(from: TaskStarring.displayTitle(for: task)))
                         .font(indentLevel > 0 ? .subheadline.weight(.medium) : .headline)
                         .foregroundStyle(AppColor.ink)
+                    ForEach(TagExtractor.tags(in: task.title), id: \.self) { tag in
+                        Text("#\(tag)")
+                            .font(.caption.weight(.medium))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                Capsule().fill(AppColor.blue.opacity(0.15))
+                            )
+                            .foregroundStyle(AppColor.blue)
+                    }
                     if OptimisticID.isPending(task.id) {
                         Image(systemName: "icloud.slash")
                             .font(.caption2)
