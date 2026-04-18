@@ -3,22 +3,19 @@ import SwiftUI
 struct OnboardingView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @State private var hasSeenIntro = false
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    OnboardingHero()
-                    ConnectGoogleCard()
-                    SyncPreferenceCard()
-                    SourceSelectionCard()
-                    ReminderPreferenceCard()
-                    FinishOnboardingCard(finish: finish)
+            Group {
+                if hasSeenIntro {
+                    setupBody
+                } else {
+                    IntroView(onContinue: { hasSeenIntro = true }, onSkip: finish)
                 }
-                .padding(20)
             }
             .appBackground()
-            .navigationTitle("Set Up")
+            .navigationTitle(hasSeenIntro ? "Set Up" : "Welcome")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Later") {
@@ -30,9 +27,92 @@ struct OnboardingView: View {
         .interactiveDismissDisabled(model.settings.hasCompletedOnboarding == false)
     }
 
+    private var setupBody: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                ConnectGoogleCard()
+                SyncPreferenceCard()
+                SourceSelectionCard()
+                ReminderPreferenceCard()
+                FinishOnboardingCard(finish: finish)
+            }
+            .padding(20)
+        }
+    }
+
     private func finish() {
         model.completeOnboarding()
         dismiss()
+    }
+}
+
+private struct IntroView: View {
+    let onContinue: () -> Void
+    let onSkip: () -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Hot Cross Buns")
+                        .font(.system(.largeTitle, design: .serif, weight: .bold))
+                        .foregroundStyle(AppColor.ink)
+                    Text("A Mac-native client for Google Tasks and Google Calendar.")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 14) {
+                    introPoint(
+                        icon: "cloud.fill",
+                        title: "Your data stays with Google",
+                        body: "Hot Cross Buns is a viewer and editor. Every task and event lives in your Google account; edits in Gmail, the Calendar web UI, or your phone show up here and vice versa."
+                    )
+                    introPoint(
+                        icon: "bolt.fill",
+                        title: "Fast and offline-tolerant",
+                        body: "New tasks and events appear instantly, even without a connection. They show a pending badge until Google accepts them, then the local ID is swapped for the server one."
+                    )
+                    introPoint(
+                        icon: "lock.fill",
+                        title: "No extra servers",
+                        body: "We don't run a backend. Your OAuth token stays in the Keychain; sync goes directly to Google's APIs. Disconnecting Google in Settings wipes local state."
+                    )
+                }
+
+                HStack {
+                    Button("Skip intro", action: onSkip)
+                        .buttonStyle(.borderless)
+                    Spacer()
+                    Button {
+                        onContinue()
+                    } label: {
+                        Label("Continue", systemImage: "arrow.right")
+                            .frame(minWidth: 120)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AppColor.ember)
+                    .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(28)
+            .cardSurface(cornerRadius: 32)
+            .padding(20)
+        }
+    }
+
+    private func introPoint(icon: String, title: String, body: String) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(AppColor.ember)
+                .frame(width: 28, height: 28)
+                .background(Circle().fill(AppColor.ember.opacity(0.15)))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.headline)
+                Text(body).font(.subheadline).foregroundStyle(.secondary)
+            }
+        }
     }
 }
 
