@@ -84,10 +84,10 @@ Known status: the legacy desktop checks were already failing before this pivot a
 
 The intended implementation path is:
 
-1. Continue building `apps/apple` as the native SwiftUI app.
-2. Add Google Sign-In and request Google Tasks/Calendar scopes incrementally.
-3. Build a local cache and sync engine around Google Tasks `updatedMin` polling and Google Calendar incremental sync tokens.
-4. Ship macOS builds as signed and notarized Developer ID DMGs for website distribution.
+1. Harden offline mutation replay and conflict handling for failed Google writes.
+2. Add task-list management, task reordering, all-day Calendar events, recurrence, reminders, and attendees.
+3. Add Developer ID signing and notarization to the macOS DMG pipeline for website distribution.
+4. Add iOS App Intents, widgets, and local notifications once the core sync model is stable.
 5. Use TestFlight/App Store or internal device distribution only if iOS distribution expands beyond personal/internal testing.
 
 ## Related Docs

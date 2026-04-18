@@ -94,6 +94,51 @@ struct CachedAppState: Codable, Sendable {
     var calendars: [CalendarListMirror]
     var events: [CalendarEventMirror]
     var settings: AppSettings
+    var syncCheckpoints: [SyncCheckpoint]
+    var pendingMutations: [PendingMutation]
+
+    init(
+        account: GoogleAccount?,
+        taskLists: [TaskListMirror],
+        tasks: [TaskMirror],
+        calendars: [CalendarListMirror],
+        events: [CalendarEventMirror],
+        settings: AppSettings,
+        syncCheckpoints: [SyncCheckpoint] = [],
+        pendingMutations: [PendingMutation] = []
+    ) {
+        self.account = account
+        self.taskLists = taskLists
+        self.tasks = tasks
+        self.calendars = calendars
+        self.events = events
+        self.settings = settings
+        self.syncCheckpoints = syncCheckpoints
+        self.pendingMutations = pendingMutations
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case account
+        case taskLists
+        case tasks
+        case calendars
+        case events
+        case settings
+        case syncCheckpoints
+        case pendingMutations
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        account = try container.decodeIfPresent(GoogleAccount.self, forKey: .account)
+        taskLists = try container.decodeIfPresent([TaskListMirror].self, forKey: .taskLists) ?? []
+        tasks = try container.decodeIfPresent([TaskMirror].self, forKey: .tasks) ?? []
+        calendars = try container.decodeIfPresent([CalendarListMirror].self, forKey: .calendars) ?? []
+        events = try container.decodeIfPresent([CalendarEventMirror].self, forKey: .events) ?? []
+        settings = try container.decodeIfPresent(AppSettings.self, forKey: .settings) ?? .default
+        syncCheckpoints = try container.decodeIfPresent([SyncCheckpoint].self, forKey: .syncCheckpoints) ?? []
+        pendingMutations = try container.decodeIfPresent([PendingMutation].self, forKey: .pendingMutations) ?? []
+    }
 
     static let empty = CachedAppState(
         account: nil,

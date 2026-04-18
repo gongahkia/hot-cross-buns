@@ -20,6 +20,8 @@ final class AppModel {
     private(set) var taskSections: [TaskListSectionSnapshot] = []
     private(set) var todaySnapshot: TodaySnapshot = .empty
     private(set) var calendarSnapshot: CalendarSnapshot = .empty
+    private(set) var syncCheckpoints: [SyncCheckpoint] = []
+    private(set) var pendingMutations: [PendingMutation] = []
     var settings: AppSettings
 
     init(
@@ -388,6 +390,8 @@ final class AppModel {
         calendars = state.calendars
         events = state.events
         settings = state.settings
+        syncCheckpoints = state.syncCheckpoints
+        pendingMutations = state.pendingMutations
         rebuildSnapshots()
     }
 
@@ -432,7 +436,9 @@ final class AppModel {
             tasks: tasks,
             calendars: calendars,
             events: events,
-            settings: settings
+            settings: settings,
+            syncCheckpoints: syncCheckpoints,
+            pendingMutations: pendingMutations
         )
     }
 
