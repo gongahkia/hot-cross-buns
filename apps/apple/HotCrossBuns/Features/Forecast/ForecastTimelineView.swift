@@ -153,6 +153,8 @@ struct ForecastTimelineView: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("\(task.title), in \(taskListTitle(for: task))\(highlightOverdue && task.dueDate != nil ? ", overdue" : "")")
+        .accessibilityHint("Double tap to open task.")
     }
 
     private func eventRow(_ event: CalendarEventMirror) -> some View {
@@ -180,6 +182,8 @@ struct ForecastTimelineView: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("\(event.summary), \(timeLabel(event))")
+        .accessibilityHint("Double tap to open event.")
     }
 
     private func taskListTitle(for task: TaskMirror) -> String {

@@ -68,6 +68,7 @@ struct CalendarHomeView: View {
             }
             .buttonStyle(.plain)
             .keyboardShortcut(.leftArrow, modifiers: [.command])
+            .accessibilityLabel("Previous \(mode.title.lowercased())")
 
             Button {
                 selectedDate = Date()
@@ -82,12 +83,14 @@ struct CalendarHomeView: View {
             }
             .buttonStyle(.plain)
             .keyboardShortcut("t", modifiers: [.command])
+            .accessibilityLabel("Jump to today")
 
             Button { shift(by: 1) } label: {
                 Image(systemName: "chevron.right").font(.body.weight(.semibold))
             }
             .buttonStyle(.plain)
             .keyboardShortcut(.rightArrow, modifiers: [.command])
+            .accessibilityLabel("Next \(mode.title.lowercased())")
 
             Text(periodTitle)
                 .font(.title3.weight(.semibold))

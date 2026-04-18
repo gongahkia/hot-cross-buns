@@ -22,6 +22,8 @@ struct QuickAddView: View {
                 .focused($focusedField)
                 .onSubmit { Task { await submit() } }
                 .onChange(of: input) { _, newValue in reparse(newValue) }
+                .accessibilityLabel("Task title with optional date and list")
+                .accessibilityHint("Type a task title. Words like tomorrow or #work are parsed into due date and list.")
                 .padding(14)
                 .background(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)

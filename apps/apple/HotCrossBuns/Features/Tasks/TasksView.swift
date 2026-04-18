@@ -157,6 +157,24 @@ private struct TaskListRow: View {
         }
         .padding(.leading, indentLevel > 0 ? 6 : 0)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabelText)
+        .accessibilityHint(task.isCompleted ? "Completed. Double tap to open." : "Double tap to open. Swipe right to complete.")
+    }
+
+    private var accessibilityLabelText: String {
+        var components: [String] = []
+        if indentLevel > 0 { components.append("Subtask.") }
+        components.append(task.title)
+        if task.isCompleted { components.append("Completed.") }
+        if OptimisticID.isPending(task.id) { components.append("Pending sync.") }
+        if let due = task.dueDate {
+            components.append("Due \(due.formatted(.dateTime.month(.wide).day())).")
+        }
+        if task.notes.isEmpty == false {
+            components.append("Note: \(task.notes).")
+        }
+        return components.joined(separator: " ")
     }
 }
 

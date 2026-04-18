@@ -152,6 +152,17 @@ private struct SmartListRow: View {
             Spacer(minLength: 0)
         }
         .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
+        .accessibilityHint("Double tap to open.")
+    }
+
+    private var accessibilityText: String {
+        var parts: [String] = [task.title, "in \(listName)"]
+        if let due = task.dueDate {
+            parts.append("due \(due.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))")
+        }
+        return parts.joined(separator: ", ")
     }
 
     private func relativeDueDateLabel(_ due: Date) -> String {
