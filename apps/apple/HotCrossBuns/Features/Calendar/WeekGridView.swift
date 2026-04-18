@@ -174,6 +174,13 @@ struct WeekGridView: View {
                     }
                     return true
                 }
+                .dropDestination(for: DraggedEvent.self) { items, location in
+                    guard let dropped = items.first else { return false }
+                    Task {
+                        await rescheduleEvent(dropped, dropY: location.y, dayStart: startOfDay)
+                    }
+                    return true
+                }
             ForEach(Array(laid.enumerated()), id: \.offset) { _, placed in
                 eventTile(placed: placed, dayStart: startOfDay, dayEnd: endOfDay, columnWidth: width)
             }
@@ -198,6 +205,24 @@ struct WeekGridView: View {
         )
     }
 
+    private func rescheduleEvent(_ dropped: DraggedEvent, dropY: CGFloat, dayStart: Date) async {
+        guard dropped.isAllDay == false else { return }
+        guard let event = model.event(id: dropped.eventID) else { return }
+        let snappedStart = CalendarDropComputer.snappedStart(for: dropY, hourHeight: hourHeight, dayStart: dayStart, calendar: calendar)
+        guard let newEnd = calendar.date(byAdding: .minute, value: dropped.durationMinutes, to: snappedStart) else { return }
+        if event.startDate == snappedStart && event.endDate == newEnd { return }
+        _ = await model.updateEvent(
+            event,
+            summary: event.summary,
+            details: event.details,
+            startDate: snappedStart,
+            endDate: newEnd,
+            isAllDay: false,
+            reminderMinutes: event.reminderMinutes.first,
+            calendarID: event.calendarID
+        )
+    }
+
     private func primaryEditableCalendarID() -> CalendarListMirror.ID? {
         model.calendarSnapshot.selectedCalendars.first(where: { $0.accessRole == "owner" || $0.accessRole == "writer" })?.id
     }
@@ -212,6 +237,7 @@ struct WeekGridView: View {
         let slotWidth = columnWidth / CGFloat(placed.columnCount)
         let xOffsetWithinDay = CGFloat(placed.columnIndex) * slotWidth
         let fill = calendarColor(for: placed.event)
+        let fullDurationMinutes = Int(max(placed.event.endDate.timeIntervalSince(placed.event.startDate) / 60, 15))
 
         return Button {
             router.navigate(to: .event(placed.event.id))
@@ -240,6 +266,18 @@ struct WeekGridView: View {
         }
         .buttonStyle(.plain)
         .offset(x: xOffsetWithinDay + 1, y: yOffset)
+        .draggable(DraggedEvent(
+            eventID: placed.event.id,
+            calendarID: placed.event.calendarID,
+            durationMinutes: fullDurationMinutes,
+            isAllDay: placed.event.isAllDay
+        )) {
+            Text(placed.event.summary)
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(fill.opacity(0.35)))
+        }
     }
 
     private func currentTimeOffset() -> CGFloat? {
