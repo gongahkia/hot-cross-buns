@@ -10,15 +10,13 @@ struct GoogleAccount: Identifiable, Hashable, Codable, Sendable {
         id: "preview-account",
         email: "personal@example.com",
         displayName: "Personal Workspace",
-        grantedScopes: [GoogleScope.tasks, GoogleScope.calendar, GoogleScope.keep]
+        grantedScopes: [GoogleScope.tasks, GoogleScope.calendar]
     )
 }
 
 enum GoogleScope {
     static let tasks = "https://www.googleapis.com/auth/tasks"
     static let calendar = "https://www.googleapis.com/auth/calendar"
-    static let keep = "https://www.googleapis.com/auth/keep"
-    static let keepReadOnly = "https://www.googleapis.com/auth/keep.readonly"
 }
 
 enum AuthState: Equatable, Sendable {
