@@ -26,6 +26,18 @@ struct MacSidebarShell: View {
     @State private var appCommandActions = AppCommandActions()
     @State private var vimMonitor = VimKeyboardMonitor()
     @State private var vimState = VimState()
+    @State private var collapsedVimFocus: CollapsedVimFocus = .detail
+    @State private var isVimDetailFocused = false
+
+    private enum CollapsedVimFocus {
+        case sidebar
+        case detail
+    }
+
+    private enum CollapsedSidebarDestination: Equatable {
+        case item(SidebarItem)
+        case customFilter(CustomFilterDefinition.ID)
+    }
 
     var body: some View {
         NavigationSplitView(columnVisibility: $sidebarVisibility) {
@@ -163,6 +175,11 @@ struct MacSidebarShell: View {
         Button {
             withAnimation(.easeInOut(duration: 0.2)) {
                 isSidebarCollapsed.toggle()
+                // After toggling sidebar density, reset Vim navigation focus to sidebar.
+                setVimFocus(detail: false)
+                if isSidebarCollapsed {
+                    collapsedVimFocus = .sidebar
+                }
             }
         } label: {
             Image(systemName: isSidebarCollapsed ? "sidebar.squares.left" : "sidebar.left")
@@ -203,6 +220,8 @@ struct MacSidebarShell: View {
     private func collapsedItemButton(_ item: SidebarItem) -> some View {
         let isSelected = activeCustomFilterID == nil && selection == item
         return Button {
+            collapsedVimFocus = .sidebar
+            setVimFocus(detail: false)
             selection = item
             activeCustomFilterID = nil
         } label: {
@@ -222,6 +241,8 @@ struct MacSidebarShell: View {
     private func collapsedCustomFilterButton(_ filter: CustomFilterDefinition) -> some View {
         let isSelected = activeCustomFilterID == filter.id
         return Button {
+            collapsedVimFocus = .sidebar
+            setVimFocus(detail: false)
             activeCustomFilterID = filter.id
         } label: {
             Image(systemName: filter.systemImage)
@@ -342,9 +363,103 @@ struct MacSidebarShell: View {
     private func configureVimMonitor() {
         vimMonitor.state = vimState
         vimMonitor.actionHandler = { [appCommandActions] action in
+            switch action {
+            case .moveLeft:
+                setVimFocus(detail: false)
+            case .moveRight:
+                setVimFocus(detail: true)
+            default:
+                break
+            }
+            if handleCollapsedSidebarVimAction(action, commands: appCommandActions) {
+                return
+            }
             VimActionDispatcher.dispatch(action, commands: appCommandActions)
         }
         vimMonitor.isEnabled = model.settings.enableVimKeybindings
+    }
+
+    private func setVimFocus(detail: Bool) {
+        isVimDetailFocused = detail
+        appCommandActions.isVimDetailFocused = detail
+    }
+
+    private var collapsedSidebarDestinations: [CollapsedSidebarDestination] {
+        var destinations: [CollapsedSidebarDestination] = []
+        for section in SidebarSection.allCases {
+            if section == .custom {
+                destinations.append(contentsOf: model.settings.customFilters.map { .customFilter($0.id) })
+            } else {
+                destinations.append(contentsOf: section.items.map { .item($0) })
+            }
+        }
+        return destinations
+    }
+
+    private var activeCollapsedSidebarDestination: CollapsedSidebarDestination {
+        if let activeCustomFilterID {
+            return .customFilter(activeCustomFilterID)
+        }
+        return .item(selection)
+    }
+
+    private func selectCollapsedSidebarDestination(_ destination: CollapsedSidebarDestination) {
+        switch destination {
+        case .item(let item):
+            selection = item
+            activeCustomFilterID = nil
+        case .customFilter(let id):
+            activeCustomFilterID = id
+        }
+    }
+
+    private func handleCollapsedSidebarVimAction(_ action: VimAction, commands: AppCommandActions) -> Bool {
+        guard isSidebarCollapsed else { return false }
+
+        switch action {
+        case .moveLeft:
+            collapsedVimFocus = .sidebar
+            VimActionDispatcher.dispatch(action, commands: commands)
+            return true
+        case .moveRight:
+            collapsedVimFocus = .detail
+            VimActionDispatcher.dispatch(action, commands: commands)
+            return true
+        case .moveDown:
+            guard collapsedVimFocus == .sidebar else { return false }
+            return shiftCollapsedSidebarSelection(by: 1)
+        case .moveUp:
+            guard collapsedVimFocus == .sidebar else { return false }
+            return shiftCollapsedSidebarSelection(by: -1)
+        case .scrollTop:
+            guard collapsedVimFocus == .sidebar else { return false }
+            return jumpCollapsedSidebarSelection(toTop: true)
+        case .scrollBottom:
+            guard collapsedVimFocus == .sidebar else { return false }
+            return jumpCollapsedSidebarSelection(toTop: false)
+        default:
+            return false
+        }
+    }
+
+    private func shiftCollapsedSidebarSelection(by offset: Int) -> Bool {
+        let destinations = collapsedSidebarDestinations
+        guard destinations.isEmpty == false else { return false }
+
+        let currentIndex = destinations.firstIndex(of: activeCollapsedSidebarDestination) ?? 0
+        let nextIndex = max(0, min(currentIndex + offset, destinations.count - 1))
+        let nextDestination = destinations[nextIndex]
+        selectCollapsedSidebarDestination(nextDestination)
+        return true
+    }
+
+    private func jumpCollapsedSidebarSelection(toTop: Bool) -> Bool {
+        let destinations = collapsedSidebarDestinations
+        guard let target = toTop ? destinations.first : destinations.last else {
+            return false
+        }
+        selectCollapsedSidebarDestination(target)
+        return true
     }
 
     private func configureCommandActions() {
@@ -359,6 +474,7 @@ struct MacSidebarShell: View {
         appCommandActions.zoomIn = { zoomStep = min(zoomStep + 1, zoomLadder.count - 1) }
         appCommandActions.zoomOut = { zoomStep = max(zoomStep - 1, 0) }
         appCommandActions.zoomReset = { zoomStep = 3 }
+        appCommandActions.isVimDetailFocused = isVimDetailFocused
     }
 
     private var commandPaletteCommands: [CommandPaletteCommand] {
