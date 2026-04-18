@@ -48,6 +48,7 @@ struct TaskInspectorView: View {
     @State private var isConfirmingDelete = false
     @State private var isSavingNow = false
     @State private var savedAt: Date?
+    @State private var saveFailureMessage: String?
     @FocusState private var focusedField: Field?
 
     private enum Field: Hashable { case title, notes }
@@ -98,6 +99,8 @@ struct TaskInspectorView: View {
                 hierarchyControls
 
                 actionButtons
+
+                inlineErrorBanner
 
                 metadataSection
             }
@@ -368,6 +371,41 @@ struct TaskInspectorView: View {
         if created { newSubtaskTitle = "" }
     }
 
+    @ViewBuilder
+    private var inlineErrorBanner: some View {
+        if let saveFailureMessage {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(AppColor.ember)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Couldn't save")
+                        .font(.caption.weight(.semibold))
+                    Text(saveFailureMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                Button {
+                    self.saveFailureMessage = nil
+                    Task { await saveIfDirty() }
+                } label: {
+                    Text("Retry")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(AppColor.ember.opacity(0.1))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(AppColor.ember.opacity(0.4), lineWidth: 0.8)
+            )
+        }
+    }
+
     private var metadataSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             sectionLabel("GOOGLE ID")
@@ -424,7 +462,12 @@ struct TaskInspectorView: View {
             dueDate: draft.resolvedDueDate()
         )
         isSavingNow = false
-        if didSave { savedAt = Date() }
+        if didSave {
+            savedAt = Date()
+            saveFailureMessage = nil
+        } else {
+            saveFailureMessage = model.lastMutationError ?? "Save failed."
+        }
     }
 
     private func toggleCompletion() async {
