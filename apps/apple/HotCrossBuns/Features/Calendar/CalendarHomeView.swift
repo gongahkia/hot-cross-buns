@@ -4,8 +4,118 @@ struct CalendarHomeView: View {
     @Environment(AppModel.self) private var model
     @Environment(RouterPath.self) private var router
     @State private var selectedDate = Date()
+    @SceneStorage("calendarGridMode") private var storedMode: String = CalendarGridMode.week.rawValue
+    @State private var mode: CalendarGridMode = .week
 
     var body: some View {
+        VStack(spacing: 0) {
+            navigationBar
+            Divider()
+            Group {
+                switch mode {
+                case .agenda: agendaContent
+                case .week: WeekGridView(anchorDate: $selectedDate)
+                case .month: MonthGridView(anchorDate: $selectedDate)
+                }
+            }
+        }
+        .appBackground()
+        .navigationTitle("Google Calendar")
+        .toolbar {
+            ToolbarItemGroup {
+                Button {
+                    router.present(.addEvent)
+                } label: {
+                    Label("Add Event", systemImage: "plus")
+                }
+            }
+        }
+        .onAppear {
+            mode = CalendarGridMode(rawValue: storedMode) ?? .week
+        }
+        .onChange(of: mode) { _, newValue in
+            storedMode = newValue.rawValue
+        }
+    }
+
+    private var navigationBar: some View {
+        HStack(spacing: 12) {
+            Button { shift(by: -1) } label: {
+                Image(systemName: "chevron.left").font(.body.weight(.semibold))
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.leftArrow, modifiers: [.command])
+
+            Button {
+                selectedDate = Date()
+            } label: {
+                Text("Today")
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule().fill(AppColor.cream.opacity(0.7))
+                    )
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut("t", modifiers: [.command])
+
+            Button { shift(by: 1) } label: {
+                Image(systemName: "chevron.right").font(.body.weight(.semibold))
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.rightArrow, modifiers: [.command])
+
+            Text(periodTitle)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(AppColor.ink)
+
+            Spacer(minLength: 0)
+
+            Picker("View", selection: $mode) {
+                ForEach(CalendarGridMode.allCases, id: \.self) { m in
+                    Label(m.title, systemImage: m.systemImage).tag(m)
+                }
+            }
+            .pickerStyle(.segmented)
+            .fixedSize()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+
+    private var periodTitle: String {
+        let calendar = Calendar.current
+        switch mode {
+        case .agenda:
+            return selectedDate.formatted(.dateTime.weekday(.wide).month(.wide).day())
+        case .week:
+            let days = CalendarGridLayout.weekDays(containing: selectedDate, calendar: calendar)
+            let first = days.first ?? selectedDate
+            let last = days.last ?? selectedDate
+            let sameMonth = calendar.component(.month, from: first) == calendar.component(.month, from: last)
+            if sameMonth {
+                return "\(first.formatted(.dateTime.month(.wide))) \(calendar.component(.day, from: first))–\(calendar.component(.day, from: last)), \(calendar.component(.year, from: first))"
+            }
+            return "\(first.formatted(.dateTime.month(.abbreviated).day())) – \(last.formatted(.dateTime.month(.abbreviated).day().year()))"
+        case .month:
+            return selectedDate.formatted(.dateTime.month(.wide).year())
+        }
+    }
+
+    private func shift(by direction: Int) {
+        let calendar = Calendar.current
+        switch mode {
+        case .agenda:
+            selectedDate = calendar.date(byAdding: .day, value: direction, to: selectedDate) ?? selectedDate
+        case .week:
+            selectedDate = calendar.date(byAdding: .weekOfYear, value: direction, to: selectedDate) ?? selectedDate
+        case .month:
+            selectedDate = calendar.date(byAdding: .month, value: direction, to: selectedDate) ?? selectedDate
+        }
+    }
+
+    private var agendaContent: some View {
         List {
             Section("Agenda date") {
                 DatePicker("Show events for", selection: $selectedDate, displayedComponents: [.date])
@@ -48,15 +158,6 @@ struct CalendarHomeView: View {
                         .buttonStyle(.plain)
                     }
                 }
-            }
-        }
-        .appBackground()
-        .navigationTitle("Google Calendar")
-        .toolbar {
-            Button {
-                router.present(.addEvent)
-            } label: {
-                Label("Add Event", systemImage: "plus")
             }
         }
     }
