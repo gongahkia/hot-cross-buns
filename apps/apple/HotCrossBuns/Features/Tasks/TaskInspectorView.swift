@@ -94,6 +94,8 @@ struct TaskInspectorView: View {
 
                 dueDateSection
 
+                remindersSection
+
                 taskListSection
 
                 subtasksSection
@@ -399,6 +401,56 @@ struct TaskInspectorView: View {
         )
         isAddingSubtask = false
         if created { newSubtaskTitle = "" }
+    }
+
+    @ViewBuilder
+    private var remindersSection: some View {
+        let current = TaskReminderMarkers.offsetsInDays(from: task.notes)
+        let presets: [(offset: Int, label: String)] = [
+            (0, "On due date"),
+            (-1, "1 day before"),
+            (-2, "2 days before"),
+            (-7, "1 week before")
+        ]
+        VStack(alignment: .leading, spacing: 8) {
+            sectionLabel("REMINDERS")
+            Text("Local only. Fires at 9:00 AM on the chosen day.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            ForEach(presets, id: \.offset) { preset in
+                Toggle(isOn: reminderBinding(offset: preset.offset, current: current)) {
+                    Text(preset.label).font(.subheadline)
+                }
+                .toggleStyle(.switch)
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
+    }
+
+    private func reminderBinding(offset: Int, current: [Int]) -> Binding<Bool> {
+        Binding(
+            get: { current.contains(offset) },
+            set: { newValue in
+                var updated = Set(current)
+                if newValue { updated.insert(offset) } else { updated.remove(offset) }
+                let newNotes = TaskReminderMarkers.encode(
+                    notes: task.notes,
+                    offsetsInDays: Array(updated)
+                )
+                Task {
+                    _ = await model.updateTask(
+                        task,
+                        title: task.title,
+                        notes: newNotes,
+                        dueDate: task.dueDate
+                    )
+                }
+            }
+        )
     }
 
     @ViewBuilder
