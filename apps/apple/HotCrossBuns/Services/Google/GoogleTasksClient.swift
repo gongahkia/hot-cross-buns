@@ -9,9 +9,34 @@ struct GoogleTasksClient: Sendable {
 
     func listTaskLists() async throws -> [TaskListMirror] {
         let response: GoogleTaskListsResponse = try await transport.get(path: "/tasks/v1/users/@me/lists")
-        return response.items.map { item in
-            TaskListMirror(id: item.id, title: item.title, updatedAt: item.updated, etag: item.etag)
-        }
+        return response.items.map(\.mirror)
+    }
+
+    func insertTaskList(title: String) async throws -> TaskListMirror {
+        let response: GoogleTaskListDTO = try await transport.request(
+            method: "POST",
+            path: "/tasks/v1/users/@me/lists",
+            body: GoogleTaskListMutationDTO(title: title)
+        )
+        return response.mirror
+    }
+
+    func updateTaskList(taskListID: String, title: String) async throws -> TaskListMirror {
+        let encodedTaskListID = taskListID.googlePathComponentEncoded
+        let response: GoogleTaskListDTO = try await transport.request(
+            method: "PATCH",
+            path: "/tasks/v1/users/@me/lists/\(encodedTaskListID)",
+            body: GoogleTaskListMutationDTO(title: title)
+        )
+        return response.mirror
+    }
+
+    func deleteTaskList(taskListID: String) async throws {
+        let encodedTaskListID = taskListID.googlePathComponentEncoded
+        try await transport.send(
+            method: "DELETE",
+            path: "/tasks/v1/users/@me/lists/\(encodedTaskListID)"
+        )
     }
 
     func listTasks(taskListID: String, updatedMin: Date?) async throws -> [TaskMirror] {
@@ -136,6 +161,10 @@ private struct GoogleTaskListDTO: Decodable, Sendable {
     var title: String
     var updated: Date?
     var etag: String?
+
+    var mirror: TaskListMirror {
+        TaskListMirror(id: id, title: title, updatedAt: updated, etag: etag)
+    }
 }
 
 private struct GoogleTasksResponse: Decodable, Sendable {
@@ -180,6 +209,10 @@ private struct GoogleTaskMutationDTO: Encodable, Sendable {
     var title: String
     var notes: String?
     var due: Date?
+}
+
+private struct GoogleTaskListMutationDTO: Encodable, Sendable {
+    var title: String
 }
 
 private struct GoogleTaskPatchDTO: Encodable, Sendable {

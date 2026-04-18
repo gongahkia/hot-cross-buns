@@ -105,7 +105,7 @@ The intended implementation path is now product hardening rather than MVP scaffo
 1. Add automated tests around Google payloads, sync checkpoints, cache persistence, and recovery flows.
 2. Harden offline mutation replay and conflict handling for failed Google writes.
 3. Replace the JSON snapshot cache with SQLite when queued writes need migrations and indexed local queries.
-4. Add task-list management, task reordering, recurrence, attendees, and event moves after the product policies are decided.
+4. Add task reordering, recurrence, attendees, and event moves after the product policies are decided.
 5. Expand Apple-native surfaces with widgets and direct background App Intents once conflict handling is reliable.
 6. Provide Developer ID signing and notarization credentials for website-ready macOS DMGs.
 

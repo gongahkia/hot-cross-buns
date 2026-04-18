@@ -109,7 +109,7 @@ The app exposes first-pass App Shortcuts for opening the task editor, opening th
 
 ## Task Writes
 
-The Tasks tab includes online create, edit, complete/reopen, and delete flows backed by Google Tasks `tasks.insert`, `tasks.patch`, and `tasks.delete`. These require a signed-in Google account and loaded task lists from refresh. Offline queueing, conflict handling, task reordering, and task-list management are still pending.
+The Tasks tab includes online task create, edit, complete/reopen, and delete flows backed by Google Tasks `tasks.insert`, `tasks.patch`, and `tasks.delete`. It also supports creating, renaming, and deleting task lists. These require a signed-in Google account and loaded task lists from refresh. Offline queueing, conflict handling, and task reordering are still pending.
 
 ## Calendar Writes
 
