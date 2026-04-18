@@ -43,6 +43,13 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Notifications") {
+                Toggle("Local reminders", isOn: localNotificationsBinding)
+                Text("Schedules up to 64 pending reminders for due tasks and upcoming events on this device.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Calendars") {
                 if model.calendars.isEmpty {
                     Text("Refresh after connecting Google to load calendars.")
@@ -82,6 +89,13 @@ struct SettingsView: View {
         Binding(
             get: { model.settings.syncMode },
             set: { model.updateSyncMode($0) }
+        )
+    }
+
+    private var localNotificationsBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.enableLocalNotifications },
+            set: { model.updateLocalNotificationsEnabled($0) }
         )
     }
 

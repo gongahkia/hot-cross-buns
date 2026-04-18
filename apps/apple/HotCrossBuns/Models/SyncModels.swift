@@ -130,13 +130,13 @@ struct AppSettings: Hashable, Codable, Sendable {
         selectedTaskListIDs = try container.decodeIfPresent(Set<TaskListMirror.ID>.self, forKey: .selectedTaskListIDs) ?? []
         hasConfiguredCalendarSelection = try container.decodeIfPresent(Bool.self, forKey: .hasConfiguredCalendarSelection) ?? false
         hasConfiguredTaskListSelection = try container.decodeIfPresent(Bool.self, forKey: .hasConfiguredTaskListSelection) ?? false
-        enableLocalNotifications = try container.decodeIfPresent(Bool.self, forKey: .enableLocalNotifications) ?? true
+        enableLocalNotifications = try container.decodeIfPresent(Bool.self, forKey: .enableLocalNotifications) ?? false
     }
 
     static let `default` = AppSettings(
         syncMode: .balanced,
         selectedCalendarIDs: [],
         selectedTaskListIDs: [],
-        enableLocalNotifications: true
+        enableLocalNotifications: false
     )
 }

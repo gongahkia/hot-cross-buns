@@ -9,6 +9,7 @@ final class AppModel {
     private let calendarClient: GoogleCalendarClient
     private let syncScheduler: SyncScheduler
     private let cacheStore: LocalCacheStore
+    private let notificationScheduler: LocalNotificationScheduler
 
     private(set) var account: GoogleAccount?
     private(set) var authState: AuthState = .signedOut
@@ -30,6 +31,7 @@ final class AppModel {
         calendarClient: GoogleCalendarClient,
         syncScheduler: SyncScheduler,
         cacheStore: LocalCacheStore,
+        notificationScheduler: LocalNotificationScheduler = LocalNotificationScheduler(),
         settings: AppSettings = .default
     ) {
         self.authService = authService
@@ -37,6 +39,7 @@ final class AppModel {
         self.calendarClient = calendarClient
         self.syncScheduler = syncScheduler
         self.cacheStore = cacheStore
+        self.notificationScheduler = notificationScheduler
         self.settings = settings
     }
 
@@ -57,7 +60,8 @@ final class AppModel {
                 tasksClient: tasksClient,
                 calendarClient: calendarClient
             ),
-            cacheStore: LocalCacheStore()
+            cacheStore: LocalCacheStore(),
+            notificationScheduler: LocalNotificationScheduler()
         )
     }
 
@@ -71,6 +75,7 @@ final class AppModel {
         let cachedState = await cacheStore.loadCachedState()
         apply(cachedState)
         authState = cachedState.account.map(AuthState.signedIn) ?? .signedOut
+        await synchronizeLocalNotifications()
     }
 
     func restoreGoogleSession() async {
@@ -146,6 +151,7 @@ final class AppModel {
             authState = syncedState.account.map(AuthState.signedIn) ?? .signedOut
             syncState = .synced(at: Date())
             await saveCurrentState()
+            await synchronizeLocalNotifications()
         } catch {
             syncState = .failed(message: error.localizedDescription)
         }
@@ -173,6 +179,7 @@ final class AppModel {
             upsert(task)
             syncState = .synced(at: Date())
             await saveCurrentState()
+            await synchronizeLocalNotifications()
             return true
         } catch {
             syncState = .failed(message: error.localizedDescription)
@@ -209,6 +216,7 @@ final class AppModel {
             upsert(updatedTask)
             syncState = .synced(at: Date())
             await saveCurrentState()
+            await synchronizeLocalNotifications()
             return true
         } catch {
             syncState = .failed(message: error.localizedDescription)
@@ -228,6 +236,7 @@ final class AppModel {
             upsert(updatedTask)
             syncState = .synced(at: Date())
             await saveCurrentState()
+            await synchronizeLocalNotifications()
             return true
         } catch {
             syncState = .failed(message: error.localizedDescription)
@@ -247,6 +256,7 @@ final class AppModel {
             removeTask(id: task.id)
             syncState = .synced(at: Date())
             await saveCurrentState()
+            await synchronizeLocalNotifications()
             return true
         } catch {
             syncState = .failed(message: error.localizedDescription)
@@ -283,6 +293,7 @@ final class AppModel {
             upsert(event)
             syncState = .synced(at: Date())
             await saveCurrentState()
+            await synchronizeLocalNotifications()
             return true
         } catch {
             syncState = .failed(message: error.localizedDescription)
@@ -331,6 +342,7 @@ final class AppModel {
             upsert(updatedEvent)
             syncState = .synced(at: Date())
             await saveCurrentState()
+            await synchronizeLocalNotifications()
             return true
         } catch {
             syncState = .failed(message: error.localizedDescription)
@@ -350,6 +362,7 @@ final class AppModel {
             removeEvent(id: event.id)
             syncState = .synced(at: Date())
             await saveCurrentState()
+            await synchronizeLocalNotifications()
             return true
         } catch {
             syncState = .failed(message: error.localizedDescription)
@@ -361,6 +374,14 @@ final class AppModel {
         settings.syncMode = mode
         Task {
             await saveCurrentState()
+        }
+    }
+
+    func updateLocalNotificationsEnabled(_ isEnabled: Bool) {
+        settings.enableLocalNotifications = isEnabled
+        Task {
+            await saveCurrentState()
+            await synchronizeLocalNotifications(requestAuthorization: isEnabled)
         }
     }
 
@@ -477,6 +498,15 @@ final class AppModel {
 
     private func saveCurrentState() async {
         await cacheStore.save(currentCachedState())
+    }
+
+    private func synchronizeLocalNotifications(requestAuthorization: Bool = false) async {
+        await notificationScheduler.synchronize(
+            tasks: tasks,
+            events: events,
+            settings: settings,
+            requestAuthorization: requestAuthorization
+        )
     }
 
     private func rebuildSnapshots(referenceDate: Date = Date()) {

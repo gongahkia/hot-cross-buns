@@ -82,6 +82,10 @@ Sync modes are active:
 
 Settings persist selected calendars and selected task lists. Empty selections are respected after the user has configured them, rather than falling back to Google defaults.
 
+## Local Notifications
+
+Local reminders are opt-in from Settings. When enabled, the app requests notification permission and schedules up to 64 pending device-local notifications for incomplete due tasks and upcoming non-cancelled Calendar events. Task reminders fire at 9:00 AM on the due date; timed event reminders fire 15 minutes before start; all-day event reminders fire at 9:00 AM.
+
 ## Task Writes
 
 The Tasks tab includes online create, edit, complete/reopen, and delete flows backed by Google Tasks `tasks.insert`, `tasks.patch`, and `tasks.delete`. These require a signed-in Google account and loaded task lists from refresh. Offline queueing, conflict handling, task reordering, and task-list management are still pending.
