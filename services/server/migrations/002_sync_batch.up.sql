@@ -1,1 +1,0 @@
-ALTER TABLE sync_log ADD COLUMN IF NOT EXISTS batch_id TEXT;

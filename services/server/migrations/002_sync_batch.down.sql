@@ -1,1 +1,0 @@
-ALTER TABLE sync_log DROP COLUMN IF EXISTS batch_id;
