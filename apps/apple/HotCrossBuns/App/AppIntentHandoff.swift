@@ -3,7 +3,8 @@ import Foundation
 enum AppIntentRoute: String, Sendable {
     case addTask
     case addEvent
-    case today
+    case store
+    case calendar
 }
 
 enum AppIntentHandoff {
