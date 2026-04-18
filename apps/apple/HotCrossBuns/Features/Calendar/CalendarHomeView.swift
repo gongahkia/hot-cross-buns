@@ -3,9 +3,31 @@ import SwiftUI
 struct CalendarHomeView: View {
     @Environment(AppModel.self) private var model
     @Environment(RouterPath.self) private var router
+    @State private var selectedDate = Date()
 
     var body: some View {
         List {
+            Section("Agenda date") {
+                DatePicker("Show events for", selection: $selectedDate, displayedComponents: [.date])
+            }
+
+            Section(selectedDate.formatted(.dateTime.weekday(.wide).month(.wide).day())) {
+                let eventsForSelectedDate = events(on: selectedDate)
+                if eventsForSelectedDate.isEmpty {
+                    Text("No events on this date in selected calendars")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(eventsForSelectedDate) { event in
+                        Button {
+                            router.navigate(to: .event(event.id))
+                        } label: {
+                            EventListRow(event: event)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
             Section("Selected calendars") {
                 ForEach(model.calendarSnapshot.selectedCalendars) { calendar in
                     CalendarBadgeRow(calendar: calendar)
@@ -37,6 +59,24 @@ struct CalendarHomeView: View {
                 Label("Add Event", systemImage: "plus")
             }
         }
+    }
+
+    private func events(on date: Date) -> [CalendarEventMirror] {
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: date)
+        let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay
+        let selectedCalendarIDs = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
+
+        return model.events
+            .filter { event in
+                event.status != .cancelled
+                    && selectedCalendarIDs.contains(event.calendarID)
+                    && event.startDate < endOfDay
+                    && event.endDate > startOfDay
+            }
+            .sorted { lhs, rhs in
+                lhs.startDate < rhs.startDate
+            }
     }
 }
 
@@ -83,9 +123,9 @@ private struct EventListRow: View {
 
     private var timeRange: String {
         if event.isAllDay {
-            return "All day"
+            return event.startDate.formatted(date: .abbreviated, time: .omitted) + " - All day"
         }
-        return "\(event.startDate.formatted(date: .omitted, time: .shortened)) - \(event.endDate.formatted(date: .omitted, time: .shortened))"
+        return "\(event.startDate.formatted(date: .abbreviated, time: .shortened)) - \(event.endDate.formatted(date: .omitted, time: .shortened))"
     }
 }
 
