@@ -34,6 +34,17 @@ struct GoogleAPITransport: Sendable {
         queryItems: [URLQueryItem] = [],
         decoder: JSONDecoder = .googleAPI
     ) async throws -> Response {
+        try await request(path: path, queryItems: queryItems, decoder: decoder)
+    }
+
+    func request<Response: Decodable & Sendable, Body: Encodable & Sendable>(
+        method: String = "GET",
+        path: String,
+        queryItems: [URLQueryItem] = [],
+        body: Body? = nil,
+        encoder: JSONEncoder = .googleAPI,
+        decoder: JSONDecoder = .googleAPI
+    ) async throws -> Response {
         var components = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)
         components?.queryItems = queryItems.isEmpty ? nil : queryItems
 
@@ -42,12 +53,34 @@ struct GoogleAPITransport: Sendable {
         }
 
         var request = URLRequest(url: url)
-        request.httpMethod = "GET"
+        request.httpMethod = method
         request.setValue("Bearer \(try await tokenProvider.accessToken())", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        if let body {
+            request.httpBody = try encoder.encode(body)
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
 
         let (data, response) = try await urlSession.data(for: request)
         try validate(response: response, data: data)
         return try decoder.decode(Response.self, from: data)
+    }
+
+    func request<Response: Decodable & Sendable>(
+        method: String = "GET",
+        path: String,
+        queryItems: [URLQueryItem] = [],
+        decoder: JSONDecoder = .googleAPI
+    ) async throws -> Response {
+        let emptyBody: EmptyRequestBody? = nil
+        return try await request(
+            method: method,
+            path: path,
+            queryItems: queryItems,
+            body: emptyBody,
+            decoder: decoder
+        )
     }
 
     private func validate(response: URLResponse, data: Data) throws {
@@ -60,6 +93,8 @@ struct GoogleAPITransport: Sendable {
         }
     }
 }
+
+private struct EmptyRequestBody: Encodable, Sendable {}
 
 enum GoogleAPIError: LocalizedError, Equatable {
     case invalidURL
@@ -93,6 +128,14 @@ extension JSONDecoder {
             )
         }
         return decoder
+    }
+}
+
+extension JSONEncoder {
+    static var googleAPI: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
     }
 }
 

@@ -117,20 +117,96 @@ struct TaskDetailView: View {
 
 struct AddTaskSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var model
+    @State private var selectedTaskListID: TaskListMirror.ID?
+    @State private var title = ""
+    @State private var notes = ""
+    @State private var hasDueDate = false
+    @State private var dueDate = Date()
+    @State private var isSaving = false
 
     var body: some View {
         NavigationStack {
-            ContentUnavailableView(
-                "Task creation is next",
-                systemImage: "plus.circle",
-                description: Text("This shell is ready for a Google Tasks insert flow once OAuth is configured.")
-            )
-            .navigationTitle("New Task")
-            .toolbar {
-                Button("Close") {
-                    dismiss()
+            Form {
+                if model.taskLists.isEmpty {
+                    Section {
+                        ContentUnavailableView(
+                            "No task lists loaded",
+                            systemImage: "checklist",
+                            description: Text("Connect Google and refresh before creating a task.")
+                        )
+                    }
+                } else {
+                    Section("Task") {
+                        TextField("Title", text: $title)
+                        TextField("Notes", text: $notes, axis: .vertical)
+                            .lineLimit(3...6)
+                    }
+
+                    Section("Destination") {
+                        Picker("Task list", selection: $selectedTaskListID) {
+                            ForEach(model.taskLists) { taskList in
+                                Text(taskList.title).tag(Optional(taskList.id))
+                            }
+                        }
+                    }
+
+                    Section("Due date") {
+                        Toggle("Set due date", isOn: $hasDueDate)
+                        if hasDueDate {
+                            DatePicker("Due", selection: $dueDate, displayedComponents: [.date])
+                        }
+                    }
                 }
             }
+            .navigationTitle("New Task")
+            .task {
+                selectedTaskListID = selectedTaskListID ?? model.taskLists.first?.id
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .disabled(isSaving)
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") {
+                        Task {
+                            await createTask()
+                        }
+                    }
+                    .disabled(canCreate == false || isSaving)
+                }
+            }
+        }
+        .interactiveDismissDisabled(isSaving)
+    }
+
+    private var canCreate: Bool {
+        title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            && selectedTaskListID != nil
+            && model.account != nil
+    }
+
+    private func createTask() async {
+        guard let selectedTaskListID else {
+            return
+        }
+
+        isSaving = true
+        defer { isSaving = false }
+
+        let didCreate = await model.createTask(
+            title: title,
+            notes: notes,
+            dueDate: hasDueDate ? Calendar.current.startOfDay(for: dueDate) : nil,
+            taskListID: selectedTaskListID
+        )
+
+        if didCreate {
+            dismiss()
         }
     }
 }
