@@ -29,6 +29,7 @@
 		4D00CE67951243CCE90386B4 /* QuickAddView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDB427444279DD0F8E4B2281 /* QuickAddView.swift */; };
 		5049BDF0BCBF8FAE6B9344DB /* LocalCacheStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D35E61D1B3B91A6E21DCC27 /* LocalCacheStore.swift */; };
 		523A574D6D48B12B4587E086 /* CalendarHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2263C896865029DCEC3A53B /* CalendarHomeView.swift */; };
+		5BBDE6D66EBF10AFEFFA71F9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B80F522C53466505A421ECE /* AppDelegate.swift */; };
 		5C9E280691B2F3198FF32835 /* SmartListFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18883C2377F57F108328C03 /* SmartListFilter.swift */; };
 		6088116D5BC2DD78307003A8 /* SmartListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95090879052F100ED5B0496A /* SmartListView.swift */; };
 		61E276C2555F3F36F976E697 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CDBE097FFF4A48F2BCDE315 /* DiagnosticsView.swift */; };
@@ -130,6 +131,7 @@
 		892DDFFD7ECD0890E98DEC1C /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		8FF54DB319263C6A1FD8A97D /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteView.swift; sourceTree = "<group>"; };
 		95090879052F100ED5B0496A /* SmartListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartListView.swift; sourceTree = "<group>"; };
+		9B80F522C53466505A421ECE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		9F6D2A903ACFF04A22993160 /* MenuBarExtraScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarExtraScene.swift; sourceTree = "<group>"; };
 		A4E896952661629A01EB26B0 /* GoogleTasksClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleTasksClient.swift; sourceTree = "<group>"; };
 		AB15E1D3EF730B024771A746 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -312,6 +314,7 @@
 			isa = PBXGroup;
 			children = (
 				838CDC9397AEB8B081E732EE /* AppCommands.swift */,
+				9B80F522C53466505A421ECE /* AppDelegate.swift */,
 				25AD254487BE0AE26B9D81B8 /* AppIntentHandoff.swift */,
 				892DDFFD7ECD0890E98DEC1C /* AppModel.swift */,
 				8FF54DB319263C6A1FD8A97D /* CommandPaletteView.swift */,
@@ -567,6 +570,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4A0CC79BFC861B5D27E9F288 /* AppCommands.swift in Sources */,
+				5BBDE6D66EBF10AFEFFA71F9 /* AppDelegate.swift in Sources */,
 				B2D69FAFF7FB7BFDDD816728 /* AppIntentHandoff.swift in Sources */,
 				1D9C5B69B8A123DB5CA67B87 /* AppModel.swift in Sources */,
 				E219DD1B1AD052112F17BD50 /* AppStatusBanner.swift in Sources */,
