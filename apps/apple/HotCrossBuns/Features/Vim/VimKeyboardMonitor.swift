@@ -95,6 +95,13 @@ enum VimActionDispatcher {
             postKeyPress(keyCode: UInt16(kVK_DownArrow))
         case .moveUp:
             postKeyPress(keyCode: UInt16(kVK_UpArrow))
+        case .moveRight:
+            // enter highlighted sidebar item + move focus into the detail pane
+            postKeyPress(keyCode: UInt16(kVK_Return))
+            postKeyPress(keyCode: UInt16(kVK_Tab))
+        case .moveLeft:
+            // move focus back to the sidebar
+            postKeyPress(keyCode: UInt16(kVK_Tab), modifiers: [.shift])
         case .scrollTop:
             postKeyPress(keyCode: UInt16(kVK_Home))
         case .scrollBottom:
@@ -113,14 +120,14 @@ enum VimActionDispatcher {
     }
 
     @MainActor
-    private static func postKeyPress(keyCode: UInt16) {
+    private static func postKeyPress(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []) {
         guard let window = NSApp.keyWindow else { return }
         let location = NSPoint.zero
         let timestamp = ProcessInfo.processInfo.systemUptime
         if let down = NSEvent.keyEvent(
             with: .keyDown,
             location: location,
-            modifierFlags: [],
+            modifierFlags: modifiers,
             timestamp: timestamp,
             windowNumber: window.windowNumber,
             context: nil,
@@ -134,7 +141,7 @@ enum VimActionDispatcher {
         if let up = NSEvent.keyEvent(
             with: .keyUp,
             location: location,
-            modifierFlags: [],
+            modifierFlags: modifiers,
             timestamp: timestamp,
             windowNumber: window.windowNumber,
             context: nil,

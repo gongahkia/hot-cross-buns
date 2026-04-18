@@ -104,6 +104,8 @@ struct VimHud: View {
     private var bindings: [(keys: String, label: String)] {
         [
             ("j / k", "Move selection down / up"),
+            ("l", "Enter selection (focus detail pane)"),
+            ("h", "Back out (focus sidebar)"),
             ("gg", "Jump to top"),
             ("G", "Jump to bottom"),
             ("x", "Toggle complete on selection"),

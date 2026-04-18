@@ -3,6 +3,8 @@ import Foundation
 enum VimAction: Equatable, Sendable {
     case moveDown
     case moveUp
+    case moveRight
+    case moveLeft
     case scrollTop
     case scrollBottom
     case toggleComplete
@@ -36,6 +38,8 @@ struct VimTranslator: Equatable {
         switch character {
         case "j": return .moveDown
         case "k": return .moveUp
+        case "l": return .moveRight
+        case "h": return .moveLeft
         case "x": return .toggleComplete
         case ":": return .openCommandPalette
         case "/": return .focusSearch

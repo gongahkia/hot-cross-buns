@@ -6,6 +6,8 @@ final class VimTranslatorTests: XCTestCase {
         var v = VimTranslator()
         XCTAssertEqual(v.consume("j"), .moveDown)
         XCTAssertEqual(v.consume("k"), .moveUp)
+        XCTAssertEqual(v.consume("l"), .moveRight)
+        XCTAssertEqual(v.consume("h"), .moveLeft)
         XCTAssertEqual(v.consume("x"), .toggleComplete)
         XCTAssertEqual(v.consume(":"), .openCommandPalette)
         XCTAssertEqual(v.consume("/"), .focusSearch)
