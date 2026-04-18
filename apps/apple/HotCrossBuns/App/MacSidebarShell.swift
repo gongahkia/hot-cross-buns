@@ -13,6 +13,7 @@ struct MacSidebarShell: View {
     @State private var isPresentingCommandPalette = false
     @State private var appCommandActions = AppCommandActions()
     @State private var vimMonitor = VimKeyboardMonitor()
+    @State private var vimState = VimState()
 
     var body: some View {
         NavigationSplitView(columnVisibility: $sidebarVisibility) {
@@ -37,6 +38,12 @@ struct MacSidebarShell: View {
         .sheet(isPresented: $isPresentingCommandPalette) {
             CommandPaletteView(commands: commandPaletteCommands)
                 .environment(model)
+        }
+        .overlay {
+            if model.settings.enableVimKeybindings {
+                VimHud()
+                    .environment(vimState)
+            }
         }
         .focusedSceneValue(\.appCommandActions, appCommandActions)
         .onAppear {
@@ -191,6 +198,7 @@ struct MacSidebarShell: View {
     }
 
     private func configureVimMonitor() {
+        vimMonitor.state = vimState
         vimMonitor.actionHandler = { [appCommandActions] action in
             VimActionDispatcher.dispatch(action, commands: appCommandActions)
         }

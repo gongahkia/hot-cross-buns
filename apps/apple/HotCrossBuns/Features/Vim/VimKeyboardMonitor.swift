@@ -6,6 +6,7 @@ import Observation
 final class VimKeyboardMonitor {
     private var monitor: Any?
     private var translator = VimTranslator()
+    weak var state: VimState?
 
     var actionHandler: ((VimAction) -> Void)?
     var isEnabled: Bool = false {
@@ -39,6 +40,8 @@ final class VimKeyboardMonitor {
             self.monitor = nil
         }
         translator.reset()
+        state?.pendingChord = nil
+        state?.isCheatsheetVisible = false
     }
 
     private func handle(_ event: NSEvent) -> Bool {
@@ -51,11 +54,27 @@ final class VimKeyboardMonitor {
         guard let characters = event.charactersIgnoringModifiers, characters.count == 1 else { return false }
         let character = characters.first!
 
+        if character == "\u{1B}" { // escape — clear chord and hide cheatsheet
+            translator.reset()
+            state?.pendingChord = nil
+            if state?.isCheatsheetVisible == true {
+                state?.isCheatsheetVisible = false
+                return true
+            }
+            return false
+        }
+
         if let action = translator.consume(character) {
+            state?.pendingChord = nil
+            if action == .toggleCheatsheet {
+                state?.isCheatsheetVisible.toggle()
+                return true
+            }
             actionHandler?(action)
             return true
         }
         // pending chord — swallow the keystroke so it doesn't leak to List
+        state?.pendingChord = translator.pending.map { String($0) }
         return translator.pending != nil
     }
 
@@ -88,6 +107,8 @@ enum VimActionDispatcher {
             commands.openCommandPalette()
         case .focusSearch:
             commands.focusSearch()
+        case .toggleCheatsheet:
+            break
         }
     }
 
