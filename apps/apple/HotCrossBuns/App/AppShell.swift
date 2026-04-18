@@ -24,6 +24,7 @@ struct AppShell: View {
             await model.loadInitialState()
             await model.restoreGoogleSession()
             await model.refreshForCurrentSyncMode()
+            handlePendingAppIntentRoute()
         }
         .task(id: nearRealtimeLoopID) {
             await runNearRealtimeSyncLoop()
@@ -35,6 +36,7 @@ struct AppShell: View {
 
             Task {
                 await model.refreshForCurrentSyncMode()
+                handlePendingAppIntentRoute()
             }
         }
         .onOpenURL { url in
@@ -62,6 +64,23 @@ struct AppShell: View {
             } catch {
                 return
             }
+        }
+    }
+
+    private func handlePendingAppIntentRoute() {
+        guard let route = AppIntentHandoff.consumePendingRoute() else {
+            return
+        }
+
+        switch route {
+        case .addTask:
+            selectedTab = .tasks
+            tabRouter.router(for: .tasks).present(.addTask)
+        case .addEvent:
+            selectedTab = .calendar
+            tabRouter.router(for: .calendar).present(.addEvent)
+        case .today:
+            selectedTab = .today
         }
     }
 }
