@@ -101,6 +101,8 @@ struct TaskInspectorView: View {
 
                 dueDateSection
 
+                recurrenceSection
+
                 remindersSection
 
                 taskListSection
@@ -453,6 +455,42 @@ struct TaskInspectorView: View {
     }
 
     @ViewBuilder
+    private var recurrenceSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionLabel("REPEAT")
+            RecurrenceEditor(rule: recurrenceBinding)
+            Text(task.dueDate == nil
+                 ? "Add a due date to enable repeating."
+                 : "When you complete this task, a new copy is created for the next occurrence.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
+        .disabled(task.dueDate == nil)
+    }
+
+    private var recurrenceBinding: Binding<RecurrenceRule?> {
+        Binding(
+            get: { TaskRecurrenceMarkers.rule(from: task.notes) },
+            set: { newRule in
+                let newNotes = TaskRecurrenceMarkers.encode(notes: task.notes, rule: newRule)
+                Task {
+                    _ = await model.updateTask(
+                        task,
+                        title: task.title,
+                        notes: newNotes,
+                        dueDate: task.dueDate
+                    )
+                }
+            }
+        )
+    }
+
+    @ViewBuilder
     private var remindersSection: some View {
         let current = TaskReminderMarkers.offsetsInDays(from: task.notes)
         let presets: [(offset: Int, label: String)] = [
@@ -555,7 +593,8 @@ struct TaskInspectorView: View {
     }
 
     private var notesForPreview: String {
-        TaskReminderMarkers.strippedNotes(from: draft.notes)
+        let withoutReminders = TaskReminderMarkers.strippedNotes(from: draft.notes)
+        return TaskRecurrenceMarkers.strippedNotes(from: withoutReminders)
     }
 
     private func sectionLabel(_ text: String) -> some View {
