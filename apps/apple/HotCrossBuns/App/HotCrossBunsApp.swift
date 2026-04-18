@@ -28,20 +28,9 @@ struct HotCrossBunsApp: App {
             }
         }
 
-        MenuBarExtra(isInserted: menuBarInsertedBinding) {
+        MenuBarExtra("Hot Cross Buns", image: "MenuBarIcon", isInserted: menuBarInsertedBinding) {
             MenuBarExtraContent()
                 .environment(appModel)
-        } label: {
-            Image("MenuBarIcon")
-                .renderingMode(.template)
-                .overlay(alignment: .topTrailing) {
-                    if appModel.todaySnapshot.overdueCount > 0 {
-                        Circle()
-                            .fill(Color.accentColor)
-                            .frame(width: 5, height: 5)
-                            .offset(x: 1, y: -1)
-                    }
-                }
         }
         .menuBarExtraStyle(.window)
     }

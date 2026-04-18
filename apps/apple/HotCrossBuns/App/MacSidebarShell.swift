@@ -6,7 +6,16 @@ struct MacSidebarShell: View {
     @Environment(\.scenePhase) private var scenePhase
     @SceneStorage("sidebarSelection") private var storedSelection: String = SidebarItem.today.rawValue
     @SceneStorage("sidebarCollapsed") private var isSidebarCollapsed = false
-    @SceneStorage("uiZoom") private var zoomLevel: Double = 1.0
+    @SceneStorage("uiZoomStep") private var zoomStep: Int = 3 // index into zoomLadder; 3 = .large (default)
+
+    private let zoomLadder: [DynamicTypeSize] = [
+        .xSmall, .small, .medium, .large, .xLarge, .xxLarge, .xxxLarge,
+        .accessibility1, .accessibility2, .accessibility3
+    ]
+
+    private var dynamicTypeSize: DynamicTypeSize {
+        zoomLadder[max(0, min(zoomStep, zoomLadder.count - 1))]
+    }
     @State private var selection: SidebarItem = .today
     @State private var activeCustomFilterID: CustomFilterDefinition.ID?
     @State private var sidebarVisibility: NavigationSplitViewVisibility = .all
@@ -25,13 +34,8 @@ struct MacSidebarShell: View {
             detail
         }
         .navigationSplitViewStyle(.balanced)
-        .scaleEffect(zoomLevel, anchor: .topLeading)
-        .frame(
-            maxWidth: .infinity,
-            maxHeight: .infinity,
-            alignment: .topLeading
-        )
-        .animation(.easeInOut(duration: 0.12), value: zoomLevel)
+        .dynamicTypeSize(dynamicTypeSize)
+        .animation(.easeInOut(duration: 0.12), value: zoomStep)
         .appBackground()
         .safeAreaInset(edge: .top) {
             AppStatusBanner(
@@ -352,9 +356,9 @@ struct MacSidebarShell: View {
         appCommandActions.openDiagnostics = { presentSheet(.diagnostics, on: selection) }
         appCommandActions.openCommandPalette = { isPresentingCommandPalette = true }
         appCommandActions.openHelp = { isPresentingHelp = true }
-        appCommandActions.zoomIn = { zoomLevel = min(zoomLevel + 0.1, 2.0) }
-        appCommandActions.zoomOut = { zoomLevel = max(zoomLevel - 0.1, 0.6) }
-        appCommandActions.zoomReset = { zoomLevel = 1.0 }
+        appCommandActions.zoomIn = { zoomStep = min(zoomStep + 1, zoomLadder.count - 1) }
+        appCommandActions.zoomOut = { zoomStep = max(zoomStep - 1, 0) }
+        appCommandActions.zoomReset = { zoomStep = 3 }
     }
 
     private var commandPaletteCommands: [CommandPaletteCommand] {
