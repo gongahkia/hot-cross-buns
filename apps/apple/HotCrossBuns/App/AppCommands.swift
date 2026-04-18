@@ -79,7 +79,7 @@ struct AppCommands: Commands {
             }
             Divider()
             Button("Zoom In") { actions?.zoomIn() }
-                .keyboardShortcut("=", modifiers: [.command])
+                .keyboardShortcut("+", modifiers: [.command])
                 .disabled(actions == nil)
             Button("Zoom Out") { actions?.zoomOut() }
                 .keyboardShortcut("-", modifiers: [.command])
