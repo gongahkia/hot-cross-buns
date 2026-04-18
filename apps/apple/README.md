@@ -39,7 +39,7 @@ The macOS build command is verified in this repo. The iOS command requires the m
 ../../scripts/package-macos-dmg.sh
 ```
 
-The packaging script creates an unsigned DMG under `build/apple/` by default. Website distribution should eventually enable Developer ID signing and notarization before publishing the artifact.
+The packaging script creates an unsigned DMG under `build/apple/` by default. If `CODE_SIGN_IDENTITY` is set, it signs the app bundle and DMG. If `NOTARIZE=1` is also set, it submits the DMG with `xcrun notarytool` using `APPLE_ID`, `APPLE_TEAM_ID`, and `APP_SPECIFIC_PASSWORD`, then staples the result.
 
 ## Google Integration
 

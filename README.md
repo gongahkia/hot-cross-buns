@@ -51,9 +51,20 @@ xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 
 
 iOS builds require the matching iOS platform components installed in Xcode.
 
-Create a local unsigned macOS DMG:
+Create a local macOS DMG:
 
 ```bash
+scripts/package-macos-dmg.sh
+```
+
+Optional signing/notarization environment:
+
+```bash
+CODE_SIGN_IDENTITY="Developer ID Application: Example Team (TEAMID)" \
+NOTARIZE=1 \
+APPLE_ID="you@example.com" \
+APPLE_TEAM_ID="TEAMID" \
+APP_SPECIFIC_PASSWORD="xxxx-xxxx-xxxx-xxxx" \
 scripts/package-macos-dmg.sh
 ```
 
@@ -86,7 +97,7 @@ The intended implementation path is:
 
 1. Harden offline mutation replay and conflict handling for failed Google writes.
 2. Add task-list management, task reordering, all-day Calendar events, recurrence, reminders, and attendees.
-3. Add Developer ID signing and notarization to the macOS DMG pipeline for website distribution.
+3. Provide Developer ID signing and notarization credentials for website-ready macOS DMGs.
 4. Add iOS App Intents, widgets, and local notifications once the core sync model is stable.
 5. Use TestFlight/App Store or internal device distribution only if iOS distribution expands beyond personal/internal testing.
 
