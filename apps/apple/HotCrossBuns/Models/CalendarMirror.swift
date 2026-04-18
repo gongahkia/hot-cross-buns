@@ -21,6 +21,66 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
     var recurrence: [String]
     var etag: String?
     var updatedAt: Date?
+    var reminderMinutes: [Int]
+
+    init(
+        id: String,
+        calendarID: CalendarListMirror.ID,
+        summary: String,
+        details: String,
+        startDate: Date,
+        endDate: Date,
+        isAllDay: Bool,
+        status: CalendarEventStatus,
+        recurrence: [String],
+        etag: String?,
+        updatedAt: Date?,
+        reminderMinutes: [Int] = []
+    ) {
+        self.id = id
+        self.calendarID = calendarID
+        self.summary = summary
+        self.details = details
+        self.startDate = startDate
+        self.endDate = endDate
+        self.isAllDay = isAllDay
+        self.status = status
+        self.recurrence = recurrence
+        self.etag = etag
+        self.updatedAt = updatedAt
+        self.reminderMinutes = reminderMinutes
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case calendarID
+        case summary
+        case details
+        case startDate
+        case endDate
+        case isAllDay
+        case status
+        case recurrence
+        case etag
+        case updatedAt
+        case reminderMinutes
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        calendarID = try container.decode(CalendarListMirror.ID.self, forKey: .calendarID)
+        summary = try container.decode(String.self, forKey: .summary)
+        details = try container.decode(String.self, forKey: .details)
+        startDate = try container.decode(Date.self, forKey: .startDate)
+        endDate = try container.decode(Date.self, forKey: .endDate)
+        isAllDay = try container.decode(Bool.self, forKey: .isAllDay)
+        status = try container.decode(CalendarEventStatus.self, forKey: .status)
+        recurrence = try container.decode([String].self, forKey: .recurrence)
+        etag = try container.decodeIfPresent(String.self, forKey: .etag)
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
+        reminderMinutes = try container.decodeIfPresent([Int].self, forKey: .reminderMinutes) ?? []
+    }
 }
 
 enum CalendarEventStatus: String, Codable, Hashable, Sendable {
