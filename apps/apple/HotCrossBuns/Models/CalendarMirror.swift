@@ -23,6 +23,7 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
     var updatedAt: Date?
     var reminderMinutes: [Int]
     var location: String
+    var attendeeEmails: [String]
 
     init(
         id: String,
@@ -37,7 +38,8 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         etag: String?,
         updatedAt: Date?,
         reminderMinutes: [Int] = [],
-        location: String = ""
+        location: String = "",
+        attendeeEmails: [String] = []
     ) {
         self.id = id
         self.calendarID = calendarID
@@ -52,6 +54,7 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         self.updatedAt = updatedAt
         self.reminderMinutes = reminderMinutes
         self.location = location
+        self.attendeeEmails = attendeeEmails
     }
 
     enum CodingKeys: String, CodingKey {
@@ -68,6 +71,7 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         case updatedAt
         case reminderMinutes
         case location
+        case attendeeEmails
     }
 
     init(from decoder: Decoder) throws {
@@ -85,6 +89,7 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
         reminderMinutes = try container.decodeIfPresent([Int].self, forKey: .reminderMinutes) ?? []
         location = try container.decodeIfPresent(String.self, forKey: .location) ?? ""
+        attendeeEmails = try container.decodeIfPresent([String].self, forKey: .attendeeEmails) ?? []
     }
 }
 

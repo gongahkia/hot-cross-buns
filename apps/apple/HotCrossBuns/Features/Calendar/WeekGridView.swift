@@ -220,7 +220,9 @@ struct WeekGridView: View {
             isAllDay: false,
             reminderMinutes: event.reminderMinutes.first,
             calendarID: event.calendarID,
-            location: event.location
+            location: event.location,
+            attendeeEmails: event.attendeeEmails,
+            notifyGuests: false
         )
     }
 

@@ -70,7 +70,9 @@ struct GoogleCalendarClient: Sendable {
         isAllDay: Bool,
         reminderMinutes: Int?,
         location: String = "",
-        recurrence: [String] = []
+        recurrence: [String] = [],
+        attendeeEmails: [String] = [],
+        sendUpdates: String = "none"
     ) async throws -> CalendarEventMirror {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
         let requestBody = GoogleEventMutationDTO(
@@ -80,11 +82,13 @@ struct GoogleCalendarClient: Sendable {
             start: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.string(from: startDate) : nil, dateTime: isAllDay ? nil : startDate),
             end: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.exclusiveEndString(from: endDate) : nil, dateTime: isAllDay ? nil : endDate),
             recurrence: recurrence.isEmpty ? nil : recurrence,
-            reminders: GoogleEventMutationRemindersDTO.custom(minutes: reminderMinutes)
+            reminders: GoogleEventMutationRemindersDTO.custom(minutes: reminderMinutes),
+            attendees: attendeeEmails.isEmpty ? nil : attendeeEmails.map { GoogleEventAttendeeMutationDTO(email: $0) }
         )
         let response: GoogleEventDTO = try await transport.request(
             method: "POST",
             path: "/calendar/v3/calendars/\(encodedCalendarID)/events",
+            queryItems: [URLQueryItem(name: "sendUpdates", value: sendUpdates)],
             body: requestBody
         )
         return response.mirror(calendarID: calendarID)
@@ -101,6 +105,8 @@ struct GoogleCalendarClient: Sendable {
         reminderMinutes: Int?,
         location: String = "",
         recurrence: [String] = [],
+        attendeeEmails: [String] = [],
+        sendUpdates: String = "none",
         ifMatch: String? = nil
     ) async throws -> CalendarEventMirror {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
@@ -112,12 +118,13 @@ struct GoogleCalendarClient: Sendable {
             start: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.string(from: startDate) : nil, dateTime: isAllDay ? nil : startDate),
             end: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.exclusiveEndString(from: endDate) : nil, dateTime: isAllDay ? nil : endDate),
             recurrence: recurrence,
-            reminders: GoogleEventMutationRemindersDTO.custom(minutes: reminderMinutes)
+            reminders: GoogleEventMutationRemindersDTO.custom(minutes: reminderMinutes),
+            attendees: attendeeEmails.map { GoogleEventAttendeeMutationDTO(email: $0) }
         )
         let response: GoogleEventDTO = try await transport.request(
             method: "PATCH",
             path: "/calendar/v3/calendars/\(encodedCalendarID)/events/\(encodedEventID)",
-            queryItems: [URLQueryItem(name: "sendUpdates", value: "none")],
+            queryItems: [URLQueryItem(name: "sendUpdates", value: sendUpdates)],
             body: requestBody,
             ifMatch: ifMatch
         )
@@ -187,6 +194,7 @@ private struct GoogleEventDTO: Decodable, Sendable {
     var end: GoogleEventDateDTO?
     var recurrence: [String]?
     var reminders: GoogleEventRemindersDTO?
+    var attendees: [GoogleEventAttendeeDTO]?
     var etag: String?
     var updated: Date?
 
@@ -205,9 +213,16 @@ private struct GoogleEventDTO: Decodable, Sendable {
             etag: etag,
             updatedAt: updated,
             reminderMinutes: reminders?.customPopupMinutes ?? [],
-            location: location ?? ""
+            location: location ?? "",
+            attendeeEmails: attendees?.compactMap(\.email) ?? []
         )
     }
+}
+
+private struct GoogleEventAttendeeDTO: Codable, Sendable {
+    var email: String?
+    var displayName: String?
+    var responseStatus: String?
 }
 
 private struct GoogleEventDateDTO: Decodable, Sendable {
@@ -248,6 +263,11 @@ private struct GoogleEventMutationDTO: Encodable, Sendable {
     var end: GoogleEventMutationDateDTO
     var recurrence: [String]?
     var reminders: GoogleEventMutationRemindersDTO?
+    var attendees: [GoogleEventAttendeeMutationDTO]?
+}
+
+private struct GoogleEventAttendeeMutationDTO: Encodable, Sendable {
+    var email: String
 }
 
 private struct GoogleEventMutationDateDTO: Encodable, Sendable {

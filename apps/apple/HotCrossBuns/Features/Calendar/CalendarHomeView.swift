@@ -302,6 +302,9 @@ struct EventDetailView: View {
                         if event.location.isEmpty == false {
                             DetailField(label: "Location", value: event.location)
                         }
+                        if event.attendeeEmails.isEmpty == false {
+                            DetailField(label: "Guests", value: event.attendeeEmails.joined(separator: "\n"))
+                        }
                         if event.reminderMinutes.isEmpty == false {
                             DetailField(label: "Reminders", value: event.reminderMinutes.map(reminderLabel).joined(separator: ", "))
                         }
@@ -469,6 +472,9 @@ struct AddEventSheet: View {
     @State private var isAllDay = false
     @State private var reminderOption: EventReminderOption = .fifteenMinutes
     @State private var recurrenceRule: RecurrenceRule?
+    @State private var attendees: [String] = []
+    @State private var attendeeDraft: String = ""
+    @State private var notifyGuests: Bool = false
     @State private var isSaving = false
 
     var body: some View {
@@ -512,6 +518,10 @@ struct AddEventSheet: View {
 
                     Section("Repeat") {
                         RecurrenceEditor(rule: $recurrenceRule)
+                    }
+
+                    Section("Guests") {
+                        GuestsSection(attendees: $attendees, draft: $attendeeDraft, notifyGuests: $notifyGuests)
                     }
 
                     Section("Reminder") {
@@ -584,7 +594,9 @@ struct AddEventSheet: View {
             reminderMinutes: reminderOption.minutes,
             calendarID: selectedCalendarID,
             location: location,
-            recurrence: recurrenceRule.map { [$0.rruleString()] } ?? []
+            recurrence: recurrenceRule.map { [$0.rruleString()] } ?? [],
+            attendeeEmails: attendees,
+            notifyGuests: notifyGuests
         )
 
         if didCreate {
@@ -615,6 +627,9 @@ struct EditEventSheet: View {
     @State private var reminderOption: EventReminderOption
     @State private var selectedCalendarID: CalendarListMirror.ID?
     @State private var recurrenceRule: RecurrenceRule?
+    @State private var attendees: [String] = []
+    @State private var attendeeDraft: String = ""
+    @State private var notifyGuests: Bool = false
     @State private var isSaving = false
 
     init(event: CalendarEventMirror) {
@@ -628,6 +643,7 @@ struct EditEventSheet: View {
         _reminderOption = State(initialValue: EventReminderOption(minutes: event.reminderMinutes.first) ?? .none)
         _selectedCalendarID = State(initialValue: event.calendarID)
         _recurrenceRule = State(initialValue: event.recurrence.lazy.compactMap(RecurrenceRule.parse).first)
+        _attendees = State(initialValue: event.attendeeEmails)
     }
 
     var body: some View {
@@ -654,6 +670,10 @@ struct EditEventSheet: View {
 
                 Section("Repeat") {
                     RecurrenceEditor(rule: $recurrenceRule)
+                }
+
+                Section("Guests") {
+                    GuestsSection(attendees: $attendees, draft: $attendeeDraft, notifyGuests: $notifyGuests)
                 }
 
                 Section("Reminder") {
@@ -743,6 +763,8 @@ struct EditEventSheet: View {
             calendarID: selectedCalendarID,
             location: location,
             recurrence: recurrenceRule.map { [$0.rruleString()] } ?? [],
+            attendeeEmails: attendees,
+            notifyGuests: notifyGuests,
             scope: scope
         )
 
