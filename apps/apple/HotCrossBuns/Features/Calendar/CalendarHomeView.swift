@@ -400,6 +400,15 @@ private struct EventActionPanel: View {
             .buttonStyle(.bordered)
             .disabled(isMutating)
 
+            Button {
+                Task { _ = await model.duplicateEvent(event) }
+            } label: {
+                Label("Duplicate", systemImage: "plus.square.on.square")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .keyboardShortcut("d", modifiers: [.command])
+
             Button(action: copyAsMarkdown) {
                 Label("Copy as Markdown", systemImage: "doc.on.clipboard")
                     .frame(maxWidth: .infinity)
