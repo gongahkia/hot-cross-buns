@@ -90,6 +90,13 @@ struct TaskInspectorView: View {
                         )
                         .focused($focusedField, equals: .notes)
                         .onChange(of: draft.notes) { _, _ in scheduleSave() }
+
+                    if notesForPreview.isEmpty == false, focusedField != .notes {
+                        Text.markdown(notesForPreview)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 2)
+                    }
                 }
 
                 dueDateSection
@@ -545,6 +552,10 @@ struct TaskInspectorView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var notesForPreview: String {
+        TaskReminderMarkers.strippedNotes(from: draft.notes)
     }
 
     private func sectionLabel(_ text: String) -> some View {

@@ -293,7 +293,7 @@ struct EventDetailView: View {
                             .font(.system(.largeTitle, design: .serif, weight: .bold))
                             .foregroundStyle(AppColor.ink)
                         if !event.details.isEmpty {
-                            Text(event.details)
+                            Text.markdown(event.details)
                                 .font(.body)
                                 .foregroundStyle(.secondary)
                         }
