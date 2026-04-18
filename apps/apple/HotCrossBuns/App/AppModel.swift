@@ -598,6 +598,11 @@ final class AppModel {
         return true
     }
 
+    enum RecurringEventScope: Sendable {
+        case thisOccurrence
+        case allInSeries
+    }
+
     func updateEvent(
         _ event: CalendarEventMirror,
         summary: String,
@@ -608,7 +613,8 @@ final class AppModel {
         reminderMinutes: Int?,
         calendarID: CalendarListMirror.ID,
         location: String = "",
-        recurrence: [String]? = nil
+        recurrence: [String]? = nil,
+        scope: RecurringEventScope = .thisOccurrence
     ) async -> Bool {
         guard requireAccount(mutationDescription: "updating events") else {
             return false
@@ -638,9 +644,13 @@ final class AppModel {
                 eventToUpdate = event
             }
 
+            let targetEventID = scope == .allInSeries
+                ? CalendarEventInstance.seriesID(from: eventToUpdate.id)
+                : eventToUpdate.id
+
             let updatedEvent = try await calendarClient.updateEvent(
                 calendarID: eventToUpdate.calendarID,
-                eventID: eventToUpdate.id,
+                eventID: targetEventID,
                 summary: trimmedSummary,
                 details: details.trimmingCharacters(in: .whitespacesAndNewlines),
                 startDate: startDate,
@@ -649,7 +659,7 @@ final class AppModel {
                 reminderMinutes: reminderMinutes,
                 location: location.trimmingCharacters(in: .whitespacesAndNewlines),
                 recurrence: recurrence ?? eventToUpdate.recurrence,
-                ifMatch: eventToUpdate.etag
+                ifMatch: scope == .allInSeries ? nil : eventToUpdate.etag
             )
             if calendarID != event.calendarID {
                 removeEvent(id: event.id)
@@ -668,15 +678,24 @@ final class AppModel {
         }
     }
 
-    func deleteEvent(_ event: CalendarEventMirror) async -> Bool {
+    func deleteEvent(_ event: CalendarEventMirror, scope: RecurringEventScope = .thisOccurrence) async -> Bool {
         guard requireAccount(mutationDescription: "deleting events") else {
             return false
         }
 
         beginMutation()
         do {
-            try await calendarClient.deleteEvent(calendarID: event.calendarID, eventID: event.id)
-            removeEvent(id: event.id)
+            let targetEventID = scope == .allInSeries
+                ? CalendarEventInstance.seriesID(from: event.id)
+                : event.id
+            try await calendarClient.deleteEvent(calendarID: event.calendarID, eventID: targetEventID)
+            if scope == .allInSeries {
+                let seriesID = CalendarEventInstance.seriesID(from: event.id)
+                events.removeAll { CalendarEventInstance.seriesID(from: $0.id) == seriesID }
+                rebuildSnapshots()
+            } else {
+                removeEvent(id: event.id)
+            }
             endMutation(error: nil)
             await saveCurrentState()
             await synchronizeLocalNotifications()

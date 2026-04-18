@@ -326,16 +326,22 @@ struct EventDetailView: View {
                     EditEventSheet(event: event)
                 }
                 .confirmationDialog(
-                    "Delete this event?",
+                    CalendarEventInstance.isRecurring(event) ? "Delete which events?" : "Delete this event?",
                     isPresented: $isConfirmingDelete,
                     titleVisibility: .visible
                 ) {
-                    Button("Delete Event", role: .destructive) {
-                        Task {
-                            await delete(event)
+                    if CalendarEventInstance.isRecurring(event) {
+                        Button("This event only", role: .destructive) {
+                            Task { await delete(event, scope: .thisOccurrence) }
+                        }
+                        Button("All events in the series", role: .destructive) {
+                            Task { await delete(event, scope: .allInSeries) }
+                        }
+                    } else {
+                        Button("Delete Event", role: .destructive) {
+                            Task { await delete(event, scope: .thisOccurrence) }
                         }
                     }
-
                     Button("Cancel", role: .cancel) {}
                 } message: {
                     Text("This deletes the event from Google Calendar without sending guest updates.")
@@ -366,10 +372,10 @@ struct EventDetailView: View {
         EventReminderOption(minutes: minutes)?.title ?? "\(minutes) minutes before"
     }
 
-    private func delete(_ event: CalendarEventMirror) async {
+    private func delete(_ event: CalendarEventMirror, scope: AppModel.RecurringEventScope) async {
         isMutating = true
         defer { isMutating = false }
-        let didDelete = await model.deleteEvent(event)
+        let didDelete = await model.deleteEvent(event, scope: scope)
         if didDelete {
             dismiss()
         }
@@ -599,6 +605,7 @@ struct EditEventSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
     let event: CalendarEventMirror
+    @State private var isShowingScopeDialog = false
     @State private var summary: String
     @State private var details: String
     @State private var location: String
@@ -666,6 +673,19 @@ struct EditEventSheet: View {
                 }
             }
             .navigationTitle("Edit Event")
+            .confirmationDialog(
+                "Apply to which events?",
+                isPresented: $isShowingScopeDialog,
+                titleVisibility: .visible
+            ) {
+                Button("This event only") {
+                    Task { await saveEvent(scope: .thisOccurrence) }
+                }
+                Button("All events in the series") {
+                    Task { await saveEvent(scope: .allInSeries) }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
@@ -676,8 +696,10 @@ struct EditEventSheet: View {
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        Task {
-                            await saveEvent()
+                        if CalendarEventInstance.isRecurring(event) {
+                            isShowingScopeDialog = true
+                        } else {
+                            Task { await saveEvent(scope: .thisOccurrence) }
                         }
                     }
                     .disabled(canSave == false || isSaving)
@@ -702,7 +724,7 @@ struct EditEventSheet: View {
         return endDate > startDate
     }
 
-    private func saveEvent() async {
+    private func saveEvent(scope: AppModel.RecurringEventScope) async {
         guard let selectedCalendarID else {
             return
         }
@@ -720,7 +742,8 @@ struct EditEventSheet: View {
             reminderMinutes: reminderOption.minutes,
             calendarID: selectedCalendarID,
             location: location,
-            recurrence: recurrenceRule.map { [$0.rruleString()] } ?? []
+            recurrence: recurrenceRule.map { [$0.rruleString()] } ?? [],
+            scope: scope
         )
 
         if didSave {
