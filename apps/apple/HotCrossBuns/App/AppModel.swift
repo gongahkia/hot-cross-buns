@@ -404,6 +404,11 @@ final class AppModel {
         }
     }
 
+    func toggleTaskStar(_ task: TaskMirror) async -> Bool {
+        let newTitle = TaskStarring.toggledTitle(for: task)
+        return await updateTask(task, title: newTitle, notes: task.notes, dueDate: task.dueDate)
+    }
+
     func setTaskCompleted(_ isCompleted: Bool, task: TaskMirror) async -> Bool {
         guard requireAccount(mutationDescription: "updating tasks") else {
             return false
