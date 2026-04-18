@@ -19,26 +19,18 @@ struct MacSidebarShell: View {
     @State private var vimState = VimState()
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            NavigationSplitView(columnVisibility: $sidebarVisibility) {
-                sidebar
-            } detail: {
-                detail
-            }
-            .navigationSplitViewStyle(.balanced)
-            .scaleEffect(zoomLevel, anchor: .topLeading)
-            .frame(
-                maxWidth: .infinity,
-                maxHeight: .infinity,
-                alignment: .topLeading
-            )
-
-            if sidebarVisibility == .detailOnly {
-                peekTab
-                    .transition(.move(edge: .leading).combined(with: .opacity))
-            }
+        NavigationSplitView(columnVisibility: $sidebarVisibility) {
+            sidebar
+        } detail: {
+            detail
         }
-        .animation(.easeInOut(duration: 0.18), value: sidebarVisibility)
+        .navigationSplitViewStyle(.balanced)
+        .scaleEffect(zoomLevel, anchor: .topLeading)
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: .infinity,
+            alignment: .topLeading
+        )
         .animation(.easeInOut(duration: 0.12), value: zoomLevel)
         .safeAreaInset(edge: .top) {
             AppStatusBanner(
@@ -101,6 +93,12 @@ struct MacSidebarShell: View {
             storedSelection = newValue.rawValue
             configureCommandActions()
         }
+        .onChange(of: sidebarVisibility) { _, newValue in
+            // System toolbar button tries to fully hide — snap back; ⌘S is the only collapse.
+            if newValue == .detailOnly {
+                sidebarVisibility = .all
+            }
+        }
         .task {
             await model.loadInitialState()
             isPresentingOnboarding = model.settings.hasCompletedOnboarding == false
@@ -147,67 +145,102 @@ struct MacSidebarShell: View {
         }
     }
 
-    private var peekTab: some View {
-        VStack {
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    sidebarVisibility = .all
-                }
-            } label: {
-                Image(systemName: "sidebar.left")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(AppColor.ink)
-                    .padding(.vertical, 14)
-                    .padding(.horizontal, 5)
-                    .background(
-                        UnevenRoundedRectangle(
-                            cornerRadii: .init(topLeading: 0, bottomLeading: 0, bottomTrailing: 8, topTrailing: 8),
-                            style: .continuous
-                        )
-                        .fill(AppColor.cream.opacity(0.92))
-                    )
-                    .overlay(
-                        UnevenRoundedRectangle(
-                            cornerRadii: .init(topLeading: 0, bottomLeading: 0, bottomTrailing: 8, topTrailing: 8),
-                            style: .continuous
-                        )
-                        .strokeBorder(AppColor.cardStroke, lineWidth: 0.6)
-                    )
-                    .shadow(color: .black.opacity(0.08), radius: 4, x: 1, y: 1)
-            }
-            .buttonStyle(.plain)
-            .help("Show sidebar")
-            .accessibilityLabel("Show sidebar")
-            .padding(.top, 80)
-
-            Spacer(minLength: 0)
+    @ViewBuilder
+    private var sidebar: some View {
+        if isSidebarCollapsed {
+            collapsedSidebar
+        } else {
+            expandedSidebar
         }
     }
 
-    private var sidebar: some View {
+    private var collapseToggle: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isSidebarCollapsed.toggle()
+            }
+        } label: {
+            Image(systemName: isSidebarCollapsed ? "sidebar.squares.left" : "sidebar.left")
+                .font(.system(size: 13, weight: .semibold))
+        }
+        .buttonStyle(.borderless)
+        .keyboardShortcut("s", modifiers: [.command])
+        .help(isSidebarCollapsed ? "Expand sidebar (⌘S)" : "Collapse to icons (⌘S)")
+        .accessibilityLabel(isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar to icons")
+    }
+
+    private var collapsedSidebar: some View {
+        VStack(spacing: 0) {
+            collapseToggle
+                .padding(.vertical, 10)
+            Divider()
+            ScrollView {
+                VStack(spacing: 2) {
+                    ForEach(SidebarSection.allCases, id: \.self) { section in
+                        if section == .custom {
+                            ForEach(model.settings.customFilters) { filter in
+                                collapsedCustomFilterButton(filter)
+                            }
+                        } else {
+                            ForEach(section.items) { item in
+                                collapsedItemButton(item)
+                            }
+                        }
+                    }
+                }
+                .padding(.vertical, 6)
+            }
+        }
+        .frame(width: 36)
+    }
+
+    private func collapsedItemButton(_ item: SidebarItem) -> some View {
+        let isSelected = activeCustomFilterID == nil && selection == item
+        return Button {
+            selection = item
+            activeCustomFilterID = nil
+        } label: {
+            Image(systemName: item.systemImage)
+                .font(.system(size: 14, weight: .medium))
+                .frame(width: 32, height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(isSelected ? AppColor.ember.opacity(0.2) : Color.clear)
+                )
+                .foregroundStyle(isSelected ? AppColor.ember : AppColor.ink)
+        }
+        .buttonStyle(.plain)
+        .help(item.title)
+    }
+
+    private func collapsedCustomFilterButton(_ filter: CustomFilterDefinition) -> some View {
+        let isSelected = activeCustomFilterID == filter.id
+        return Button {
+            activeCustomFilterID = filter.id
+        } label: {
+            Image(systemName: filter.systemImage)
+                .font(.system(size: 14, weight: .medium))
+                .frame(width: 32, height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(isSelected ? AppColor.ember.opacity(0.2) : Color.clear)
+                )
+                .foregroundStyle(isSelected ? AppColor.ember : AppColor.ink)
+        }
+        .buttonStyle(.plain)
+        .help(filter.name)
+    }
+
+    private var expandedSidebar: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        isSidebarCollapsed.toggle()
-                    }
-                } label: {
-                    Image(systemName: isSidebarCollapsed ? "sidebar.squares.left" : "sidebar.left")
-                        .font(.system(size: 13, weight: .semibold))
-                }
-                .buttonStyle(.borderless)
-                .keyboardShortcut("s", modifiers: [.command])
-                .help(isSidebarCollapsed ? "Expand sidebar (⌘S)" : "Collapse to icons (⌘S)")
-                .accessibilityLabel(isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar to icons")
-
-                if isSidebarCollapsed == false {
-                    Text("Hot Cross Buns")
-                        .font(.headline)
-                        .lineLimit(1)
-                }
+                collapseToggle
+                Text("Hot Cross Buns")
+                    .font(.headline)
+                    .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, isSidebarCollapsed ? 8 : 12)
+            .padding(.horizontal, 12)
             .padding(.vertical, 10)
 
             Divider()
@@ -236,11 +269,7 @@ struct MacSidebarShell: View {
             }
             .listStyle(.sidebar)
         }
-        .frame(
-            minWidth: isSidebarCollapsed ? 48 : 200,
-            idealWidth: isSidebarCollapsed ? 50 : 240,
-            maxWidth: isSidebarCollapsed ? 54 : 320
-        )
+        .frame(minWidth: 200, idealWidth: 240, maxWidth: 320)
     }
 
     @ViewBuilder
@@ -467,7 +496,7 @@ struct MacSidebarShell: View {
 
     @ViewBuilder
     private func sectionHeader(_ section: SidebarSection) -> some View {
-        if section.title.isEmpty || isSidebarCollapsed {
+        if section.title.isEmpty {
             EmptyView()
         } else {
             Text(section.title)
@@ -480,24 +509,18 @@ struct MacSidebarShell: View {
     @ViewBuilder
     private func sidebarRow(for item: SidebarItem) -> some View {
         NavigationLink(value: item) {
-            if isSidebarCollapsed {
-                Image(systemName: item.systemImage)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 4)
-            } else {
-                Label {
-                    HStack {
-                        Text(item.title)
-                        Spacer()
-                        if let badgeValue = badge(for: item) {
-                            Text(badgeValue)
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                        }
+            Label {
+                HStack {
+                    Text(item.title)
+                    Spacer()
+                    if let badgeValue = badge(for: item) {
+                        Text(badgeValue)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
                     }
-                } icon: {
-                    Image(systemName: item.systemImage)
                 }
+            } icon: {
+                Image(systemName: item.systemImage)
             }
         }
     }
