@@ -33,6 +33,14 @@ xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 
 
 The macOS build command is verified in this repo. The iOS command requires the matching iOS simulator platform components installed in Xcode.
 
+## Package macOS DMG
+
+```bash
+../../scripts/package-macos-dmg.sh
+```
+
+The packaging script creates an unsigned DMG under `build/apple/` by default. Website distribution should eventually enable Developer ID signing and notarization before publishing the artifact.
+
 ## Google Integration
 
 The app uses the native Google Sign-In SDK and requests Google Tasks plus Google Calendar scopes during sign-in.
