@@ -3,6 +3,7 @@ import SwiftUI
 enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
     case today
     case forecast
+    case review
     case overdue
     case dueToday
     case next7Days
@@ -18,6 +19,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .today: "Today"
         case .forecast: "Forecast"
+        case .review: "Review"
         case .overdue: "Overdue"
         case .dueToday: "Due Today"
         case .next7Days: "Next 7 Days"
@@ -33,6 +35,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .today: "sun.max"
         case .forecast: "calendar.day.timeline.leading"
+        case .review: "checklist.checked"
         case .overdue: "exclamationmark.circle"
         case .dueToday: "calendar.badge.clock"
         case .next7Days: "calendar.circle"
@@ -57,7 +60,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
 
     var section: SidebarSection {
         switch self {
-        case .today, .forecast, .calendar: .planner
+        case .today, .forecast, .review, .calendar: .planner
         case .overdue, .dueToday, .next7Days, .noDate: .smartLists
         case .tasks: .lists
         case .search, .settings: .utilities
@@ -72,6 +75,8 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
             TodayView()
         case .forecast:
             ForecastTimelineView()
+        case .review:
+            ReviewView()
         case .overdue:
             SmartListView(filter: .overdue)
         case .dueToday:
