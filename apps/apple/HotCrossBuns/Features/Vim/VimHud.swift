@@ -111,7 +111,7 @@ struct VimHud: View {
             ("x", "Toggle complete on selection"),
             ("dd", "Delete selected task"),
             (":", "Open command palette"),
-            ("/", "Focus search"),
+            ("/", "Search tasks and events (opens palette)"),
             ("?", "Show / hide this cheatsheet")
         ]
     }

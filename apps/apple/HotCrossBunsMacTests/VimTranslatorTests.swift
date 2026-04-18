@@ -10,7 +10,7 @@ final class VimTranslatorTests: XCTestCase {
         XCTAssertEqual(v.consume("h"), .moveLeft)
         XCTAssertEqual(v.consume("x"), .toggleComplete)
         XCTAssertEqual(v.consume(":"), .openCommandPalette)
-        XCTAssertEqual(v.consume("/"), .focusSearch)
+        XCTAssertEqual(v.consume("/"), .openCommandPalette)
         XCTAssertEqual(v.consume("G"), .scrollBottom)
     }
 

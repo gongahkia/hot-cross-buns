@@ -6,11 +6,13 @@ final class AppCommandActions {
     var newEvent: () -> Void = {}
     var refresh: () -> Void = {}
     var forceResync: () -> Void = {}
-    var focusSearch: () -> Void = {}
     var switchTo: (SidebarItem) -> Void = { _ in }
     var openDiagnostics: () -> Void = {}
     var openCommandPalette: () -> Void = {}
     var openHelp: () -> Void = {}
+    var zoomIn: () -> Void = {}
+    var zoomOut: () -> Void = {}
+    var zoomReset: () -> Void = {}
 }
 
 private struct AppCommandActionsKey: FocusedValueKey {
@@ -74,8 +76,14 @@ struct AppCommands: Commands {
                 }
             }
             Divider()
-            Button("Focus Search") { actions?.focusSearch() }
-                .keyboardShortcut("f", modifiers: [.command])
+            Button("Zoom In") { actions?.zoomIn() }
+                .keyboardShortcut("=", modifiers: [.command])
+                .disabled(actions == nil)
+            Button("Zoom Out") { actions?.zoomOut() }
+                .keyboardShortcut("-", modifiers: [.command])
+                .disabled(actions == nil)
+            Button("Actual Size") { actions?.zoomReset() }
+                .keyboardShortcut("0", modifiers: [.command])
                 .disabled(actions == nil)
         }
     }

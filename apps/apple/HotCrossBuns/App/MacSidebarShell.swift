@@ -6,6 +6,7 @@ struct MacSidebarShell: View {
     @Environment(\.scenePhase) private var scenePhase
     @SceneStorage("sidebarSelection") private var storedSelection: String = SidebarItem.today.rawValue
     @SceneStorage("sidebarCollapsed") private var isSidebarCollapsed = false
+    @SceneStorage("uiZoom") private var zoomLevel: Double = 1.0
     @State private var selection: SidebarItem = .today
     @State private var activeCustomFilterID: CustomFilterDefinition.ID?
     @State private var sidebarVisibility: NavigationSplitViewVisibility = .all
@@ -25,6 +26,12 @@ struct MacSidebarShell: View {
                 detail
             }
             .navigationSplitViewStyle(.balanced)
+            .scaleEffect(zoomLevel, anchor: .topLeading)
+            .frame(
+                maxWidth: .infinity,
+                maxHeight: .infinity,
+                alignment: .topLeading
+            )
 
             if sidebarVisibility == .detailOnly {
                 peekTab
@@ -32,6 +39,7 @@ struct MacSidebarShell: View {
             }
         }
         .animation(.easeInOut(duration: 0.18), value: sidebarVisibility)
+        .animation(.easeInOut(duration: 0.12), value: zoomLevel)
         .safeAreaInset(edge: .top) {
             AppStatusBanner(
                 syncState: model.syncState,
@@ -46,8 +54,20 @@ struct MacSidebarShell: View {
                 .environment(model)
         }
         .sheet(isPresented: $isPresentingCommandPalette) {
-            CommandPaletteView(commands: commandPaletteCommands)
-                .environment(model)
+            CommandPaletteView(
+                commands: commandPaletteCommands,
+                onSelectTask: { task in
+                    selection = .tasks
+                    activeCustomFilterID = nil
+                    tabRouter.router(for: sidebarItemKey(.tasks)).navigate(to: .task(task.id))
+                },
+                onSelectEvent: { event in
+                    selection = .calendar
+                    activeCustomFilterID = nil
+                    tabRouter.router(for: sidebarItemKey(.calendar)).navigate(to: .event(event.id))
+                }
+            )
+            .environment(model)
         }
         .sheet(isPresented: $isPresentingHelp) {
             HelpView()
@@ -296,11 +316,13 @@ struct MacSidebarShell: View {
         appCommandActions.newEvent = { presentSheet(.addEvent, on: .calendar) }
         appCommandActions.refresh = { Task { await model.refreshNow() } }
         appCommandActions.forceResync = { Task { await model.forceFullResync() } }
-        appCommandActions.focusSearch = { selection = .search }
         appCommandActions.switchTo = { item in selection = item }
         appCommandActions.openDiagnostics = { presentSheet(.diagnostics, on: selection) }
         appCommandActions.openCommandPalette = { isPresentingCommandPalette = true }
         appCommandActions.openHelp = { isPresentingHelp = true }
+        appCommandActions.zoomIn = { zoomLevel = min(zoomLevel + 0.1, 2.0) }
+        appCommandActions.zoomOut = { zoomLevel = max(zoomLevel - 0.1, 0.6) }
+        appCommandActions.zoomReset = { zoomLevel = 1.0 }
     }
 
     private var commandPaletteCommands: [CommandPaletteCommand] {
@@ -396,21 +418,11 @@ struct MacSidebarShell: View {
                 selection = .calendar
             },
             CommandPaletteCommand(
-                id: "go-search",
-                title: "Go to Search",
-                subtitle: "Open local cache search",
-                symbol: "magnifyingglass",
-                shortcut: "Cmd+4",
-                keywords: ["search", "find", "query"]
-            ) {
-                selection = .search
-            },
-            CommandPaletteCommand(
                 id: "go-settings",
                 title: "Go to Settings",
                 subtitle: "Open settings and preferences",
                 symbol: "gearshape",
-                shortcut: "Cmd+5",
+                shortcut: "Cmd+4",
                 keywords: ["settings", "preferences"]
             ) {
                 selection = .settings

@@ -10,7 +10,6 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
     case noDate
     case tasks
     case calendar
-    case search
     case settings
 
     var id: String { rawValue }
@@ -26,7 +25,6 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .noDate: "No Date"
         case .tasks: "Tasks"
         case .calendar: "Calendar"
-        case .search: "Search"
         case .settings: "Settings"
         }
     }
@@ -42,7 +40,6 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .noDate: "tray"
         case .tasks: "checklist"
         case .calendar: "calendar"
-        case .search: "magnifyingglass"
         case .settings: "gearshape"
         }
     }
@@ -52,8 +49,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .today: "1"
         case .tasks: "2"
         case .calendar: "3"
-        case .search: "4"
-        case .settings: "5"
+        case .settings: "4"
         default: nil
         }
     }
@@ -63,7 +59,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .today, .forecast, .review, .calendar: .planner
         case .overdue, .dueToday, .next7Days, .noDate: .smartLists
         case .tasks: .lists
-        case .search, .settings: .utilities
+        case .settings: .utilities
         }
     }
 
@@ -89,8 +85,6 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
             TasksView()
         case .calendar:
             CalendarHomeView()
-        case .search:
-            SearchView()
         case .settings:
             SettingsView()
         }
