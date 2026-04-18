@@ -113,4 +113,4 @@ The Tasks tab includes online task create, edit, complete/reopen, and delete flo
 
 ## Calendar Writes
 
-The Calendar tab includes online timed and all-day event create, edit, and delete flows backed by Google Calendar `events.insert`, `events.patch`, and `events.delete`. Event forms support custom popup reminders. Recurrence, attendees, event moves, and conflict handling are later product slices.
+The Calendar tab includes online timed and all-day event create, edit, delete, and calendar-move flows backed by Google Calendar `events.insert`, `events.patch`, `events.delete`, and `events.move`. Event forms support custom popup reminders. Recurrence, attendees, and conflict handling are later product slices.
