@@ -163,13 +163,21 @@ private struct CommandPaletteRow: View {
             Spacer(minLength: 12)
 
             if command.shortcut.isEmpty == false {
-                Text(command.shortcut)
+                Text(formattedShortcut)
                     .font(.system(size: 14, weight: .medium, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
         }
         .contentShape(Rectangle())
         .padding(.vertical, 2)
+    }
+
+    private var formattedShortcut: String {
+        command.shortcut
+            .replacingOccurrences(of: "Cmd+", with: "⌘")
+            .replacingOccurrences(of: "Shift+", with: "⇧")
+            .replacingOccurrences(of: "Option+", with: "⌥")
+            .replacingOccurrences(of: "+", with: "")
     }
 }
 
