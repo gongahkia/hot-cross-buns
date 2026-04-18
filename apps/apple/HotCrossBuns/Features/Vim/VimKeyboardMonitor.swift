@@ -90,6 +90,10 @@ final class VimKeyboardMonitor {
 enum VimActionDispatcher {
     @MainActor
     static func dispatch(_ action: VimAction, commands: AppCommandActions) {
+        if commands.vimContextHandler(action) {
+            return
+        }
+
         switch action {
         case .moveDown:
             postKeyPress(keyCode: UInt16(kVK_DownArrow))

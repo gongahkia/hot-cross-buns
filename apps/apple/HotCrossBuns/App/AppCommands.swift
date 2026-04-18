@@ -13,6 +13,8 @@ final class AppCommandActions {
     var zoomIn: () -> Void = {}
     var zoomOut: () -> Void = {}
     var zoomReset: () -> Void = {}
+    var vimContextHandler: (VimAction) -> Bool = { _ in false }
+    var isVimDetailFocused: Bool = false
 }
 
 private struct AppCommandActionsKey: FocusedValueKey {
