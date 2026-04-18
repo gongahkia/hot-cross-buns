@@ -14,7 +14,7 @@ Hot Cross Buns ships as a signed, notarized macOS DMG with Sparkle auto-updates.
 
 ### Developer ID Signing
 
-See `to.do.md` for the full list of GitHub secrets required for DMG signing and notarization.
+See `URGENT-TODO.md` §5 for the full list of GitHub secrets required for DMG signing and notarization.
 
 ## Release Flow
 

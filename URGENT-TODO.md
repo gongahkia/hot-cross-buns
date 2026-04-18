@@ -1,6 +1,6 @@
 # URGENT-TODO
 
-Outstanding items from the Mac-only refactor push. Everything listed here is unblocking for a real release; feature-depth work (calendar grid, subtasks, recurrence, offline queue) is explicitly deferred.
+Outstanding items for the Mac-only refactor push and v0.1.0 release. Everything below is either unblocking for shipping, requires live-device/account access, or is an open product decision. Feature-depth work (calendar grid, subtasks, recurrence, offline queue) is tracked under "Deferred work".
 
 ## 1. Verify the new test suites run green
 
@@ -19,7 +19,7 @@ The previous run started `SyncSchedulerTombstonePurgeTests` then xcodebuild abor
 ```bash
 cd apps/apple
 
-# Reset only the CAS path that trips the save error; leave SPM cache alone.
+# reset only the CAS path that trips the save error; leave SPM cache alone.
 xcodebuild -project HotCrossBuns.xcodeproj \
   -scheme HotCrossBunsMac \
   -destination 'platform=macOS,arch=arm64' \
@@ -30,9 +30,9 @@ xcodebuild -project HotCrossBuns.xcodeproj \
   -destination 'platform=macOS,arch=arm64' \
   test CODE_SIGNING_ALLOWED=NO | tee /tmp/hcb-test.log
 
-# Pass criteria:
+# pass criteria:
 grep -E 'Executed [0-9]+ tests, with 0 failures' /tmp/hcb-test.log | wc -l
-# Expect 5 (one per suite).
+# expect 5 (one per suite).
 ```
 
 ### If the result-bundle save error re-occurs
@@ -45,67 +45,93 @@ Most likely suspect is `SyncSchedulerTombstonePurgeTests` — it uses a private 
 
 ## 2. Confirm the single-window + sidebar fix on-device
 
-The user reported two app windows at once (Mission Control screenshot). Root cause: `WindowGroup` opens a new instance per cold launch / ⌘N.
-
-Already changed `HotCrossBunsApp.swift` to `Window("Hot Cross Buns", id: "main")` with `.windowResizability(.contentMinSize)`, and `MacSidebarShell.swift` now defaults `NavigationSplitViewVisibility.all` so the sidebar shows even on the 900-minimum window width.
+Code changes landed (`HotCrossBunsApp.swift` uses `Window("Hot Cross Buns", id: "main")` with `.windowResizability(.contentMinSize)`; `MacSidebarShell.swift` defaults `NavigationSplitViewVisibility.all`). On-device verification still outstanding.
 
 **Verify manually:**
 - `open build/apple/DerivedData/Build/Products/Debug/HotCrossBunsMac.app` twice in a row — second launch should just foreground the existing window, not create a new one.
-- ⌘N invokes "New Task" (our override), not "New Window".
+- Cmd+N invokes "New Task" (our override), not "New Window".
 - Sidebar lists Today / Tasks / Calendar / Search / Settings and renders badges for Today/Tasks counts.
 
-## 3. Manual Google OAuth wiring (cannot be done from repo code alone)
+## 3. Google OAuth wiring
 
-Copy `apps/apple/Configuration/GoogleOAuth.example.xcconfig` to `GoogleOAuth.xcconfig` (already in `.gitignore`) and fill in:
-```
-GOOGLE_MACOS_CLIENT_ID = <client id>.apps.googleusercontent.com
-GOOGLE_MACOS_REVERSED_CLIENT_ID = com.googleusercontent.apps.<reversed id>
-```
+Cannot be done from repo code alone. `apps/apple/Configuration/GoogleOAuth.xcconfig` is still absent (only `.example` present), so `GoogleAuthService.isConfigured` returns false and sign-in is disabled.
 
-Then in Xcode, attach that xcconfig to the `HotCrossBunsMac` target's Debug + Release configurations. Without this, `GoogleAuthService.isConfigured` returns false and sign-in is disabled.
+- Create or choose a Google Cloud project for Hot Cross Buns.
+- Enable the Google Tasks API and Google Calendar API in that project.
+- Configure OAuth consent for personal/internal use.
+- Create an OAuth client ID for the macOS bundle ID `com.gongahkia.hotcrossbuns.mac`.
+- Copy `apps/apple/Configuration/GoogleOAuth.example.xcconfig` to `GoogleOAuth.xcconfig` (already in `.gitignore`) and fill in:
+  ```
+  GOOGLE_MACOS_CLIENT_ID = <client id>.apps.googleusercontent.com
+  GOOGLE_MACOS_REVERSED_CLIENT_ID = com.googleusercontent.apps.<reversed id>
+  ```
+- In Xcode, attach that xcconfig to the `HotCrossBunsMac` target's Debug + Release configurations.
+- Verify sign-in, disconnect, reconnect, and incremental scope grant behavior with a real Google account.
 
-Full checklist already in `to.do.md`.
+## 4. Sparkle auto-update provisioning
 
-## 4. Sparkle key provisioning
+`SUPublicEDKey` is still missing from `apps/apple/HotCrossBuns/Support/Info-macOS.plist`. Sparkle will refuse updates without it.
 
 - Run Sparkle's `generate_keys` (bundled in the SwiftPM package's derived-data directory, or downloadable from the Sparkle GitHub release) once per machine.
-- Paste the **public** key into `apps/apple/HotCrossBuns/Support/Info-macOS.plist` under `SUPublicEDKey` — currently missing; Sparkle will refuse updates without it.
+- Paste the **public** key into `Info-macOS.plist` under `SUPublicEDKey` via a build setting or direct edit.
 - Store the **private** key as GitHub Actions secret `SPARKLE_PRIVATE_KEY`.
 - Enable GitHub Pages on the `gh-pages` branch so `https://gongahkia.github.io/hot-cross-buns/appcast.xml` serves.
+- Confirm the first release publishes an appcast entry and that a previously installed build picks it up via in-app "Check for Updates".
 
 See `docs/RELEASING.md` for the end-to-end flow.
 
-## 5. Developer ID + notarization secrets
+## 5. Apple Developer ID + notarization
 
-GitHub Actions release workflow expects the following secrets (they do not exist yet):
-- `MACOS_DEVELOPER_ID_P12_BASE64`
-- `MACOS_DEVELOPER_ID_P12_PASSWORD`
-- `MACOS_DEVELOPER_ID_APPLICATION`
-- `KEYCHAIN_PASSWORD`
-- `APPLE_ID`
-- `APPLE_TEAM_ID`
-- `APP_SPECIFIC_PASSWORD`
-- `NOTARIZE_MACOS_DMG=1`
+GitHub Actions release workflow references these secrets (not yet set); without them the DMG ships unsigned and Gatekeeper warns on first open.
 
-Without them, the release job still produces an unsigned DMG but Gatekeeper will warn on first open.
+- Enroll or sign in with the intended Apple Developer account.
+- Create/export a Developer ID Application certificate as a `.p12` for website DMG distribution.
+- Add these GitHub Actions secrets for release signing in CI:
+  - `MACOS_DEVELOPER_ID_P12_BASE64`
+  - `MACOS_DEVELOPER_ID_P12_PASSWORD`
+  - `MACOS_DEVELOPER_ID_APPLICATION`
+  - `KEYCHAIN_PASSWORD`
+  - `APPLE_ID`
+  - `APPLE_TEAM_ID`
+  - `APP_SPECIFIC_PASSWORD`
+  - `NOTARIZE_MACOS_DMG` set to `1`
+- Download the CI DMG and confirm Gatekeeper opens it without unsigned-app warnings.
 
-## 6. Post-verification smoke checklist (single-user, 10 minutes)
+## 6. Live product QA
+
+Dogfood with a real account for at least one workday on macOS. Smoke checklist (10 min):
 
 1. Sign in with real Google account via Settings → Google account → Connect Google.
 2. Refresh; confirm task lists + calendars populate.
 3. Create a task → confirm it appears in Google Tasks web UI.
-4. Create an all-day event and a timed event → confirm they appear in Google Calendar web UI with the configured reminder.
-5. Delete a task in the web UI; trigger Refresh in-app; verify the task disappears (tombstone purge working).
-6. Toggle `Menu bar extra` off/on in Settings → confirm the menu bar icon hides/shows.
-7. Toggle `Dock badge for overdue tasks` off → confirm badge clears.
-8. Spotlight for a task title → confirm a result appears and clicking opens the task detail inside the app.
-9. Sync menu → Check for Updates → confirm Sparkle dialog opens (will show "no updates" until an appcast entry is published).
+4. Verify task edit / complete / reopen / delete round-trips against Google Tasks web UI.
+5. Create an all-day event and a timed event → confirm they appear in Google Calendar web UI with the configured reminder.
+6. Verify event edit / delete, all-day event behavior, and popup reminders against Google Calendar web UI.
+7. Delete a task in the web UI; trigger Refresh in-app; verify the task disappears (tombstone purge working).
+8. Confirm selected task lists/calendars persist across app relaunches and sync cycles.
+9. Confirm local reminders are neither duplicated nor stale after edits/deletes.
+10. Toggle `Menu bar extra` off/on in Settings → confirm the menu bar icon hides/shows.
+11. Toggle `Dock badge for overdue tasks` off → confirm badge clears; on → matches overdue count.
+12. Spotlight for a task title → confirm a result appears and clicking opens the task detail inside the app.
+13. Confirm menu bar extra popover renders and quick-add works.
+14. Sync menu → Check for Updates → confirm Sparkle dialog opens (will show "no updates" until an appcast entry is published).
 
-## 7. Known deferred work
+## 7. Product decisions (locked)
+
+- **Attendee emails**: ask every time via checkbox in the event editor, default off. Matches Google Calendar web behavior without surprising mass-emails.
+- **Recurrence UI**: Daily/Weekly/Monthly/Yearly presets plus a "Custom…" expander (interval, weekday picker, end = never/on date/after N). No raw RRULE string; no natural-language parsing in v1.
+- **Offline writes**: optimistic with temporary local IDs; task/event appears instantly marked "pending sync"; ID is remapped when Google accepts. Requires ID-remap handling in any relation (e.g. subtasks once added).
+- **App Intents**: foreground handoff only — Shortcut opens the app with a prefilled editor; user confirms. Revisit background writes only once the PendingMutation queue is robust.
+
+## 8. Feature requests
+
+- Add native Vim keybindings inside the Mac app if feasible. Scope to explore: modal nav (h/j/k/l, gg/G) across task/event lists and sidebar; command-mode (`:`) reusing command palette; insert-mode bindings inside task title/notes editors (SwiftUI `TextEditor` lacks native Vim — evaluate AppKit `NSTextView` subclass or integrating a mode engine). Confirm no collision with existing Cmd-shortcuts and system accessibility.
+
+## 9. Deferred work
 
 Not in scope for this push, listed here so nothing is lost:
-- Offline `PendingMutation` queue (type exists; writer/replayer missing).
-- etag / `If-Match` conditional writes — currently last-write-wins vs. Google web UI.
+- Offline `PendingMutation` queue (type exists in Models; writer/replayer not wired in Services).
+- etag / `If-Match` conditional writes — etags are captured on read but not sent on write; currently last-write-wins vs. Google web UI.
 - Calendar grid view (day/week/month).
 - Task → calendar event time-blocking drag.
 - Subtask hierarchy, task reorder, bulk operations, filters.
