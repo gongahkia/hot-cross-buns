@@ -10,6 +10,7 @@ final class AppCommandActions {
     var switchTo: (SidebarItem) -> Void = { _ in }
     var openDiagnostics: () -> Void = {}
     var openCommandPalette: () -> Void = {}
+    var openHelp: () -> Void = {}
 }
 
 private struct AppCommandActionsKey: FocusedValueKey {
@@ -52,6 +53,12 @@ struct AppCommands: Commands {
             Divider()
             Button("Diagnostics and Recovery…") { actions?.openDiagnostics() }
                 .keyboardShortcut("d", modifiers: [.command, .option])
+                .disabled(actions == nil)
+        }
+
+        CommandGroup(replacing: .help) {
+            Button("Hot Cross Buns Help") { actions?.openHelp() }
+                .keyboardShortcut("?", modifiers: [.command])
                 .disabled(actions == nil)
         }
 
