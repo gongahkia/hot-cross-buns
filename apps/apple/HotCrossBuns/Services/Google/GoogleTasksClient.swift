@@ -123,7 +123,8 @@ struct GoogleTasksClient: Sendable {
         taskID: String,
         title: String,
         notes: String,
-        dueDate: Date?
+        dueDate: Date?,
+        ifMatch: String? = nil
     ) async throws -> TaskMirror {
         try await patchTask(
             taskListID: taskListID,
@@ -134,7 +135,8 @@ struct GoogleTasksClient: Sendable {
                 status: nil,
                 due: dueDate.map(NullableField.value) ?? .null,
                 completed: .omitted
-            )
+            ),
+            ifMatch: ifMatch
         )
     }
 
@@ -148,30 +150,34 @@ struct GoogleTasksClient: Sendable {
                 status: isCompleted ? .completed : .needsAction,
                 due: .omitted,
                 completed: isCompleted ? .value(Date()) : .null
-            )
+            ),
+            ifMatch: task.etag
         )
     }
 
-    func deleteTask(taskListID: String, taskID: String) async throws {
+    func deleteTask(taskListID: String, taskID: String, ifMatch: String? = nil) async throws {
         let encodedTaskListID = taskListID.googlePathComponentEncoded
         let encodedTaskID = taskID.googlePathComponentEncoded
         try await transport.send(
             method: "DELETE",
-            path: "/tasks/v1/lists/\(encodedTaskListID)/tasks/\(encodedTaskID)"
+            path: "/tasks/v1/lists/\(encodedTaskListID)/tasks/\(encodedTaskID)",
+            ifMatch: ifMatch
         )
     }
 
     private func patchTask(
         taskListID: String,
         taskID: String,
-        body: GoogleTaskPatchDTO
+        body: GoogleTaskPatchDTO,
+        ifMatch: String? = nil
     ) async throws -> TaskMirror {
         let encodedTaskListID = taskListID.googlePathComponentEncoded
         let encodedTaskID = taskID.googlePathComponentEncoded
         let response: GoogleTaskDTO = try await transport.request(
             method: "PATCH",
             path: "/tasks/v1/lists/\(encodedTaskListID)/tasks/\(encodedTaskID)",
-            body: body
+            body: body,
+            ifMatch: ifMatch
         )
         return response.mirror(taskListID: taskListID)
     }

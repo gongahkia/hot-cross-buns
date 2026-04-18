@@ -94,7 +94,8 @@ struct GoogleCalendarClient: Sendable {
         startDate: Date,
         endDate: Date,
         isAllDay: Bool,
-        reminderMinutes: Int?
+        reminderMinutes: Int?,
+        ifMatch: String? = nil
     ) async throws -> CalendarEventMirror {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
         let encodedEventID = eventID.googlePathComponentEncoded
@@ -109,7 +110,8 @@ struct GoogleCalendarClient: Sendable {
             method: "PATCH",
             path: "/calendar/v3/calendars/\(encodedCalendarID)/events/\(encodedEventID)",
             queryItems: [URLQueryItem(name: "sendUpdates", value: "none")],
-            body: requestBody
+            body: requestBody,
+            ifMatch: ifMatch
         )
         return response.mirror(calendarID: calendarID)
     }
