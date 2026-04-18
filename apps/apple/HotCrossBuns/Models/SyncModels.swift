@@ -97,6 +97,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var hasConfiguredCalendarSelection: Bool
     var hasConfiguredTaskListSelection: Bool
     var enableLocalNotifications: Bool
+    var hasCompletedOnboarding: Bool
 
     init(
         syncMode: SyncMode,
@@ -104,7 +105,8 @@ struct AppSettings: Hashable, Codable, Sendable {
         selectedTaskListIDs: Set<TaskListMirror.ID>,
         hasConfiguredCalendarSelection: Bool = false,
         hasConfiguredTaskListSelection: Bool = false,
-        enableLocalNotifications: Bool
+        enableLocalNotifications: Bool,
+        hasCompletedOnboarding: Bool = false
     ) {
         self.syncMode = syncMode
         self.selectedCalendarIDs = selectedCalendarIDs
@@ -112,6 +114,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.hasConfiguredCalendarSelection = hasConfiguredCalendarSelection
         self.hasConfiguredTaskListSelection = hasConfiguredTaskListSelection
         self.enableLocalNotifications = enableLocalNotifications
+        self.hasCompletedOnboarding = hasCompletedOnboarding
     }
 
     enum CodingKeys: String, CodingKey {
@@ -121,6 +124,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case hasConfiguredCalendarSelection
         case hasConfiguredTaskListSelection
         case enableLocalNotifications
+        case hasCompletedOnboarding
     }
 
     init(from decoder: Decoder) throws {
@@ -131,12 +135,14 @@ struct AppSettings: Hashable, Codable, Sendable {
         hasConfiguredCalendarSelection = try container.decodeIfPresent(Bool.self, forKey: .hasConfiguredCalendarSelection) ?? false
         hasConfiguredTaskListSelection = try container.decodeIfPresent(Bool.self, forKey: .hasConfiguredTaskListSelection) ?? false
         enableLocalNotifications = try container.decodeIfPresent(Bool.self, forKey: .enableLocalNotifications) ?? false
+        hasCompletedOnboarding = try container.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? false
     }
 
     static let `default` = AppSettings(
         syncMode: .balanced,
         selectedCalendarIDs: [],
         selectedTaskListIDs: [],
-        enableLocalNotifications: false
+        enableLocalNotifications: false,
+        hasCompletedOnboarding: false
     )
 }

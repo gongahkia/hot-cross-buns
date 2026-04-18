@@ -42,6 +42,10 @@ struct AppShell: View {
         .onOpenURL { url in
             model.handleAuthRedirect(url)
         }
+        .sheet(isPresented: onboardingBinding) {
+            OnboardingView()
+                .environment(model)
+        }
     }
 
     private var nearRealtimeLoopID: String {
@@ -50,6 +54,17 @@ struct AppShell: View {
             scenePhase == .active ? "active" : "inactive",
             model.account?.id ?? "signed-out"
         ].joined(separator: ":")
+    }
+
+    private var onboardingBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.hasCompletedOnboarding == false },
+            set: { isPresented in
+                if isPresented == false {
+                    model.completeOnboarding()
+                }
+            }
+        )
     }
 
     private func runNearRealtimeSyncLoop() async {

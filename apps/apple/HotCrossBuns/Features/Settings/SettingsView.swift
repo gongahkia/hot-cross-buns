@@ -41,6 +41,12 @@ struct SettingsView: View {
                 } label: {
                     Label("Sync details", systemImage: "arrow.triangle.2.circlepath")
                 }
+
+                Button {
+                    model.resetOnboarding()
+                } label: {
+                    Label("Run setup again", systemImage: "sparkles")
+                }
             }
 
             Section("Notifications") {
@@ -114,7 +120,7 @@ struct SettingsView: View {
     }
 }
 
-private extension View {
+extension View {
     @ViewBuilder
     func syncModePickerStyle() -> some View {
         #if os(macOS)

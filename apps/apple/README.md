@@ -70,6 +70,10 @@ xcodebuild \
 
 The current cache is a JSON app-state snapshot in Application Support. It is intentionally small and replaceable: it preserves account metadata, task/calendar mirrors, sync checkpoints, pending mutation placeholders, and user settings so launch does not depend on an immediate Google round trip. A SQLite-backed cache can replace this once offline mutation replay needs stronger migrations.
 
+## Onboarding
+
+First launch presents a setup flow for Google Sign-In, sync mode, task-list/calendar selection, and local reminders. The setup state is persisted in the local cache and can be reset from Settings.
+
 ## Sync
 
 Manual refresh now performs authenticated read-sync against Google Tasks task lists/tasks and Google Calendar calendar lists/events. Initial sync performs full reads for selected resources; later syncs use Google Tasks `updatedMin` checkpoints and Google Calendar `nextSyncToken` checkpoints. Offline mutation replay is still pending.
