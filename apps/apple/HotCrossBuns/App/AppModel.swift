@@ -478,6 +478,7 @@ final class AppModel {
             await synchronizeLocalNotifications()
             if isCompleted {
                 recentlyCompletedTaskID = updatedTask.id
+                await scheduleNextRecurrenceIfNeeded(for: updatedTask)
             } else if recentlyCompletedTaskID == updatedTask.id {
                 recentlyCompletedTaskID = nil
             }
@@ -486,6 +487,19 @@ final class AppModel {
             endMutation(error: error)
             return false
         }
+    }
+
+    private func scheduleNextRecurrenceIfNeeded(for completedTask: TaskMirror) async {
+        guard let rule = TaskRecurrenceMarkers.rule(from: completedTask.notes) else { return }
+        guard let currentDue = completedTask.dueDate else { return }
+        guard let nextDue = rule.advance(currentDue) else { return }
+        _ = await createTask(
+            title: completedTask.title,
+            notes: completedTask.notes,
+            dueDate: nextDue,
+            taskListID: completedTask.taskListID,
+            parentID: completedTask.parentID
+        )
     }
 
     func clearRecentCompletion() {
