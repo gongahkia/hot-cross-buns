@@ -35,4 +35,25 @@ The macOS build command is verified in this repo. The iOS command requires the m
 
 ## Google Integration
 
-The app shell includes compile-time-safe Google Tasks and Calendar client skeletons. Real sign-in needs Google Cloud OAuth client IDs and URL scheme configuration before access tokens can be requested.
+The app uses the native Google Sign-In SDK and requests Google Tasks plus Google Calendar scopes during sign-in.
+
+Create separate Google Cloud OAuth clients for iOS and macOS, then provide these build settings locally:
+
+- `GOOGLE_IOS_CLIENT_ID`
+- `GOOGLE_IOS_REVERSED_CLIENT_ID`
+- `GOOGLE_MACOS_CLIENT_ID`
+- `GOOGLE_MACOS_REVERSED_CLIENT_ID`
+
+The committed defaults are intentionally blank. Use `Configuration/GoogleOAuth.example.xcconfig` as a reference and do not commit real OAuth client IDs. You can pass values directly to `xcodebuild`, set them as local Xcode user build settings, or wire a local ignored xcconfig in your own working copy.
+
+Example CLI override:
+
+```bash
+xcodebuild \
+  -project HotCrossBuns.xcodeproj \
+  -scheme HotCrossBunsMac \
+  -destination 'platform=macOS' \
+  GOOGLE_MACOS_CLIENT_ID='your-client-id.apps.googleusercontent.com' \
+  GOOGLE_MACOS_REVERSED_CLIENT_ID='com.googleusercontent.apps.your-reversed-client-id' \
+  build
+```

@@ -45,9 +45,6 @@ struct TodayView: View {
         }
         .appBackground()
         .navigationTitle("Today")
-        .task {
-            await model.loadInitialState()
-        }
     }
 }
 

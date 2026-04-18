@@ -20,6 +20,7 @@ DerivedData/
 *.xcuserstate
 xcuserdata/
 .xcode.env.local
+apps/apple/Configuration/GoogleOAuth.local.xcconfig
 
 # SQLite
 *.db

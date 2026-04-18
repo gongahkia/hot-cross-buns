@@ -1,3 +1,4 @@
+import GoogleSignInSwift
 import SwiftUI
 
 struct SettingsView: View {
@@ -7,11 +8,20 @@ struct SettingsView: View {
     var body: some View {
         List {
             Section("Google account") {
-                AccountStatusView(authState: model.authState) {
-                    Task {
-                        await model.connectGoogleAccount()
+                AccountStatusView(
+                    authState: model.authState,
+                    account: model.account,
+                    connect: {
+                        Task {
+                            await model.connectGoogleAccount()
+                        }
+                    },
+                    disconnect: {
+                        Task {
+                            await model.disconnectGoogleAccount()
+                        }
                     }
-                }
+                )
             }
 
             Section("Sync") {
@@ -78,7 +88,9 @@ private extension View {
 
 private struct AccountStatusView: View {
     let authState: AuthState
+    let account: GoogleAccount?
     let connect: () -> Void
+    let disconnect: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -97,13 +109,32 @@ private struct AccountStatusView: View {
                     .foregroundStyle(.red)
             }
 
-            Button(action: connect) {
-                Text("Connect Google")
-                    .frame(maxWidth: .infinity)
+            if let account {
+                Text(account.displayName)
+                    .font(.subheadline.weight(.medium))
+                Text(scopeSummary(for: account))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                Button(role: .destructive, action: disconnect) {
+                    Text("Disconnect Google")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            } else {
+                GoogleSignInButton(action: connect)
+                    .frame(maxWidth: 320, alignment: .leading)
+                    .disabled(isAuthenticating)
             }
-            .buttonStyle(.borderedProminent)
         }
         .padding(.vertical, 6)
+    }
+
+    private var isAuthenticating: Bool {
+        if case .authenticating = authState {
+            return true
+        }
+        return false
     }
 
     private var iconName: String {
@@ -117,6 +148,20 @@ private struct AccountStatusView: View {
         case .signedOut:
             "person.crop.circle.badge.plus"
         }
+    }
+
+    private func scopeSummary(for account: GoogleAccount) -> String {
+        let granted = [
+            account.grantedScopes.contains(GoogleScope.tasks) ? "Tasks" : nil,
+            account.grantedScopes.contains(GoogleScope.calendar) ? "Calendar" : nil
+        ]
+        .compactMap { $0 }
+
+        guard granted.isEmpty == false else {
+            return "Google profile connected. Tasks and Calendar scopes still need consent."
+        }
+
+        return "Granted scopes: \(granted.joined(separator: ", "))"
     }
 }
 

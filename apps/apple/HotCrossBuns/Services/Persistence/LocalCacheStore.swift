@@ -3,7 +3,7 @@ import Foundation
 actor LocalCacheStore {
     private var cachedState: CachedAppState
 
-    init(cachedState: CachedAppState = .preview) {
+    init(cachedState: CachedAppState = .empty) {
         self.cachedState = cachedState
     }
 
