@@ -19,6 +19,7 @@
 		1E6A7C7E3264A42EF264A860 /* VimKeyboardMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B73DF47EA023580C762E1BE3 /* VimKeyboardMonitor.swift */; };
 		23DEF8936535B7AAA96AB9D9 /* DraggedTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2EDEC1CEE956716394335F3 /* DraggedTask.swift */; };
 		2520B85F92EAE261CAEE3A4B /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FF54DB319263C6A1FD8A97D /* CommandPaletteView.swift */; };
+		26F27A606CAB73AC71A858D5 /* GlobalHotkey.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5BB15E1D51900AFA2203B2D /* GlobalHotkey.swift */; };
 		277CAF0A19ABD1F6844B943E /* GoogleCalendarClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 515AE22366D9FEE4138091FF /* GoogleCalendarClient.swift */; };
 		28206596F2C65EB227EA1448 /* SyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46640F8301E1D6444BE62A73 /* SyncModels.swift */; };
 		28CA89B8EDF133269217147B /* ForecastTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A58F2D287CE21DF3E73F12E /* ForecastTimelineView.swift */; };
@@ -158,6 +159,7 @@
 		F18883C2377F57F108328C03 /* SmartListFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartListFilter.swift; sourceTree = "<group>"; };
 		F2263C896865029DCEC3A53B /* CalendarHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarHomeView.swift; sourceTree = "<group>"; };
 		F2EDEC1CEE956716394335F3 /* DraggedTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DraggedTask.swift; sourceTree = "<group>"; };
+		F5BB15E1D51900AFA2203B2D /* GlobalHotkey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotkey.swift; sourceTree = "<group>"; };
 		FA8602D7CD53CF7D59CEA4DB /* HotCrossBunsMacTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HotCrossBunsMacTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FB9745E7FFF1CDB75E4D4820 /* ModelPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPersistenceTests.swift; sourceTree = "<group>"; };
 		FC17D333E0AC22B77270A396 /* GoogleAccount.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAccount.swift; sourceTree = "<group>"; };
@@ -318,6 +320,7 @@
 				25AD254487BE0AE26B9D81B8 /* AppIntentHandoff.swift */,
 				892DDFFD7ECD0890E98DEC1C /* AppModel.swift */,
 				8FF54DB319263C6A1FD8A97D /* CommandPaletteView.swift */,
+				F5BB15E1D51900AFA2203B2D /* GlobalHotkey.swift */,
 				AE5B824BD3DB57E2FA17ECE2 /* HotCrossBunsApp.swift */,
 				E2BC795AF619D093596D767D /* MacSidebarShell.swift */,
 				9F6D2A903ACFF04A22993160 /* MenuBarExtraScene.swift */,
@@ -586,6 +589,7 @@
 				23DEF8936535B7AAA96AB9D9 /* DraggedTask.swift in Sources */,
 				9ABDB68F86970E1A10FE8184 /* ForecastBuilder.swift in Sources */,
 				28CA89B8EDF133269217147B /* ForecastTimelineView.swift in Sources */,
+				26F27A606CAB73AC71A858D5 /* GlobalHotkey.swift in Sources */,
 				8CF3F07B84CA27F8F2DEF4A8 /* GoogleAPITransport.swift in Sources */,
 				C22F4B23E5FBAB647FF3F156 /* GoogleAccount.swift in Sources */,
 				DB349B0AB6AD7E665A85B0BB /* GoogleAuthService.swift in Sources */,

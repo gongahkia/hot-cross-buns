@@ -89,6 +89,10 @@ struct SettingsView: View {
             }
 
             Section("Keyboard") {
+                Toggle("Global quick-add hotkey (Cmd+Shift+Space)", isOn: globalHotkeyBinding)
+                Text("Capture a task from any app. The Hot Cross Buns quick-add sheet opens immediately, pre-focused.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                 Toggle("Vim keybindings", isOn: vimBinding)
                 Text("Modal navigation in lists and sidebar. j/k move, gg top, G bottom, x toggle complete, dd delete, : command palette, / search. Text editors keep native shortcuts.")
                     .font(.footnote)
@@ -151,6 +155,13 @@ struct SettingsView: View {
         Binding(
             get: { model.settings.enableVimKeybindings },
             set: { model.setEnableVimKeybindings($0) }
+        )
+    }
+
+    private var globalHotkeyBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.enableGlobalHotkey },
+            set: { model.setEnableGlobalHotkey($0) }
         )
     }
 

@@ -617,6 +617,12 @@ final class AppModel {
         Task { await saveCurrentState() }
     }
 
+    func setEnableGlobalHotkey(_ isEnabled: Bool) {
+        guard settings.enableGlobalHotkey != isEnabled else { return }
+        settings.enableGlobalHotkey = isEnabled
+        Task { await saveCurrentState() }
+    }
+
     func setShowDetailedMenuBar(_ isEnabled: Bool) {
         guard settings.showDetailedMenuBar != isEnabled else {
             return

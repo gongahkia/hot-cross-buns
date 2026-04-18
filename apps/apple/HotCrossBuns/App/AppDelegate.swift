@@ -2,6 +2,8 @@ import AppKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    let globalHotkey = GlobalHotkey()
+
     nonisolated func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         let menu = NSMenu()
 
@@ -34,6 +36,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func dockGoToToday() {
         AppIntentHandoff.save(.today)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func setGlobalHotkeyEnabled(_ isEnabled: Bool) {
+        if isEnabled {
+            globalHotkey.action = { [weak self] in
+                self?.triggerGlobalQuickAdd()
+            }
+            globalHotkey.install()
+        } else {
+            globalHotkey.uninstall()
+        }
+    }
+
+    private func triggerGlobalQuickAdd() {
+        AppIntentHandoff.save(.addTask)
         NSApp.activate(ignoringOtherApps: true)
     }
 }
