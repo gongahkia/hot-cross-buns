@@ -44,13 +44,31 @@ struct SettingsView: View {
             }
 
             Section("Calendars") {
-                ForEach(model.calendars) { calendar in
-                    Toggle(isOn: calendarBinding(calendar.id)) {
-                        HStack(spacing: 10) {
-                            Circle()
-                                .fill(Color(hex: calendar.colorHex))
-                                .frame(width: 10, height: 10)
-                            Text(calendar.summary)
+                if model.calendars.isEmpty {
+                    Text("Refresh after connecting Google to load calendars.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(model.calendars) { calendar in
+                        Toggle(isOn: calendarBinding(calendar.id)) {
+                            HStack(spacing: 10) {
+                                Circle()
+                                    .fill(Color(hex: calendar.colorHex))
+                                    .frame(width: 10, height: 10)
+                                Text(calendar.summary)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Section("Task lists") {
+                if model.taskLists.isEmpty {
+                    Text("Refresh after connecting Google to load task lists.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(model.taskLists) { taskList in
+                        Toggle(isOn: taskListBinding(taskList.id)) {
+                            Label(taskList.title, systemImage: "checklist")
                         }
                     }
                 }
@@ -71,6 +89,13 @@ struct SettingsView: View {
         Binding(
             get: { model.calendars.first(where: { $0.id == id })?.isSelected ?? false },
             set: { _ in model.toggleCalendar(id) }
+        )
+    }
+
+    private func taskListBinding(_ id: TaskListMirror.ID) -> Binding<Bool> {
+        Binding(
+            get: { model.isTaskListSelected(id) },
+            set: { _ in model.toggleTaskList(id) }
         )
     }
 }

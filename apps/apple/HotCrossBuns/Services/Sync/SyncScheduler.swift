@@ -60,6 +60,12 @@ actor SyncScheduler {
                 syncMode: mode,
                 selectedCalendarIDs: selectedCalendarIDs,
                 selectedTaskListIDs: selectedTaskListIDs,
+                hasConfiguredCalendarSelection: baseState.settings.hasConfiguredCalendarSelection
+                    || baseState.settings.selectedCalendarIDs.isEmpty == false
+                    || selectedCalendarIDs.isEmpty == false,
+                hasConfiguredTaskListSelection: baseState.settings.hasConfiguredTaskListSelection
+                    || baseState.settings.selectedTaskListIDs.isEmpty == false
+                    || selectedTaskListIDs.isEmpty == false,
                 enableLocalNotifications: baseState.settings.enableLocalNotifications
             ),
             syncCheckpoints: mergeCheckpoints(
@@ -202,6 +208,10 @@ actor SyncScheduler {
         let availableIDs = Set(calendars.map(\.id))
         let requestedIDs = settings.selectedCalendarIDs.intersection(availableIDs)
 
+        if settings.hasConfiguredCalendarSelection {
+            return requestedIDs
+        }
+
         if requestedIDs.isEmpty == false {
             return requestedIDs
         }
@@ -215,6 +225,11 @@ actor SyncScheduler {
     ) -> Set<TaskListMirror.ID> {
         let availableIDs = Set(taskLists.map(\.id))
         let requestedIDs = settings.selectedTaskListIDs.intersection(availableIDs)
+
+        if settings.hasConfiguredTaskListSelection {
+            return requestedIDs
+        }
+
         return requestedIDs.isEmpty ? availableIDs : requestedIDs
     }
 

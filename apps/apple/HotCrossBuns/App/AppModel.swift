@@ -369,6 +369,39 @@ final class AppModel {
             return
         }
         calendars[index].isSelected.toggle()
+        settings.hasConfiguredCalendarSelection = true
+        settings.selectedCalendarIDs = Set(calendars.filter(\.isSelected).map(\.id))
+        rebuildSnapshots()
+        Task {
+            await saveCurrentState()
+        }
+    }
+
+    func isTaskListSelected(_ taskListID: TaskListMirror.ID) -> Bool {
+        if settings.hasConfiguredTaskListSelection {
+            return settings.selectedTaskListIDs.contains(taskListID)
+        }
+
+        return true
+    }
+
+    func toggleTaskList(_ taskListID: TaskListMirror.ID) {
+        guard taskLists.contains(where: { $0.id == taskListID }) else {
+            return
+        }
+
+        var selectedIDs = settings.hasConfiguredTaskListSelection
+            ? settings.selectedTaskListIDs
+            : Set(taskLists.map(\.id))
+
+        if selectedIDs.contains(taskListID) {
+            selectedIDs.remove(taskListID)
+        } else {
+            selectedIDs.insert(taskListID)
+        }
+
+        settings.hasConfiguredTaskListSelection = true
+        settings.selectedTaskListIDs = selectedIDs
         rebuildSnapshots()
         Task {
             await saveCurrentState()
@@ -447,8 +480,14 @@ final class AppModel {
     }
 
     private func rebuildSnapshots(referenceDate: Date = Date()) {
-        taskSections = TaskListSectionSnapshot.build(taskLists: taskLists, tasks: tasks)
-        todaySnapshot = TodaySnapshot.build(tasks: tasks, events: events, referenceDate: referenceDate)
+        let visibleTaskListIDs = settings.hasConfiguredTaskListSelection
+            ? settings.selectedTaskListIDs
+            : Set(taskLists.map(\.id))
+        let visibleTaskLists = taskLists.filter { visibleTaskListIDs.contains($0.id) }
+        let visibleTasks = tasks.filter { visibleTaskListIDs.contains($0.taskListID) }
+
+        taskSections = TaskListSectionSnapshot.build(taskLists: visibleTaskLists, tasks: visibleTasks)
+        todaySnapshot = TodaySnapshot.build(tasks: visibleTasks, events: events, referenceDate: referenceDate)
         calendarSnapshot = CalendarSnapshot.build(calendars: calendars, events: events, referenceDate: referenceDate)
     }
 }
