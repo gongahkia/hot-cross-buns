@@ -69,3 +69,7 @@ Manual refresh now performs authenticated read-sync against Google Tasks task li
 ## Task Writes
 
 The Tasks tab includes an online create-task flow backed by Google Tasks `tasks.insert`. It requires a signed-in Google account and at least one loaded task list from refresh. Offline queueing, edits, deletes, and conflict handling are still pending.
+
+## Calendar Writes
+
+The Calendar tab includes an online create-event flow backed by Google Calendar `events.insert`. It currently creates timed events only; all-day events, recurrence, attendees, reminders, edits, and deletes are later product slices.

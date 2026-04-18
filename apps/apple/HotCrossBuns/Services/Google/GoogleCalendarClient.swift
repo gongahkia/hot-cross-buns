@@ -41,23 +41,31 @@ struct GoogleCalendarClient: Sendable {
         )
 
         return GoogleCalendarEventsPage(
-            events: response.items.map { item in
-                CalendarEventMirror(
-                    id: item.id,
-                    calendarID: calendarID,
-                    summary: item.summary ?? "Untitled event",
-                    details: item.description ?? "",
-                    startDate: item.start.resolvedDate,
-                    endDate: item.end.resolvedDate,
-                    isAllDay: item.start.date != nil,
-                    status: CalendarEventStatus(rawValue: item.status ?? "confirmed") ?? .confirmed,
-                    recurrence: item.recurrence ?? [],
-                    etag: item.etag,
-                    updatedAt: item.updated
-                )
-            },
+            events: response.items.map { $0.mirror(calendarID: calendarID) },
             nextSyncToken: response.nextSyncToken
         )
+    }
+
+    func insertEvent(
+        calendarID: String,
+        summary: String,
+        details: String,
+        startDate: Date,
+        endDate: Date
+    ) async throws -> CalendarEventMirror {
+        let encodedCalendarID = calendarID.googlePathComponentEncoded
+        let requestBody = GoogleEventMutationDTO(
+            summary: summary,
+            description: details.isEmpty ? nil : details,
+            start: GoogleEventMutationDateDTO(dateTime: startDate),
+            end: GoogleEventMutationDateDTO(dateTime: endDate)
+        )
+        let response: GoogleEventDTO = try await transport.request(
+            method: "POST",
+            path: "/calendar/v3/calendars/\(encodedCalendarID)/events",
+            body: requestBody
+        )
+        return response.mirror(calendarID: calendarID)
     }
 }
 
@@ -94,6 +102,22 @@ private struct GoogleEventDTO: Decodable, Sendable {
     var recurrence: [String]?
     var etag: String?
     var updated: Date?
+
+    func mirror(calendarID: String) -> CalendarEventMirror {
+        CalendarEventMirror(
+            id: id,
+            calendarID: calendarID,
+            summary: summary ?? "Untitled event",
+            details: description ?? "",
+            startDate: start.resolvedDate,
+            endDate: end.resolvedDate,
+            isAllDay: start.date != nil,
+            status: CalendarEventStatus(rawValue: status ?? "confirmed") ?? .confirmed,
+            recurrence: recurrence ?? [],
+            etag: etag,
+            updatedAt: updated
+        )
+    }
 }
 
 private struct GoogleEventDateDTO: Decodable, Sendable {
@@ -103,6 +127,17 @@ private struct GoogleEventDateDTO: Decodable, Sendable {
     var resolvedDate: Date {
         dateTime ?? date ?? Date()
     }
+}
+
+private struct GoogleEventMutationDTO: Encodable, Sendable {
+    var summary: String
+    var description: String?
+    var start: GoogleEventMutationDateDTO
+    var end: GoogleEventMutationDateDTO
+}
+
+private struct GoogleEventMutationDateDTO: Encodable, Sendable {
+    var dateTime: Date
 }
 
 private extension String {

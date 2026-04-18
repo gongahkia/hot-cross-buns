@@ -30,6 +30,13 @@ struct CalendarHomeView: View {
         }
         .appBackground()
         .navigationTitle("Google Calendar")
+        .toolbar {
+            Button {
+                router.present(.addEvent)
+            } label: {
+                Label("Add Event", systemImage: "plus")
+            }
+        }
     }
 }
 
@@ -131,6 +138,111 @@ struct EventDetailView: View {
             }
         }
         .navigationTitle("Event")
+    }
+}
+
+struct AddEventSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var model
+    @State private var selectedCalendarID: CalendarListMirror.ID?
+    @State private var summary = ""
+    @State private var details = ""
+    @State private var startDate = Date()
+    @State private var endDate = Date().addingTimeInterval(3600)
+    @State private var isSaving = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if model.calendars.isEmpty {
+                    Section {
+                        ContentUnavailableView(
+                            "No calendars loaded",
+                            systemImage: "calendar.badge.exclamationmark",
+                            description: Text("Connect Google and refresh before creating an event.")
+                        )
+                    }
+                } else {
+                    Section("Event") {
+                        TextField("Summary", text: $summary)
+                        TextField("Details", text: $details, axis: .vertical)
+                            .lineLimit(3...6)
+                    }
+
+                    Section("Calendar") {
+                        Picker("Calendar", selection: $selectedCalendarID) {
+                            ForEach(model.calendars) { calendar in
+                                Text(calendar.summary).tag(Optional(calendar.id))
+                            }
+                        }
+                    }
+
+                    Section("Time") {
+                        DatePicker("Starts", selection: $startDate)
+                        DatePicker("Ends", selection: $endDate)
+                        if endDate <= startDate {
+                            Text("End time must be after start time.")
+                                .font(.footnote)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("New Event")
+            .task {
+                selectedCalendarID = selectedCalendarID ?? defaultCalendarID
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .disabled(isSaving)
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") {
+                        Task {
+                            await createEvent()
+                        }
+                    }
+                    .disabled(canCreate == false || isSaving)
+                }
+            }
+        }
+        .interactiveDismissDisabled(isSaving)
+    }
+
+    private var defaultCalendarID: CalendarListMirror.ID? {
+        model.calendarSnapshot.selectedCalendars.first?.id ?? model.calendars.first?.id
+    }
+
+    private var canCreate: Bool {
+        summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            && selectedCalendarID != nil
+            && endDate > startDate
+            && model.account != nil
+    }
+
+    private func createEvent() async {
+        guard let selectedCalendarID else {
+            return
+        }
+
+        isSaving = true
+        defer { isSaving = false }
+
+        let didCreate = await model.createEvent(
+            summary: summary,
+            details: details,
+            startDate: startDate,
+            endDate: endDate,
+            calendarID: selectedCalendarID
+        )
+
+        if didCreate {
+            dismiss()
+        }
     }
 }
 
