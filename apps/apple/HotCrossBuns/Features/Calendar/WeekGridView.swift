@@ -219,7 +219,8 @@ struct WeekGridView: View {
             endDate: newEnd,
             isAllDay: false,
             reminderMinutes: event.reminderMinutes.first,
-            calendarID: event.calendarID
+            calendarID: event.calendarID,
+            location: event.location
         )
     }
 
