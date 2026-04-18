@@ -12,10 +12,27 @@ struct CommandPaletteCommand: Identifiable {
 
 struct CommandPaletteView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var model
     @State private var query = ""
     @FocusState private var isSearchFocused: Bool
 
     let commands: [CommandPaletteCommand]
+    let onSelectTask: (TaskMirror) -> Void
+    let onSelectEvent: (CalendarEventMirror) -> Void
+
+    private enum Row: Identifiable {
+        case command(CommandPaletteCommand)
+        case task(TaskMirror)
+        case event(CalendarEventMirror)
+
+        var id: String {
+            switch self {
+            case .command(let c): return "cmd-\(c.id)"
+            case .task(let t): return "task-\(t.id)"
+            case .event(let e): return "event-\(e.id)"
+            }
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -26,24 +43,29 @@ struct CommandPaletteView: View {
 
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    if filteredCommands.isEmpty {
+                    if filteredCommands.isEmpty, searchResults.isEmpty {
                         emptyState
                     } else {
-                        ForEach(Array(filteredCommands.enumerated()), id: \.element.id) { index, command in
-                            Button {
-                                run(command)
-                            } label: {
-                                CommandPaletteRow(command: command)
+                        if filteredCommands.isEmpty == false {
+                            sectionHeader("Commands")
+                            ForEach(filteredCommands) { command in
+                                Button { run(.command(command)) } label: {
+                                    CommandPaletteRow(command: command)
+                                }
+                                .buttonStyle(.plain)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 8)
                             }
-                            .buttonStyle(.plain)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 8)
-
-                            if index < filteredCommands.count - 1 {
-                                Divider()
-                                    .padding(.leading, 58)
-                                    .padding(.trailing, 20)
-                                    .overlay(.secondary.opacity(0.22))
+                        }
+                        if searchResults.isEmpty == false {
+                            sectionHeader("Results")
+                            ForEach(searchResults) { row in
+                                Button { run(row) } label: {
+                                    resultRow(row)
+                                }
+                                .buttonStyle(.plain)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 8)
                             }
                         }
                     }
@@ -65,39 +87,74 @@ struct CommandPaletteView: View {
         .padding(14)
     }
 
+    private var trimmedQuery: String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private var filteredCommands: [CommandPaletteCommand] {
-        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedQuery = trimmedQuery.lowercased()
         guard normalizedQuery.isEmpty == false else {
             return commands
         }
 
         return commands.filter { command in
-            if command.title.lowercased().contains(normalizedQuery) {
-                return true
-            }
-
-            if command.subtitle.lowercased().contains(normalizedQuery) {
-                return true
-            }
-
-            return command.keywords.contains { keyword in
-                keyword.lowercased().contains(normalizedQuery)
-            }
+            if command.title.lowercased().contains(normalizedQuery) { return true }
+            if command.subtitle.lowercased().contains(normalizedQuery) { return true }
+            return command.keywords.contains { $0.lowercased().contains(normalizedQuery) }
         }
+    }
+
+    private var searchResults: [Row] {
+        guard trimmedQuery.isEmpty == false else { return [] }
+        let q = trimmedQuery
+        let taskRows: [Row] = model.tasks
+            .filter { $0.isDeleted == false }
+            .filter { matches(task: $0, query: q) }
+            .sorted { ($0.dueDate ?? $0.updatedAt ?? .distantFuture) < ($1.dueDate ?? $1.updatedAt ?? .distantFuture) }
+            .prefix(12)
+            .map(Row.task)
+        let eventRows: [Row] = model.events
+            .filter { $0.status != .cancelled }
+            .filter { matches(event: $0, query: q) }
+            .sorted { $0.startDate < $1.startDate }
+            .prefix(12)
+            .map(Row.event)
+        return taskRows + eventRows
+    }
+
+    private func matches(task: TaskMirror, query: String) -> Bool {
+        [task.title, task.notes, taskListTitle(for: task)].contains {
+            $0.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    private func matches(event: CalendarEventMirror, query: String) -> Bool {
+        [event.summary, event.details, event.location, calendarTitle(for: event)].contains {
+            $0.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    private func taskListTitle(for task: TaskMirror) -> String {
+        model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? ""
+    }
+
+    private func calendarTitle(for event: CalendarEventMirror) -> String {
+        model.calendars.first(where: { $0.id == event.calendarID })?.summary ?? ""
     }
 
     private func executeFirstMatch() {
-        guard let first = filteredCommands.first else {
-            return
-        }
-
-        run(first)
+        if let first = filteredCommands.first { run(.command(first)); return }
+        if let first = searchResults.first { run(first); return }
     }
 
-    private func run(_ command: CommandPaletteCommand) {
+    private func run(_ row: Row) {
         dismiss()
         DispatchQueue.main.async {
-            command.action()
+            switch row {
+            case .command(let command): command.action()
+            case .task(let task): onSelectTask(task)
+            case .event(let event): onSelectEvent(event)
+            }
         }
     }
 
@@ -107,7 +164,7 @@ struct CommandPaletteView: View {
                 .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(.secondary)
 
-            TextField("Search commands...", text: $query)
+            TextField("Commands, tasks, events…", text: $query)
                 .textFieldStyle(.plain)
                 .focused($isSearchFocused)
                 .font(.system(size: 20, weight: .medium, design: .rounded))
@@ -129,12 +186,76 @@ struct CommandPaletteView: View {
         .padding(.vertical, 14)
     }
 
+    private func sectionHeader(_ title: String) -> some View {
+        HStack {
+            Text(title.uppercased())
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 6)
+        .padding(.bottom, 4)
+    }
+
+    @ViewBuilder
+    private func resultRow(_ row: Row) -> some View {
+        switch row {
+        case .command: EmptyView()
+        case .task(let task):
+            HStack(spacing: 12) {
+                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .font(.headline)
+                    .foregroundStyle(task.isCompleted ? AppColor.moss : AppColor.ember)
+                    .frame(width: 24)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(TagExtractor.stripped(from: TaskStarring.displayTitle(for: task)))
+                        .font(.system(size: 19, weight: .semibold, design: .rounded))
+                    Text(taskListTitle(for: task))
+                        .font(.system(size: 14, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 12)
+                if let due = task.dueDate {
+                    Text(due.formatted(.dateTime.month(.abbreviated).day()))
+                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .contentShape(Rectangle())
+        case .event(let event):
+            HStack(spacing: 12) {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(AppColor.blue)
+                    .frame(width: 6, height: 24)
+                    .padding(.leading, 9)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(event.summary)
+                        .font(.system(size: 19, weight: .semibold, design: .rounded))
+                    Text(calendarTitle(for: event))
+                        .font(.system(size: 14, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 12)
+                Text(eventTimeLabel(event))
+                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+    }
+
+    private func eventTimeLabel(_ event: CalendarEventMirror) -> String {
+        if event.isAllDay { return event.startDate.formatted(.dateTime.month(.abbreviated).day()) }
+        return event.startDate.formatted(.dateTime.month(.abbreviated).day().hour().minute())
+    }
+
     private var emptyState: some View {
         VStack(spacing: 10) {
             Image(systemName: "command")
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(.secondary)
-            Text("No command matches \"\(query)\"")
+            Text("Nothing matches \"\(query)\"")
                 .font(.headline)
                 .foregroundStyle(.secondary)
         }
@@ -179,29 +300,4 @@ private struct CommandPaletteRow: View {
             .replacingOccurrences(of: "Option+", with: "⌥")
             .replacingOccurrences(of: "+", with: "")
     }
-}
-
-#Preview {
-    CommandPaletteView(
-        commands: [
-            CommandPaletteCommand(
-                id: "new-task",
-                title: "New Task",
-                subtitle: "Create a task in Google Tasks",
-                symbol: "checklist",
-                shortcut: "⌘N",
-                keywords: ["task", "new", "create"],
-                action: {}
-            ),
-            CommandPaletteCommand(
-                id: "refresh",
-                title: "Refresh",
-                subtitle: "Sync Google Tasks and Calendar now",
-                symbol: "arrow.clockwise",
-                shortcut: "⌘R",
-                keywords: ["sync", "reload", "refresh"],
-                action: {}
-            )
-        ]
-    )
 }

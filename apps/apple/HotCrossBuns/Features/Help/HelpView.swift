@@ -25,14 +25,13 @@ struct HelpView: View {
                     }
 
                     section(title: "Navigation") {
-                        keyRow("⌘1 … ⌘5", "Jump to Today / Tasks / Calendar / Search / Settings")
-                        keyRow("⌘K", "Command palette")
-                        keyRow("⌘P", "Command palette (alternate)")
-                        keyRow("⌘F", "Focus search")
+                        keyRow("⌘1 … ⌘4", "Jump to Today / Tasks / Calendar / Settings")
+                        keyRow("⌘P  ⌘K", "Command palette — also searches tasks and events")
                         keyRow("⌘S", "Collapse sidebar to icons / expand")
                         keyRow("⌘I", "Toggle task inspector")
                         keyRow("⌘R", "Refresh sync")
                         keyRow("⌘⇧R", "Force full resync")
+                        keyRow("⌘=  ⌘-  ⌘0", "Zoom in / out / reset")
                     }
 
                     section(title: "Calendar") {

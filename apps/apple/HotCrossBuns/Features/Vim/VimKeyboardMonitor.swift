@@ -112,8 +112,6 @@ enum VimActionDispatcher {
             postKeyPress(keyCode: UInt16(kVK_Delete))
         case .openCommandPalette:
             commands.openCommandPalette()
-        case .focusSearch:
-            commands.focusSearch()
         case .toggleCheatsheet:
             break
         }

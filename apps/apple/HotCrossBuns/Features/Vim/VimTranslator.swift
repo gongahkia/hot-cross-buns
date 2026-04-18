@@ -10,7 +10,6 @@ enum VimAction: Equatable, Sendable {
     case toggleComplete
     case deleteSelection
     case openCommandPalette
-    case focusSearch
     case toggleCheatsheet
 }
 
@@ -42,7 +41,7 @@ struct VimTranslator: Equatable {
         case "h": return .moveLeft
         case "x": return .toggleComplete
         case ":": return .openCommandPalette
-        case "/": return .focusSearch
+        case "/": return .openCommandPalette
         case "G": return .scrollBottom
         case "?": return .toggleCheatsheet
         case "g", "d":
