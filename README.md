@@ -51,6 +51,12 @@ xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 
 
 iOS builds require the matching iOS platform components installed in Xcode.
 
+Create a local unsigned macOS DMG:
+
+```bash
+scripts/package-macos-dmg.sh
+```
+
 ## Legacy Desktop App
 
 The existing desktop app can still be inspected or run while it remains in the repo, but it is not the target architecture.

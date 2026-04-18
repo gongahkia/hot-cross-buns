@@ -4,15 +4,24 @@ on:
   workflow_dispatch:
 
 jobs:
-  apple-release-placeholder:
-    name: Apple Release Placeholder
+  macos-dmg:
+    name: macOS DMG
     runs-on: macos-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Explain current release status
-        run: |
-          echo "The Tauri desktop and server release pipelines are deprecated."
-          echo "apps/apple now contains the SwiftUI rewrite shell."
-          echo "Add Developer ID signing, notarization, and DMG packaging after Google OAuth configuration is in place."
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Build unsigned DMG
+        env:
+          CODE_SIGNING_ALLOWED: "NO"
+        run: scripts/package-macos-dmg.sh
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HotCrossBuns-macOS-DMG
+          path: build/apple/*.dmg
+          if-no-files-found: error
