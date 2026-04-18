@@ -1,3 +1,4 @@
+import AppKit
 import CoreSpotlight
 import SwiftUI
 
@@ -11,6 +12,9 @@ struct MacSidebarShell: View {
     private let zoomLadder: [DynamicTypeSize] = [
         .xSmall, .small, .medium, .large, .xLarge, .xxLarge, .xxxLarge,
         .accessibility1, .accessibility2, .accessibility3
+    ]
+    private let zoomWindowScaleLadder: [CGFloat] = [
+        0.84, 0.9, 0.96, 1.0, 1.08, 1.16, 1.24, 1.32, 1.4, 1.48
     ]
 
     private var dynamicTypeSize: DynamicTypeSize {
@@ -26,6 +30,7 @@ struct MacSidebarShell: View {
     @State private var appCommandActions = AppCommandActions()
     @State private var vimMonitor = VimKeyboardMonitor()
     @State private var vimState = VimState()
+    @State private var zoomShortcutMonitor: Any?
     @State private var collapsedVimFocus: CollapsedVimFocus = .detail
     @State private var isVimDetailFocused = false
 
@@ -97,6 +102,10 @@ struct MacSidebarShell: View {
             configureCommandActions()
             configureVimMonitor()
             configureGlobalHotkey()
+            installZoomShortcutMonitor()
+        }
+        .onDisappear {
+            uninstallZoomShortcutMonitor()
         }
         .onChange(of: model.settings.enableVimKeybindings) { _, newValue in
             vimMonitor.isEnabled = newValue
@@ -115,6 +124,9 @@ struct MacSidebarShell: View {
             if newValue == .detailOnly {
                 sidebarVisibility = .all
             }
+        }
+        .onChange(of: zoomStep) { oldValue, newValue in
+            applyWindowZoom(from: oldValue, to: newValue)
         }
         .task {
             await model.loadInitialState()
@@ -471,10 +483,90 @@ struct MacSidebarShell: View {
         appCommandActions.openDiagnostics = { presentSheet(.diagnostics, on: selection) }
         appCommandActions.openCommandPalette = { isPresentingCommandPalette = true }
         appCommandActions.openHelp = { isPresentingHelp = true }
-        appCommandActions.zoomIn = { zoomStep = min(zoomStep + 1, zoomLadder.count - 1) }
-        appCommandActions.zoomOut = { zoomStep = max(zoomStep - 1, 0) }
-        appCommandActions.zoomReset = { zoomStep = 3 }
+        appCommandActions.zoomIn = { performZoomIn() }
+        appCommandActions.zoomOut = { performZoomOut() }
+        appCommandActions.zoomReset = { performZoomReset() }
         appCommandActions.isVimDetailFocused = isVimDetailFocused
+    }
+
+    private func performZoomIn() {
+        zoomStep = min(zoomStep + 1, zoomLadder.count - 1)
+    }
+
+    private func performZoomOut() {
+        zoomStep = max(zoomStep - 1, 0)
+    }
+
+    private func performZoomReset() {
+        zoomStep = 3
+    }
+
+    private func installZoomShortcutMonitor() {
+        guard zoomShortcutMonitor == nil else { return }
+        zoomShortcutMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            handleZoomShortcut(event) ? nil : event
+        }
+    }
+
+    private func uninstallZoomShortcutMonitor() {
+        if let zoomShortcutMonitor {
+            NSEvent.removeMonitor(zoomShortcutMonitor)
+            self.zoomShortcutMonitor = nil
+        }
+    }
+
+    private func handleZoomShortcut(_ event: NSEvent) -> Bool {
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard modifiers.contains(.command) else { return false }
+        guard modifiers.intersection([.option, .control]).isEmpty else { return false }
+        guard event.isARepeat == false else { return false }
+
+        guard let key = event.charactersIgnoringModifiers?.first else { return false }
+        switch key {
+        case "=":
+            performZoomIn()
+            return true
+        case "-":
+            performZoomOut()
+            return true
+        case "0":
+            performZoomReset()
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func applyWindowZoom(from oldStep: Int, to newStep: Int) {
+        guard oldStep != newStep else { return }
+        guard let window = NSApp.keyWindow ?? NSApp.mainWindow else { return }
+        guard window.styleMask.contains(.fullScreen) == false else { return }
+
+        let oldIndex = max(0, min(oldStep, zoomWindowScaleLadder.count - 1))
+        let newIndex = max(0, min(newStep, zoomWindowScaleLadder.count - 1))
+        let oldScale = zoomWindowScaleLadder[oldIndex]
+        let newScale = zoomWindowScaleLadder[newIndex]
+        guard oldScale > 0 else { return }
+
+        let ratio = newScale / oldScale
+        guard ratio.isFinite, ratio > 0 else { return }
+
+        var frame = window.frame
+        let newWidth = frame.size.width * ratio
+        let newHeight = frame.size.height * ratio
+        let minSize = window.minSize
+
+        let clampedWidth = max(newWidth, minSize.width)
+        let clampedHeight = max(newHeight, minSize.height)
+        let deltaX = clampedWidth - frame.size.width
+        let deltaY = clampedHeight - frame.size.height
+
+        frame.origin.x -= deltaX / 2
+        frame.origin.y -= deltaY / 2
+        frame.size = NSSize(width: clampedWidth, height: clampedHeight)
+
+        let constrained = window.constrainFrameRect(frame, to: window.screen)
+        window.setFrame(constrained, display: true, animate: true)
     }
 
     private var commandPaletteCommands: [CommandPaletteCommand] {
