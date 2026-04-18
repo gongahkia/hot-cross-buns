@@ -30,11 +30,13 @@
 		7F105DF2722D09956A81291D /* BackoffPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0A69B82085B489B5F595CF /* BackoffPolicy.swift */; };
 		827C84F1E10F6B534F590F1B /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 377A972E3BD6867D3483B92D /* OnboardingView.swift */; };
 		82A686E7646A807876A3FBF4 /* SyncScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 049F4CDAC1343692B257156B /* SyncScheduler.swift */; };
+		843376C55956307CFD28B153 /* TaskInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA7AA6D7D06BBC2852BAFCDF /* TaskInspectorView.swift */; };
 		8CF3F07B84CA27F8F2DEF4A8 /* GoogleAPITransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EC332C6DC51DB8C6B72B7A7 /* GoogleAPITransport.swift */; };
 		8EE90A74A634E8BAC7DC5C44 /* TaskMirror.swift in Sources */ = {isa = PBXBuildFile; fileRef = 165DF0F051694E742FB59FB7 /* TaskMirror.swift */; };
 		90318AA2282A7731DA05F9F5 /* SpotlightIdentifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5958F04B434E20A3436A5CC0 /* SpotlightIdentifierTests.swift */; };
 		90939888F987285A40E2C421 /* ModelPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB9745E7FFF1CDB75E4D4820 /* ModelPersistenceTests.swift */; };
 		930995A716E764A31379E6C7 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = A52E5E4859F66796AFABAB97 /* GoogleSignIn */; };
+		93306BD12C07C443CE082AFB /* TaskDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB94773FE862AC2922886257 /* TaskDraftTests.swift */; };
 		9D509BB5F19F366E80487377 /* RouterPath.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF08213B82A11D35A48E9669 /* RouterPath.swift */; };
 		9EBF3A8E77C96C14106AB758 /* AppSettingsMacSurfacesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE4353BBFBCECA1F1E1EDF1B /* AppSettingsMacSurfacesTests.swift */; };
 		AC3FE199F79468DAA1B9D9EF /* DockBadgeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6366F53ACB2CE1B4D522E41D /* DockBadgeController.swift */; };
@@ -95,6 +97,7 @@
 		9F6D2A903ACFF04A22993160 /* MenuBarExtraScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarExtraScene.swift; sourceTree = "<group>"; };
 		A4E896952661629A01EB26B0 /* GoogleTasksClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleTasksClient.swift; sourceTree = "<group>"; };
 		AB15E1D3EF730B024771A746 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		AB94773FE862AC2922886257 /* TaskDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDraftTests.swift; sourceTree = "<group>"; };
 		AE5B824BD3DB57E2FA17ECE2 /* HotCrossBunsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotCrossBunsApp.swift; sourceTree = "<group>"; };
 		AF08213B82A11D35A48E9669 /* RouterPath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouterPath.swift; sourceTree = "<group>"; };
 		BFA7DEBBF786934A5D85FE41 /* AppStatusBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStatusBanner.swift; sourceTree = "<group>"; };
@@ -102,6 +105,7 @@
 		C87A46A9588504FF6B780BF1 /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
 		CC9C2158939F77166D48250B /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
 		CD3E985540BFEBDABB373283 /* GoogleAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAuthService.swift; sourceTree = "<group>"; };
+		DA7AA6D7D06BBC2852BAFCDF /* TaskInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskInspectorView.swift; sourceTree = "<group>"; };
 		DF84D26BB3BD8AD0DB3337B8 /* HotCrossBunsIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotCrossBunsIntents.swift; sourceTree = "<group>"; };
 		E2BC795AF619D093596D767D /* MacSidebarShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSidebarShell.swift; sourceTree = "<group>"; };
 		F2263C896865029DCEC3A53B /* CalendarHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarHomeView.swift; sourceTree = "<group>"; };
@@ -195,6 +199,7 @@
 		467F16808E7CAC7CA139CF9C /* Tasks */ = {
 			isa = PBXGroup;
 			children = (
+				DA7AA6D7D06BBC2852BAFCDF /* TaskInspectorView.swift */,
 				141ADCA673635CA9F5DA0BD1 /* TasksView.swift */,
 			);
 			path = Tasks;
@@ -261,6 +266,7 @@
 				FB9745E7FFF1CDB75E4D4820 /* ModelPersistenceTests.swift */,
 				5958F04B434E20A3436A5CC0 /* SpotlightIdentifierTests.swift */,
 				1A15AB7A557A7163BEA80ECC /* SyncSchedulerTombstonePurgeTests.swift */,
+				AB94773FE862AC2922886257 /* TaskDraftTests.swift */,
 			);
 			path = HotCrossBunsMacTests;
 			sourceTree = "<group>";
@@ -488,6 +494,7 @@
 				34DF4A454B9BAB7772BA611F /* SpotlightIndexer.swift in Sources */,
 				28206596F2C65EB227EA1448 /* SyncModels.swift in Sources */,
 				82A686E7646A807876A3FBF4 /* SyncScheduler.swift in Sources */,
+				843376C55956307CFD28B153 /* TaskInspectorView.swift in Sources */,
 				8EE90A74A634E8BAC7DC5C44 /* TaskMirror.swift in Sources */,
 				D469641DB76139A358F0A8CB /* TasksView.swift in Sources */,
 				33C20B4FBAD80FF2D1D241D7 /* TodayView.swift in Sources */,
@@ -505,6 +512,7 @@
 				90939888F987285A40E2C421 /* ModelPersistenceTests.swift in Sources */,
 				90318AA2282A7731DA05F9F5 /* SpotlightIdentifierTests.swift in Sources */,
 				CDE181FCDB04EB34924DF98B /* SyncSchedulerTombstonePurgeTests.swift in Sources */,
+				93306BD12C07C443CE082AFB /* TaskDraftTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
