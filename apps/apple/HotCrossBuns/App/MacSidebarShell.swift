@@ -12,6 +12,7 @@ struct MacSidebarShell: View {
     @State private var isPresentingOnboarding = false
     @State private var isPresentingCommandPalette = false
     @State private var appCommandActions = AppCommandActions()
+    @State private var vimMonitor = VimKeyboardMonitor()
 
     var body: some View {
         NavigationSplitView(columnVisibility: $sidebarVisibility) {
@@ -41,6 +42,10 @@ struct MacSidebarShell: View {
         .onAppear {
             selection = SidebarItem(rawValue: storedSelection) ?? .today
             configureCommandActions()
+            configureVimMonitor()
+        }
+        .onChange(of: model.settings.enableVimKeybindings) { _, newValue in
+            vimMonitor.isEnabled = newValue
         }
         .onChange(of: selection) { _, newValue in
             storedSelection = newValue.rawValue
@@ -172,6 +177,13 @@ struct MacSidebarShell: View {
             scenePhase == .active ? "active" : "inactive",
             model.account?.id ?? "signed-out"
         ].joined(separator: ":")
+    }
+
+    private func configureVimMonitor() {
+        vimMonitor.actionHandler = { [appCommandActions] action in
+            VimActionDispatcher.dispatch(action, commands: appCommandActions)
+        }
+        vimMonitor.isEnabled = model.settings.enableVimKeybindings
     }
 
     private func configureCommandActions() {

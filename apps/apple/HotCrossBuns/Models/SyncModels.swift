@@ -101,6 +101,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var showMenuBarExtra: Bool
     var showDetailedMenuBar: Bool
     var showDockBadge: Bool
+    var enableVimKeybindings: Bool
 
     init(
         syncMode: SyncMode,
@@ -112,7 +113,8 @@ struct AppSettings: Hashable, Codable, Sendable {
         hasCompletedOnboarding: Bool = false,
         showMenuBarExtra: Bool = true,
         showDetailedMenuBar: Bool = false,
-        showDockBadge: Bool = true
+        showDockBadge: Bool = true,
+        enableVimKeybindings: Bool = false
     ) {
         self.syncMode = syncMode
         self.selectedCalendarIDs = selectedCalendarIDs
@@ -124,6 +126,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.showMenuBarExtra = showMenuBarExtra
         self.showDetailedMenuBar = showDetailedMenuBar
         self.showDockBadge = showDockBadge
+        self.enableVimKeybindings = enableVimKeybindings
     }
 
     enum CodingKeys: String, CodingKey {
@@ -137,6 +140,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case showMenuBarExtra
         case showDetailedMenuBar
         case showDockBadge
+        case enableVimKeybindings
     }
 
     init(from decoder: Decoder) throws {
@@ -151,6 +155,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         showMenuBarExtra = try container.decodeIfPresent(Bool.self, forKey: .showMenuBarExtra) ?? true
         showDetailedMenuBar = try container.decodeIfPresent(Bool.self, forKey: .showDetailedMenuBar) ?? false
         showDockBadge = try container.decodeIfPresent(Bool.self, forKey: .showDockBadge) ?? true
+        enableVimKeybindings = try container.decodeIfPresent(Bool.self, forKey: .enableVimKeybindings) ?? false
     }
 
     static let `default` = AppSettings(
