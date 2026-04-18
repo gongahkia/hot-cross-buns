@@ -3,9 +3,11 @@ import SwiftUI
 struct TasksView: View {
     @Environment(AppModel.self) private var model
     @Environment(RouterPath.self) private var router
+    @State private var selection: TaskMirror.ID?
+    @State private var isInspectorPresented = true
 
     var body: some View {
-        List {
+        List(selection: $selection) {
             ForEach(model.taskSections) { section in
                 Section(section.taskList.title) {
                     if section.tasks.isEmpty {
@@ -13,22 +15,19 @@ struct TasksView: View {
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(section.tasks) { task in
-                            Button {
-                                router.navigate(to: .task(task.id))
-                            } label: {
-                                TaskListRow(task: task)
-                            }
-                            .buttonStyle(.plain)
-                            .swipeActions(edge: .leading) {
-                                Button {
-                                    Task {
-                                        await model.setTaskCompleted(!task.isCompleted, task: task)
+                            TaskListRow(task: task)
+                                .tag(task.id)
+                                .contentShape(Rectangle())
+                                .swipeActions(edge: .leading) {
+                                    Button {
+                                        Task {
+                                            await model.setTaskCompleted(!task.isCompleted, task: task)
+                                        }
+                                    } label: {
+                                        Label(task.isCompleted ? "Reopen" : "Complete", systemImage: task.isCompleted ? "arrow.uturn.backward.circle" : "checkmark.circle")
                                     }
-                                } label: {
-                                    Label(task.isCompleted ? "Reopen" : "Complete", systemImage: task.isCompleted ? "arrow.uturn.backward.circle" : "checkmark.circle")
+                                    .tint(task.isCompleted ? AppColor.blue : AppColor.moss)
                                 }
-                                .tint(task.isCompleted ? AppColor.blue : AppColor.moss)
-                            }
                         }
                     }
                 }
@@ -49,7 +48,46 @@ struct TasksView: View {
                 } label: {
                     Label("Add Task", systemImage: "plus")
                 }
+
+                Button {
+                    isInspectorPresented.toggle()
+                } label: {
+                    Label("Toggle Inspector", systemImage: "sidebar.trailing")
+                }
+                .keyboardShortcut("i", modifiers: [.command])
+                .help("Toggle task details (Cmd+I)")
             }
+        }
+        .inspector(isPresented: inspectorBinding) {
+            inspectorContent
+                .inspectorColumnWidth(min: 340, ideal: 380, max: 520)
+        }
+        .onChange(of: selection) { _, newValue in
+            if newValue != nil { isInspectorPresented = true }
+        }
+        .onAppear {
+            if selection == nil {
+                selection = model.taskSections.first?.tasks.first?.id
+            }
+        }
+    }
+
+    private var inspectorBinding: Binding<Bool> {
+        Binding(
+            get: { isInspectorPresented },
+            set: { isInspectorPresented = $0 }
+        )
+    }
+
+    @ViewBuilder
+    private var inspectorContent: some View {
+        if let id = selection, let task = model.task(id: id) {
+            TaskInspectorView(task: task, close: {
+                selection = nil
+                isInspectorPresented = false
+            })
+        } else {
+            TaskInspectorEmptyState()
         }
     }
 }
