@@ -12,17 +12,26 @@ struct MacSidebarShell: View {
     @State private var tabRouter = TabRouter()
     @State private var isPresentingOnboarding = false
     @State private var isPresentingCommandPalette = false
+    @State private var isPresentingHelp = false
     @State private var appCommandActions = AppCommandActions()
     @State private var vimMonitor = VimKeyboardMonitor()
     @State private var vimState = VimState()
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $sidebarVisibility) {
-            sidebar
-        } detail: {
-            detail
+        ZStack(alignment: .topLeading) {
+            NavigationSplitView(columnVisibility: $sidebarVisibility) {
+                sidebar
+            } detail: {
+                detail
+            }
+            .navigationSplitViewStyle(.balanced)
+
+            if sidebarVisibility == .detailOnly {
+                peekTab
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+            }
         }
-        .navigationSplitViewStyle(.balanced)
+        .animation(.easeInOut(duration: 0.18), value: sidebarVisibility)
         .safeAreaInset(edge: .top) {
             AppStatusBanner(
                 syncState: model.syncState,
@@ -38,6 +47,10 @@ struct MacSidebarShell: View {
         }
         .sheet(isPresented: $isPresentingCommandPalette) {
             CommandPaletteView(commands: commandPaletteCommands)
+                .environment(model)
+        }
+        .sheet(isPresented: $isPresentingHelp) {
+            HelpView()
                 .environment(model)
         }
         .overlay {
@@ -67,11 +80,6 @@ struct MacSidebarShell: View {
         .onChange(of: selection) { _, newValue in
             storedSelection = newValue.rawValue
             configureCommandActions()
-        }
-        .onChange(of: sidebarVisibility) { _, newValue in
-            guard newValue == .detailOnly else { return }
-            isSidebarCollapsed = true
-            sidebarVisibility = .all
         }
         .task {
             await model.loadInitialState()
@@ -119,6 +127,43 @@ struct MacSidebarShell: View {
         }
     }
 
+    private var peekTab: some View {
+        VStack {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    sidebarVisibility = .all
+                }
+            } label: {
+                Image(systemName: "sidebar.left")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(AppColor.ink)
+                    .padding(.vertical, 14)
+                    .padding(.horizontal, 5)
+                    .background(
+                        UnevenRoundedRectangle(
+                            cornerRadii: .init(topLeading: 0, bottomLeading: 0, bottomTrailing: 8, topTrailing: 8),
+                            style: .continuous
+                        )
+                        .fill(AppColor.cream.opacity(0.92))
+                    )
+                    .overlay(
+                        UnevenRoundedRectangle(
+                            cornerRadii: .init(topLeading: 0, bottomLeading: 0, bottomTrailing: 8, topTrailing: 8),
+                            style: .continuous
+                        )
+                        .strokeBorder(AppColor.cardStroke, lineWidth: 0.6)
+                    )
+                    .shadow(color: .black.opacity(0.08), radius: 4, x: 1, y: 1)
+            }
+            .buttonStyle(.plain)
+            .help("Show sidebar")
+            .accessibilityLabel("Show sidebar")
+            .padding(.top, 80)
+
+            Spacer(minLength: 0)
+        }
+    }
+
     private var sidebar: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
@@ -127,11 +172,13 @@ struct MacSidebarShell: View {
                         isSidebarCollapsed.toggle()
                     }
                 } label: {
-                    Image(systemName: isSidebarCollapsed ? "sidebar.right" : "sidebar.left")
+                    Image(systemName: isSidebarCollapsed ? "sidebar.squares.left" : "sidebar.left")
                         .font(.system(size: 13, weight: .semibold))
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel(isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")
+                .keyboardShortcut("s", modifiers: [.command])
+                .help(isSidebarCollapsed ? "Expand sidebar (⌘S)" : "Collapse to icons (⌘S)")
+                .accessibilityLabel(isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar to icons")
 
                 if isSidebarCollapsed == false {
                     Text("Hot Cross Buns")
@@ -140,7 +187,7 @@ struct MacSidebarShell: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, isSidebarCollapsed ? 10 : 12)
+            .padding(.horizontal, isSidebarCollapsed ? 8 : 12)
             .padding(.vertical, 10)
 
             Divider()
@@ -170,9 +217,9 @@ struct MacSidebarShell: View {
             .listStyle(.sidebar)
         }
         .frame(
-            minWidth: isSidebarCollapsed ? 62 : 200,
-            idealWidth: isSidebarCollapsed ? 62 : 240,
-            maxWidth: isSidebarCollapsed ? 68 : 320
+            minWidth: isSidebarCollapsed ? 48 : 200,
+            idealWidth: isSidebarCollapsed ? 50 : 240,
+            maxWidth: isSidebarCollapsed ? 54 : 320
         )
     }
 
@@ -253,6 +300,7 @@ struct MacSidebarShell: View {
         appCommandActions.switchTo = { item in selection = item }
         appCommandActions.openDiagnostics = { presentSheet(.diagnostics, on: selection) }
         appCommandActions.openCommandPalette = { isPresentingCommandPalette = true }
+        appCommandActions.openHelp = { isPresentingHelp = true }
     }
 
     private var commandPaletteCommands: [CommandPaletteCommand] {
