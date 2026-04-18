@@ -5,14 +5,15 @@ struct TasksView: View {
     @Environment(RouterPath.self) private var router
     @State private var selection: TaskMirror.ID?
     @State private var isInspectorPresented = true
+    @State private var searchQuery: String = ""
 
     var body: some View {
         List(selection: $selection) {
-            ForEach(model.taskSections) { section in
+            ForEach(filteredSections()) { section in
                 Section(section.taskList.title) {
                     let nodes = TaskHierarchy.build(tasks: section.tasks)
                     if nodes.isEmpty {
-                        Text("No tasks in this list")
+                        Text(searchQuery.isEmpty ? "No tasks in this list" : "No matches")
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(nodes) { node in
@@ -31,6 +32,7 @@ struct TasksView: View {
                 }
             }
         }
+        .searchable(text: $searchQuery, placement: .sidebar, prompt: "Filter tasks")
         .appBackground()
         .navigationTitle("Google Tasks")
         .toolbar {
@@ -87,6 +89,22 @@ struct TasksView: View {
         } else {
             TaskInspectorEmptyState()
         }
+    }
+
+    private func filteredSections() -> [TaskListSectionSnapshot] {
+        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard query.isEmpty == false else { return model.taskSections }
+        return model.taskSections.compactMap { section in
+            let tasks = section.tasks.filter { matches(task: $0, query: query) }
+            guard tasks.isEmpty == false else { return nil }
+            return TaskListSectionSnapshot(taskList: section.taskList, tasks: tasks)
+        }
+    }
+
+    private func matches(task: TaskMirror, query: String) -> Bool {
+        if task.title.localizedCaseInsensitiveContains(query) { return true }
+        if task.notes.localizedCaseInsensitiveContains(query) { return true }
+        return false
     }
 
     @ViewBuilder

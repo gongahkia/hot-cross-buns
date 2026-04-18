@@ -7,6 +7,7 @@ struct SmartListView: View {
 
     @State private var selection: TaskMirror.ID?
     @State private var isInspectorPresented = true
+    @State private var searchQuery: String = ""
 
     var body: some View {
         Group {
@@ -33,6 +34,7 @@ struct SmartListView: View {
                 .keyboardShortcut("i", modifiers: [.command])
             }
         }
+        .searchable(text: $searchQuery, placement: .sidebar, prompt: "Filter tasks")
         .inspector(isPresented: inspectorBinding) {
             inspectorContent
                 .inspectorColumnWidth(min: 340, ideal: 380, max: 520)
@@ -58,7 +60,12 @@ struct SmartListView: View {
             return Set(model.taskLists.map(\.id))
         }()
         let tasks = model.tasks.filter { visibleTaskListIDs.contains($0.taskListID) }
-        return filter.apply(to: tasks)
+        let smartFiltered = filter.apply(to: tasks)
+        let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard q.isEmpty == false else { return smartFiltered }
+        return smartFiltered.filter {
+            $0.title.localizedCaseInsensitiveContains(q) || $0.notes.localizedCaseInsensitiveContains(q)
+        }
     }
 
     private var list: some View {
