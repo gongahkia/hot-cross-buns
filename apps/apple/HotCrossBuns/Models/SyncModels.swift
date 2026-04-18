@@ -105,6 +105,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var showDockBadge: Bool
     var enableVimKeybindings: Bool
     var enableGlobalHotkey: Bool
+    var customFilters: [CustomFilterDefinition]
 
     init(
         syncMode: SyncMode,
@@ -118,7 +119,8 @@ struct AppSettings: Hashable, Codable, Sendable {
         showDetailedMenuBar: Bool = false,
         showDockBadge: Bool = true,
         enableVimKeybindings: Bool = false,
-        enableGlobalHotkey: Bool = true
+        enableGlobalHotkey: Bool = true,
+        customFilters: [CustomFilterDefinition] = []
     ) {
         self.syncMode = syncMode
         self.selectedCalendarIDs = selectedCalendarIDs
@@ -132,6 +134,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.showDockBadge = showDockBadge
         self.enableVimKeybindings = enableVimKeybindings
         self.enableGlobalHotkey = enableGlobalHotkey
+        self.customFilters = customFilters
     }
 
     enum CodingKeys: String, CodingKey {
@@ -147,6 +150,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case showDockBadge
         case enableVimKeybindings
         case enableGlobalHotkey
+        case customFilters
     }
 
     init(from decoder: Decoder) throws {
@@ -163,6 +167,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         showDockBadge = try container.decodeIfPresent(Bool.self, forKey: .showDockBadge) ?? true
         enableVimKeybindings = try container.decodeIfPresent(Bool.self, forKey: .enableVimKeybindings) ?? false
         enableGlobalHotkey = try container.decodeIfPresent(Bool.self, forKey: .enableGlobalHotkey) ?? true
+        customFilters = try container.decodeIfPresent([CustomFilterDefinition].self, forKey: .customFilters) ?? []
     }
 
     static let `default` = AppSettings(

@@ -756,6 +756,20 @@ final class AppModel {
         Task { await saveCurrentState() }
     }
 
+    func upsertCustomFilter(_ filter: CustomFilterDefinition) {
+        if let index = settings.customFilters.firstIndex(where: { $0.id == filter.id }) {
+            settings.customFilters[index] = filter
+        } else {
+            settings.customFilters.append(filter)
+        }
+        Task { await saveCurrentState() }
+    }
+
+    func deleteCustomFilter(_ id: CustomFilterDefinition.ID) {
+        settings.customFilters.removeAll { $0.id == id }
+        Task { await saveCurrentState() }
+    }
+
     func setShowDetailedMenuBar(_ isEnabled: Bool) {
         guard settings.showDetailedMenuBar != isEnabled else {
             return

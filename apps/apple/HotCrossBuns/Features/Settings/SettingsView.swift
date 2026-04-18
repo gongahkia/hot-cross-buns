@@ -99,6 +99,8 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            CustomFiltersSection()
+
             Section("Task lists") {
                 if model.taskLists.isEmpty {
                     Text("Refresh after connecting Google to load task lists.")

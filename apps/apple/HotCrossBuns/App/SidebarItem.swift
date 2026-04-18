@@ -95,6 +95,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
 enum SidebarSection: String, CaseIterable, Hashable {
     case planner
     case smartLists
+    case custom
     case lists
     case utilities
 
@@ -102,6 +103,7 @@ enum SidebarSection: String, CaseIterable, Hashable {
         switch self {
         case .planner: "Planner"
         case .smartLists: "Smart Lists"
+        case .custom: "Custom"
         case .lists: "Lists"
         case .utilities: ""
         }
