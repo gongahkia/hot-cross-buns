@@ -26,6 +26,7 @@ final class AppModel {
     private(set) var calendarSnapshot: CalendarSnapshot = .empty
     private(set) var syncCheckpoints: [SyncCheckpoint] = []
     private(set) var pendingMutations: [PendingMutation] = []
+    private(set) var recentlyCompletedTaskID: TaskMirror.ID?
     var settings: AppSettings
 
     var lastSuccessfulSyncAt: Date? {
@@ -421,11 +422,26 @@ final class AppModel {
             endMutation(error: nil)
             await saveCurrentState()
             await synchronizeLocalNotifications()
+            if isCompleted {
+                recentlyCompletedTaskID = updatedTask.id
+            } else if recentlyCompletedTaskID == updatedTask.id {
+                recentlyCompletedTaskID = nil
+            }
             return true
         } catch {
             endMutation(error: error)
             return false
         }
+    }
+
+    func clearRecentCompletion() {
+        recentlyCompletedTaskID = nil
+    }
+
+    func undoRecentCompletion() async {
+        guard let id = recentlyCompletedTaskID, let task = task(id: id) else { return }
+        recentlyCompletedTaskID = nil
+        _ = await setTaskCompleted(false, task: task)
     }
 
     func deleteTask(_ task: TaskMirror) async -> Bool {

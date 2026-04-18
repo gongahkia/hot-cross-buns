@@ -45,6 +45,9 @@ struct MacSidebarShell: View {
                     .environment(vimState)
             }
         }
+        .overlay {
+            UndoToast()
+        }
         .focusedSceneValue(\.appCommandActions, appCommandActions)
         .onAppear {
             selection = SidebarItem(rawValue: storedSelection) ?? .today
