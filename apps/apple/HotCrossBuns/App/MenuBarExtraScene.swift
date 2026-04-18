@@ -353,9 +353,16 @@ private struct MenuBarQuickAddRow: View {
                 Text(errorMessage)
                     .font(.caption2)
                     .foregroundStyle(AppColor.ember)
+            } else if model.account == nil {
+                Text("Connect Google in Settings before adding tasks.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else if model.taskLists.isEmpty {
+                Text("Refresh to load your task lists.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
         }
-        .disabled(model.account == nil || model.taskLists.isEmpty)
     }
 
     private func submit() async {
