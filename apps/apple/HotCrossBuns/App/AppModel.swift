@@ -519,13 +519,16 @@ final class AppModel {
 
         beginMutation()
         do {
-            try await tasksClient.deleteTask(taskListID: task.taskListID, taskID: task.id)
+            try await tasksClient.deleteTask(taskListID: task.taskListID, taskID: task.id, ifMatch: task.etag)
             removeTask(id: task.id)
             endMutation(error: nil)
             await saveCurrentState()
             await synchronizeLocalNotifications()
             return true
         } catch {
+            if let apiError = error as? GoogleAPIError, apiError == .preconditionFailed {
+                await refreshNow()
+            }
             endMutation(error: error)
             return false
         }
@@ -703,7 +706,12 @@ final class AppModel {
             let targetEventID = scope == .allInSeries
                 ? CalendarEventInstance.seriesID(from: event.id)
                 : event.id
-            try await calendarClient.deleteEvent(calendarID: event.calendarID, eventID: targetEventID)
+            let ifMatch: String? = scope == .allInSeries ? nil : event.etag
+            try await calendarClient.deleteEvent(
+                calendarID: event.calendarID,
+                eventID: targetEventID,
+                ifMatch: ifMatch
+            )
             if scope == .allInSeries {
                 let seriesID = CalendarEventInstance.seriesID(from: event.id)
                 events.removeAll { CalendarEventInstance.seriesID(from: $0.id) == seriesID }
@@ -716,6 +724,9 @@ final class AppModel {
             await synchronizeLocalNotifications()
             return true
         } catch {
+            if let apiError = error as? GoogleAPIError, apiError == .preconditionFailed {
+                await refreshNow()
+            }
             endMutation(error: error)
             return false
         }

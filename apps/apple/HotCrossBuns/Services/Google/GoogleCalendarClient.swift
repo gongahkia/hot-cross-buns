@@ -149,13 +149,14 @@ struct GoogleCalendarClient: Sendable {
         return response.mirror(calendarID: destinationCalendarID)
     }
 
-    func deleteEvent(calendarID: String, eventID: String) async throws {
+    func deleteEvent(calendarID: String, eventID: String, ifMatch: String? = nil) async throws {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
         let encodedEventID = eventID.googlePathComponentEncoded
         try await transport.send(
             method: "DELETE",
             path: "/calendar/v3/calendars/\(encodedCalendarID)/events/\(encodedEventID)",
-            queryItems: [URLQueryItem(name: "sendUpdates", value: "none")]
+            queryItems: [URLQueryItem(name: "sendUpdates", value: "none")],
+            ifMatch: ifMatch
         )
     }
 }
