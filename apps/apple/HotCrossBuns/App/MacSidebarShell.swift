@@ -7,16 +7,68 @@ struct MacSidebarShell: View {
     @Environment(\.scenePhase) private var scenePhase
     @SceneStorage("sidebarSelection") private var storedSelection: String = SidebarItem.today.rawValue
     @SceneStorage("sidebarCollapsed") private var isSidebarCollapsed = false
-    @SceneStorage("uiZoomStep") private var zoomStep: Int = 3 // index into zoomLadder; 3 = .large (default)
+    @SceneStorage("uiZoomStep") private var zoomStep: Int = 3 // legacy default; migrated on first launch
+    @SceneStorage("uiZoomScaleMigrationVersion") private var zoomScaleMigrationVersion: Int = 0
 
     private let zoomLadder: [DynamicTypeSize] = [
-        .xSmall, .small, .medium, .large, .xLarge, .xxLarge, .xxxLarge,
-        .accessibility1, .accessibility2, .accessibility3
+        .xSmall,
+        .small,
+        .medium,
+        .medium,
+        .large,
+        .large,
+        .large,
+        .xLarge,
+        .xLarge,
+        .xxLarge,
+        .xxLarge,
+        .xxxLarge,
+        .accessibility1,
+        .accessibility1,
+        .accessibility2,
+        .accessibility2,
+        .accessibility3
+    ]
+    private let layoutZoomLadder: [CGFloat] = [
+        0.82,
+        0.86,
+        0.9,
+        0.94,
+        0.97,
+        0.99,
+        1.0,
+        1.02,
+        1.05,
+        1.09,
+        1.14,
+        1.2,
+        1.27,
+        1.34,
+        1.4,
+        1.45,
+        1.48
     ]
 
     private var dynamicTypeSize: DynamicTypeSize {
         zoomLadder[max(0, min(zoomStep, zoomLadder.count - 1))]
     }
+
+    private var layoutZoomScale: CGFloat {
+        layoutZoomLadder[max(0, min(zoomStep, layoutZoomLadder.count - 1))]
+    }
+
+    private var sidebarToggleAnimation: Animation {
+        .smooth(duration: 0.34, extraBounce: 0.04)
+    }
+
+    private let expandedSidebarWidth: CGFloat = 240
+    private let collapsedSidebarWidth: CGFloat = 64
+    private let sidebarToggleLockNanoseconds: UInt64 = 420_000_000
+
+    private var currentSidebarWidth: CGFloat {
+        isSidebarCollapsed ? collapsedSidebarWidth : expandedSidebarWidth
+    }
+
     @State private var selection: SidebarItem = .today
     @State private var activeCustomFilterID: CustomFilterDefinition.ID?
     @State private var sidebarVisibility: NavigationSplitViewVisibility = .all
@@ -27,9 +79,11 @@ struct MacSidebarShell: View {
     @State private var appCommandActions = AppCommandActions()
     @State private var vimMonitor = VimKeyboardMonitor()
     @State private var vimState = VimState()
-    @State private var zoomShortcutMonitor: Any?
+    @State private var appShortcutMonitor: Any?
     @State private var collapsedVimFocus: CollapsedVimFocus = .detail
     @State private var isVimDetailFocused = false
+    @State private var isSidebarTransitioning = false
+    @State private var sidebarTransitionUnlockTask: Task<Void, Never>?
 
     private enum CollapsedVimFocus {
         case sidebar
@@ -42,113 +96,134 @@ struct MacSidebarShell: View {
     }
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $sidebarVisibility) {
-            sidebar
-        } detail: {
-            detail
-        }
-        .navigationSplitViewStyle(.balanced)
-        .dynamicTypeSize(dynamicTypeSize)
-        .animation(.easeInOut(duration: 0.12), value: zoomStep)
-        .appBackground()
-        .safeAreaInset(edge: .top) {
-            AppStatusBanner(
-                syncState: model.syncState,
-                authState: model.authState,
-                mutationError: model.lastMutationError,
-                retry: { Task { await model.refreshNow() } },
-                dismiss: { model.clearFailureState() }
+        GeometryReader { geometry in
+            NavigationSplitView(columnVisibility: $sidebarVisibility) {
+                sidebar
+            } detail: {
+                detail
+            }
+            .navigationSplitViewStyle(.balanced)
+            .dynamicTypeSize(dynamicTypeSize)
+            .animation(.easeInOut(duration: 0.12), value: zoomStep)
+            .scaleEffect(layoutZoomScale, anchor: .topLeading)
+            .frame(
+                width: geometry.size.width / layoutZoomScale,
+                height: geometry.size.height / layoutZoomScale,
+                alignment: .topLeading
             )
-        }
-        .sheet(isPresented: $isPresentingOnboarding) {
-            OnboardingView()
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+            .clipped()
+            .appBackground()
+            .safeAreaInset(edge: .top) {
+                AppStatusBanner(
+                    syncState: model.syncState,
+                    authState: model.authState,
+                    mutationError: model.lastMutationError,
+                    retry: { Task { await model.refreshNow() } },
+                    dismiss: { model.clearFailureState() }
+                )
+            }
+            .sheet(isPresented: $isPresentingOnboarding) {
+                OnboardingView()
+                    .environment(model)
+            }
+            .sheet(isPresented: $isPresentingCommandPalette) {
+                CommandPaletteView(
+                    commands: commandPaletteCommands,
+                    onSelectTask: { task in
+                        selection = .tasks
+                        activeCustomFilterID = nil
+                        tabRouter.router(for: sidebarItemKey(.tasks)).navigate(to: .task(task.id))
+                    },
+                    onSelectEvent: { event in
+                        selection = .calendar
+                        activeCustomFilterID = nil
+                        tabRouter.router(for: sidebarItemKey(.calendar)).navigate(to: .event(event.id))
+                    }
+                )
                 .environment(model)
-        }
-        .sheet(isPresented: $isPresentingCommandPalette) {
-            CommandPaletteView(
-                commands: commandPaletteCommands,
-                onSelectTask: { task in
-                    selection = .tasks
-                    activeCustomFilterID = nil
-                    tabRouter.router(for: sidebarItemKey(.tasks)).navigate(to: .task(task.id))
-                },
-                onSelectEvent: { event in
-                    selection = .calendar
-                    activeCustomFilterID = nil
-                    tabRouter.router(for: sidebarItemKey(.calendar)).navigate(to: .event(event.id))
+            }
+            .sheet(isPresented: $isPresentingHelp) {
+                HelpView()
+                    .environment(model)
+            }
+            .overlay {
+                if model.settings.enableVimKeybindings {
+                    VimHud()
+                        .environment(vimState)
                 }
-            )
-            .environment(model)
-        }
-        .sheet(isPresented: $isPresentingHelp) {
-            HelpView()
-                .environment(model)
-        }
-        .overlay {
-            if model.settings.enableVimKeybindings {
-                VimHud()
-                    .environment(vimState)
             }
-        }
-        .overlay {
-            UndoToast()
-        }
-        .focusedSceneValue(\.appCommandActions, appCommandActions)
-        .onAppear {
-            selection = SidebarItem(rawValue: storedSelection) ?? .today
-            configureCommandActions()
-            configureVimMonitor()
-            configureGlobalHotkey()
-            installZoomShortcutMonitor()
-        }
-        .onDisappear {
-            uninstallZoomShortcutMonitor()
-        }
-        .onChange(of: model.settings.enableVimKeybindings) { _, newValue in
-            vimMonitor.isEnabled = newValue
-        }
-        .onChange(of: model.settings.enableGlobalHotkey) { _, newValue in
-            if let delegate = NSApp.delegate as? AppDelegate {
-                delegate.setGlobalHotkeyEnabled(newValue)
+            .overlay {
+                UndoToast()
             }
-        }
-        .onChange(of: selection) { _, newValue in
-            storedSelection = newValue.rawValue
-            configureCommandActions()
-        }
-        .onChange(of: sidebarVisibility) { _, newValue in
-            // System toolbar button tries to fully hide — snap back; ⌘S is the only collapse.
-            if newValue == .detailOnly {
-                sidebarVisibility = .all
+            .focusedSceneValue(\.appCommandActions, appCommandActions)
+            .onAppear {
+                selection = SidebarItem(rawValue: storedSelection) ?? .today
+                migrateZoomStepIfNeeded()
+                configureCommandActions()
+                configureVimMonitor()
+                configureGlobalHotkey()
+                installAppShortcutMonitor()
             }
-        }
-        .task {
-            await model.loadInitialState()
-            isPresentingOnboarding = model.settings.hasCompletedOnboarding == false
-            await model.restoreGoogleSession()
-            await model.refreshForCurrentSyncMode()
-            handlePendingAppIntentRoute()
-        }
-        .onChange(of: model.settings.hasCompletedOnboarding) { _, hasCompleted in
-            if hasCompleted {
-                isPresentingOnboarding = false
+            .onDisappear {
+                uninstallAppShortcutMonitor()
+                resetSidebarTransitionLock()
             }
-        }
-        .task(id: nearRealtimeLoopID) {
-            await runNearRealtimeSyncLoop()
-        }
-        .onChange(of: scenePhase) { _, newPhase in
-            guard newPhase == .active else { return }
-            Task {
+            .onChange(of: model.settings.enableVimKeybindings) { _, newValue in
+                vimMonitor.isEnabled = newValue
+            }
+            .onChange(of: model.settings.enableGlobalHotkey) { _, newValue in
+                if let delegate = NSApp.delegate as? AppDelegate {
+                    delegate.setGlobalHotkeyEnabled(newValue)
+                }
+            }
+            .onChange(of: selection) { _, newValue in
+                storedSelection = newValue.rawValue
+                configureCommandActions()
+            }
+            .onChange(of: sidebarVisibility) { _, newValue in
+                // System toolbar button tries to fully hide — snap back; ⌘S is the only collapse.
+                if newValue == .detailOnly {
+                    sidebarVisibility = .all
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .hcbZoomIn)) { _ in
+                performZoomIn()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .hcbZoomOut)) { _ in
+                performZoomOut()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .hcbZoomReset)) { _ in
+                performZoomReset()
+            }
+            .task {
+                await model.loadInitialState()
+                isPresentingOnboarding = model.settings.hasCompletedOnboarding == false
+                await model.restoreGoogleSession()
                 await model.refreshForCurrentSyncMode()
                 handlePendingAppIntentRoute()
             }
-        }
-        .onOpenURL { url in
-            model.handleAuthRedirect(url)
-        }
-        .onContinueUserActivity(CSSearchableItemActionType) { userActivity in
-            handleSpotlightActivity(userActivity)
+            .onChange(of: model.settings.hasCompletedOnboarding) { _, hasCompleted in
+                if hasCompleted {
+                    isPresentingOnboarding = false
+                }
+            }
+            .task(id: nearRealtimeLoopID) {
+                await runNearRealtimeSyncLoop()
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                guard newPhase == .active else { return }
+                Task {
+                    await model.refreshForCurrentSyncMode()
+                    handlePendingAppIntentRoute()
+                }
+            }
+            .onOpenURL { url in
+                model.handleAuthRedirect(url)
+            }
+            .onContinueUserActivity(CSSearchableItemActionType) { userActivity in
+                handleSpotlightActivity(userActivity)
+            }
         }
     }
 
@@ -170,31 +245,80 @@ struct MacSidebarShell: View {
 
     @ViewBuilder
     private var sidebar: some View {
-        if isSidebarCollapsed {
-            collapsedSidebar
-        } else {
-            expandedSidebar
+        ZStack(alignment: .topLeading) {
+            if isSidebarCollapsed {
+                collapsedSidebar
+                    .id("collapsedSidebar")
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.96, anchor: .top)),
+                            removal: .opacity.combined(with: .move(edge: .leading))
+                        )
+                    )
+            } else {
+                expandedSidebar
+                    .id("expandedSidebar")
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity.combined(with: .move(edge: .leading)),
+                            removal: .opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading))
+                        )
+                    )
+            }
         }
+        .frame(width: currentSidebarWidth, alignment: .topLeading)
+        .navigationSplitViewColumnWidth(
+            min: currentSidebarWidth,
+            ideal: currentSidebarWidth,
+            max: currentSidebarWidth
+        )
+        .clipped()
+        .animation(sidebarToggleAnimation, value: isSidebarCollapsed)
     }
 
     private var collapseToggle: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isSidebarCollapsed.toggle()
-                // After toggling sidebar density, reset Vim navigation focus to sidebar.
-                setVimFocus(detail: false)
-                if isSidebarCollapsed {
-                    collapsedVimFocus = .sidebar
-                }
-            }
+            toggleSidebarCollapsed()
         } label: {
             Image(systemName: isSidebarCollapsed ? "sidebar.squares.left" : "sidebar.left")
                 .font(.system(size: 13, weight: .semibold))
         }
         .buttonStyle(.borderless)
-        .keyboardShortcut("s", modifiers: [.command])
+        .allowsHitTesting(isSidebarTransitioning == false)
         .help(isSidebarCollapsed ? "Expand sidebar (⌘S)" : "Collapse to icons (⌘S)")
         .accessibilityLabel(isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar to icons")
+    }
+
+    private func toggleSidebarCollapsed() {
+        guard isSidebarTransitioning == false else { return }
+
+        isSidebarTransitioning = true
+        withAnimation(sidebarToggleAnimation) {
+            let shouldCollapse = isSidebarCollapsed == false
+            isSidebarCollapsed = shouldCollapse
+            // After toggling sidebar density, reset Vim navigation focus to sidebar.
+            setVimFocus(detail: false)
+            if shouldCollapse {
+                collapsedVimFocus = .sidebar
+            }
+        }
+
+        sidebarTransitionUnlockTask?.cancel()
+        sidebarTransitionUnlockTask = Task { @MainActor in
+            do {
+                try await Task.sleep(nanoseconds: sidebarToggleLockNanoseconds)
+            } catch {
+                return
+            }
+            isSidebarTransitioning = false
+            sidebarTransitionUnlockTask = nil
+        }
+    }
+
+    private func resetSidebarTransitionLock() {
+        sidebarTransitionUnlockTask?.cancel()
+        sidebarTransitionUnlockTask = nil
+        isSidebarTransitioning = false
     }
 
     private var collapsedSidebar: some View {
@@ -202,25 +326,47 @@ struct MacSidebarShell: View {
             collapseToggle
                 .padding(.vertical, 10)
             Divider()
-            ScrollView {
-                VStack(spacing: 2) {
-                    ForEach(SidebarSection.allCases, id: \.self) { section in
-                        if section == .custom {
-                            ForEach(model.settings.customFilters) { filter in
-                                collapsedCustomFilterButton(filter)
+            List {
+                ForEach(SidebarSection.allCases, id: \.self) { section in
+                    if section == .custom {
+                        if model.settings.customFilters.isEmpty == false {
+                            Section(header: collapsedSectionHeader(section)) {
+                                ForEach(model.settings.customFilters) { filter in
+                                    collapsedCustomFilterButton(filter)
+                                }
                             }
-                        } else {
-                            ForEach(section.items) { item in
-                                collapsedItemButton(item)
+                        }
+                    } else {
+                        let items = section.items
+                        if items.isEmpty == false {
+                            Section(header: collapsedSectionHeader(section)) {
+                                ForEach(items) { item in
+                                    collapsedItemButton(item)
+                                }
                             }
                         }
                     }
                 }
-                .padding(.vertical, 6)
             }
+            .listStyle(.sidebar)
         }
-        .frame(width: 28)
+        .frame(width: collapsedSidebarWidth)
         .toolbar(removing: .sidebarToggle)
+    }
+
+    @ViewBuilder
+    private func collapsedSectionHeader(_ section: SidebarSection) -> some View {
+        if section.title.isEmpty {
+            EmptyView()
+        } else {
+            sectionHeader(section)
+                .hidden()
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var collapsedIconColumn: CGFloat {
+        28
     }
 
     private func collapsedItemButton(_ item: SidebarItem) -> some View {
@@ -231,16 +377,15 @@ struct MacSidebarShell: View {
             selection = item
             activeCustomFilterID = nil
         } label: {
-            Image(systemName: item.systemImage)
-                .font(.system(size: 14, weight: .medium))
-                .frame(width: 28, height: 26)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(isSelected ? AppColor.ember.opacity(0.2) : Color.clear)
-                )
-                .foregroundStyle(isSelected ? AppColor.ember : AppColor.ink)
+            HStack {
+                Spacer()
+                collapsedSidebarIcon(systemImage: item.systemImage, isSelected: isSelected)
+                Spacer()
+            }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
         .help(item.title)
     }
 
@@ -251,17 +396,27 @@ struct MacSidebarShell: View {
             setVimFocus(detail: false)
             activeCustomFilterID = filter.id
         } label: {
-            Image(systemName: filter.systemImage)
-                .font(.system(size: 14, weight: .medium))
-                .frame(width: 28, height: 26)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(isSelected ? AppColor.ember.opacity(0.2) : Color.clear)
-                )
-                .foregroundStyle(isSelected ? AppColor.ember : AppColor.ink)
+            HStack {
+                Spacer()
+                collapsedSidebarIcon(systemImage: filter.systemImage, isSelected: isSelected)
+                Spacer()
+            }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
         .help(filter.name)
+    }
+
+    private func collapsedSidebarIcon(systemImage: String, isSelected: Bool) -> some View {
+        Image(systemName: systemImage)
+            .font(.system(size: 14, weight: .medium))
+            .frame(width: collapsedIconColumn, height: 26)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isSelected ? AppColor.ember.opacity(0.2) : Color.clear)
+            )
+            .foregroundStyle(isSelected ? AppColor.ember : AppColor.ink)
     }
 
     private var expandedSidebar: some View {
@@ -302,7 +457,7 @@ struct MacSidebarShell: View {
             }
             .listStyle(.sidebar)
         }
-        .frame(minWidth: 200, idealWidth: 240, maxWidth: 320)
+        .frame(width: expandedSidebarWidth)
         .toolbar(removing: .sidebarToggle)
     }
 
@@ -492,38 +647,59 @@ struct MacSidebarShell: View {
     }
 
     private func performZoomReset() {
-        zoomStep = 3
+        zoomStep = 6
     }
 
-    private func installZoomShortcutMonitor() {
-        guard zoomShortcutMonitor == nil else { return }
-        zoomShortcutMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            handleZoomShortcut(event) ? nil : event
+    private func migrateZoomStepIfNeeded() {
+        guard zoomScaleMigrationVersion < 1 else { return }
+
+        // Map old 10-step zoom values to the nearest value in the new finer-grained ladder.
+        let oldLayoutZoomLadder: [CGFloat] = [0.82, 0.9, 0.96, 1.0, 1.08, 1.16, 1.24, 1.32, 1.4, 1.48]
+        let oldIndex = max(0, min(zoomStep, oldLayoutZoomLadder.count - 1))
+        let oldScale = oldLayoutZoomLadder[oldIndex]
+        let nearestIndex = layoutZoomLadder
+            .enumerated()
+            .min { abs($0.element - oldScale) < abs($1.element - oldScale) }?
+            .offset ?? 6
+
+        zoomStep = nearestIndex
+        zoomScaleMigrationVersion = 1
+    }
+
+    private func installAppShortcutMonitor() {
+        guard appShortcutMonitor == nil else { return }
+        appShortcutMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            handleAppShortcut(event) ? nil : event
         }
     }
 
-    private func uninstallZoomShortcutMonitor() {
-        if let zoomShortcutMonitor {
-            NSEvent.removeMonitor(zoomShortcutMonitor)
-            self.zoomShortcutMonitor = nil
+    private func uninstallAppShortcutMonitor() {
+        if let appShortcutMonitor {
+            NSEvent.removeMonitor(appShortcutMonitor)
+            self.appShortcutMonitor = nil
         }
     }
 
-    private func handleZoomShortcut(_ event: NSEvent) -> Bool {
+    private func handleAppShortcut(_ event: NSEvent) -> Bool {
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         guard modifiers.contains(.command) else { return false }
         guard modifiers.intersection([.option, .control]).isEmpty else { return false }
         guard event.isARepeat == false else { return false }
 
-        guard let key = event.charactersIgnoringModifiers?.first else { return false }
-        switch key {
-        case "=":
+        let rawKey = event.characters?.first
+        let plainKey = event.charactersIgnoringModifiers?.first
+        switch (rawKey, plainKey) {
+        case (_, "s") where modifiers == [.command]:
+            // Keep Cmd-S outside the transient sidebar buttons; both variants coexist during transition.
+            toggleSidebarCollapsed()
+            return true
+        case ("+", _), (_, "="):
             performZoomIn()
             return true
-        case "-":
+        case ("-", _), (_, "-"):
             performZoomOut()
             return true
-        case "0":
+        case ("0", _), (_, "0"):
             performZoomReset()
             return true
         default:

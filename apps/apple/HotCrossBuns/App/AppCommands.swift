@@ -1,5 +1,11 @@
 import SwiftUI
 
+extension Notification.Name {
+    static let hcbZoomIn = Notification.Name("hcb.zoom.in")
+    static let hcbZoomOut = Notification.Name("hcb.zoom.out")
+    static let hcbZoomReset = Notification.Name("hcb.zoom.reset")
+}
+
 @MainActor
 final class AppCommandActions {
     var newTask: () -> Void = {}
@@ -78,15 +84,36 @@ struct AppCommands: Commands {
                 }
             }
             Divider()
-            Button("Zoom In") { actions?.zoomIn() }
-                .keyboardShortcut("+", modifiers: [.command])
-                .disabled(actions == nil)
-            Button("Zoom Out") { actions?.zoomOut() }
+            Button("Zoom In") { triggerZoomIn() }
+                .keyboardShortcut("=", modifiers: [.command])
+            Button("Zoom Out") { triggerZoomOut() }
                 .keyboardShortcut("-", modifiers: [.command])
-                .disabled(actions == nil)
-            Button("Actual Size") { actions?.zoomReset() }
+            Button("Actual Size") { triggerZoomReset() }
                 .keyboardShortcut("0", modifiers: [.command])
-                .disabled(actions == nil)
+        }
+    }
+
+    private func triggerZoomIn() {
+        if let actions {
+            actions.zoomIn()
+        } else {
+            NotificationCenter.default.post(name: .hcbZoomIn, object: nil)
+        }
+    }
+
+    private func triggerZoomOut() {
+        if let actions {
+            actions.zoomOut()
+        } else {
+            NotificationCenter.default.post(name: .hcbZoomOut, object: nil)
+        }
+    }
+
+    private func triggerZoomReset() {
+        if let actions {
+            actions.zoomReset()
+        } else {
+            NotificationCenter.default.post(name: .hcbZoomReset, object: nil)
         }
     }
 }
