@@ -164,12 +164,42 @@ struct WeekGridView: View {
         let laid = CalendarGridLayout.layout(eventsInDay: eventsForDay, calendar: calendar)
 
         return ZStack(alignment: .topLeading) {
+            Rectangle()
+                .fill(Color.clear)
+                .contentShape(Rectangle())
+                .dropDestination(for: DraggedTask.self) { items, location in
+                    guard let dropped = items.first else { return false }
+                    Task {
+                        await scheduleTaskAsEvent(dropped, dropY: location.y, dayStart: startOfDay)
+                    }
+                    return true
+                }
             ForEach(Array(laid.enumerated()), id: \.offset) { _, placed in
                 eventTile(placed: placed, dayStart: startOfDay, dayEnd: endOfDay, columnWidth: width)
             }
         }
         .frame(width: width)
         .offset(x: xOffset)
+    }
+
+    private func scheduleTaskAsEvent(_ dropped: DraggedTask, dropY: CGFloat, dayStart: Date) async {
+        let start = CalendarDropComputer.snappedStart(for: dropY, hourHeight: hourHeight, dayStart: dayStart, calendar: calendar)
+        let end = CalendarDropComputer.defaultEndDate(from: start, calendar: calendar)
+        let destinationCalendar = primaryEditableCalendarID() ?? model.calendarSnapshot.selectedCalendars.first?.id
+        guard let calendarID = destinationCalendar else { return }
+        _ = await model.createEvent(
+            summary: dropped.title,
+            details: CalendarDropComputer.backLinkDescription(for: dropped.title, taskID: dropped.taskID),
+            startDate: start,
+            endDate: end,
+            isAllDay: false,
+            reminderMinutes: nil,
+            calendarID: calendarID
+        )
+    }
+
+    private func primaryEditableCalendarID() -> CalendarListMirror.ID? {
+        model.calendarSnapshot.selectedCalendars.first(where: { $0.accessRole == "owner" || $0.accessRole == "writer" })?.id
     }
 
     private func eventTile(placed: CalendarGridLayout.LaidOutEvent, dayStart: Date, dayEnd: Date, columnWidth: CGFloat) -> some View {

@@ -5,7 +5,9 @@ struct CalendarHomeView: View {
     @Environment(RouterPath.self) private var router
     @State private var selectedDate = Date()
     @SceneStorage("calendarGridMode") private var storedMode: String = CalendarGridMode.week.rawValue
+    @SceneStorage("calendarShowDrawer") private var storedShowDrawer: Bool = false
     @State private var mode: CalendarGridMode = .week
+    @State private var showTaskDrawer: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -14,7 +16,15 @@ struct CalendarHomeView: View {
             Group {
                 switch mode {
                 case .agenda: agendaContent
-                case .week: WeekGridView(anchorDate: $selectedDate)
+                case .week:
+                    HStack(spacing: 10) {
+                        if showTaskDrawer {
+                            TaskDrawerPanel()
+                                .transition(.move(edge: .leading).combined(with: .opacity))
+                        }
+                        WeekGridView(anchorDate: $selectedDate)
+                    }
+                    .animation(.easeInOut(duration: 0.2), value: showTaskDrawer)
                 case .month: MonthGridView(anchorDate: $selectedDate)
                 }
             }
@@ -23,6 +33,15 @@ struct CalendarHomeView: View {
         .navigationTitle("Google Calendar")
         .toolbar {
             ToolbarItemGroup {
+                if mode == .week {
+                    Button {
+                        showTaskDrawer.toggle()
+                    } label: {
+                        Label("Tasks Drawer", systemImage: showTaskDrawer ? "sidebar.left" : "sidebar.squares.left")
+                    }
+                    .keyboardShortcut("j", modifiers: [.command])
+                    .help("Toggle task drawer (Cmd+J)")
+                }
                 Button {
                     router.present(.addEvent)
                 } label: {
@@ -32,9 +51,13 @@ struct CalendarHomeView: View {
         }
         .onAppear {
             mode = CalendarGridMode(rawValue: storedMode) ?? .week
+            showTaskDrawer = storedShowDrawer
         }
         .onChange(of: mode) { _, newValue in
             storedMode = newValue.rawValue
+        }
+        .onChange(of: showTaskDrawer) { _, newValue in
+            storedShowDrawer = newValue
         }
     }
 
