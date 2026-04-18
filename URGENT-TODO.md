@@ -50,7 +50,8 @@ Code changes landed (`HotCrossBunsApp.swift` uses `Window("Hot Cross Buns", id: 
 **Verify manually:**
 - `open build/apple/DerivedData/Build/Products/Debug/HotCrossBunsMac.app` twice in a row — second launch should just foreground the existing window, not create a new one.
 - Cmd+N invokes "New Task" (our override), not "New Window".
-- Sidebar lists Today / Tasks / Calendar / Search / Settings and renders badges for Today/Tasks counts.
+- Sidebar lists Calendar / Store and renders badges for Calendar (today's event count) and Store (open task count).
+- Cmd+, opens the dedicated Settings window (separate scene).
 
 ## 3. Google OAuth wiring
 

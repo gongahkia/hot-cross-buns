@@ -25,13 +25,20 @@ struct HelpView: View {
                     }
 
                     section(title: "Navigation") {
-                        keyRow("⌘1 … ⌘4", "Jump to Today / Tasks / Calendar / Settings")
+                        keyRow("⌘1  ⌘2", "Jump to Calendar / Store")
+                        keyRow("⌘,", "Open Settings window")
                         keyRow("⌘P  ⌘K", "Command palette — also searches tasks and events")
                         keyRow("⌘S", "Collapse sidebar to icons / expand")
                         keyRow("⌘I", "Toggle task inspector")
                         keyRow("⌘R", "Refresh sync")
                         keyRow("⌘⇧R", "Force full resync")
                         keyRow("⌘=  ⌘-  ⌘0", "Zoom in / out / reset")
+                    }
+
+                    section(title: "Store") {
+                        bullet("Tasks, notes, smart filters, review-stale-lists, and saved custom filters all live here.")
+                        bullet("Filter menu in the toolbar switches between All / Overdue / Today / Next 7 / No Date / Notes / Stale Lists / any saved custom filter.")
+                        bullet("Notes = tasks without a due date that have notes body — Google Tasks' notes field is the backing store.")
                     }
 
                     section(title: "Calendar") {
