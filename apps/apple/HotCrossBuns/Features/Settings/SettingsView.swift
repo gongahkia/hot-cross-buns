@@ -43,6 +43,12 @@ struct SettingsView: View {
                 }
 
                 Button {
+                    router.present(.diagnostics)
+                } label: {
+                    Label("Diagnostics and recovery", systemImage: "stethoscope")
+                }
+
+                Button {
                     model.resetOnboarding()
                 } label: {
                     Label("Run setup again", systemImage: "sparkles")

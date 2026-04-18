@@ -5,8 +5,8 @@ Hot Cross Buns is being redirected from a Tauri local-first desktop task manager
 ## Current Status
 
 - The Go/PostgreSQL self-hosted sync server has been removed.
-- The Tauri desktop app in `apps/desktop` is deprecated and kept only as a legacy reference while the Apple app is designed.
-- The primary app now starts in `apps/apple` as a greenfield SwiftUI app for iOS, iPadOS, and macOS.
+- The Tauri desktop app in `apps/desktop` is deprecated and kept only as a legacy reference.
+- The primary app is now `apps/apple`, a greenfield SwiftUI app for iOS, iPadOS, and macOS.
 - Starting fresh is acceptable; this repo no longer assumes migration from the existing local SQLite database.
 - Google Drive is intentionally out of scope for the first Apple-native version.
 
@@ -93,13 +93,14 @@ Known status: the legacy desktop checks were already failing before this pivot a
 
 ## Future Apple App
 
-The intended implementation path is:
+The intended implementation path is now product hardening rather than MVP scaffolding:
 
-1. Harden offline mutation replay and conflict handling for failed Google writes.
-2. Add task-list management, task reordering, all-day Calendar events, recurrence, reminders, and attendees.
-3. Provide Developer ID signing and notarization credentials for website-ready macOS DMGs.
-4. Add iOS App Intents, widgets, and local notifications once the core sync model is stable.
-5. Use TestFlight/App Store or internal device distribution only if iOS distribution expands beyond personal/internal testing.
+1. Add automated tests around Google payloads, sync checkpoints, cache persistence, and recovery flows.
+2. Harden offline mutation replay and conflict handling for failed Google writes.
+3. Replace the JSON snapshot cache with SQLite when queued writes need migrations and indexed local queries.
+4. Add task-list management, task reordering, recurrence, attendees, and event moves after the product policies are decided.
+5. Expand Apple-native surfaces with widgets and direct background App Intents once conflict handling is reliable.
+6. Provide Developer ID signing and notarization credentials for website-ready macOS DMGs.
 
 ## Related Docs
 

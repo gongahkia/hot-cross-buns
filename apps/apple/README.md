@@ -82,6 +82,10 @@ The Search tab queries the local cache for synced tasks and calendar events by t
 
 Sync and Google connection failures surface in a global banner with dismiss and retry actions. Google API status codes are translated into user-actionable messages where possible.
 
+## Diagnostics And Recovery
+
+Settings includes a Diagnostics and Recovery sheet for daily-use support. It shows account, sync, cache, selection, checkpoint, and pending-write state; can copy a diagnostic summary; can refresh immediately; can force a full resync by clearing checkpoints; and can clear cached Google data on this device before reloading from Google. These controls do not delete data from Google.
+
 ## Sync
 
 Manual refresh now performs authenticated read-sync against Google Tasks task lists/tasks and Google Calendar calendar lists/events. Initial sync performs full reads for selected resources; later syncs use Google Tasks `updatedMin` checkpoints and Google Calendar `nextSyncToken` checkpoints. Offline mutation replay is still pending.

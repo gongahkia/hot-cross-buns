@@ -48,6 +48,10 @@ actor LocalCacheStore {
             // Keep the in-memory cache usable even when the filesystem write fails.
         }
     }
+
+    func cacheFilePath() -> String? {
+        fileURL?.path
+    }
 }
 
 private extension LocalCacheStore {

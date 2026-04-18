@@ -61,6 +61,7 @@ enum SheetDestination: Identifiable, Hashable {
     case addTask
     case addEvent
     case syncSettings
+    case diagnostics
 
     var id: String {
         switch self {
@@ -70,6 +71,8 @@ enum SheetDestination: Identifiable, Hashable {
             "addEvent"
         case .syncSettings:
             "syncSettings"
+        case .diagnostics:
+            "diagnostics"
         }
     }
 }
@@ -95,6 +98,8 @@ extension View {
                 AddEventSheet()
             case .syncSettings:
                 SyncSettingsSheet()
+            case .diagnostics:
+                DiagnosticsView()
             }
         }
     }
