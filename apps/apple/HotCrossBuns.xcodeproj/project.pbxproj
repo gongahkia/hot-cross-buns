@@ -31,6 +31,7 @@
 		4D00CE67951243CCE90386B4 /* QuickAddView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDB427444279DD0F8E4B2281 /* QuickAddView.swift */; };
 		5049BDF0BCBF8FAE6B9344DB /* LocalCacheStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D35E61D1B3B91A6E21DCC27 /* LocalCacheStore.swift */; };
 		523A574D6D48B12B4587E086 /* CalendarHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2263C896865029DCEC3A53B /* CalendarHomeView.swift */; };
+		532307C515FAB37584D4B968 /* ExporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A247BD19F3FCC74244C279E /* ExporterTests.swift */; };
 		5BBDE6D66EBF10AFEFFA71F9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B80F522C53466505A421ECE /* AppDelegate.swift */; };
 		5C9E280691B2F3198FF32835 /* SmartListFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18883C2377F57F108328C03 /* SmartListFilter.swift */; };
 		6088116D5BC2DD78307003A8 /* SmartListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95090879052F100ED5B0496A /* SmartListView.swift */; };
@@ -38,6 +39,7 @@
 		6781A77091B43C2BBAAEC36A /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 8630D5999C10C8D0FF9DB5A1 /* GoogleSignInSwift */; };
 		6BDBD1855A8378E737D6EE21 /* MenuBarExtraScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F6D2A903ACFF04A22993160 /* MenuBarExtraScene.swift */; };
 		7092CA5C7D2C3A052185B566 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC9C2158939F77166D48250B /* DesignTokens.swift */; };
+		74E52E17654990328A3FCF08 /* Exporters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89EA3416048E26FDC6F7B0BC /* Exporters.swift */; };
 		7A31F091EF2A8AE7B9F1742B /* BackoffPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D768DB4E22AFC1D29F84EB1 /* BackoffPolicyTests.swift */; };
 		7D80AADD28F287E415B0ED05 /* MonthGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0854A71DD603264D078FB733 /* MonthGridView.swift */; };
 		7F105DF2722D09956A81291D /* BackoffPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0A69B82085B489B5F595CF /* BackoffPolicy.swift */; };
@@ -114,6 +116,7 @@
 		377A972E3BD6867D3483B92D /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		380F19DEFA6E95FDFFBA051B /* HotCrossBunsMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HotCrossBunsMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		382C796971460006AB7D939E /* CalendarGridLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarGridLayout.swift; sourceTree = "<group>"; };
+		3A247BD19F3FCC74244C279E /* ExporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExporterTests.swift; sourceTree = "<group>"; };
 		3B56113BE89523BF7D0AE8EA /* CalendarMirror.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarMirror.swift; sourceTree = "<group>"; };
 		451F7A551BAF39DA361383F4 /* NaturalLanguageTaskParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NaturalLanguageTaskParser.swift; sourceTree = "<group>"; };
 		46640F8301E1D6444BE62A73 /* SyncModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncModels.swift; sourceTree = "<group>"; };
@@ -131,6 +134,7 @@
 		838CDC9397AEB8B081E732EE /* AppCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCommands.swift; sourceTree = "<group>"; };
 		84B5C3ED3789B4EFFAEEB89E /* LocalNotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNotificationScheduler.swift; sourceTree = "<group>"; };
 		892DDFFD7ECD0890E98DEC1C /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		89EA3416048E26FDC6F7B0BC /* Exporters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Exporters.swift; sourceTree = "<group>"; };
 		8FF54DB319263C6A1FD8A97D /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteView.swift; sourceTree = "<group>"; };
 		9339ABE2548F1E94C5297FEF /* VimHud.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VimHud.swift; sourceTree = "<group>"; };
 		95090879052F100ED5B0496A /* SmartListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartListView.swift; sourceTree = "<group>"; };
@@ -221,6 +225,14 @@
 			path = Today;
 			sourceTree = "<group>";
 		};
+		28BB15EF1904231DDE79E29D /* Export */ = {
+			isa = PBXGroup;
+			children = (
+				89EA3416048E26FDC6F7B0BC /* Exporters.swift */,
+			);
+			path = Export;
+			sourceTree = "<group>";
+		};
 		2993F4F950F323EB23735E6C /* HotCrossBuns */ = {
 			isa = PBXGroup;
 			children = (
@@ -301,6 +313,7 @@
 			isa = PBXGroup;
 			children = (
 				D56965C18D342691CDCDD9B9 /* Calendar */,
+				28BB15EF1904231DDE79E29D /* Export */,
 				F8456443FEBD933BC489D7AE /* Forecast */,
 				B9B594EE20C535DF5364C911 /* Onboarding */,
 				465BD077CDBE181E6068BEBE /* QuickAdd */,
@@ -354,6 +367,7 @@
 				4D768DB4E22AFC1D29F84EB1 /* BackoffPolicyTests.swift */,
 				1AE4271884E414A0922884E1 /* CalendarDropComputerTests.swift */,
 				5E7CCAAA53D6C1875F338A5B /* CalendarGridLayoutTests.swift */,
+				3A247BD19F3FCC74244C279E /* ExporterTests.swift */,
 				2316DAFF7860DC61BD91AF52 /* ForecastBuilderTests.swift */,
 				FB9745E7FFF1CDB75E4D4820 /* ModelPersistenceTests.swift */,
 				4B3C9FACB76521CB9850BC84 /* NaturalLanguageTaskParserTests.swift */,
@@ -590,6 +604,7 @@
 				61E276C2555F3F36F976E697 /* DiagnosticsView.swift in Sources */,
 				AC3FE199F79468DAA1B9D9EF /* DockBadgeController.swift in Sources */,
 				23DEF8936535B7AAA96AB9D9 /* DraggedTask.swift in Sources */,
+				74E52E17654990328A3FCF08 /* Exporters.swift in Sources */,
 				9ABDB68F86970E1A10FE8184 /* ForecastBuilder.swift in Sources */,
 				28CA89B8EDF133269217147B /* ForecastTimelineView.swift in Sources */,
 				26F27A606CAB73AC71A858D5 /* GlobalHotkey.swift in Sources */,
@@ -643,6 +658,7 @@
 				7A31F091EF2A8AE7B9F1742B /* BackoffPolicyTests.swift in Sources */,
 				CCFA60589BEC192C6B812D39 /* CalendarDropComputerTests.swift in Sources */,
 				0C684E4902EA8C1B8C94322E /* CalendarGridLayoutTests.swift in Sources */,
+				532307C515FAB37584D4B968 /* ExporterTests.swift in Sources */,
 				870B6E741963A990B14961F4 /* ForecastBuilderTests.swift in Sources */,
 				90939888F987285A40E2C421 /* ModelPersistenceTests.swift in Sources */,
 				B961C661A38D5CE2845E6580 /* NaturalLanguageTaskParserTests.swift in Sources */,

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct TaskDraft: Equatable {
@@ -259,8 +260,23 @@ struct TaskInspectorView: View {
             }
             .buttonStyle(.bordered)
             .keyboardShortcut(.delete, modifiers: [.command])
+
+            Button {
+                copyAsMarkdown()
+            } label: {
+                Label("Copy as Markdown", systemImage: "doc.on.clipboard")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
         }
         .disabled(model.isMutating)
+    }
+
+    private func copyAsMarkdown() {
+        let listTitle = model.taskLists.first(where: { $0.id == task.taskListID })?.title
+        let markdown = TaskMarkdownExporter.markdown(for: task, taskListTitle: listTitle)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(markdown, forType: .string)
     }
 
     private var children: [TaskMirror] {

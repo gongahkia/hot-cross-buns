@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct CalendarHomeView: View {
     @Environment(AppModel.self) private var model
@@ -372,6 +374,7 @@ struct EventDetailView: View {
 }
 
 private struct EventActionPanel: View {
+    @Environment(AppModel.self) private var model
     let event: CalendarEventMirror
     let isMutating: Bool
     let onEdit: () -> Void
@@ -393,8 +396,46 @@ private struct EventActionPanel: View {
             }
             .buttonStyle(.bordered)
             .disabled(isMutating)
+
+            Button(action: copyAsMarkdown) {
+                Label("Copy as Markdown", systemImage: "doc.on.clipboard")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+
+            Button(action: exportICS) {
+                Label("Export .ics", systemImage: "square.and.arrow.up")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
         }
         .cardSurface(cornerRadius: 22)
+    }
+
+    private func copyAsMarkdown() {
+        let calendarTitle = model.calendars.first(where: { $0.id == event.calendarID })?.summary
+        let markdown = EventMarkdownExporter.markdown(for: event, calendarTitle: calendarTitle)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(markdown, forType: .string)
+    }
+
+    private func exportICS() {
+        let content = EventICSExporter.ics(for: event)
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = suggestedFilename()
+        panel.allowedContentTypes = [UTType(filenameExtension: "ics") ?? .data]
+        panel.canCreateDirectories = true
+        if panel.runModal() == .OK, let url = panel.url {
+            try? content.data(using: .utf8)?.write(to: url)
+        }
+    }
+
+    private func suggestedFilename() -> String {
+        let sanitized = event.summary
+            .replacingOccurrences(of: "/", with: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = sanitized.isEmpty ? "event" : sanitized
+        return "\(base).ics"
     }
 }
 
