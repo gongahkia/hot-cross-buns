@@ -98,4 +98,15 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.gongahkia.hotcrossbuns.mac
         CODE_SIGN_STYLE: Automatic
     scheme:
-      testTargets: []
+      testTargets:
+        - HotCrossBunsMacTests
+  HotCrossBunsMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: HotCrossBunsMacTests
+    dependencies:
+      - target: HotCrossBunsMac
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gongahkia.hotcrossbuns.mac.tests

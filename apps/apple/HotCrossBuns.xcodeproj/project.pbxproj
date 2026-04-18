@@ -47,6 +47,7 @@
 		8CF3F07B84CA27F8F2DEF4A8 /* GoogleAPITransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EC332C6DC51DB8C6B72B7A7 /* GoogleAPITransport.swift */; };
 		8EE90A74A634E8BAC7DC5C44 /* TaskMirror.swift in Sources */ = {isa = PBXBuildFile; fileRef = 165DF0F051694E742FB59FB7 /* TaskMirror.swift */; };
 		8FAD7F292A1D64CD98B53282 /* TaskMirror.swift in Sources */ = {isa = PBXBuildFile; fileRef = 165DF0F051694E742FB59FB7 /* TaskMirror.swift */; };
+		90939888F987285A40E2C421 /* ModelPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB9745E7FFF1CDB75E4D4820 /* ModelPersistenceTests.swift */; };
 		930995A716E764A31379E6C7 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = A52E5E4859F66796AFABAB97 /* GoogleSignIn */; };
 		9B8F655CC0A7DB0E043E814C /* ISO8601DateFormatter+Google.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B5A02F709EC80DD855D2C87 /* ISO8601DateFormatter+Google.swift */; };
 		9C5CB77D0D49AC5DC8F5DF1F /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CDBE097FFF4A48F2BCDE315 /* DiagnosticsView.swift */; };
@@ -70,6 +71,16 @@
 		E219DD1B1AD052112F17BD50 /* AppStatusBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFA7DEBBF786934A5D85FE41 /* AppStatusBanner.swift */; };
 		EDD93694D9CD9932FFED92EF /* GoogleTasksClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4E896952661629A01EB26B0 /* GoogleTasksClient.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		E799541B171B4F768761C08C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D7D780CAF256DE2A5FD1858F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 219B609558AEF0B469CEC407;
+			remoteInfo = HotCrossBunsMac;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		049F4CDAC1343692B257156B /* SyncScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncScheduler.swift; sourceTree = "<group>"; };
@@ -102,6 +113,8 @@
 		CD3E985540BFEBDABB373283 /* GoogleAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAuthService.swift; sourceTree = "<group>"; };
 		DF84D26BB3BD8AD0DB3337B8 /* HotCrossBunsIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotCrossBunsIntents.swift; sourceTree = "<group>"; };
 		F2263C896865029DCEC3A53B /* CalendarHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarHomeView.swift; sourceTree = "<group>"; };
+		FA8602D7CD53CF7D59CEA4DB /* HotCrossBunsMacTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HotCrossBunsMacTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		FB9745E7FFF1CDB75E4D4820 /* ModelPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPersistenceTests.swift; sourceTree = "<group>"; };
 		FC17D333E0AC22B77270A396 /* GoogleAccount.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAccount.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -140,6 +153,7 @@
 			children = (
 				AE917B3D83E7CCB7735C48F5 /* HotCrossBuns.app */,
 				380F19DEFA6E95FDFFBA051B /* HotCrossBunsMac.app */,
+				FA8602D7CD53CF7D59CEA4DB /* HotCrossBunsMacTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -188,6 +202,7 @@
 			isa = PBXGroup;
 			children = (
 				2993F4F950F323EB23735E6C /* HotCrossBuns */,
+				8630EC5238AF566E168516B9 /* HotCrossBunsMacTests */,
 				17A5AA790F99CFC316C5466E /* Products */,
 			);
 			sourceTree = "<group>";
@@ -229,6 +244,14 @@
 				0BC0353E59AA41840DC8EAD2 /* Sync */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		8630EC5238AF566E168516B9 /* HotCrossBunsMacTests */ = {
+			isa = PBXGroup;
+			children = (
+				FB9745E7FFF1CDB75E4D4820 /* ModelPersistenceTests.swift */,
+			);
+			path = HotCrossBunsMacTests;
 			sourceTree = "<group>";
 		};
 		925C270356E32422F9A8BDF9 /* Auth */ = {
@@ -327,6 +350,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		045A02CEF69A5B42D8D9ED33 /* HotCrossBunsMacTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7791F10109A5AF2AE6BFFE7B /* Build configuration list for PBXNativeTarget "HotCrossBunsMacTests" */;
+			buildPhases = (
+				15B1E9998EF043AF8F14FBC2 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				59F97ECFDA5B6D303FCCF7CA /* PBXTargetDependency */,
+			);
+			name = HotCrossBunsMacTests;
+			packageProductDependencies = (
+			);
+			productName = HotCrossBunsMacTests;
+			productReference = FA8602D7CD53CF7D59CEA4DB /* HotCrossBunsMacTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		1640B11FD43C666449FED059 /* HotCrossBuns */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = AA059F80FE2F5A0270EBD826 /* Build configuration list for PBXNativeTarget "HotCrossBuns" */;
@@ -376,6 +417,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					045A02CEF69A5B42D8D9ED33 = {
+						DevelopmentTeam = "";
+					};
 					1640B11FD43C666449FED059 = {
 						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
@@ -405,6 +449,7 @@
 			targets = (
 				1640B11FD43C666449FED059 /* HotCrossBuns */,
 				219B609558AEF0B469CEC407 /* HotCrossBunsMac */,
+				045A02CEF69A5B42D8D9ED33 /* HotCrossBunsMacTests */,
 			);
 		};
 /* End PBXProject section */
@@ -446,6 +491,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		15B1E9998EF043AF8F14FBC2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				90939888F987285A40E2C421 /* ModelPersistenceTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		6063E15592EC3C4D3DF714C5 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -483,6 +536,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		59F97ECFDA5B6D303FCCF7CA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 219B609558AEF0B469CEC407 /* HotCrossBunsMac */;
+			targetProxy = E799541B171B4F768761C08C /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		054F0E2397BB898DBC1F7593 /* Release */ = {
@@ -600,6 +661,22 @@
 			};
 			name = Release;
 		};
+		76989771412E7F698355102A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.gongahkia.hotcrossbuns.mac.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HotCrossBunsMac.app/Contents/MacOS/HotCrossBunsMac";
+			};
+			name = Release;
+		};
 		A763CD2C691B1085A957B181 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -672,6 +749,22 @@
 			};
 			name = Debug;
 		};
+		CB7AC0590E9C858DC25CFED6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.gongahkia.hotcrossbuns.mac.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HotCrossBunsMac.app/Contents/MacOS/HotCrossBunsMac";
+			};
+			name = Debug;
+		};
 		D36637FC2EBD45222602CB3C /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -696,6 +789,15 @@
 			buildConfigurations = (
 				10E65C26A228A8110F4880C2 /* Debug */,
 				D36637FC2EBD45222602CB3C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		7791F10109A5AF2AE6BFFE7B /* Build configuration list for PBXNativeTarget "HotCrossBunsMacTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CB7AC0590E9C858DC25CFED6 /* Debug */,
+				76989771412E7F698355102A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

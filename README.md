@@ -49,6 +49,13 @@ cd apps/apple
 xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO
 ```
 
+Verified macOS test command:
+
+```bash
+cd apps/apple
+xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 'platform=macOS' test CODE_SIGNING_ALLOWED=NO
+```
+
 iOS builds require the matching iOS platform components installed in Xcode.
 
 Create a local macOS DMG:
