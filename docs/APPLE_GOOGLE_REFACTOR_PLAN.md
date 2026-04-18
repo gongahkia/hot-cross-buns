@@ -2,7 +2,7 @@
 
 ## Decision
 
-Build the next version as a native SwiftUI app for iOS, iPadOS, and macOS. Keep the current Tauri app as reference only. Remove the Go sync server and use Google Tasks plus Google Calendar as the sync backend.
+Build the next version as a native SwiftUI app for macOS. Keep the current Tauri app as reference only. Remove the Go sync server and use Google Tasks plus Google Calendar as the sync backend. The iOS/iPadOS targets that existed during early scaffolding have been removed; this product is Mac-only.
 
 ## Current Implementation Status
 

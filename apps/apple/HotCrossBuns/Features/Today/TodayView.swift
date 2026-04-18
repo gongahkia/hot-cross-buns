@@ -60,10 +60,6 @@ private struct TodayHero: View {
                     Text(snapshot.date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
                         .font(.callout.weight(.semibold))
                         .foregroundStyle(AppColor.moss)
-                    Text("Plan the day from Google, not around it.")
-                        .font(.system(.largeTitle, design: .serif, weight: .bold))
-                        .foregroundStyle(AppColor.ink)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 12)
                 Button(action: refresh) {

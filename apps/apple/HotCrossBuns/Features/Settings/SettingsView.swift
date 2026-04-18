@@ -62,6 +62,14 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Mac surfaces") {
+                Toggle("Menu bar extra", isOn: menuBarExtraBinding)
+                Toggle("Detailed menu bar panel", isOn: detailedMenuBarBinding)
+                Toggle("Dock badge for overdue tasks", isOn: dockBadgeBinding)
+            }
+
+            UpdatesSection()
+
             Section("Calendars") {
                 if model.calendars.isEmpty {
                     Text("Refresh after connecting Google to load calendars.")
@@ -111,6 +119,27 @@ struct SettingsView: View {
         )
     }
 
+    private var menuBarExtraBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.showMenuBarExtra },
+            set: { model.setShowMenuBarExtra($0) }
+        )
+    }
+
+    private var dockBadgeBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.showDockBadge },
+            set: { model.setShowDockBadge($0) }
+        )
+    }
+
+    private var detailedMenuBarBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.showDetailedMenuBar },
+            set: { model.setShowDetailedMenuBar($0) }
+        )
+    }
+
     private func calendarBinding(_ id: CalendarListMirror.ID) -> Binding<Bool> {
         Binding(
             get: { model.calendars.first(where: { $0.id == id })?.isSelected ?? false },
@@ -127,13 +156,8 @@ struct SettingsView: View {
 }
 
 extension View {
-    @ViewBuilder
     func syncModePickerStyle() -> some View {
-        #if os(macOS)
-        self.pickerStyle(.menu)
-        #else
-        self.pickerStyle(.navigationLink)
-        #endif
+        pickerStyle(.menu)
     }
 }
 
@@ -231,7 +255,7 @@ struct SyncSettingsSheet: View {
                 }
 
                 Section("Reality check") {
-                    Text("Manual only refreshes on request. Balanced refreshes on launch and foreground. Near real-time adds foreground polling every 90 seconds. True push on iOS would need a webhook-to-APNs relay later.")
+                    Text("Manual only refreshes on request. Balanced refreshes on launch and foreground. Near real-time adds foreground polling every 90 seconds with backoff on rate-limits.")
                         .font(.callout)
                 }
             }

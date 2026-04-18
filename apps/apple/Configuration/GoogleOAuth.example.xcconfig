@@ -1,8 +1,5 @@
 // Copy these values into local Xcode build settings or pass them to xcodebuild.
 // Do not commit real OAuth client IDs or reversed client IDs.
 
-GOOGLE_IOS_CLIENT_ID = your-ios-oauth-client-id.apps.googleusercontent.com
-GOOGLE_IOS_REVERSED_CLIENT_ID = com.googleusercontent.apps.your-ios-reversed-client-id
-
 GOOGLE_MACOS_CLIENT_ID = your-macos-oauth-client-id.apps.googleusercontent.com
 GOOGLE_MACOS_REVERSED_CLIENT_ID = com.googleusercontent.apps.your-macos-reversed-client-id

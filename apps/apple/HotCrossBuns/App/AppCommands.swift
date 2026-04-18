@@ -1,0 +1,70 @@
+import SwiftUI
+
+@MainActor
+final class AppCommandActions {
+    var newTask: () -> Void = {}
+    var newEvent: () -> Void = {}
+    var refresh: () -> Void = {}
+    var forceResync: () -> Void = {}
+    var focusSearch: () -> Void = {}
+    var switchTo: (SidebarItem) -> Void = { _ in }
+    var openDiagnostics: () -> Void = {}
+    var openCommandPalette: () -> Void = {}
+}
+
+private struct AppCommandActionsKey: FocusedValueKey {
+    typealias Value = AppCommandActions
+}
+
+extension FocusedValues {
+    var appCommandActions: AppCommandActions? {
+        get { self[AppCommandActionsKey.self] }
+        set { self[AppCommandActionsKey.self] = newValue }
+    }
+}
+
+struct AppCommands: Commands {
+    @FocusedValue(\.appCommandActions) private var actions
+
+    var body: some Commands {
+        CommandGroup(replacing: .newItem) {
+            Button("New Task") { actions?.newTask() }
+                .keyboardShortcut("n", modifiers: [.command])
+                .disabled(actions == nil)
+            Button("New Event") { actions?.newEvent() }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
+                .disabled(actions == nil)
+        }
+
+        CommandGroup(replacing: .printItem) {
+            Button("Command Palette…") { actions?.openCommandPalette() }
+                .keyboardShortcut("p", modifiers: [.command])
+                .disabled(actions == nil)
+        }
+
+        CommandMenu("Sync") {
+            Button("Refresh") { actions?.refresh() }
+                .keyboardShortcut("r", modifiers: [.command])
+                .disabled(actions == nil)
+            Button("Force Full Resync") { actions?.forceResync() }
+                .keyboardShortcut("r", modifiers: [.command, .shift])
+                .disabled(actions == nil)
+            Divider()
+            Button("Diagnostics and Recovery…") { actions?.openDiagnostics() }
+                .keyboardShortcut("d", modifiers: [.command, .option])
+                .disabled(actions == nil)
+        }
+
+        CommandMenu("View") {
+            ForEach(SidebarItem.allCases) { item in
+                Button(item.title) { actions?.switchTo(item) }
+                    .keyboardShortcut(item.keyboardEquivalent, modifiers: [.command])
+                    .disabled(actions == nil)
+            }
+            Divider()
+            Button("Focus Search") { actions?.focusSearch() }
+                .keyboardShortcut("f", modifiers: [.command])
+                .disabled(actions == nil)
+        }
+    }
+}

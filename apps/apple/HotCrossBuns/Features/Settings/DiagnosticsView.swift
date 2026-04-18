@@ -1,10 +1,5 @@
-import SwiftUI
-
-#if os(iOS)
-import UIKit
-#elseif os(macOS)
 import AppKit
-#endif
+import SwiftUI
 
 struct DiagnosticsView: View {
     @Environment(\.dismiss) private var dismiss
@@ -256,12 +251,8 @@ private enum DiagnosticsConfirmation: Identifiable {
 
 private enum Clipboard {
     static func copy(_ value: String) {
-        #if os(iOS)
-        UIPasteboard.general.string = value
-        #elseif os(macOS)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(value, forType: .string)
-        #endif
     }
 }
 

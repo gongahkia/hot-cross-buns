@@ -1,8 +1,8 @@
 # Architecture
 
-Hot Cross Buns is moving to an Apple-native Google Tasks and Google Calendar client.
+Hot Cross Buns is a macOS-native Google Tasks and Google Calendar client.
 
-The old architecture was a Tauri desktop app plus an optional Go/PostgreSQL sync server. That server has been removed. The remaining Tauri app is legacy reference material, not the target product.
+The old architecture was a Tauri desktop app plus an optional Go/PostgreSQL sync server. That server has been removed. The remaining Tauri app is legacy reference material, not the target product. iOS/iPadOS targets have also been removed; this product is Mac-only.
 
 ## Target Architecture
 

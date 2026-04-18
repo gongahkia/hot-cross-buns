@@ -12,6 +12,7 @@ APP_BUNDLE_NAME="${APP_BUNDLE_NAME:-HotCrossBunsMac.app}"
 VOLUME_NAME="${VOLUME_NAME:-Hot Cross Buns}"
 VERSION="${VERSION:-$(git -C "$ROOT_DIR" describe --tags --always --dirty 2>/dev/null || echo dev)}"
 DMG_PATH="$BUILD_ROOT/HotCrossBuns-$VERSION-macOS.dmg"
+ENTITLEMENTS_PATH="$APPLE_DIR/HotCrossBuns/Support/HotCrossBuns.entitlements"
 CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-}"
 NOTARIZE="${NOTARIZE:-0}"
 
@@ -54,8 +55,14 @@ if [[ -n "$CODE_SIGN_IDENTITY" ]]; then
     --deep \
     --options runtime \
     --timestamp \
+    --entitlements "$ENTITLEMENTS_PATH" \
     --sign "$CODE_SIGN_IDENTITY" \
     "$APP_PATH"
+
+  spctl --assess --type execute --verbose=2 "$APP_PATH" || {
+    echo "Gatekeeper assessment failed for $APP_PATH" >&2
+    exit 1
+  }
 fi
 
 rm -rf "$DMG_ROOT" "$DMG_PATH"

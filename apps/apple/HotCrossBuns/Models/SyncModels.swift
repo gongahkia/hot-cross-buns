@@ -98,6 +98,9 @@ struct AppSettings: Hashable, Codable, Sendable {
     var hasConfiguredTaskListSelection: Bool
     var enableLocalNotifications: Bool
     var hasCompletedOnboarding: Bool
+    var showMenuBarExtra: Bool
+    var showDetailedMenuBar: Bool
+    var showDockBadge: Bool
 
     init(
         syncMode: SyncMode,
@@ -106,7 +109,10 @@ struct AppSettings: Hashable, Codable, Sendable {
         hasConfiguredCalendarSelection: Bool = false,
         hasConfiguredTaskListSelection: Bool = false,
         enableLocalNotifications: Bool,
-        hasCompletedOnboarding: Bool = false
+        hasCompletedOnboarding: Bool = false,
+        showMenuBarExtra: Bool = true,
+        showDetailedMenuBar: Bool = false,
+        showDockBadge: Bool = true
     ) {
         self.syncMode = syncMode
         self.selectedCalendarIDs = selectedCalendarIDs
@@ -115,6 +121,9 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.hasConfiguredTaskListSelection = hasConfiguredTaskListSelection
         self.enableLocalNotifications = enableLocalNotifications
         self.hasCompletedOnboarding = hasCompletedOnboarding
+        self.showMenuBarExtra = showMenuBarExtra
+        self.showDetailedMenuBar = showDetailedMenuBar
+        self.showDockBadge = showDockBadge
     }
 
     enum CodingKeys: String, CodingKey {
@@ -125,6 +134,9 @@ struct AppSettings: Hashable, Codable, Sendable {
         case hasConfiguredTaskListSelection
         case enableLocalNotifications
         case hasCompletedOnboarding
+        case showMenuBarExtra
+        case showDetailedMenuBar
+        case showDockBadge
     }
 
     init(from decoder: Decoder) throws {
@@ -136,6 +148,9 @@ struct AppSettings: Hashable, Codable, Sendable {
         hasConfiguredTaskListSelection = try container.decodeIfPresent(Bool.self, forKey: .hasConfiguredTaskListSelection) ?? false
         enableLocalNotifications = try container.decodeIfPresent(Bool.self, forKey: .enableLocalNotifications) ?? false
         hasCompletedOnboarding = try container.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? false
+        showMenuBarExtra = try container.decodeIfPresent(Bool.self, forKey: .showMenuBarExtra) ?? true
+        showDetailedMenuBar = try container.decodeIfPresent(Bool.self, forKey: .showDetailedMenuBar) ?? false
+        showDockBadge = try container.decodeIfPresent(Bool.self, forKey: .showDockBadge) ?? true
     }
 
     static let `default` = AppSettings(

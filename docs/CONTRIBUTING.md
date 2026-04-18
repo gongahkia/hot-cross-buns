@@ -6,7 +6,7 @@ The old Go/PostgreSQL sync server has been removed. The existing Tauri app is de
 
 ## Current Execution Surfaces
 
-- `apps/apple`: primary SwiftUI rewrite for iOS, iPadOS, and macOS.
+- `apps/apple`: primary SwiftUI app for macOS (iOS/iPadOS targets removed).
 - `apps/desktop`: deprecated Tauri/Svelte/Rust desktop app retained for reference.
 - `docs`: active product and architecture direction.
 - `schema`: historical SQLite schema from the deprecated app.
@@ -32,8 +32,6 @@ Verified Apple check:
 cd apps/apple
 xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO
 ```
-
-iOS simulator/device builds require the matching iOS platform components installed in Xcode.
 
 Legacy desktop prerequisites:
 

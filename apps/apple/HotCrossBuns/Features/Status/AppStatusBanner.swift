@@ -3,6 +3,7 @@ import SwiftUI
 struct AppStatusBanner: View {
     let syncState: SyncState
     let authState: AuthState
+    let mutationError: String?
     let retry: () -> Void
     let dismiss: () -> Void
 
@@ -43,16 +44,6 @@ struct AppStatusBanner: View {
     }
 
     private var failureContext: FailureContext? {
-        if case .failed(let message) = syncState {
-            return FailureContext(
-                title: "Sync needs attention",
-                message: message,
-                systemImage: "exclamationmark.arrow.triangle.2.circlepath",
-                tint: AppColor.ember,
-                canRetry: true
-            )
-        }
-
         if case .failed(let message) = authState {
             return FailureContext(
                 title: "Google connection failed",
@@ -60,6 +51,26 @@ struct AppStatusBanner: View {
                 systemImage: "person.crop.circle.badge.exclamationmark",
                 tint: .red,
                 canRetry: false
+            )
+        }
+
+        if let mutationError, mutationError.isEmpty == false {
+            return FailureContext(
+                title: "Last change failed",
+                message: mutationError,
+                systemImage: "exclamationmark.triangle",
+                tint: AppColor.ember,
+                canRetry: false
+            )
+        }
+
+        if case .failed(let message) = syncState {
+            return FailureContext(
+                title: "Sync needs attention",
+                message: message,
+                systemImage: "exclamationmark.arrow.triangle.2.circlepath",
+                tint: AppColor.ember,
+                canRetry: true
             )
         }
 
@@ -79,6 +90,7 @@ private struct FailureContext {
     AppStatusBanner(
         syncState: .failed(message: "Google API request failed with status 403."),
         authState: .signedOut,
+        mutationError: nil,
         retry: {},
         dismiss: {}
     )

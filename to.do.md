@@ -7,22 +7,15 @@ These items require account access, local Xcode setup, certificates, or live-dev
 - Create or choose a Google Cloud project for Hot Cross Buns.
 - Enable the Google Tasks API and Google Calendar API in that project.
 - Configure OAuth consent for personal/internal use.
-- Create OAuth client IDs for the iOS bundle ID `com.gongahkia.hotcrossbuns` and macOS bundle ID `com.gongahkia.hotcrossbuns.mac`.
+- Create an OAuth client ID for the macOS bundle ID `com.gongahkia.hotcrossbuns.mac`.
 - Add local values in `apps/apple/Configuration/GoogleOAuth.xcconfig` based on `GoogleOAuth.example.xcconfig`.
 - Verify sign-in, disconnect, reconnect, and incremental scope grant behavior with a real Google account.
-
-## Xcode And iOS Validation
-
-- Install the missing iOS 26.4 platform in Xcode Settings > Components.
-- Build the `HotCrossBuns` iOS scheme after the platform is installed.
-- Run on an iPhone simulator and at least one real iPhone.
-- Validate first-run onboarding, Google redirect handling, background/foreground sync behavior, notification permission prompts, and App Shortcuts handoff behavior.
 
 ## Apple Developer Distribution
 
 - Enroll or sign in with the intended Apple Developer account.
-- Create/export a Developer ID Application certificate as a `.p12` if website DMG distribution is intended.
-- Add these GitHub Actions secrets if release signing should run in CI:
+- Create/export a Developer ID Application certificate as a `.p12` for website DMG distribution.
+- Add these GitHub Actions secrets for release signing in CI:
   - `MACOS_DEVELOPER_ID_P12_BASE64`
   - `MACOS_DEVELOPER_ID_P12_PASSWORD`
   - `MACOS_DEVELOPER_ID_APPLICATION`
@@ -33,13 +26,24 @@ These items require account access, local Xcode setup, certificates, or live-dev
   - `NOTARIZE_MACOS_DMG` set to `1`
 - Download the CI DMG and confirm Gatekeeper opens it without unsigned-app warnings.
 
+## Sparkle Auto-Update
+
+- Run `./bin/generate_keys` (from the Sparkle package) to produce an EdDSA key pair.
+- Store the private key as GitHub Actions secret `SPARKLE_PRIVATE_KEY`.
+- Paste the public key into `Info-macOS.plist` under `SUPublicEDKey` via a build setting or direct edit.
+- Enable GitHub Pages on the `gh-pages` branch to serve `appcast.xml` from `https://gongahkia.github.io/hot-cross-buns/appcast.xml`.
+- Confirm the first release publishes an appcast entry and that a previously installed build picks it up via in-app "Check for Updates".
+
 ## Live Product QA
 
-- Dogfood with a real account for at least one workday.
+- Dogfood with a real account for at least one workday on macOS.
 - Verify task create/edit/complete/reopen/delete against Google Tasks web UI.
 - Verify event create/edit/delete, all-day event behavior, and popup reminders against Google Calendar web UI.
 - Confirm selected task lists/calendars persist across app relaunches and sync cycles.
 - Confirm local reminders are neither duplicated nor stale after edits/deletes.
+- Confirm Spotlight returns synced tasks/events and opens the right detail view on click.
+- Confirm menu bar extra popover renders and quick-add works.
+- Confirm dock badge count matches overdue tasks.
 
 ## Product Decisions Still Needed
 

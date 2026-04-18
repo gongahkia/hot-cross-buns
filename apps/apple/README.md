@@ -1,19 +1,18 @@
 # Apple App
 
-This is the new primary Hot Cross Buns app surface: a native SwiftUI rewrite for iOS, iPadOS, and macOS.
+Hot Cross Buns macOS app: a native SwiftUI client for Google Tasks and Google Calendar.
 
 ## Direction
 
 - Google Tasks and Google Calendar are the source of truth.
 - Local storage is cache, settings, sync checkpoints, and pending offline mutations.
-- Google Drive is out of scope for v1.
-- The deprecated Tauri app remains only as product reference material.
+- Google Drive is out of scope.
+- Mac-only. iOS/iPadOS targets have been removed from this project.
 
 ## Requirements
 
 - Xcode 15+ or newer
 - XcodeGen 2.45+
-- iOS 17+ target
 - macOS 14+ target
 
 ## Generate The Project
@@ -27,12 +26,9 @@ open HotCrossBuns.xcodeproj
 ## Build From CLI
 
 ```bash
-xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBuns -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
 xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO
 xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 'platform=macOS' test CODE_SIGNING_ALLOWED=NO
 ```
-
-The macOS build and test commands are verified in this repo. The iOS command requires the matching iOS simulator platform components installed in Xcode.
 
 ## Package macOS DMG
 
@@ -40,22 +36,18 @@ The macOS build and test commands are verified in this repo. The iOS command req
 ../../scripts/package-macos-dmg.sh
 ```
 
-The packaging script creates an unsigned DMG under `build/apple/` by default. If `CODE_SIGN_IDENTITY` is set, it signs the app bundle and DMG. If `NOTARIZE=1` is also set, it submits the DMG with `xcrun notarytool` using `APPLE_ID`, `APPLE_TEAM_ID`, and `APP_SPECIFIC_PASSWORD`, then staples the result.
+The script creates an unsigned DMG under `build/apple/` by default. If `CODE_SIGN_IDENTITY` is set, it signs the app bundle and DMG. If `NOTARIZE=1` is also set, it submits the DMG with `xcrun notarytool` using `APPLE_ID`, `APPLE_TEAM_ID`, and `APP_SPECIFIC_PASSWORD`, then staples the result.
 
 ## Google Integration
 
 The app uses the native Google Sign-In SDK and requests Google Tasks plus Google Calendar scopes during sign-in.
 
-Create separate Google Cloud OAuth clients for iOS and macOS, then provide these build settings locally:
+Create a Google Cloud OAuth client for macOS, then provide these build settings locally:
 
-- `GOOGLE_IOS_CLIENT_ID`
-- `GOOGLE_IOS_REVERSED_CLIENT_ID`
 - `GOOGLE_MACOS_CLIENT_ID`
 - `GOOGLE_MACOS_REVERSED_CLIENT_ID`
 
-The committed defaults are intentionally blank. Use `Configuration/GoogleOAuth.example.xcconfig` as a reference and do not commit real OAuth client IDs. You can pass values directly to `xcodebuild`, set them as local Xcode user build settings, or wire a local ignored xcconfig in your own working copy.
-
-Example CLI override:
+The committed defaults are intentionally blank. Use `Configuration/GoogleOAuth.example.xcconfig` as a reference and do not commit real OAuth client IDs. Pass values directly to `xcodebuild`, set them as local Xcode user build settings, or wire a local ignored xcconfig in your own working copy.
 
 ```bash
 xcodebuild \
@@ -67,6 +59,10 @@ xcodebuild \
   build
 ```
 
+## Mac Shell
+
+The app uses a NavigationSplitView sidebar shell with a full CommandMenu (`⌘N` new task, `⌘⇧N` new event, `⌘R` refresh, `⌘⇧R` force full resync, `⌘F` search, `⌘1…⌘5` section switching) and window-state restoration. A menu-bar extra and dock overdue-count badge are available as optional user settings.
+
 ## Local Cache
 
 The current cache is a JSON app-state snapshot in Application Support. It is intentionally small and replaceable: it preserves account metadata, task/calendar mirrors, sync checkpoints, pending mutation placeholders, and user settings so launch does not depend on an immediate Google round trip. A SQLite-backed cache can replace this once offline mutation replay needs stronger migrations.
@@ -77,7 +73,7 @@ First launch presents a setup flow for Google Sign-In, sync mode, task-list/cale
 
 ## Search
 
-The Search tab queries the local cache for synced tasks and calendar events by title, notes/details, source list/calendar, and status. Search is intentionally local-first so it remains fast and does not spend Google API quota per keystroke.
+The Search section queries the local cache for synced tasks and calendar events by title, notes/details, source list/calendar, and status. Search is intentionally local-first so it remains fast and does not spend Google API quota per keystroke. Tasks and events are also indexed in Spotlight for system-wide Mac search.
 
 ## Error UX
 
@@ -89,13 +85,13 @@ Settings includes a Diagnostics and Recovery sheet for daily-use support. It sho
 
 ## Sync
 
-Manual refresh now performs authenticated read-sync against Google Tasks task lists/tasks and Google Calendar calendar lists/events. Initial sync performs full reads for selected resources; later syncs use Google Tasks `updatedMin` checkpoints and Google Calendar `nextSyncToken` checkpoints. Offline mutation replay is still pending.
+Manual refresh performs authenticated read-sync against Google Tasks task lists/tasks and Google Calendar calendar lists/events. Initial sync performs full reads for selected resources; later syncs use Google Tasks `updatedMin` checkpoints and Google Calendar `nextSyncToken` checkpoints. Tombstones are purged from the local cache after each successful sync. Near-real-time polling uses jittered exponential backoff on `429` and `5xx` responses.
 
-Sync modes are active:
+Sync modes:
 
 - Manual only syncs when the user taps refresh.
 - Balanced syncs after launch/restore and when the scene becomes active.
-- Near real-time does the balanced behavior plus foreground polling every 90 seconds.
+- Near real-time does the balanced behavior plus foreground polling every 90 seconds with backoff.
 
 Settings persist selected calendars and selected task lists. Empty selections are respected after the user has configured them, rather than falling back to Google defaults.
 
@@ -105,14 +101,16 @@ Local reminders are opt-in from Settings. When enabled, the app requests notific
 
 ## App Intents
 
-The app exposes first-pass App Shortcuts for opening the task editor, opening the event editor, and opening Today. These are foreground handoff intents: Shortcuts writes a pending route, opens the app, and the SwiftUI shell presents the relevant destination. Direct background Google mutations are intentionally deferred until the offline mutation queue and conflict policy are stronger.
+The app exposes App Shortcuts for opening the task editor, opening the event editor, and opening Today.
 
 ## Task Writes
 
-The Tasks tab includes online task create, edit, complete/reopen, and delete flows backed by Google Tasks `tasks.insert`, `tasks.patch`, and `tasks.delete`. It also supports creating, renaming, and deleting task lists. These require a signed-in Google account and loaded task lists from refresh. Offline queueing, conflict handling, and task reordering are still pending.
+The Tasks section includes online task create, edit, complete/reopen, and delete flows backed by Google Tasks `tasks.insert`, `tasks.patch`, and `tasks.delete`. It also supports creating, renaming, and deleting task lists.
 
 ## Calendar Writes
 
-The Calendar tab includes online timed and all-day event create, edit, delete, and calendar-move flows backed by Google Calendar `events.insert`, `events.patch`, `events.delete`, and `events.move`. Event forms support custom popup reminders. Recurrence, attendees, and conflict handling are later product slices.
+The Calendar section includes online timed and all-day event create, edit, and delete flows backed by Google Calendar `events.insert`, `events.patch`, and `events.delete`. Event forms support custom popup reminders.
 
-The Calendar tab also includes a local agenda date picker so a synced day can be reviewed without spending Google API quota per date change. Upcoming event rows include their calendar date to avoid ambiguity outside the Today view.
+## Auto-Update
+
+Release builds embed Sparkle and point at an appcast hosted on GitHub Pages. Users get in-app update prompts when a new signed, notarized DMG is published via the release workflow.
