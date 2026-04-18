@@ -191,7 +191,12 @@ private struct TaskListRow: View {
                 .font(indentLevel > 0 ? .body : .title3)
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 6) {
-                    Text(task.title)
+                    if TaskStarring.isStarred(task) {
+                        Image(systemName: "star.fill")
+                            .font(.caption)
+                            .foregroundStyle(.yellow)
+                    }
+                    Text(TaskStarring.displayTitle(for: task))
                         .font(indentLevel > 0 ? .subheadline.weight(.medium) : .headline)
                         .foregroundStyle(AppColor.ink)
                     if OptimisticID.isPending(task.id) {
