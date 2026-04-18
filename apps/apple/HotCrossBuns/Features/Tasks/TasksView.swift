@@ -10,24 +10,22 @@ struct TasksView: View {
         List(selection: $selection) {
             ForEach(model.taskSections) { section in
                 Section(section.taskList.title) {
-                    if section.tasks.isEmpty {
+                    let nodes = TaskHierarchy.build(tasks: section.tasks)
+                    if nodes.isEmpty {
                         Text("No tasks in this list")
                             .foregroundStyle(.secondary)
                     } else {
-                        ForEach(section.tasks) { task in
-                            TaskListRow(task: task)
-                                .tag(task.id)
+                        ForEach(nodes) { node in
+                            TaskListRow(task: node.parent, indentLevel: 0)
+                                .tag(node.parent.id)
                                 .contentShape(Rectangle())
-                                .swipeActions(edge: .leading) {
-                                    Button {
-                                        Task {
-                                            await model.setTaskCompleted(!task.isCompleted, task: task)
-                                        }
-                                    } label: {
-                                        Label(task.isCompleted ? "Reopen" : "Complete", systemImage: task.isCompleted ? "arrow.uturn.backward.circle" : "checkmark.circle")
-                                    }
-                                    .tint(task.isCompleted ? AppColor.blue : AppColor.moss)
-                                }
+                                .swipeActions(edge: .leading) { completeSwipe(for: node.parent) }
+                            ForEach(node.children) { child in
+                                TaskListRow(task: child, indentLevel: 1)
+                                    .tag(child.id)
+                                    .contentShape(Rectangle())
+                                    .swipeActions(edge: .leading) { completeSwipe(for: child) }
+                            }
                         }
                     }
                 }
@@ -90,6 +88,16 @@ struct TasksView: View {
             TaskInspectorEmptyState()
         }
     }
+
+    @ViewBuilder
+    private func completeSwipe(for task: TaskMirror) -> some View {
+        Button {
+            Task { await model.setTaskCompleted(!task.isCompleted, task: task) }
+        } label: {
+            Label(task.isCompleted ? "Reopen" : "Complete", systemImage: task.isCompleted ? "arrow.uturn.backward.circle" : "checkmark.circle")
+        }
+        .tint(task.isCompleted ? AppColor.blue : AppColor.moss)
+    }
 }
 
 struct TaskRowView: View {
@@ -108,15 +116,22 @@ struct TaskRowView: View {
 
 private struct TaskListRow: View {
     let task: TaskMirror
+    var indentLevel: Int = 0
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
+            if indentLevel > 0 {
+                Rectangle()
+                    .fill(AppColor.cardStroke)
+                    .frame(width: 2)
+                    .padding(.leading, CGFloat(indentLevel) * 16)
+            }
             Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                 .foregroundStyle(task.isCompleted ? AppColor.moss : AppColor.ember)
-                .font(.title3)
+                .font(indentLevel > 0 ? .body : .title3)
             VStack(alignment: .leading, spacing: 5) {
                 Text(task.title)
-                    .font(.headline)
+                    .font(indentLevel > 0 ? .subheadline.weight(.medium) : .headline)
                     .foregroundStyle(AppColor.ink)
                 if !task.notes.isEmpty {
                     Text(task.notes)
@@ -132,6 +147,7 @@ private struct TaskListRow: View {
             }
             Spacer(minLength: 0)
         }
+        .padding(.leading, indentLevel > 0 ? 6 : 0)
         .contentShape(Rectangle())
     }
 }
