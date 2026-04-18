@@ -11,7 +11,7 @@ struct TasksView: View {
     var body: some View {
         List(selection: $selection) {
             ForEach(filteredSections()) { section in
-                Section(section.taskList.title) {
+                Section {
                     let nodes = TaskHierarchy.build(tasks: section.tasks)
                     if nodes.isEmpty {
                         Text(searchQuery.isEmpty ? "No tasks in this list" : "No matches")
@@ -30,6 +30,8 @@ struct TasksView: View {
                             }
                         }
                     }
+                } header: {
+                    taskListSectionHeader(for: section)
                 }
             }
         }
@@ -123,6 +125,28 @@ struct TasksView: View {
         if task.title.localizedCaseInsensitiveContains(query) { return true }
         if task.notes.localizedCaseInsensitiveContains(query) { return true }
         return false
+    }
+
+    @ViewBuilder
+    private func taskListSectionHeader(for section: TaskListSectionSnapshot) -> some View {
+        let allTasks = model.tasks.filter { $0.taskListID == section.taskList.id && $0.isDeleted == false }
+        let total = allTasks.count
+        let done = allTasks.filter(\.isCompleted).count
+        let fraction = total == 0 ? 0 : Double(done) / Double(total)
+        HStack(spacing: 10) {
+            Text(section.taskList.title)
+                .font(.subheadline.weight(.semibold))
+            Spacer(minLength: 8)
+            if total > 0 {
+                Text("\(done)/\(total)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                ProgressView(value: fraction)
+                    .progressViewStyle(.linear)
+                    .tint(AppColor.moss)
+                    .frame(width: 60)
+            }
+        }
     }
 
     @ViewBuilder
