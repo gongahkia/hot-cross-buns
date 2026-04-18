@@ -32,6 +32,7 @@ struct MacSidebarShell: View {
             alignment: .topLeading
         )
         .animation(.easeInOut(duration: 0.12), value: zoomLevel)
+        .appBackground()
         .safeAreaInset(edge: .top) {
             AppStatusBanner(
                 syncState: model.syncState,
@@ -191,7 +192,8 @@ struct MacSidebarShell: View {
                 .padding(.vertical, 6)
             }
         }
-        .frame(width: 36)
+        .frame(width: 28)
+        .toolbar(removing: .sidebarToggle)
     }
 
     private func collapsedItemButton(_ item: SidebarItem) -> some View {
@@ -202,7 +204,7 @@ struct MacSidebarShell: View {
         } label: {
             Image(systemName: item.systemImage)
                 .font(.system(size: 14, weight: .medium))
-                .frame(width: 32, height: 28)
+                .frame(width: 28, height: 26)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(isSelected ? AppColor.ember.opacity(0.2) : Color.clear)
@@ -220,7 +222,7 @@ struct MacSidebarShell: View {
         } label: {
             Image(systemName: filter.systemImage)
                 .font(.system(size: 14, weight: .medium))
-                .frame(width: 32, height: 28)
+                .frame(width: 28, height: 26)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(isSelected ? AppColor.ember.opacity(0.2) : Color.clear)
@@ -270,6 +272,7 @@ struct MacSidebarShell: View {
             .listStyle(.sidebar)
         }
         .frame(minWidth: 200, idealWidth: 240, maxWidth: 320)
+        .toolbar(removing: .sidebarToggle)
     }
 
     @ViewBuilder
