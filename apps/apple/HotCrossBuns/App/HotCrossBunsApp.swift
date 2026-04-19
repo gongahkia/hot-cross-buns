@@ -6,6 +6,7 @@ struct HotCrossBunsApp: App {
     @State private var appModel = AppModel.bootstrap()
     @State private var updater = UpdaterController()
     @State private var settingsRouter = RouterPath()
+    @State private var networkMonitor = NetworkMonitor()
 
     init() {
         CrashReporter.install()
@@ -20,6 +21,7 @@ struct HotCrossBunsApp: App {
             MacSidebarShell()
                 .environment(appModel)
                 .environment(updater)
+                .environment(networkMonitor)
                 .frame(minWidth: 900, minHeight: 600)
                 .dockBadge(
                     overdueCount: appModel.todaySnapshot.overdueCount,

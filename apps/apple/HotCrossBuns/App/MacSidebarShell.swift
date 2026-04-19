@@ -4,6 +4,7 @@ import SwiftUI
 
 struct MacSidebarShell: View {
     @Environment(AppModel.self) private var model
+    @Environment(NetworkMonitor.self) private var networkMonitor
     @Environment(\.scenePhase) private var scenePhase
     @SceneStorage("sidebarSelection") private var storedSelection: String = SidebarItem.calendar.rawValue
     @SceneStorage("sidebarCollapsed") private var isSidebarCollapsed = false
@@ -723,6 +724,12 @@ struct MacSidebarShell: View {
                 // It restarts when scenePhase re-activates or the user taps
                 // refresh — both of which clear the flag before the loop is
                 // scheduled again.
+                return
+            }
+            if networkMonitor.reachability == .offline {
+                // Don't burn cycles polling when offline. The loop restart
+                // on scenePhase.active or a user-initiated refresh will
+                // re-enter once reachability recovers.
                 return
             }
             let delay: Duration = attempt == 0 ? policy.baseDelay : policy.delay(forAttempt: attempt)
