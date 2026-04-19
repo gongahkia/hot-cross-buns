@@ -5,6 +5,7 @@ enum CalendarGridMode: String, CaseIterable, Hashable, Sendable {
     case day
     case week
     case month
+    case timeline
 
     var title: String {
         switch self {
@@ -12,6 +13,7 @@ enum CalendarGridMode: String, CaseIterable, Hashable, Sendable {
         case .day: "Day"
         case .week: "Week"
         case .month: "Month"
+        case .timeline: "Timeline"
         }
     }
 
@@ -21,6 +23,7 @@ enum CalendarGridMode: String, CaseIterable, Hashable, Sendable {
         case .day: "calendar.day.timeline.leading"
         case .week: "calendar.day.timeline.left"
         case .month: "calendar"
+        case .timeline: "chart.bar.doc.horizontal"
         }
     }
 }
