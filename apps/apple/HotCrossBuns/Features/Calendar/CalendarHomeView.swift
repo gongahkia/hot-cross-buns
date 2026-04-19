@@ -683,6 +683,9 @@ private struct EventActionPanel: View {
     let onEdit: () -> Void
     let onDelete: () -> Void
 
+    @State private var isNamingTemplate = false
+    @State private var templateName: String = ""
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Button(action: onEdit) {
@@ -737,8 +740,28 @@ private struct EventActionPanel: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
+
+            Button {
+                templateName = event.summary
+                isNamingTemplate = true
+            } label: {
+                Label("Save as Template", systemImage: "doc.badge.plus")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
         }
         .cardSurface(cornerRadius: 22)
+        .alert("Save as template", isPresented: $isNamingTemplate) {
+            TextField("Template name", text: $templateName)
+            Button("Save") {
+                let trimmed = templateName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard trimmed.isEmpty == false else { return }
+                model.saveAsEventTemplate(event, name: trimmed)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Saves this event's summary, duration, reminders, attendees, and color as a reusable blueprint in Settings.")
+        }
     }
 
     private func copyAsMarkdown() {
@@ -810,6 +833,18 @@ struct AddEventSheet: View {
                         )
                     }
                 } else {
+                    if model.settings.eventTemplates.isEmpty == false {
+                        Section("Template") {
+                            Menu {
+                                ForEach(model.settings.eventTemplates) { template in
+                                    Button(template.name) { applyTemplate(template) }
+                                }
+                            } label: {
+                                Label("New from template…", systemImage: "doc.on.doc")
+                            }
+                        }
+                    }
+
                     Section {
                         VStack(alignment: .leading, spacing: 6) {
                             TextField("Quick create — e.g., \"Lunch with Bob tomorrow 1pm at Philz for 45 min\"", text: $quickCreateText)
@@ -930,6 +965,23 @@ struct AddEventSheet: View {
         }
 
         return endDate > startDate
+    }
+
+    private func applyTemplate(_ template: EventTemplate) {
+        summary = template.summary
+        details = template.details
+        location = template.location
+        isAllDay = template.isAllDay
+        let start = startDate
+        endDate = template.isAllDay ? start : start.addingTimeInterval(TimeInterval(template.durationMinutes) * 60)
+        if let mins = template.reminderMinutes {
+            reminderOption = .preset(mins)
+        }
+        if let colorId = template.colorId {
+            eventColor = CalendarEventColor.from(colorId: colorId)
+        }
+        attendees = template.attendees
+        addGoogleMeet = template.addGoogleMeet
     }
 
     private func applyQuickCreate() {
