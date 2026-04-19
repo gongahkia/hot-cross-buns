@@ -66,7 +66,14 @@ struct QuickAddView: View {
         .padding(22)
         .frame(width: 560)
         .onAppear {
-            if input.isEmpty, let clip = clipboardSuggestion() {
+            if input.isEmpty, let shared = model.pendingSharedPrefill, shared.isEmpty == false {
+                // Share-extension handoff takes precedence over clipboard
+                // because the user's explicit share gesture is a stronger
+                // intent signal than whatever happens to be on the pasteboard.
+                input = shared
+                reparse(shared)
+                model.pendingSharedPrefill = nil
+            } else if input.isEmpty, let clip = clipboardSuggestion() {
                 input = clip
                 reparse(clip)
             }

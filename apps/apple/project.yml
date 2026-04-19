@@ -34,6 +34,9 @@ targets:
         product: GoogleSignInSwift
       - package: Sparkle
         product: Sparkle
+      - target: HotCrossBunsShareExtension
+        embed: true
+        codeSign: true
     sources:
       - path: HotCrossBuns
         excludes:
@@ -64,6 +67,32 @@ targets:
     scheme:
       testTargets:
         - HotCrossBunsMacTests
+  HotCrossBunsShareExtension:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: HotCrossBunsShareExtension
+        excludes:
+          - Info.plist
+          - HotCrossBunsShareExtension.entitlements
+    info:
+      path: HotCrossBunsShareExtension/Info.plist
+      properties:
+        CFBundleDisplayName: Hot Cross Buns
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+              NSExtensionActivationSupportsWebPageWithMaxCount: 1
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gongahkia.hotcrossbuns.mac.share
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: HotCrossBunsShareExtension/HotCrossBunsShareExtension.entitlements
+        INFOPLIST_KEY_CFBundleDisplayName: Hot Cross Buns
   HotCrossBunsMacTests:
     type: bundle.unit-test
     platform: macOS

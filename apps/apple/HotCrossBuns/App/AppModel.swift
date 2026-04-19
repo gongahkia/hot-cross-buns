@@ -21,6 +21,10 @@ final class AppModel {
     // budget against transient failures; cleared on a successful refresh or
     // a manual resume (scene activation, user tap).
     private(set) var isSyncPaused: Bool = false
+    // Set when the Share Extension (or a future Services-menu / drag
+    // handler) queues text for the main app. QuickAddView reads this
+    // on appear, prefills its title field, then clears it.
+    var pendingSharedPrefill: String?
     private(set) var lastMutationError: String?
     private(set) var taskLists: [TaskListMirror] = []
     private(set) var tasks: [TaskMirror] = []
@@ -680,6 +684,20 @@ final class AppModel {
 
     func resumeSync() {
         isSyncPaused = false
+    }
+
+    // Drains the App Group's shared inbox (populated by the Share
+    // Extension) and stashes the concatenated text for QuickAdd to
+    // prefill. Returns true if anything was picked up so the caller
+    // can decide whether to present the QuickAdd sheet.
+    @discardableResult
+    func consumePendingSharedItems() -> Bool {
+        let items = SharedInboxDefaults.consumeAll()
+        guard items.isEmpty == false else { return false }
+        pendingSharedPrefill = items
+            .map(\.text)
+            .joined(separator: "\n")
+        return true
     }
 
     // Drops a single PendingMutation by id so the user can unstick a
