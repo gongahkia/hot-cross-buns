@@ -134,9 +134,39 @@ struct QuickSwitcherView: View {
 
     private var rankedResults: [QuickSwitcherEntity] {
         guard trimmedQuery.isEmpty == false else { return [] }
+        let parsed = AdvancedSearchParser.parse(trimmedQuery)
+
+        // Regex mode: filter by regex over candidate fields, no fuzzy rank.
+        if let pattern = parsed.regex {
+            return allEntities
+                .filter { AdvancedSearchMatcher.regexMatches($0, regexPattern: pattern) }
+                .prefix(30)
+                .map { $0 }
+        }
+
+        // Structured pre-filter: apply all field operators + bare keywords.
+        let prefiltered = allEntities.filter {
+            AdvancedSearchMatcher.matches(
+                $0,
+                query: parsed,
+                calendars: model.calendars,
+                taskLists: model.taskLists
+            )
+        }
+
+        // If the user only typed filters (no free-text residue), rank
+        // alphabetically by label — keeps the output stable and scannable.
+        if parsed.freeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return prefiltered
+                .sorted { $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending }
+                .prefix(30)
+                .map { $0 }
+        }
+
+        // Otherwise: fuzzy-rank the surviving entities by the free-text residue.
         let ranked = FuzzySearcher.rank(
-            allEntities,
-            query: trimmedQuery,
+            prefiltered,
+            query: parsed.freeText,
             labelForItem: { $0.label },
             keywordsForItem: { $0.keywords },
             limit: 30
@@ -149,7 +179,7 @@ struct QuickSwitcherView: View {
             Image(systemName: "arrow.right.circle")
                 .hcbFont(.subheadline, weight: .medium)
                 .foregroundStyle(.secondary)
-            TextField("Jump to a task, event, list, calendar, or filter…", text: $query)
+            TextField("Search — title:x tag:y list:work has:notes /regex/ …", text: $query)
                 .textFieldStyle(.plain)
                 .focused($isSearchFocused)
                 .hcbFont(.body)
