@@ -18,6 +18,7 @@
 		0B34E2B98DDDD5FDEA69E1DB /* VimHud.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9339ABE2548F1E94C5297FEF /* VimHud.swift */; };
 		0C684E4902EA8C1B8C94322E /* CalendarGridLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7CCAAA53D6C1875F338A5B /* CalendarGridLayoutTests.swift */; };
 		0E508E9852C85C2E60A64756 /* TaskReminderMarkers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC17ECA270BCECA15B26A6D2 /* TaskReminderMarkers.swift */; };
+		0EFE84A258E8CB65C847749C /* NaturalLanguageEventParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B6DCD044EB92F7793567B7 /* NaturalLanguageEventParser.swift */; };
 		13640CDC60E0A19C38BDFE38 /* TagExtractorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F03D73411CAA330A1556C797 /* TagExtractorTests.swift */; };
 		15F071FA91ACB9AEB3DF3D09 /* OfflineQueuePayloadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16A980BF4A880C22BC900697 /* OfflineQueuePayloadTests.swift */; };
 		1A0E75ED9924EC602590FEBA /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB15E1D3EF730B024771A746 /* SettingsView.swift */; };
@@ -222,6 +223,7 @@
 		789C6E4688F23FCD6DA9A6D0 /* RecurrenceUntilRewriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceUntilRewriter.swift; sourceTree = "<group>"; };
 		7C08F7D58524C666E5C34AED /* MutationAuditLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MutationAuditLog.swift; sourceTree = "<group>"; };
 		7FC2AADAC806017C13510FCB /* HelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
+		81B6DCD044EB92F7793567B7 /* NaturalLanguageEventParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NaturalLanguageEventParser.swift; sourceTree = "<group>"; };
 		835C22A6F8FF88C02CDD31B6 /* SystemCrashReportReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemCrashReportReader.swift; sourceTree = "<group>"; };
 		838CDC9397AEB8B081E732EE /* AppCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCommands.swift; sourceTree = "<group>"; };
 		84B5C3ED3789B4EFFAEEB89E /* LocalNotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNotificationScheduler.swift; sourceTree = "<group>"; };
@@ -671,6 +673,7 @@
 				F2263C896865029DCEC3A53B /* CalendarHomeView.swift */,
 				3FB991136E6E925A2EF0030D /* GuestsSection.swift */,
 				0854A71DD603264D078FB733 /* MonthGridView.swift */,
+				81B6DCD044EB92F7793567B7 /* NaturalLanguageEventParser.swift */,
 				1B0DFDCF8E31CE997881CE68 /* TaskDrawerPanel.swift */,
 				365DC96473F7469BD2250779 /* WeekGridView.swift */,
 			);
@@ -886,6 +889,7 @@
 				6BDBD1855A8378E737D6EE21 /* MenuBarExtraScene.swift in Sources */,
 				7D80AADD28F287E415B0ED05 /* MonthGridView.swift in Sources */,
 				DFB5D891060B9F47A148B872 /* MutationAuditLog.swift in Sources */,
+				0EFE84A258E8CB65C847749C /* NaturalLanguageEventParser.swift in Sources */,
 				025714D0F603A7346F61A495 /* NaturalLanguageTaskParser.swift in Sources */,
 				3D213BE8FAC38B7A5EA94EEB /* NetworkMonitor.swift in Sources */,
 				827C84F1E10F6B534F590F1B /* OnboardingView.swift in Sources */,
