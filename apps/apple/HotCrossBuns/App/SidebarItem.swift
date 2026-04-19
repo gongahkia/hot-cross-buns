@@ -3,6 +3,7 @@ import SwiftUI
 enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
     case calendar
     case store
+    case settings
 
     var id: String { rawValue }
 
@@ -10,6 +11,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .calendar: "Calendar"
         case .store: "Store"
+        case .settings: "Settings"
         }
     }
 
@@ -17,6 +19,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .calendar: "calendar"
         case .store: "brain.head.profile" // covers tasks + notes
+        case .settings: "gearshape"
         }
     }
 
@@ -24,6 +27,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .calendar: "1"
         case .store: "2"
+        case .settings: nil
         }
     }
 
@@ -35,6 +39,15 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
             CalendarHomeView()
         case .store:
             StoreView()
+        case .settings:
+            SettingsView()
         }
     }
+}
+
+extension Notification.Name {
+    // Posted when any part of the app wants to switch the sidebar to the
+    // Settings tab (e.g., the "Open Settings" button in Calendar's empty
+    // state). MacSidebarShell observes this and updates selection.
+    static let hcbOpenSettingsTab = Notification.Name("hcb.open.settings.tab")
 }

@@ -165,6 +165,9 @@ struct MacSidebarShell: View {
                 configureGlobalHotkey()
                 installAppShortcutMonitor()
             }
+            .onReceive(NotificationCenter.default.publisher(for: .hcbOpenSettingsTab)) { _ in
+                selection = .settings
+            }
             .onDisappear {
                 uninstallAppShortcutMonitor()
             }
@@ -715,6 +718,8 @@ struct MacSidebarShell: View {
         case .store:
             let count = visibleTasksForSidebar.filter { $0.isCompleted == false && $0.isDeleted == false }.count
             return count > 0 ? "\(count)" : nil
+        case .settings:
+            return nil
         }
     }
 

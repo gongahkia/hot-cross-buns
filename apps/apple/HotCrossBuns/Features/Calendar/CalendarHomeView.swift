@@ -243,7 +243,7 @@ struct CalendarHomeView: View {
             Text("Connect your Google account to see your calendars here.")
         } actions: {
             Button("Open Settings") {
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                NotificationCenter.default.post(name: .hcbOpenSettingsTab, object: nil)
             }
             .buttonStyle(.borderedProminent)
             .tint(AppColor.ember)
@@ -274,7 +274,7 @@ struct CalendarHomeView: View {
                 .tint(AppColor.ember)
             } else {
                 Button("Open Settings") {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                    NotificationCenter.default.post(name: .hcbOpenSettingsTab, object: nil)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(AppColor.ember)
