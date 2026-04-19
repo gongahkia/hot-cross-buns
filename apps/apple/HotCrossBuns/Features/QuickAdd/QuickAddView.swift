@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct QuickAddView: View {
@@ -65,9 +66,32 @@ struct QuickAddView: View {
         .padding(22)
         .frame(width: 560)
         .onAppear {
+            if input.isEmpty, let clip = clipboardSuggestion() {
+                input = clip
+                reparse(clip)
+            }
             focusedField = true
             selectedTaskListID = selectedTaskListID ?? defaultListID
         }
+    }
+
+    // Pull a single-line candidate from the pasteboard if it looks like
+    // something the user would want as a task title. URLs and short text
+    // pass through verbatim; large payloads (copied Xcode stack traces,
+    // etc.) are ignored so the sheet doesn't pre-fill with noise.
+    private func clipboardSuggestion() -> String? {
+        let pb = NSPasteboard.general
+        guard let raw = pb.string(forType: .string) else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false, trimmed.count <= 200 else { return nil }
+        // Reject multi-line clipboards unless they collapse to a short
+        // single line; otherwise skip.
+        let lines = trimmed.components(separatedBy: .newlines).filter { $0.isEmpty == false }
+        if lines.count > 1 {
+            if let url = URL(string: trimmed), url.scheme != nil { return trimmed }
+            return nil
+        }
+        return trimmed
     }
 
     private var header: some View {
