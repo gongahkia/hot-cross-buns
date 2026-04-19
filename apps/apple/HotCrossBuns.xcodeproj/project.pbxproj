@@ -65,6 +65,7 @@
 		5BBDE6D66EBF10AFEFFA71F9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B80F522C53466505A421ECE /* AppDelegate.swift */; };
 		5C9E280691B2F3198FF32835 /* SmartListFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18883C2377F57F108328C03 /* SmartListFilter.swift */; };
 		61E276C2555F3F36F976E697 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CDBE097FFF4A48F2BCDE315 /* DiagnosticsView.swift */; };
+		63F95290D2E706E05C1A9029 /* LocationFullView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADEF77C927632A04783BF515 /* LocationFullView.swift */; };
 		64E4A1BA0CF04097F8D1C9CB /* GoToDateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9EE90AE73008CDCBB548450 /* GoToDateSheet.swift */; };
 		6781A77091B43C2BBAAEC36A /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 8630D5999C10C8D0FF9DB5A1 /* GoogleSignInSwift */; };
 		69F1DEC55EB9E9C72799607D /* TaskStarringTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DE3C9162F20EE6482E67FCB /* TaskStarringTests.swift */; };
@@ -90,6 +91,7 @@
 		870B6E741963A990B14961F4 /* ForecastBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2316DAFF7860DC61BD91AF52 /* ForecastBuilderTests.swift */; };
 		8794B1B9554FAEC8B6C4D07E /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB5F4EB983E593C181231248 /* AppLogger.swift */; };
 		880402797CE64EBB95F67CBE /* SharedInboxItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = E082142928EB9001E39C6CA1 /* SharedInboxItem.swift */; };
+		8B428AEF6A3CEF5EA9D7D20E /* GoogleMapsConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 679D4851E75DBE60257686A7 /* GoogleMapsConfig.swift */; };
 		8BB84295C6696AF145919D6A /* KeychainHealth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 865A5F75E0D2C3ACB690C7A6 /* KeychainHealth.swift */; };
 		8CF3F07B84CA27F8F2DEF4A8 /* GoogleAPITransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EC332C6DC51DB8C6B72B7A7 /* GoogleAPITransport.swift */; };
 		8EE90A74A634E8BAC7DC5C44 /* TaskMirror.swift in Sources */ = {isa = PBXBuildFile; fileRef = 165DF0F051694E742FB59FB7 /* TaskMirror.swift */; };
@@ -120,6 +122,7 @@
 		B38730DBE9FD19E383B35D92 /* SidebarItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1002C76B1614FACBF7D37818 /* SidebarItem.swift */; };
 		B3F746B7B5C48FF0EE0D5378 /* GoogleTasksClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4E896952661629A01EB26B0 /* GoogleTasksClient.swift */; };
 		B3FD5B5CFC0A25BB3A2D0F19 /* RecurrenceUntilRewriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 789C6E4688F23FCD6DA9A6D0 /* RecurrenceUntilRewriter.swift */; };
+		B4007C7CDFB8A24313A04A5F /* GoogleMapsConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E5EC5EF558326D415F76B1 /* GoogleMapsConfigTests.swift */; };
 		B63D287732D4657D498E55CD /* AppearanceSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB531053D620E337F1946147 /* AppearanceSection.swift */; };
 		B642E9E46E226784A49868B4 /* TaskRecurrenceMarkers.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD2813E1AA5D3C77A5B6B41E /* TaskRecurrenceMarkers.swift */; };
 		B961C661A38D5CE2845E6580 /* NaturalLanguageTaskParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B3C9FACB76521CB9850BC84 /* NaturalLanguageTaskParserTests.swift */; };
@@ -250,6 +253,7 @@
 		62B7E28F16E7ED3A3AF854DC /* CacheSchemaMigrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheSchemaMigrator.swift; sourceTree = "<group>"; };
 		6366F53ACB2CE1B4D522E41D /* DockBadgeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockBadgeController.swift; sourceTree = "<group>"; };
 		643A4637A65B42FA2BBF76FE /* GoogleOAuth.local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = GoogleOAuth.local.xcconfig; sourceTree = "<group>"; };
+		679D4851E75DBE60257686A7 /* GoogleMapsConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleMapsConfig.swift; sourceTree = "<group>"; };
 		681B9DB65E8B12860BF51B3D /* QuickCreatePopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickCreatePopover.swift; sourceTree = "<group>"; };
 		6A88DE6FAF6CB6673FAFBC3A /* SpotlightIndexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightIndexer.swift; sourceTree = "<group>"; };
 		6EC332C6DC51DB8C6B72B7A7 /* GoogleAPITransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAPITransport.swift; sourceTree = "<group>"; };
@@ -280,6 +284,7 @@
 		A78470AB49D26395D2CD6F7C /* BulkResultToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BulkResultToast.swift; sourceTree = "<group>"; };
 		AB15E1D3EF730B024771A746 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AB94773FE862AC2922886257 /* TaskDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDraftTests.swift; sourceTree = "<group>"; };
+		ADEF77C927632A04783BF515 /* LocationFullView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationFullView.swift; sourceTree = "<group>"; };
 		AE5B824BD3DB57E2FA17ECE2 /* HotCrossBunsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotCrossBunsApp.swift; sourceTree = "<group>"; };
 		AF08213B82A11D35A48E9669 /* RouterPath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouterPath.swift; sourceTree = "<group>"; };
 		AF46AED18B8659500C9FDDB8 /* CalendarEventColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventColor.swift; sourceTree = "<group>"; };
@@ -303,6 +308,7 @@
 		CD3E985540BFEBDABB373283 /* GoogleAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAuthService.swift; sourceTree = "<group>"; };
 		CD5F8A89100AE1891AD53FA3 /* DiagnosticBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticBundle.swift; sourceTree = "<group>"; };
 		CDAD0C012D8B9B6623C44F25 /* ICSImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICSImporterTests.swift; sourceTree = "<group>"; };
+		D1E5EC5EF558326D415F76B1 /* GoogleMapsConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleMapsConfigTests.swift; sourceTree = "<group>"; };
 		D890CE64490C8AB18F8589F6 /* BulkTaskOperation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BulkTaskOperation.swift; sourceTree = "<group>"; };
 		D8AF38F4F743ECB0079BDD30 /* SmartListFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartListFilterTests.swift; sourceTree = "<group>"; };
 		DA7AA6D7D06BBC2852BAFCDF /* TaskInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskInspectorView.swift; sourceTree = "<group>"; };
@@ -404,6 +410,7 @@
 			children = (
 				6EC332C6DC51DB8C6B72B7A7 /* GoogleAPITransport.swift */,
 				515AE22366D9FEE4138091FF /* GoogleCalendarClient.swift */,
+				679D4851E75DBE60257686A7 /* GoogleMapsConfig.swift */,
 				A4E896952661629A01EB26B0 /* GoogleTasksClient.swift */,
 				2B5A02F709EC80DD855D2C87 /* ISO8601DateFormatter+Google.swift */,
 			);
@@ -600,6 +607,7 @@
 				3A247BD19F3FCC74244C279E /* ExporterTests.swift */,
 				2316DAFF7860DC61BD91AF52 /* ForecastBuilderTests.swift */,
 				A49B39BEE4E940882B8C2AC5 /* FuzzySearcherTests.swift */,
+				D1E5EC5EF558326D415F76B1 /* GoogleMapsConfigTests.swift */,
 				8BFD977211942ADB9C88E1CF /* GoogleTaskDueDateFormatterTests.swift */,
 				09882AE6212AFABA6285AACF /* GoogleTasksClientTransportTests.swift */,
 				BF1701AD968AE58FBC7E76F7 /* GuestsSectionEmailTests.swift */,
@@ -737,6 +745,7 @@
 				E7E237D56DC5E422A168E311 /* EventHoverPreview.swift */,
 				E9EE90AE73008CDCBB548450 /* GoToDateSheet.swift */,
 				3FB991136E6E925A2EF0030D /* GuestsSection.swift */,
+				ADEF77C927632A04783BF515 /* LocationFullView.swift */,
 				EDB9F19FB93CB9C7FEC4EF32 /* LocationMapPreview.swift */,
 				0854A71DD603264D078FB733 /* MonthGridView.swift */,
 				81B6DCD044EB92F7793567B7 /* NaturalLanguageEventParser.swift */,
@@ -957,6 +966,7 @@
 				C22F4B23E5FBAB647FF3F156 /* GoogleAccount.swift in Sources */,
 				DB349B0AB6AD7E665A85B0BB /* GoogleAuthService.swift in Sources */,
 				277CAF0A19ABD1F6844B943E /* GoogleCalendarClient.swift in Sources */,
+				8B428AEF6A3CEF5EA9D7D20E /* GoogleMapsConfig.swift in Sources */,
 				B3F746B7B5C48FF0EE0D5378 /* GoogleTasksClient.swift in Sources */,
 				AAD5E2AC3B28CD1FE0A15AAE /* GuestsSection.swift in Sources */,
 				7B40B5F28634337136A7E5DA /* HCBAppearance.swift in Sources */,
@@ -972,6 +982,7 @@
 				AF8378637C1C4CA07244ACE4 /* LayoutSection.swift in Sources */,
 				5049BDF0BCBF8FAE6B9344DB /* LocalCacheStore.swift in Sources */,
 				05D2E8C1B772FA0D7DF885CB /* LocalNotificationScheduler.swift in Sources */,
+				63F95290D2E706E05C1A9029 /* LocationFullView.swift in Sources */,
 				018B126DFE1CB3880ACADD4F /* LocationMapPreview.swift in Sources */,
 				D5F3BF67D13D6303ED82BC24 /* MacSidebarShell.swift in Sources */,
 				E956B3E8A886C76761B9ED91 /* MarkdownEditor.swift in Sources */,
@@ -1042,6 +1053,7 @@
 				532307C515FAB37584D4B968 /* ExporterTests.swift in Sources */,
 				870B6E741963A990B14961F4 /* ForecastBuilderTests.swift in Sources */,
 				F8BA863DB51480D6B9ADEBE9 /* FuzzySearcherTests.swift in Sources */,
+				B4007C7CDFB8A24313A04A5F /* GoogleMapsConfigTests.swift in Sources */,
 				3E796CFC3C8917CD171472AC /* GoogleTaskDueDateFormatterTests.swift in Sources */,
 				2280EEE6CF4070EA9056DEE5 /* GoogleTasksClientTransportTests.swift in Sources */,
 				A611406C5953E72F56D5BD59 /* GuestsSectionEmailTests.swift in Sources */,
