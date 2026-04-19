@@ -1330,55 +1330,6 @@ final class AppModel {
         Task { await saveCurrentState() }
     }
 
-    struct RemindersImportSummary: Equatable, Sendable {
-        var createdLists: Int
-        var createdTasks: Int
-        var errors: Int
-    }
-
-    // One-shot: creates a Google task list for each Reminders list, then
-    // inserts every open reminder as a Google task. Completed reminders
-    // are also inserted + marked complete so they carry over. No ongoing
-    // sync — the Apple side becomes read-only for us after this.
-    func importAppleReminders(_ lists: [AppleRemindersImporter.ImportedList]) async -> RemindersImportSummary {
-        var summary = RemindersImportSummary(createdLists: 0, createdTasks: 0, errors: 0)
-        for list in lists {
-            let existingMatch = taskLists.first(where: { $0.title == list.name })
-            let targetListID: TaskListMirror.ID
-            if let existing = existingMatch {
-                targetListID = existing.id
-            } else {
-                let createdOK = await createTaskList(title: list.name)
-                guard createdOK, let newest = taskLists.first(where: { $0.title == list.name }) else {
-                    summary.errors += 1
-                    continue
-                }
-                summary.createdLists += 1
-                targetListID = newest.id
-            }
-            for reminder in list.reminders {
-                let created = await createTask(
-                    title: reminder.title,
-                    notes: reminder.notes,
-                    dueDate: reminder.dueDate,
-                    taskListID: targetListID
-                )
-                if created {
-                    summary.createdTasks += 1
-                    if reminder.isCompleted,
-                       let newlyCreated = tasks.first(where: {
-                           $0.taskListID == targetListID && $0.title == reminder.title && $0.isCompleted == false
-                       }) {
-                        _ = await setTaskCompleted(true, task: newlyCreated)
-                    }
-                } else {
-                    summary.errors += 1
-                }
-            }
-        }
-        return summary
-    }
-
     func bulkDeleteEvents(_ events: [CalendarEventMirror]) async -> Int {
         var deleted = 0
         for event in events {

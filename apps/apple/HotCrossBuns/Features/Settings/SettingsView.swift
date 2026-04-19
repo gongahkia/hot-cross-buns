@@ -118,8 +118,6 @@ struct SettingsView: View {
 
                 UpdatesSection()
 
-                RemindersImportSection()
-
                 Section("Calendars") {
                     if model.calendars.isEmpty {
                         Text("Refresh after connecting Google to load calendars.")
