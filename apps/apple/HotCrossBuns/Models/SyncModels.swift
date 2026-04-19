@@ -112,6 +112,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var uiLayoutScale: Double // 0.80–1.50, geometric scale of UI chrome only (not text)
     var uiTextSizeStep: Int // 0–6 ladder index into HCBTextSizeLadder
     var uiFontName: String? // PostScript name, nil for system
+    var colorSchemeID: String // identifier into HCBColorScheme.all
 
     init(
         syncMode: SyncMode,
@@ -131,7 +132,8 @@ struct AppSettings: Hashable, Codable, Sendable {
         menuBarStyle: MenuBarStyle = .compact,
         uiLayoutScale: Double = 1.0,
         uiTextSizeStep: Int = 3,
-        uiFontName: String? = nil
+        uiFontName: String? = nil,
+        colorSchemeID: String = "notion"
     ) {
         self.syncMode = syncMode
         self.selectedCalendarIDs = selectedCalendarIDs
@@ -151,6 +153,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.uiLayoutScale = uiLayoutScale
         self.uiTextSizeStep = uiTextSizeStep
         self.uiFontName = uiFontName
+        self.colorSchemeID = colorSchemeID
     }
 
     enum CodingKeys: String, CodingKey {
@@ -172,6 +175,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case uiLayoutScale
         case uiTextSizeStep
         case uiFontName
+        case colorSchemeID
     }
 
     init(from decoder: Decoder) throws {
@@ -199,6 +203,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         uiLayoutScale = try container.decodeIfPresent(Double.self, forKey: .uiLayoutScale) ?? 1.0
         uiTextSizeStep = try container.decodeIfPresent(Int.self, forKey: .uiTextSizeStep) ?? 3
         uiFontName = try container.decodeIfPresent(String.self, forKey: .uiFontName)
+        colorSchemeID = try container.decodeIfPresent(String.self, forKey: .colorSchemeID) ?? "notion"
     }
 
     enum MenuBarStyle: String, Codable, Hashable, Sendable, CaseIterable {
