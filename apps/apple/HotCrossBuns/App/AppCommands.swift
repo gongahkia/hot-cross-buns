@@ -15,6 +15,7 @@ final class AppCommandActions {
     var switchTo: (SidebarItem) -> Void = { _ in }
     var openDiagnostics: () -> Void = {}
     var openCommandPalette: () -> Void = {}
+    var openQuickSwitcher: () -> Void = {}
     var openHelp: () -> Void = {}
     var printToday: () -> Void = {}
     var exportDayICS: () -> Void = {}
@@ -66,6 +67,10 @@ struct AppCommands: Commands {
             let palette = binding(.commandPalette)
             Button("Command Palette…") { actions?.openCommandPalette() }
                 .keyboardShortcut(palette.key.keyEquivalent, modifiers: palette.modifiers.eventModifiers)
+                .disabled(actions == nil)
+            let switcher = binding(.quickSwitcher)
+            Button("Quick Switcher…") { actions?.openQuickSwitcher() }
+                .keyboardShortcut(switcher.key.keyEquivalent, modifiers: switcher.modifiers.eventModifiers)
                 .disabled(actions == nil)
             let print = binding(.printToday)
             Button("Print Today…") { actions?.printToday() }
