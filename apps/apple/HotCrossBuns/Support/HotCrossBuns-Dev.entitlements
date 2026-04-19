@@ -10,5 +10,18 @@
 <dict>
 	<key>com.apple.security.network.client</key>
 	<true/>
+	<!--
+	  GoogleSignIn-iOS 7+ uses the Data Protection Keychain
+	  (kSecUseDataProtectionKeychain=YES) which requires a
+	  keychain-access-groups entitlement on macOS. Without it, GIDSignIn
+	  fails with Code=-2 "keychain error" and no underlying error to
+	  diagnose. Ad-hoc signing accepts arbitrary access-group literals
+	  since there's no team to validate against, so we use a plain
+	  bundle-ID value here instead of $(AppIdentifierPrefix)….
+	-->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>com.gongahkia.hotcrossbuns.mac</string>
+	</array>
 </dict>
 </plist>

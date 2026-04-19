@@ -70,6 +70,11 @@ final class GoogleAuthService {
         }
 
         AppLogger.info("signIn: presenting Google sheet", category: .auth)
+        // Smoke-test the Keychain just before the Google flow so if the
+        // SDK later fails with -2 "keychain error" we have a definitive
+        // reading of whether the process can Keychain at all. Logs the
+        // OSStatus of add/read/delete for every sign-in attempt.
+        KeychainProbe.runWriteProbe()
         let anchor = try currentPresentationAnchor()
         do {
             let result = try await GIDSignIn.sharedInstance.signIn(
@@ -81,9 +86,31 @@ final class GoogleAuthService {
             AppLogger.info("signIn: success", category: .auth, metadata: ["email": Self.redact(acc.email)])
             return acc
         } catch {
-            AppLogger.error("signIn failed", category: .auth, metadata: ["error": String(describing: error)])
+            AppLogger.error("signIn failed", category: .auth, metadata: Self.errorMetadata(error))
             throw error
         }
+    }
+
+    // GIDSignIn collapses the real Keychain failure (OSStatus + GTMAppAuth
+    // domain) behind a single Code=-2 "keychain error" NSError. Walk the
+    // NSUnderlyingError chain so we can see what actually failed.
+    private static func errorMetadata(_ error: Error) -> [String: String] {
+        var metadata: [String: String] = ["error": String(describing: error)]
+        let ns = error as NSError
+        metadata["domain"] = ns.domain
+        metadata["code"] = String(ns.code)
+        metadata["userInfoKeys"] = ns.userInfo.keys.sorted().joined(separator: ",")
+        var depth = 0
+        var current: NSError? = ns.userInfo[NSUnderlyingErrorKey] as? NSError
+        while let underlying = current, depth < 4 {
+            metadata["underlying\(depth).domain"] = underlying.domain
+            metadata["underlying\(depth).code"] = String(underlying.code)
+            metadata["underlying\(depth).description"] = underlying.localizedDescription
+            metadata["underlying\(depth).userInfoKeys"] = underlying.userInfo.keys.sorted().joined(separator: ",")
+            current = underlying.userInfo[NSUnderlyingErrorKey] as? NSError
+            depth += 1
+        }
+        return metadata
     }
 
     func signOut() {
