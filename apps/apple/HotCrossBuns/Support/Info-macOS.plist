@@ -45,6 +45,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>GIDClientID</key>
 	<string>$(GOOGLE_MACOS_CLIENT_ID)</string>
+	<key>GoogleMapsEmbedAPIKey</key>
+	<string>$(GOOGLE_MAPS_EMBED_API_KEY)</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSHumanReadableCopyright</key>

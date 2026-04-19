@@ -52,6 +52,7 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         GIDClientID: $(GOOGLE_MACOS_CLIENT_ID)
+        GoogleMapsEmbedAPIKey: $(GOOGLE_MAPS_EMBED_API_KEY)
         CFBundleURLTypes:
           - CFBundleTypeRole: Editor
             CFBundleURLName: com.gongahkia.hotcrossbuns.google-oauth

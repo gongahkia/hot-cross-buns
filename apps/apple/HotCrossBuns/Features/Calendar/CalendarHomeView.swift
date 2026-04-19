@@ -635,7 +635,13 @@ struct EventDetailView: View {
                         DetailField(label: "Starts", value: formattedStart(for: event))
                         DetailField(label: "Ends", value: formattedEnd(for: event))
                         if event.location.isEmpty == false {
-                            DetailField(label: "Location", value: event.location)
+                            VStack(alignment: .leading, spacing: 6) {
+                                DetailField(label: "Location", value: event.location)
+                                // Read-only preview — tapping opens the full
+                                // Google Maps embed (MapKit fallback when the
+                                // Maps Embed API key is not configured).
+                                LocationMapPreview(locationText: event.location)
+                            }
                         }
                         if event.meetLink.isEmpty == false {
                             MeetLinkCard(link: event.meetLink)
@@ -992,7 +998,10 @@ struct AddEventSheet: View {
             TextField("Location", text: $location)
                 .textFieldStyle(.roundedBorder)
             if location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
-                LocationMapPreview(locationText: location)
+                // Editable binding — the full-view sheet surfaces a text
+                // field that writes back to `location` so users can refine
+                // the address from the map surface.
+                LocationMapPreview(locationText: $location, isEditable: true)
             }
         }
     }
