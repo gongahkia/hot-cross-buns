@@ -68,6 +68,10 @@ struct StoreView: View {
     @State private var bulkResultIsWarning: Bool = false
     @SceneStorage("storeFilter") private var filterKey: String = "all"
     @SceneStorage("storeShowCompleted") private var showCompleted: Bool = true
+    @SceneStorage("storeViewMode") private var viewModeKey: String = StoreViewMode.list.rawValue
+    @SceneStorage("storeKanbanColumnMode") private var kanbanColumnModeKey: String = KanbanColumnMode.byList.rawValue
+    @State private var kanbanColumnMode: KanbanColumnMode = .byList
+    @State private var viewMode: StoreViewMode = .list
 
     private var filter: StoreFilter {
         StoreFilter(storageKey: filterKey)
@@ -96,6 +100,10 @@ struct StoreView: View {
                     }
                     if model.pendingMutations.count > 0 {
                         PendingSyncPill(count: model.pendingMutations.count)
+                    }
+                    if visibleStoreViewModes.count > 1 {
+                        viewModePicker
+                            .disabled(isDisconnected)
                     }
                     filterMenu
                         .disabled(isDisconnected)
@@ -161,10 +169,41 @@ struct StoreView: View {
             .onChange(of: filterKey) { _, _ in
                 selection = []
             }
-            .onAppear(perform: consumePendingStoreFilter)
+            .onAppear {
+                consumePendingStoreFilter()
+                // Restore persisted modes. Falls back to list + byList when
+                // the stored keys are unrecognised (e.g., after a rename).
+                viewMode = StoreViewMode(rawValue: viewModeKey) ?? .list
+                kanbanColumnMode = KanbanColumnMode(rawValue: kanbanColumnModeKey) ?? .byList
+            }
             .onChange(of: model.pendingStoreFilterKey) { _, _ in
                 consumePendingStoreFilter()
             }
+            .onChange(of: viewMode) { _, newValue in
+                viewModeKey = newValue.rawValue
+            }
+            .onChange(of: kanbanColumnMode) { _, newValue in
+                kanbanColumnModeKey = newValue.rawValue
+            }
+            .onChange(of: model.settings.hiddenStoreViewModes) { _, _ in
+                // If the currently-selected view mode just got hidden, fall
+                // back to the first still-visible mode.
+                if visibleStoreViewModes.contains(viewMode) == false,
+                   let first = visibleStoreViewModes.first {
+                    viewMode = first
+                }
+            }
+    }
+
+    private var viewModePicker: some View {
+        Picker("View", selection: $viewMode) {
+            ForEach(visibleStoreViewModes, id: \.self) { mode in
+                Label(mode.title, systemImage: mode.systemImage).tag(mode)
+            }
+        }
+        .pickerStyle(.segmented)
+        .fixedSize()
+        .help("Switch between List and Kanban")
     }
 
     // Quick switcher (and future deep-link / intent paths) stage a filterKey
@@ -374,8 +413,33 @@ struct StoreView: View {
         }
     }
 
+    // StoreViewMode.allCases filtered by user-hidden set from §6.1 Layout.
+    // Guarantees at least one visible by virtue of setStoreViewModeHidden's
+    // invariant — but defensive fallback: if somehow empty, return [.list].
+    private var visibleStoreViewModes: [StoreViewMode] {
+        let filtered = StoreViewMode.allCases.filter {
+            model.settings.hiddenStoreViewModes.contains($0.rawValue) == false
+        }
+        return filtered.isEmpty ? [.list] : filtered
+    }
+
+    // When filter == .lists the task-lists-management surface has no kanban
+    // analogue, so we always force list mode there regardless of user choice.
+    private var effectiveViewMode: StoreViewMode {
+        if case .lists = filter { return .list }
+        return visibleStoreViewModes.contains(viewMode) ? viewMode : (visibleStoreViewModes.first ?? .list)
+    }
+
     @ViewBuilder
     private var scopedContent: some View {
+        switch effectiveViewMode {
+        case .list: listScopedContent
+        case .kanban: kanbanScopedContent
+        }
+    }
+
+    @ViewBuilder
+    private var listScopedContent: some View {
         switch filter {
         case .all:
             allTasksList
@@ -395,6 +459,37 @@ struct StoreView: View {
                     description: Text("Open Settings → Custom Filters to manage filters.")
                 )
             }
+        }
+    }
+
+    // Kanban mode reuses the same filter pipeline the list modes use, then
+    // hands the result to KanbanView for grouping + drag-and-drop. Selection
+    // state is shared so picking a card in kanban and picking a row in list
+    // feel the same.
+    @ViewBuilder
+    private var kanbanScopedContent: some View {
+        let tasks = kanbanTasksForCurrentFilter()
+        KanbanView(
+            tasks: tasks,
+            columnMode: $kanbanColumnMode,
+            selection: $selection,
+            onResult: handleBulkResult
+        )
+    }
+
+    private func kanbanTasksForCurrentFilter() -> [TaskMirror] {
+        switch filter {
+        case .all:
+            return applySearch(visibleTasks.filter { $0.isDeleted == false })
+        case .smart(let smart):
+            return smartTasks(smart)
+        case .notes:
+            return noteTasks
+        case .lists:
+            return [] // forced to list mode by effectiveViewMode
+        case .custom(let id):
+            guard let def = model.settings.customFilters.first(where: { $0.id == id }) else { return [] }
+            return customFilterTasks(def)
         }
     }
 

@@ -115,6 +115,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var shortcutOverrides: [String: HCBKeyBinding] // HCBShortcutCommand.rawValue → binding
     var hiddenSidebarItems: Set<String> // SidebarItem.rawValues user has hidden (Settings never hidable)
     var hiddenCalendarViewModes: Set<String> // CalendarGridMode.rawValues user has hidden from Calendar picker
+    var hiddenStoreViewModes: Set<String> // StoreViewMode.rawValues user has hidden from Store picker
 
     init(
         syncMode: SyncMode,
@@ -137,7 +138,8 @@ struct AppSettings: Hashable, Codable, Sendable {
         colorSchemeID: String = "notion",
         shortcutOverrides: [String: HCBKeyBinding] = [:],
         hiddenSidebarItems: Set<String> = [],
-        hiddenCalendarViewModes: Set<String> = []
+        hiddenCalendarViewModes: Set<String> = [],
+        hiddenStoreViewModes: Set<String> = []
     ) {
         self.syncMode = syncMode
         self.selectedCalendarIDs = selectedCalendarIDs
@@ -160,6 +162,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.shortcutOverrides = shortcutOverrides
         self.hiddenSidebarItems = hiddenSidebarItems
         self.hiddenCalendarViewModes = hiddenCalendarViewModes
+        self.hiddenStoreViewModes = hiddenStoreViewModes
     }
 
     enum CodingKeys: String, CodingKey {
@@ -184,6 +187,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case shortcutOverrides
         case hiddenSidebarItems
         case hiddenCalendarViewModes
+        case hiddenStoreViewModes
     }
 
     // Legacy key (0-6 ladder) read via dynamic CodingKey so it stays out of
@@ -236,6 +240,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         shortcutOverrides = try container.decodeIfPresent([String: HCBKeyBinding].self, forKey: .shortcutOverrides) ?? [:]
         hiddenSidebarItems = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenSidebarItems) ?? []
         hiddenCalendarViewModes = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenCalendarViewModes) ?? []
+        hiddenStoreViewModes = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenStoreViewModes) ?? []
     }
 
     enum MenuBarStyle: String, Codable, Hashable, Sendable, CaseIterable {

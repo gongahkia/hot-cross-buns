@@ -1343,6 +1343,24 @@ final class AppModel {
         Task { await saveCurrentState() }
     }
 
+    func setStoreViewModeHidden(_ mode: StoreViewMode, hidden: Bool) {
+        var next = settings.hiddenStoreViewModes
+        if hidden {
+            // Same invariant as Calendar: at least one view mode stays visible
+            // so the Store tab doesn't render an empty detail pane.
+            let wouldRemainVisible = StoreViewMode.allCases.contains { other in
+                other != mode && next.contains(other.rawValue) == false
+            }
+            guard wouldRemainVisible else { return }
+            next.insert(mode.rawValue)
+        } else {
+            next.remove(mode.rawValue)
+        }
+        guard next != settings.hiddenStoreViewModes else { return }
+        settings.hiddenStoreViewModes = next
+        Task { await saveCurrentState() }
+    }
+
     func updateSettings(_ next: AppSettings) {
         guard settings != next else { return }
         settings = next
