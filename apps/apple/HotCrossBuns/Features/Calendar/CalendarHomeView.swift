@@ -14,6 +14,7 @@ struct CalendarHomeView: View {
     @State private var searchQuery: String = ""
     @State private var pendingCrossCalendarMove: CrossCalendarMoveRequest?
     @State private var importResultMessage: String?
+    @State private var selectedEventIDs: Set<String> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -41,20 +42,32 @@ struct CalendarHomeView: View {
                 } else if model.calendarSnapshot.selectedCalendars.isEmpty {
                     calendarsEmptyPrompt
                 } else {
-                    switch mode {
-                    case .agenda: agendaContent
-                    case .day: DayGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
-                    case .week:
-                        HStack(spacing: 10) {
-                            if showTaskDrawer {
-                                TaskDrawerPanel()
-                                    .transition(.move(edge: .leading).combined(with: .opacity))
+                    ZStack(alignment: .bottom) {
+                        switch mode {
+                        case .agenda: agendaContent
+                        case .day: DayGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
+                        case .week:
+                            HStack(spacing: 10) {
+                                if showTaskDrawer {
+                                    TaskDrawerPanel()
+                                        .transition(.move(edge: .leading).combined(with: .opacity))
+                                }
+                                WeekGridView(anchorDate: $selectedDate, searchQuery: searchQuery, selectedEventIDs: $selectedEventIDs)
                             }
-                            WeekGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
+                            .animation(.easeInOut(duration: 0.2), value: showTaskDrawer)
+                        case .month: MonthGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
                         }
-                        .animation(.easeInOut(duration: 0.2), value: showTaskDrawer)
-                    case .month: MonthGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
+
+                        if selectedEventIDs.count >= 2 {
+                            EventBulkActionBar(
+                                selection: $selectedEventIDs,
+                                events: selectedEvents
+                            )
+                            .padding(.bottom, 16)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
                     }
+                    .animation(.easeInOut(duration: 0.2), value: selectedEventIDs.count >= 2)
                 }
             }
         }
@@ -187,6 +200,10 @@ struct CalendarHomeView: View {
             .allowsHitTesting(false)
             .accessibilityHidden(true)
         )
+    }
+
+    private var selectedEvents: [CalendarEventMirror] {
+        model.events.filter { selectedEventIDs.contains($0.id) }
     }
 
     private var periodTitle: String {

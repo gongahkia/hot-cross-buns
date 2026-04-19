@@ -5,6 +5,17 @@ struct WeekGridView: View {
     @Environment(RouterPath.self) private var router
     @Binding var anchorDate: Date
     var searchQuery: String = ""
+    @Binding var selectedEventIDs: Set<String>
+
+    init(
+        anchorDate: Binding<Date>,
+        searchQuery: String = "",
+        selectedEventIDs: Binding<Set<String>> = .constant([])
+    ) {
+        _anchorDate = anchorDate
+        self.searchQuery = searchQuery
+        _selectedEventIDs = selectedEventIDs
+    }
 
     private let hourHeight: CGFloat = 44
     private let hourStart = 0
@@ -202,6 +213,14 @@ struct WeekGridView: View {
         .offset(x: x, y: y)
         .accessibilityLabel(eventAccessibilityLabel(span.event))
         .accessibilityHint("Opens event details")
+    }
+
+    private func toggleSelection(_ id: String) {
+        if selectedEventIDs.contains(id) {
+            selectedEventIDs.remove(id)
+        } else {
+            selectedEventIDs.insert(id)
+        }
     }
 
     private func eventAccessibilityLabel(_ event: CalendarEventMirror) -> String {
@@ -472,6 +491,18 @@ struct WeekGridView: View {
         }
         .buttonStyle(.plain)
         .offset(x: xOffsetWithinDay + 1, y: yOffset)
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .strokeBorder(selectedEventIDs.contains(placed.event.id) ? AppColor.blue : Color.clear, lineWidth: 2)
+                .frame(width: slotWidth - 2, height: height - 2)
+                .offset(x: xOffsetWithinDay + 1, y: yOffset)
+                .allowsHitTesting(false)
+        )
+        .simultaneousGesture(
+            TapGesture().modifiers(.command).onEnded {
+                toggleSelection(placed.event.id)
+            }
+        )
         .accessibilityLabel(eventAccessibilityLabel(placed.event))
         .accessibilityHint("Opens event details")
         .modifier(EventHoverPreviewModifier(event: placed.event))
