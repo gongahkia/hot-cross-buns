@@ -4,11 +4,17 @@ import SwiftUI
 struct KeybindingsSection: View {
     @Environment(AppModel.self) private var model
     @State private var recording: HCBShortcutCommand?
+    @State private var conflictMessage: String?
 
     var body: some View {
         Section("Keyboard shortcuts") {
             ForEach(HCBShortcutGroup.allCases) { group in
                 groupRows(for: group)
+            }
+            if let conflictMessage {
+                Text(conflictMessage)
+                    .hcbFont(.footnote)
+                    .foregroundStyle(AppColor.ember)
             }
             footer
         }
@@ -39,7 +45,17 @@ struct KeybindingsSection: View {
             if recording == command {
                 KeyRecorderView { newBinding in
                     if let newBinding {
-                        model.setShortcutBinding(command, binding: newBinding)
+                        let conflicts = hcbConflictingCommands(
+                            proposed: newBinding,
+                            for: command,
+                            overrides: model.settings.shortcutOverrides
+                        )
+                        if let first = conflicts.first {
+                            conflictMessage = "\(newBinding.displayLabel) is already bound to \"\(first.title)\". Rebind or reset that one first."
+                        } else {
+                            conflictMessage = nil
+                            model.setShortcutBinding(command, binding: newBinding)
+                        }
                     }
                     recording = nil
                 }
