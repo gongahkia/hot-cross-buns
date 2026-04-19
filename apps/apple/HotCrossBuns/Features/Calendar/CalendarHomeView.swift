@@ -49,6 +49,7 @@ struct CalendarHomeView: View {
                             }
                             .animation(.easeInOut(duration: 0.2), value: showTaskDrawer)
                         case .month: MonthGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
+                        case .timeline: TimelineView(anchorDate: $selectedDate, searchQuery: searchQuery)
                         }
 
                         if selectedEventIDs.count >= 2 {
@@ -259,6 +260,10 @@ struct CalendarHomeView: View {
             return "\(first.formatted(.dateTime.month(.abbreviated).day())) – \(last.formatted(.dateTime.month(.abbreviated).day().year()))"
         case .month:
             return selectedDate.formatted(.dateTime.month(.wide).year())
+        case .timeline:
+            // Timeline shows whatever range the view picks internally; the
+            // toolbar title anchors on the month of the selected date.
+            return selectedDate.formatted(.dateTime.month(.wide).year())
         }
     }
 
@@ -461,7 +466,7 @@ struct CalendarHomeView: View {
             selectedDate = calendar.date(byAdding: .day, value: direction, to: selectedDate) ?? selectedDate
         case .week:
             selectedDate = calendar.date(byAdding: .weekOfYear, value: direction, to: selectedDate) ?? selectedDate
-        case .month:
+        case .month, .timeline:
             selectedDate = calendar.date(byAdding: .month, value: direction, to: selectedDate) ?? selectedDate
         }
     }
@@ -473,7 +478,7 @@ struct CalendarHomeView: View {
             selectedDate = calendar.date(byAdding: .weekOfYear, value: direction, to: selectedDate) ?? selectedDate
         case .week:
             selectedDate = calendar.date(byAdding: .month, value: direction, to: selectedDate) ?? selectedDate
-        case .month:
+        case .month, .timeline:
             selectedDate = calendar.date(byAdding: .year, value: direction, to: selectedDate) ?? selectedDate
         }
     }
