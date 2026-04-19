@@ -340,6 +340,629 @@ private struct DetailedMenuBarPanel: View {
     }
 }
 
+private struct FocusStripMenuBarPanel: View {
+    @Environment(AppModel.self) private var model
+    @State private var completingTaskIDs: Set<TaskMirror.ID> = []
+
+    private enum Lane: Int, CaseIterable, Identifiable {
+        case now
+        case next
+        case later
+
+        var id: Int { rawValue }
+
+        var title: String {
+            switch self {
+            case .now: "Now"
+            case .next: "Next"
+            case .later: "Later"
+            }
+        }
+
+        var tint: Color {
+            switch self {
+            case .now: AppColor.ember
+            case .next: AppColor.blue
+            case .later: AppColor.moss
+            }
+        }
+
+        var emptyState: String {
+            switch self {
+            case .now: "You're clear right now."
+            case .next: "Nothing queued next."
+            case .later: "No later commitments."
+            }
+        }
+    }
+
+    private enum ActionableItem {
+        case task(TaskMirror)
+        case event(CalendarEventMirror)
+    }
+
+    private struct LaneRow: Identifiable {
+        let lane: Lane
+        let title: String
+        let subtitle: String
+        let symbol: String
+        let color: Color
+        let task: TaskMirror?
+        let isPlaceholder: Bool
+
+        var id: Int { lane.rawValue }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Focus strip")
+                    .font(.headline)
+                Spacer()
+                Text(model.syncState.title)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(spacing: 7) {
+                ForEach(Lane.allCases) { lane in
+                    laneRow(for: row(for: lane))
+                }
+            }
+
+            Divider()
+            MenuBarQuickAddRow()
+            Divider()
+            MenuBarQuickActions()
+        }
+        .padding(14)
+        .frame(width: 336)
+    }
+
+    @ViewBuilder
+    private func laneRow(for row: LaneRow) -> some View {
+        HStack(spacing: 8) {
+            Text(row.lane.title.uppercased())
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(row.lane.tint)
+                .frame(width: 40, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(row.title)
+                    .font(.subheadline.weight(row.isPlaceholder ? .regular : .semibold))
+                    .lineLimit(1)
+                    .foregroundStyle(row.isPlaceholder ? .secondary : .primary)
+                Text(row.subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+
+            if let task = row.task {
+                Button {
+                    complete(task)
+                } label: {
+                    if completingTaskIDs.contains(task.id) {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "checkmark.circle")
+                            .foregroundStyle(AppColor.ember)
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(completingTaskIDs.contains(task.id))
+            } else {
+                Image(systemName: row.symbol)
+                    .font(.caption)
+                    .foregroundStyle(row.isPlaceholder ? .secondary : row.color)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(row.isPlaceholder ? .quaternary.opacity(0.25) : row.color.opacity(0.10))
+        )
+    }
+
+    private var actionable: [ActionableItem] {
+        let now = Date()
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: now)
+        let selectedCalendars = model.menuBarSelectedCalendarIDs
+        let visibleTaskLists = model.menuBarVisibleTaskListIDs
+
+        let taskPool = model.tasks
+            .filter { task in
+                guard task.isDeleted == false, task.isCompleted == false, task.dueDate != nil else { return false }
+                return visibleTaskLists.contains(task.taskListID)
+            }
+            .sorted {
+                ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture)
+            }
+
+        let overdueTasks = taskPool.filter { ($0.dueDate ?? .distantFuture) < startOfToday }
+        let dueTodayTasks = taskPool.filter { task in
+            guard let dueDate = task.dueDate else { return false }
+            return calendar.isDate(dueDate, inSameDayAs: now)
+        }
+        let futureTasks = taskPool.filter { ($0.dueDate ?? .distantPast) > startOfToday }
+
+        let eventPool = model.events
+            .filter { event in
+                selectedCalendars.contains(event.calendarID) && event.status != .cancelled && event.endDate > now
+            }
+            .sorted { $0.startDate < $1.startDate }
+        let ongoingEvent = eventPool.first(where: { $0.startDate <= now && $0.endDate > now })
+        let upcomingEvents = eventPool.filter { $0.startDate > now }
+
+        var items: [ActionableItem] = []
+        var seenTaskIDs: Set<TaskMirror.ID> = []
+        var seenEventIDs: Set<CalendarEventMirror.ID> = []
+
+        func addTask(_ task: TaskMirror) {
+            guard seenTaskIDs.insert(task.id).inserted else { return }
+            items.append(.task(task))
+        }
+
+        func addEvent(_ event: CalendarEventMirror) {
+            guard seenEventIDs.insert(event.id).inserted else { return }
+            items.append(.event(event))
+        }
+
+        overdueTasks.prefix(2).forEach(addTask)
+        if let ongoingEvent {
+            addEvent(ongoingEvent)
+        }
+        upcomingEvents.prefix(3).forEach(addEvent)
+        dueTodayTasks.prefix(3).forEach(addTask)
+        futureTasks.prefix(3).forEach(addTask)
+
+        return Array(items.prefix(3))
+    }
+
+    private func row(for lane: Lane) -> LaneRow {
+        guard actionable.indices.contains(lane.rawValue) else {
+            return LaneRow(
+                lane: lane,
+                title: lane.emptyState,
+                subtitle: "No immediate tasks or events",
+                symbol: "sparkles",
+                color: .secondary,
+                task: nil,
+                isPlaceholder: true
+            )
+        }
+
+        switch actionable[lane.rawValue] {
+        case .task(let task):
+            return LaneRow(
+                lane: lane,
+                title: task.title,
+                subtitle: taskSubtitle(for: task),
+                symbol: "checkmark.circle",
+                color: AppColor.ember,
+                task: task,
+                isPlaceholder: false
+            )
+        case .event(let event):
+            return LaneRow(
+                lane: lane,
+                title: event.summary,
+                subtitle: eventSubtitle(for: event),
+                symbol: "calendar",
+                color: AppColor.blue,
+                task: nil,
+                isPlaceholder: false
+            )
+        }
+    }
+
+    private func taskSubtitle(for task: TaskMirror) -> String {
+        let listTitle = model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Tasks"
+        guard let dueDate = task.dueDate else {
+            return listTitle
+        }
+
+        let calendar = Calendar.current
+        if dueDate < calendar.startOfDay(for: Date()) {
+            return "Overdue · \(listTitle)"
+        }
+        if calendar.isDateInToday(dueDate) {
+            return "Due today · \(listTitle)"
+        }
+        return "Due \(dueDate.formatted(.dateTime.weekday(.abbreviated).month().day())) · \(listTitle)"
+    }
+
+    private func eventSubtitle(for event: CalendarEventMirror) -> String {
+        let calendarTitle = model.calendars.first(where: { $0.id == event.calendarID })?.summary ?? "Calendar"
+        if event.isAllDay {
+            return "All day · \(calendarTitle)"
+        }
+        return "\(event.startDate.formatted(date: .omitted, time: .shortened))–\(event.endDate.formatted(date: .omitted, time: .shortened)) · \(calendarTitle)"
+    }
+
+    private func complete(_ task: TaskMirror) {
+        guard completingTaskIDs.contains(task.id) == false else { return }
+        completingTaskIDs.insert(task.id)
+        Task {
+            _ = await model.setTaskCompleted(true, task: task)
+            await MainActor.run {
+                completingTaskIDs.remove(task.id)
+            }
+        }
+    }
+}
+
+private struct DayTimelineMenuBarPanel: View {
+    @Environment(AppModel.self) private var model
+    @State private var completingTaskIDs: Set<TaskMirror.ID> = []
+
+    private let horizonHours = 12
+
+    private struct TimelineEntry: Identifiable {
+        let id: String
+        let timestamp: Date
+        let timeLabel: String
+        let title: String
+        let subtitle: String
+        let color: Color
+        let symbol: String
+        let task: TaskMirror?
+    }
+
+    private enum TaskCategory {
+        case overdue
+        case dueToday
+        case dueTomorrow
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Day timeline")
+                    .font(.headline)
+                Spacer()
+                Text("Next \(horizonHours)h")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    if timelineEntries.isEmpty {
+                        Text("No events or due tasks in the next \(horizonHours) hours.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 8)
+                    } else {
+                        ForEach(timelineEntries) { entry in
+                            timelineRow(entry)
+                        }
+                    }
+                }
+                .padding(.top, 2)
+            }
+            .frame(maxHeight: 210)
+
+            Divider()
+            MenuBarQuickAddRow()
+            Divider()
+            MenuBarQuickActions()
+        }
+        .padding(14)
+        .frame(width: 348)
+    }
+
+    @ViewBuilder
+    private func timelineRow(_ entry: TimelineEntry) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(spacing: 3) {
+                Text(entry.timeLabel)
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 42, alignment: .leading)
+                Circle()
+                    .fill(entry.color)
+                    .frame(width: 6, height: 6)
+                    .frame(width: 42, alignment: .leading)
+            }
+
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 4) {
+                    Image(systemName: entry.symbol)
+                        .font(.caption2)
+                        .foregroundStyle(entry.color)
+                    Text(entry.title)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                }
+                Text(entry.subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+
+            if let task = entry.task {
+                Button {
+                    complete(task)
+                } label: {
+                    if completingTaskIDs.contains(task.id) {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "checkmark.circle")
+                            .foregroundStyle(AppColor.ember)
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(completingTaskIDs.contains(task.id))
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(entry.color.opacity(0.10))
+        )
+    }
+
+    private var timelineEntries: [TimelineEntry] {
+        let calendar = Calendar.current
+        let now = Date()
+        let windowEnd = calendar.date(byAdding: .hour, value: horizonHours, to: now) ?? now
+        let selectedCalendars = model.menuBarSelectedCalendarIDs
+        let visibleTaskLists = model.menuBarVisibleTaskListIDs
+        let taskListTitles = Dictionary(uniqueKeysWithValues: model.taskLists.map { ($0.id, $0.title) })
+        let calendarTitles = Dictionary(uniqueKeysWithValues: model.calendars.map { ($0.id, $0.summary) })
+
+        let eventEntries = model.events
+            .filter { event in
+                selectedCalendars.contains(event.calendarID)
+                    && event.status != .cancelled
+                    && event.endDate > now
+                    && event.startDate < windowEnd
+            }
+            .sorted { $0.startDate < $1.startDate }
+            .map { event in
+                let shownStart = max(event.startDate, now)
+                let subtitle: String
+                if event.isAllDay {
+                    subtitle = "All day · \(calendarTitles[event.calendarID] ?? "Calendar")"
+                } else {
+                    subtitle = "\(event.startDate.formatted(date: .omitted, time: .shortened))–\(event.endDate.formatted(date: .omitted, time: .shortened)) · \(calendarTitles[event.calendarID] ?? "Calendar")"
+                }
+                return TimelineEntry(
+                    id: "event-\(event.id)",
+                    timestamp: shownStart,
+                    timeLabel: event.isAllDay ? "ALL" : shownStart.formatted(date: .omitted, time: .shortened),
+                    title: event.summary,
+                    subtitle: subtitle,
+                    color: Color(hex: model.calendars.first(where: { $0.id == event.calendarID })?.colorHex ?? "#4A90E2"),
+                    symbol: event.isAllDay ? "sun.max" : "calendar",
+                    task: nil
+                )
+            }
+
+        let startOfToday = calendar.startOfDay(for: now)
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: startOfToday) ?? startOfToday
+        let tomorrowPlusOne = calendar.date(byAdding: .day, value: 1, to: tomorrow) ?? tomorrow
+
+        let taskPool = model.tasks
+            .filter { task in
+                guard task.isDeleted == false, task.isCompleted == false, task.dueDate != nil else { return false }
+                return visibleTaskLists.contains(task.taskListID)
+            }
+
+        let overdueTasks = taskPool
+            .filter { ($0.dueDate ?? .distantFuture) < startOfToday }
+            .sorted { ($0.dueDate ?? .distantPast) > ($1.dueDate ?? .distantPast) }
+            .prefix(2)
+
+        let dueTodayTasks = taskPool
+            .filter { task in
+                guard let dueDate = task.dueDate else { return false }
+                return calendar.isDate(dueDate, inSameDayAs: now)
+            }
+            .sorted { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }
+            .prefix(4)
+
+        let includeTomorrow = tomorrow < windowEnd
+        let dueTomorrowTasks = taskPool
+            .filter { task in
+                guard includeTomorrow, let dueDate = task.dueDate else { return false }
+                return dueDate >= tomorrow && dueDate < tomorrowPlusOne
+            }
+            .sorted { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }
+            .prefix(2)
+
+        let taskEntries = Array(overdueTasks) + Array(dueTodayTasks) + Array(dueTomorrowTasks)
+        let dueTaskEntries = taskEntries.compactMap { task -> TimelineEntry? in
+            guard let dueDate = task.dueDate else { return nil }
+            guard let category = taskCategory(for: dueDate, now: now) else { return nil }
+            let listTitle = taskListTitles[task.taskListID] ?? "Tasks"
+            let anchor = anchorDate(for: category, now: now, dueDate: dueDate, windowEnd: windowEnd)
+            let subtitle: String
+            switch category {
+            case .overdue:
+                subtitle = "Overdue · \(listTitle)"
+            case .dueToday:
+                subtitle = "Due today · \(listTitle)"
+            case .dueTomorrow:
+                subtitle = "Due tomorrow · \(listTitle)"
+            }
+            return TimelineEntry(
+                id: "task-\(task.id)",
+                timestamp: anchor,
+                timeLabel: category == .overdue ? "NOW" : anchor.formatted(date: .omitted, time: .shortened),
+                title: task.title,
+                subtitle: subtitle,
+                color: AppColor.ember,
+                symbol: "checklist",
+                task: task
+            )
+        }
+
+        return (eventEntries + dueTaskEntries)
+            .sorted { lhs, rhs in
+                if lhs.timestamp == rhs.timestamp {
+                    return lhs.title < rhs.title
+                }
+                return lhs.timestamp < rhs.timestamp
+            }
+            .prefix(9)
+            .map { $0 }
+    }
+
+    private func taskCategory(for dueDate: Date, now: Date) -> TaskCategory? {
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: now)
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: startOfToday) ?? startOfToday
+        let tomorrowPlusOne = calendar.date(byAdding: .day, value: 1, to: tomorrow) ?? tomorrow
+
+        if dueDate < startOfToday {
+            return .overdue
+        }
+        if calendar.isDate(dueDate, inSameDayAs: now) {
+            return .dueToday
+        }
+        if dueDate >= tomorrow && dueDate < tomorrowPlusOne {
+            return .dueTomorrow
+        }
+        return nil
+    }
+
+    private func anchorDate(for category: TaskCategory, now: Date, dueDate: Date, windowEnd: Date) -> Date {
+        let calendar = Calendar.current
+        let minimum = now.addingTimeInterval(5 * 60)
+        let maximum = windowEnd.addingTimeInterval(-5 * 60)
+
+        let candidate: Date
+        switch category {
+        case .overdue:
+            candidate = now.addingTimeInterval(10 * 60)
+        case .dueToday:
+            let todayAtFive = calendar.date(bySettingHour: 17, minute: 0, second: 0, of: now) ?? now
+            candidate = max(todayAtFive, now.addingTimeInterval(15 * 60))
+        case .dueTomorrow:
+            candidate = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: dueDate) ?? dueDate
+        }
+
+        return min(max(candidate, minimum), maximum)
+    }
+
+    private func complete(_ task: TaskMirror) {
+        guard completingTaskIDs.contains(task.id) == false else { return }
+        completingTaskIDs.insert(task.id)
+        Task {
+            _ = await model.setTaskCompleted(true, task: task)
+            await MainActor.run {
+                completingTaskIDs.remove(task.id)
+            }
+        }
+    }
+}
+
+private struct MinimalBadgeMenuBarPanel: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Hot Cross Buns")
+                    .font(.headline)
+                Spacer()
+                Text(model.syncState.title)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 6) {
+                MetricChip(label: "Due", count: model.todaySnapshot.dueTasks.count, color: AppColor.ember)
+                MetricChip(label: "Overdue", count: model.todaySnapshot.overdueCount, color: AppColor.ember)
+                MetricChip(label: "Events", count: model.todaySnapshot.scheduledEvents.count, color: AppColor.blue)
+            }
+
+            if let lastSync = model.lastSuccessfulSyncAt {
+                Text("Last sync \(lastSync.formatted(date: .omitted, time: .shortened))")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Last sync never")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            MenuBarQuickAddRow()
+
+            HStack(spacing: 6) {
+                Button {
+                    bringAppToFront()
+                } label: {
+                    Label("Open", systemImage: "arrow.up.right.square")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Button {
+                    Task { await model.refreshNow() }
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(model.account == nil)
+
+                Button {
+                    NSApp.terminate(nil)
+                } label: {
+                    Label("Quit", systemImage: "power")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+        .padding(12)
+        .frame(width: 276)
+    }
+
+    private func bringAppToFront() {
+        NSApp.activate(ignoringOtherApps: true)
+        if let window = NSApp.windows.first(where: { $0.canBecomeMain }) {
+            window.makeKeyAndOrderFront(nil)
+        }
+    }
+}
+
+private struct MetricChip: View {
+    let label: String
+    let count: Int
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(label)
+                .font(.caption2.weight(.semibold))
+            Text("\(count)")
+                .font(.caption2.monospacedDigit().weight(.semibold))
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 4)
+        .foregroundStyle(count == 0 ? .secondary : color)
+        .background(
+            Capsule(style: .continuous)
+                .fill(count == 0 ? .quaternary.opacity(0.25) : color.opacity(0.14))
+        )
+    }
+}
+
 private struct MenuBarQuickAddRow: View {
     @Environment(AppModel.self) private var model
     @State private var input: String = ""
