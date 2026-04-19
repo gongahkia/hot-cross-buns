@@ -228,6 +228,51 @@ struct StoreView: View {
 
     @ViewBuilder
     private var content: some View {
+        if model.account == nil {
+            signedOutPrompt
+        } else if model.taskLists.isEmpty {
+            noTaskListsPrompt
+        } else {
+            scopedContent
+        }
+    }
+
+    @ViewBuilder
+    private var signedOutPrompt: some View {
+        ContentUnavailableView {
+            Label("Not connected to Google", systemImage: "person.crop.circle.badge.plus")
+        } description: {
+            Text("Connect your Google account in Settings to see your tasks and notes here.")
+        } actions: {
+            Button("Open Settings") {
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(AppColor.ember)
+        }
+    }
+
+    @ViewBuilder
+    private var noTaskListsPrompt: some View {
+        ContentUnavailableView {
+            Label("No task lists yet", systemImage: "checklist")
+        } description: {
+            if case .syncing = model.syncState {
+                Text("Loading your Google Tasks lists…")
+            } else {
+                Text("We haven't seen any task lists. Hit Refresh or create one with the Manage Lists button above.")
+            }
+        } actions: {
+            Button("Refresh") {
+                Task { await model.refreshNow() }
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(AppColor.ember)
+        }
+    }
+
+    @ViewBuilder
+    private var scopedContent: some View {
         switch filter {
         case .all:
             allTasksList
