@@ -104,10 +104,14 @@ Prioritized for daily-driver use. Tier B hardens what's already shipped; Tier C 
 11. **Print support** — `Exporters.swift` has markdown + ICS output; add a native Print sheet layout for today / week / selected task list.
 12. **Localization scaffolding** — wrap user-visible strings in `LocalizedStringKey` now so future translations are cheap. English-only for v1.
 
-## 8. Deferred (non-goals for now)
+## 8. Deferred (lower priority but on the roadmap)
 
-- Multi-account (personal + work) — large change, revisit after Tier 1–3.
-- Push-via-APNs relay — requires a server, violates "Google is the backend" principle.
-- Rich metadata in Calendar private extended properties — cross-client fragility.
-- SQLite migration for the local cache (current JSON snapshot is adequate for the scale of one user's data).
-- Windows / Linux / Android ports.
+Not actively in scope but worth implementing eventually. Each is substantial enough that it should be its own focused push.
+
+- **"This and following" recurring-event edit** — mirror of the delete scope that shipped in `a046517`, but harder. Requires a genuine series-split: truncate the old master with `UNTIL`, insert a new master at the cutoff with the edited content and rules, then propagate any per-instance exceptions in the post-cutoff window against the new master's timebase. Partial-failure rollback is non-trivial (if truncate succeeds and insert fails, the original series is already truncated with no replacement — needs to PATCH the master back to its original recurrence, so we must snapshot the pre-truncate state). Attendee RSVPs reset since the new series gets a fresh event ID. Scheduled local reminders + Spotlight entries keyed to the old instance IDs become orphans and must be rebuilt. Offline queue would need a new `PendingEventSeriesSplitPayload` that encodes both HTTP operations plus the rollback snapshot. Realistic cost: 1–2 days of focused work. Workaround until this lands: edit the master directly (affects past instances too) or delete "this and following" then create a new series from scratch.
+- **Cross-calendar drag for recurring `thisAndFollowing` scope** — blocked by the series-split work above. Dragging a recurring event onto another calendar currently offers "This event only" or "All events in series"; no middle option.
+- **Multi-account (personal + work)** — one `GoogleAccount` at a time today. Revisit after the calendar is solid for the single-account case.
+- **Push-via-APNs relay** — requires a server, violates "Google is the backend" principle. Reconsider only if foreground polling proves inadequate in practice.
+- **Rich metadata in Calendar private extended properties** — cross-client fragility; app-only annotations would disappear outside Hot Cross Buns.
+- **SQLite migration for the local cache** — current JSON snapshot is adequate for one user's data volume. Reconsider if the cache grows past ~50MB or needs indexed queries.
+- **Windows / Linux / Android ports** — out of scope by product decision.
