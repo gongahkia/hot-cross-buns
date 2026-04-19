@@ -661,6 +661,23 @@ final class AppModel {
         undoable = nil
     }
 
+    // Drops a single PendingMutation by id so the user can unstick a
+    // replay loop that keeps 412'ing (e.g. Google rejected a queued edit
+    // because the item was changed elsewhere). Called from DiagnosticsView.
+    @discardableResult
+    func clearPendingMutation(id: PendingMutation.ID) -> Bool {
+        guard pendingMutations.contains(where: { $0.id == id }) else { return false }
+        pendingMutations.removeAll { $0.id == id }
+        Task { await saveCurrentState() }
+        return true
+    }
+
+    func clearAllPendingMutations() {
+        guard pendingMutations.isEmpty == false else { return }
+        pendingMutations = []
+        Task { await saveCurrentState() }
+    }
+
     func performUndo() async {
         guard let action = undoable else { return }
         undoable = nil

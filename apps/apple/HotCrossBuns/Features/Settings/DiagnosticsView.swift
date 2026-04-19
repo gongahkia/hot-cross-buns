@@ -42,6 +42,21 @@ struct DiagnosticsView: View {
                         .textSelection(.enabled)
                 }
 
+                if model.pendingMutations.isEmpty == false {
+                    Section("Pending sync queue") {
+                        ForEach(model.pendingMutations) { mutation in
+                            PendingMutationRow(mutation: mutation) {
+                                _ = model.clearPendingMutation(id: mutation.id)
+                            }
+                        }
+                        Button(role: .destructive) {
+                            model.clearAllPendingMutations()
+                        } label: {
+                            Label("Clear entire queue", systemImage: "trash")
+                        }
+                    }
+                }
+
                 Section("Recovery") {
                     Button {
                         runRecoveryAction {
@@ -181,6 +196,70 @@ struct DiagnosticsView: View {
     private func copyDiagnostics() {
         Clipboard.copy(model.diagnosticSummary(cachePath: cachePath))
         copiedAt = Date()
+    }
+}
+
+private struct PendingMutationRow: View {
+    let mutation: PendingMutation
+    let onDrop: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: symbol)
+                .foregroundStyle(tint)
+                .frame(width: 18, alignment: .center)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.weight(.medium))
+                Text(subtitle)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            Spacer(minLength: 8)
+            Button(role: .destructive, action: onDrop) {
+                Label("Drop", systemImage: "xmark.circle")
+            }
+            .labelStyle(.iconOnly)
+            .buttonStyle(.borderless)
+            .help("Remove this pending mutation from the queue")
+        }
+    }
+
+    private var title: String {
+        switch (mutation.resourceType, mutation.action) {
+        case (.task, .create): "New task"
+        case (.task, .update): "Task edit"
+        case (.task, .completion): "Task completion"
+        case (.task, .delete): "Task delete"
+        case (.event, .create): "New event"
+        case (.event, .update): "Event edit"
+        case (.event, .delete): "Event delete"
+        default: "Pending \(mutation.resourceType.rawValue) \(mutation.action.rawValue)"
+        }
+    }
+
+    private var subtitle: String {
+        "\(mutation.resourceID) · queued \(mutation.createdAt.formatted(date: .abbreviated, time: .shortened))"
+    }
+
+    private var symbol: String {
+        switch mutation.action {
+        case .create: "plus.circle"
+        case .update: "pencil.circle"
+        case .completion: "checkmark.circle"
+        case .delete: "trash.circle"
+        }
+    }
+
+    private var tint: Color {
+        switch mutation.action {
+        case .create: AppColor.moss
+        case .update: AppColor.blue
+        case .completion: AppColor.moss
+        case .delete: AppColor.ember
+        }
     }
 }
 
