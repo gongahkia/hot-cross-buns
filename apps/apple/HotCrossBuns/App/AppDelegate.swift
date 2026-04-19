@@ -4,6 +4,39 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let globalHotkey = GlobalHotkey()
 
+    nonisolated func applicationWillFinishLaunching(_ notification: Notification) {
+        // Register as the Services provider so the selector declared in
+        // Info.plist's NSServices block ("Create Hot Cross Buns task")
+        // routes to handleCreateTaskService below. NSUpdateDynamicServices
+        // nudges macOS to pick up the new declaration without a restart.
+        NSApplication.shared.servicesProvider = self
+        NSUpdateDynamicServices()
+    }
+
+    // Called by macOS when the user invokes the Services menu entry on a
+    // text selection. The selector shape matches the Info.plist NSMessage
+    // "handleCreateTaskService".
+    @objc nonisolated func handleCreateTaskService(
+        _ pasteboard: NSPasteboard,
+        userData: String?,
+        error: AutoreleasingUnsafeMutablePointer<NSString>
+    ) {
+        guard let selection = pasteboard.string(forType: .string),
+              selection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        else {
+            error.pointee = "Hot Cross Buns needs a text selection to create a task."
+            return
+        }
+        // Piggyback on the Share Extension's handoff path so a selection
+        // captured via the Services menu flows through the same prefill →
+        // QuickAdd pipeline.
+        let item = SharedInboxItem(text: selection, createdAt: Date())
+        SharedInboxDefaults.append(item)
+        Task { @MainActor in
+            NSApplication.shared.activate(ignoringOtherApps: true)
+        }
+    }
+
     nonisolated func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         let menu = NSMenu()
 
