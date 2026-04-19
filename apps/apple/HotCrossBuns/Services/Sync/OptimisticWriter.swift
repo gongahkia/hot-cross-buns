@@ -34,6 +34,8 @@ struct PendingEventCreatePayload: Codable, Sendable, Equatable {
     var recurrence: [String] = []
     var attendeeEmails: [String] = []
     var notifyGuests: Bool = false
+    var addGoogleMeet: Bool = false
+    var colorId: String? = nil
 }
 
 struct PendingTaskUpdatePayload: Codable, Sendable, Equatable {
@@ -72,6 +74,8 @@ struct PendingEventUpdatePayload: Codable, Sendable, Equatable {
     var attendeeEmails: [String]
     var notifyGuests: Bool
     var etagSnapshot: String?
+    var addGoogleMeet: Bool = false
+    var colorId: String? = nil
 }
 
 struct PendingEventDeletePayload: Codable, Sendable, Equatable {

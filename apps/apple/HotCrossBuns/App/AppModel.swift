@@ -685,7 +685,9 @@ final class AppModel {
         location: String = "",
         recurrence: [String] = [],
         attendeeEmails: [String] = [],
-        notifyGuests: Bool = false
+        notifyGuests: Bool = false,
+        addGoogleMeet: Bool = false,
+        colorId: String? = nil
     ) async -> Bool {
         guard requireAccount(mutationDescription: "creating events") else {
             return false
@@ -717,7 +719,12 @@ final class AppModel {
             updatedAt: Date(),
             reminderMinutes: reminderMinutes.map { [$0] } ?? [],
             location: trimmedLocation,
-            attendeeEmails: cleanedEmails
+            attendeeEmails: cleanedEmails,
+            attendeeResponses: cleanedEmails.map {
+                CalendarEventAttendee(email: $0, displayName: nil, responseStatus: .needsAction)
+            },
+            meetLink: "",
+            colorId: colorId
         )
         upsert(optimisticEvent)
 
@@ -734,7 +741,9 @@ final class AppModel {
                 location: trimmedLocation,
                 recurrence: recurrence,
                 attendeeEmails: cleanedEmails,
-                notifyGuests: notifyGuests
+                notifyGuests: notifyGuests,
+                addGoogleMeet: addGoogleMeet,
+                colorId: colorId
             )
             let mutation = try PendingMutation.eventCreate(payload: payload)
             pendingMutations.append(mutation)
@@ -767,7 +776,9 @@ final class AppModel {
         recurrence: [String]? = nil,
         attendeeEmails: [String]? = nil,
         notifyGuests: Bool = false,
-        scope: RecurringEventScope = .thisOccurrence
+        scope: RecurringEventScope = .thisOccurrence,
+        addGoogleMeet: Bool = false,
+        colorId: String? = nil
     ) async -> Bool {
         guard requireAccount(mutationDescription: "updating events") else {
             return false
@@ -841,6 +852,8 @@ final class AppModel {
                 recurrence: effectiveRecurrence,
                 attendeeEmails: cleanedEmails,
                 sendUpdates: notifyGuests ? "all" : "none",
+                addGoogleMeet: addGoogleMeet,
+                colorId: colorId,
                 ifMatch: scope == .allInSeries ? nil : eventToUpdate.etag
             )
             if calendarID != event.calendarID {
@@ -865,7 +878,9 @@ final class AppModel {
                 recurrence: effectiveRecurrence,
                 attendeeEmails: cleanedEmails,
                 notifyGuests: notifyGuests,
-                etagSnapshot: event.etag
+                etagSnapshot: event.etag,
+                addGoogleMeet: addGoogleMeet,
+                colorId: colorId
             )
             if let mutation = try? PendingMutation.eventUpdate(payload: payload) {
                 pendingMutations.append(mutation)
@@ -1232,6 +1247,8 @@ final class AppModel {
                 recurrence: payload.recurrence,
                 attendeeEmails: payload.attendeeEmails,
                 sendUpdates: payload.notifyGuests ? "all" : "none",
+                addGoogleMeet: payload.addGoogleMeet,
+                colorId: payload.colorId,
                 ifMatch: payload.etagSnapshot
             )
             upsert(updated)
@@ -1292,7 +1309,9 @@ final class AppModel {
                 location: payload.location,
                 recurrence: payload.recurrence,
                 attendeeEmails: payload.attendeeEmails,
-                sendUpdates: payload.notifyGuests ? "all" : "none"
+                sendUpdates: payload.notifyGuests ? "all" : "none",
+                addGoogleMeet: payload.addGoogleMeet,
+                colorId: payload.colorId
             )
             removeEvent(id: payload.localID)
             upsert(created)

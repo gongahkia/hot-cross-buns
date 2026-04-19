@@ -72,10 +72,20 @@ struct GoogleCalendarClient: Sendable {
         location: String = "",
         recurrence: [String] = [],
         attendeeEmails: [String] = [],
-        sendUpdates: String = "none"
+        sendUpdates: String = "none",
+        addGoogleMeet: Bool = false,
+        colorId: String? = nil
     ) async throws -> CalendarEventMirror {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
         let htmlDetails = MarkdownHTML.markdownToCalendarHTML(details)
+        let conference = addGoogleMeet
+            ? GoogleConferenceCreateDTO(
+                createRequest: GoogleConferenceCreateRequestDTO(
+                    requestId: UUID().uuidString,
+                    conferenceSolutionKey: GoogleConferenceSolutionKeyEncodeDTO(type: "hangoutsMeet")
+                )
+            )
+            : nil
         let requestBody = GoogleEventMutationDTO(
             summary: summary,
             description: htmlDetails.isEmpty ? nil : htmlDetails,
@@ -84,12 +94,20 @@ struct GoogleCalendarClient: Sendable {
             end: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.exclusiveEndString(from: endDate) : nil, dateTime: isAllDay ? nil : endDate),
             recurrence: recurrence.isEmpty ? nil : recurrence,
             reminders: GoogleEventMutationRemindersDTO.custom(minutes: reminderMinutes),
-            attendees: attendeeEmails.isEmpty ? nil : attendeeEmails.map { GoogleEventAttendeeMutationDTO(email: $0) }
+            attendees: attendeeEmails.isEmpty ? nil : attendeeEmails.map { GoogleEventAttendeeMutationDTO(email: $0) },
+            conferenceData: conference,
+            colorId: colorId
         )
+        var queryItems: [URLQueryItem] = [URLQueryItem(name: "sendUpdates", value: sendUpdates)]
+        if addGoogleMeet {
+            // conferenceDataVersion=1 is required for Google to honour a
+            // createRequest and materialize the Meet link server-side.
+            queryItems.append(URLQueryItem(name: "conferenceDataVersion", value: "1"))
+        }
         let response: GoogleEventDTO = try await transport.request(
             method: "POST",
             path: "/calendar/v3/calendars/\(encodedCalendarID)/events",
-            queryItems: [URLQueryItem(name: "sendUpdates", value: sendUpdates)],
+            queryItems: queryItems,
             body: requestBody
         )
         return response.mirror(calendarID: calendarID)
@@ -108,11 +126,21 @@ struct GoogleCalendarClient: Sendable {
         recurrence: [String] = [],
         attendeeEmails: [String] = [],
         sendUpdates: String = "none",
+        addGoogleMeet: Bool = false,
+        colorId: String? = nil,
         ifMatch: String? = nil
     ) async throws -> CalendarEventMirror {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
         let encodedEventID = eventID.googlePathComponentEncoded
         let htmlDetails = MarkdownHTML.markdownToCalendarHTML(details)
+        let conference = addGoogleMeet
+            ? GoogleConferenceCreateDTO(
+                createRequest: GoogleConferenceCreateRequestDTO(
+                    requestId: UUID().uuidString,
+                    conferenceSolutionKey: GoogleConferenceSolutionKeyEncodeDTO(type: "hangoutsMeet")
+                )
+            )
+            : nil
         let requestBody = GoogleEventMutationDTO(
             summary: summary,
             description: htmlDetails,
@@ -121,12 +149,18 @@ struct GoogleCalendarClient: Sendable {
             end: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.exclusiveEndString(from: endDate) : nil, dateTime: isAllDay ? nil : endDate),
             recurrence: recurrence,
             reminders: GoogleEventMutationRemindersDTO.custom(minutes: reminderMinutes),
-            attendees: attendeeEmails.map { GoogleEventAttendeeMutationDTO(email: $0) }
+            attendees: attendeeEmails.map { GoogleEventAttendeeMutationDTO(email: $0) },
+            conferenceData: conference,
+            colorId: colorId
         )
+        var queryItems: [URLQueryItem] = [URLQueryItem(name: "sendUpdates", value: sendUpdates)]
+        if addGoogleMeet {
+            queryItems.append(URLQueryItem(name: "conferenceDataVersion", value: "1"))
+        }
         let response: GoogleEventDTO = try await transport.request(
             method: "PATCH",
             path: "/calendar/v3/calendars/\(encodedCalendarID)/events/\(encodedEventID)",
-            queryItems: [URLQueryItem(name: "sendUpdates", value: sendUpdates)],
+            queryItems: queryItems,
             body: requestBody,
             ifMatch: ifMatch
         )
@@ -200,6 +234,8 @@ private struct GoogleEventDTO: Decodable, Sendable {
     var attendees: [GoogleEventAttendeeDTO]?
     var etag: String?
     var updated: Date?
+    var conferenceData: GoogleConferenceDataDTO?
+    var colorId: String?
 
     func mirror(calendarID: String) -> CalendarEventMirror {
         let fallbackDate = updated ?? Date()
@@ -227,6 +263,15 @@ private struct GoogleEventDTO: Decodable, Sendable {
             dateOnly: end?.date,
             fallback: fallbackDate
         )
+        let attendeeList = attendees ?? []
+        let attendeeResponses: [CalendarEventAttendee] = attendeeList.compactMap { dto in
+            guard let email = dto.email, email.isEmpty == false else { return nil }
+            return CalendarEventAttendee(
+                email: email,
+                displayName: dto.displayName,
+                responseStatus: AttendeeResponseStatus(wire: dto.responseStatus)
+            )
+        }
         return CalendarEventMirror(
             id: id,
             calendarID: calendarID,
@@ -241,7 +286,10 @@ private struct GoogleEventDTO: Decodable, Sendable {
             updatedAt: updated,
             reminderMinutes: reminders?.customPopupMinutes ?? [],
             location: location ?? "",
-            attendeeEmails: attendees?.compactMap(\.email) ?? []
+            attendeeEmails: attendeeList.compactMap(\.email),
+            attendeeResponses: attendeeResponses,
+            meetLink: conferenceData?.meetLink ?? "",
+            colorId: colorId
         )
     }
 
@@ -299,6 +347,34 @@ private struct GoogleEventReminderDTO: Decodable, Sendable {
     var minutes: Int
 }
 
+private struct GoogleConferenceDataDTO: Decodable, Sendable {
+    var conferenceId: String?
+    var entryPoints: [GoogleConferenceEntryPointDTO]?
+    var conferenceSolution: GoogleConferenceSolutionDTO?
+
+    var meetLink: String {
+        guard let video = entryPoints?.first(where: { $0.entryPointType == "video" }) else {
+            return ""
+        }
+        return video.uri ?? ""
+    }
+}
+
+private struct GoogleConferenceEntryPointDTO: Decodable, Sendable {
+    var entryPointType: String?
+    var uri: String?
+    var label: String?
+}
+
+private struct GoogleConferenceSolutionDTO: Decodable, Sendable {
+    var key: GoogleConferenceSolutionKeyDTO?
+    var name: String?
+}
+
+private struct GoogleConferenceSolutionKeyDTO: Decodable, Sendable {
+    var type: String?
+}
+
 private struct GoogleEventMutationDTO: Encodable, Sendable {
     var summary: String
     var description: String?
@@ -308,6 +384,44 @@ private struct GoogleEventMutationDTO: Encodable, Sendable {
     var recurrence: [String]?
     var reminders: GoogleEventMutationRemindersDTO?
     var attendees: [GoogleEventAttendeeMutationDTO]?
+    var conferenceData: GoogleConferenceCreateDTO?
+    var colorId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case summary, description, location, start, end
+        case recurrence, reminders, attendees, conferenceData, colorId
+    }
+
+    // Custom encoding so nil optionals are omitted rather than emitted as
+    // `null`. On a PATCH, Google Calendar treats explicit null as "clear this
+    // field" — accidental clearing of conferenceData or colorId on every
+    // update would be destructive.
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(summary, forKey: .summary)
+        try container.encodeIfPresent(description, forKey: .description)
+        try container.encodeIfPresent(location, forKey: .location)
+        try container.encode(start, forKey: .start)
+        try container.encode(end, forKey: .end)
+        try container.encodeIfPresent(recurrence, forKey: .recurrence)
+        try container.encodeIfPresent(reminders, forKey: .reminders)
+        try container.encodeIfPresent(attendees, forKey: .attendees)
+        try container.encodeIfPresent(conferenceData, forKey: .conferenceData)
+        try container.encodeIfPresent(colorId, forKey: .colorId)
+    }
+}
+
+private struct GoogleConferenceCreateDTO: Encodable, Sendable {
+    var createRequest: GoogleConferenceCreateRequestDTO
+}
+
+private struct GoogleConferenceCreateRequestDTO: Encodable, Sendable {
+    var requestId: String
+    var conferenceSolutionKey: GoogleConferenceSolutionKeyEncodeDTO
+}
+
+private struct GoogleConferenceSolutionKeyEncodeDTO: Encodable, Sendable {
+    var type: String
 }
 
 private struct GoogleEventAttendeeMutationDTO: Encodable, Sendable {
