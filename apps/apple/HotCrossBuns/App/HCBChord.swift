@@ -1,6 +1,6 @@
 import Foundation
 
-// Leader-key chord bindings. Vim / VS Code style: press the leader (⌘K by
+// Leader-key chord bindings. Press the leader (⌘K by
 // default) then a sequence of 1-2 keys to run a command. Lives alongside
 // single-key shortcuts — nothing from HCBShortcutCommand changes. Chord
 // bindings are a pure overlay that calls into the same AppCommandActions.

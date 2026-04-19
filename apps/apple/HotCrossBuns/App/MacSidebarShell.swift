@@ -643,8 +643,8 @@ struct MacSidebarShell: View {
         let bindings = HCBChordRegistry.defaults
         let survivors = HCBChordMatcher.matches(current: keys, in: bindings)
         if survivors.isEmpty {
-            // No binding starts with this prefix — cancel. Matches Vim
-            // "unknown mapping" behaviour: don't eat subsequent keystrokes.
+            // No binding starts with this prefix — cancel. Don't eat
+            // subsequent keystrokes; the user expects typing to resume.
             cancelChord()
             return
         }

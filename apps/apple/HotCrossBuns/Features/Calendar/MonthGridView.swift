@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct MonthGridView: View {
     @Environment(AppModel.self) private var model
@@ -23,6 +24,18 @@ struct MonthGridView: View {
     private let maxVisibleLanes: Int = 3
 
     @State private var dragSelection: DragSelection?
+    // Scroll-to-navigate-months state (§6.14). An NSEvent scrollWheel monitor
+    // runs while the cursor hovers the grid; accumulated deltaY is stepped
+    // into month shifts once it crosses `scrollThreshold`. Direction maps:
+    // scroll DOWN (deltaY negative on macOS) → next month (forward in time);
+    // scroll UP → previous month. Cooldown keeps a single long swipe from
+    // paging through half a year.
+    @State private var scrollMonitor: Any?
+    @State private var scrollAccumulator: CGFloat = 0
+    @State private var scrollLastStepAt: Date = .distantPast
+    @State private var isGridHovered: Bool = false
+    private let scrollThreshold: CGFloat = 45
+    private let scrollCooldown: TimeInterval = 0.22
 
     private struct DragSelection: Equatable {
         var start: Date
@@ -38,6 +51,15 @@ struct MonthGridView: View {
             Divider()
             grid
         }
+        .onHover { hovering in
+            isGridHovered = hovering
+            if hovering {
+                installScrollMonitor()
+            } else {
+                removeScrollMonitor()
+            }
+        }
+        .onDisappear { removeScrollMonitor() }
     }
 
     private var cells: [Date] {
@@ -412,5 +434,53 @@ struct MonthGridView: View {
         }
         guard let cal = model.calendars.first(where: { $0.id == event.calendarID }) else { return AppColor.blue }
         return Color(hex: cal.colorHex)
+    }
+
+    // MARK: - scroll-to-paginate-months (§6.14)
+
+    private func installScrollMonitor() {
+        guard scrollMonitor == nil else { return }
+        scrollAccumulator = 0
+        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+            // Hover flag gates so scrolls in other windows / panels don't
+            // shift the month. The returned event still flows to other
+            // consumers — we only swallow once we actually step, so subtle
+            // scrolls below the threshold don't hijack anything.
+            guard isGridHovered else { return event }
+            scrollAccumulator += event.scrollingDeltaY
+            let now = Date()
+            guard now.timeIntervalSince(scrollLastStepAt) >= scrollCooldown else {
+                // Still in cooldown — eat the accumulator so a long swipe
+                // doesn't carry over into the next step burst.
+                scrollAccumulator = 0
+                return nil
+            }
+            if abs(scrollAccumulator) >= scrollThreshold {
+                // scrollingDeltaY < 0 on a "scroll down" gesture → next month.
+                let direction = scrollAccumulator < 0 ? 1 : -1
+                stepMonth(by: direction)
+                scrollAccumulator = 0
+                scrollLastStepAt = now
+                return nil // swallow the step event so the app doesn't double-process
+            }
+            // Below threshold — don't fire, don't swallow; let other views
+            // (none in practice here) see the event in case that changes.
+            return event
+        }
+    }
+
+    private func removeScrollMonitor() {
+        if let monitor = scrollMonitor {
+            NSEvent.removeMonitor(monitor)
+            scrollMonitor = nil
+        }
+        scrollAccumulator = 0
+    }
+
+    private func stepMonth(by direction: Int) {
+        guard let next = calendar.date(byAdding: .month, value: direction, to: anchorDate) else { return }
+        withAnimation(.easeInOut(duration: 0.18)) {
+            anchorDate = next
+        }
     }
 }

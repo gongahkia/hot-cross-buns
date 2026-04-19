@@ -231,12 +231,12 @@ Hosted in the quick switcher (§6.7). Extends beyond plain title substring.
 
 ### 6.9 Leader-key chord bindings — shipped `1c87844`
 
-Vim-style chord bindings alongside existing single-shortcut `KeybindingsSection`.
+Leader-key chord bindings alongside existing single-shortcut `KeybindingsSection`.
 
-- Leader key configurable (default: `<space>` in vim mode, `Cmd-K` in insert mode).
+- Leader key: `⌘K` (fixed in v1; configurable TBD).
 - Chord sequences like `<leader>tn` = new task, `<leader>cp` = command palette, `<leader>gs` = go to store.
-- Storage: extend `HCBShortcutStorage` JSON to support a `chord: ["space", "t", "n"]` form alongside the existing single-key form.
-- HUD: on leader press, show an overlay listing available next-keys (which-key-style). Reuse `VimHud`.
+- Storage: extend `HCBShortcutStorage` JSON to support a `chord: ["⌘K", "t", "n"]` form alongside the existing single-key form.
+- HUD: on leader press, show an overlay listing available next-keys (which-key-style).
 - Does not replace single-shortcut bindings — they coexist.
 
 ### 6.10 Pinned filters on menu-bar extra popover — shipped `c1885a6`
@@ -292,17 +292,21 @@ Make `MonthGridView` respond to vertical scroll so users move through time witho
 - Must not break drag-to-create across days (the existing `DragGesture` on the grid) — scroll gesture needs a higher threshold so it doesn't trigger mid-drag.
 - Acceptable to scope to Month view only for v1; Week/Day already have `◀ ▶` buttons that feel natural.
 
-### 6.15 Vim keybind removal sweep — pending
+### 6.15 Vim keybind removal sweep — shipped (this commit)
 
-A prior commit (`4674f8a refactor: remove Vim keybindings end-to-end`) excised the vim mode. Re-verify nothing has crept back in:
+Re-verified nothing has crept back in since `4674f8a`:
 
-- `Features/Vim/` directory contents (should be empty or removed).
-- References to `VimHud`, `VimKeyboardMonitor`, `VimTranslator`, `VimAction`, `vimContextHandler`, `isVimDetailFocused` across the codebase.
-- Stale references in copy: Settings text, Help panel, README, URGENT-TODO spec lines that say "in vim mode" or reference the leader-key default of `<space>`.
-- Leader-chord doc default in §6.9 ("`<space>` in vim mode, `Cmd-K` in insert mode") should be updated to drop the vim-mode half — the chord feature already ships with `⌘K` only.
-- Any residual AppCommandActions fields (`vimContextHandler`, `isVimDetailFocused`) that were only wired to the vim mode.
+- `Features/Vim/` directory is absent.
+- No `VimHud` / `VimKeyboardMonitor` / `VimTranslator` / `VimAction` /
+  `vimContextHandler` / `isVimDetailFocused` references in any live file.
+- Scrubbed two stale doc comments that referenced "Vim / VS Code style"
+  in `HCBChord.swift` and `MacSidebarShell.swift` — pure comment changes,
+  no behaviour impact.
+- Updated §6.9 spec text to drop the vim-mode leader reference — chord
+  feature ships with `⌘K` only.
 
-Deliverable: a clean grep over the repo that produces only historical/commit-message hits, no live code.
+Result: `grep -r vim .` on the repo returns only this historical record
++ commit-message references. No live code or copy remains.
 
 ## 7. Performance optimisation and RAM / memory usage
 
