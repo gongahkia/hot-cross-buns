@@ -139,3 +139,7 @@ Fixed since the last audit pass:
 - ~~Google Calendar's default reminder isn't honoured as a local notification~~ — c8b0393 decodes `defaultReminders`, carries a `usedDefaultReminders` flag on event mirrors, merges at `AppModel.upsert`, and makes the scheduler respect `event.reminderMinutes.first` instead of hard-coding -15 min.
 - ~~`ICSDateParser` DateFormatter is shared across calls with per-call mutation of `.timeZone`~~ — d4e1346 builds a fresh formatter per call.
 - ~~Tasks `updatedMin` watermark has a 60-second slack~~ — 906a7f2 widens to 300s via a named constant; the stronger "derive from response Date header" form is listed above as a follow-up.
+
+## 9. Performance optimisation and RAM and memory usage
+
+## 10. Battery optimsiation to ensure not eating battery
