@@ -50,6 +50,11 @@ struct TaskInspectorView: View {
     @State private var isSavingNow = false
     @State private var savedAt: Date?
     @State private var saveFailureMessage: String?
+    // View-only-first flow (mirrors AddEventSheet / AddTaskSheet). Clicking
+    // a task in the list opens a read-only surface; Edit flips to the live
+    // auto-saving form below. Reset to view-only whenever the selected task
+    // changes so a subsequent pick doesn't inherit an open edit session.
+    @State private var isEditing: Bool = false
     @FocusState private var focusedField: Field?
 
     private enum Field: Hashable { case title, notes }
@@ -65,48 +70,43 @@ struct TaskInspectorView: View {
             VStack(alignment: .leading, spacing: 18) {
                 header
 
-                TextField("Task title", text: $draft.title, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    .font(.system(.title2, design: .serif, weight: .semibold))
-                    .foregroundStyle(AppColor.ink)
-                    .focused($focusedField, equals: .title)
-                    .onChange(of: draft.title) { _, _ in scheduleSave() }
+                if isEditing {
+                    TextField("Task title", text: $draft.title, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .hcbFont(.title3, weight: .semibold)
+                        .foregroundStyle(AppColor.ink)
+                        .focused($focusedField, equals: .title)
+                        .onChange(of: draft.title) { _, _ in scheduleSave() }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    sectionLabel("NOTES")
-                    MarkdownEditor(text: $draft.notes, placeholder: "Notes (markdown supported)", minHeight: 120, maxHeight: 240)
-                        .onChange(of: draft.notes) { _, _ in scheduleSave() }
+                    VStack(alignment: .leading, spacing: 6) {
+                        sectionLabel("NOTES")
+                        MarkdownEditor(text: $draft.notes, placeholder: "Notes (markdown supported)", minHeight: 120, maxHeight: 240)
+                            .onChange(of: draft.notes) { _, _ in scheduleSave() }
+                    }
+
+                    dueDateSection
+                    recurrenceSection
+                    remindersSection
+                    dependenciesSection
+                    taskListSection
+                    subtasksSection
+                    hierarchyControls
+                    actionButtons
+                    inlineErrorBanner
+                    metadataSection
+                } else {
+                    viewOnlyBody
                 }
-
-                dueDateSection
-
-                recurrenceSection
-
-                remindersSection
-
-                dependenciesSection
-
-                taskListSection
-
-                subtasksSection
-
-                hierarchyControls
-
-                actionButtons
-
-                inlineErrorBanner
-
-                metadataSection
             }
             .hcbScaledPadding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(AppColor.cream.opacity(0.35))
-        .navigationTitle("Task")
         .onChange(of: task.id) { _, _ in
             commitPending()
             draft = TaskDraft(task: task)
             savedAt = nil
+            isEditing = false
         }
         .onChange(of: task.title) { _, _ in refreshDraftIfClean() }
         .onChange(of: task.notes) { _, _ in refreshDraftIfClean() }
@@ -137,6 +137,128 @@ struct TaskInspectorView: View {
         }
     }
 
+    // MARK: - View-only body (renders populated fields only).
+
+    private var viewOnlyBody: some View {
+        let strippedNotes = TaskDependencyMarkers.strippedNotes(
+            from: TaskReminderMarkers.strippedNotes(
+                from: TaskRecurrenceMarkers.strippedNotes(from: task.notes)
+            )
+        )
+        let recurrence = TaskRecurrenceMarkers.rule(from: task.notes)
+        let reminderOffsets = TaskReminderMarkers.offsetsInDays(from: task.notes)
+        let blockerIDs = TaskDependencyMarkers.blockerIDs(from: task.notes)
+        let blockers = blockerIDs.compactMap { id in model.tasks.first(where: { $0.id == id }) }
+        let listTitle = model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Unknown list"
+        let subtasks = children
+
+        return VStack(alignment: .leading, spacing: 14) {
+            Text(task.title.isEmpty ? "Untitled" : task.title)
+                .hcbFont(.title3, weight: .semibold)
+                .foregroundStyle(AppColor.ink)
+                .textSelection(.enabled)
+
+            if strippedNotes.isEmpty == false {
+                readCard("NOTES") {
+                    Text.markdown(strippedNotes)
+                        .hcbFont(.body)
+                        .foregroundStyle(AppColor.ink)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            if let due = task.dueDate {
+                readCard("DUE DATE") {
+                    Label(due.formatted(.dateTime.weekday(.wide).day().month(.wide).year()),
+                          systemImage: "calendar")
+                        .hcbFont(.subheadline)
+                        .foregroundStyle(AppColor.ink)
+                }
+            }
+
+            if let rule = recurrence {
+                readCard("REPEAT") {
+                    Label(rule.summary, systemImage: "repeat")
+                        .hcbFont(.subheadline)
+                        .foregroundStyle(AppColor.ink)
+                }
+            }
+
+            if reminderOffsets.isEmpty == false {
+                readCard("REMINDERS") {
+                    ForEach(reminderOffsets.sorted(), id: \.self) { offset in
+                        Label(reminderLabel(for: offset), systemImage: "bell")
+                            .hcbFont(.subheadline)
+                            .foregroundStyle(AppColor.ink)
+                    }
+                }
+            }
+
+            if blockers.isEmpty == false {
+                readCard("BLOCKED BY") {
+                    ForEach(blockers, id: \.id) { blocker in
+                        HStack(spacing: 8) {
+                            Image(systemName: blocker.isCompleted ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(blocker.isCompleted ? AppColor.moss : AppColor.ember)
+                            Text(blocker.title)
+                                .hcbFont(.subheadline)
+                                .strikethrough(blocker.isCompleted)
+                                .foregroundStyle(AppColor.ink)
+                        }
+                    }
+                }
+            }
+
+            readCard("LIST") {
+                Label(listTitle, systemImage: "list.bullet")
+                    .hcbFont(.subheadline)
+                    .foregroundStyle(AppColor.ink)
+            }
+
+            if subtasks.isEmpty == false {
+                readCard("SUBTASKS") {
+                    ForEach(subtasks) { child in
+                        HStack(spacing: 8) {
+                            Image(systemName: child.isCompleted ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(child.isCompleted ? AppColor.moss : AppColor.ember)
+                            Text(child.title)
+                                .hcbFont(.subheadline)
+                                .strikethrough(child.isCompleted, color: .secondary)
+                                .foregroundStyle(child.isCompleted ? .secondary : AppColor.ink)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func reminderLabel(for offset: Int) -> String {
+        switch offset {
+        case 0: "On due date"
+        case -1: "1 day before"
+        case -2: "2 days before"
+        case -7: "1 week before"
+        case let n where n < 0: "\(-n) days before"
+        default: "\(offset) days after"
+        }
+    }
+
+    @ViewBuilder
+    private func readCard<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionLabel(title)
+            content()
+        }
+        .hcbScaledPadding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
+    }
+
     private var header: some View {
         HStack(spacing: 10) {
             statusDot
@@ -145,12 +267,22 @@ struct TaskInspectorView: View {
                 .foregroundStyle(.secondary)
             starButton
             Spacer(minLength: 0)
-            if isSavingNow {
+            if isEditing, isSavingNow {
                 ProgressView().controlSize(.small)
-            } else if let savedAt {
+            } else if isEditing, let savedAt {
                 Text("Saved \(savedAt.formatted(.relative(presentation: .numeric)))")
                     .hcbFont(.caption2)
                     .foregroundStyle(.secondary)
+            }
+            if isEditing == false {
+                Button("Edit") {
+                    withAnimation(.easeInOut(duration: 0.12)) {
+                        isEditing = true
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityLabel("Edit task")
             }
             Button {
                 commitPending()

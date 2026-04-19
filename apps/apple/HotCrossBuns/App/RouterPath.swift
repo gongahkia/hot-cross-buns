@@ -77,7 +77,6 @@ enum SheetDestination: Identifiable, Hashable {
     case quickCreateRange(Date, Date, allDay: Bool)
     case syncSettings
     case diagnostics
-    case manageTaskLists
 
     var id: String {
         switch self {
@@ -97,7 +96,6 @@ enum SheetDestination: Identifiable, Hashable {
             "quickCreateRange-\(start.timeIntervalSince1970)-\(end.timeIntervalSince1970)-\(allDay)"
         case .syncSettings: "syncSettings"
         case .diagnostics: "diagnostics"
-        case .manageTaskLists: "manageTaskLists"
         }
     }
 }
@@ -161,8 +159,6 @@ private struct SheetDestinationHost: View {
             SyncSettingsSheet()
         case .diagnostics:
             DiagnosticsView()
-        case .manageTaskLists:
-            ManageTaskListsSheet()
         }
     }
 }

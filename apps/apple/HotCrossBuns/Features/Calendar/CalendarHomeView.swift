@@ -66,7 +66,6 @@ struct CalendarHomeView: View {
             }
         }
         .appBackground()
-        .navigationTitle("Google Calendar")
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             handleICSDrop(providers)
         }
@@ -687,15 +686,19 @@ struct AddEventSheet: View {
                         systemImage: "calendar.badge.exclamationmark",
                         description: Text("Connect Google and refresh before creating an event.")
                     )
+                } else if editingEvent != nil, isEditing == false {
+                    // Purpose-formatted read card: renders only fields that
+                    // actually carry a value. Details render as markdown, not
+                    // raw text. Two-column layout when the event has enough
+                    // meat to fill it; single stack otherwise.
+                    ScrollView {
+                        viewOnlyBody
+                            .hcbScaledPadding(18)
+                    }
                 } else {
                     ScrollView {
                         twoColumnBody
                             .hcbScaledPadding(18)
-                            // View-only pass: the whole form is disabled so
-                            // fields read but don't mutate. Tapping Edit in
-                            // the toolbar flips isEditing and the form goes
-                            // live without the sheet dismissing.
-                            .disabled(isEditing == false)
                     }
                 }
             }
@@ -1055,6 +1058,207 @@ struct AddEventSheet: View {
                 }
             } label: {
                 Label("New from template…", systemImage: "doc.on.doc")
+            }
+        }
+    }
+
+    // MARK: - View-only card (read-only surface for the Open flow).
+
+    // Conditional two-column layout: if a populated location or 2+ optional
+    // right-side sections warrant the horizontal weight, split; else stack
+    // vertically so minimal events don't look lopsided.
+    @ViewBuilder
+    private var viewOnlyBody: some View {
+        let hasLocation = location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        let rightExtras = countOfPopulatedRightSections()
+        let useTwoColumn = hasLocation || rightExtras >= 2
+
+        if useTwoColumn {
+            HStack(alignment: .top, spacing: 18) {
+                VStack(alignment: .leading, spacing: 14) {
+                    readSummaryCard
+                    readTimeCard
+                    if details.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                        readDetailsCard
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                VStack(alignment: .leading, spacing: 14) {
+                    readCalendarCard
+                    if hasCustomColorOrReminder { readColorReminderCard }
+                    if hasGuests { readGuestsCard }
+                    if recurrenceRule != nil { readRepeatCard }
+                    if hasMeet { readMeetCard }
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 14) {
+                readSummaryCard
+                readTimeCard
+                if details.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                    readDetailsCard
+                }
+                readCalendarCard
+                if hasCustomColorOrReminder { readColorReminderCard }
+                if hasGuests { readGuestsCard }
+                if recurrenceRule != nil { readRepeatCard }
+                if hasMeet { readMeetCard }
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+    }
+
+    private func countOfPopulatedRightSections() -> Int {
+        var n = 1 // calendar is always shown
+        if hasCustomColorOrReminder { n += 1 }
+        if hasGuests { n += 1 }
+        if recurrenceRule != nil { n += 1 }
+        if hasMeet { n += 1 }
+        return n - 1 // "extras" beyond the mandatory calendar card
+    }
+
+    private var hasCustomColorOrReminder: Bool {
+        eventColor != .defaultColor || reminderOption != .useDefault
+    }
+
+    private var hasGuests: Bool {
+        attendees.isEmpty == false || (editingEvent?.attendeeResponses.isEmpty == false)
+    }
+
+    private var hasMeet: Bool {
+        guard let existing = editingEvent else { return false }
+        return existing.meetLink.isEmpty == false
+    }
+
+    private var readSummaryCard: some View {
+        sectionCard("Event") {
+            Text(summary.isEmpty ? "Untitled" : summary)
+                .hcbFont(.title3, weight: .semibold)
+                .foregroundStyle(AppColor.ink)
+                .textSelection(.enabled)
+            if location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                Label(location, systemImage: "mappin.and.ellipse")
+                    .hcbFont(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                LocationMapPreview(locationText: .constant(location), isEditable: false)
+            }
+        }
+    }
+
+    private var readTimeCard: some View {
+        sectionCard("Time") {
+            if isAllDay {
+                let cal = Calendar.current
+                let sameDay = cal.isDate(startDate, inSameDayAs: endDate)
+                if sameDay {
+                    Text(startDate.formatted(.dateTime.weekday(.wide).day().month(.wide).year()))
+                        .hcbFont(.subheadline)
+                        .foregroundStyle(AppColor.ink)
+                } else {
+                    Text("\(startDate.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))) → \(endDate.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))")
+                        .hcbFont(.subheadline)
+                        .foregroundStyle(AppColor.ink)
+                }
+                Text("All-day")
+                    .hcbFont(.caption, weight: .medium)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(startDate.formatted(.dateTime.weekday(.wide).day().month(.wide).year()))
+                    .hcbFont(.subheadline)
+                    .foregroundStyle(AppColor.ink)
+                Text("\(startDate.formatted(.dateTime.hour().minute())) – \(endDate.formatted(.dateTime.hour().minute()))")
+                    .hcbFont(.subheadline, weight: .medium)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var readDetailsCard: some View {
+        sectionCard("Details") {
+            Text.markdown(details)
+                .hcbFont(.body)
+                .foregroundStyle(AppColor.ink)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var readCalendarCard: some View {
+        sectionCard("Calendar") {
+            let cal = model.calendars.first(where: { $0.id == selectedCalendarID })
+            HStack(spacing: 8) {
+                if let hex = cal?.colorHex {
+                    Circle()
+                        .fill(Color(hex: hex))
+                        .hcbScaledFrame(width: 10, height: 10)
+                }
+                Text(cal?.summary ?? "Calendar")
+                    .hcbFont(.subheadline)
+                    .foregroundStyle(AppColor.ink)
+            }
+        }
+    }
+
+    private var readColorReminderCard: some View {
+        sectionCard("Color · Reminder") {
+            if eventColor != .defaultColor {
+                HStack(spacing: 8) {
+                    if let hex = eventColor.hex {
+                        Circle()
+                            .fill(Color(hex: hex))
+                            .hcbScaledFrame(width: 14, height: 14)
+                    }
+                    Text(eventColor.title)
+                        .hcbFont(.subheadline)
+                        .foregroundStyle(AppColor.ink)
+                }
+            }
+            if reminderOption != .useDefault {
+                Label(reminderOption.title, systemImage: "bell")
+                    .hcbFont(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var readGuestsCard: some View {
+        sectionCard("Guests") {
+            if let existing = editingEvent, existing.attendeeResponses.isEmpty == false {
+                AttendeeResponsesCard(responses: existing.attendeeResponses)
+            } else {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(attendees, id: \.self) { email in
+                        Label(email, systemImage: "person.crop.circle")
+                            .hcbFont(.subheadline)
+                            .foregroundStyle(AppColor.ink)
+                            .textSelection(.enabled)
+                    }
+                }
+            }
+        }
+    }
+
+    private var readRepeatCard: some View {
+        sectionCard("Repeat") {
+            if let rule = recurrenceRule {
+                Label(rule.summary, systemImage: "repeat")
+                    .hcbFont(.subheadline)
+                    .foregroundStyle(AppColor.ink)
+            }
+        }
+    }
+
+    private var readMeetCard: some View {
+        sectionCard("Video call") {
+            if let existing = editingEvent, let url = URL(string: existing.meetLink) {
+                Link(destination: url) {
+                    Label(existing.meetLink, systemImage: "video.fill")
+                        .hcbFont(.subheadline)
+                        .foregroundStyle(AppColor.blue)
+                        .lineLimit(1)
+                }
             }
         }
     }
