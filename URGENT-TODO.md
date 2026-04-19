@@ -84,25 +84,16 @@ Dogfood with a real account for at least one workday on macOS. Smoke checklist (
 
 ## 7. Next feature work
 
-Prioritized for daily-driver use. Tier B hardens what's already shipped; Tier C elevates the app beyond "web client pretending to be native."
-
-### Tier B — infrastructure / reliability
-
-1. **Offline-queue test coverage** — the `PendingTaskUpdatePayload` / `replayTaskCompletion` / etc. paths shipped recently without unit tests. Add a mock-transport test harness that asserts HTTP verb + `If-Match` header + state transitions (transient retain, 412 drop-and-refresh, terminal revert).
-2. **Cache schema versioning** — `CachedAppState` gets a `schemaVersion: Int` field with explicit migration shims. The current `LocalCacheStore.loadCachedState` fallback catches total decode failure but cannot migrate a renamed field; versioning prevents future silent data loss on upgrade.
-3. **Diagnostics: per-mutation pending-queue clear** — `DiagnosticsView` should list queued mutations and allow per-item drop, for the case where one mutation keeps 412'ing and blocks replay.
-4. **Token-refresh failure UX** — `GoogleSignInAccessTokenProvider.accessToken()` can throw. Distinguish "refresh failed, reconnect needed" (→ `authState = .failed`) from "transient network" (→ queue and retry). Currently the error is generic.
-5. **Crash reporting** — no crash reporter wired. Lightweight file-based crash capture written to `~/Library/Application Support/...` on next launch, surfaced via `DiagnosticsView`.
-6. **Sync scheduler backoff ceiling** — `BackoffPolicy.nearRealtime` retries indefinitely. On persistent failure (say, 30+ min of no network), cap retries and surface a visible "sync paused — check connection" state.
+Tier C elevates the app beyond "web client pretending to be native."
 
 ### Tier C — macOS-native polish
 
-7. **Share Extension** — "Share to Hot Cross Buns" target from Safari / Mail to create a task or event with URL + selected text pre-filled.
-8. **Services menu** — "Create Hot Cross Buns task from selection" anywhere the user highlights text system-wide.
-9. **Spotlight QuickLook previews** — Spotlight indexing already exists; add a QuickLook provider so users can peek event details from Spotlight results without launching the app.
-10. **Drag `.ics` file onto the app to import as event(s)** — parse and route through `createEvent` (with conflict detection).
-11. **Print support** — `Exporters.swift` has markdown + ICS output; add a native Print sheet layout for today / week / selected task list.
-12. **Localization scaffolding** — wrap user-visible strings in `LocalizedStringKey` now so future translations are cheap. English-only for v1.
+1. **Share Extension** — "Share to Hot Cross Buns" target from Safari / Mail to create a task or event with URL + selected text pre-filled.
+2. **Services menu** — "Create Hot Cross Buns task from selection" anywhere the user highlights text system-wide.
+3. **Spotlight QuickLook previews** — Spotlight indexing already exists; add a QuickLook provider so users can peek event details from Spotlight results without launching the app.
+4. **Drag `.ics` file onto the app to import as event(s)** — parse and route through `createEvent` (with conflict detection).
+5. **Print support** — `Exporters.swift` has markdown + ICS output; add a native Print sheet layout for today / week / selected task list.
+6. **Localization scaffolding** — wrap user-visible strings in `LocalizedStringKey` now so future translations are cheap. English-only for v1.
 
 ## 8. Deferred (lower priority but on the roadmap)
 
