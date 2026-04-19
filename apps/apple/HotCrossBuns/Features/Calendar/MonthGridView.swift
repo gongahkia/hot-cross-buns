@@ -135,6 +135,18 @@ struct MonthGridView: View {
                         .foregroundStyle(AppColor.ink)
                 }
                 .buttonStyle(.plain)
+                .draggable(DraggedEvent(
+                    eventID: event.id,
+                    calendarID: event.calendarID,
+                    durationMinutes: Int(max(event.endDate.timeIntervalSince(event.startDate) / 60, 15)),
+                    isAllDay: event.isAllDay
+                )) {
+                    Text(event.summary)
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(calendarColor(for: event).opacity(0.35)))
+                }
             }
             ForEach(tasks.prefix(taskSlots)) { task in
                 Button {
@@ -190,6 +202,69 @@ struct MonthGridView: View {
             let nineAM = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: dayStart) ?? dayStart
             router.present(.addEventAt(nineAM, allDay: false))
         }
+        .dropDestination(for: DraggedEvent.self) { items, _ in
+            guard let dropped = items.first else { return false }
+            Task {
+                await rescheduleDroppedEvent(dropped, to: dayStart)
+            }
+            return true
+        }
+        .dropDestination(for: DraggedTask.self) { items, _ in
+            guard let dropped = items.first else { return false }
+            Task {
+                await retargetDroppedTask(dropped, to: dayStart)
+            }
+            return true
+        }
+    }
+
+    private func rescheduleDroppedEvent(_ dropped: DraggedEvent, to dayStart: Date) async {
+        guard let event = model.event(id: dropped.eventID) else { return }
+        // Preserve hour/minute for timed events, preserve multi-day span for
+        // all-day events. New start = dayStart + (event.startDate - startOfDay(event.startDate)).
+        let newStart: Date
+        let newEnd: Date
+        if event.isAllDay {
+            newStart = dayStart
+            // Duration (inclusive days) preserved.
+            let duration = calendar.dateComponents([.day], from: calendar.startOfDay(for: event.startDate), to: event.endDate).day ?? 0
+            newEnd = calendar.date(byAdding: .day, value: max(duration, 1), to: dayStart) ?? dayStart
+        } else {
+            let startComponents = calendar.dateComponents([.hour, .minute, .second], from: event.startDate)
+            let duration = event.endDate.timeIntervalSince(event.startDate)
+            newStart = calendar.date(bySettingHour: startComponents.hour ?? 9, minute: startComponents.minute ?? 0, second: startComponents.second ?? 0, of: dayStart) ?? dayStart
+            newEnd = newStart.addingTimeInterval(duration)
+        }
+        if event.startDate == newStart && event.endDate == newEnd { return }
+        let inclusiveEnd = event.isAllDay
+            ? (calendar.date(byAdding: .day, value: -1, to: newEnd) ?? newEnd)
+            : newEnd
+        _ = await model.updateEvent(
+            event,
+            summary: event.summary,
+            details: event.details,
+            startDate: newStart,
+            endDate: inclusiveEnd,
+            isAllDay: event.isAllDay,
+            reminderMinutes: event.reminderMinutes.first,
+            calendarID: event.calendarID,
+            location: event.location,
+            recurrence: event.recurrence,
+            attendeeEmails: event.attendeeEmails,
+            notifyGuests: false
+        )
+    }
+
+    private func retargetDroppedTask(_ dropped: DraggedTask, to dayStart: Date) async {
+        guard let task = model.task(id: dropped.taskID) else { return }
+        // Only due date changes; title / notes / list stay. Uses local-midnight
+        // semantics established by GoogleTaskDueDateFormatter.
+        _ = await model.updateTask(
+            task,
+            title: task.title,
+            notes: task.notes,
+            dueDate: dayStart
+        )
     }
 
     private func eventLabel(_ event: CalendarEventMirror, in day: Date) -> String {
