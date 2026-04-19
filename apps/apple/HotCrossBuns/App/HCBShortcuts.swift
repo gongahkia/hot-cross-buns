@@ -201,14 +201,13 @@ struct HCBKeyBinding: Codable, Hashable {
     var key: HCBKey
     var modifiers: HCBModifierSet
 
-    init(key: HCBKey, modifiers: EventModifiers) {
-        self.key = key
-        self.modifiers = HCBModifierSet(modifiers)
-    }
-
     init(key: HCBKey, modifiers: HCBModifierSet) {
         self.key = key
         self.modifiers = modifiers
+    }
+
+    static func events(_ key: HCBKey, _ events: EventModifiers) -> HCBKeyBinding {
+        HCBKeyBinding(key: key, modifiers: HCBModifierSet(events))
     }
 
     var displayLabel: String {
@@ -255,6 +254,32 @@ struct HCBModifierSet: OptionSet, Codable, Hashable {
         if contains(.shift) { s += "⇧" }
         if contains(.command) { s += "⌘" }
         return s
+    }
+}
+
+// UserDefaults mirror so `AppCommands` (scene-level) can react to changes
+// via @AppStorage. AppModel.setShortcutBinding writes to both AppSettings
+// (canonical) and this key (for Commands reactivity).
+enum HCBShortcutStorage {
+    static let userDefaultsKey = "hcb.shortcutOverrides.json"
+
+    static func current() -> [String: HCBKeyBinding] {
+        guard let data = UserDefaults.standard.data(forKey: userDefaultsKey) else { return [:] }
+        return (try? JSONDecoder().decode([String: HCBKeyBinding].self, from: data)) ?? [:]
+    }
+
+    static func persist(_ overrides: [String: HCBKeyBinding]) {
+        if overrides.isEmpty {
+            UserDefaults.standard.removeObject(forKey: userDefaultsKey)
+            return
+        }
+        guard let data = try? JSONEncoder().encode(overrides) else { return }
+        UserDefaults.standard.set(data, forKey: userDefaultsKey)
+    }
+
+    static func decode(_ json: String) -> [String: HCBKeyBinding] {
+        guard let data = json.data(using: .utf8), json != "{}" else { return [:] }
+        return (try? JSONDecoder().decode([String: HCBKeyBinding].self, from: data)) ?? [:]
     }
 }
 

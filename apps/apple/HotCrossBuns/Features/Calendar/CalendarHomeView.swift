@@ -121,7 +121,7 @@ struct CalendarHomeView: View {
                     } label: {
                         Label("Tasks Drawer", systemImage: showTaskDrawer ? "sidebar.left" : "sidebar.squares.left")
                     }
-                    .keyboardShortcut("j", modifiers: [.command])
+                    .hcbKeyboardShortcut(.calendarTasksDrawer)
                     .help("Toggle task drawer (Cmd+J)")
                     .disabled(model.account == nil)
                 }
@@ -151,7 +151,7 @@ struct CalendarHomeView: View {
                 Image(systemName: "chevron.left").hcbFont(.body, weight: .semibold)
             }
             .buttonStyle(.plain)
-            .keyboardShortcut(.leftArrow, modifiers: [.command])
+            .hcbKeyboardShortcut(.calendarPrevious)
             .accessibilityLabel("Previous \(mode.title.lowercased())")
 
             Button {
@@ -166,14 +166,14 @@ struct CalendarHomeView: View {
                     )
             }
             .buttonStyle(.plain)
-            .keyboardShortcut("t", modifiers: [.command])
+            .hcbKeyboardShortcut(.calendarToday)
             .accessibilityLabel("Jump to today")
 
             Button { shift(by: 1) } label: {
                 Image(systemName: "chevron.right").hcbFont(.body, weight: .semibold)
             }
             .buttonStyle(.plain)
-            .keyboardShortcut(.rightArrow, modifiers: [.command])
+            .hcbKeyboardShortcut(.calendarNext)
             .accessibilityLabel("Next \(mode.title.lowercased())")
 
             Text(periodTitle)
@@ -196,11 +196,11 @@ struct CalendarHomeView: View {
         .background(
             HStack(spacing: 0) {
                 Button("Jump back") { jumpLarge(by: -1) }
-                    .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
+                    .hcbKeyboardShortcut(.calendarJumpBack)
                 Button("Jump forward") { jumpLarge(by: 1) }
-                    .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
+                    .hcbKeyboardShortcut(.calendarJumpForward)
                 Button("Go to Date") { isGoToDateShown = true }
-                    .keyboardShortcut("g", modifiers: [.command, .shift])
+                    .hcbKeyboardShortcut(.calendarGoToDate)
             }
             .opacity(0)
             .hcbScaledFrame(width: 0, height: 0)
@@ -740,7 +740,7 @@ private struct EventActionPanel: View {
                 Button("Duplicate here") {
                     Task { _ = await model.duplicateEvent(event, offsetDays: 0) }
                 }
-                .keyboardShortcut("d", modifiers: [.command])
+                .hcbKeyboardShortcut(.calendarDuplicateEvent)
                 Divider()
                 Button("Duplicate to tomorrow") {
                     Task { _ = await model.duplicateEvent(event, offsetDays: 1) }
@@ -1429,7 +1429,7 @@ struct CalendarSearchField: View {
         )
         .background(
             Button("Focus Search") { isFocused = true }
-                .keyboardShortcut("f", modifiers: [.command])
+                .hcbKeyboardShortcut(.calendarFocusSearch)
                 .opacity(0)
                 .hcbScaledFrame(width: 0, height: 0)
                 .allowsHitTesting(false)

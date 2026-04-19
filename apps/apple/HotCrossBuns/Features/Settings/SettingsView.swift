@@ -107,6 +107,8 @@ struct SettingsView: View {
 
                 AppearanceSection()
 
+                KeybindingsSection()
+
                 Section("Mac surfaces") {
                     Toggle("Menu bar extra", isOn: menuBarExtraBinding)
                         .id(VimTarget.menuBarExtra)

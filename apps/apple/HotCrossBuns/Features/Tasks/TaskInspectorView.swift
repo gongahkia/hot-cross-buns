@@ -117,7 +117,7 @@ struct TaskInspectorView: View {
                 commitPending()
                 close()
             }
-            .keyboardShortcut(.return, modifiers: [.command, .shift])
+            .hcbKeyboardShortcut(.taskSaveAndClose)
             .opacity(0)
             .hcbScaledFrame(width: 0, height: 0)
             .allowsHitTesting(false)
@@ -300,7 +300,7 @@ struct TaskInspectorView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(task.isCompleted ? AppColor.blue : AppColor.moss)
-            .keyboardShortcut(.return, modifiers: [.command])
+            .hcbKeyboardShortcut(.taskQuickSave)
 
             Button(role: .destructive) {
                 isConfirmingDelete = true
@@ -309,7 +309,7 @@ struct TaskInspectorView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
-            .keyboardShortcut(.delete, modifiers: [.command])
+            .hcbKeyboardShortcut(.taskDelete)
 
             Button {
                 Task { _ = await model.duplicateTask(task) }
@@ -318,7 +318,7 @@ struct TaskInspectorView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
-            .keyboardShortcut("d", modifiers: [.command])
+            .hcbKeyboardShortcut(.taskDuplicate)
 
             Button {
                 copyAsMarkdown()

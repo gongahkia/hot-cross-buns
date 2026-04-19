@@ -39,23 +39,39 @@ extension FocusedValues {
 
 struct AppCommands: Commands {
     @FocusedValue(\.appCommandActions) private var actions
+    // @AppStorage invalidates the Commands body when the JSON string
+    // changes, so user-edited bindings take effect immediately without a
+    // relaunch. AppModel.setShortcutBinding writes to this same key.
+    @AppStorage(HCBShortcutStorage.userDefaultsKey) private var overridesJSON: String = "{}"
+
+    private var overrides: [String: HCBKeyBinding] {
+        HCBShortcutStorage.decode(overridesJSON)
+    }
+
+    private func binding(_ cmd: HCBShortcutCommand) -> HCBKeyBinding {
+        overrides[cmd.rawValue] ?? cmd.defaultBinding
+    }
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
+            let newTask = binding(.newTask)
             Button("New Task") { actions?.newTask() }
-                .keyboardShortcut("n", modifiers: [.command])
+                .keyboardShortcut(newTask.key.keyEquivalent, modifiers: newTask.modifiers.eventModifiers)
                 .disabled(actions == nil)
+            let newEvent = binding(.newEvent)
             Button("New Event") { actions?.newEvent() }
-                .keyboardShortcut("n", modifiers: [.command, .shift])
+                .keyboardShortcut(newEvent.key.keyEquivalent, modifiers: newEvent.modifiers.eventModifiers)
                 .disabled(actions == nil)
         }
 
         CommandGroup(replacing: .printItem) {
+            let palette = binding(.commandPalette)
             Button("Command Palette…") { actions?.openCommandPalette() }
-                .keyboardShortcut("p", modifiers: [.command])
+                .keyboardShortcut(palette.key.keyEquivalent, modifiers: palette.modifiers.eventModifiers)
                 .disabled(actions == nil)
+            let print = binding(.printToday)
             Button("Print Today…") { actions?.printToday() }
-                .keyboardShortcut("p", modifiers: [.command, .shift])
+                .keyboardShortcut(print.key.keyEquivalent, modifiers: print.modifiers.eventModifiers)
                 .disabled(actions == nil)
             Divider()
             Button("Export Day as .ics…") { actions?.exportDayICS() }
@@ -65,29 +81,34 @@ struct AppCommands: Commands {
         }
 
         CommandMenu("Sync") {
+            let refresh = binding(.refresh)
             Button("Refresh") { actions?.refresh() }
-                .keyboardShortcut("r", modifiers: [.command])
+                .keyboardShortcut(refresh.key.keyEquivalent, modifiers: refresh.modifiers.eventModifiers)
                 .disabled(actions == nil)
+            let force = binding(.forceResync)
             Button("Force Full Resync") { actions?.forceResync() }
-                .keyboardShortcut("r", modifiers: [.command, .shift])
+                .keyboardShortcut(force.key.keyEquivalent, modifiers: force.modifiers.eventModifiers)
                 .disabled(actions == nil)
             Divider()
+            let diag = binding(.diagnostics)
             Button("Diagnostics and Recovery…") { actions?.openDiagnostics() }
-                .keyboardShortcut("d", modifiers: [.command, .option])
+                .keyboardShortcut(diag.key.keyEquivalent, modifiers: diag.modifiers.eventModifiers)
                 .disabled(actions == nil)
         }
 
         CommandGroup(replacing: .help) {
+            let help = binding(.help)
             Button("Hot Cross Buns Help") { actions?.openHelp() }
-                .keyboardShortcut("?", modifiers: [.command])
+                .keyboardShortcut(help.key.keyEquivalent, modifiers: help.modifiers.eventModifiers)
                 .disabled(actions == nil)
         }
 
         CommandMenu("View") {
             ForEach(SidebarItem.allCases) { item in
-                if let shortcut = item.keyboardEquivalent {
+                if let sidebarCommand = sidebarShortcutCommand(item) {
+                    let b = binding(sidebarCommand)
                     Button(item.title) { actions?.switchTo(item) }
-                        .keyboardShortcut(shortcut, modifiers: [.command])
+                        .keyboardShortcut(b.key.keyEquivalent, modifiers: b.modifiers.eventModifiers)
                         .disabled(actions == nil)
                 } else {
                     Button(item.title) { actions?.switchTo(item) }
@@ -95,12 +116,23 @@ struct AppCommands: Commands {
                 }
             }
             Divider()
+            let zIn = binding(.zoomIn)
             Button("Zoom In") { triggerZoomIn() }
-                .keyboardShortcut("=", modifiers: [.command])
+                .keyboardShortcut(zIn.key.keyEquivalent, modifiers: zIn.modifiers.eventModifiers)
+            let zOut = binding(.zoomOut)
             Button("Zoom Out") { triggerZoomOut() }
-                .keyboardShortcut("-", modifiers: [.command])
+                .keyboardShortcut(zOut.key.keyEquivalent, modifiers: zOut.modifiers.eventModifiers)
+            let zReset = binding(.zoomReset)
             Button("Actual Size") { triggerZoomReset() }
-                .keyboardShortcut("0", modifiers: [.command])
+                .keyboardShortcut(zReset.key.keyEquivalent, modifiers: zReset.modifiers.eventModifiers)
+        }
+    }
+
+    private func sidebarShortcutCommand(_ item: SidebarItem) -> HCBShortcutCommand? {
+        switch item {
+        case .calendar: .goToCalendar
+        case .store: .goToStore
+        case .settings: .goToSettings
         }
     }
 
