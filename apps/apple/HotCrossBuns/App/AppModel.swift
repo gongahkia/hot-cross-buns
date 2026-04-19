@@ -277,6 +277,11 @@ final class AppModel {
         guard requirePersisted(task.id) else { return false }
 
         beginMutation()
+        // Track the inserted destination task separately so we can compensate
+        // if a later step fails. Without this, a failure after insertTask
+        // leaves the task duplicated on Google — present in both source and
+        // destination lists until the user notices and deletes one manually.
+        var insertedForCompensation: TaskMirror?
         do {
             let inserted = try await tasksClient.insertTask(
                 taskListID: toTaskListID,
@@ -285,12 +290,18 @@ final class AppModel {
                 dueDate: task.dueDate,
                 parent: nil
             )
+            insertedForCompensation = inserted
             let wasCompleted = task.isCompleted
             var finalTask = inserted
             if wasCompleted {
                 finalTask = try await tasksClient.setTaskCompleted(true, task: inserted)
+                insertedForCompensation = finalTask
             }
-            try await tasksClient.deleteTask(taskListID: task.taskListID, taskID: task.id)
+            try await tasksClient.deleteTask(
+                taskListID: task.taskListID,
+                taskID: task.id,
+                ifMatch: task.etag
+            )
             removeTask(id: task.id)
             upsert(finalTask)
             endMutation(error: nil)
@@ -298,6 +309,23 @@ final class AppModel {
             await synchronizeLocalNotifications()
             return true
         } catch {
+            // Best-effort rollback of the destination task. If the
+            // compensating delete itself fails, log it via lastMutationError
+            // but keep the original failure as the primary message so the
+            // user knows what actually went wrong first.
+            if let orphan = insertedForCompensation {
+                do {
+                    try await tasksClient.deleteTask(
+                        taskListID: orphan.taskListID,
+                        taskID: orphan.id,
+                        ifMatch: orphan.etag
+                    )
+                } catch {
+                    lastMutationError = "Move failed and the duplicate on the destination list could not be cleaned up. Please remove it manually."
+                    endMutation(error: nil)
+                    return false
+                }
+            }
             endMutation(error: error)
             return false
         }
