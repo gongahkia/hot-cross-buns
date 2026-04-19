@@ -153,3 +153,15 @@ Fixed since the last audit pass:
 ## 14. Only if useful, then add an optional BYOK AI manager that allows natural text and still asks the user if their interpretaion of hte user's task is correct, allow image upload for max utility
 
 ## 15. Harden all endpoints and usecases from cybersecurity perspective
+
+## 16. Appearance Phase 2 — migrate hardcoded layout constants to `hcbLayoutScale`
+
+Phase 1 split the single zoom slider into independent Layout Scale / Text Size / UI Font controls, wired `\.hcbLayoutScale` and `\.hcbFontFamily` env values, and applied the new appearance modifier to the shell, sheets (via `SheetDestinationHost`), and menu bar panel.
+
+Remaining migration for true app-wide UI-only scaling:
+
+- Replace hardcoded `.padding(N)` / `.frame(width: N, height: N)` with `hcbScaledPadding(N)` / `hcbScaledFrame(width:height:)` in Calendar views (MonthGridView, WeekGridView, DayGridView), Store views (TasksView, TaskInspectorView), and Settings rows.
+- Convert `.font(.system(size: N))` sites in sidebar/toolbar chrome to scale-aware variants — the ambient `\.font` override only reaches views that use the default font.
+- Audit event-tile tap geometry in WeekGridView/DayGridView: `hourHeight` is a hardcoded `44` / `48`. Wrap with scale multiplier so drop computation still snaps correctly.
+- Custom-font honesty: the Appearance section explains that explicit `.font(.headline)` / `.font(.body)` overrides bypass the env font. Phase 2 should introduce `.hcbFont(.body)` etc. that reads `\.hcbFontFamily` and falls back to system.
+- Native AppKit dialogs (`.alert`, `.confirmationDialog`, `NSSavePanel`) are drawn by macOS and can't be scaled by SwiftUI — document, don't fight it.
