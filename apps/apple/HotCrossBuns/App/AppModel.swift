@@ -262,6 +262,7 @@ final class AppModel {
     func moveTaskToList(_ task: TaskMirror, toTaskListID: TaskListMirror.ID) async -> Bool {
         guard task.taskListID != toTaskListID else { return true }
         guard requireAccount(mutationDescription: "moving tasks") else { return false }
+        guard requirePersisted(task.id) else { return false }
 
         beginMutation()
         do {
@@ -292,6 +293,7 @@ final class AppModel {
 
     func indentTask(_ task: TaskMirror) async -> Bool {
         guard requireAccount(mutationDescription: "indenting tasks") else { return false }
+        guard requirePersisted(task.id) else { return false }
         guard TaskHierarchy.canIndent(task, within: tasks) else {
             lastMutationError = "This task can't be indented."
             return false
@@ -321,6 +323,7 @@ final class AppModel {
 
     func outdentTask(_ task: TaskMirror) async -> Bool {
         guard requireAccount(mutationDescription: "outdenting tasks") else { return false }
+        guard requirePersisted(task.id) else { return false }
         guard TaskHierarchy.canOutdent(task) else {
             lastMutationError = "This task isn't nested."
             return false
@@ -428,6 +431,7 @@ final class AppModel {
         guard requireAccount(mutationDescription: "updating tasks") else {
             return false
         }
+        guard requirePersisted(task.id) else { return false }
 
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedTitle.isEmpty == false else {
@@ -468,6 +472,7 @@ final class AppModel {
         guard requireAccount(mutationDescription: "updating tasks") else {
             return false
         }
+        guard requirePersisted(task.id) else { return false }
 
         beginMutation()
         do {
@@ -515,6 +520,20 @@ final class AppModel {
     func deleteTask(_ task: TaskMirror) async -> Bool {
         guard requireAccount(mutationDescription: "deleting tasks") else {
             return false
+        }
+        // If the create is still pending, we can retract it locally: drop the
+        // queued mutation and remove the optimistic row. No Google call needed.
+        if OptimisticID.isPending(task.id) {
+            pendingMutations.removeAll { mutation in
+                mutation.resourceType == .task
+                    && mutation.action == .create
+                    && mutation.resourceID == task.id
+            }
+            removeTask(id: task.id)
+            lastMutationError = nil
+            await saveCurrentState()
+            await synchronizeLocalNotifications()
+            return true
         }
 
         beginMutation()
@@ -632,6 +651,7 @@ final class AppModel {
         guard requireAccount(mutationDescription: "updating events") else {
             return false
         }
+        guard requirePersisted(event.id) else { return false }
 
         let trimmedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedSummary.isEmpty == false else {
@@ -699,6 +719,19 @@ final class AppModel {
     func deleteEvent(_ event: CalendarEventMirror, scope: RecurringEventScope = .thisOccurrence) async -> Bool {
         guard requireAccount(mutationDescription: "deleting events") else {
             return false
+        }
+        // Retract a still-pending event create locally without calling Google.
+        if OptimisticID.isPending(event.id) {
+            pendingMutations.removeAll { mutation in
+                mutation.resourceType == .event
+                    && mutation.action == .create
+                    && mutation.resourceID == event.id
+            }
+            removeEvent(id: event.id)
+            lastMutationError = nil
+            await saveCurrentState()
+            await synchronizeLocalNotifications()
+            return true
         }
 
         beginMutation()
@@ -914,6 +947,15 @@ final class AppModel {
             return false
         }
         return true
+    }
+
+    // Reject mutations that target an item whose create is still waiting to
+    // hit Google. The server-side ID doesn't exist yet, so PATCH/DELETE would
+    // 404 and leave the UI in an indeterminate state.
+    private func requirePersisted(_ id: String) -> Bool {
+        guard OptimisticID.isPending(id) else { return true }
+        lastMutationError = "This item is still syncing — try again in a moment."
+        return false
     }
 
     private func beginMutation() {
