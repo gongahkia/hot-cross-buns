@@ -78,16 +78,70 @@ struct WeekGridView: View {
         .padding(.vertical, 10)
     }
 
+    private struct AllDaySpan: Identifiable {
+        let event: CalendarEventMirror
+        let startColumn: Int
+        let endColumn: Int // inclusive
+        let laneIndex: Int
+
+        var id: String { event.id }
+        var columnCount: Int { endColumn - startColumn + 1 }
+    }
+
+    private func layoutAllDaySpans() -> [AllDaySpan] {
+        guard let weekStart = weekDays.first, let weekEnd = weekDays.last else { return [] }
+        let weekStartDay = calendar.startOfDay(for: weekStart)
+        let weekEndDay = calendar.startOfDay(for: weekEnd)
+        let allDay = visibleEvents.filter { $0.isAllDay }
+
+        let spans: [(event: CalendarEventMirror, start: Int, end: Int)] = allDay.compactMap { event in
+            let eventStart = calendar.startOfDay(for: event.startDate)
+            // `CalendarGridLayout.eventEndDay` returns the inclusive end day
+            // for all-day events.
+            let eventEnd = CalendarGridLayout.eventEndDay(event: event, calendar: calendar)
+            guard eventStart <= weekEndDay, eventEnd >= weekStartDay else { return nil }
+            let clampedStart = max(eventStart, weekStartDay)
+            let clampedEnd = min(eventEnd, weekEndDay)
+            let startIdx = calendar.dateComponents([.day], from: weekStartDay, to: clampedStart).day ?? 0
+            let endIdx = calendar.dateComponents([.day], from: weekStartDay, to: clampedEnd).day ?? 0
+            return (event, max(0, min(6, startIdx)), max(0, min(6, endIdx)))
+        }
+
+        // Lane assignment: sort by start column, then place each span into the
+        // lowest-index lane whose previous span's end is < this span's start.
+        let sorted = spans.sorted { lhs, rhs in
+            if lhs.start != rhs.start { return lhs.start < rhs.start }
+            return lhs.end > rhs.end
+        }
+        var lanes: [[Int]] = [] // end-column per lane
+        var assigned: [AllDaySpan] = []
+        for span in sorted {
+            var placedLane: Int?
+            for (index, lane) in lanes.enumerated() {
+                if let last = lane.last, last >= span.start { continue }
+                lanes[index].append(span.end)
+                placedLane = index
+                break
+            }
+            if placedLane == nil {
+                lanes.append([span.end])
+                placedLane = lanes.count - 1
+            }
+            assigned.append(AllDaySpan(
+                event: span.event,
+                startColumn: span.start,
+                endColumn: span.end,
+                laneIndex: placedLane ?? 0
+            ))
+        }
+        return assigned
+    }
+
     private var allDayStrip: some View {
-        let byDay = CalendarGridLayout.eventsByDay(
-            visibleEvents.filter(\.isAllDay),
-            from: weekDays.first ?? anchorDate,
-            to: weekDays.last ?? anchorDate,
-            calendar: calendar
-        )
-        let maxLanes = byDay.values.map(\.count).max() ?? 0
+        let spans = layoutAllDaySpans()
+        let laneCount = (spans.map(\.laneIndex).max() ?? -1) + 1
         return Group {
-            if maxLanes == 0 {
+            if laneCount == 0 {
                 EmptyView()
             } else {
                 HStack(spacing: 0) {
@@ -98,39 +152,46 @@ struct WeekGridView: View {
                         .padding(.trailing, 6)
                     GeometryReader { geo in
                         let columnWidth = geo.size.width / 7
+                        let laneHeight: CGFloat = 22
                         ZStack(alignment: .topLeading) {
-                            ForEach(Array(weekDays.enumerated()), id: \.offset) { idx, day in
-                                VStack(alignment: .leading, spacing: 2) {
-                                    ForEach((byDay[calendar.startOfDay(for: day)] ?? []).prefix(3), id: \.id) { event in
-                                        Button {
-                                            router.navigate(to: .event(event.id))
-                                        } label: {
-                                            Text(event.summary)
-                                                .font(.caption)
-                                                .lineLimit(1)
-                                                .padding(.horizontal, 6)
-                                                .padding(.vertical, 3)
-                                                .frame(maxWidth: .infinity, alignment: .leading)
-                                                .background(
-                                                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                                        .fill(calendarColor(for: event).opacity(0.3))
-                                                )
-                                                .foregroundStyle(AppColor.ink)
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                                .padding(.horizontal, 2)
-                                .frame(width: columnWidth, alignment: .leading)
-                                .offset(x: CGFloat(idx) * columnWidth)
+                            ForEach(spans) { span in
+                                allDaySpanTile(span, columnWidth: columnWidth, laneHeight: laneHeight)
                             }
                         }
                     }
-                    .frame(height: CGFloat(min(maxLanes, 3)) * 22)
+                    .frame(height: CGFloat(min(laneCount, 3)) * 22)
                 }
                 .padding(.vertical, 4)
             }
         }
+    }
+
+    private func allDaySpanTile(_ span: AllDaySpan, columnWidth: CGFloat, laneHeight: CGFloat) -> some View {
+        let x = CGFloat(span.startColumn) * columnWidth + 2
+        let width = CGFloat(span.columnCount) * columnWidth - 4
+        let y = CGFloat(span.laneIndex) * laneHeight + 2
+        let fill = calendarColor(for: span.event)
+        return Button {
+            router.navigate(to: .event(span.event.id))
+        } label: {
+            Text(span.event.summary)
+                .font(.caption)
+                .lineLimit(1)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .frame(width: max(width, 20), height: laneHeight - 4, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(fill.opacity(0.3))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .strokeBorder(fill.opacity(0.5), lineWidth: 0.8)
+                )
+                .foregroundStyle(AppColor.ink)
+        }
+        .buttonStyle(.plain)
+        .offset(x: x, y: y)
     }
 
     private var tasksStrip: some View {
