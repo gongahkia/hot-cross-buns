@@ -443,6 +443,29 @@ final class AppModel {
         }
     }
 
+    @discardableResult
+    func clearCompletedTasks(in taskListID: TaskListMirror.ID) async -> Int {
+        guard requireAccount(mutationDescription: "clearing completed tasks") else { return 0 }
+        beginMutation()
+        do {
+            try await tasksClient.clearCompletedTasks(taskListID: taskListID)
+            // Google's clear hides completed tasks server-side. Mirror locally
+            // so the UI reflects it immediately — server sync will confirm on
+            // the next refresh.
+            let affected = tasks.filter { $0.taskListID == taskListID && $0.isCompleted }
+            for task in affected {
+                removeTask(id: task.id)
+            }
+            endMutation(error: nil)
+            await saveCurrentState()
+            await synchronizeLocalNotifications()
+            return affected.count
+        } catch {
+            endMutation(error: error)
+            return 0
+        }
+    }
+
     func deleteTaskList(_ taskList: TaskListMirror) async -> Bool {
         guard requireAccount(mutationDescription: "deleting task lists") else {
             return false

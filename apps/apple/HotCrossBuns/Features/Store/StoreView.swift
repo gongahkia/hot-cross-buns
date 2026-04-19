@@ -104,6 +104,7 @@ struct StoreView: View {
                     }
                     .toggleStyle(.button)
                     .help("Show completed tasks")
+                    clearCompletedMenu
                     Button {
                         isInspectorPresented.toggle()
                     } label: {
@@ -181,6 +182,39 @@ struct StoreView: View {
             }
         }
         selection = []
+    }
+
+    // Completed-task counts per list drive the "Clear completed" menu so a
+    // list with nothing completed is shown but disabled rather than hidden.
+    private func completedCount(in listID: TaskListMirror.ID) -> Int {
+        model.tasks.filter { $0.taskListID == listID && $0.isCompleted && $0.isDeleted == false }.count
+    }
+
+    @ViewBuilder
+    private var clearCompletedMenu: some View {
+        Menu {
+            if visibleTaskLists.isEmpty {
+                Button("No task lists") {}.disabled(true)
+            } else {
+                ForEach(visibleTaskLists) { list in
+                    let n = completedCount(in: list.id)
+                    Button {
+                        Task { _ = await model.clearCompletedTasks(in: list.id) }
+                    } label: {
+                        Text("\(list.title) (\(n))")
+                    }
+                    .disabled(n == 0)
+                }
+            }
+        } label: {
+            Label("Clear Completed", systemImage: "eraser")
+        }
+        .help("Hide completed tasks from a list (uses Google's batch clear)")
+    }
+
+    private var visibleTaskLists: [TaskListMirror] {
+        let visible = visibleTaskListIDs
+        return model.taskLists.filter { visible.contains($0.id) }
     }
 
     private var navigationTitle: String {
