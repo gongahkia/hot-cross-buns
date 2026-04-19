@@ -1348,12 +1348,14 @@ final class AppModel {
         } else {
             settings.shortcutOverrides.removeValue(forKey: command.rawValue)
         }
+        HCBShortcutStorage.persist(settings.shortcutOverrides)
         Task { await saveCurrentState() }
     }
 
     func resetAllShortcutBindings() {
         guard settings.shortcutOverrides.isEmpty == false else { return }
         settings.shortcutOverrides.removeAll()
+        HCBShortcutStorage.persist(settings.shortcutOverrides)
         Task { await saveCurrentState() }
     }
 
@@ -1920,6 +1922,7 @@ final class AppModel {
         syncCheckpoints = state.syncCheckpoints
         pendingMutations = state.pendingMutations
         HCBColorSchemeStore.current = HCBColorScheme.scheme(id: settings.colorSchemeID) ?? .notion
+        HCBShortcutStorage.persist(settings.shortcutOverrides)
         rebuildSnapshots()
     }
 

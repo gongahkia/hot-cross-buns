@@ -120,7 +120,7 @@ struct StoreView: View {
                     } label: {
                         Label("Toggle Inspector", systemImage: "sidebar.trailing")
                     }
-                    .keyboardShortcut("i", modifiers: [.command])
+                    .hcbKeyboardShortcut(.storeShowInspector)
                     .help("Toggle task details (Cmd+I)")
                     .disabled(isDisconnected)
                 }
@@ -129,7 +129,7 @@ struct StoreView: View {
                 Button("Delete Selected") {
                     Task { await deleteSelection() }
                 }
-                .keyboardShortcut(.delete, modifiers: [.command])
+                .hcbKeyboardShortcut(.storeClearCompleted)
                 .opacity(0)
                 .hcbScaledFrame(width: 0, height: 0)
                 .allowsHitTesting(false)
