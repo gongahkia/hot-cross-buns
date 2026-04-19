@@ -43,6 +43,7 @@ struct CalendarHomeView: View {
                 } else {
                     switch mode {
                     case .agenda: agendaContent
+                    case .day: DayGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
                     case .week:
                         HStack(spacing: 10) {
                             if showTaskDrawer {
@@ -193,6 +194,8 @@ struct CalendarHomeView: View {
         switch mode {
         case .agenda:
             return selectedDate.formatted(.dateTime.weekday(.wide).month(.wide).day())
+        case .day:
+            return selectedDate.formatted(.dateTime.weekday(.wide).month(.wide).day().year())
         case .week:
             let days = CalendarGridLayout.weekDays(containing: selectedDate, calendar: calendar)
             let first = days.first ?? selectedDate
@@ -402,7 +405,7 @@ struct CalendarHomeView: View {
     private func shift(by direction: Int) {
         let calendar = Calendar.current
         switch mode {
-        case .agenda:
+        case .agenda, .day:
             selectedDate = calendar.date(byAdding: .day, value: direction, to: selectedDate) ?? selectedDate
         case .week:
             selectedDate = calendar.date(byAdding: .weekOfYear, value: direction, to: selectedDate) ?? selectedDate
@@ -414,7 +417,7 @@ struct CalendarHomeView: View {
     private func jumpLarge(by direction: Int) {
         let calendar = Calendar.current
         switch mode {
-        case .agenda:
+        case .agenda, .day:
             selectedDate = calendar.date(byAdding: .weekOfYear, value: direction, to: selectedDate) ?? selectedDate
         case .week:
             selectedDate = calendar.date(byAdding: .month, value: direction, to: selectedDate) ?? selectedDate
