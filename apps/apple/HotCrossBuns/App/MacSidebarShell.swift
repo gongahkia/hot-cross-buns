@@ -68,7 +68,7 @@ struct MacSidebarShell: View {
         }
         .navigationSplitViewStyle(.balanced)
         .animation(.easeInOut(duration: 0.12), value: layoutZoomScale)
-        .animation(.easeInOut(duration: 0.12), value: dynamicTypeSize)
+        .animation(.easeInOut(duration: 0.12), value: textSizePoints)
     }
 
     var body: some View {
