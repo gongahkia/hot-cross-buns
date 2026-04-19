@@ -98,7 +98,6 @@ Not actively in scope but worth implementing eventually. Each is substantial eno
 
 - ~~**"This and following" recurring-event edit**~~ — deliberately NOT implemented. Users rarely check past events, so the cheaper fix shipped in 8698bfe: flag "Every event in the series" as destructive with copy that explicitly names the retroactive effect, and point users at Delete → This and following + re-create as the workaround. Reopen only if a real user complains about past-event mutation in practice.
 - ~~**Cross-calendar drag for recurring `thisAndFollowing` scope**~~ — not needed. Move dialog's "Every event in the series" now carries the same retroactive warning as edit/delete.
-- **Multi-account (personal + work)** — one `GoogleAccount` at a time today. Revisit after the calendar is solid for the single-account case.
 - **Push-via-APNs relay** — requires a server, violates "Google is the backend" principle. Reconsider only if foreground polling proves inadequate in practice.
 - **Rich metadata in Calendar private extended properties** — cross-client fragility; app-only annotations would disappear outside Hot Cross Buns.
 - **SQLite migration for the local cache** — current JSON snapshot is adequate for one user's data volume. Reconsider if the cache grows past ~50MB or needs indexed queries.
