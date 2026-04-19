@@ -40,6 +40,12 @@ final class AppModel {
     private(set) var taskSections: [TaskListSectionSnapshot] = []
     private(set) var todaySnapshot: TodaySnapshot = .empty
     private(set) var calendarSnapshot: CalendarSnapshot = .empty
+    // Cached during rebuildSnapshots so the sidebar badge doesn't have to
+    // re-filter the full tasks array on every sidebar render.
+    private(set) var openTaskCountForSidebar: Int = 0
+    // Per-list completion stats for Store section headers — avoids O(n)
+    // filtering per list on every header render.
+    private(set) var taskListCompletionStats: [TaskListMirror.ID: TaskListCompletionStats] = [:]
     private(set) var syncCheckpoints: [SyncCheckpoint] = []
     private(set) var pendingMutations: [PendingMutation] = []
     private(set) var recentlyCompletedTaskID: TaskMirror.ID?
@@ -1982,5 +1988,31 @@ final class AppModel {
         taskSections = TaskListSectionSnapshot.build(taskLists: visibleTaskLists, tasks: visibleTasks)
         todaySnapshot = TodaySnapshot.build(tasks: visibleTasks, events: events, referenceDate: referenceDate)
         calendarSnapshot = CalendarSnapshot.build(calendars: calendars, events: events, referenceDate: referenceDate)
+
+        // Precompute the sidebar open-task count so the badge doesn't have
+        // to re-filter every render.
+        openTaskCountForSidebar = visibleTasks.reduce(into: 0) { acc, task in
+            if task.isCompleted == false && task.isDeleted == false {
+                acc += 1
+            }
+        }
+
+        // Precompute completion stats per list. Walks `tasks` once rather
+        // than once-per-section during Store render.
+        var stats: [TaskListMirror.ID: TaskListCompletionStats] = [:]
+        for task in tasks where task.isDeleted == false {
+            var entry = stats[task.taskListID] ?? TaskListCompletionStats(total: 0, completed: 0)
+            entry.total += 1
+            if task.isCompleted { entry.completed += 1 }
+            stats[task.taskListID] = entry
+        }
+        taskListCompletionStats = stats
     }
+}
+
+struct TaskListCompletionStats: Equatable, Sendable {
+    var total: Int
+    var completed: Int
+    var openCount: Int { total - completed }
+    var fraction: Double { total == 0 ? 0 : Double(completed) / Double(total) }
 }
