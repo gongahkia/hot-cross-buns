@@ -464,7 +464,11 @@ private struct FocusStripMenuBarPanel: View {
         .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(row.isPlaceholder ? .quaternary.opacity(0.25) : row.color.opacity(0.10))
+                .fill(
+                    row.isPlaceholder
+                        ? AnyShapeStyle(Color.secondary.opacity(0.16))
+                        : AnyShapeStyle(row.color.opacity(0.10))
+                )
         )
     }
 
@@ -590,7 +594,7 @@ private struct FocusStripMenuBarPanel: View {
         completingTaskIDs.insert(task.id)
         Task {
             _ = await model.setTaskCompleted(true, task: task)
-            await MainActor.run {
+            _ = await MainActor.run {
                 completingTaskIDs.remove(task.id)
             }
         }
@@ -860,7 +864,7 @@ private struct DayTimelineMenuBarPanel: View {
         completingTaskIDs.insert(task.id)
         Task {
             _ = await model.setTaskCompleted(true, task: task)
-            await MainActor.run {
+            _ = await MainActor.run {
                 completingTaskIDs.remove(task.id)
             }
         }
@@ -958,7 +962,11 @@ private struct MetricChip: View {
         .foregroundStyle(count == 0 ? .secondary : color)
         .background(
             Capsule(style: .continuous)
-                .fill(count == 0 ? .quaternary.opacity(0.25) : color.opacity(0.14))
+                .fill(
+                    count == 0
+                        ? AnyShapeStyle(Color.secondary.opacity(0.16))
+                        : AnyShapeStyle(color.opacity(0.14))
+                )
         )
     }
 }
@@ -1248,50 +1256,5 @@ private struct WeeklyMenuBarPanel: View {
                 .font(.caption2.monospacedDigit())
         }
         .foregroundStyle(count == 0 ? .secondary : color)
-    }
-}
-
-// Placeholder panels for the new menu bar styles — user added the cases
-// to MenuBarStyle but the view implementations are not yet written. These
-// stubs keep the build green until the real panels land.
-private struct FocusStripMenuBarPanel: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Focus strip")
-                .font(.headline)
-            Text("Coming soon")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(14)
-        .frame(width: 300)
-    }
-}
-
-private struct DayTimelineMenuBarPanel: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Day timeline")
-                .font(.headline)
-            Text("Coming soon")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(14)
-        .frame(width: 300)
-    }
-}
-
-private struct MinimalBadgeMenuBarPanel: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Minimal badges")
-                .font(.headline)
-            Text("Coming soon")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(14)
-        .frame(width: 300)
     }
 }

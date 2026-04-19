@@ -237,7 +237,6 @@
 		835C22A6F8FF88C02CDD31B6 /* SystemCrashReportReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemCrashReportReader.swift; sourceTree = "<group>"; };
 		838CDC9397AEB8B081E732EE /* AppCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCommands.swift; sourceTree = "<group>"; };
 		84B5C3ED3789B4EFFAEEB89E /* LocalNotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNotificationScheduler.swift; sourceTree = "<group>"; };
-		85DDC6CC2972586CBD719329 /* HotCrossBuns-Dev-Resign.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "HotCrossBuns-Dev-Resign.entitlements"; sourceTree = "<group>"; };
 		865A5F75E0D2C3ACB690C7A6 /* KeychainHealth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHealth.swift; sourceTree = "<group>"; };
 		88FB5A6B5626CA82F91766D0 /* ReviewBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewBuilder.swift; sourceTree = "<group>"; };
 		892DDFFD7ECD0890E98DEC1C /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
@@ -424,7 +423,6 @@
 			isa = PBXGroup;
 			children = (
 				6366F53ACB2CE1B4D522E41D /* DockBadgeController.swift */,
-				85DDC6CC2972586CBD719329 /* HotCrossBuns-Dev-Resign.entitlements */,
 				E3E17F058E206FE0809B5D6C /* HotCrossBuns-Dev.entitlements */,
 			);
 			path = Support;

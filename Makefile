@@ -33,10 +33,8 @@ gen: ## Regenerate the Xcode project from project.yml (required after adding fil
 	cd $(APPLE_DIR) && xcodegen generate
 
 .PHONY: build
-build: gen ## Compile the macOS app (unsigned) and add Keychain entitlement via post-build re-sign
+build: gen ## Compile the macOS app (unsigned)
 	$(XCODEBUILD) build
-	@echo "⚙️  Re-signing with dev Keychain entitlement…"
-	codesign --force --sign - --entitlements $(DEV_RESIGN_ENTITLEMENTS) $(APP_PATH)
 
 .PHONY: run
 run: build ## Build and launch the app
