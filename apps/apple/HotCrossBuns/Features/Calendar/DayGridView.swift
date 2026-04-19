@@ -11,6 +11,13 @@ struct DayGridView: View {
     private let hourEnd = 24
     private let calendar = Calendar.current
 
+    @State private var timedDrag: TimedDrag?
+
+    private struct TimedDrag: Equatable {
+        var startY: CGFloat
+        var endY: CGFloat
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             eventsColumn
@@ -97,9 +104,51 @@ struct DayGridView: View {
                         .fill(Color.clear)
                         .contentShape(Rectangle())
                         .frame(height: CGFloat(hourEnd - hourStart) * hourHeight)
+                        .overlay(alignment: .topLeading) {
+                            if let drag = timedDrag {
+                                let top = min(drag.startY, drag.endY)
+                                let height = max(abs(drag.endY - drag.startY), hourHeight / 4)
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(AppColor.ember.opacity(0.22))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .strokeBorder(AppColor.ember.opacity(0.6), lineWidth: 1.2)
+                                    )
+                                    .offset(x: 56, y: top)
+                                    .frame(height: height)
+                                    .hcbScaledPadding(.trailing, 8)
+                                    .allowsHitTesting(false)
+                            }
+                        }
                         .gesture(
+                            // Drag creates a time-blocked event; a short tap
+                            // (< minimumDistance) falls through to quick-create.
+                            DragGesture(minimumDistance: 6)
+                                .onChanged { value in
+                                    timedDrag = TimedDrag(startY: value.startLocation.y, endY: value.location.y)
+                                }
+                                .onEnded { value in
+                                    let start = CalendarDropComputer.snappedStart(
+                                        for: min(value.startLocation.y, value.location.y),
+                                        hourHeight: hourHeight,
+                                        dayStart: dayStart,
+                                        calendar: calendar
+                                    )
+                                    let end = CalendarDropComputer.snappedStart(
+                                        for: max(value.startLocation.y, value.location.y),
+                                        hourHeight: hourHeight,
+                                        dayStart: dayStart,
+                                        calendar: calendar
+                                    )
+                                    timedDrag = nil
+                                    let adjustedEnd = end <= start ? start.addingTimeInterval(1800) : end
+                                    router.present(.addEventRange(start, adjustedEnd, allDay: false))
+                                }
+                        )
+                        .simultaneousGesture(
                             SpatialTapGesture(count: 1)
                                 .onEnded { value in
+                                    guard timedDrag == nil else { return }
                                     let start = CalendarDropComputer.snappedStart(
                                         for: value.location.y,
                                         hourHeight: hourHeight,

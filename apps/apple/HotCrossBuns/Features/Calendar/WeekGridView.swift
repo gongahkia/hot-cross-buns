@@ -24,6 +24,23 @@ struct WeekGridView: View {
     private let hourEnd = 24
     private let calendar = Calendar.current
 
+    @State private var allDayDrag: WeekDaySelection?
+    @State private var timedDrag: TimedWeekDrag?
+
+    private struct WeekDaySelection: Equatable {
+        var startCol: Int
+        var endCol: Int
+        var normalized: (Int, Int) {
+            startCol <= endCol ? (startCol, endCol) : (endCol, startCol)
+        }
+    }
+
+    private struct TimedWeekDrag: Equatable {
+        var column: Int
+        var startY: CGFloat
+        var endY: CGFloat
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             weekHeader
@@ -161,30 +178,65 @@ struct WeekGridView: View {
     private var allDayStrip: some View {
         let spans = layoutAllDaySpans()
         let laneCount = (spans.map(\.laneIndex).max() ?? -1) + 1
-        return Group {
-            if laneCount == 0 {
-                EmptyView()
-            } else {
-                HStack(spacing: 0) {
-                    Text("All-day")
-                        .hcbFont(.caption2, weight: .semibold)
-                        .foregroundStyle(.secondary)
-                        .hcbScaledFrame(width: 54, alignment: .trailing)
-                        .hcbScaledPadding(.trailing, 6)
-                    GeometryReader { geo in
-                        let columnWidth = geo.size.width / 7
-                        let laneHeight: CGFloat = 22
-                        ZStack(alignment: .topLeading) {
-                            ForEach(spans) { span in
-                                allDaySpanTile(span, columnWidth: columnWidth, laneHeight: laneHeight)
-                            }
-                        }
+        let stripHeight = max(CGFloat(min(laneCount, 3)) * 22, 22)
+        return HStack(spacing: 0) {
+            Text("All-day")
+                .hcbFont(.caption2, weight: .semibold)
+                .foregroundStyle(.secondary)
+                .hcbScaledFrame(width: 54, alignment: .trailing)
+                .hcbScaledPadding(.trailing, 6)
+            GeometryReader { geo in
+                let columnWidth = geo.size.width / 7
+                let laneHeight: CGFloat = 22
+                ZStack(alignment: .topLeading) {
+                    Rectangle()
+                        .fill(Color.clear)
+                        .contentShape(Rectangle())
+                    if let drag = allDayDrag {
+                        let (a, b) = drag.normalized
+                        let left = CGFloat(a) * columnWidth
+                        let width = CGFloat(b - a + 1) * columnWidth
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(AppColor.ember.opacity(0.22))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .strokeBorder(AppColor.ember.opacity(0.6), lineWidth: 1.2)
+                            )
+                            .frame(width: max(width - 4, 4), height: stripHeight - 4)
+                            .offset(x: left + 2, y: 2)
+                            .allowsHitTesting(false)
                     }
-                    .frame(height: CGFloat(min(laneCount, 3)) * 22)
+                    ForEach(spans) { span in
+                        allDaySpanTile(span, columnWidth: columnWidth, laneHeight: laneHeight)
+                    }
                 }
-                .hcbScaledPadding(.vertical, 4)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 6)
+                        .onChanged { value in
+                            let startCol = columnIndex(for: value.startLocation.x, columnWidth: columnWidth)
+                            let endCol = columnIndex(for: value.location.x, columnWidth: columnWidth)
+                            allDayDrag = WeekDaySelection(startCol: startCol, endCol: endCol)
+                        }
+                        .onEnded { _ in
+                            guard let drag = allDayDrag else { return }
+                            allDayDrag = nil
+                            let (a, b) = drag.normalized
+                            guard weekDays.indices.contains(a), weekDays.indices.contains(b) else { return }
+                            let start = calendar.startOfDay(for: weekDays[a])
+                            let endExclusive = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: weekDays[b])) ?? weekDays[b]
+                            router.present(.addEventRange(start, endExclusive, allDay: true))
+                        }
+                )
             }
+            .frame(height: stripHeight)
         }
+        .hcbScaledPadding(.vertical, 4)
+    }
+
+    private func columnIndex(for x: CGFloat, columnWidth: CGFloat) -> Int {
+        guard columnWidth > 0 else { return 0 }
+        return max(0, min(6, Int(x / columnWidth)))
     }
 
     private func allDaySpanTile(_ span: AllDaySpan, columnWidth: CGFloat, laneHeight: CGFloat) -> some View {

@@ -60,8 +60,10 @@ enum AppRoute: Hashable {
 enum SheetDestination: Identifiable, Hashable {
     case addTask
     case quickAddTask
+    case quickAddEvent
     case addEvent
     case addEventAt(Date, allDay: Bool)
+    case addEventRange(Date, Date, allDay: Bool)
     case quickCreate(Date, allDay: Bool)
     case syncSettings
     case diagnostics
@@ -73,10 +75,14 @@ enum SheetDestination: Identifiable, Hashable {
             "addTask"
         case .quickAddTask:
             "quickAddTask"
+        case .quickAddEvent:
+            "quickAddEvent"
         case .addEvent:
             "addEvent"
         case .addEventAt(let date, let allDay):
             "addEventAt-\(date.timeIntervalSince1970)-\(allDay)"
+        case .addEventRange(let start, let end, let allDay):
+            "addEventRange-\(start.timeIntervalSince1970)-\(end.timeIntervalSince1970)-\(allDay)"
         case .quickCreate(let date, let allDay):
             "quickCreate-\(date.timeIntervalSince1970)-\(allDay)"
         case .syncSettings:
@@ -124,10 +130,14 @@ private struct SheetDestinationHost: View {
             AddTaskSheet()
         case .quickAddTask:
             QuickAddView()
+        case .quickAddEvent:
+            QuickAddEventView()
         case .addEvent:
             AddEventSheet()
         case .addEventAt(let date, let allDay):
             AddEventSheet(prefilledStart: date, prefilledIsAllDay: allDay)
+        case .addEventRange(let start, let end, let allDay):
+            AddEventSheet(prefilledStart: start, prefilledIsAllDay: allDay, prefilledEnd: end)
         case .quickCreate(let date, let allDay):
             QuickCreatePopover(initialDate: date, isAllDay: allDay)
         case .syncSettings:

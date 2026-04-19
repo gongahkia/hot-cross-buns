@@ -66,32 +66,33 @@ struct SettingsView: View {
                             .hcbFont(.footnote)
                             .foregroundStyle(.secondary)
 
-                        Button {
-                            router.present(.syncSettings)
-                        } label: {
-                            Label("Sync details", systemImage: "arrow.triangle.2.circlepath")
-                        }
-                        .id(VimTarget.syncDetails)
-                        .tag(VimTarget.syncDetails)
-                        .listRowBackground(vimHighlightBackground(for: .syncDetails))
+                        // Plain HStack + onTapGesture instead of Button. With
+                        // `selection:` on the enclosing List, macOS List rows
+                        // intercept taps for selection and swallow the button
+                        // action — a tap gesture on the row content fires.
+                        Label("Sync details", systemImage: "arrow.triangle.2.circlepath")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .onTapGesture { router.present(.syncSettings) }
+                            .id(VimTarget.syncDetails)
+                            .tag(VimTarget.syncDetails)
+                            .listRowBackground(vimHighlightBackground(for: .syncDetails))
 
-                        Button {
-                            router.present(.diagnostics)
-                        } label: {
-                            Label("Diagnostics and recovery", systemImage: "stethoscope")
-                        }
-                        .id(VimTarget.diagnostics)
-                        .tag(VimTarget.diagnostics)
-                        .listRowBackground(vimHighlightBackground(for: .diagnostics))
+                        Label("Diagnostics and recovery", systemImage: "stethoscope")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .onTapGesture { router.present(.diagnostics) }
+                            .id(VimTarget.diagnostics)
+                            .tag(VimTarget.diagnostics)
+                            .listRowBackground(vimHighlightBackground(for: .diagnostics))
 
-                        Button {
-                            model.resetOnboarding()
-                        } label: {
-                            Label("Run setup again", systemImage: "sparkles")
-                        }
-                        .id(VimTarget.runSetup)
-                        .tag(VimTarget.runSetup)
-                        .listRowBackground(vimHighlightBackground(for: .runSetup))
+                        Label("Run setup again", systemImage: "sparkles")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .onTapGesture { model.resetOnboarding() }
+                            .id(VimTarget.runSetup)
+                            .tag(VimTarget.runSetup)
+                            .listRowBackground(vimHighlightBackground(for: .runSetup))
                     }
                 }
 
