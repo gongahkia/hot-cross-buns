@@ -46,47 +46,53 @@ struct SettingsView: View {
                     .listRowBackground(vimHighlightBackground(for: .accountAction))
                 }
 
-                Section("Sync") {
-                    Picker("Mode", selection: syncModeBinding) {
-                        ForEach(SyncMode.allCases) { mode in
-                            Text(mode.title).tag(mode)
+                // Sync section only appears after sign-in — mode picker,
+                // sync details, diagnostics, and "run setup again" are all
+                // no-ops without a Google account. Keeps the first-launch
+                // Settings focused on the one action that matters.
+                if model.account != nil {
+                    Section("Sync") {
+                        Picker("Mode", selection: syncModeBinding) {
+                            ForEach(SyncMode.allCases) { mode in
+                                Text(mode.title).tag(mode)
+                            }
                         }
-                    }
-                    .syncModePickerStyle()
-                    .id(VimTarget.syncMode)
-                    .tag(VimTarget.syncMode)
-                    .listRowBackground(vimHighlightBackground(for: .syncMode))
+                        .syncModePickerStyle()
+                        .id(VimTarget.syncMode)
+                        .tag(VimTarget.syncMode)
+                        .listRowBackground(vimHighlightBackground(for: .syncMode))
 
-                    Text(model.settings.syncMode.detail)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        Text(model.settings.syncMode.detail)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
 
-                    Button {
-                        router.present(.syncSettings)
-                    } label: {
-                        Label("Sync details", systemImage: "arrow.triangle.2.circlepath")
-                    }
-                    .id(VimTarget.syncDetails)
-                    .tag(VimTarget.syncDetails)
-                    .listRowBackground(vimHighlightBackground(for: .syncDetails))
+                        Button {
+                            router.present(.syncSettings)
+                        } label: {
+                            Label("Sync details", systemImage: "arrow.triangle.2.circlepath")
+                        }
+                        .id(VimTarget.syncDetails)
+                        .tag(VimTarget.syncDetails)
+                        .listRowBackground(vimHighlightBackground(for: .syncDetails))
 
-                    Button {
-                        router.present(.diagnostics)
-                    } label: {
-                        Label("Diagnostics and recovery", systemImage: "stethoscope")
-                    }
-                    .id(VimTarget.diagnostics)
-                    .tag(VimTarget.diagnostics)
-                    .listRowBackground(vimHighlightBackground(for: .diagnostics))
+                        Button {
+                            router.present(.diagnostics)
+                        } label: {
+                            Label("Diagnostics and recovery", systemImage: "stethoscope")
+                        }
+                        .id(VimTarget.diagnostics)
+                        .tag(VimTarget.diagnostics)
+                        .listRowBackground(vimHighlightBackground(for: .diagnostics))
 
-                    Button {
-                        model.resetOnboarding()
-                    } label: {
-                        Label("Run setup again", systemImage: "sparkles")
+                        Button {
+                            model.resetOnboarding()
+                        } label: {
+                            Label("Run setup again", systemImage: "sparkles")
+                        }
+                        .id(VimTarget.runSetup)
+                        .tag(VimTarget.runSetup)
+                        .listRowBackground(vimHighlightBackground(for: .runSetup))
                     }
-                    .id(VimTarget.runSetup)
-                    .tag(VimTarget.runSetup)
-                    .listRowBackground(vimHighlightBackground(for: .runSetup))
                 }
 
                 Section("Notifications") {
