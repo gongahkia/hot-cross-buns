@@ -47,7 +47,7 @@ struct AppStatusBanner: View {
     private var failureContext: FailureContext? {
         if case .failed(let message) = authState {
             return FailureContext(
-                title: "Google connection failed",
+                title: "Reconnect Google to keep syncing",
                 message: message,
                 systemImage: "person.crop.circle.badge.exclamationmark",
                 tint: .red,
@@ -57,7 +57,7 @@ struct AppStatusBanner: View {
 
         if let mutationError, mutationError.isEmpty == false {
             return FailureContext(
-                title: "Last change failed",
+                title: "Last change didn't save",
                 message: mutationError,
                 systemImage: "exclamationmark.triangle",
                 tint: AppColor.ember,
@@ -67,8 +67,8 @@ struct AppStatusBanner: View {
 
         if isSyncPaused {
             return FailureContext(
-                title: "Sync paused",
-                message: "Google wasn't reachable after several attempts. Hit Retry to try again.",
+                title: "Sync paused — tap Retry when you're back online",
+                message: "Google wasn't reachable after several attempts. Your local changes are safe and will sync when you retry.",
                 systemImage: "pause.circle",
                 tint: AppColor.ember,
                 canRetry: true
@@ -77,7 +77,7 @@ struct AppStatusBanner: View {
 
         if case .failed(let message) = syncState {
             return FailureContext(
-                title: "Sync needs attention",
+                title: "Couldn't reach Google — try Refresh",
                 message: message,
                 systemImage: "exclamationmark.arrow.triangle.2.circlepath",
                 tint: AppColor.ember,

@@ -176,15 +176,15 @@ enum GoogleAuthError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .notConfigured:
-            "Google OAuth client IDs are not configured yet."
+            "Google sign-in isn't configured yet. See the README for how to add your OAuth client ID."
         case .noPresentationAnchor:
-            "No active app window is available to present Google Sign-In."
+            "Couldn't find a window to open the Google sign-in sheet. Focus Hot Cross Buns and try again."
         case .noCurrentUser:
-            "No Google account is currently signed in."
+            "You're not signed in to Google yet."
         case .missingProfile:
-            "Google Sign-In did not return an email address for this account."
+            "Google sign-in didn't return a profile for that account. Try signing in again."
         case .emptySignInResult:
-            "Google Sign-In finished without returning an account."
+            "The Google sign-in sheet closed without finishing. Try again."
         }
     }
 }
@@ -196,9 +196,9 @@ enum GoogleTokenRefreshError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noCurrentUser:
-            "Not signed in to Google. Reconnect to continue syncing."
+            "You're not signed in to Google yet. Open Settings and tap Connect Google."
         case .refreshFailed(let underlying):
-            "Google sign-in session expired: \(underlying.localizedDescription). Reconnect to continue."
+            "Your Google session expired (\(underlying.localizedDescription)). Open Settings and tap Reconnect Google."
         }
     }
 

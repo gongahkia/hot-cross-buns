@@ -154,11 +154,11 @@ enum GoogleAPIError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .invalidURL:
-            "The Google API request URL could not be built."
+            "Something went wrong building the Google request. Try again, or share a diagnostic bundle if it keeps happening."
         case .invalidResponse:
-            "Google returned an invalid response."
+            "Google returned a response we couldn't read. Try Refresh."
         case .preconditionFailed:
-            "This item was changed elsewhere since you loaded it. Refresh and try again."
+            "Someone else (or another device) changed this item while you were editing. We'll refresh so you can try again with the latest version."
         case .httpStatus(let status, let body):
             statusMessage(status: status, body: body)
         }
@@ -167,19 +167,19 @@ enum GoogleAPIError: LocalizedError, Equatable {
     private func statusMessage(status: Int, body: String?) -> String {
         let baseMessage = switch status {
         case 401:
-            "Google authorization expired. Reconnect your account."
+            "Your Google session expired. Reconnect in Settings to keep syncing."
         case 403:
-            "Google denied access. Check granted Tasks and Calendar permissions."
+            "Google denied access. Reconnect in Settings so you can re-grant the Tasks + Calendar permissions."
         case 404:
-            "Google could not find that task, calendar, or event. Refresh and try again."
+            "That item isn't on Google anymore — it may have been deleted on another device. Refresh to get the latest state."
         case 410:
-            "Google sync state expired. A full refresh is required."
+            "Google's sync window expired. Force Full Resync in Diagnostics to rebuild from scratch."
         case 429:
-            "Google rate-limited the app. Wait briefly and retry."
+            "Google is rate-limiting Hot Cross Buns. It'll retry automatically in a minute or two."
         case 500...599:
-            "Google is temporarily unavailable. Retry shortly."
+            "Google Calendar is briefly having trouble. We'll retry automatically — check the sync indicator."
         default:
-            "Google API request failed with status \(status)."
+            "Google rejected the request (status \(status)). Try again or share a diagnostic bundle."
         }
 
         guard let body, body.isEmpty == false else {
