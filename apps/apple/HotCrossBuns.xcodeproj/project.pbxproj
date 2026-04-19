@@ -284,7 +284,6 @@
 		E24E974EA5B94188A538989B /* RecurrenceUntilRewriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceUntilRewriterTests.swift; sourceTree = "<group>"; };
 		E2BC795AF619D093596D767D /* MacSidebarShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSidebarShell.swift; sourceTree = "<group>"; };
 		E3D347AB668EE3CD836DBF55 /* MarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownText.swift; sourceTree = "<group>"; };
-		E3E17F058E206FE0809B5D6C /* HotCrossBuns-Dev.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "HotCrossBuns-Dev.entitlements"; sourceTree = "<group>"; };
 		E60A02AA0EB32C0C012F2AF0 /* TagExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagExtractor.swift; sourceTree = "<group>"; };
 		E7E237D56DC5E422A168E311 /* EventHoverPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventHoverPreview.swift; sourceTree = "<group>"; };
 		E9EE90AE73008CDCBB548450 /* GoToDateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoToDateSheet.swift; sourceTree = "<group>"; };
@@ -423,7 +422,6 @@
 			isa = PBXGroup;
 			children = (
 				6366F53ACB2CE1B4D522E41D /* DockBadgeController.swift */,
-				E3E17F058E206FE0809B5D6C /* HotCrossBuns-Dev.entitlements */,
 			);
 			path = Support;
 			sourceTree = "<group>";
@@ -833,14 +831,14 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					045A02CEF69A5B42D8D9ED33 = {
-						DevelopmentTeam = "";
+						DevelopmentTeam = Q2J4QWZLR7;
 					};
 					219B609558AEF0B469CEC407 = {
-						DevelopmentTeam = "";
+						DevelopmentTeam = Q2J4QWZLR7;
 						ProvisioningStyle = Automatic;
 					};
 					58224F0E9BC6A32F6D50A414 = {
-						DevelopmentTeam = "";
+						DevelopmentTeam = Q2J4QWZLR7;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -1091,7 +1089,7 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = Q2J4QWZLR7;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -1207,7 +1205,7 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = Q2J4QWZLR7;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;

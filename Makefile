@@ -7,20 +7,15 @@ SCHEME    := HotCrossBunsMac
 DEST      := platform=macOS,arch=arm64
 DERIVED   := build/apple/DerivedData
 APP_PATH  := $(DERIVED)/Build/Products/Debug/HotCrossBunsMac.app
-DEV_ENTITLEMENTS := $(abspath $(APPLE_DIR)/HotCrossBuns/Support/HotCrossBuns-Dev.entitlements)
-DEV_RESIGN_ENTITLEMENTS := $(abspath $(APPLE_DIR)/HotCrossBuns/Support/HotCrossBuns-Dev-Resign.entitlements)
 
+# Uses the Personal Team cert Xcode auto-creates when you sign in to
+# Settings → Accounts. DEVELOPMENT_TEAM is set in project.yml.
 XCODEBUILD := xcodebuild \
 	-project $(PROJECT) \
 	-scheme $(SCHEME) \
 	-destination '$(DEST)' \
 	-derivedDataPath $(DERIVED) \
-	CODE_SIGN_IDENTITY="-" \
-	CODE_SIGN_STYLE=Manual \
-	DEVELOPMENT_TEAM="" \
-	PROVISIONING_PROFILE_SPECIFIER="" \
-	PROVISIONING_PROFILE_REQUIRED_macOS=NO \
-	CODE_SIGN_ENTITLEMENTS=$(DEV_ENTITLEMENTS)
+	-allowProvisioningUpdates
 
 .DEFAULT_GOAL := help
 
