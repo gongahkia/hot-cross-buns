@@ -333,8 +333,6 @@ private struct MenuBarQuickAddRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
-                Image(systemName: "sparkles")
-                    .foregroundStyle(AppColor.ember)
                 TextField("Add a task — tmr 9am #work", text: $input)
                     .textFieldStyle(.plain)
                     .font(.subheadline)
