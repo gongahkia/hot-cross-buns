@@ -103,24 +103,39 @@ extension View {
 
     func withSheetDestinations(sheet: Binding<SheetDestination?>) -> some View {
         self.sheet(item: sheet) { destination in
-            switch destination {
-            case .addTask:
-                AddTaskSheet()
-            case .quickAddTask:
-                QuickAddView()
-            case .addEvent:
-                AddEventSheet()
-            case .addEventAt(let date, let allDay):
-                AddEventSheet(prefilledStart: date, prefilledIsAllDay: allDay)
-            case .quickCreate(let date, let allDay):
-                QuickCreatePopover(initialDate: date, isAllDay: allDay)
-            case .syncSettings:
-                SyncSettingsSheet()
-            case .diagnostics:
-                DiagnosticsView()
-            case .manageTaskLists:
-                ManageTaskListsSheet()
-            }
+            SheetDestinationHost(destination: destination)
+        }
+    }
+}
+
+private struct SheetDestinationHost: View {
+    @Environment(AppModel.self) private var model
+    let destination: SheetDestination
+
+    var body: some View {
+        sheetBody
+            .withHCBAppearance(model.settings)
+    }
+
+    @ViewBuilder
+    private var sheetBody: some View {
+        switch destination {
+        case .addTask:
+            AddTaskSheet()
+        case .quickAddTask:
+            QuickAddView()
+        case .addEvent:
+            AddEventSheet()
+        case .addEventAt(let date, let allDay):
+            AddEventSheet(prefilledStart: date, prefilledIsAllDay: allDay)
+        case .quickCreate(let date, let allDay):
+            QuickCreatePopover(initialDate: date, isAllDay: allDay)
+        case .syncSettings:
+            SyncSettingsSheet()
+        case .diagnostics:
+            DiagnosticsView()
+        case .manageTaskLists:
+            ManageTaskListsSheet()
         }
     }
 }

@@ -145,3 +145,11 @@ Fixed since the last audit pass:
 ## 10. Battery optimsiation to ensure not eating battery
 
 ## 11. Add multiple import/export formats after everything else is stableq
+
+## 12. Add optional CLI surface for users tow ork with
+
+## 13. Rework as necessary to ex[pose MCP servers for ai agents to integrate with as necessarya
+
+## 14. Only if useful, then add an optional BYOK AI manager that allows natural text and still asks the user if their interpretaion of hte user's task is correct, allow image upload for max utility
+
+## 15. Harden all endpoints and usecases from cybersecurity perspective
