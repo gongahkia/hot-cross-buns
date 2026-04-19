@@ -89,6 +89,7 @@ struct PendingMutation: Identifiable, Hashable, Codable, Sendable {
 enum PendingMutationAction: String, Hashable, Codable, Sendable {
     case create
     case update
+    case completion
     case delete
 }
 

@@ -474,10 +474,18 @@ final class AppModel {
         guard requirePersisted(task.id) else { return false }
 
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedTitle.isEmpty == false else {
             lastMutationError = "Task title cannot be empty."
             return false
         }
+
+        let originalTask = task
+        var optimistic = task
+        optimistic.title = trimmedTitle
+        optimistic.notes = trimmedNotes
+        optimistic.dueDate = dueDate
+        upsert(optimistic)
 
         beginMutation()
         do {
@@ -485,7 +493,7 @@ final class AppModel {
                 taskListID: task.taskListID,
                 taskID: task.id,
                 title: trimmedTitle,
-                notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
+                notes: trimmedNotes,
                 dueDate: dueDate,
                 ifMatch: task.etag
             )
@@ -494,7 +502,28 @@ final class AppModel {
             await saveCurrentState()
             await synchronizeLocalNotifications()
             return true
+        } catch let error as GoogleAPIError where error.isTransient {
+            let payload = PendingTaskUpdatePayload(
+                taskListID: task.taskListID,
+                taskID: task.id,
+                title: trimmedTitle,
+                notes: trimmedNotes,
+                dueDate: dueDate,
+                etagSnapshot: task.etag
+            )
+            if let mutation = try? PendingMutation.taskUpdate(payload: payload) {
+                pendingMutations.append(mutation)
+                await saveCurrentState()
+                await synchronizeLocalNotifications()
+                endMutation(error: nil)
+                Task { await replayPendingMutations() }
+                return true
+            }
+            upsert(originalTask)
+            endMutation(error: error)
+            return false
         } catch {
+            upsert(originalTask)
             if let apiError = error as? GoogleAPIError, apiError == .preconditionFailed {
                 await refreshNow()
             }
@@ -514,6 +543,14 @@ final class AppModel {
         }
         guard requirePersisted(task.id) else { return false }
 
+        // Optimistic local update so the UI flips immediately. Snapshot the
+        // prior state so we can revert on terminal failure.
+        let originalTask = task
+        var optimistic = task
+        optimistic.status = isCompleted ? .completed : .needsAction
+        optimistic.completedAt = isCompleted ? Date() : nil
+        upsert(optimistic)
+
         beginMutation()
         do {
             let updatedTask = try await tasksClient.setTaskCompleted(isCompleted, task: task)
@@ -528,7 +565,31 @@ final class AppModel {
                 recentlyCompletedTaskID = nil
             }
             return true
+        } catch let error as GoogleAPIError where error.isTransient {
+            // Network blip / rate limit / server error — keep the optimistic
+            // state and let the replay loop retry this against Google.
+            let payload = PendingTaskCompletionPayload(
+                taskListID: task.taskListID,
+                taskID: task.id,
+                isCompleted: isCompleted,
+                etagSnapshot: task.etag
+            )
+            if let mutation = try? PendingMutation.taskCompletion(payload: payload) {
+                pendingMutations.append(mutation)
+                await saveCurrentState()
+                await synchronizeLocalNotifications()
+                endMutation(error: nil)
+                Task { await replayPendingMutations() }
+                return true
+            }
+            upsert(originalTask)
+            endMutation(error: error)
+            return false
         } catch {
+            upsert(originalTask)
+            if let apiError = error as? GoogleAPIError, apiError == .preconditionFailed {
+                await refreshNow()
+            }
             endMutation(error: error)
             return false
         }
@@ -576,15 +637,35 @@ final class AppModel {
             return true
         }
 
+        let originalTask = task
+        removeTask(id: task.id)
+
         beginMutation()
         do {
             try await tasksClient.deleteTask(taskListID: task.taskListID, taskID: task.id, ifMatch: task.etag)
-            removeTask(id: task.id)
             endMutation(error: nil)
             await saveCurrentState()
             await synchronizeLocalNotifications()
             return true
+        } catch let error as GoogleAPIError where error.isTransient {
+            let payload = PendingTaskDeletePayload(
+                taskListID: task.taskListID,
+                taskID: task.id,
+                etagSnapshot: task.etag
+            )
+            if let mutation = try? PendingMutation.taskDelete(payload: payload) {
+                pendingMutations.append(mutation)
+                await saveCurrentState()
+                await synchronizeLocalNotifications()
+                endMutation(error: nil)
+                Task { await replayPendingMutations() }
+                return true
+            }
+            upsert(originalTask)
+            endMutation(error: error)
+            return false
         } catch {
+            upsert(originalTask)
             if let apiError = error as? GoogleAPIError, apiError == .preconditionFailed {
                 await refreshNow()
             }
@@ -704,6 +785,32 @@ final class AppModel {
             return false
         }
 
+        let trimmedDetails = details.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedLocation = location.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanedEmails = (attendeeEmails ?? event.attendeeEmails)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.isEmpty == false }
+        let effectiveRecurrence = recurrence ?? event.recurrence
+
+        // Optimistic update for the in-place (single-occurrence, same-calendar)
+        // case. Cross-calendar moves and series-wide edits need server round-
+        // trip semantics, so we keep the old state visible until confirmed.
+        let originalEvent = event
+        let canQueue = scope == .thisOccurrence && calendarID == event.calendarID
+        if canQueue {
+            var optimistic = event
+            optimistic.summary = trimmedSummary
+            optimistic.details = trimmedDetails
+            optimistic.startDate = startDate
+            optimistic.endDate = endDate
+            optimistic.isAllDay = isAllDay
+            optimistic.location = trimmedLocation
+            optimistic.recurrence = effectiveRecurrence
+            optimistic.attendeeEmails = cleanedEmails
+            optimistic.reminderMinutes = reminderMinutes.map { [$0] } ?? []
+            upsert(optimistic)
+        }
+
         beginMutation()
         do {
             let eventToUpdate: CalendarEventMirror
@@ -721,20 +828,17 @@ final class AppModel {
                 ? CalendarEventInstance.seriesID(from: eventToUpdate.id)
                 : eventToUpdate.id
 
-            let cleanedEmails = (attendeeEmails ?? eventToUpdate.attendeeEmails)
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { $0.isEmpty == false }
             let updatedEvent = try await calendarClient.updateEvent(
                 calendarID: eventToUpdate.calendarID,
                 eventID: targetEventID,
                 summary: trimmedSummary,
-                details: details.trimmingCharacters(in: .whitespacesAndNewlines),
+                details: trimmedDetails,
                 startDate: startDate,
                 endDate: endDate,
                 isAllDay: isAllDay,
                 reminderMinutes: reminderMinutes,
-                location: location.trimmingCharacters(in: .whitespacesAndNewlines),
-                recurrence: recurrence ?? eventToUpdate.recurrence,
+                location: trimmedLocation,
+                recurrence: effectiveRecurrence,
                 attendeeEmails: cleanedEmails,
                 sendUpdates: notifyGuests ? "all" : "none",
                 ifMatch: scope == .allInSeries ? nil : eventToUpdate.etag
@@ -747,7 +851,35 @@ final class AppModel {
             await saveCurrentState()
             await synchronizeLocalNotifications()
             return true
+        } catch let error as GoogleAPIError where error.isTransient && canQueue {
+            let payload = PendingEventUpdatePayload(
+                calendarID: event.calendarID,
+                eventID: event.id,
+                summary: trimmedSummary,
+                details: trimmedDetails,
+                startDate: startDate,
+                endDate: endDate,
+                isAllDay: isAllDay,
+                reminderMinutes: reminderMinutes,
+                location: trimmedLocation,
+                recurrence: effectiveRecurrence,
+                attendeeEmails: cleanedEmails,
+                notifyGuests: notifyGuests,
+                etagSnapshot: event.etag
+            )
+            if let mutation = try? PendingMutation.eventUpdate(payload: payload) {
+                pendingMutations.append(mutation)
+                await saveCurrentState()
+                await synchronizeLocalNotifications()
+                endMutation(error: nil)
+                Task { await replayPendingMutations() }
+                return true
+            }
+            upsert(originalEvent)
+            endMutation(error: error)
+            return false
         } catch {
+            if canQueue { upsert(originalEvent) }
             if let apiError = error as? GoogleAPIError, apiError == .preconditionFailed {
                 await refreshNow()
             }
@@ -774,6 +906,12 @@ final class AppModel {
             return true
         }
 
+        let originalEvent = event
+        let canQueue = scope == .thisOccurrence
+        if canQueue {
+            removeEvent(id: event.id)
+        }
+
         beginMutation()
         do {
             let targetEventID = scope == .allInSeries
@@ -789,14 +927,30 @@ final class AppModel {
                 let seriesID = CalendarEventInstance.seriesID(from: event.id)
                 events.removeAll { CalendarEventInstance.seriesID(from: $0.id) == seriesID }
                 rebuildSnapshots()
-            } else {
-                removeEvent(id: event.id)
             }
             endMutation(error: nil)
             await saveCurrentState()
             await synchronizeLocalNotifications()
             return true
+        } catch let error as GoogleAPIError where error.isTransient && canQueue {
+            let payload = PendingEventDeletePayload(
+                calendarID: event.calendarID,
+                eventID: event.id,
+                etagSnapshot: event.etag
+            )
+            if let mutation = try? PendingMutation.eventDelete(payload: payload) {
+                pendingMutations.append(mutation)
+                await saveCurrentState()
+                await synchronizeLocalNotifications()
+                endMutation(error: nil)
+                Task { await replayPendingMutations() }
+                return true
+            }
+            upsert(originalEvent)
+            endMutation(error: error)
+            return false
         } catch {
+            if canQueue { upsert(originalEvent) }
             if let apiError = error as? GoogleAPIError, apiError == .preconditionFailed {
                 await refreshNow()
             }
@@ -921,6 +1075,16 @@ final class AppModel {
             await replayTaskCreate(mutation)
         case (.event, .create):
             await replayEventCreate(mutation)
+        case (.task, .update):
+            await replayTaskUpdate(mutation)
+        case (.task, .completion):
+            await replayTaskCompletion(mutation)
+        case (.task, .delete):
+            await replayTaskDelete(mutation)
+        case (.event, .update):
+            await replayEventUpdate(mutation)
+        case (.event, .delete):
+            await replayEventDelete(mutation)
         default:
             pendingMutations.removeAll { $0.id == mutation.id }
         }
@@ -952,6 +1116,164 @@ final class AppModel {
             }
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "Task couldn't be created: \(error.localizedDescription)"
+            await saveCurrentState()
+        }
+    }
+
+    private func replayTaskUpdate(_ mutation: PendingMutation) async {
+        do {
+            let payload = try PendingMutationEncoder.decodeTaskUpdate(mutation.payload)
+            let updated = try await tasksClient.updateTask(
+                taskListID: payload.taskListID,
+                taskID: payload.taskID,
+                title: payload.title,
+                notes: payload.notes,
+                dueDate: payload.dueDate,
+                ifMatch: payload.etagSnapshot
+            )
+            upsert(updated)
+            pendingMutations.removeAll { $0.id == mutation.id }
+            await saveCurrentState()
+            await synchronizeLocalNotifications()
+        } catch let error as GoogleAPIError where error.isTransient {
+            lastMutationError = "Sync will retry: \(error.localizedDescription)"
+        } catch let error as GoogleAPIError where error == .preconditionFailed {
+            // Queued edit was based on stale state — drop it and refresh so
+            // the user can re-apply against the current server state.
+            pendingMutations.removeAll { $0.id == mutation.id }
+            lastMutationError = "A queued edit was rejected because the item changed elsewhere. Refreshing."
+            await saveCurrentState()
+            await refreshNow()
+        } catch {
+            pendingMutations.removeAll { $0.id == mutation.id }
+            lastMutationError = "Queued task update failed: \(error.localizedDescription)"
+            await saveCurrentState()
+        }
+    }
+
+    private func replayTaskCompletion(_ mutation: PendingMutation) async {
+        do {
+            let payload = try PendingMutationEncoder.decodeTaskCompletion(mutation.payload)
+            // Reconstruct a minimal TaskMirror so tasksClient.setTaskCompleted
+            // can pass the snapshot etag via If-Match.
+            let stub = TaskMirror(
+                id: payload.taskID,
+                taskListID: payload.taskListID,
+                parentID: nil,
+                title: "",
+                notes: "",
+                status: payload.isCompleted ? .completed : .needsAction,
+                dueDate: nil,
+                completedAt: nil,
+                isDeleted: false,
+                isHidden: false,
+                position: nil,
+                etag: payload.etagSnapshot,
+                updatedAt: nil
+            )
+            let updated = try await tasksClient.setTaskCompleted(payload.isCompleted, task: stub)
+            upsert(updated)
+            pendingMutations.removeAll { $0.id == mutation.id }
+            await saveCurrentState()
+            await synchronizeLocalNotifications()
+        } catch let error as GoogleAPIError where error.isTransient {
+            lastMutationError = "Sync will retry: \(error.localizedDescription)"
+        } catch let error as GoogleAPIError where error == .preconditionFailed {
+            pendingMutations.removeAll { $0.id == mutation.id }
+            lastMutationError = "A queued completion was rejected because the task changed elsewhere. Refreshing."
+            await saveCurrentState()
+            await refreshNow()
+        } catch {
+            pendingMutations.removeAll { $0.id == mutation.id }
+            lastMutationError = "Queued completion failed: \(error.localizedDescription)"
+            await saveCurrentState()
+        }
+    }
+
+    private func replayTaskDelete(_ mutation: PendingMutation) async {
+        do {
+            let payload = try PendingMutationEncoder.decodeTaskDelete(mutation.payload)
+            try await tasksClient.deleteTask(
+                taskListID: payload.taskListID,
+                taskID: payload.taskID,
+                ifMatch: payload.etagSnapshot
+            )
+            removeTask(id: payload.taskID)
+            pendingMutations.removeAll { $0.id == mutation.id }
+            await saveCurrentState()
+            await synchronizeLocalNotifications()
+        } catch let error as GoogleAPIError where error.isTransient {
+            lastMutationError = "Sync will retry: \(error.localizedDescription)"
+        } catch let error as GoogleAPIError where error == .preconditionFailed {
+            pendingMutations.removeAll { $0.id == mutation.id }
+            lastMutationError = "A queued delete was rejected because the task changed elsewhere. Refreshing."
+            await saveCurrentState()
+            await refreshNow()
+        } catch {
+            pendingMutations.removeAll { $0.id == mutation.id }
+            lastMutationError = "Queued delete failed: \(error.localizedDescription)"
+            await saveCurrentState()
+        }
+    }
+
+    private func replayEventUpdate(_ mutation: PendingMutation) async {
+        do {
+            let payload = try PendingMutationEncoder.decodeEventUpdate(mutation.payload)
+            let updated = try await calendarClient.updateEvent(
+                calendarID: payload.calendarID,
+                eventID: payload.eventID,
+                summary: payload.summary,
+                details: payload.details,
+                startDate: payload.startDate,
+                endDate: payload.endDate,
+                isAllDay: payload.isAllDay,
+                reminderMinutes: payload.reminderMinutes,
+                location: payload.location,
+                recurrence: payload.recurrence,
+                attendeeEmails: payload.attendeeEmails,
+                sendUpdates: payload.notifyGuests ? "all" : "none",
+                ifMatch: payload.etagSnapshot
+            )
+            upsert(updated)
+            pendingMutations.removeAll { $0.id == mutation.id }
+            await saveCurrentState()
+            await synchronizeLocalNotifications()
+        } catch let error as GoogleAPIError where error.isTransient {
+            lastMutationError = "Sync will retry: \(error.localizedDescription)"
+        } catch let error as GoogleAPIError where error == .preconditionFailed {
+            pendingMutations.removeAll { $0.id == mutation.id }
+            lastMutationError = "A queued edit was rejected because the event changed elsewhere. Refreshing."
+            await saveCurrentState()
+            await refreshNow()
+        } catch {
+            pendingMutations.removeAll { $0.id == mutation.id }
+            lastMutationError = "Queued event update failed: \(error.localizedDescription)"
+            await saveCurrentState()
+        }
+    }
+
+    private func replayEventDelete(_ mutation: PendingMutation) async {
+        do {
+            let payload = try PendingMutationEncoder.decodeEventDelete(mutation.payload)
+            try await calendarClient.deleteEvent(
+                calendarID: payload.calendarID,
+                eventID: payload.eventID,
+                ifMatch: payload.etagSnapshot
+            )
+            removeEvent(id: payload.eventID)
+            pendingMutations.removeAll { $0.id == mutation.id }
+            await saveCurrentState()
+            await synchronizeLocalNotifications()
+        } catch let error as GoogleAPIError where error.isTransient {
+            lastMutationError = "Sync will retry: \(error.localizedDescription)"
+        } catch let error as GoogleAPIError where error == .preconditionFailed {
+            pendingMutations.removeAll { $0.id == mutation.id }
+            lastMutationError = "A queued delete was rejected because the event changed elsewhere. Refreshing."
+            await saveCurrentState()
+            await refreshNow()
+        } catch {
+            pendingMutations.removeAll { $0.id == mutation.id }
+            lastMutationError = "Queued event delete failed: \(error.localizedDescription)"
             await saveCurrentState()
         }
     }
