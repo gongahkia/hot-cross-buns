@@ -7,6 +7,12 @@ struct HotCrossBunsApp: App {
     @State private var updater = UpdaterController()
     @State private var settingsRouter = RouterPath()
 
+    init() {
+        // Catch uncaught Obj-C exceptions and common fatal signals so a
+        // subsequent launch can surface the crash via DiagnosticsView.
+        CrashReporter.install()
+    }
+
     var body: some Scene {
         Window("Hot Cross Buns", id: "main") {
             MacSidebarShell()
