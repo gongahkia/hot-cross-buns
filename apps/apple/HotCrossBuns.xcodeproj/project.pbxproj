@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		00CCA68431BB2A4FF0CF05C5 /* TagExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60A02AA0EB32C0C012F2AF0 /* TagExtractor.swift */; };
+		018B126DFE1CB3880ACADD4F /* LocationMapPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDB9F19FB93CB9C7FEC4EF32 /* LocationMapPreview.swift */; };
 		025714D0F603A7346F61A495 /* NaturalLanguageTaskParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 451F7A551BAF39DA361383F4 /* NaturalLanguageTaskParser.swift */; };
 		03465E1F1734DE5270C3F7EE /* MarkdownHTML.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D029E6660BF1FF8C9C2E34E /* MarkdownHTML.swift */; };
 		03DDA60B71A6CF24C09880A6 /* HCBShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA90C3B9D57FCA2A8C27B206 /* HCBShortcuts.swift */; };
@@ -129,6 +130,7 @@
 		D11457A3B187BDE2CD571614 /* TaskHierarchyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAC3322BC3706CFF61AE52DB /* TaskHierarchyTests.swift */; };
 		D469641DB76139A358F0A8CB /* TasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 141ADCA673635CA9F5DA0BD1 /* TasksView.swift */; };
 		D569DDF00E3A25CFF189D40F /* HotCrossBunsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE5B824BD3DB57E2FA17ECE2 /* HotCrossBunsApp.swift */; };
+		D59215C2E58499A20F1414E6 /* QuickAddEventView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55AAE7CA5D31D859ABD20A52 /* QuickAddEventView.swift */; };
 		D5F3BF67D13D6303ED82BC24 /* MacSidebarShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2BC795AF619D093596D767D /* MacSidebarShell.swift */; };
 		D66E836315E69074463CEDA1 /* MarkdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3D347AB668EE3CD836DBF55 /* MarkdownText.swift */; };
 		D6CEEB629BAA00D100C52E52 /* OptimisticWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1E03BB899FDA9756E7C268E /* OptimisticWriter.swift */; };
@@ -227,6 +229,7 @@
 		5219CCB9C481FFD04A218A66 /* DayGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayGridView.swift; sourceTree = "<group>"; };
 		52C304D2E832B788B8FAF20E /* RecurrenceRule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceRule.swift; sourceTree = "<group>"; };
 		53DBA75E42BFCFB6D9F02C47 /* CalendarEventInstance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventInstance.swift; sourceTree = "<group>"; };
+		55AAE7CA5D31D859ABD20A52 /* QuickAddEventView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddEventView.swift; sourceTree = "<group>"; };
 		5810826FCEA91EE340801C40 /* UndoToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoToast.swift; sourceTree = "<group>"; };
 		5958F04B434E20A3436A5CC0 /* SpotlightIdentifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightIdentifierTests.swift; sourceTree = "<group>"; };
 		5959B85AC017728D7F460355 /* MockURLProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockURLProtocol.swift; sourceTree = "<group>"; };
@@ -299,6 +302,7 @@
 		E60A02AA0EB32C0C012F2AF0 /* TagExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagExtractor.swift; sourceTree = "<group>"; };
 		E7E237D56DC5E422A168E311 /* EventHoverPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventHoverPreview.swift; sourceTree = "<group>"; };
 		E9EE90AE73008CDCBB548450 /* GoToDateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoToDateSheet.swift; sourceTree = "<group>"; };
+		EDB9F19FB93CB9C7FEC4EF32 /* LocationMapPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationMapPreview.swift; sourceTree = "<group>"; };
 		EF455BE4BA241A0C46869EF5 /* RecurrenceRuleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceRuleTests.swift; sourceTree = "<group>"; };
 		F03D73411CAA330A1556C797 /* TagExtractorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagExtractorTests.swift; sourceTree = "<group>"; };
 		F0EF302AF854336F06AFD4BE /* TaskStarring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskStarring.swift; sourceTree = "<group>"; };
@@ -450,6 +454,7 @@
 			isa = PBXGroup;
 			children = (
 				451F7A551BAF39DA361383F4 /* NaturalLanguageTaskParser.swift */,
+				55AAE7CA5D31D859ABD20A52 /* QuickAddEventView.swift */,
 				FDB427444279DD0F8E4B2281 /* QuickAddView.swift */,
 			);
 			path = QuickAdd;
@@ -716,6 +721,7 @@
 				E7E237D56DC5E422A168E311 /* EventHoverPreview.swift */,
 				E9EE90AE73008CDCBB548450 /* GoToDateSheet.swift */,
 				3FB991136E6E925A2EF0030D /* GuestsSection.swift */,
+				EDB9F19FB93CB9C7FEC4EF32 /* LocationMapPreview.swift */,
 				0854A71DD603264D078FB733 /* MonthGridView.swift */,
 				81B6DCD044EB92F7793567B7 /* NaturalLanguageEventParser.swift */,
 				681B9DB65E8B12860BF51B3D /* QuickCreatePopover.swift */,
@@ -848,10 +854,15 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					045A02CEF69A5B42D8D9ED33 = {
+						DevelopmentTeam = Q2J4QWZLR7;
+					};
 					219B609558AEF0B469CEC407 = {
+						DevelopmentTeam = Q2J4QWZLR7;
 						ProvisioningStyle = Automatic;
 					};
 					58224F0E9BC6A32F6D50A414 = {
+						DevelopmentTeam = Q2J4QWZLR7;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -936,6 +947,7 @@
 				8BB84295C6696AF145919D6A /* KeychainHealth.swift in Sources */,
 				5049BDF0BCBF8FAE6B9344DB /* LocalCacheStore.swift in Sources */,
 				05D2E8C1B772FA0D7DF885CB /* LocalNotificationScheduler.swift in Sources */,
+				018B126DFE1CB3880ACADD4F /* LocationMapPreview.swift in Sources */,
 				D5F3BF67D13D6303ED82BC24 /* MacSidebarShell.swift in Sources */,
 				E956B3E8A886C76761B9ED91 /* MarkdownEditor.swift in Sources */,
 				03465E1F1734DE5270C3F7EE /* MarkdownHTML.swift in Sources */,
@@ -948,6 +960,7 @@
 				3D213BE8FAC38B7A5EA94EEB /* NetworkMonitor.swift in Sources */,
 				827C84F1E10F6B534F590F1B /* OnboardingView.swift in Sources */,
 				D6CEEB629BAA00D100C52E52 /* OptimisticWriter.swift in Sources */,
+				D59215C2E58499A20F1414E6 /* QuickAddEventView.swift in Sources */,
 				4D00CE67951243CCE90386B4 /* QuickAddView.swift in Sources */,
 				9CB6F05B30F36FB5D60CFC8D /* QuickCreatePopover.swift in Sources */,
 				200CB3413E3917BC9D0CC25F /* RecurrenceEditor.swift in Sources */,
@@ -1059,7 +1072,6 @@
 				CODE_SIGN_ENTITLEMENTS = HotCrossBuns/Support/HotCrossBuns.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				INFOPLIST_FILE = "HotCrossBuns/Support/Info-macOS.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1140,7 +1152,6 @@
 				CODE_SIGN_ENTITLEMENTS = HotCrossBunsShareExtension/HotCrossBunsShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				INFOPLIST_FILE = HotCrossBunsShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Hot Cross Buns";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1158,7 +1169,6 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -1176,7 +1186,6 @@
 				CODE_SIGN_ENTITLEMENTS = HotCrossBunsShareExtension/HotCrossBunsShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				INFOPLIST_FILE = HotCrossBunsShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Hot Cross Buns";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1265,7 +1274,6 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -1284,7 +1292,6 @@
 				CODE_SIGN_ENTITLEMENTS = HotCrossBuns/Support/HotCrossBuns.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				INFOPLIST_FILE = "HotCrossBuns/Support/Info-macOS.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

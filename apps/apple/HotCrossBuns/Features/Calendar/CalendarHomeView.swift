@@ -845,12 +845,11 @@ struct AddEventSheet: View {
     @State private var quickCreateText = ""
     @State private var parsedPreview: ParsedQuickAddEvent?
 
-    init(prefilledStart: Date? = nil, prefilledIsAllDay: Bool = false) {
+    init(prefilledStart: Date? = nil, prefilledIsAllDay: Bool = false, prefilledEnd: Date? = nil) {
         let start = prefilledStart ?? Date()
+        let defaultEnd = prefilledIsAllDay ? start : start.addingTimeInterval(3600)
         _startDate = State(initialValue: start)
-        _endDate = State(initialValue: prefilledIsAllDay
-            ? start
-            : start.addingTimeInterval(3600))
+        _endDate = State(initialValue: prefilledEnd ?? defaultEnd)
         _isAllDay = State(initialValue: prefilledIsAllDay)
     }
 
@@ -968,6 +967,9 @@ struct AddEventSheet: View {
                 .textFieldStyle(.roundedBorder)
             TextField("Location", text: $location)
                 .textFieldStyle(.roundedBorder)
+            if location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                LocationMapPreview(locationText: location)
+            }
         }
     }
 

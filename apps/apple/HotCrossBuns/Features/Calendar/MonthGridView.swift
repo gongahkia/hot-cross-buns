@@ -22,6 +22,16 @@ struct MonthGridView: View {
     private let laneSpacing: CGFloat = 2
     private let maxVisibleLanes: Int = 3
 
+    @State private var dragSelection: DragSelection?
+
+    private struct DragSelection: Equatable {
+        var start: Date
+        var end: Date
+        var normalized: (Date, Date) {
+            start <= end ? (start, end) : (end, start)
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             weekdayHeader
@@ -95,7 +105,55 @@ struct MonthGridView: View {
                         .frame(maxWidth: .infinity, minHeight: rowHeight, maxHeight: rowHeight, alignment: .top)
                 }
             }
+            .overlay(alignment: .topLeading) {
+                dragHighlight(days: days, cellWidth: cellWidth, rowHeight: rowHeight)
+            }
+            // Click-drag across cells to create a multi-day all-day event.
+            // minimumDistance: 6 keeps simple taps routed to the cell's
+            // existing onTapGesture (single-day quick create popover).
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 6)
+                    .onChanged { value in
+                        let startIdx = cellIndex(for: value.startLocation.x, cellWidth: cellWidth, count: days.count)
+                        let currIdx = cellIndex(for: value.location.x, cellWidth: cellWidth, count: days.count)
+                        guard days.indices.contains(startIdx), days.indices.contains(currIdx) else { return }
+                        dragSelection = DragSelection(start: days[startIdx], end: days[currIdx])
+                    }
+                    .onEnded { _ in
+                        guard let sel = dragSelection else { return }
+                        dragSelection = nil
+                        let (from, to) = sel.normalized
+                        // Google all-day end is exclusive next-day.
+                        let endExclusive = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: to)) ?? to
+                        router.present(.addEventRange(calendar.startOfDay(for: from), endExclusive, allDay: true))
+                    }
+            )
             bandOverlay(bands: bands, cellWidth: cellWidth)
+        }
+    }
+
+    private func cellIndex(for x: CGFloat, cellWidth: CGFloat, count: Int) -> Int {
+        guard cellWidth > 0, count > 0 else { return 0 }
+        return max(0, min(count - 1, Int(x / cellWidth)))
+    }
+
+    private func dragHighlight(days: [Date], cellWidth: CGFloat, rowHeight: CGFloat) -> some View {
+        Group {
+            if let sel = dragSelection,
+               let startIdx = days.firstIndex(of: sel.normalized.0) ?? days.firstIndex(where: { calendar.isDate($0, inSameDayAs: sel.normalized.0) }),
+               let endIdx = days.firstIndex(of: sel.normalized.1) ?? days.firstIndex(where: { calendar.isDate($0, inSameDayAs: sel.normalized.1) }) {
+                let left = CGFloat(min(startIdx, endIdx)) * cellWidth
+                let width = CGFloat(abs(endIdx - startIdx) + 1) * cellWidth
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(AppColor.ember.opacity(0.2))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .strokeBorder(AppColor.ember.opacity(0.6), lineWidth: 1.2)
+                    )
+                    .frame(width: max(width - 4, 4), height: rowHeight - 4)
+                    .offset(x: left + 2, y: 2)
+                    .allowsHitTesting(false)
+            }
         }
     }
 
