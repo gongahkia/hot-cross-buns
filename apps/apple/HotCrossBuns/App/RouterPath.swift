@@ -71,6 +71,10 @@ enum SheetDestination: Identifiable, Hashable {
     case addEventAt(Date, allDay: Bool)
     case addEventRange(Date, Date, allDay: Bool)
     case quickCreate(Date, allDay: Bool)
+    // Click-and-drag entry point — lands users in the QuickCreatePopover
+    // with the drag range pre-populated. Kept separate from .quickCreate so
+    // single-point callers don't have to construct a trailing argument.
+    case quickCreateRange(Date, Date, allDay: Bool)
     case syncSettings
     case diagnostics
     case manageTaskLists
@@ -89,6 +93,8 @@ enum SheetDestination: Identifiable, Hashable {
             "addEventRange-\(start.timeIntervalSince1970)-\(end.timeIntervalSince1970)-\(allDay)"
         case .quickCreate(let date, let allDay):
             "quickCreate-\(date.timeIntervalSince1970)-\(allDay)"
+        case .quickCreateRange(let start, let end, let allDay):
+            "quickCreateRange-\(start.timeIntervalSince1970)-\(end.timeIntervalSince1970)-\(allDay)"
         case .syncSettings: "syncSettings"
         case .diagnostics: "diagnostics"
         case .manageTaskLists: "manageTaskLists"
@@ -149,6 +155,8 @@ private struct SheetDestinationHost: View {
             AddEventSheet(prefilledStart: start, prefilledIsAllDay: allDay, prefilledEnd: end)
         case .quickCreate(let date, let allDay):
             QuickCreatePopover(initialDate: date, isAllDay: allDay)
+        case .quickCreateRange(let start, let end, let allDay):
+            QuickCreatePopover(initialDate: start, isAllDay: allDay, initialEnd: end)
         case .syncSettings:
             SyncSettingsSheet()
         case .diagnostics:
