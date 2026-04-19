@@ -36,18 +36,24 @@ struct CalendarHomeView: View {
             navigationBar
             Divider()
             Group {
-                switch mode {
-                case .agenda: agendaContent
-                case .week:
-                    HStack(spacing: 10) {
-                        if showTaskDrawer {
-                            TaskDrawerPanel()
-                                .transition(.move(edge: .leading).combined(with: .opacity))
+                if model.account == nil {
+                    connectPrompt
+                } else if model.calendarSnapshot.selectedCalendars.isEmpty {
+                    calendarsEmptyPrompt
+                } else {
+                    switch mode {
+                    case .agenda: agendaContent
+                    case .week:
+                        HStack(spacing: 10) {
+                            if showTaskDrawer {
+                                TaskDrawerPanel()
+                                    .transition(.move(edge: .leading).combined(with: .opacity))
+                            }
+                            WeekGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
                         }
-                        WeekGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
+                        .animation(.easeInOut(duration: 0.2), value: showTaskDrawer)
+                    case .month: MonthGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
                     }
-                    .animation(.easeInOut(duration: 0.2), value: showTaskDrawer)
-                case .month: MonthGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
                 }
             }
         }
@@ -187,6 +193,54 @@ struct CalendarHomeView: View {
         case .month:
             return selectedDate.formatted(.dateTime.month(.wide).year())
         }
+    }
+
+    @ViewBuilder
+    private var connectPrompt: some View {
+        ContentUnavailableView {
+            Label("Not connected to Google", systemImage: "person.crop.circle.badge.plus")
+        } description: {
+            Text("Connect your Google account to see your calendars here.")
+        } actions: {
+            Button("Open Settings") {
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(AppColor.ember)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private var calendarsEmptyPrompt: some View {
+        ContentUnavailableView {
+            Label("No calendars selected", systemImage: "calendar.badge.exclamationmark")
+        } description: {
+            if model.calendars.isEmpty {
+                if case .syncing = model.syncState {
+                    Text("Loading calendars from Google…")
+                } else {
+                    Text("We haven't seen any calendars yet. Try Refresh, or check Settings → Calendars.")
+                }
+            } else {
+                Text("Pick at least one calendar in Settings → Calendars to see events here.")
+            }
+        } actions: {
+            if model.calendars.isEmpty {
+                Button("Refresh") {
+                    Task { await model.refreshNow() }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(AppColor.ember)
+            } else {
+                Button("Open Settings") {
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(AppColor.ember)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func handleICSDrop(_ providers: [NSItemProvider]) -> Bool {
