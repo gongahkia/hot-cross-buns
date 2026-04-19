@@ -174,6 +174,18 @@ struct CalendarHomeView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+        .background(
+            HStack(spacing: 0) {
+                Button("Jump back") { jumpLarge(by: -1) }
+                    .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
+                Button("Jump forward") { jumpLarge(by: 1) }
+                    .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
+            }
+            .opacity(0)
+            .frame(width: 0, height: 0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        )
     }
 
     private var periodTitle: String {
@@ -396,6 +408,18 @@ struct CalendarHomeView: View {
             selectedDate = calendar.date(byAdding: .weekOfYear, value: direction, to: selectedDate) ?? selectedDate
         case .month:
             selectedDate = calendar.date(byAdding: .month, value: direction, to: selectedDate) ?? selectedDate
+        }
+    }
+
+    private func jumpLarge(by direction: Int) {
+        let calendar = Calendar.current
+        switch mode {
+        case .agenda:
+            selectedDate = calendar.date(byAdding: .weekOfYear, value: direction, to: selectedDate) ?? selectedDate
+        case .week:
+            selectedDate = calendar.date(byAdding: .month, value: direction, to: selectedDate) ?? selectedDate
+        case .month:
+            selectedDate = calendar.date(byAdding: .year, value: direction, to: selectedDate) ?? selectedDate
         }
     }
 

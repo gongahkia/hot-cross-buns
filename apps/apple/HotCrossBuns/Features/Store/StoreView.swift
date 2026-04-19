@@ -114,6 +114,16 @@ struct StoreView: View {
                     .help("Toggle task details (Cmd+I)")
                 }
             }
+            .background(
+                Button("Delete Selected") {
+                    Task { await deleteSelection() }
+                }
+                .keyboardShortcut(.delete, modifiers: [.command])
+                .opacity(0)
+                .frame(width: 0, height: 0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            )
             .inspector(isPresented: inspectorBinding) {
                 inspectorContent
                     .inspectorColumnWidth(min: 340, ideal: 380, max: 520)
@@ -182,6 +192,11 @@ struct StoreView: View {
             }
         }
         selection = []
+    }
+
+    private func deleteSelection() async {
+        guard selection.isEmpty == false else { return }
+        await bulkDelete()
     }
 
     // Completed-task counts per list drive the "Clear completed" menu so a

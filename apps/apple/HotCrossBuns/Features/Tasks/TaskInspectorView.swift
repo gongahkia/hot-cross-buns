@@ -110,6 +110,17 @@ struct TaskInspectorView: View {
         .onChange(of: task.notes) { _, _ in refreshDraftIfClean() }
         .onChange(of: task.dueDate) { _, _ in refreshDraftIfClean() }
         .onDisappear { commitPending() }
+        .background(
+            Button("Save and Close") {
+                commitPending()
+                close()
+            }
+            .keyboardShortcut(.return, modifiers: [.command, .shift])
+            .opacity(0)
+            .frame(width: 0, height: 0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        )
         .confirmationDialog(
             "Delete this task?",
             isPresented: $isConfirmingDelete,
