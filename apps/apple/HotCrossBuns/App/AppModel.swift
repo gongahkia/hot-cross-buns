@@ -38,6 +38,9 @@ final class AppModel {
     var pendingEventPrefill: DeepLinkEventPrefill?
     // Query pre-populated into the command palette when a search deep link fires.
     var pendingPaletteQuery: String?
+    // Store filter the quick switcher asks the Store to apply on appear.
+    // Store clears it once consumed so a subsequent tab switch doesn't reapply.
+    var pendingStoreFilterKey: String?
     // Populated on first launch-time check; DiagnosticsView surfaces.
     private(set) var keychainHealth: KeychainHealth = .unknown
     private(set) var lastMutationError: String?

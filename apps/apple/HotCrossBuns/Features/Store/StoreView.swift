@@ -161,6 +161,20 @@ struct StoreView: View {
             .onChange(of: filterKey) { _, _ in
                 selection = []
             }
+            .onAppear(perform: consumePendingStoreFilter)
+            .onChange(of: model.pendingStoreFilterKey) { _, _ in
+                consumePendingStoreFilter()
+            }
+    }
+
+    // Quick switcher (and future deep-link / intent paths) stage a filterKey
+    // on AppModel; consume it here so navigation actually lands the user on
+    // the requested surface. Cleared once applied so tab re-entries don't
+    // reapply a stale value.
+    private func consumePendingStoreFilter() {
+        guard let key = model.pendingStoreFilterKey else { return }
+        filterKey = key
+        model.pendingStoreFilterKey = nil
     }
 
     @ViewBuilder

@@ -430,6 +430,9 @@ struct WeekGridView: View {
                 calendar: calendar,
                 onTap: { start in
                     router.present(.quickCreate(start, allDay: false))
+                },
+                onDragRange: { start, end in
+                    router.present(.addEventRange(start, end, allDay: false))
                 }
             )
             .dropDestination(for: DraggedTask.self) { items, location in
@@ -454,19 +457,83 @@ struct WeekGridView: View {
         .offset(x: xOffset)
     }
 
+    // Empty hit-test layer for each day column. A short tap fires onTap (which
+    // opens the quick-create popover at a single hour slot); a drag greater
+    // than `minimumDistance` fires onDragRange with the snapped start/end
+    // times so the Event sheet opens prefilled with a multi-hour block.
+    // Mirrors DayGridView's combined gesture shape so muscle memory matches
+    // between Day and Week views.
     private struct TapToCreateLayer: View {
         let hourHeight: CGFloat
         let dayStart: Date
         let calendar: Calendar
         let onTap: (Date) -> Void
+        let onDragRange: (Date, Date) -> Void
+
+        @State private var dragExtent: DragExtent?
+
+        private struct DragExtent: Equatable {
+            var startY: CGFloat
+            var endY: CGFloat
+        }
 
         var body: some View {
             Rectangle()
                 .fill(Color.clear)
                 .contentShape(Rectangle())
+                .overlay(alignment: .topLeading) {
+                    // Ember-tinted preview of the in-progress drag. Matches
+                    // DayGridView's visual so the same gesture reads the same
+                    // way across Day and Week.
+                    if let drag = dragExtent {
+                        let top = min(drag.startY, drag.endY)
+                        let height = max(abs(drag.endY - drag.startY), hourHeight / 4)
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(AppColor.ember.opacity(0.22))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .strokeBorder(AppColor.ember.opacity(0.6), lineWidth: 1.2)
+                            )
+                            .offset(y: top)
+                            .frame(height: height)
+                            .hcbScaledPadding(.horizontal, 2)
+                            .allowsHitTesting(false)
+                    }
+                }
                 .gesture(
+                    DragGesture(minimumDistance: 6)
+                        .onChanged { value in
+                            dragExtent = DragExtent(startY: value.startLocation.y, endY: value.location.y)
+                        }
+                        .onEnded { value in
+                            let start = CalendarDropComputer.snappedStart(
+                                for: min(value.startLocation.y, value.location.y),
+                                hourHeight: hourHeight,
+                                dayStart: dayStart,
+                                calendar: calendar
+                            )
+                            let end = CalendarDropComputer.snappedStart(
+                                for: max(value.startLocation.y, value.location.y),
+                                hourHeight: hourHeight,
+                                dayStart: dayStart,
+                                calendar: calendar
+                            )
+                            dragExtent = nil
+                            // Guard against zero-length drags (shouldn't happen
+                            // below minimumDistance, but belt-and-braces): use
+                            // a 30-min minimum so users don't end up editing a
+                            // zero-duration event.
+                            let adjustedEnd = end <= start ? start.addingTimeInterval(1800) : end
+                            onDragRange(start, adjustedEnd)
+                        }
+                )
+                .simultaneousGesture(
                     SpatialTapGesture(count: 1)
                         .onEnded { value in
+                            // If a drag is in flight, the DragGesture.onEnded
+                            // path owns the result — suppress tap so we don't
+                            // double-present.
+                            guard dragExtent == nil else { return }
                             let start = CalendarDropComputer.snappedStart(
                                 for: value.location.y,
                                 hourHeight: hourHeight,

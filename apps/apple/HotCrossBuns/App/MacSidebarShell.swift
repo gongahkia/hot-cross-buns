@@ -26,12 +26,22 @@ struct MacSidebarShell: View {
     // without leaving acres of whitespace. Bumped narrower from 240pt.
     private let expandedSidebarWidthBase: CGFloat = 172
     private let collapsedSidebarWidthBase: CGFloat = 64
+    private let collapsedIconColumnBase: CGFloat = 40
+    private let collapsedIconHeightBase: CGFloat = 36
+    private let collapsedIconCornerRadiusBase: CGFloat = 8
+    private let collapsedRowMinHeightBase: CGFloat = 42
+    private let collapsedRowSpacingBase: CGFloat = 4
     // Top inset reserved so the traffic-light buttons don't overlap the
     // first sidebar row when the window chrome sits over the sidebar.
     private let trafficLightInsetBase: CGFloat = 28
 
     private var expandedSidebarWidth: CGFloat { expandedSidebarWidthBase * layoutZoomScale }
     private var collapsedSidebarWidth: CGFloat { collapsedSidebarWidthBase * layoutZoomScale }
+    private var collapsedIconColumn: CGFloat { collapsedIconColumnBase * layoutZoomScale }
+    private var collapsedIconHeight: CGFloat { collapsedIconHeightBase * layoutZoomScale }
+    private var collapsedIconCornerRadius: CGFloat { collapsedIconCornerRadiusBase * layoutZoomScale }
+    private var collapsedRowMinHeight: CGFloat { collapsedRowMinHeightBase * layoutZoomScale }
+    private var collapsedRowSpacing: CGFloat { collapsedRowSpacingBase * layoutZoomScale }
     private var trafficLightInset: CGFloat { trafficLightInsetBase * layoutZoomScale }
 
     private var currentSidebarWidth: CGFloat {
@@ -43,6 +53,7 @@ struct MacSidebarShell: View {
     @State private var tabRouter = TabRouter()
     @State private var isPresentingOnboarding = false
     @State private var isPresentingCommandPalette = false
+    @State private var isPresentingQuickSwitcher = false
     @State private var isPresentingHelp = false
     @State private var appCommandActions = AppCommandActions()
     @State private var appShortcutMonitor: Any?
@@ -89,19 +100,16 @@ struct MacSidebarShell: View {
                     .withHCBAppearance(model.settings)
             }
             .sheet(isPresented: $isPresentingCommandPalette) {
-                CommandPaletteView(
-                    commands: commandPaletteCommands,
-                    onSelectTask: { task in
-                        selection = .store
-                        tabRouter.router(for: sidebarItemKey(.store)).navigate(to: .task(task.id))
-                    },
-                    onSelectEvent: { event in
-                        selection = .calendar
-                        tabRouter.router(for: sidebarItemKey(.calendar)).navigate(to: .event(event.id))
-                    }
-                )
-                .environment(model)
-                .withHCBAppearance(model.settings)
+                // Palette is commands-only after the §6.7 split. Entity lookup
+                // lives in the quick switcher presented below.
+                CommandPaletteView(commands: commandPaletteCommands)
+                    .environment(model)
+                    .withHCBAppearance(model.settings)
+            }
+            .sheet(isPresented: $isPresentingQuickSwitcher) {
+                QuickSwitcherView(onSelect: routeQuickSwitcherEntity)
+                    .environment(model)
+                    .withHCBAppearance(model.settings)
             }
             .sheet(isPresented: $isPresentingHelp) {
                 HelpView()
@@ -217,6 +225,29 @@ struct MacSidebarShell: View {
             }
     }
 
+    private func routeQuickSwitcherEntity(_ entity: QuickSwitcherEntity) {
+        switch entity {
+        case .task(let task):
+            selection = .store
+            tabRouter.router(for: sidebarItemKey(.store)).navigate(to: .task(task.id))
+        case .event(let event):
+            selection = .calendar
+            tabRouter.router(for: sidebarItemKey(.calendar)).navigate(to: .event(event.id))
+        case .taskList:
+            // No single-list scope exists in StoreView today — land the user
+            // in Store with the "Lists" management view selected so they can
+            // click through. Better than silently switching filter.
+            selection = .store
+            model.pendingStoreFilterKey = "lists"
+        case .calendar:
+            // Calendar tab has no per-calendar scope control; just land there.
+            selection = .calendar
+        case .customFilter(let f):
+            selection = .store
+            model.pendingStoreFilterKey = "custom:\(f.id.uuidString)"
+        }
+    }
+
     private func handleDeepLink(_ url: URL) {
         switch HCBDeepLinkRouter.route(url) {
         case .success(let action):
@@ -286,8 +317,9 @@ struct MacSidebarShell: View {
         Button {
             toggleSidebarCollapsed()
         } label: {
-            Text("⌘S")
-                .hcbFont(.caption, weight: .semibold)
+            Text("Cmd S")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .lineLimit(1)
                 .foregroundStyle(.secondary)
                 .hcbScaledPadding(.horizontal, 8)
                 .hcbScaledPadding(.vertical, 4)
@@ -311,13 +343,20 @@ struct MacSidebarShell: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, trafficLightInset)
                 .hcbScaledPadding(.bottom, 10)
-            Divider()
-            List {
-                ForEach(visibleSidebarItems) { item in
-                    collapsedItemButton(item)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: collapsedRowSpacing) {
+                    Color.clear
+                        .hcbScaledFrame(height: 6)
+                    ForEach(visibleSidebarItems) { item in
+                        collapsedItemButton(item)
+                    }
+                    Spacer(minLength: 0)
                 }
+                .frame(maxWidth: .infinity)
             }
-            .listStyle(.sidebar)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.clear)
+            /* keep collapsed rows fully custom to avoid List(.sidebar) insets */
         }
         .frame(width: collapsedSidebarWidth)
         .toolbar(removing: .sidebarToggle)
@@ -331,30 +370,25 @@ struct MacSidebarShell: View {
         }
     }
 
-    private var collapsedIconColumn: CGFloat {
-        40
-    }
-
     private func collapsedItemButton(_ item: SidebarItem) -> some View {
         let isSelected = selection == item
         return Button {
             selection = item
         } label: {
             collapsedSidebarIcon(systemImage: item.systemImage, isSelected: isSelected)
-                .frame(maxWidth: .infinity, minHeight: 40, alignment: .center)
-            .contentShape(Rectangle())
+                .frame(maxWidth: .infinity, minHeight: collapsedRowMinHeight, alignment: .center)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
         .help(item.title)
     }
 
     private func collapsedSidebarIcon(systemImage: String, isSelected: Bool) -> some View {
         Image(systemName: systemImage)
             .hcbFontSystem(size: 20, weight: .medium)
-            .frame(width: collapsedIconColumn, height: 36)
+            .frame(width: collapsedIconColumn, height: collapsedIconHeight)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: collapsedIconCornerRadius, style: .continuous)
                     .fill(isSelected ? AppColor.ember.opacity(0.2) : Color.clear)
             )
             .foregroundStyle(isSelected ? AppColor.ember : AppColor.ink)
@@ -432,6 +466,7 @@ struct MacSidebarShell: View {
         }
         appCommandActions.openDiagnostics = { presentSheet(.diagnostics, on: selection) }
         appCommandActions.openCommandPalette = { isPresentingCommandPalette = true }
+        appCommandActions.openQuickSwitcher = { isPresentingQuickSwitcher = true }
         appCommandActions.openHelp = { isPresentingHelp = true }
         appCommandActions.printToday = { TodayPrinter.print(model: model) }
         appCommandActions.exportDayICS = { exportICS(range: .day) }
@@ -629,6 +664,16 @@ struct MacSidebarShell: View {
                 keywords: ["settings", "preferences", "appearance", "font", "theme"]
             ) {
                 selection = .settings
+            },
+            CommandPaletteCommand(
+                id: "open-quick-switcher",
+                title: "Quick Switcher",
+                subtitle: "Jump to a task, event, list, calendar, or filter",
+                symbol: "arrow.right.circle",
+                shortcut: "Cmd+O",
+                keywords: ["switcher", "jump", "goto", "go to", "find", "search"]
+            ) {
+                isPresentingQuickSwitcher = true
             },
             CommandPaletteCommand(
                 id: "open-help",

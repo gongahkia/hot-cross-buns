@@ -45,10 +45,12 @@
 		31AF912F0C07426A97089C29 /* CrashReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04200A166E83F915A6DECF28 /* CrashReporter.swift */; };
 		34DF4A454B9BAB7772BA611F /* SpotlightIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A88DE6FAF6CB6673FAFBC3A /* SpotlightIndexer.swift */; };
 		3B7E0CB45C3A8F28831C31C5 /* ReviewBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2902AF84DDE381956C0D149E /* ReviewBuilderTests.swift */; };
+		3C46C59104156AB21A28EF72 /* QuickSwitcherView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFFAF688032DE70E8A828C30 /* QuickSwitcherView.swift */; };
 		3CD7D2817F178F819CEDA958 /* Snapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1622469DA249EE1B10188D98 /* Snapshots.swift */; };
 		3D213BE8FAC38B7A5EA94EEB /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F51F65CDD611063E476A60A9 /* NetworkMonitor.swift */; };
 		3E796CFC3C8917CD171472AC /* GoogleTaskDueDateFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BFD977211942ADB9C88E1CF /* GoogleTaskDueDateFormatterTests.swift */; };
 		423A2928A33D4C5387CC339B /* ColorSchemes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C23CE545813F082C04B501C8 /* ColorSchemes.swift */; };
+		4280BF87BB4B06F1B807DA7B /* FuzzySearcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFBEA7BC0A7653E6A4022AB1 /* FuzzySearcher.swift */; };
 		46D517DF3CCDC62A677E30B0 /* StoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B73A839AA07E6C98129ED4BB /* StoreView.swift */; };
 		486292178C2C7163A0C8C45E /* QueryDSLTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E10912879943FB239566EB /* QueryDSLTests.swift */; };
 		4A0CC79BFC861B5D27E9F288 /* AppCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 838CDC9397AEB8B081E732EE /* AppCommands.swift */; };
@@ -151,6 +153,7 @@
 		E98AEB930CC53067A2C2BCE3 /* CustomFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8744975197402E661FA13A2 /* CustomFilterTests.swift */; };
 		F37DF95BBEC2335CA5AFBDED /* CalendarEventInstanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22DB41A975AB784A9EBDD654 /* CalendarEventInstanceTests.swift */; };
 		F544AFBC74E117992DB58913 /* CustomFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A76571F1E7EF40F32A62835 /* CustomFilter.swift */; };
+		F8BA863DB51480D6B9ADEBE9 /* FuzzySearcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A49B39BEE4E940882B8C2AC5 /* FuzzySearcherTests.swift */; };
 		FA524DC3AE098023C142AF71 /* SubtaskDragPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20B9299699F46BFF95D48B7 /* SubtaskDragPayload.swift */; };
 /* End PBXBuildFile section */
 
@@ -272,6 +275,7 @@
 		9742B8184AB071BE000E4235 /* LayoutSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutSection.swift; sourceTree = "<group>"; };
 		9B80F522C53466505A421ECE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		9F6D2A903ACFF04A22993160 /* MenuBarExtraScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarExtraScene.swift; sourceTree = "<group>"; };
+		A49B39BEE4E940882B8C2AC5 /* FuzzySearcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FuzzySearcherTests.swift; sourceTree = "<group>"; };
 		A4E896952661629A01EB26B0 /* GoogleTasksClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleTasksClient.swift; sourceTree = "<group>"; };
 		A78470AB49D26395D2CD6F7C /* BulkResultToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BulkResultToast.swift; sourceTree = "<group>"; };
 		AB15E1D3EF730B024771A746 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -289,6 +293,7 @@
 		BD404C87FD0BC2462B844C8C /* TaskHierarchy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskHierarchy.swift; sourceTree = "<group>"; };
 		BF1701AD968AE58FBC7E76F7 /* GuestsSectionEmailTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestsSectionEmailTests.swift; sourceTree = "<group>"; };
 		BFA7DEBBF786934A5D85FE41 /* AppStatusBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStatusBanner.swift; sourceTree = "<group>"; };
+		BFFAF688032DE70E8A828C30 /* QuickSwitcherView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickSwitcherView.swift; sourceTree = "<group>"; };
 		C17A2CA31D4325F3BF696AD8 /* QueryDSL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryDSL.swift; sourceTree = "<group>"; };
 		C23CE545813F082C04B501C8 /* ColorSchemes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorSchemes.swift; sourceTree = "<group>"; };
 		C9947809DE2CC9C0058C3BA2 /* OptimisticWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimisticWriterTests.swift; sourceTree = "<group>"; };
@@ -331,6 +336,7 @@
 		FDB427444279DD0F8E4B2281 /* QuickAddView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddView.swift; sourceTree = "<group>"; };
 		FE2B7538589A7F84C7AD1094 /* WritingTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritingTools.swift; sourceTree = "<group>"; };
 		FE4353BBFBCECA1F1E1EDF1B /* AppSettingsMacSurfacesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsMacSurfacesTests.swift; sourceTree = "<group>"; };
+		FFBEA7BC0A7653E6A4022AB1 /* FuzzySearcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FuzzySearcher.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -531,12 +537,14 @@
 				25AD254487BE0AE26B9D81B8 /* AppIntentHandoff.swift */,
 				892DDFFD7ECD0890E98DEC1C /* AppModel.swift */,
 				8FF54DB319263C6A1FD8A97D /* CommandPaletteView.swift */,
+				FFBEA7BC0A7653E6A4022AB1 /* FuzzySearcher.swift */,
 				F5BB15E1D51900AFA2203B2D /* GlobalHotkey.swift */,
 				203E4B8B99B16857BB9E1C19 /* HCBDeepLinkRouter.swift */,
 				BA90C3B9D57FCA2A8C27B206 /* HCBShortcuts.swift */,
 				AE5B824BD3DB57E2FA17ECE2 /* HotCrossBunsApp.swift */,
 				E2BC795AF619D093596D767D /* MacSidebarShell.swift */,
 				9F6D2A903ACFF04A22993160 /* MenuBarExtraScene.swift */,
+				BFFAF688032DE70E8A828C30 /* QuickSwitcherView.swift */,
 				AF08213B82A11D35A48E9669 /* RouterPath.swift */,
 				1002C76B1614FACBF7D37818 /* SidebarItem.swift */,
 			);
@@ -591,6 +599,7 @@
 				F8744975197402E661FA13A2 /* CustomFilterTests.swift */,
 				3A247BD19F3FCC74244C279E /* ExporterTests.swift */,
 				2316DAFF7860DC61BD91AF52 /* ForecastBuilderTests.swift */,
+				A49B39BEE4E940882B8C2AC5 /* FuzzySearcherTests.swift */,
 				8BFD977211942ADB9C88E1CF /* GoogleTaskDueDateFormatterTests.swift */,
 				09882AE6212AFABA6285AACF /* GoogleTasksClientTransportTests.swift */,
 				BF1701AD968AE58FBC7E76F7 /* GuestsSectionEmailTests.swift */,
@@ -941,6 +950,7 @@
 				12CA0C50A8A32E71E1AE5A0A /* EventTemplate.swift in Sources */,
 				74E52E17654990328A3FCF08 /* Exporters.swift in Sources */,
 				9ABDB68F86970E1A10FE8184 /* ForecastBuilder.swift in Sources */,
+				4280BF87BB4B06F1B807DA7B /* FuzzySearcher.swift in Sources */,
 				26F27A606CAB73AC71A858D5 /* GlobalHotkey.swift in Sources */,
 				64E4A1BA0CF04097F8D1C9CB /* GoToDateSheet.swift in Sources */,
 				8CF3F07B84CA27F8F2DEF4A8 /* GoogleAPITransport.swift in Sources */,
@@ -979,6 +989,7 @@
 				D59215C2E58499A20F1414E6 /* QuickAddEventView.swift in Sources */,
 				4D00CE67951243CCE90386B4 /* QuickAddView.swift in Sources */,
 				9CB6F05B30F36FB5D60CFC8D /* QuickCreatePopover.swift in Sources */,
+				3C46C59104156AB21A28EF72 /* QuickSwitcherView.swift in Sources */,
 				200CB3413E3917BC9D0CC25F /* RecurrenceEditor.swift in Sources */,
 				2D19FBD327EF4A9C87C0CD02 /* RecurrenceRule.swift in Sources */,
 				B3FD5B5CFC0A25BB3A2D0F19 /* RecurrenceUntilRewriter.swift in Sources */,
@@ -1030,6 +1041,7 @@
 				E98AEB930CC53067A2C2BCE3 /* CustomFilterTests.swift in Sources */,
 				532307C515FAB37584D4B968 /* ExporterTests.swift in Sources */,
 				870B6E741963A990B14961F4 /* ForecastBuilderTests.swift in Sources */,
+				F8BA863DB51480D6B9ADEBE9 /* FuzzySearcherTests.swift in Sources */,
 				3E796CFC3C8917CD171472AC /* GoogleTaskDueDateFormatterTests.swift in Sources */,
 				2280EEE6CF4070EA9056DEE5 /* GoogleTasksClientTransportTests.swift in Sources */,
 				A611406C5953E72F56D5BD59 /* GuestsSectionEmailTests.swift in Sources */,
