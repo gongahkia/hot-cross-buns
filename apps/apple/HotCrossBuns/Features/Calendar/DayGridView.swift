@@ -96,12 +96,29 @@ struct DayGridView: View {
             ScrollView {
                 ZStack(alignment: .topLeading) {
                     hourGridBackground
+                    Rectangle()
+                        .fill(Color.clear)
+                        .contentShape(Rectangle())
+                        .frame(height: CGFloat(hourEnd - hourStart) * hourHeight)
+                        .gesture(
+                            SpatialTapGesture(count: 1)
+                                .onEnded { value in
+                                    let start = CalendarDropComputer.snappedStart(
+                                        for: value.location.y,
+                                        hourHeight: hourHeight,
+                                        dayStart: dayStart,
+                                        calendar: calendar
+                                    )
+                                    router.present(.quickCreate(start, allDay: false))
+                                }
+                        )
                     GeometryReader { geo in
                         ForEach(timedEvents, id: \.id) { event in
                             eventTile(event, columnWidth: geo.size.width - 56)
                         }
                     }
                     .frame(height: CGFloat(hourEnd - hourStart) * hourHeight)
+                    .allowsHitTesting(true)
                     if let offset = currentTimeOffset() {
                         Rectangle()
                             .fill(AppColor.ember)

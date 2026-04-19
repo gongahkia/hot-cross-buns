@@ -201,11 +201,8 @@ struct MonthGridView: View {
                 .strokeBorder(AppColor.cardStroke, lineWidth: 0.5)
         )
         .contentShape(Rectangle())
-        .onTapGesture(count: 2) {
-            // Pre-fill at 9am of the tapped day so the editor opens with a
-            // sensible default the user can tweak.
-            let nineAM = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: dayStart) ?? dayStart
-            router.present(.addEventAt(nineAM, allDay: false))
+        .onTapGesture {
+            router.present(.quickCreate(dayStart, allDay: true))
         }
         .dropDestination(for: DraggedEvent.self) { items, _ in
             guard let dropped = items.first else { return false }
