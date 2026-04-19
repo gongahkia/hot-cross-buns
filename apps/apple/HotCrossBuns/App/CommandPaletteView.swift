@@ -161,13 +161,13 @@ struct CommandPaletteView: View {
     private var searchHeader: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 17, weight: .medium))
+                .font(.body.weight(.medium))
                 .foregroundStyle(.secondary)
 
             TextField("Commands, tasks, events…", text: $query)
                 .textFieldStyle(.plain)
                 .focused($isSearchFocused)
-                .font(.system(size: 20, weight: .medium, design: .rounded))
+                .font(.system(.title2, design: .rounded, weight: .medium))
                 .onSubmit(executeFirstMatch)
 
             if query.isEmpty {
@@ -210,15 +210,15 @@ struct CommandPaletteView: View {
                     .frame(width: 24)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(TagExtractor.stripped(from: TaskStarring.displayTitle(for: task)))
-                        .font(.system(size: 19, weight: .semibold, design: .rounded))
+                        .font(.system(.title3, design: .rounded, weight: .semibold))
                     Text(taskListTitle(for: task))
-                        .font(.system(size: 14, design: .rounded))
+                        .font(.system(.subheadline, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 12)
                 if let due = task.dueDate {
                     Text(due.formatted(.dateTime.month(.abbreviated).day()))
-                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                        .font(.system(.footnote, design: .monospaced, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
             }
@@ -231,9 +231,9 @@ struct CommandPaletteView: View {
                     .padding(.leading, 9)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(event.summary)
-                        .font(.system(size: 19, weight: .semibold, design: .rounded))
+                        .font(.system(.title3, design: .rounded, weight: .semibold))
                     Text(calendarTitle(for: event))
-                        .font(.system(size: 14, design: .rounded))
+                        .font(.system(.subheadline, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 12)
@@ -253,7 +253,7 @@ struct CommandPaletteView: View {
     private var emptyState: some View {
         VStack(spacing: 10) {
             Image(systemName: "command")
-                .font(.system(size: 22, weight: .semibold))
+                .font(.title2.weight(.semibold))
                 .foregroundStyle(.secondary)
             Text("Nothing matches \"\(query)\"")
                 .font(.headline)
@@ -277,7 +277,7 @@ private struct CommandPaletteRow: View {
                 Text(command.title)
                     .font(.system(size: 19, weight: .semibold, design: .rounded))
                 Text(command.subtitle)
-                    .font(.system(size: 14, weight: .regular, design: .rounded))
+                    .font(.system(.subheadline, design: .rounded))
                     .foregroundStyle(.secondary)
             }
 
@@ -285,7 +285,7 @@ private struct CommandPaletteRow: View {
 
             if command.shortcut.isEmpty == false {
                 Text(formattedShortcut)
-                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                    .font(.system(.subheadline, design: .monospaced, weight: .medium))
                     .foregroundStyle(.secondary)
             }
         }
