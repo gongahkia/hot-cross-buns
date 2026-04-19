@@ -224,6 +224,12 @@ struct DiagnosticsView: View {
                     } label: {
                         Label(copiedAt == nil ? "Copy diagnostic summary" : "Copied diagnostic summary", systemImage: copiedAt == nil ? "doc.on.doc" : "checkmark")
                     }
+                    Button {
+                        Task { await exportDiagnosticBundle() }
+                    } label: {
+                        Label("Export diagnostic bundle…", systemImage: "square.and.arrow.up")
+                    }
+                    .help("Save a text file with logs, pending mutations, and state for bug reports. Emails and tokens are redacted.")
                 }
             }
             .navigationTitle("Diagnostics")
@@ -340,6 +346,18 @@ struct DiagnosticsView: View {
 
     private func refreshLogs() {
         logEntries = AppLogger.shared.recentEntries(limit: 200, minimumLevel: logLevelFilter)
+    }
+
+    @MainActor
+    private func exportDiagnosticBundle() async {
+        let url = await DiagnosticBundle.exportToDisk(
+            model: model,
+            cachePath: cachePath,
+            notificationSummary: notificationSummary
+        )
+        if url != nil {
+            copiedAt = Date() // reuse the button-label success indicator
+        }
     }
 }
 

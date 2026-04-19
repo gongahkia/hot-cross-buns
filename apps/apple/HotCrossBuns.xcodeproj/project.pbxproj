@@ -58,6 +58,7 @@
 		69F1DEC55EB9E9C72799607D /* TaskStarringTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DE3C9162F20EE6482E67FCB /* TaskStarringTests.swift */; };
 		6BDBD1855A8378E737D6EE21 /* MenuBarExtraScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F6D2A903ACFF04A22993160 /* MenuBarExtraScene.swift */; };
 		7092CA5C7D2C3A052185B566 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC9C2158939F77166D48250B /* DesignTokens.swift */; };
+		718D9F745F2817A8139B00C0 /* DiagnosticBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD5F8A89100AE1891AD53FA3 /* DiagnosticBundle.swift */; };
 		71EA6FF162806AFA0CADB908 /* HelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FC2AADAC806017C13510FCB /* HelpView.swift */; };
 		74E52E17654990328A3FCF08 /* Exporters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89EA3416048E26FDC6F7B0BC /* Exporters.swift */; };
 		76FE748A00BF7565093EB3C2 /* CustomFiltersSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F4517375C8E849B9FBA844C /* CustomFiltersSection.swift */; };
@@ -250,6 +251,7 @@
 		C9947809DE2CC9C0058C3BA2 /* OptimisticWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimisticWriterTests.swift; sourceTree = "<group>"; };
 		CC9C2158939F77166D48250B /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
 		CD3E985540BFEBDABB373283 /* GoogleAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAuthService.swift; sourceTree = "<group>"; };
+		CD5F8A89100AE1891AD53FA3 /* DiagnosticBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticBundle.swift; sourceTree = "<group>"; };
 		CDAD0C012D8B9B6623C44F25 /* ICSImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICSImporterTests.swift; sourceTree = "<group>"; };
 		D8AF38F4F743ECB0079BDD30 /* SmartListFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartListFilterTests.swift; sourceTree = "<group>"; };
 		DA7AA6D7D06BBC2852BAFCDF /* TaskInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskInspectorView.swift; sourceTree = "<group>"; };
@@ -683,6 +685,7 @@
 			isa = PBXGroup;
 			children = (
 				BB5F4EB983E593C181231248 /* AppLogger.swift */,
+				CD5F8A89100AE1891AD53FA3 /* DiagnosticBundle.swift */,
 			);
 			path = Logging;
 			sourceTree = "<group>";
@@ -846,6 +849,7 @@
 				F544AFBC74E117992DB58913 /* CustomFilter.swift in Sources */,
 				76FE748A00BF7565093EB3C2 /* CustomFiltersSection.swift in Sources */,
 				7092CA5C7D2C3A052185B566 /* DesignTokens.swift in Sources */,
+				718D9F745F2817A8139B00C0 /* DiagnosticBundle.swift in Sources */,
 				61E276C2555F3F36F976E697 /* DiagnosticsView.swift in Sources */,
 				AC3FE199F79468DAA1B9D9EF /* DockBadgeController.swift in Sources */,
 				23DEF8936535B7AAA96AB9D9 /* DraggedTask.swift in Sources */,
