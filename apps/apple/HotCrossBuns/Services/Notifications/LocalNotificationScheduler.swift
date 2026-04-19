@@ -186,9 +186,10 @@ actor LocalNotificationScheduler {
             return nil
         }
 
+        let leadMinutes: Int = event.reminderMinutes.first ?? 15
         let notificationDate = event.isAllDay
             ? allDayNotificationDate(for: event.startDate, calendar: calendar)
-            : event.startDate.addingTimeInterval(-15 * 60)
+            : event.startDate.addingTimeInterval(TimeInterval(-leadMinutes * 60))
 
         guard notificationDate > referenceDate else {
             return nil
