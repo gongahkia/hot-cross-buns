@@ -84,35 +84,25 @@ Dogfood with a real account for at least one workday on macOS. Smoke checklist (
 
 ## 7. Next feature work
 
-Prioritized for daily-driver use. Tier A items close productivity power-ups most users reach for daily; Tier B hardens what's already shipped; Tier C elevates the app beyond "web client pretending to be native."
-
-### Tier A — productivity power-ups
-
-1. **Bulk task selection** — `List(selection:)` multi-select in `StoreView` with toolbar actions "Complete all" / "Delete all" / "Move to list…".
-2. **Clear completed tasks** (`tasks.clear` API) — Google Tasks batch endpoint that wipes completed from a list. Surface as a button in `StoreView` toolbar when the active filter is a single list.
-3. **Undo for delete and edit** — generalise `UndoToast` / `recentlyCompletedTaskID` into an `UndoStack` that captures the inverse of any single mutation; expose for task delete, event delete, and inspector edits.
-4. **In-Calendar event search** — searchable field in the `CalendarHomeView` toolbar that filters events rendered on the grid (distinct from the command palette, which navigates away).
-5. **Month grid drag-to-reschedule** — `MonthGridView` should mirror `WeekGridView`'s `dropDestination(for: DraggedEvent.self)` to let users drag an event to a new day.
-6. **Quick-add reads clipboard** — when Cmd+Shift+Space opens `QuickAddView`, if the clipboard contains URL-like or plain text content, pre-fill the title.
-7. **"This and following" recurring delete** — Google Calendar web offers three options (this, this-and-following, all-in-series). We currently support only `.thisOccurrence` and `.allInSeries`; add the middle option with the corresponding Google Calendar API call pattern.
+Prioritized for daily-driver use. Tier B hardens what's already shipped; Tier C elevates the app beyond "web client pretending to be native."
 
 ### Tier B — infrastructure / reliability
 
-8. **Offline-queue test coverage** — the `PendingTaskUpdatePayload` / `replayTaskCompletion` / etc. paths shipped recently without unit tests. Add a mock-transport test harness that asserts HTTP verb + `If-Match` header + state transitions (transient retain, 412 drop-and-refresh, terminal revert).
-9. **Cache schema versioning** — `CachedAppState` gets a `schemaVersion: Int` field with explicit migration shims. The current `LocalCacheStore.loadCachedState` fallback catches total decode failure but cannot migrate a renamed field; versioning prevents future silent data loss on upgrade.
-10. **Diagnostics: per-mutation pending-queue clear** — `DiagnosticsView` should list queued mutations and allow per-item drop, for the case where one mutation keeps 412'ing and blocks replay.
-11. **Token-refresh failure UX** — `GoogleSignInAccessTokenProvider.accessToken()` can throw. Distinguish "refresh failed, reconnect needed" (→ `authState = .failed`) from "transient network" (→ queue and retry). Currently the error is generic.
-12. **Crash reporting** — no crash reporter wired. Lightweight file-based crash capture written to `~/Library/Application Support/...` on next launch, surfaced via `DiagnosticsView`.
-13. **Sync scheduler backoff ceiling** — `BackoffPolicy.nearRealtime` retries indefinitely. On persistent failure (say, 30+ min of no network), cap retries and surface a visible "sync paused — check connection" state.
+1. **Offline-queue test coverage** — the `PendingTaskUpdatePayload` / `replayTaskCompletion` / etc. paths shipped recently without unit tests. Add a mock-transport test harness that asserts HTTP verb + `If-Match` header + state transitions (transient retain, 412 drop-and-refresh, terminal revert).
+2. **Cache schema versioning** — `CachedAppState` gets a `schemaVersion: Int` field with explicit migration shims. The current `LocalCacheStore.loadCachedState` fallback catches total decode failure but cannot migrate a renamed field; versioning prevents future silent data loss on upgrade.
+3. **Diagnostics: per-mutation pending-queue clear** — `DiagnosticsView` should list queued mutations and allow per-item drop, for the case where one mutation keeps 412'ing and blocks replay.
+4. **Token-refresh failure UX** — `GoogleSignInAccessTokenProvider.accessToken()` can throw. Distinguish "refresh failed, reconnect needed" (→ `authState = .failed`) from "transient network" (→ queue and retry). Currently the error is generic.
+5. **Crash reporting** — no crash reporter wired. Lightweight file-based crash capture written to `~/Library/Application Support/...` on next launch, surfaced via `DiagnosticsView`.
+6. **Sync scheduler backoff ceiling** — `BackoffPolicy.nearRealtime` retries indefinitely. On persistent failure (say, 30+ min of no network), cap retries and surface a visible "sync paused — check connection" state.
 
 ### Tier C — macOS-native polish
 
-14. **Share Extension** — "Share to Hot Cross Buns" target from Safari / Mail to create a task or event with URL + selected text pre-filled.
-15. **Services menu** — "Create Hot Cross Buns task from selection" anywhere the user highlights text system-wide.
-16. **Spotlight QuickLook previews** — Spotlight indexing already exists; add a QuickLook provider so users can peek event details from Spotlight results without launching the app.
-17. **Drag `.ics` file onto the app to import as event(s)** — parse and route through `createEvent` (with conflict detection).
-18. **Print support** — `Exporters.swift` has markdown + ICS output; add a native Print sheet layout for today / week / selected task list.
-19. **Localization scaffolding** — wrap user-visible strings in `LocalizedStringKey` now so future translations are cheap. English-only for v1.
+7. **Share Extension** — "Share to Hot Cross Buns" target from Safari / Mail to create a task or event with URL + selected text pre-filled.
+8. **Services menu** — "Create Hot Cross Buns task from selection" anywhere the user highlights text system-wide.
+9. **Spotlight QuickLook previews** — Spotlight indexing already exists; add a QuickLook provider so users can peek event details from Spotlight results without launching the app.
+10. **Drag `.ics` file onto the app to import as event(s)** — parse and route through `createEvent` (with conflict detection).
+11. **Print support** — `Exporters.swift` has markdown + ICS output; add a native Print sheet layout for today / week / selected task list.
+12. **Localization scaffolding** — wrap user-visible strings in `LocalizedStringKey` now so future translations are cheap. English-only for v1.
 
 ## 8. Deferred (non-goals for now)
 
