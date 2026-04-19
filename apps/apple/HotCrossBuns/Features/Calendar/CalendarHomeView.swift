@@ -309,7 +309,12 @@ struct EventDetailView: View {
                         if event.location.isEmpty == false {
                             DetailField(label: "Location", value: event.location)
                         }
-                        if event.attendeeEmails.isEmpty == false {
+                        if event.meetLink.isEmpty == false {
+                            MeetLinkCard(link: event.meetLink)
+                        }
+                        if event.attendeeResponses.isEmpty == false {
+                            AttendeeResponsesCard(responses: event.attendeeResponses)
+                        } else if event.attendeeEmails.isEmpty == false {
                             DetailField(label: "Guests", value: event.attendeeEmails.joined(separator: "\n"))
                         }
                         if event.reminderMinutes.isEmpty == false {
@@ -482,6 +487,7 @@ struct AddEventSheet: View {
     @State private var attendees: [String] = []
     @State private var attendeeDraft: String = ""
     @State private var notifyGuests: Bool = false
+    @State private var addGoogleMeet: Bool = false
     @State private var isSaving = false
 
     init(prefilledStart: Date? = nil, prefilledIsAllDay: Bool = false) {
@@ -536,6 +542,10 @@ struct AddEventSheet: View {
 
                     Section("Guests") {
                         GuestsSection(attendees: $attendees, draft: $attendeeDraft, notifyGuests: $notifyGuests)
+                    }
+
+                    Section("Video call") {
+                        Toggle("Add Google Meet video conferencing", isOn: $addGoogleMeet)
                     }
 
                     Section("Reminder") {
@@ -610,7 +620,8 @@ struct AddEventSheet: View {
             location: location,
             recurrence: recurrenceRule.map { [$0.rruleString()] } ?? [],
             attendeeEmails: attendees,
-            notifyGuests: notifyGuests
+            notifyGuests: notifyGuests,
+            addGoogleMeet: addGoogleMeet
         )
 
         if didCreate {
@@ -644,6 +655,7 @@ struct EditEventSheet: View {
     @State private var attendees: [String] = []
     @State private var attendeeDraft: String = ""
     @State private var notifyGuests: Bool = false
+    @State private var addGoogleMeet: Bool = false
     @State private var isSaving = false
 
     init(event: CalendarEventMirror) {
@@ -658,6 +670,11 @@ struct EditEventSheet: View {
         _selectedCalendarID = State(initialValue: event.calendarID)
         _recurrenceRule = State(initialValue: event.recurrence.lazy.compactMap(RecurrenceRule.parse).first)
         _attendees = State(initialValue: event.attendeeEmails)
+        // Pre-check the toggle if the event already carries a Meet link so the
+        // picker state reflects reality. Toggling off doesn't remove the
+        // existing link — clearing conferenceData via PATCH requires its own
+        // API shape and is out of scope for v1.
+        _addGoogleMeet = State(initialValue: event.meetLink.isEmpty == false)
     }
 
     var body: some View {
@@ -686,6 +703,17 @@ struct EditEventSheet: View {
 
                 Section("Guests") {
                     GuestsSection(attendees: $attendees, draft: $attendeeDraft, notifyGuests: $notifyGuests)
+                }
+
+                Section("Video call") {
+                    Toggle("Add Google Meet video conferencing", isOn: $addGoogleMeet)
+                        .disabled(event.meetLink.isEmpty == false)
+                    if event.meetLink.isEmpty == false {
+                        Link(destination: URL(string: event.meetLink) ?? URL(string: "https://meet.google.com")!) {
+                            Label(event.meetLink, systemImage: "video.fill")
+                                .foregroundStyle(AppColor.blue)
+                        }
+                    }
                 }
 
                 Section("Reminder") {
@@ -777,7 +805,13 @@ struct EditEventSheet: View {
             recurrence: recurrenceRule.map { [$0.rruleString()] } ?? [],
             attendeeEmails: attendees,
             notifyGuests: notifyGuests,
-            scope: scope
+            scope: scope,
+            // Only send createRequest when the toggle flipped from off to on.
+            // If the event already had a Meet link, the toggle is disabled and
+            // addGoogleMeet stays true — but we don't want to re-create the
+            // conference on every save. Detect the transition.
+            addGoogleMeet: addGoogleMeet && event.meetLink.isEmpty,
+            colorId: event.colorId
         )
 
         if didSave {
@@ -835,6 +869,83 @@ private enum EventReminderOption: Int, CaseIterable, Identifiable {
         }
 
         self.init(rawValue: minutes)
+    }
+}
+
+struct MeetLinkCard: View {
+    let link: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("VIDEO CALL")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.secondary)
+            Link(destination: URL(string: link) ?? URL(string: "https://meet.google.com")!) {
+                HStack(spacing: 10) {
+                    Image(systemName: "video.fill")
+                        .foregroundStyle(AppColor.blue)
+                    Text(link)
+                        .font(.body.monospaced())
+                        .foregroundStyle(AppColor.blue)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+            .buttonStyle(.plain)
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(link, forType: .string)
+            } label: {
+                Label("Copy link", systemImage: "doc.on.doc")
+                    .font(.caption)
+            }
+            .buttonStyle(.borderless)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardSurface(cornerRadius: 22)
+    }
+}
+
+struct AttendeeResponsesCard: View {
+    let responses: [CalendarEventAttendee]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("GUESTS (\(responses.count))")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.secondary)
+            ForEach(responses, id: \.email) { attendee in
+                HStack(spacing: 10) {
+                    Image(systemName: attendee.responseStatus.symbol)
+                        .foregroundStyle(tint(for: attendee.responseStatus))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(attendee.displayName ?? attendee.email)
+                            .font(.subheadline)
+                            .foregroundStyle(AppColor.ink)
+                        if attendee.displayName != nil {
+                            Text(attendee.email)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer(minLength: 8)
+                    Text(attendee.responseStatus.displayTitle)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(tint(for: attendee.responseStatus))
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardSurface(cornerRadius: 22)
+    }
+
+    private func tint(for status: AttendeeResponseStatus) -> Color {
+        switch status {
+        case .accepted: AppColor.moss
+        case .declined: AppColor.ember
+        case .tentative: AppColor.blue
+        case .needsAction: .secondary
+        }
     }
 }
 

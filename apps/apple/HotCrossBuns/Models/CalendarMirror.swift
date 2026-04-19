@@ -24,6 +24,9 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
     var reminderMinutes: [Int]
     var location: String
     var attendeeEmails: [String]
+    var attendeeResponses: [CalendarEventAttendee]
+    var meetLink: String
+    var colorId: String?
 
     init(
         id: String,
@@ -39,7 +42,10 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         updatedAt: Date?,
         reminderMinutes: [Int] = [],
         location: String = "",
-        attendeeEmails: [String] = []
+        attendeeEmails: [String] = [],
+        attendeeResponses: [CalendarEventAttendee] = [],
+        meetLink: String = "",
+        colorId: String? = nil
     ) {
         self.id = id
         self.calendarID = calendarID
@@ -55,6 +61,9 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         self.reminderMinutes = reminderMinutes
         self.location = location
         self.attendeeEmails = attendeeEmails
+        self.attendeeResponses = attendeeResponses
+        self.meetLink = meetLink
+        self.colorId = colorId
     }
 
     enum CodingKeys: String, CodingKey {
@@ -72,6 +81,9 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         case reminderMinutes
         case location
         case attendeeEmails
+        case attendeeResponses
+        case meetLink
+        case colorId
     }
 
     init(from decoder: Decoder) throws {
@@ -90,6 +102,49 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         reminderMinutes = try container.decodeIfPresent([Int].self, forKey: .reminderMinutes) ?? []
         location = try container.decodeIfPresent(String.self, forKey: .location) ?? ""
         attendeeEmails = try container.decodeIfPresent([String].self, forKey: .attendeeEmails) ?? []
+        attendeeResponses = try container.decodeIfPresent([CalendarEventAttendee].self, forKey: .attendeeResponses) ?? []
+        meetLink = try container.decodeIfPresent(String.self, forKey: .meetLink) ?? ""
+        colorId = try container.decodeIfPresent(String.self, forKey: .colorId)
+    }
+}
+
+struct CalendarEventAttendee: Hashable, Codable, Sendable {
+    var email: String
+    var displayName: String?
+    var responseStatus: AttendeeResponseStatus
+}
+
+enum AttendeeResponseStatus: String, Hashable, Codable, Sendable {
+    case needsAction
+    case declined
+    case tentative
+    case accepted
+
+    init(wire: String?) {
+        switch wire {
+        case "accepted": self = .accepted
+        case "declined": self = .declined
+        case "tentative": self = .tentative
+        default: self = .needsAction
+        }
+    }
+
+    var displayTitle: String {
+        switch self {
+        case .needsAction: "No reply"
+        case .declined: "Declined"
+        case .tentative: "Maybe"
+        case .accepted: "Going"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .needsAction: "questionmark.circle"
+        case .declined: "xmark.circle.fill"
+        case .tentative: "questionmark.circle.fill"
+        case .accepted: "checkmark.circle.fill"
+        }
     }
 }
 
