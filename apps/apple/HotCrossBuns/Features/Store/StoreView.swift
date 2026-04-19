@@ -61,6 +61,7 @@ struct StoreView: View {
     @State private var isInspectorPresented = true
     @State private var searchQuery: String = ""
     @State private var isBulkMoveSheetPresented = false
+    @State private var snoozeCustomTask: TaskMirror?
     @SceneStorage("storeFilter") private var filterKey: String = "all"
     @SceneStorage("storeShowCompleted") private var showCompleted: Bool = true
 
@@ -135,6 +136,11 @@ struct StoreView: View {
                     }
                 }
             }
+            .sheet(item: $snoozeCustomTask) { task in
+                SnoozePickerSheet(task: task) { newDate in
+                    Task { await snooze(task, to: newDate) }
+                }
+            }
             .onChange(of: selection) { _, newValue in
                 if newValue.isEmpty == false { isInspectorPresented = true }
             }
@@ -197,6 +203,40 @@ struct StoreView: View {
     private func deleteSelection() async {
         guard selection.isEmpty == false else { return }
         await bulkDelete()
+    }
+
+    @ViewBuilder
+    private func snoozeMenu(for task: TaskMirror) -> some View {
+        Menu("Snooze") {
+            Button("Tomorrow") { Task { await snooze(task, to: snoozeDate(daysFromNow: 1)) } }
+            Button("In 2 days") { Task { await snooze(task, to: snoozeDate(daysFromNow: 2)) } }
+            Button("Next week") { Task { await snooze(task, to: snoozeDate(daysFromNow: 7)) } }
+            Button("Next weekend") { Task { await snooze(task, to: nextWeekendDate()) } }
+            Divider()
+            Button("Pick a date…") { snoozeCustomTask = task }
+            if task.dueDate != nil {
+                Divider()
+                Button("Clear due date", role: .destructive) { Task { await snooze(task, to: nil) } }
+            }
+        }
+    }
+
+    private func snoozeDate(daysFromNow days: Int) -> Date {
+        let cal = Calendar.current
+        let startOfToday = cal.startOfDay(for: Date())
+        return cal.date(byAdding: .day, value: days, to: startOfToday) ?? startOfToday
+    }
+
+    private func nextWeekendDate() -> Date {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let weekday = cal.component(.weekday, from: today)
+        let daysUntilSaturday = (7 - weekday) % 7 == 0 ? 7 : (7 - weekday)
+        return cal.date(byAdding: .day, value: daysUntilSaturday, to: today) ?? today
+    }
+
+    private func snooze(_ task: TaskMirror, to newDate: Date?) async {
+        _ = await model.updateTask(task, title: task.title, notes: task.notes, dueDate: newDate)
     }
 
     // Completed-task counts per list drive the "Clear completed" menu so a
@@ -324,11 +364,13 @@ struct StoreView: View {
                                 .tag(node.parent.id)
                                 .contentShape(Rectangle())
                                 .swipeActions(edge: .leading) { completeSwipe(for: node.parent) }
+                                .contextMenu { snoozeMenu(for: node.parent) }
                             ForEach(node.children) { child in
                                 StoreTaskRow(task: child, indentLevel: 1)
                                     .tag(child.id)
                                     .contentShape(Rectangle())
                                     .swipeActions(edge: .leading) { completeSwipe(for: child) }
+                                    .contextMenu { snoozeMenu(for: child) }
                             }
                         }
                     }
@@ -355,6 +397,7 @@ struct StoreView: View {
                                 .tag(task.id)
                                 .contentShape(Rectangle())
                                 .swipeActions(edge: .leading) { completeSwipe(for: task) }
+                                .contextMenu { snoozeMenu(for: task) }
                         }
                     } header: {
                         HStack(spacing: 8) {
@@ -847,5 +890,37 @@ private struct BulkMoveSheet: View {
         }
         onComplete(moved)
         dismiss()
+    }
+}
+
+private struct SnoozePickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let task: TaskMirror
+    let onSelect: (Date) -> Void
+
+    @State private var pickedDate: Date = Date()
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Snooze \(task.title) until") {
+                    DatePicker("Date", selection: $pickedDate, in: Calendar.current.startOfDay(for: Date())..., displayedComponents: [.date])
+                        .datePickerStyle(.graphical)
+                }
+            }
+            .navigationTitle("Snooze Task")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Snooze") {
+                        onSelect(Calendar.current.startOfDay(for: pickedDate))
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .frame(minWidth: 360, minHeight: 400)
     }
 }
