@@ -766,6 +766,8 @@ struct AddEventSheet: View {
     @State private var addGoogleMeet: Bool = false
     @State private var eventColor: CalendarEventColor = .defaultColor
     @State private var isSaving = false
+    @State private var quickCreateText = ""
+    @State private var parsedPreview: ParsedQuickAddEvent?
 
     init(prefilledStart: Date? = nil, prefilledIsAllDay: Bool = false) {
         let start = prefilledStart ?? Date()
@@ -788,6 +790,38 @@ struct AddEventSheet: View {
                         )
                     }
                 } else {
+                    Section {
+                        VStack(alignment: .leading, spacing: 6) {
+                            TextField("Quick create — e.g., \"Lunch with Bob tomorrow 1pm at Philz for 45 min\"", text: $quickCreateText)
+                                .textFieldStyle(.roundedBorder)
+                                .onSubmit(applyQuickCreate)
+                            if let preview = parsedPreview, preview.hasParsedMetadata {
+                                HStack(spacing: 6) {
+                                    ForEach(Array(preview.matchedTokens.enumerated()), id: \.offset) { _, token in
+                                        Text(token.display)
+                                            .font(.caption.weight(.medium))
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Capsule().fill(AppColor.blue.opacity(0.15)))
+                                            .foregroundStyle(AppColor.blue)
+                                    }
+                                    Spacer(minLength: 0)
+                                    Button("Apply") { applyQuickCreate() }
+                                        .buttonStyle(.borderless)
+                                }
+                            }
+                        }
+                        .onChange(of: quickCreateText) { _, newValue in
+                            parsedPreview = newValue.isEmpty ? nil : NaturalLanguageEventParser().parse(newValue)
+                        }
+                    } header: {
+                        Text("Quick Create")
+                    } footer: {
+                        Text("Type natural language and press Return, or click Apply, to prefill the form.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
                     Section("Event") {
                         TextField("Summary", text: $summary)
                         MarkdownEditor(text: $details, placeholder: "Details (markdown supported)", minHeight: 90, maxHeight: 200)
@@ -876,6 +910,22 @@ struct AddEventSheet: View {
         }
 
         return endDate > startDate
+    }
+
+    private func applyQuickCreate() {
+        let parsed = NaturalLanguageEventParser().parse(quickCreateText)
+        guard parsed.summary.isEmpty == false else { return }
+        summary = parsed.summary
+        if let loc = parsed.location { location = loc }
+        if let start = parsed.startDate {
+            startDate = start
+            isAllDay = parsed.isAllDay
+            if let end = parsed.endDate {
+                endDate = parsed.isAllDay ? start : end
+            }
+        }
+        quickCreateText = ""
+        parsedPreview = nil
     }
 
     private func createEvent() async {
