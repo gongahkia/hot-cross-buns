@@ -58,6 +58,12 @@ struct MacSidebarShell: View {
     @State private var appCommandActions = AppCommandActions()
     @State private var appShortcutMonitor: Any?
     @State private var deepLinkErrorMessage: String?
+    // Leader-key chord state (§6.9). `nil` = inactive; non-nil = collecting
+    // keys after a ⌘K press. timeoutTask cancels the collecting state after
+    // 3s of inactivity so a stray leader press doesn't lock out single-key
+    // typing forever.
+    @State private var chordKeys: [String]?
+    @State private var chordTimeoutTask: Task<Void, Never>?
 
     private enum CollapsedSidebarDestination: Equatable {
         case item(SidebarItem)
@@ -122,6 +128,17 @@ struct MacSidebarShell: View {
             .overlay {
                 DeepLinkErrorToast(message: $deepLinkErrorMessage)
             }
+            .overlay(alignment: .bottomTrailing) {
+                if let keys = chordKeys {
+                    ChordHUD(
+                        currentKeys: keys,
+                        hints: HCBChordMatcher.hudHints(current: keys, in: HCBChordRegistry.defaults)
+                    )
+                    .hcbScaledPadding(18)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.12), value: chordKeys)
             .focusedSceneValue(\.appCommandActions, appCommandActions)
             .onAppear {
                 selection = SidebarItem(rawValue: storedSelection) ?? .calendar
@@ -549,12 +566,41 @@ struct MacSidebarShell: View {
 
     private func handleAppShortcut(_ event: NSEvent) -> Bool {
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+
+        // While collecting a chord, no modifiers needed — next keydown is
+        // consumed as the next key in the sequence. Esc cancels.
+        if chordKeys != nil {
+            if event.keyCode == 53 { // escape
+                cancelChord()
+                return true
+            }
+            // Any modifier besides shift (for capital letters) breaks chord
+            // mode and falls through to normal handling.
+            if modifiers.intersection([.command, .option, .control]).isEmpty == false {
+                cancelChord()
+                return false
+            }
+            guard let char = event.charactersIgnoringModifiers?.first else {
+                return false
+            }
+            advanceChord(with: String(char).lowercased())
+            return true
+        }
+
         guard modifiers.contains(.command) else { return false }
         guard modifiers.intersection([.option, .control]).isEmpty else { return false }
         guard event.isARepeat == false else { return false }
 
         let rawKey = event.characters?.first
         let plainKey = event.charactersIgnoringModifiers?.first
+
+        // ⌘K enters chord mode. Check before the other shortcuts so it wins
+        // over any downstream binding that might share the key.
+        if modifiers == [.command], plainKey == "k" {
+            startChord()
+            return true
+        }
+
         switch (rawKey, plainKey) {
         case (_, "s") where modifiers == [.command]:
             toggleSidebarCollapsed()
@@ -570,6 +616,54 @@ struct MacSidebarShell: View {
             return true
         default:
             return false
+        }
+    }
+
+    // MARK: - chord state machine
+
+    private func startChord() {
+        chordKeys = []
+        armChordTimeout()
+    }
+
+    private func advanceChord(with key: String) {
+        var keys = chordKeys ?? []
+        keys.append(key)
+        chordKeys = keys
+
+        let bindings = HCBChordRegistry.defaults
+        let survivors = HCBChordMatcher.matches(current: keys, in: bindings)
+        if survivors.isEmpty {
+            // No binding starts with this prefix — cancel. Matches Vim
+            // "unknown mapping" behaviour: don't eat subsequent keystrokes.
+            cancelChord()
+            return
+        }
+        if let terminal = HCBChordMatcher.isExactTerminal(current: keys, in: bindings) {
+            executeChord(terminal)
+            return
+        }
+        // Still matching; keep collecting.
+        armChordTimeout()
+    }
+
+    private func executeChord(_ binding: HCBChordBinding) {
+        cancelChord()
+        appCommandActions.execute(binding.command)
+    }
+
+    private func cancelChord() {
+        chordTimeoutTask?.cancel()
+        chordTimeoutTask = nil
+        chordKeys = nil
+    }
+
+    private func armChordTimeout() {
+        chordTimeoutTask?.cancel()
+        chordTimeoutTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(3))
+            if Task.isCancelled { return }
+            chordKeys = nil
         }
     }
 
