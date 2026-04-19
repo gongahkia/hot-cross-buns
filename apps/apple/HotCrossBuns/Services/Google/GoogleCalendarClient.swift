@@ -185,6 +185,40 @@ struct GoogleCalendarClient: Sendable {
         return response.mirror(calendarID: destinationCalendarID)
     }
 
+    // Fetches a single event by id — used when we need the master event's
+    // current recurrence rules for "this and following" truncation, since
+    // instances returned via singleEvents=true don't carry the master RRULE.
+    func getEvent(calendarID: String, eventID: String) async throws -> CalendarEventMirror {
+        let encodedCalendarID = calendarID.googlePathComponentEncoded
+        let encodedEventID = eventID.googlePathComponentEncoded
+        let response: GoogleEventDTO = try await transport.request(
+            method: "GET",
+            path: "/calendar/v3/calendars/\(encodedCalendarID)/events/\(encodedEventID)"
+        )
+        return response.mirror(calendarID: calendarID)
+    }
+
+    // Patches only the recurrence array on the master event. Used by the
+    // "this and following" flow, which rewrites the master's RRULE with a
+    // new UNTIL clause and leaves all other fields untouched.
+    func patchEventRecurrence(
+        calendarID: String,
+        eventID: String,
+        recurrence: [String],
+        ifMatch: String? = nil
+    ) async throws -> CalendarEventMirror {
+        let encodedCalendarID = calendarID.googlePathComponentEncoded
+        let encodedEventID = eventID.googlePathComponentEncoded
+        struct RecurrencePatch: Encodable { var recurrence: [String] }
+        let response: GoogleEventDTO = try await transport.request(
+            method: "PATCH",
+            path: "/calendar/v3/calendars/\(encodedCalendarID)/events/\(encodedEventID)",
+            body: RecurrencePatch(recurrence: recurrence),
+            ifMatch: ifMatch
+        )
+        return response.mirror(calendarID: calendarID)
+    }
+
     func deleteEvent(calendarID: String, eventID: String, ifMatch: String? = nil) async throws {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
         let encodedEventID = eventID.googlePathComponentEncoded
