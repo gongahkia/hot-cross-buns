@@ -4,6 +4,7 @@ struct WeekGridView: View {
     @Environment(AppModel.self) private var model
     @Environment(RouterPath.self) private var router
     @Binding var anchorDate: Date
+    var searchQuery: String = ""
 
     private let hourHeight: CGFloat = 44
     private let hourStart = 0
@@ -29,7 +30,14 @@ struct WeekGridView: View {
 
     private var visibleEvents: [CalendarEventMirror] {
         let selected = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
-        return model.events.filter { selected.contains($0.calendarID) && $0.status != .cancelled }
+        let base = model.events.filter { selected.contains($0.calendarID) && $0.status != .cancelled }
+        let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard q.isEmpty == false else { return base }
+        return base.filter { event in
+            event.summary.localizedCaseInsensitiveContains(q)
+                || event.details.localizedCaseInsensitiveContains(q)
+                || event.location.localizedCaseInsensitiveContains(q)
+        }
     }
 
     private var visibleTasks: [TaskMirror] {

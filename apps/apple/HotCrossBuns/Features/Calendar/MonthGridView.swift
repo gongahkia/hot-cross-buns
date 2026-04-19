@@ -4,6 +4,7 @@ struct MonthGridView: View {
     @Environment(AppModel.self) private var model
     @Environment(RouterPath.self) private var router
     @Binding var anchorDate: Date
+    var searchQuery: String = ""
 
     private let calendar = Calendar.current
     private let weekdaySymbols: [String] = {
@@ -31,7 +32,13 @@ struct MonthGridView: View {
 
     private var eventsByDay: [Date: [CalendarEventMirror]] {
         let selected = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
-        let events = model.events.filter { selected.contains($0.calendarID) }
+        let base = model.events.filter { selected.contains($0.calendarID) }
+        let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let events = q.isEmpty ? base : base.filter { event in
+            event.summary.localizedCaseInsensitiveContains(q)
+                || event.details.localizedCaseInsensitiveContains(q)
+                || event.location.localizedCaseInsensitiveContains(q)
+        }
         return CalendarGridLayout.eventsByDay(
             events,
             from: cells.first ?? anchorDate,
