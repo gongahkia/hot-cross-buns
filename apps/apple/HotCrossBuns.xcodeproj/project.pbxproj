@@ -227,6 +227,7 @@
 		5E7CCAAA53D6C1875F338A5B /* CalendarGridLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarGridLayoutTests.swift; sourceTree = "<group>"; };
 		62B7E28F16E7ED3A3AF854DC /* CacheSchemaMigrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheSchemaMigrator.swift; sourceTree = "<group>"; };
 		6366F53ACB2CE1B4D522E41D /* DockBadgeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockBadgeController.swift; sourceTree = "<group>"; };
+		643A4637A65B42FA2BBF76FE /* GoogleOAuth.local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = GoogleOAuth.local.xcconfig; sourceTree = "<group>"; };
 		6A88DE6FAF6CB6673FAFBC3A /* SpotlightIndexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightIndexer.swift; sourceTree = "<group>"; };
 		6EC332C6DC51DB8C6B72B7A7 /* GoogleAPITransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAPITransport.swift; sourceTree = "<group>"; };
 		789C6E4688F23FCD6DA9A6D0 /* RecurrenceUntilRewriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceUntilRewriter.swift; sourceTree = "<group>"; };
@@ -464,6 +465,7 @@
 		502678EDD2E8BD49CBFE5942 = {
 			isa = PBXGroup;
 			children = (
+				A5B9A9DA686ECB6D9965E6F4 /* Configuration */,
 				2993F4F950F323EB23735E6C /* HotCrossBuns */,
 				8630EC5238AF566E168516B9 /* HotCrossBunsMacTests */,
 				4FE2B99345625D57A8EB54B6 /* HotCrossBunsShareExtension */,
@@ -606,6 +608,14 @@
 				865A5F75E0D2C3ACB690C7A6 /* KeychainHealth.swift */,
 			);
 			path = Auth;
+			sourceTree = "<group>";
+		};
+		A5B9A9DA686ECB6D9965E6F4 /* Configuration */ = {
+			isa = PBXGroup;
+			children = (
+				643A4637A65B42FA2BBF76FE /* GoogleOAuth.local.xcconfig */,
+			);
+			path = Configuration;
 			sourceTree = "<group>";
 		};
 		A8A8597ECC59F5DA91D6D5C9 /* Status */ = {
@@ -1042,6 +1052,7 @@
 		};
 		2E034626ED8CB04A15D7E0B5 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 643A4637A65B42FA2BBF76FE /* GoogleOAuth.local.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -1091,8 +1102,6 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				GOOGLE_MACOS_CLIENT_ID = "";
-				GOOGLE_MACOS_REVERSED_CLIENT_ID = "";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
@@ -1159,6 +1168,7 @@
 		};
 		A763CD2C691B1085A957B181 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 643A4637A65B42FA2BBF76FE /* GoogleOAuth.local.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -1214,8 +1224,6 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				GOOGLE_MACOS_CLIENT_ID = "";
-				GOOGLE_MACOS_REVERSED_CLIENT_ID = "";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;

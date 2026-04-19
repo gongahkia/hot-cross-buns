@@ -13,7 +13,9 @@ XCODEBUILD := xcodebuild \
 	-scheme $(SCHEME) \
 	-destination '$(DEST)' \
 	-derivedDataPath $(DERIVED) \
-	CODE_SIGNING_ALLOWED=NO
+	CODE_SIGN_IDENTITY="-" \
+	CODE_SIGN_STYLE=Manual \
+	DEVELOPMENT_TEAM=""
 
 .DEFAULT_GOAL := help
 
