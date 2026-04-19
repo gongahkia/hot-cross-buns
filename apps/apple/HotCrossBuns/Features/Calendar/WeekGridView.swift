@@ -225,7 +225,7 @@ struct WeekGridView: View {
                             guard weekDays.indices.contains(a), weekDays.indices.contains(b) else { return }
                             let start = calendar.startOfDay(for: weekDays[a])
                             let endExclusive = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: weekDays[b])) ?? weekDays[b]
-                            router.present(.addEventRange(start, endExclusive, allDay: true))
+                            router.present(.quickCreateRange(start, endExclusive, allDay: true))
                         }
                 )
             }
@@ -432,7 +432,7 @@ struct WeekGridView: View {
                     router.present(.quickCreate(start, allDay: false))
                 },
                 onDragRange: { start, end in
-                    router.present(.addEventRange(start, end, allDay: false))
+                    router.present(.quickCreateRange(start, end, allDay: false))
                 }
             )
             .dropDestination(for: DraggedTask.self) { items, location in

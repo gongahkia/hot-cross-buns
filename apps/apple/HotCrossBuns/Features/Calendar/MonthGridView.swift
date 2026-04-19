@@ -147,7 +147,7 @@ struct MonthGridView: View {
                         let (from, to) = sel.normalized
                         // Google all-day end is exclusive next-day.
                         let endExclusive = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: to)) ?? to
-                        router.present(.addEventRange(calendar.startOfDay(for: from), endExclusive, allDay: true))
+                        router.present(.quickCreateRange(calendar.startOfDay(for: from), endExclusive, allDay: true))
                     }
             )
             bandOverlay(bands: bands, cellWidth: cellWidth)

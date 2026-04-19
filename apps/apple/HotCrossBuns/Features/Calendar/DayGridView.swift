@@ -142,7 +142,7 @@ struct DayGridView: View {
                                     )
                                     timedDrag = nil
                                     let adjustedEnd = end <= start ? start.addingTimeInterval(1800) : end
-                                    router.present(.addEventRange(start, adjustedEnd, allDay: false))
+                                    router.present(.quickCreateRange(start, adjustedEnd, allDay: false))
                                 }
                         )
                         .simultaneousGesture(

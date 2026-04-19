@@ -5,6 +5,12 @@ struct QuickCreatePopover: View {
     @Environment(AppModel.self) private var model
 
     let initialDate: Date
+    // Non-nil when the user came in via a click-and-drag, carrying the
+    // dragged endpoint. All-day month/week-strip drags pass the exclusive
+    // day-after as `initialEnd`; timed day/week drags pass the actual end
+    // instant. When nil, we fall back to a single-point default (1h event
+    // or all-day task).
+    let initialEnd: Date?
     let isAllDay: Bool
 
     @State private var mode: CreateMode = .event
@@ -15,6 +21,12 @@ struct QuickCreatePopover: View {
     @FocusState private var summaryFocused: Bool
 
     enum CreateMode: String, Hashable { case event, task }
+
+    init(initialDate: Date, isAllDay: Bool, initialEnd: Date? = nil) {
+        self.initialDate = initialDate
+        self.initialEnd = initialEnd
+        self.isAllDay = isAllDay
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -104,7 +116,25 @@ struct QuickCreatePopover: View {
     }
 
     private var dateLabel: String {
-        initialDate.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+        let cal = Calendar.current
+        let startStr = initialDate.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+
+        // Drag came in without an end — single point, existing label.
+        guard let end = initialEnd else { return startStr }
+
+        if isAllDay {
+            // Month drag / week all-day strip drag. `initialEnd` is the
+            // exclusive day-after, so the visible range is end - 1 day.
+            let inclusiveEnd = cal.date(byAdding: .day, value: -1, to: end) ?? end
+            if cal.isDate(initialDate, inSameDayAs: inclusiveEnd) { return "\(startStr) · all-day" }
+            let endStr = inclusiveEnd.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+            return "\(startStr) → \(endStr) · all-day"
+        }
+
+        // Timed drag in the day/week body.
+        let startTime = initialDate.formatted(.dateTime.hour().minute())
+        let endTime = end.formatted(.dateTime.hour().minute())
+        return "\(startStr) · \(startTime) – \(endTime)"
     }
 
     private var currentListTitle: String {
@@ -130,11 +160,27 @@ struct QuickCreatePopover: View {
         guard trimmed.isEmpty == false else { return }
         isSaving = true
         defer { isSaving = false }
+        let cal = Calendar.current
         switch mode {
         case .event:
             guard let calID = selectedCalendarID else { return }
-            let start = isAllDay ? Calendar.current.startOfDay(for: initialDate) : initialDate
-            let end = isAllDay ? start : start.addingTimeInterval(3600)
+            // Event start/end honours the drag-derived range when present.
+            // All-day drags pass an exclusive day-after as `initialEnd`;
+            // model.createEvent stores the inclusive end date internally,
+            // so we subtract a day before passing through.
+            let start: Date
+            let end: Date
+            if isAllDay {
+                start = cal.startOfDay(for: initialDate)
+                if let e = initialEnd {
+                    end = cal.date(byAdding: .day, value: -1, to: e) ?? start
+                } else {
+                    end = start
+                }
+            } else {
+                start = initialDate
+                end = initialEnd ?? start.addingTimeInterval(3600)
+            }
             let didCreate = await model.createEvent(
                 summary: trimmed,
                 details: "",
@@ -146,11 +192,13 @@ struct QuickCreatePopover: View {
             )
             if didCreate { dismiss() }
         case .task:
+            // Tasks have no time/duration in Google Tasks — any drag span
+            // collapses to the first day as the due date.
             guard let listID = selectedListID else { return }
             let didCreate = await model.createTask(
                 title: trimmed,
                 notes: "",
-                dueDate: Calendar.current.startOfDay(for: initialDate),
+                dueDate: cal.startOfDay(for: initialDate),
                 taskListID: listID
             )
             if didCreate { dismiss() }
