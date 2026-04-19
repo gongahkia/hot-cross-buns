@@ -18,8 +18,8 @@ struct MacSidebarShell: View {
         CGFloat(max(layoutScaleMin, min(model.settings.uiLayoutScale, layoutScaleMax)))
     }
 
-    private var dynamicTypeSize: DynamicTypeSize {
-        HCBTextSizeLadder.size(forStep: model.settings.uiTextSizeStep)
+    private var textSizePoints: Double {
+        HCBTextSize.clamp(model.settings.uiTextSizePoints)
     }
 
     // Sized to fit the longest sidebar label ("Calendar") + icon + badge

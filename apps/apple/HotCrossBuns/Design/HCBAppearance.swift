@@ -1,24 +1,13 @@
 import SwiftUI
 
-enum HCBTextSizeLadder {
-    static let sizes: [DynamicTypeSize] = [
-        .xSmall,
-        .small,
-        .medium,
-        .large,
-        .xLarge,
-        .xxLarge,
-        .xxxLarge
-    ]
+enum HCBTextSize {
+    static let minPoints: Double = 9
+    static let maxPoints: Double = 24
+    static let defaultPoints: Double = 13
+    static let stepPoints: Double = 1
 
-    static let titles: [String] = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"]
-
-    static func size(forStep step: Int) -> DynamicTypeSize {
-        sizes[clamped(step)]
-    }
-
-    static func clamped(_ step: Int) -> Int {
-        max(0, min(step, sizes.count - 1))
+    static func clamp(_ points: Double) -> Double {
+        max(minPoints, min(points, maxPoints))
     }
 }
 
@@ -42,38 +31,27 @@ extension EnvironmentValues {
     }
 }
 
-struct HCBAppearanceModifier: ViewModifier {
-    let layoutScale: CGFloat
-    let textSize: DynamicTypeSize
-    let fontName: String?
+private struct HCBTextSizePointsKey: EnvironmentKey {
+    static let defaultValue: Double = HCBTextSize.defaultPoints
+}
 
-    func body(content: Content) -> some View {
-        let resolvedFont = Self.resolvedFont(fontName)
-        return content
-            .environment(\.hcbLayoutScale, layoutScale)
-            .environment(\.hcbFontFamily, fontName)
-            .dynamicTypeSize(textSize)
-            .modifier(OptionalFontModifier(font: resolvedFont))
-    }
-
-    // Only override \.font if a custom family is set. Setting it to .body
-    // when nil would clobber SwiftUI's per-view font resolution (e.g. .font(.headline)).
-    static func resolvedFont(_ name: String?) -> Font? {
-        guard let name, name.isEmpty == false else { return nil }
-        // Use a relative font so DynamicTypeSize still scales it.
-        return Font.custom(name, size: NSFont.systemFontSize, relativeTo: .body)
+extension EnvironmentValues {
+    var hcbTextSizePoints: Double {
+        get { self[HCBTextSizePointsKey.self] }
+        set { self[HCBTextSizePointsKey.self] = newValue }
     }
 }
 
-private struct OptionalFontModifier: ViewModifier {
-    let font: Font?
+struct HCBAppearanceModifier: ViewModifier {
+    let layoutScale: CGFloat
+    let textSizePoints: Double
+    let fontName: String?
 
     func body(content: Content) -> some View {
-        if let font {
-            content.environment(\.font, font)
-        } else {
-            content
-        }
+        content
+            .environment(\.hcbLayoutScale, layoutScale)
+            .environment(\.hcbFontFamily, fontName)
+            .environment(\.hcbTextSizePoints, textSizePoints)
     }
 }
 
@@ -84,7 +62,7 @@ extension View {
     func withHCBAppearance(_ settings: AppSettings) -> some View {
         modifier(HCBAppearanceModifier(
             layoutScale: CGFloat(settings.uiLayoutScale),
-            textSize: HCBTextSizeLadder.size(forStep: settings.uiTextSizeStep),
+            textSizePoints: HCBTextSize.clamp(settings.uiTextSizePoints),
             fontName: settings.uiFontName
         ))
     }
@@ -257,6 +235,7 @@ private struct HCBScaledFlexibleFrameModifier: ViewModifier {
 
 private struct HCBFontModifier: ViewModifier {
     @Environment(\.hcbFontFamily) private var family
+    @Environment(\.hcbTextSizePoints) private var basePoints
     let style: HCBFontStyle
     let weight: Font.Weight?
 
@@ -264,12 +243,16 @@ private struct HCBFontModifier: ViewModifier {
         content.font(resolved)
     }
 
+    // Literal size: style's reference size is scaled by (userBody / 13).
+    // Picking 16 as body multiplies every semantic style by 16/13 ≈ 1.23.
     private var resolved: Font {
+        let scale = basePoints / HCBTextSize.defaultPoints
+        let size = style.referenceSize * scale
         let base: Font
         if let family, family.isEmpty == false {
-            base = .custom(family, size: style.referenceSize, relativeTo: style.relativeTextStyle)
+            base = .custom(family, fixedSize: size)
         } else {
-            base = style.systemFont
+            base = .system(size: size)
         }
         if let weight {
             return base.weight(weight)
@@ -280,6 +263,7 @@ private struct HCBFontModifier: ViewModifier {
 
 private struct HCBFontSystemModifier: ViewModifier {
     @Environment(\.hcbFontFamily) private var family
+    @Environment(\.hcbTextSizePoints) private var basePoints
     let size: CGFloat
     let weight: Font.Weight
     let design: Font.Design
@@ -288,13 +272,16 @@ private struct HCBFontSystemModifier: ViewModifier {
         content.font(resolved)
     }
 
+    // System-font call sites (e.g., explicit size) are rarer; still scale
+    // them by the same body-size ratio so headings + icons follow the
+    // user's chosen text size proportionally.
     private var resolved: Font {
+        let scale = basePoints / HCBTextSize.defaultPoints
+        let scaledSize = size * scale
         if let family, family.isEmpty == false {
-            // Custom fonts don't honor Font.Design — design is system-only.
-            // Apply weight on top of the custom family.
-            return Font.custom(family, size: size, relativeTo: .body).weight(weight)
+            return Font.custom(family, fixedSize: scaledSize).weight(weight)
         }
-        return .system(size: size, weight: weight, design: design)
+        return .system(size: scaledSize, weight: weight, design: design)
     }
 }
 

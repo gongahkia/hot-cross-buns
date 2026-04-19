@@ -212,7 +212,11 @@ struct AppSettings: Hashable, Codable, Sendable {
         uiLayoutScale = try container.decodeIfPresent(Double.self, forKey: .uiLayoutScale) ?? 1.0
         if let points = try container.decodeIfPresent(Double.self, forKey: .uiTextSizePoints) {
             uiTextSizePoints = points
-        } else if let legacyStep = try container.decodeIfPresent(Int.self, forKey: .uiTextSizeStep) {
+        } else if
+            let legacyContainer = try? decoder.container(keyedBy: LegacyKey.self),
+            let legacyKey = LegacyKey(stringValue: "uiTextSizeStep"),
+            let legacyStep = try legacyContainer.decodeIfPresent(Int.self, forKey: legacyKey)
+        {
             // Migrate 0-6 ladder to literal points. Prior mapping:
             // xSmall=11, small=12, medium=12, large=13, xLarge=15, xxLarge=17, xxxLarge=19.
             let ladder: [Double] = [11, 12, 12, 13, 15, 17, 19]
