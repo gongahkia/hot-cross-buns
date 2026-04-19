@@ -978,6 +978,7 @@ struct AddEventSheet: View {
                 }
             }
         }
+        .frame(minWidth: 540, idealWidth: 580, minHeight: 560, idealHeight: 720) // keep toolbar visible in small windows
         .interactiveDismissDisabled(isSaving)
     }
 
@@ -1203,6 +1204,7 @@ struct EditEventSheet: View {
                 }
             }
         }
+        .frame(minWidth: 540, idealWidth: 580, minHeight: 560, idealHeight: 720) // keep toolbar visible in small windows
         .interactiveDismissDisabled(isSaving)
     }
 
