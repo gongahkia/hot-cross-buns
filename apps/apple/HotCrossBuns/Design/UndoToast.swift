@@ -6,40 +6,35 @@ struct UndoToast: View {
     var body: some View {
         VStack {
             Spacer(minLength: 0)
-            if let id = model.recentlyCompletedTaskID, let task = model.task(id: id) {
-                content(task: task)
+            if let action = model.undoable {
+                content(action: action)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .task(id: id) {
-                        try? await Task.sleep(for: .seconds(5))
-                        if model.recentlyCompletedTaskID == id {
-                            model.clearRecentCompletion()
+                    .task(id: model.undoActionToken) {
+                        try? await Task.sleep(for: .seconds(6))
+                        if model.undoable == action {
+                            model.clearUndo()
                         }
                     }
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: model.recentlyCompletedTaskID)
-        .allowsHitTesting(model.recentlyCompletedTaskID != nil)
+        .animation(.easeInOut(duration: 0.2), value: model.undoActionToken)
+        .allowsHitTesting(model.undoable != nil)
     }
 
-    private func content(task: TaskMirror) -> some View {
+    private func content(action: UndoableAction) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: "checkmark.circle.fill")
+            Image(systemName: action.sfSymbol)
                 .foregroundStyle(AppColor.moss)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Completed")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Text(TaskStarring.displayTitle(for: task))
-                    .font(.subheadline.weight(.medium))
-                    .lineLimit(1)
-            }
+            Text(action.summary)
+                .font(.subheadline.weight(.medium))
+                .lineLimit(1)
             Spacer(minLength: 16)
             Button("Undo") {
-                Task { await model.undoRecentCompletion() }
+                Task { await model.performUndo() }
             }
             .buttonStyle(.bordered)
             Button {
-                model.clearRecentCompletion()
+                model.clearUndo()
             } label: {
                 Image(systemName: "xmark")
                     .font(.caption)

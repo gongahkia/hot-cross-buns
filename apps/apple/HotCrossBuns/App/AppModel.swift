@@ -28,6 +28,9 @@ final class AppModel {
     private(set) var syncCheckpoints: [SyncCheckpoint] = []
     private(set) var pendingMutations: [PendingMutation] = []
     private(set) var recentlyCompletedTaskID: TaskMirror.ID?
+    private(set) var undoable: UndoableAction?
+    private var undoActionID = UUID()
+    var undoActionToken: UUID { undoActionID }
     var settings: AppSettings
 
     var lastSuccessfulSyncAt: Date? {
@@ -524,6 +527,7 @@ final class AppModel {
             endMutation(error: nil)
             await saveCurrentState()
             await synchronizeLocalNotifications()
+            recordUndo(.taskEdit(priorSnapshot: originalTask))
             return true
         } catch let error as GoogleAPIError where error.isTransient {
             let payload = PendingTaskUpdatePayload(
@@ -587,6 +591,11 @@ final class AppModel {
             } else if recentlyCompletedTaskID == updatedTask.id {
                 recentlyCompletedTaskID = nil
             }
+            recordUndo(.taskCompletion(
+                taskID: updatedTask.id,
+                priorCompleted: originalTask.isCompleted,
+                title: updatedTask.title
+            ))
             return true
         } catch let error as GoogleAPIError where error.isTransient {
             // Network blip / rate limit / server error — keep the optimistic
@@ -641,6 +650,80 @@ final class AppModel {
         _ = await setTaskCompleted(false, task: task)
     }
 
+    // MARK: Generic undo
+
+    private func recordUndo(_ action: UndoableAction) {
+        undoable = action
+        undoActionID = UUID()
+    }
+
+    func clearUndo() {
+        undoable = nil
+    }
+
+    func performUndo() async {
+        guard let action = undoable else { return }
+        undoable = nil
+        switch action {
+        case .taskCompletion(let id, let prior, _):
+            guard let task = task(id: id) else { return }
+            _ = await setTaskCompleted(prior, task: task)
+        case .taskDelete(let snap):
+            _ = await createTask(
+                title: snap.title,
+                notes: snap.notes,
+                dueDate: snap.dueDate,
+                taskListID: snap.taskListID,
+                parentID: snap.parentID
+            )
+        case .taskEdit(let priorSnap):
+            guard let task = task(id: priorSnap.id) else { return }
+            _ = await updateTask(
+                task,
+                title: priorSnap.title,
+                notes: priorSnap.notes,
+                dueDate: priorSnap.dueDate
+            )
+        case .eventDelete(let snap):
+            _ = await createEvent(
+                summary: snap.summary,
+                details: snap.details,
+                startDate: snap.startDate,
+                endDate: snap.endDate,
+                isAllDay: snap.isAllDay,
+                reminderMinutes: snap.reminderMinutes.first,
+                calendarID: snap.calendarID,
+                location: snap.location,
+                recurrence: snap.recurrence,
+                attendeeEmails: snap.attendeeEmails,
+                notifyGuests: false,
+                addGoogleMeet: false,
+                colorId: snap.colorId
+            )
+        case .eventEdit(let priorSnap):
+            guard let event = event(id: priorSnap.id) else { return }
+            let inclusiveEnd = priorSnap.isAllDay
+                ? (Calendar.current.date(byAdding: .day, value: -1, to: priorSnap.endDate) ?? priorSnap.endDate)
+                : priorSnap.endDate
+            _ = await updateEvent(
+                event,
+                summary: priorSnap.summary,
+                details: priorSnap.details,
+                startDate: priorSnap.startDate,
+                endDate: inclusiveEnd,
+                isAllDay: priorSnap.isAllDay,
+                reminderMinutes: priorSnap.reminderMinutes.first,
+                calendarID: priorSnap.calendarID,
+                location: priorSnap.location,
+                recurrence: priorSnap.recurrence,
+                attendeeEmails: priorSnap.attendeeEmails,
+                notifyGuests: false,
+                addGoogleMeet: false,
+                colorId: priorSnap.colorId
+            )
+        }
+    }
+
     func deleteTask(_ task: TaskMirror) async -> Bool {
         guard requireAccount(mutationDescription: "deleting tasks") else {
             return false
@@ -669,6 +752,7 @@ final class AppModel {
             endMutation(error: nil)
             await saveCurrentState()
             await synchronizeLocalNotifications()
+            recordUndo(.taskDelete(snapshot: originalTask))
             return true
         } catch let error as GoogleAPIError where error.isTransient {
             let payload = PendingTaskDeletePayload(
@@ -886,6 +970,7 @@ final class AppModel {
             endMutation(error: nil)
             await saveCurrentState()
             await synchronizeLocalNotifications()
+            if canQueue { recordUndo(.eventEdit(priorSnapshot: originalEvent)) }
             return true
         } catch let error as GoogleAPIError where error.isTransient && canQueue {
             let payload = PendingEventUpdatePayload(
@@ -969,6 +1054,7 @@ final class AppModel {
             endMutation(error: nil)
             await saveCurrentState()
             await synchronizeLocalNotifications()
+            if canQueue { recordUndo(.eventDelete(snapshot: originalEvent)) }
             return true
         } catch let error as GoogleAPIError where error.isTransient && canQueue {
             let payload = PendingEventDeletePayload(
