@@ -62,13 +62,8 @@ struct CommandPaletteView: View {
                             }
                             if searchResults.isEmpty == false {
                                 sectionHeader("Results")
-                                ForEach(searchResults) { row in
-                                    Button { run(row) } label: {
-                                        resultRow(row)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .hcbScaledPadding(.horizontal, 20)
-                                    .hcbScaledPadding(.vertical, 8)
+                                ForEach(Array(searchResults.enumerated()), id: \.element.id) { index, row in
+                                    resultButton(row: row, index: index)
                                 }
                             }
                         }
@@ -206,47 +201,91 @@ struct CommandPaletteView: View {
         .hcbScaledPadding(.bottom, 4)
     }
 
+    // Indices 0..9 get the ⌘1..⌘9,⌘0 quick-jump shortcut (Alfred/Spotlight
+     // convention). Only applied to search results — the commands section
+     // already carries its own rebindable shortcuts.
+    @ViewBuilder
+    private func resultButton(row: Row, index: Int) -> some View {
+        let button = Button { run(row) } label: {
+            HStack(spacing: 6) {
+                resultRow(row)
+                if let label = numericShortcutLabel(for: index) {
+                    Text(label)
+                        .font(.system(.caption2, design: .monospaced, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .hcbScaledPadding(.horizontal, 5)
+                        .hcbScaledPadding(.vertical, 1)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(.quaternary.opacity(0.5))
+                        )
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .hcbScaledPadding(.horizontal, 20)
+        .hcbScaledPadding(.vertical, 8)
+
+        if index < 10 {
+            button.keyboardShortcut(numericKeyEquivalent(for: index), modifiers: [.command])
+        } else {
+            button
+        }
+    }
+
+    private func numericKeyEquivalent(for index: Int) -> KeyEquivalent {
+        // index 0..8 → "1".."9", index 9 → "0"
+        let digit: Character = index == 9 ? "0" : Character(String(index + 1))
+        return KeyEquivalent(digit)
+    }
+
+    private func numericShortcutLabel(for index: Int) -> String? {
+        guard index < 10 else { return nil }
+        let digit = index == 9 ? "0" : "\(index + 1)"
+        return "⌘\(digit)"
+    }
+
     @ViewBuilder
     private func resultRow(_ row: Row) -> some View {
         switch row {
         case .command: EmptyView()
         case .task(let task):
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .hcbFont(.headline)
+                    .hcbFont(.subheadline)
                     .foregroundStyle(task.isCompleted ? AppColor.moss : AppColor.ember)
-                    .hcbScaledFrame(width: 24)
-                VStack(alignment: .leading, spacing: 2) {
+                    .hcbScaledFrame(width: 16)
+                VStack(alignment: .leading, spacing: 1) {
                     Text(TagExtractor.stripped(from: TaskStarring.displayTitle(for: task)))
-                        .font(.system(.title3, design: .rounded, weight: .semibold))
+                        .font(.system(.subheadline, design: .rounded, weight: .medium))
                     Text(taskListTitle(for: task))
-                        .font(.system(.subheadline, design: .rounded))
+                        .font(.system(.caption2, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
-                Spacer(minLength: 12)
+                Spacer(minLength: 8)
                 if let due = task.dueDate {
                     Text(due.formatted(.dateTime.month(.abbreviated).day()))
-                        .font(.system(.footnote, design: .monospaced, weight: .medium))
+                        .font(.system(.caption2, design: .monospaced, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
             }
             .contentShape(Rectangle())
         case .event(let event):
-            HStack(spacing: 12) {
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
                     .fill(AppColor.blue)
-                    .hcbScaledFrame(width: 6, height: 24)
-                    .hcbScaledPadding(.leading, 9)
-                VStack(alignment: .leading, spacing: 2) {
+                    .hcbScaledFrame(width: 4, height: 16)
+                    .hcbScaledPadding(.leading, 6)
+                VStack(alignment: .leading, spacing: 1) {
                     Text(event.summary)
-                        .font(.system(.title3, design: .rounded, weight: .semibold))
+                        .font(.system(.subheadline, design: .rounded, weight: .medium))
                     Text(calendarTitle(for: event))
-                        .font(.system(.subheadline, design: .rounded))
+                        .font(.system(.caption2, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
-                Spacer(minLength: 12)
+                Spacer(minLength: 8)
                 Text(eventTimeLabel(event))
-                    .hcbFontSystem(size: 13, weight: .medium, design: .monospaced)
+                    .hcbFontSystem(size: 10, weight: .medium, design: .monospaced)
                     .foregroundStyle(.secondary)
             }
             .contentShape(Rectangle())
