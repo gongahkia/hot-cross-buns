@@ -113,6 +113,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var uiTextSizePoints: Double // literal body-text point size (9–24), drives every semantic style
     var uiFontName: String? // PostScript name, nil for system
     var colorSchemeID: String // identifier into HCBColorScheme.all
+    var shortcutOverrides: [String: HCBKeyBinding] // HCBShortcutCommand.rawValue → binding
 
     init(
         syncMode: SyncMode,
@@ -133,7 +134,8 @@ struct AppSettings: Hashable, Codable, Sendable {
         uiLayoutScale: Double = 1.0,
         uiTextSizePoints: Double = 13.0,
         uiFontName: String? = nil,
-        colorSchemeID: String = "notion"
+        colorSchemeID: String = "notion",
+        shortcutOverrides: [String: HCBKeyBinding] = [:]
     ) {
         self.syncMode = syncMode
         self.selectedCalendarIDs = selectedCalendarIDs
@@ -154,6 +156,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.uiTextSizePoints = uiTextSizePoints
         self.uiFontName = uiFontName
         self.colorSchemeID = colorSchemeID
+        self.shortcutOverrides = shortcutOverrides
     }
 
     enum CodingKeys: String, CodingKey {
@@ -176,6 +179,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case uiTextSizePoints
         case uiFontName
         case colorSchemeID
+        case shortcutOverrides
     }
 
     // Legacy key (0-6 ladder) read via dynamic CodingKey so it stays out of
@@ -226,6 +230,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         }
         uiFontName = try container.decodeIfPresent(String.self, forKey: .uiFontName)
         colorSchemeID = try container.decodeIfPresent(String.self, forKey: .colorSchemeID) ?? "notion"
+        shortcutOverrides = try container.decodeIfPresent([String: HCBKeyBinding].self, forKey: .shortcutOverrides) ?? [:]
     }
 
     enum MenuBarStyle: String, Codable, Hashable, Sendable, CaseIterable {
