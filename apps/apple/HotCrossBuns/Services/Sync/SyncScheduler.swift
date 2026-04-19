@@ -46,6 +46,17 @@ actor SyncScheduler {
         let eventResults = try await loadedEvents
         let updatedCheckpoints = taskResults.map(\.checkpoint) + eventResults.map(\.checkpoint)
 
+        var settings = baseState.settings
+        settings.syncMode = mode
+        settings.selectedCalendarIDs = selectedCalendarIDs
+        settings.selectedTaskListIDs = selectedTaskListIDs
+        settings.hasConfiguredCalendarSelection = baseState.settings.hasConfiguredCalendarSelection
+            || baseState.settings.selectedCalendarIDs.isEmpty == false
+            || selectedCalendarIDs.isEmpty == false
+        settings.hasConfiguredTaskListSelection = baseState.settings.hasConfiguredTaskListSelection
+            || baseState.settings.selectedTaskListIDs.isEmpty == false
+            || selectedTaskListIDs.isEmpty == false
+
         return CachedAppState(
             account: baseState.account,
             taskLists: taskLists,
@@ -56,19 +67,7 @@ actor SyncScheduler {
                 return calendar
             },
             events: mergeEvents(existing: baseState.events, results: eventResults),
-            settings: AppSettings(
-                syncMode: mode,
-                selectedCalendarIDs: selectedCalendarIDs,
-                selectedTaskListIDs: selectedTaskListIDs,
-                hasConfiguredCalendarSelection: baseState.settings.hasConfiguredCalendarSelection
-                    || baseState.settings.selectedCalendarIDs.isEmpty == false
-                    || selectedCalendarIDs.isEmpty == false,
-                hasConfiguredTaskListSelection: baseState.settings.hasConfiguredTaskListSelection
-                    || baseState.settings.selectedTaskListIDs.isEmpty == false
-                    || selectedTaskListIDs.isEmpty == false,
-                enableLocalNotifications: baseState.settings.enableLocalNotifications,
-                hasCompletedOnboarding: baseState.settings.hasCompletedOnboarding
-            ),
+            settings: settings,
             syncCheckpoints: mergeCheckpoints(
                 existing: baseState.syncCheckpoints,
                 updated: updatedCheckpoints,
