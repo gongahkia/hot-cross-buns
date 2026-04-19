@@ -675,10 +675,15 @@ struct StoreView: View {
 }
 
 private struct StoreTaskRow: View {
+    @Environment(AppModel.self) private var model
     let task: TaskMirror
     var indentLevel: Int = 0
     @State private var showPreview = false
     @State private var hoverTask: Task<Void, Never>?
+
+    private var isBlocked: Bool {
+        TaskDependencyMarkers.isBlocked(task, allTasks: model.tasks)
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -717,9 +722,18 @@ private struct StoreTaskRow: View {
                             .foregroundStyle(.secondary)
                             .help("Pending sync with Google")
                     }
+                    if isBlocked {
+                        Label("Blocked", systemImage: "lock.fill")
+                            .font(.caption2.weight(.medium))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(AppColor.ember.opacity(0.18)))
+                            .foregroundStyle(AppColor.ember)
+                    }
                 }
-                if !task.notes.isEmpty {
-                    Text.markdown(task.notes)
+                let displayNotes = TaskDependencyMarkers.strippedNotes(from: task.notes)
+                if !displayNotes.isEmpty {
+                    Text.markdown(displayNotes)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -734,6 +748,7 @@ private struct StoreTaskRow: View {
         }
         .padding(.leading, indentLevel > 0 ? 6 : 0)
         .contentShape(Rectangle())
+        .opacity(isBlocked && task.isCompleted == false ? 0.5 : 1.0)
         .onHover { hovering in
             hoverTask?.cancel()
             if hovering {
@@ -985,9 +1000,10 @@ struct TaskHoverPreview: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            if task.notes.isEmpty == false {
+            let displayNotes = TaskDependencyMarkers.strippedNotes(from: task.notes)
+            if displayNotes.isEmpty == false {
                 Divider()
-                Text.markdown(task.notes)
+                Text.markdown(displayNotes)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(8)
