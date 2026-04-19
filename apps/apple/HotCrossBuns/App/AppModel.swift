@@ -411,6 +411,32 @@ final class AppModel {
         }
     }
 
+    // Reorders `task` so that it sits immediately after `previousSiblingID`
+    // (or at the top of its parent when previousSiblingID is nil). Used by
+    // the subtask drag-reorder UI.
+    func reorderTask(_ task: TaskMirror, afterSiblingID previousSiblingID: TaskMirror.ID?) async -> Bool {
+        guard requireAccount(mutationDescription: "reordering tasks") else { return false }
+        guard requirePersisted(task.id) else { return false }
+        if let previousSiblingID, previousSiblingID == task.id { return false }
+
+        beginMutation()
+        do {
+            let moved = try await tasksClient.moveTask(
+                taskListID: task.taskListID,
+                taskID: task.id,
+                parent: task.parentID,
+                previous: previousSiblingID
+            )
+            upsert(moved)
+            endMutation(error: nil)
+            await saveCurrentState()
+            return true
+        } catch {
+            endMutation(error: error)
+            return false
+        }
+    }
+
     func outdentTask(_ task: TaskMirror) async -> Bool {
         guard requireAccount(mutationDescription: "outdenting tasks") else { return false }
         guard requirePersisted(task.id) else { return false }

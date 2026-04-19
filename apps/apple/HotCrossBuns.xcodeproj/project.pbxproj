@@ -137,6 +137,7 @@
 		E98AEB930CC53067A2C2BCE3 /* CustomFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8744975197402E661FA13A2 /* CustomFilterTests.swift */; };
 		F37DF95BBEC2335CA5AFBDED /* CalendarEventInstanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22DB41A975AB784A9EBDD654 /* CalendarEventInstanceTests.swift */; };
 		F544AFBC74E117992DB58913 /* CustomFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A76571F1E7EF40F32A62835 /* CustomFilter.swift */; };
+		FA524DC3AE098023C142AF71 /* SubtaskDragPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20B9299699F46BFF95D48B7 /* SubtaskDragPayload.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -278,6 +279,7 @@
 		DDA5E3D3896AF69DD2D510C6 /* ICSImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICSImporter.swift; sourceTree = "<group>"; };
 		DF84D26BB3BD8AD0DB3337B8 /* HotCrossBunsIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotCrossBunsIntents.swift; sourceTree = "<group>"; };
 		E082142928EB9001E39C6CA1 /* SharedInboxItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedInboxItem.swift; sourceTree = "<group>"; };
+		E20B9299699F46BFF95D48B7 /* SubtaskDragPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtaskDragPayload.swift; sourceTree = "<group>"; };
 		E24E974EA5B94188A538989B /* RecurrenceUntilRewriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceUntilRewriterTests.swift; sourceTree = "<group>"; };
 		E2BC795AF619D093596D767D /* MacSidebarShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSidebarShell.swift; sourceTree = "<group>"; };
 		E3D347AB668EE3CD836DBF55 /* MarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownText.swift; sourceTree = "<group>"; };
@@ -443,6 +445,7 @@
 		467F16808E7CAC7CA139CF9C /* Tasks */ = {
 			isa = PBXGroup;
 			children = (
+				E20B9299699F46BFF95D48B7 /* SubtaskDragPayload.swift */,
 				DA7AA6D7D06BBC2852BAFCDF /* TaskInspectorView.swift */,
 				141ADCA673635CA9F5DA0BD1 /* TasksView.swift */,
 			);
@@ -930,6 +933,7 @@
 				3CD7D2817F178F819CEDA958 /* Snapshots.swift in Sources */,
 				34DF4A454B9BAB7772BA611F /* SpotlightIndexer.swift in Sources */,
 				46D517DF3CCDC62A677E30B0 /* StoreView.swift in Sources */,
+				FA524DC3AE098023C142AF71 /* SubtaskDragPayload.swift in Sources */,
 				28206596F2C65EB227EA1448 /* SyncModels.swift in Sources */,
 				82A686E7646A807876A3FBF4 /* SyncScheduler.swift in Sources */,
 				D9779582C2065E9892747B2B /* SystemCrashReportReader.swift in Sources */,

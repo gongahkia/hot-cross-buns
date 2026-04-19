@@ -356,8 +356,12 @@ struct TaskInspectorView: View {
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 sectionLabel("SUBTASKS")
-                ForEach(children) { child in
+                ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
                     HStack(spacing: 10) {
+                        Image(systemName: "line.3.horizontal")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .help("Drag to reorder")
                         Button {
                             Task { await model.setTaskCompleted(!child.isCompleted, task: child) }
                         } label: {
@@ -380,6 +384,13 @@ struct TaskInspectorView: View {
                         .buttonStyle(.plain)
                     }
                     .padding(.vertical, 2)
+                    .contentShape(Rectangle())
+                    .draggable(SubtaskDragPayload(taskID: child.id))
+                    .dropDestination(for: SubtaskDragPayload.self) { items, _ in
+                        guard let drop = items.first, drop.taskID != child.id else { return false }
+                        Task { await handleSubtaskDrop(draggedID: drop.taskID, targetIndex: index) }
+                        return true
+                    }
                 }
 
                 HStack(spacing: 8) {
@@ -581,6 +592,28 @@ struct TaskInspectorView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(.ultraThinMaterial)
         )
+    }
+
+    private func handleSubtaskDrop(draggedID: TaskMirror.ID, targetIndex: Int) async {
+        let ordered = children
+        guard let draggedTask = ordered.first(where: { $0.id == draggedID }) else { return }
+        guard let fromIndex = ordered.firstIndex(where: { $0.id == draggedID }) else { return }
+        if fromIndex == targetIndex { return }
+        // Google's move API expects the "previous sibling" ID. When the target
+        // is above the dragged row's original spot, the previous sibling is the
+        // row at targetIndex - 1 (or nil when dropping to the top).
+        let adjustedPreviousID: TaskMirror.ID? = {
+            let insertionIndex = targetIndex
+            guard insertionIndex > 0 else { return nil }
+            let predecessorIndex = insertionIndex - 1
+            let predecessor = ordered[predecessorIndex]
+            if predecessor.id == draggedTask.id {
+                // Shouldn't happen (we guard above), but keep safe
+                return predecessorIndex > 0 ? ordered[predecessorIndex - 1].id : nil
+            }
+            return predecessor.id
+        }()
+        _ = await model.reorderTask(draggedTask, afterSiblingID: adjustedPreviousID)
     }
 
     private func addBlocker(_ id: String) {
