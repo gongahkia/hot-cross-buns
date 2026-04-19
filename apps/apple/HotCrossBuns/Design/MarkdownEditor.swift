@@ -80,6 +80,8 @@ struct MarkdownEditor: View {
             }
             TextEditor(text: $text)
                 .hcbFont(.body)
+                .foregroundColor(AppColor.ink)
+                .tint(AppColor.ember)
                 .scrollContentBackground(.hidden)
                 .enableWritingTools()
                 .frame(minHeight: minHeight, maxHeight: maxHeight)

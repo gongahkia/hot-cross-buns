@@ -327,16 +327,12 @@ struct MacSidebarShell: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 collapseToggle
-                Text("Hot Cross Buns")
-                    .hcbFont(.headline)
-                    .lineLimit(1)
+                Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .hcbScaledPadding(.horizontal, 12)
             .padding(.top, trafficLightInset)
-            .hcbScaledPadding(.bottom, 10)
-
-            Divider()
+            .hcbScaledPadding(.bottom, 6)
 
             List(selection: sidebarSelectionBinding) {
                 ForEach(SidebarItem.allCases) { item in

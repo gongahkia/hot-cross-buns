@@ -98,6 +98,73 @@ enum CalendarGridLayout {
         return calendar.startOfDay(for: event.endDate)
     }
 
+    struct MonthBand: Identifiable, Equatable {
+        let event: CalendarEventMirror
+        let startColumn: Int // inclusive 0..6 within week
+        let endColumn: Int   // inclusive 0..6 within week
+        let lane: Int
+        var id: String { "\(event.id)-\(startColumn)-\(endColumn)" }
+    }
+
+    // Events eligible for month-grid bands: all-day events (single or multi-day)
+    // and timed events that span more than one day. Single-day timed events
+    // still render as per-cell chips.
+    static func isBandEvent(_ event: CalendarEventMirror, calendar: Calendar = .current) -> Bool {
+        if event.isAllDay { return true }
+        let startDay = calendar.startOfDay(for: event.startDate)
+        let endDay = eventEndDay(event: event, calendar: calendar)
+        return endDay > startDay
+    }
+
+    // For a given week (array of 7 days, leading = column 0), return band rects
+    // per event that intersects the week, with greedy lane assignment so bars
+    // don't overlap. Events spanning multiple weeks produce one band per week.
+    static func monthBands(for week: [Date], events: [CalendarEventMirror], calendar: Calendar = .current) -> [MonthBand] {
+        guard week.isEmpty == false else { return [] }
+        let weekStart = calendar.startOfDay(for: week[0])
+        let weekEnd = calendar.startOfDay(for: week[week.count - 1])
+        let bandEvents = events
+            .filter { isBandEvent($0, calendar: calendar) }
+            .sorted { lhs, rhs in
+                let lhsStart = calendar.startOfDay(for: lhs.startDate)
+                let rhsStart = calendar.startOfDay(for: rhs.startDate)
+                if lhsStart != rhsStart { return lhsStart < rhsStart }
+                let lhsEnd = eventEndDay(event: lhs, calendar: calendar)
+                let rhsEnd = eventEndDay(event: rhs, calendar: calendar)
+                return lhsEnd > rhsEnd // longer spans first
+            }
+
+        var laneOccupancy: [[Bool]] = [] // lane × column
+        var result: [MonthBand] = []
+
+        for event in bandEvents {
+            let startDay = calendar.startOfDay(for: event.startDate)
+            let endDay = eventEndDay(event: event, calendar: calendar)
+            let clampedStart = max(startDay, weekStart)
+            let clampedEnd = min(endDay, weekEnd)
+            guard clampedStart <= clampedEnd else { continue }
+            let startCol = calendar.dateComponents([.day], from: weekStart, to: clampedStart).day ?? 0
+            let endCol = calendar.dateComponents([.day], from: weekStart, to: clampedEnd).day ?? 0
+            guard startCol >= 0, endCol <= week.count - 1, startCol <= endCol else { continue }
+
+            var laneIndex = 0
+            while true {
+                if laneIndex >= laneOccupancy.count {
+                    laneOccupancy.append(Array(repeating: false, count: week.count))
+                }
+                let row = laneOccupancy[laneIndex]
+                let available = (startCol...endCol).allSatisfy { row[$0] == false }
+                if available {
+                    for c in startCol...endCol { laneOccupancy[laneIndex][c] = true }
+                    result.append(MonthBand(event: event, startColumn: startCol, endColumn: endCol, lane: laneIndex))
+                    break
+                }
+                laneIndex += 1
+            }
+        }
+        return result
+    }
+
     struct LaidOutEvent: Equatable {
         let event: CalendarEventMirror
         let columnIndex: Int

@@ -4,7 +4,7 @@ enum StoreFilter: Hashable {
     case all
     case smart(SmartListFilter)
     case notes
-    case stale
+    case lists
     case custom(CustomFilterDefinition.ID)
 
     var storageKey: String {
@@ -12,7 +12,7 @@ enum StoreFilter: Hashable {
         case .all: "all"
         case .smart(let f): "smart:\(f.rawValue)"
         case .notes: "notes"
-        case .stale: "stale"
+        case .lists: "lists"
         case .custom(let id): "custom:\(id.uuidString)"
         }
     }
@@ -20,7 +20,9 @@ enum StoreFilter: Hashable {
     init(storageKey: String) {
         if storageKey == "all" { self = .all; return }
         if storageKey == "notes" { self = .notes; return }
-        if storageKey == "stale" { self = .stale; return }
+        if storageKey == "lists" { self = .lists; return }
+        // Legacy: treat old "stale" storageKey as the new lists view.
+        if storageKey == "stale" { self = .lists; return }
         if storageKey.hasPrefix("smart:"), let f = SmartListFilter(rawValue: String(storageKey.dropFirst(6))) {
             self = .smart(f)
             return
@@ -37,7 +39,7 @@ enum StoreFilter: Hashable {
         case .all: "All Tasks"
         case .smart(let f): f.title
         case .notes: "Notes"
-        case .stale: "Stale Lists"
+        case .lists: "Lists"
         case .custom: "Filter"
         }
     }
@@ -47,7 +49,7 @@ enum StoreFilter: Hashable {
         case .all: "checklist"
         case .smart(let f): f.systemImage
         case .notes: "note.text"
-        case .stale: "clock.badge.exclamationmark"
+        case .lists: "list.bullet.rectangle"
         case .custom: "line.3.horizontal.decrease.circle"
         }
     }
@@ -345,8 +347,8 @@ struct StoreView: View {
             flatList(filteredTasks: smartTasks(smart), emptyTitle: smart.emptyStateTitle, emptyMessage: smart.emptyStateMessage, emptyIcon: smart.systemImage)
         case .notes:
             flatList(filteredTasks: noteTasks, emptyTitle: "No notes", emptyMessage: "Tasks without a due date and with notes show up here. Add notes to a dateless task to use it as a note.", emptyIcon: "note.text")
-        case .stale:
-            staleListsView
+        case .lists:
+            TaskListsManagementView()
         case .custom(let id):
             if let def = model.settings.customFilters.first(where: { $0.id == id }) {
                 flatList(filteredTasks: customFilterTasks(def), emptyTitle: "Nothing matches", emptyMessage: "Adjust the filter in Settings → Custom Filters.", emptyIcon: def.systemImage)
@@ -368,17 +370,20 @@ struct StoreView: View {
                     if nodes.isEmpty {
                         Text(searchQuery.isEmpty ? "No tasks in this list" : "No matches")
                             .foregroundStyle(.secondary)
+                            .listRowBackground(Color.clear)
                     } else {
                         ForEach(nodes) { node in
                             StoreTaskRow(task: node.parent, indentLevel: 0)
                                 .tag(node.parent.id)
                                 .contentShape(Rectangle())
+                                .listRowBackground(Color.clear)
                                 .swipeActions(edge: .leading) { completeSwipe(for: node.parent) }
                                 .contextMenu { snoozeMenu(for: node.parent) }
                             ForEach(node.children) { child in
                                 StoreTaskRow(task: child, indentLevel: 1)
                                     .tag(child.id)
                                     .contentShape(Rectangle())
+                                    .listRowBackground(Color.clear)
                                     .swipeActions(edge: .leading) { completeSwipe(for: child) }
                                     .contextMenu { snoozeMenu(for: child) }
                             }
@@ -389,6 +394,7 @@ struct StoreView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
     }
 
     private func flatList(filteredTasks: [TaskMirror], emptyTitle: String, emptyMessage: String, emptyIcon: String) -> some View {
@@ -406,112 +412,23 @@ struct StoreView: View {
                             StoreSmartRow(task: task, listName: taskListName(for: task))
                                 .tag(task.id)
                                 .contentShape(Rectangle())
+                                .listRowBackground(Color.clear)
                                 .swipeActions(edge: .leading) { completeSwipe(for: task) }
                                 .contextMenu { snoozeMenu(for: task) }
                         }
                     } header: {
                         HStack(spacing: 8) {
                             Image(systemName: emptyIcon)
+                                .foregroundStyle(AppColor.ember)
                             Text("\(filteredTasks.count) \(filteredTasks.count == 1 ? "task" : "tasks")")
                                 .font(.caption.monospacedDigit())
+                                .foregroundStyle(AppColor.ink)
                         }
                     }
                 }
+                .scrollContentBackground(.hidden)
             }
         }
-    }
-
-    private var staleListsView: some View {
-        let summaries = staleSummaries
-        return Group {
-            if summaries.isEmpty {
-                ContentUnavailableView(
-                    "No task lists",
-                    systemImage: "clock.badge.exclamationmark",
-                    description: Text("Connect Google to load your task lists.")
-                )
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 14) {
-                        Text("Lists sorted by idle time. Stale = \(ReviewBuilder.staleAfterDays)+ days without activity.")
-                            .hcbFont(.caption)
-                            .foregroundStyle(.secondary)
-                        ForEach(summaries) { summary in
-                            staleCard(summary: summary)
-                        }
-                    }
-                    .hcbScaledPadding(16)
-                }
-            }
-        }
-    }
-
-    private func staleCard(summary: ReviewListSummary) -> some View {
-        let stale = (summary.daysSinceActivity ?? 0) >= ReviewBuilder.staleAfterDays
-        return VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                Label(summary.taskList.title, systemImage: "checklist")
-                    .hcbFont(.headline)
-                Spacer(minLength: 0)
-                if let days = summary.daysSinceActivity {
-                    Text(days == 0 ? "Active today" : "\(days) day\(days == 1 ? "" : "s") idle")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(stale ? AppColor.ember : .secondary)
-                } else {
-                    Text("No activity recorded")
-                        .hcbFont(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            if summary.openTasks.isEmpty {
-                Text("Inbox zero — all items complete.")
-                    .hcbFont(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                VStack(spacing: 6) {
-                    ForEach(summary.openTasks.prefix(5)) { task in
-                        Button {
-                            router.navigate(to: .task(task.id))
-                        } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: "circle")
-                                    .foregroundStyle(AppColor.ember)
-                                Text(TagExtractor.stripped(from: TaskStarring.displayTitle(for: task)))
-                                    .hcbFont(.subheadline)
-                                    .foregroundStyle(AppColor.ink)
-                                Spacer(minLength: 0)
-                                if let due = task.dueDate {
-                                    Text(due.formatted(.dateTime.month(.abbreviated).day()))
-                                        .hcbFont(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            .hcbScaledPadding(10)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(AppColor.cream.opacity(0.4))
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    if summary.openTasks.count > 5 {
-                        Text("+\(summary.openTasks.count - 5) more")
-                            .hcbFont(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-        }
-        .hcbScaledPadding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(stale ? AppColor.ember.opacity(0.08) : Color.clear)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(stale ? AppColor.ember.opacity(0.35) : AppColor.cardStroke, lineWidth: stale ? 1 : 0.6)
-        )
     }
 
     private var filterMenu: some View {
@@ -526,7 +443,7 @@ struct StoreView: View {
             }
             Divider()
             Button("Notes") { filterKey = StoreFilter.notes.storageKey }
-            Button("Stale Lists") { filterKey = StoreFilter.stale.storageKey }
+            Button("Lists") { filterKey = StoreFilter.lists.storageKey }
             if model.settings.customFilters.isEmpty == false {
                 Divider()
                 Section("Custom") {
@@ -611,14 +528,6 @@ struct StoreView: View {
         return applySearch(base)
     }
 
-    private var staleSummaries: [ReviewListSummary] {
-        ReviewBuilder.build(
-            taskLists: model.taskLists,
-            tasks: model.tasks,
-            visibleTaskListIDs: visibleTaskListIDs
-        )
-    }
-
     private func applySearch(_ tasks: [TaskMirror]) -> [TaskMirror] {
         let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard q.isEmpty == false else { return tasks }
@@ -685,6 +594,233 @@ struct StoreView: View {
 
     private func taskListName(for task: TaskMirror) -> String {
         model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Unknown list"
+    }
+}
+
+struct TaskListsManagementView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(RouterPath.self) private var router
+    @State private var filter: String = ""
+    @State private var renamingList: TaskListMirror?
+    @State private var renameDraft: String = ""
+    @State private var pendingDeletion: TaskListMirror?
+    @State private var isCreating: Bool = false
+    @State private var newListTitle: String = ""
+    @State private var isMutating: Bool = false
+
+    private var filteredLists: [TaskListMirror] {
+        let q = filter.trimmingCharacters(in: .whitespaces)
+        guard q.isEmpty == false else { return model.taskLists }
+        return model.taskLists.filter { $0.title.localizedCaseInsensitiveContains(q) }
+    }
+
+    private func taskCount(for listID: TaskListMirror.ID) -> Int {
+        model.tasks.filter { $0.taskListID == listID && $0.isDeleted == false }.count
+    }
+
+    private func completedCount(for listID: TaskListMirror.ID) -> Int {
+        model.tasks.filter { $0.taskListID == listID && $0.isCompleted && $0.isDeleted == false }.count
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header
+            Divider()
+            if filteredLists.isEmpty {
+                ContentUnavailableView(
+                    filter.isEmpty ? "No task lists" : "No matches",
+                    systemImage: "list.bullet.rectangle",
+                    description: Text(filter.isEmpty ? "Create a list to get started." : "Adjust the filter to see other lists.")
+                )
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 10) {
+                        ForEach(filteredLists) { list in
+                            listCard(list)
+                        }
+                    }
+                    .hcbScaledPadding(16)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .sheet(item: $renamingList) { list in
+            renameSheet(list)
+        }
+        .sheet(isPresented: $isCreating) {
+            createSheet
+        }
+        .confirmationDialog(
+            "Delete task list?",
+            isPresented: Binding(
+                get: { pendingDeletion != nil },
+                set: { if $0 == false { pendingDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let list = pendingDeletion {
+                Button("Delete \(list.title)", role: .destructive) {
+                    Task { await deleteList(list) }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            if let list = pendingDeletion {
+                Text("This deletes \"\(list.title)\" and all tasks in it from Google Tasks.")
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("Filter lists", text: $filter)
+                .textFieldStyle(.plain)
+            Spacer(minLength: 8)
+            Button {
+                newListTitle = ""
+                isCreating = true
+            } label: {
+                Label("New List", systemImage: "plus")
+            }
+            .disabled(model.account == nil || isMutating)
+        }
+        .hcbScaledPadding(.horizontal, 16)
+        .hcbScaledPadding(.vertical, 10)
+    }
+
+    private func listCard(_ list: TaskListMirror) -> some View {
+        let total = taskCount(for: list.id)
+        let done = completedCount(for: list.id)
+        return HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "list.bullet.rectangle")
+                .hcbFont(.title3)
+                .foregroundStyle(AppColor.ember)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(list.title)
+                    .hcbFont(.headline)
+                    .foregroundStyle(AppColor.ink)
+                HStack(spacing: 10) {
+                    Label("\(total) total", systemImage: "number")
+                        .hcbFont(.caption)
+                        .foregroundStyle(.secondary)
+                    Label("\(done) done", systemImage: "checkmark")
+                        .hcbFont(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 0)
+            Menu {
+                Button {
+                    renameDraft = list.title
+                    renamingList = list
+                } label: {
+                    Label("Rename", systemImage: "pencil")
+                }
+                Button {
+                    Task { _ = await model.clearCompletedTasks(in: list.id) }
+                } label: {
+                    Label("Clear Completed", systemImage: "eraser")
+                }
+                .disabled(done == 0)
+                Divider()
+                Button(role: .destructive) {
+                    pendingDeletion = list
+                } label: {
+                    Label("Delete List", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .hcbFont(.title3)
+                    .foregroundStyle(.secondary)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+        }
+        .hcbScaledPadding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(AppColor.cream.opacity(0.5))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(AppColor.cardStroke, lineWidth: 0.6)
+        )
+    }
+
+    private func renameSheet(_ list: TaskListMirror) -> some View {
+        NavigationStack {
+            Form {
+                Section("Rename list") {
+                    TextField("Title", text: $renameDraft)
+                }
+            }
+            .navigationTitle("Rename")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { renamingList = nil }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task { await rename(list) }
+                    }
+                    .disabled(renameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .hcbScaledFrame(minWidth: 380, minHeight: 180)
+    }
+
+    private var createSheet: some View {
+        NavigationStack {
+            Form {
+                Section("New list") {
+                    TextField("Title", text: $newListTitle)
+                }
+            }
+            .navigationTitle("New Task List")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { isCreating = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") {
+                        Task { await createList() }
+                    }
+                    .disabled(newListTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .hcbScaledFrame(minWidth: 380, minHeight: 180)
+    }
+
+    private func rename(_ list: TaskListMirror) async {
+        let trimmed = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return }
+        isMutating = true
+        defer { isMutating = false }
+        _ = await model.updateTaskList(list, title: trimmed)
+        renamingList = nil
+    }
+
+    private func createList() async {
+        let trimmed = newListTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return }
+        isMutating = true
+        defer { isMutating = false }
+        _ = await model.createTaskList(title: trimmed)
+        isCreating = false
+    }
+
+    private func deleteList(_ list: TaskListMirror) async {
+        isMutating = true
+        defer {
+            isMutating = false
+            pendingDeletion = nil
+        }
+        _ = await model.deleteTaskList(list)
     }
 }
 

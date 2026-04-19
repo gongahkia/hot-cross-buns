@@ -170,12 +170,12 @@ struct CommandPaletteView: View {
             TextField("Commands, tasks, events…", text: $query)
                 .textFieldStyle(.plain)
                 .focused($isSearchFocused)
-                .font(.system(.body, design: .rounded))
+                .hcbFont(.body)
                 .onSubmit(executeFirstMatch)
 
             if query.isEmpty {
                 Text("⌘P")
-                    .font(.system(.caption, design: .rounded, weight: .semibold))
+                    .hcbFont(.caption, weight: .semibold)
                     .foregroundStyle(.secondary)
                     .hcbScaledPadding(.horizontal, 6)
                     .hcbScaledPadding(.vertical, 2)
