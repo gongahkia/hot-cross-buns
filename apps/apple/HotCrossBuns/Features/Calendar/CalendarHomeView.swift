@@ -384,7 +384,7 @@ struct EventDetailView: View {
     }
 
     private func reminderLabel(_ minutes: Int) -> String {
-        EventReminderOption(minutes: minutes)?.title ?? "\(minutes) minutes before"
+        EventReminderOption.label(forMinutes: minutes)
     }
 
     private func delete(_ event: CalendarEventMirror, scope: AppModel.RecurringEventScope) async {
@@ -482,7 +482,7 @@ struct AddEventSheet: View {
     @State private var startDate: Date
     @State private var endDate: Date
     @State private var isAllDay: Bool
-    @State private var reminderOption: EventReminderOption = .fifteenMinutes
+    @State private var reminderOption: EventReminderOption = .preset(15)
     @State private var recurrenceRule: RecurrenceRule?
     @State private var attendees: [String] = []
     @State private var attendeeDraft: String = ""
@@ -554,11 +554,7 @@ struct AddEventSheet: View {
                     }
 
                     Section("Reminder") {
-                        Picker("Alert", selection: $reminderOption) {
-                            ForEach(EventReminderOption.allCases) { option in
-                                Text(option.title).tag(option)
-                            }
-                        }
+                        EventReminderPicker(selection: $reminderOption)
                     }
                 }
             }
@@ -673,7 +669,7 @@ struct EditEventSheet: View {
         _startDate = State(initialValue: event.startDate)
         _endDate = State(initialValue: event.isAllDay ? Calendar.current.date(byAdding: .day, value: -1, to: event.endDate) ?? event.endDate : event.endDate)
         _isAllDay = State(initialValue: event.isAllDay)
-        _reminderOption = State(initialValue: EventReminderOption(minutes: event.reminderMinutes.first) ?? .none)
+        _reminderOption = State(initialValue: EventReminderOption(minutes: event.reminderMinutes.first))
         _selectedCalendarID = State(initialValue: event.calendarID)
         _recurrenceRule = State(initialValue: event.recurrence.lazy.compactMap(RecurrenceRule.parse).first)
         _attendees = State(initialValue: event.attendeeEmails)
@@ -729,11 +725,7 @@ struct EditEventSheet: View {
                 }
 
                 Section("Reminder") {
-                    Picker("Alert", selection: $reminderOption) {
-                        ForEach(EventReminderOption.allCases) { option in
-                            Text(option.title).tag(option)
-                        }
-                    }
+                    EventReminderPicker(selection: $reminderOption)
                 }
 
                 Section("Calendar") {
@@ -840,47 +832,128 @@ struct EditEventSheet: View {
     }
 }
 
-private enum EventReminderOption: Int, CaseIterable, Identifiable {
-    case none = -1
-    case atStart = 0
-    case tenMinutes = 10
-    case fifteenMinutes = 15
-    case thirtyMinutes = 30
-    case oneHour = 60
-    case oneDay = 1440
+enum EventReminderOption: Hashable, Identifiable {
+    case useDefault
+    case preset(Int) // minutes
+    case custom(Int) // minutes
 
-    var id: Int { rawValue }
+    var id: String {
+        switch self {
+        case .useDefault: "default"
+        case .preset(let m): "preset-\(m)"
+        case .custom(let m): "custom-\(m)"
+        }
+    }
 
     var minutes: Int? {
-        rawValue < 0 ? nil : rawValue
+        switch self {
+        case .useDefault: nil
+        case .preset(let m), .custom(let m): m
+        }
     }
 
     var title: String {
         switch self {
-        case .none:
-            "Calendar default"
-        case .atStart:
-            "At start"
-        case .tenMinutes:
-            "10 minutes before"
-        case .fifteenMinutes:
-            "15 minutes before"
-        case .thirtyMinutes:
-            "30 minutes before"
-        case .oneHour:
-            "1 hour before"
-        case .oneDay:
-            "1 day before"
+        case .useDefault: "Calendar default"
+        case .preset(let m), .custom(let m): Self.label(forMinutes: m)
         }
     }
 
-    init?(minutes: Int?) {
-        guard let minutes else {
-            self = .none
-            return
+    static func label(forMinutes minutes: Int) -> String {
+        if minutes == 0 { return "At start" }
+        if minutes < 60 { return "\(minutes) minutes before" }
+        if minutes < 1440 {
+            let hours = minutes / 60
+            let remainder = minutes % 60
+            if remainder == 0 { return "\(hours) hour\(hours == 1 ? "" : "s") before" }
+            return "\(hours)h \(remainder)m before"
         }
+        let days = minutes / 1440
+        let remainder = minutes % 1440
+        if remainder == 0 { return "\(days) day\(days == 1 ? "" : "s") before" }
+        return "\(days)d \((remainder + 59) / 60)h before"
+    }
 
-        self.init(rawValue: minutes)
+    static let presets: [EventReminderOption] = [
+        .useDefault,
+        .preset(0),
+        .preset(5),
+        .preset(10),
+        .preset(15),
+        .preset(30),
+        .preset(60),
+        .preset(120),
+        .preset(1440)
+    ]
+
+    init(minutes: Int?) {
+        guard let minutes else { self = .useDefault; return }
+        if Self.presets.contains(where: { $0.minutes == minutes }) {
+            self = .preset(minutes)
+        } else {
+            self = .custom(minutes)
+        }
+    }
+}
+
+struct EventReminderPicker: View {
+    @Binding var selection: EventReminderOption
+    @State private var customMinutes: String = ""
+    @State private var isEditingCustom = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("Alert", selection: Binding(
+                get: { presetTag(for: selection) },
+                set: { newTag in
+                    if newTag == -2 {
+                        isEditingCustom = true
+                        if case .custom(let m) = selection {
+                            customMinutes = "\(m)"
+                        }
+                    } else {
+                        isEditingCustom = false
+                        selection = EventReminderOption.presets.first { presetTag(for: $0) == newTag } ?? .useDefault
+                    }
+                }
+            )) {
+                ForEach(EventReminderOption.presets) { option in
+                    Text(option.title).tag(presetTag(for: option))
+                }
+                Divider()
+                Text("Custom…").tag(-2)
+            }
+            if case .custom(let m) = selection {
+                Text("Currently \(EventReminderOption.label(forMinutes: m))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if isEditingCustom {
+                HStack(spacing: 8) {
+                    TextField("Minutes before", text: $customMinutes)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 120)
+                    Button("Set") {
+                        if let minutes = Int(customMinutes), minutes >= 0, minutes <= 40320 {
+                            selection = .custom(minutes)
+                            isEditingCustom = false
+                        }
+                    }
+                    .disabled(Int(customMinutes).map { $0 < 0 || $0 > 40320 } ?? true)
+                    Button("Cancel", role: .cancel) {
+                        isEditingCustom = false
+                        customMinutes = ""
+                    }
+                }
+            }
+        }
+    }
+
+    private func presetTag(for option: EventReminderOption) -> Int {
+        switch option {
+        case .useDefault: -1
+        case .preset(let m), .custom(let m): m
+        }
     }
 }
 
