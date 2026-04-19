@@ -1,6 +1,6 @@
 # URGENT-TODO
 
-Outstanding items for Hot Cross Buns as a daily-driver Google Tasks/Calendar client. The out-of-repo blockers (§1–§3) must be done by the maintainer; the in-repo feature work (§7) is scoped against what's needed to fully replace the Google Calendar web UI for personal use.
+Active work remaining for Hot Cross Buns as a daily-driver Google Tasks / Calendar client. Items are either out-of-repo setup the maintainer has to do themselves (§1–§3), on-device verification (§4–§5), deferred roadmap that isn't scheduled but isn't forgotten (§6), or known residual risks to watch for in daily use (§7).
 
 ## 1. Google OAuth wiring
 
@@ -47,18 +47,19 @@ GitHub Actions release workflow references these secrets (not yet set); without 
   - `NOTARIZE_MACOS_DMG` set to `1`
 - Download the CI DMG and confirm Gatekeeper opens it without unsigned-app warnings.
 
-## 4. Confirm single-window + 2-tab sidebar on-device
+## 4. Single-window + 2-tab sidebar on-device verification
 
-Code changes already landed (`HotCrossBunsApp.swift` uses `Window("Hot Cross Buns", id: "main")` with `.windowResizability(.contentMinSize)`; `MacSidebarShell.swift` defaults `NavigationSplitViewVisibility.all`). On-device verification still outstanding.
+On-device checks still outstanding:
 
 - `open build/apple/DerivedData/Build/Products/Debug/HotCrossBunsMac.app` twice in a row — second launch should just foreground the existing window, not create a new one.
 - Cmd+N invokes "New Task" (our override), not "New Window".
 - Sidebar lists Calendar / Store and renders badges for Calendar (today's event count) and Store (open task count).
 - Cmd+, opens the dedicated Settings window (separate scene).
+- Cmd+Shift+P opens the "Print Today" sheet.
 
 ## 5. Live product QA
 
-Dogfood with a real account for at least one workday on macOS. Smoke checklist (10 min):
+Dogfood with a real account for at least one workday on macOS. Smoke checklist:
 
 1. Sign in with real Google account via Settings → Google account → Connect Google.
 2. Refresh; confirm task lists + calendars populate.
@@ -74,19 +75,12 @@ Dogfood with a real account for at least one workday on macOS. Smoke checklist (
 12. Spotlight for a task title → confirm a result appears and clicking opens the task detail inside the app.
 13. Confirm menu bar extra popover renders and quick-add works.
 14. Sync menu → Check for Updates → confirm Sparkle dialog opens (will show "no updates" until an appcast entry is published).
+15. **Recurring event single-occurrence edit (originalStartTime check).** Pick a weekly recurring event. Edit only one occurrence — change the title or time, pick "This event only" (not all-in-series). Open Google Calendar's web UI and confirm **only that occurrence changed**; the other instances of the series are untouched. If the whole series was modified instead, `GoogleEventMutationDTO` needs an `originalStartTime` field populated from the instance's start when PATCHing an instance ID. Current code assumes Google handles this automatically based on the instance-ID suffix; this check verifies that assumption against real Google behaviour.
+16. **Share Extension round-trip.** In Safari, pick a web page → Share → Hot Cross Buns. App should foreground and open QuickAdd with the page URL prefilled. If the extension doesn't appear in Safari's Share menu, log out/in (or Finder → kill and relaunch) — macOS is finicky about picking up new share extensions on first install.
+17. **Services menu round-trip.** Select text anywhere (TextEdit, a web page) → right-click → Services → "Create Hot Cross Buns task". App should foreground and open QuickAdd with the selection prefilled.
+18. **.ics drop.** Export a Google Calendar to `.ics` (Settings → Import/Export) and drag onto the Calendar view. Should create events on the first writable calendar. Drop the same file a second time — alert should say "skipped N duplicates, imported 0".
 
-## 6. Product decisions (locked)
-
-- **Attendee emails**: ask every time via checkbox in the event editor, default off. Matches Google Calendar web behavior without surprising mass-emails.
-- **Recurrence UI**: Daily/Weekly/Monthly/Yearly presets plus a "Custom…" expander (interval, weekday picker, end = never/on date/after N). No raw RRULE string; no natural-language parsing in v1.
-- **Offline writes**: optimistic with temporary local IDs; task/event appears instantly marked "pending sync"; ID is remapped when Google accepts. Requires ID-remap handling in any relation (e.g. subtasks once added).
-- **App Intents**: foreground handoff only — Shortcut opens the app with a prefilled editor; user confirms. Revisit background writes only once the PendingMutation queue is robust.
-
-## 7. Next feature work
-
-All Tier A / B / C feature work is complete. Remaining items are either out-of-repo blockers (§1–§3), on-device verification (§4–§5), or deferred (§8).
-
-## 8. Deferred (lower priority but on the roadmap)
+## 6. Deferred roadmap
 
 Not actively in scope but worth implementing eventually. Each is substantial enough that it should be its own focused push.
 
@@ -97,3 +91,13 @@ Not actively in scope but worth implementing eventually. Each is substantial eno
 - **Rich metadata in Calendar private extended properties** — cross-client fragility; app-only annotations would disappear outside Hot Cross Buns.
 - **SQLite migration for the local cache** — current JSON snapshot is adequate for one user's data volume. Reconsider if the cache grows past ~50MB or needs indexed queries.
 - **Windows / Linux / Android ports** — out of scope by product decision.
+
+## 7. Known residual risks
+
+Low-severity items the audits surfaced that we haven't fixed. None are data-loss risks; each is either a narrow edge case, a latent bug that's not currently hit, or a behaviour gap that only matters if you notice it. Listed here so they don't get forgotten if you do.
+
+- **`LocalNotificationScheduler.add(_:)` silently swallows scheduling errors.** (`Services/Notifications/LocalNotificationScheduler.swift:79` via `try?`.) If macOS rejects a specific reminder request (conflicting identifier, notifications-settings race), the failure is invisible. Partially mitigated: the H1 `NotificationScheduleSummary` in DiagnosticsView shows the scheduled-vs-expected counts, so a systemic problem would show as deferred != 0 despite `hasDeferred` being false. **Fix when hit:** propagate the error and count failures into the summary.
+- **Google Calendar's default reminder isn't honoured as a local notification.** (`Services/Google/GoogleCalendarClient.swift` `GoogleEventRemindersDTO.customPopupMinutes`.) When `useDefault == true`, the decoded mirror has `reminderMinutes == []`, so events relying on Google's default (usually 10 min before) won't fire a local notification in this app. They still fire Google's own notifications via email/web. **Fix when hit:** fetch each calendar's `defaultReminders` at list time and merge into the event mirror when `useDefault == true`.
+- **`ICSDateParser` DateFormatter is shared across calls with per-call mutation of `.timeZone`.** (`Services/ICS/ICSImporter.swift`.) Dormant because ICS import is serial today — `ICSImporter.parse` is called on a single Task from the drop handler. If a future caller parses concurrently, this is a data race. **Fix when hit:** build a fresh formatter per call, or use `TimeZone(identifier:)` resolution + a POSIX-locale formatter that takes the time zone as a parameter.
+- **Tasks `updatedMin` watermark has a 60-second slack.** (`Services/Sync/SyncScheduler.swift`, `tasksUpdatedMin: syncStartedAt.addingTimeInterval(-60)`.) If the user's system clock drifts forward by >60s relative to Google's servers, tasks updated in that narrow window can be missed on the incremental sync until the next full sync runs. **Fix when hit:** widen the slack to ~5 minutes (costs a slightly larger incremental fetch but stays correct up to 5-minute clock drift), or derive the watermark from Google's `Date` response header instead of local time.
+- **Single-occurrence recurring-event PATCH may need `originalStartTime`.** (`Services/Google/GoogleCalendarClient.swift` `updateEvent`.) When `scope == .thisOccurrence` and the event ID has the instance-suffix form `_<yyyymmddThhmmssZ>`, we currently assume Google's API infers the occurrence from the ID alone. If that's wrong, PATCH promotes the edit to the whole series — silent data mutation. **Verified only by §5 step 15 during live QA.** If that test fails, add an optional `originalStartTime: GoogleEventMutationDateDTO?` to the mutation DTO (mirroring the `start` encoding) and populate it from `event.startDate` for single-occurrence PATCHes on instance IDs.
