@@ -934,9 +934,17 @@ final class AppModel {
         do {
             let eventToUpdate: CalendarEventMirror
             if calendarID != event.calendarID {
+                // Cross-calendar moves on a recurring event need to use the
+                // series ID for .allInSeries scope — Google treats a move of
+                // the instance ID as a single-occurrence override with a
+                // different parent calendar, which leaves the rest of the
+                // series orphaned on the source calendar.
+                let sourceID = scope == .allInSeries
+                    ? CalendarEventInstance.seriesID(from: event.id)
+                    : event.id
                 eventToUpdate = try await calendarClient.moveEvent(
                     calendarID: event.calendarID,
-                    eventID: event.id,
+                    eventID: sourceID,
                     destinationCalendarID: calendarID
                 )
             } else {

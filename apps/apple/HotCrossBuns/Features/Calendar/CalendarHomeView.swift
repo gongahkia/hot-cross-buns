@@ -11,6 +11,7 @@ struct CalendarHomeView: View {
     @State private var mode: CalendarGridMode = .week
     @State private var showTaskDrawer: Bool = false
     @State private var searchQuery: String = ""
+    @State private var pendingCrossCalendarMove: CrossCalendarMoveRequest?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,6 +22,14 @@ struct CalendarHomeView: View {
                 refresh: { Task { await model.refreshNow() } }
             )
             Divider()
+            CalendarDropChipsStrip(
+                calendars: model.calendars,
+                onDrop: { droppedEvent, destinationCalendarID in
+                    Task {
+                        await handleCrossCalendarDrop(droppedEvent, destinationCalendarID: destinationCalendarID)
+                    }
+                }
+            )
             navigationBar
             Divider()
             Group {
@@ -41,6 +50,27 @@ struct CalendarHomeView: View {
         }
         .appBackground()
         .navigationTitle("Google Calendar")
+        .confirmationDialog(
+            "Move which occurrences?",
+            isPresented: Binding(
+                get: { pendingCrossCalendarMove != nil },
+                set: { if $0 == false { pendingCrossCalendarMove = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: pendingCrossCalendarMove
+        ) { request in
+            Button("This event only") {
+                Task { await performCrossCalendarMove(request, scope: .thisOccurrence) }
+            }
+            Button("All events in the series") {
+                Task { await performCrossCalendarMove(request, scope: .allInSeries) }
+            }
+            Button("Cancel", role: .cancel) {
+                pendingCrossCalendarMove = nil
+            }
+        } message: { request in
+            Text("\"\(request.eventSummary)\" is part of a recurring series.")
+        }
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 CalendarSearchField(text: $searchQuery)
@@ -140,6 +170,65 @@ struct CalendarHomeView: View {
         case .month:
             return selectedDate.formatted(.dateTime.month(.wide).year())
         }
+    }
+
+    private func handleCrossCalendarDrop(_ dropped: DraggedEvent, destinationCalendarID: CalendarListMirror.ID) async {
+        guard destinationCalendarID != dropped.calendarID else { return }
+        guard let event = model.event(id: dropped.eventID) else { return }
+        let summary = event.summary
+        let isRecurring = CalendarEventInstance.isRecurring(event)
+        if isRecurring {
+            // Recurring cross-calendar moves need scope — this occurrence vs.
+            // the whole series. Pose the question and defer until the user
+            // picks one.
+            pendingCrossCalendarMove = CrossCalendarMoveRequest(
+                eventID: event.id,
+                destinationCalendarID: destinationCalendarID,
+                eventSummary: summary
+            )
+            return
+        }
+        _ = await model.updateEvent(
+            event,
+            summary: event.summary,
+            details: event.details,
+            startDate: event.startDate,
+            endDate: event.isAllDay
+                ? (Calendar.current.date(byAdding: .day, value: -1, to: event.endDate) ?? event.endDate)
+                : event.endDate,
+            isAllDay: event.isAllDay,
+            reminderMinutes: event.reminderMinutes.first,
+            calendarID: destinationCalendarID,
+            location: event.location,
+            recurrence: event.recurrence,
+            attendeeEmails: event.attendeeEmails,
+            notifyGuests: false,
+            scope: .thisOccurrence,
+            colorId: event.colorId
+        )
+    }
+
+    private func performCrossCalendarMove(_ request: CrossCalendarMoveRequest, scope: AppModel.RecurringEventScope) async {
+        pendingCrossCalendarMove = nil
+        guard let event = model.event(id: request.eventID) else { return }
+        _ = await model.updateEvent(
+            event,
+            summary: event.summary,
+            details: event.details,
+            startDate: event.startDate,
+            endDate: event.isAllDay
+                ? (Calendar.current.date(byAdding: .day, value: -1, to: event.endDate) ?? event.endDate)
+                : event.endDate,
+            isAllDay: event.isAllDay,
+            reminderMinutes: event.reminderMinutes.first,
+            calendarID: request.destinationCalendarID,
+            location: event.location,
+            recurrence: event.recurrence,
+            attendeeEmails: event.attendeeEmails,
+            notifyGuests: false,
+            scope: scope,
+            colorId: event.colorId
+        )
     }
 
     private func shift(by direction: Int) {
@@ -900,6 +989,70 @@ enum EventReminderOption: Hashable, Identifiable {
         } else {
             self = .custom(minutes)
         }
+    }
+}
+
+struct CrossCalendarMoveRequest: Identifiable, Hashable {
+    let eventID: CalendarEventMirror.ID
+    let destinationCalendarID: CalendarListMirror.ID
+    let eventSummary: String
+    var id: String { "\(eventID)->\(destinationCalendarID)" }
+}
+
+struct CalendarDropChipsStrip: View {
+    let calendars: [CalendarListMirror]
+    let onDrop: (DraggedEvent, CalendarListMirror.ID) -> Void
+
+    var body: some View {
+        // Only render calendars the user can actually write to — dropping
+        // onto a read-only calendar would fail at the API layer anyway.
+        let writable = calendars.filter { role in
+            role.accessRole == "owner" || role.accessRole == "writer"
+        }
+        Group {
+            if writable.count <= 1 {
+                EmptyView()
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        Text("Drop on a calendar to move:")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 6)
+                        ForEach(writable) { calendar in
+                            chip(for: calendar)
+                        }
+                    }
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 10)
+                }
+            }
+        }
+    }
+
+    private func chip(for calendar: CalendarListMirror) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(Color(hex: calendar.colorHex))
+                .frame(width: 8, height: 8)
+            Text(calendar.summary)
+                .font(.caption)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(
+            Capsule().fill(AppColor.cream.opacity(0.4))
+        )
+        .overlay(
+            Capsule().strokeBorder(AppColor.cardStroke, lineWidth: 0.6)
+        )
+        .dropDestination(for: DraggedEvent.self) { items, _ in
+            guard let dropped = items.first else { return false }
+            onDrop(dropped, calendar.id)
+            return true
+        }
+        .help("Drop an event here to move it to \(calendar.summary)")
     }
 }
 
