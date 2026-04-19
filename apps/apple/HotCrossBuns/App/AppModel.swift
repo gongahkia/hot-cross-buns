@@ -1342,6 +1342,21 @@ final class AppModel {
         Task { await saveCurrentState() }
     }
 
+    func setShortcutBinding(_ command: HCBShortcutCommand, binding: HCBKeyBinding?) {
+        if let binding {
+            settings.shortcutOverrides[command.rawValue] = binding
+        } else {
+            settings.shortcutOverrides.removeValue(forKey: command.rawValue)
+        }
+        Task { await saveCurrentState() }
+    }
+
+    func resetAllShortcutBindings() {
+        guard settings.shortcutOverrides.isEmpty == false else { return }
+        settings.shortcutOverrides.removeAll()
+        Task { await saveCurrentState() }
+    }
+
     func upsertCustomFilter(_ filter: CustomFilterDefinition) {
         if let index = settings.customFilters.firstIndex(where: { $0.id == filter.id }) {
             settings.customFilters[index] = filter
