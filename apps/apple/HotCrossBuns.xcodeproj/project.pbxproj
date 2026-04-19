@@ -41,6 +41,7 @@
 		5049BDF0BCBF8FAE6B9344DB /* LocalCacheStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D35E61D1B3B91A6E21DCC27 /* LocalCacheStore.swift */; };
 		523A574D6D48B12B4587E086 /* CalendarHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2263C896865029DCEC3A53B /* CalendarHomeView.swift */; };
 		532307C515FAB37584D4B968 /* ExporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A247BD19F3FCC74244C279E /* ExporterTests.swift */; };
+		53E6931013FCFB5C1A0858EE /* UndoAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22EC7CE0BFC4074C6B02F03B /* UndoAction.swift */; };
 		565F287CFA9B4102EE96A9DB /* TaskStarring.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0EF302AF854336F06AFD4BE /* TaskStarring.swift */; };
 		5BBDE6D66EBF10AFEFFA71F9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B80F522C53466505A421ECE /* AppDelegate.swift */; };
 		5C9E280691B2F3198FF32835 /* SmartListFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18883C2377F57F108328C03 /* SmartListFilter.swift */; };
@@ -134,6 +135,7 @@
 		1AE4271884E414A0922884E1 /* CalendarDropComputerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDropComputerTests.swift; sourceTree = "<group>"; };
 		1B0DFDCF8E31CE997881CE68 /* TaskDrawerPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDrawerPanel.swift; sourceTree = "<group>"; };
 		22DB41A975AB784A9EBDD654 /* CalendarEventInstanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventInstanceTests.swift; sourceTree = "<group>"; };
+		22EC7CE0BFC4074C6B02F03B /* UndoAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoAction.swift; sourceTree = "<group>"; };
 		2316DAFF7860DC61BD91AF52 /* ForecastBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForecastBuilderTests.swift; sourceTree = "<group>"; };
 		25AD254487BE0AE26B9D81B8 /* AppIntentHandoff.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIntentHandoff.swift; sourceTree = "<group>"; };
 		2902AF84DDE381956C0D149E /* ReviewBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewBuilderTests.swift; sourceTree = "<group>"; };
@@ -241,6 +243,7 @@
 				4A0A69B82085B489B5F595CF /* BackoffPolicy.swift */,
 				B1E03BB899FDA9756E7C268E /* OptimisticWriter.swift */,
 				049F4CDAC1343692B257156B /* SyncScheduler.swift */,
+				22EC7CE0BFC4074C6B02F03B /* UndoAction.swift */,
 			);
 			path = Sync;
 			sourceTree = "<group>";
@@ -750,6 +753,7 @@
 				0E508E9852C85C2E60A64756 /* TaskReminderMarkers.swift in Sources */,
 				565F287CFA9B4102EE96A9DB /* TaskStarring.swift in Sources */,
 				D469641DB76139A358F0A8CB /* TasksView.swift in Sources */,
+				53E6931013FCFB5C1A0858EE /* UndoAction.swift in Sources */,
 				1D5AAB0DDD1DA8BD51016E71 /* UndoToast.swift in Sources */,
 				E79EDFC3AF65AA17E5FB5E03 /* UpdaterController.swift in Sources */,
 				BCDA2BE90E7C719F0569061E /* UpdatesSection.swift in Sources */,
