@@ -627,3 +627,48 @@ private struct WeeklyMenuBarPanel: View {
         .foregroundStyle(count == 0 ? .secondary : color)
     }
 }
+
+// Placeholder panels for the new menu bar styles — user added the cases
+// to MenuBarStyle but the view implementations are not yet written. These
+// stubs keep the build green until the real panels land.
+private struct FocusStripMenuBarPanel: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Focus strip")
+                .font(.headline)
+            Text("Coming soon")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .frame(width: 300)
+    }
+}
+
+private struct DayTimelineMenuBarPanel: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Day timeline")
+                .font(.headline)
+            Text("Coming soon")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .frame(width: 300)
+    }
+}
+
+private struct MinimalBadgeMenuBarPanel: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Minimal badges")
+                .font(.headline)
+            Text("Coming soon")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .frame(width: 300)
+    }
+}
