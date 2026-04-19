@@ -70,6 +70,8 @@ struct SettingsView: View {
 
             LayoutSection()
 
+            EncryptionSection()
+
             KeybindingsSection()
 
             Section("Mac surfaces") {
