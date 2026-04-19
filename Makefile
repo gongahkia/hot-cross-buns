@@ -7,6 +7,7 @@ SCHEME    := HotCrossBunsMac
 DEST      := platform=macOS,arch=arm64
 DERIVED   := build/apple/DerivedData
 APP_PATH  := $(DERIVED)/Build/Products/Debug/HotCrossBunsMac.app
+DEV_ENTITLEMENTS := $(abspath $(APPLE_DIR)/HotCrossBuns/Support/HotCrossBuns-Dev.entitlements)
 
 XCODEBUILD := xcodebuild \
 	-project $(PROJECT) \
@@ -16,7 +17,7 @@ XCODEBUILD := xcodebuild \
 	CODE_SIGN_IDENTITY="-" \
 	CODE_SIGN_STYLE=Manual \
 	DEVELOPMENT_TEAM="" \
-	CODE_SIGN_ENTITLEMENTS=HotCrossBuns/Support/HotCrossBuns-Dev.entitlements
+	CODE_SIGN_ENTITLEMENTS=$(DEV_ENTITLEMENTS)
 
 .DEFAULT_GOAL := help
 
