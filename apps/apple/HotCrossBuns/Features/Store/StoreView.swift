@@ -57,14 +57,22 @@ struct StoreView: View {
     @Environment(AppModel.self) private var model
     @Environment(RouterPath.self) private var router
 
-    @State private var selection: TaskMirror.ID?
+    @State private var selection: Set<TaskMirror.ID> = []
     @State private var isInspectorPresented = true
     @State private var searchQuery: String = ""
+    @State private var isBulkMoveSheetPresented = false
     @SceneStorage("storeFilter") private var filterKey: String = "all"
     @SceneStorage("storeShowCompleted") private var showCompleted: Bool = true
 
     private var filter: StoreFilter {
         StoreFilter(storageKey: filterKey)
+    }
+
+    // The inspector tracks the "focused" single task. Multi-select replaces
+    // the detail view with a bulk-action summary so the user always knows
+    // how many items a follow-up action will affect.
+    private var primarySelection: TaskMirror.ID? {
+        selection.count == 1 ? selection.first : nil
     }
 
     var body: some View {
@@ -74,6 +82,9 @@ struct StoreView: View {
             .searchable(text: $searchQuery, placement: .sidebar, prompt: "Filter")
             .toolbar {
                 ToolbarItemGroup {
+                    if selection.count > 1 {
+                        bulkActionButtons
+                    }
                     if model.pendingMutations.count > 0 {
                         PendingSyncPill(count: model.pendingMutations.count)
                     }
@@ -106,12 +117,70 @@ struct StoreView: View {
                 inspectorContent
                     .inspectorColumnWidth(min: 340, ideal: 380, max: 520)
             }
+            .sheet(isPresented: $isBulkMoveSheetPresented) {
+                BulkMoveSheet(taskIDs: Array(selection)) { movedCount in
+                    if movedCount > 0 {
+                        selection = []
+                    }
+                }
+            }
             .onChange(of: selection) { _, newValue in
-                if newValue != nil { isInspectorPresented = true }
+                if newValue.isEmpty == false { isInspectorPresented = true }
             }
             .onChange(of: filterKey) { _, _ in
-                selection = nil
+                selection = []
             }
+    }
+
+    @ViewBuilder
+    private var bulkActionButtons: some View {
+        Text("\(selection.count) selected")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+        Button {
+            Task { await bulkComplete() }
+        } label: {
+            Label("Complete", systemImage: "checkmark.circle")
+        }
+        .help("Mark all selected tasks complete")
+        Button {
+            isBulkMoveSheetPresented = true
+        } label: {
+            Label("Move", systemImage: "arrow.right.circle")
+        }
+        .help("Move selected tasks to another list")
+        Button(role: .destructive) {
+            Task { await bulkDelete() }
+        } label: {
+            Label("Delete", systemImage: "trash")
+        }
+        .help("Delete all selected tasks")
+        Button {
+            selection = []
+        } label: {
+            Label("Clear selection", systemImage: "xmark.circle")
+        }
+        .help("Clear selection")
+    }
+
+    private func bulkComplete() async {
+        let ids = selection
+        for id in ids {
+            if let task = model.task(id: id), task.isCompleted == false {
+                _ = await model.setTaskCompleted(true, task: task)
+            }
+        }
+        selection = []
+    }
+
+    private func bulkDelete() async {
+        let ids = selection
+        for id in ids {
+            if let task = model.task(id: id) {
+                _ = await model.deleteTask(task)
+            }
+        }
+        selection = []
     }
 
     private var navigationTitle: String {
@@ -347,9 +416,11 @@ struct StoreView: View {
 
     @ViewBuilder
     private var inspectorContent: some View {
-        if let id = selection, let task = model.task(id: id) {
+        if selection.count > 1 {
+            BulkSelectionInspector(count: selection.count)
+        } else if let id = primarySelection, let task = model.task(id: id) {
             TaskInspectorView(task: task, close: {
-                selection = nil
+                selection = []
                 isInspectorPresented = false
             })
         } else {
@@ -581,5 +652,106 @@ private struct StoreSmartRow: View {
         if startOfDue < startOfToday { return AppColor.ember }
         if startOfDue == startOfToday { return AppColor.moss }
         return .secondary
+    }
+}
+
+private struct BulkSelectionInspector: View {
+    let count: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Image(systemName: "checkmark.circle.badge.questionmark")
+                    .font(.title)
+                    .foregroundStyle(AppColor.ember)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(count) tasks selected")
+                        .font(.title3.weight(.semibold))
+                    Text("Use the toolbar to complete, move, or delete them in bulk.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(AppColor.cream.opacity(0.5))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(AppColor.cardStroke, lineWidth: 0.6)
+            )
+            Text("Cmd-click to toggle individual rows, shift-click to extend the selection.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+}
+
+private struct BulkMoveSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var model
+    let taskIDs: [TaskMirror.ID]
+    let onComplete: (Int) -> Void
+
+    @State private var destinationListID: TaskListMirror.ID?
+    @State private var isMutating = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text("Move \(taskIDs.count) task\(taskIDs.count == 1 ? "" : "s") to:")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Section("Destination list") {
+                    Picker("List", selection: $destinationListID) {
+                        ForEach(model.taskLists) { list in
+                            Text(list.title).tag(Optional(list.id))
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                }
+            }
+            .navigationTitle("Move tasks")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .disabled(isMutating)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Move") {
+                        Task { await perform() }
+                    }
+                    .disabled(destinationListID == nil || isMutating || taskIDs.isEmpty)
+                }
+            }
+            .task {
+                destinationListID = destinationListID ?? model.taskLists.first?.id
+            }
+        }
+        .frame(minWidth: 320, minHeight: 320)
+        .interactiveDismissDisabled(isMutating)
+    }
+
+    private func perform() async {
+        guard let destination = destinationListID else { return }
+        isMutating = true
+        defer { isMutating = false }
+        var moved = 0
+        for id in taskIDs {
+            guard let task = model.task(id: id), task.taskListID != destination else { continue }
+            if await model.moveTaskToList(task, toTaskListID: destination) {
+                moved += 1
+            }
+        }
+        onComplete(moved)
+        dismiss()
     }
 }
