@@ -54,8 +54,13 @@ targets:
         GIDClientID: $(GOOGLE_MACOS_CLIENT_ID)
         CFBundleURLTypes:
           - CFBundleTypeRole: Editor
+            CFBundleURLName: com.gongahkia.hotcrossbuns.google-oauth
             CFBundleURLSchemes:
               - $(GOOGLE_MACOS_REVERSED_CLIENT_ID)
+          - CFBundleTypeRole: Editor
+            CFBundleURLName: com.gongahkia.hotcrossbuns.deeplink
+            CFBundleURLSchemes:
+              - hotcrossbuns
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
         CFBundleDevelopmentRegion: en
         NSHumanReadableCopyright: Copyright 2026 Gongahkia

@@ -46,6 +46,7 @@ struct MacSidebarShell: View {
     @State private var isPresentingHelp = false
     @State private var appCommandActions = AppCommandActions()
     @State private var appShortcutMonitor: Any?
+    @State private var deepLinkErrorMessage: String?
 
     private enum CollapsedSidebarDestination: Equatable {
         case item(SidebarItem)
@@ -110,6 +111,9 @@ struct MacSidebarShell: View {
             .overlay {
                 UndoToast()
             }
+            .overlay {
+                DeepLinkErrorToast(message: $deepLinkErrorMessage)
+            }
             .focusedSceneValue(\.appCommandActions, appCommandActions)
             .onAppear {
                 selection = SidebarItem(rawValue: storedSelection) ?? .calendar
@@ -135,6 +139,15 @@ struct MacSidebarShell: View {
             .onChange(of: selection) { _, newValue in
                 storedSelection = newValue.rawValue
                 configureCommandActions()
+            }
+            .onChange(of: model.settings.hiddenSidebarItems) { _, hidden in
+                // if the currently-selected tab just got hidden, fall back
+                // to the first still-visible item so the detail pane isn't
+                // rendering a tab that's no longer in the sidebar.
+                if hidden.contains(selection.rawValue), selection.isHideable,
+                   let first = visibleSidebarItems.first {
+                    selection = first
+                }
             }
             .onChange(of: sidebarVisibility) { _, newValue in
                 // System toolbar button tries to fully hide — snap back; ⌘S is the only collapse.
@@ -190,11 +203,49 @@ struct MacSidebarShell: View {
                 }
             }
             .onOpenURL { url in
-                model.handleAuthRedirect(url)
+                // Deep-link scheme is routed to HCBDeepLinkRouter; everything
+                // else (primarily the Google OAuth redirect) stays on the
+                // existing auth path so sign-in is never intercepted.
+                if url.scheme?.lowercased() == HCBDeepLinkRouter.scheme {
+                    handleDeepLink(url)
+                } else {
+                    model.handleAuthRedirect(url)
+                }
             }
             .onContinueUserActivity(CSSearchableItemActionType) { userActivity in
                 handleSpotlightActivity(userActivity)
             }
+    }
+
+    private func handleDeepLink(_ url: URL) {
+        switch HCBDeepLinkRouter.route(url) {
+        case .success(let action):
+            dispatchDeepLinkAction(action)
+        case .failure(let err):
+            deepLinkErrorMessage = err.message
+        }
+    }
+
+    private func dispatchDeepLinkAction(_ action: HCBDeepLinkAction) {
+        switch action {
+        case .openTask(let id):
+            selection = .store
+            tabRouter.router(for: sidebarItemKey(.store)).navigate(to: .task(id))
+        case .openEvent(let id):
+            selection = .calendar
+            tabRouter.router(for: sidebarItemKey(.calendar)).navigate(to: .event(id))
+        case .newTask(let prefill):
+            // Stage the prefill before presenting — AddTaskSheet reads model
+            // state on .task and nils the prefill once consumed.
+            model.pendingTaskPrefill = prefill
+            presentSheet(.addTask, on: .store)
+        case .newEvent(let prefill):
+            model.pendingEventPrefill = prefill
+            presentSheet(.addEvent, on: .calendar)
+        case .search(let query):
+            model.pendingPaletteQuery = query
+            isPresentingCommandPalette = true
+        }
     }
 
     private func handleSpotlightActivity(_ activity: NSUserActivity) {
@@ -254,7 +305,7 @@ struct MacSidebarShell: View {
                 .hcbScaledPadding(.bottom, 10)
             Divider()
             List {
-                ForEach(SidebarItem.allCases) { item in
+                ForEach(visibleSidebarItems) { item in
                     collapsedItemButton(item)
                 }
             }
@@ -262,6 +313,14 @@ struct MacSidebarShell: View {
         }
         .frame(width: collapsedSidebarWidth)
         .toolbar(removing: .sidebarToggle)
+    }
+
+    // SidebarItem.allCases filtered by user-hidden set. Settings is never
+    // hidable (see SidebarItem.isHideable), so it always appears here.
+    private var visibleSidebarItems: [SidebarItem] {
+        SidebarItem.allCases.filter { item in
+            item.isHideable == false || model.settings.hiddenSidebarItems.contains(item.rawValue) == false
+        }
     }
 
     private var collapsedIconColumn: CGFloat {
@@ -308,7 +367,7 @@ struct MacSidebarShell: View {
             .hcbScaledPadding(.bottom, 6)
 
             List(selection: sidebarSelectionBinding) {
-                ForEach(SidebarItem.allCases) { item in
+                ForEach(visibleSidebarItems) { item in
                     sidebarRow(for: item)
                 }
             }
@@ -359,7 +418,13 @@ struct MacSidebarShell: View {
         appCommandActions.newEvent = { presentSheet(.addEvent, on: .calendar) }
         appCommandActions.refresh = { Task { await model.refreshNow() } }
         appCommandActions.forceResync = { Task { await model.forceFullResync() } }
-        appCommandActions.switchTo = { item in selection = item }
+        appCommandActions.switchTo = { item in
+            // If the target tab is currently hidden via Layout settings, treat
+            // the keyboard shortcut as a no-op rather than auto-unhide.
+            guard item.isHideable == false
+                || model.settings.hiddenSidebarItems.contains(item.rawValue) == false else { return }
+            selection = item
+        }
         appCommandActions.openDiagnostics = { presentSheet(.diagnostics, on: selection) }
         appCommandActions.openCommandPalette = { isPresentingCommandPalette = true }
         appCommandActions.openHelp = { isPresentingHelp = true }

@@ -72,7 +72,16 @@ struct CommandPaletteView: View {
                 }
             }
         }
-        .onAppear { isSearchFocused = true }
+        .onAppear {
+            // Honour any deep-link-staged query: hotcrossbuns://search?q=… sets
+            // model.pendingPaletteQuery before toggling the palette open. Clear
+            // after consuming so a subsequent manual open starts blank.
+            if let staged = model.pendingPaletteQuery, staged.isEmpty == false {
+                query = staged
+                model.pendingPaletteQuery = nil
+            }
+            isSearchFocused = true
+        }
         .onSubmit(of: .text, executeFirstMatch)
         .hcbScaledFrame(
             minWidth: 520,
