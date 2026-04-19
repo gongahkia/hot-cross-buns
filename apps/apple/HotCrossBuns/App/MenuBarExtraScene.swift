@@ -429,7 +429,6 @@ private struct FocusStripMenuBarPanel: View {
         HStack(spacing: 8) {
             Text(row.lane.title.uppercased())
                 .hcbFont(.caption2, weight: .bold)
-                .foregroundStyle(row.lane.tint)
                 .hcbScaledFrame(width: 40, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 1) {
@@ -459,21 +458,13 @@ private struct FocusStripMenuBarPanel: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(completingTaskIDs.contains(task.id))
-            } else {
-                Image(systemName: row.symbol)
-                    .hcbFont(.caption)
-                    .foregroundStyle(row.isPlaceholder ? .secondary : row.color)
             }
         }
         .hcbScaledPadding(.horizontal, 8)
         .hcbScaledPadding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(
-                    row.isPlaceholder
-                        ? AnyShapeStyle(Color.secondary.opacity(0.16))
-                        : AnyShapeStyle(row.color.opacity(0.10))
-                )
+                .fill(Color.secondary.opacity(row.isPlaceholder ? 0.10 : 0.14))
         )
     }
 
