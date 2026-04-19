@@ -1,59 +1,8 @@
 # URGENT-TODO
 
-Outstanding items for the Mac-only refactor push and v0.1.0 release. Everything below is either unblocking for shipping, requires live-device/account access, or is an open product decision. Feature-depth work (calendar grid, subtasks, recurrence, offline queue) is tracked under "Deferred work".
+Outstanding items for Hot Cross Buns as a daily-driver Google Tasks/Calendar client. The out-of-repo blockers (§1–§3) must be done by the maintainer; the in-repo feature work (§7) is scoped against what's needed to fully replace the Google Calendar web UI for personal use.
 
-## 1. Verify the new test suites run green
-
-### What's already confirmed
-- `xcodebuild ... build` succeeds on macOS with signing off.
-- `ModelPersistenceTests` (5 tests) and `SpotlightIdentifierTests` (3 tests) executed and passed on the last run.
-
-### What's unconfirmed
-- `BackoffPolicyTests` (5 cases)
-- `AppSettingsMacSurfacesTests` (2 cases)
-- `SyncSchedulerTombstonePurgeTests` (1 case)
-
-The previous run started `SyncSchedulerTombstonePurgeTests` then xcodebuild aborted with a **result-bundle save error** (`mkstemp: No such file or directory` coming out of `IDETesting`), not a test failure. Xcode 26.4 beta has a known issue here when DerivedData is cleaned mid-build.
-
-### Commands to verify
-```bash
-cd apps/apple
-
-# reset only the CAS path that trips the save error; leave SPM cache alone.
-xcodebuild -project HotCrossBuns.xcodeproj \
-  -scheme HotCrossBunsMac \
-  -destination 'platform=macOS,arch=arm64' \
-  clean
-
-xcodebuild -project HotCrossBuns.xcodeproj \
-  -scheme HotCrossBunsMac \
-  -destination 'platform=macOS,arch=arm64' \
-  test CODE_SIGNING_ALLOWED=NO | tee /tmp/hcb-test.log
-
-# pass criteria:
-grep -E 'Executed [0-9]+ tests, with 0 failures' /tmp/hcb-test.log | wc -l
-# expect 5 (one per suite).
-```
-
-### If the result-bundle save error re-occurs
-It's a sandboxing / CAS issue local to the Xcode 26 beta. Two workarounds, in order of cost:
-1. Run tests with `-disableAutomaticPackageResolution -skipPackagePluginValidation` and redirect the result bundle: `-resultBundlePath "$PWD/build/apple/TestResults"`.
-2. If still flaky, temporarily switch DerivedData off `/Users/...` (the default) to a path in `$PWD/build/apple/DerivedData`: pass `-derivedDataPath build/apple/DerivedData` to the same command.
-
-### If a real test failure surfaces
-Most likely suspect is `SyncSchedulerTombstonePurgeTests` — it uses a private `MergePurgeFixture` that re-implements the scheduler's post-merge filter. If `SyncScheduler.mergeTasks` / `mergeEvents` later change shape (sorting, recurrence handling), update the fixture to match. The real merge logic lives in `apps/apple/HotCrossBuns/Services/Sync/SyncScheduler.swift`.
-
-## 2. Confirm the single-window + sidebar fix on-device
-
-Code changes landed (`HotCrossBunsApp.swift` uses `Window("Hot Cross Buns", id: "main")` with `.windowResizability(.contentMinSize)`; `MacSidebarShell.swift` defaults `NavigationSplitViewVisibility.all`). On-device verification still outstanding.
-
-**Verify manually:**
-- `open build/apple/DerivedData/Build/Products/Debug/HotCrossBunsMac.app` twice in a row — second launch should just foreground the existing window, not create a new one.
-- Cmd+N invokes "New Task" (our override), not "New Window".
-- Sidebar lists Calendar / Store and renders badges for Calendar (today's event count) and Store (open task count).
-- Cmd+, opens the dedicated Settings window (separate scene).
-
-## 3. Google OAuth wiring
+## 1. Google OAuth wiring
 
 Cannot be done from repo code alone. `apps/apple/Configuration/GoogleOAuth.xcconfig` is still absent (only `.example` present), so `GoogleAuthService.isConfigured` returns false and sign-in is disabled.
 
@@ -69,7 +18,7 @@ Cannot be done from repo code alone. `apps/apple/Configuration/GoogleOAuth.xccon
 - In Xcode, attach that xcconfig to the `HotCrossBunsMac` target's Debug + Release configurations.
 - Verify sign-in, disconnect, reconnect, and incremental scope grant behavior with a real Google account.
 
-## 4. Sparkle auto-update provisioning
+## 2. Sparkle auto-update provisioning
 
 `SUPublicEDKey` is still missing from `apps/apple/HotCrossBuns/Support/Info-macOS.plist`. Sparkle will refuse updates without it.
 
@@ -81,7 +30,7 @@ Cannot be done from repo code alone. `apps/apple/Configuration/GoogleOAuth.xccon
 
 See `docs/RELEASING.md` for the end-to-end flow.
 
-## 5. Apple Developer ID + notarization
+## 3. Apple Developer ID + notarization
 
 GitHub Actions release workflow references these secrets (not yet set); without them the DMG ships unsigned and Gatekeeper warns on first open.
 
@@ -98,7 +47,16 @@ GitHub Actions release workflow references these secrets (not yet set); without 
   - `NOTARIZE_MACOS_DMG` set to `1`
 - Download the CI DMG and confirm Gatekeeper opens it without unsigned-app warnings.
 
-## 6. Live product QA
+## 4. Confirm single-window + 2-tab sidebar on-device
+
+Code changes already landed (`HotCrossBunsApp.swift` uses `Window("Hot Cross Buns", id: "main")` with `.windowResizability(.contentMinSize)`; `MacSidebarShell.swift` defaults `NavigationSplitViewVisibility.all`). On-device verification still outstanding.
+
+- `open build/apple/DerivedData/Build/Products/Debug/HotCrossBunsMac.app` twice in a row — second launch should just foreground the existing window, not create a new one.
+- Cmd+N invokes "New Task" (our override), not "New Window".
+- Sidebar lists Calendar / Store and renders badges for Calendar (today's event count) and Store (open task count).
+- Cmd+, opens the dedicated Settings window (separate scene).
+
+## 5. Live product QA
 
 Dogfood with a real account for at least one workday on macOS. Smoke checklist (10 min):
 
@@ -117,26 +75,59 @@ Dogfood with a real account for at least one workday on macOS. Smoke checklist (
 13. Confirm menu bar extra popover renders and quick-add works.
 14. Sync menu → Check for Updates → confirm Sparkle dialog opens (will show "no updates" until an appcast entry is published).
 
-## 7. Product decisions (locked)
+## 6. Product decisions (locked)
 
 - **Attendee emails**: ask every time via checkbox in the event editor, default off. Matches Google Calendar web behavior without surprising mass-emails.
 - **Recurrence UI**: Daily/Weekly/Monthly/Yearly presets plus a "Custom…" expander (interval, weekday picker, end = never/on date/after N). No raw RRULE string; no natural-language parsing in v1.
 - **Offline writes**: optimistic with temporary local IDs; task/event appears instantly marked "pending sync"; ID is remapped when Google accepts. Requires ID-remap handling in any relation (e.g. subtasks once added).
 - **App Intents**: foreground handoff only — Shortcut opens the app with a prefilled editor; user confirms. Revisit background writes only once the PendingMutation queue is robust.
 
-## 8. Feature requests
+## 7. Next feature work
 
-- Add native Vim keybindings inside the Mac app if feasible. Scope to explore: modal nav (h/j/k/l, gg/G) across task/event lists and sidebar; command-mode (`:`) reusing command palette; insert-mode bindings inside task title/notes editors (SwiftUI `TextEditor` lacks native Vim — evaluate AppKit `NSTextView` subclass or integrating a mode engine). Confirm no collision with existing Cmd-shortcuts and system accessibility.
+Prioritized for daily-driver use. Items 1–7 close the muscle-memory gap with the Google Calendar web UI; 8–14 are productivity power-ups; 15–20 harden what's already shipped; 21–26 elevate the app beyond "web client pretending to be native."
 
-## 9. Deferred work
+### Tier 1 — daily-driver blockers
 
-Not in scope for this push, listed here so nothing is lost:
-- Offline `PendingMutation` queue — **creates, updates, completions, and deletes are all wired** for both tasks and events (single-occurrence, same-calendar scope). Each queued mutation carries the source etag as a snapshot; on replay it sends that etag via If-Match, so a 412 drops the queued change and triggers a refresh rather than clobbering a newer server state. Optimistic local updates are reverted on terminal (non-transient) failures. Cross-calendar event moves and series-wide ("all in series") edits stay direct-only — they have richer semantics that aren't safely representable in the queue.
-- etag / `If-Match` conditional writes — **wired** for task update/delete and event update/delete. 412 triggers a refresh so the user sees the winning state before retrying. Series-level event updates/deletes intentionally omit the If-Match since the series ID diverges from instance etag.
-- Calendar grid view (day/week/month) — **wired** (agenda/week/month picker in `CalendarHomeView`).
-- Task → calendar event time-blocking drag — **wired** (`WeekGridView` day columns are drop destinations for `DraggedTask`; creates a 60-minute event with `hcb://task/<id>` back-link).
-- Subtask hierarchy, task reorder, bulk operations, filters.
-- RRULE editing, attendees / guest-email policy, "this and following" delete.
-- Crash reporting.
-- SQLite migration for the local cache.
-- Native markdown editor for task notes and event descriptions — **wired**. Google Tasks `notes` is stored as plaintext markdown; `MarkdownEditor` in Add/Edit sheets and the inspector. Google Calendar event `description` is transpiled through `MarkdownHTML` (md → HTML subset on write, HTML → md on read). Unknown HTML tags in incoming descriptions are preserved verbatim on the next write so formatting authored elsewhere is not destroyed.
+1. **Click empty calendar slot to create event** — `WeekGridView.dayColumn` (and month grid equivalent) should accept a tap gesture that opens `AddEventSheet` with the tapped time pre-filled as start.
+2. **Google Meet / `conferenceData` support** — decode `conferenceData` from `GoogleEventDTO`; add an "Add Google Meet video conferencing" toggle in `AddEventSheet` / `EditEventSheet`; send `conferenceData.createRequest` on insert; display the Meet link in `EventDetailView`.
+3. **Attendee RSVP display** — `responseStatus` is already decoded in `GoogleEventAttendeeDTO` but never rendered. Surface ✓ / ✗ / ? / pending beside each email in `GuestsSection` and `EventDetailView`.
+4. **Tasks rendered on the calendar grid** — Week and Month grids should render due tasks as distinct tiles on their due date (tinted differently from events). Click opens the task inspector.
+5. **Multi-day all-day event bars** — `WeekGridView.allDayStrip` currently renders all-day events separately per day column; a 3-day conference looks like three disconnected cells. Render as a single contiguous bar spanning the relevant columns.
+6. **Per-event color override** (`colorId`) — decode + encode the Google Calendar `colorId` field; add a color swatch picker in the event editor; apply the override to the event tile's fill color (falling back to calendar color when absent).
+7. **Custom reminder offsets** — replace fixed `EventReminderOption` enum with a user-entered minutes field (or preset list + custom). Array is already in the wire model.
+
+### Tier 2 — productivity power-ups
+
+8. **Bulk task selection** — `List(selection:)` multi-select in `StoreView` with toolbar actions "Complete all" / "Delete all" / "Move to list…".
+9. **Clear completed tasks** (`tasks.clear` API) — Google Tasks batch endpoint that wipes completed from a list. Surface as a button in `StoreView` toolbar when the active filter is a single list.
+10. **Undo for delete and edit** — generalise `UndoToast` / `recentlyCompletedTaskID` into an `UndoStack` that captures the inverse of any single mutation; expose for task delete, event delete, and inspector edits.
+11. **In-Calendar event search** — searchable field in the `CalendarHomeView` toolbar that filters events rendered on the grid (distinct from the command palette, which navigates away).
+12. **Month grid drag-to-reschedule** — `MonthGridView` should mirror `WeekGridView`'s `dropDestination(for: DraggedEvent.self)` to let users drag an event to a new day.
+13. **Quick-add reads clipboard** — when Cmd+Shift+Space opens `QuickAddView`, if the clipboard contains URL-like or plain text content, pre-fill the title.
+14. **"This and following" recurring delete** — Google Calendar web offers three options (this, this-and-following, all-in-series). We currently support only `.thisOccurrence` and `.allInSeries`; add the middle option with the corresponding Google Calendar API call pattern.
+
+### Tier 3 — infrastructure / reliability
+
+15. **Offline-queue test coverage** — the `PendingTaskUpdatePayload` / `replayTaskCompletion` / etc. paths shipped recently without unit tests. Add a mock-transport test harness that asserts HTTP verb + `If-Match` header + state transitions (transient retain, 412 drop-and-refresh, terminal revert).
+16. **Cache schema versioning** — `CachedAppState` gets a `schemaVersion: Int` field with explicit migration shims. The current `LocalCacheStore.loadCachedState` fallback catches total decode failure but cannot migrate a renamed field; versioning prevents future silent data loss on upgrade.
+17. **Diagnostics: per-mutation pending-queue clear** — `DiagnosticsView` should list queued mutations and allow per-item drop, for the case where one mutation keeps 412'ing and blocks replay.
+18. **Token-refresh failure UX** — `GoogleSignInAccessTokenProvider.accessToken()` can throw. Distinguish "refresh failed, reconnect needed" (→ `authState = .failed`) from "transient network" (→ queue and retry). Currently the error is generic.
+19. **Crash reporting** — no crash reporter wired. Lightweight file-based crash capture written to `~/Library/Application Support/...` on next launch, surfaced via `DiagnosticsView`.
+20. **Sync scheduler backoff ceiling** — `BackoffPolicy.nearRealtime` retries indefinitely. On persistent failure (say, 30+ min of no network), cap retries and surface a visible "sync paused — check connection" state.
+
+### Tier 4 — macOS-native polish
+
+21. **Share Extension** — "Share to Hot Cross Buns" target from Safari / Mail to create a task or event with URL + selected text pre-filled.
+22. **Services menu** — "Create Hot Cross Buns task from selection" anywhere the user highlights text system-wide.
+23. **Spotlight QuickLook previews** — Spotlight indexing already exists; add a QuickLook provider so users can peek event details from Spotlight results without launching the app.
+24. **Drag `.ics` file onto the app to import as event(s)** — parse and route through `createEvent` (with conflict detection).
+25. **Print support** — `Exporters.swift` has markdown + ICS output; add a native Print sheet layout for today / week / selected task list.
+26. **Localization scaffolding** — wrap user-visible strings in `LocalizedStringKey` now so future translations are cheap. English-only for v1.
+
+## 8. Deferred (non-goals for now)
+
+- Multi-account (personal + work) — large change, revisit after Tier 1–3.
+- Push-via-APNs relay — requires a server, violates "Google is the backend" principle.
+- Rich metadata in Calendar private extended properties — cross-client fragility.
+- SQLite migration for the local cache (current JSON snapshot is adequate for the scale of one user's data).
+- Windows / Linux / Android ports.
