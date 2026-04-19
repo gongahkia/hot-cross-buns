@@ -144,6 +144,9 @@ private struct ConnectGoogleCard: View {
             case .signedIn(let account):
                 Label(account.displayName, systemImage: "checkmark.circle.fill")
                     .foregroundStyle(AppColor.moss)
+                Text("Signed in with Tasks + Calendar scopes.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             case .authenticating:
                 ProgressView("Opening Google Sign-In")
             case .failed(let message):
@@ -151,10 +154,12 @@ private struct ConnectGoogleCard: View {
                     .font(.footnote)
                     .foregroundStyle(.red)
                 connectButton
+                scopeFootnote
             case .signedOut:
-                Text("Sign in once to grant Tasks and Calendar access.")
+                Text("Sign in once to grant access. Hot Cross Buns asks for Google Tasks + Calendar only — no Gmail, Drive, or contacts.")
                     .foregroundStyle(.secondary)
                 connectButton
+                scopeFootnote
             }
         }
         .cardSurface(cornerRadius: 26)
@@ -171,6 +176,12 @@ private struct ConnectGoogleCard: View {
         }
         .buttonStyle(.borderedProminent)
         .tint(AppColor.ember)
+    }
+
+    private var scopeFootnote: some View {
+        Text("Tokens stay in your Mac Keychain. Disconnecting in Settings wipes local state.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
     }
 }
 
@@ -223,9 +234,20 @@ private struct SourceSelectionCard: View {
                 .accessibilityLabel("Refresh Google lists and calendars")
             }
 
-            if model.taskLists.isEmpty && model.calendars.isEmpty {
-                Text("Refresh after connecting Google to load selectable task lists and calendars.")
+            if model.account == nil {
+                Text("Finish step 1 first — your task lists and calendars will appear here once Google is connected.")
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
+            } else if model.taskLists.isEmpty && model.calendars.isEmpty {
+                if case .syncing = model.syncState {
+                    Label("Loading from Google…", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("No lists or calendars yet. Tap Refresh above, or create a list in Google Tasks and try again.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if model.taskLists.isEmpty == false {
@@ -298,6 +320,7 @@ private struct ReminderPreferenceCard: View {
 }
 
 private struct FinishOnboardingCard: View {
+    @Environment(AppModel.self) private var model
     let finish: () -> Void
 
     var body: some View {
@@ -305,11 +328,16 @@ private struct FinishOnboardingCard: View {
             Text("You can change all of this later in Settings.")
                 .foregroundStyle(.secondary)
             Button(action: finish) {
-                Label("Finish Setup", systemImage: "checkmark.circle.fill")
+                Label(model.account == nil ? "Finish Without Connecting" : "Finish Setup", systemImage: "checkmark.circle.fill")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .tint(AppColor.moss)
+            .tint(model.account == nil ? AppColor.ember : AppColor.moss)
+            if model.account == nil {
+                Text("You can connect Google later from Settings — we'll just show empty states until you do.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .cardSurface(cornerRadius: 26)
     }
