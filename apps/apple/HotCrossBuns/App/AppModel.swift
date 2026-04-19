@@ -300,11 +300,20 @@ final class AppModel {
     }
 
     func duplicateEvent(_ event: CalendarEventMirror) async -> Bool {
-        await createEvent(
+        await duplicateEvent(event, offsetDays: 0)
+    }
+
+    // Shift start/end by offsetDays when duplicating so repeating monthly-ish
+    // events that don't fit an RRULE can be cloned forward quickly.
+    func duplicateEvent(_ event: CalendarEventMirror, offsetDays: Int) async -> Bool {
+        let calendar = Calendar.current
+        let shiftedStart = calendar.date(byAdding: .day, value: offsetDays, to: event.startDate) ?? event.startDate
+        let shiftedEnd = calendar.date(byAdding: .day, value: offsetDays, to: event.endDate) ?? event.endDate
+        return await createEvent(
             summary: event.summary,
             details: event.details,
-            startDate: event.startDate,
-            endDate: event.endDate,
+            startDate: shiftedStart,
+            endDate: shiftedEnd,
             isAllDay: event.isAllDay,
             reminderMinutes: event.reminderMinutes.first,
             calendarID: event.calendarID,
