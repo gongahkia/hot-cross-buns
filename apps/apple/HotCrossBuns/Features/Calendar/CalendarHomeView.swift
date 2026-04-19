@@ -112,6 +112,7 @@ struct CalendarHomeView: View {
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 CalendarSearchField(text: $searchQuery)
+                    .disabled(model.account == nil)
             }
             ToolbarItemGroup {
                 if mode == .week {
@@ -122,12 +123,14 @@ struct CalendarHomeView: View {
                     }
                     .keyboardShortcut("j", modifiers: [.command])
                     .help("Toggle task drawer (Cmd+J)")
+                    .disabled(model.account == nil)
                 }
                 Button {
                     router.present(.addEvent)
                 } label: {
                     Label("Add Event", systemImage: "plus")
                 }
+                .disabled(model.account == nil)
             }
         }
         .onAppear {
@@ -189,6 +192,7 @@ struct CalendarHomeView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+        .disabled(model.account == nil)
         .background(
             HStack(spacing: 0) {
                 Button("Jump back") { jumpLarge(by: -1) }

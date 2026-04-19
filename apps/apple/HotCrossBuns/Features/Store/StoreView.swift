@@ -76,6 +76,10 @@ struct StoreView: View {
         selection.count == 1 ? selection.first : nil
     }
 
+    private var isDisconnected: Bool {
+        model.account == nil
+    }
+
     var body: some View {
         content
             .appBackground()
@@ -90,22 +94,27 @@ struct StoreView: View {
                         PendingSyncPill(count: model.pendingMutations.count)
                     }
                     filterMenu
+                        .disabled(isDisconnected)
                     Button {
                         router.present(.manageTaskLists)
                     } label: {
                         Label("Manage Lists", systemImage: "list.bullet.rectangle")
                     }
+                    .disabled(isDisconnected)
                     Button {
                         router.present(.addTask)
                     } label: {
                         Label("Add Task", systemImage: "plus")
                     }
+                    .disabled(isDisconnected)
                     Toggle(isOn: $showCompleted) {
                         Label("Show Completed", systemImage: showCompleted ? "checkmark.circle.fill" : "checkmark.circle")
                     }
                     .toggleStyle(.button)
                     .help("Show completed tasks")
+                    .disabled(isDisconnected)
                     clearCompletedMenu
+                        .disabled(isDisconnected)
                     Button {
                         isInspectorPresented.toggle()
                     } label: {
@@ -113,6 +122,7 @@ struct StoreView: View {
                     }
                     .keyboardShortcut("i", modifiers: [.command])
                     .help("Toggle task details (Cmd+I)")
+                    .disabled(isDisconnected)
                 }
             }
             .background(
