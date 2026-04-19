@@ -304,7 +304,7 @@ struct SettingsView: View {
     private func vimHighlightBackground(for target: VimTarget) -> some View {
         if model.settings.enableVimKeybindings && vimSelection == target {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.accentColor.opacity(0.22))
+                .fill(AppColor.ember.opacity(0.18))
         } else {
             Color.clear
         }
