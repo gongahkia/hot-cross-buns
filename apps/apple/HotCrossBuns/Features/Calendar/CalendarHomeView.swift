@@ -15,6 +15,7 @@ struct CalendarHomeView: View {
     @State private var pendingCrossCalendarMove: CrossCalendarMoveRequest?
     @State private var importResultMessage: String?
     @State private var selectedEventIDs: Set<String> = []
+    @State private var isGoToDateShown = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -194,12 +195,19 @@ struct CalendarHomeView: View {
                     .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
                 Button("Jump forward") { jumpLarge(by: 1) }
                     .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
+                Button("Go to Date") { isGoToDateShown = true }
+                    .keyboardShortcut("g", modifiers: [.command, .shift])
             }
             .opacity(0)
             .frame(width: 0, height: 0)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
         )
+        .sheet(isPresented: $isGoToDateShown) {
+            GoToDateSheet(initialDate: selectedDate) { newDate in
+                selectedDate = newDate
+            }
+        }
     }
 
     private var selectedEvents: [CalendarEventMirror] {

@@ -45,6 +45,7 @@ struct HelpView: View {
                         keyRow("⌘←  ⌘→", "Previous / next period in the grid")
                         keyRow("⌘⌥←  ⌘⌥→", "Jump one larger period (month in week view, year in month)")
                         keyRow("⌘T", "Jump to today")
+                        keyRow("⌘⇧G", "Go to a specific date")
                         keyRow("⌘F", "Focus the event filter field in the toolbar")
                         keyRow("⌘J", "Toggle schedule drawer in week view")
                         bullet("Drag a task from the drawer onto any day column to create a 60-minute event back-linked to the task.")
