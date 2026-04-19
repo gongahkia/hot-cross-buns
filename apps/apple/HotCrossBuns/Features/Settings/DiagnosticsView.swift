@@ -9,6 +9,9 @@ struct DiagnosticsView: View {
     @State private var confirmation: DiagnosticsConfirmation?
     @State private var copiedAt: Date?
     @State private var lastCrash: String?
+    @State private var systemCrashReports: [SystemCrashReport] = []
+    @State private var expandedSystemReportID: String?
+    @State private var systemReportPreview: String = ""
 
     var body: some View {
         NavigationStack {
@@ -83,6 +86,45 @@ struct DiagnosticsView: View {
                     .disabled(isWorking)
                 }
 
+                if systemCrashReports.isEmpty == false {
+                    Section("System crash reports") {
+                        Text("macOS writes a symbolicated report each time the app crashes. Use these to see the exact Swift stack.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        ForEach(systemCrashReports) { report in
+                            SystemCrashRow(
+                                report: report,
+                                isExpanded: expandedSystemReportID == report.id,
+                                preview: expandedSystemReportID == report.id ? systemReportPreview : nil,
+                                onToggle: {
+                                    if expandedSystemReportID == report.id {
+                                        expandedSystemReportID = nil
+                                        systemReportPreview = ""
+                                    } else {
+                                        expandedSystemReportID = report.id
+                                        systemReportPreview = SystemCrashReportReader.readContents(of: report) ?? "Could not read report file."
+                                    }
+                                },
+                                onCopy: {
+                                    if let contents = SystemCrashReportReader.readContents(of: report) {
+                                        Clipboard.copy(contents)
+                                    }
+                                },
+                                onReveal: {
+                                    NSWorkspace.shared.activateFileViewerSelecting([report.url])
+                                }
+                            )
+                        }
+                        if let dir = SystemCrashReportReader.directoryURL() {
+                            Button {
+                                NSWorkspace.shared.open(dir)
+                            } label: {
+                                Label("Open folder in Finder", systemImage: "folder")
+                            }
+                        }
+                    }
+                }
+
                 if let crash = lastCrash {
                     Section("Previous crash") {
                         Text(crash)
@@ -130,6 +172,7 @@ struct DiagnosticsView: View {
             .task {
                 cachePath = await model.cacheFilePath()
                 lastCrash = CrashReporter.readLastCrash()
+                systemCrashReports = SystemCrashReportReader.recentReports(limit: 5)
             }
             .confirmationDialog(
                 confirmation?.title ?? "Confirm",
@@ -221,6 +264,52 @@ struct DiagnosticsView: View {
     private func copyDiagnostics() {
         Clipboard.copy(model.diagnosticSummary(cachePath: cachePath))
         copiedAt = Date()
+    }
+}
+
+private struct SystemCrashRow: View {
+    let report: SystemCrashReport
+    let isExpanded: Bool
+    let preview: String?
+    let onToggle: () -> Void
+    let onCopy: () -> Void
+    let onReveal: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Image(systemName: "ant.circle.fill")
+                    .foregroundStyle(AppColor.ember)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(report.filename)
+                        .font(.subheadline.weight(.medium))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Text(report.modificationDate.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                Button(isExpanded ? "Hide" : "View", action: onToggle)
+                    .buttonStyle(.borderless)
+                Button("Copy", action: onCopy)
+                    .buttonStyle(.borderless)
+                Button("Reveal", action: onReveal)
+                    .buttonStyle(.borderless)
+            }
+            if isExpanded, let preview {
+                Text(preview)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(AppColor.cream.opacity(0.6))
+                    )
+            }
+        }
     }
 }
 
