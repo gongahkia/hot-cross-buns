@@ -490,6 +490,10 @@ struct WeekGridView: View {
     }
 
     private func calendarColor(for event: CalendarEventMirror) -> Color {
+        // Per-event colorId takes precedence over the calendar's color.
+        if let hex = CalendarEventColor.from(colorId: event.colorId).hex {
+            return Color(hex: hex)
+        }
         guard let cal = model.calendars.first(where: { $0.id == event.calendarID }) else { return AppColor.blue }
         return Color(hex: cal.colorHex)
     }

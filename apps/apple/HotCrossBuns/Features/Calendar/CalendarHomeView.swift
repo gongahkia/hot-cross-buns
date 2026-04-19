@@ -488,6 +488,7 @@ struct AddEventSheet: View {
     @State private var attendeeDraft: String = ""
     @State private var notifyGuests: Bool = false
     @State private var addGoogleMeet: Bool = false
+    @State private var eventColor: CalendarEventColor = .defaultColor
     @State private var isSaving = false
 
     init(prefilledStart: Date? = nil, prefilledIsAllDay: Bool = false) {
@@ -546,6 +547,10 @@ struct AddEventSheet: View {
 
                     Section("Video call") {
                         Toggle("Add Google Meet video conferencing", isOn: $addGoogleMeet)
+                    }
+
+                    Section("Color") {
+                        EventColorPicker(selection: $eventColor)
                     }
 
                     Section("Reminder") {
@@ -621,7 +626,8 @@ struct AddEventSheet: View {
             recurrence: recurrenceRule.map { [$0.rruleString()] } ?? [],
             attendeeEmails: attendees,
             notifyGuests: notifyGuests,
-            addGoogleMeet: addGoogleMeet
+            addGoogleMeet: addGoogleMeet,
+            colorId: eventColor.wireValue
         )
 
         if didCreate {
@@ -656,6 +662,7 @@ struct EditEventSheet: View {
     @State private var attendeeDraft: String = ""
     @State private var notifyGuests: Bool = false
     @State private var addGoogleMeet: Bool = false
+    @State private var eventColor: CalendarEventColor = .defaultColor
     @State private var isSaving = false
 
     init(event: CalendarEventMirror) {
@@ -675,6 +682,7 @@ struct EditEventSheet: View {
         // existing link — clearing conferenceData via PATCH requires its own
         // API shape and is out of scope for v1.
         _addGoogleMeet = State(initialValue: event.meetLink.isEmpty == false)
+        _eventColor = State(initialValue: CalendarEventColor.from(colorId: event.colorId))
     }
 
     var body: some View {
@@ -714,6 +722,10 @@ struct EditEventSheet: View {
                                 .foregroundStyle(AppColor.blue)
                         }
                     }
+                }
+
+                Section("Color") {
+                    EventColorPicker(selection: $eventColor)
                 }
 
                 Section("Reminder") {
@@ -811,7 +823,7 @@ struct EditEventSheet: View {
             // addGoogleMeet stays true — but we don't want to re-create the
             // conference on every save. Detect the transition.
             addGoogleMeet: addGoogleMeet && event.meetLink.isEmpty,
-            colorId: event.colorId
+            colorId: eventColor.wireValue
         )
 
         if didSave {
@@ -869,6 +881,47 @@ private enum EventReminderOption: Int, CaseIterable, Identifiable {
         }
 
         self.init(rawValue: minutes)
+    }
+}
+
+struct EventColorPicker: View {
+    @Binding var selection: CalendarEventColor
+
+    private let columns = Array(repeating: GridItem(.flexible(minimum: 28), spacing: 8), count: 6)
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 8) {
+            ForEach(CalendarEventColor.allCases) { color in
+                Button {
+                    selection = color
+                } label: {
+                    ZStack {
+                        if let hex = color.hex {
+                            Circle()
+                                .fill(Color(hex: hex))
+                                .frame(width: 24, height: 24)
+                        } else {
+                            Circle()
+                                .strokeBorder(AppColor.cardStroke, lineWidth: 1)
+                                .frame(width: 24, height: 24)
+                                .overlay(
+                                    Image(systemName: "slash.circle")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                )
+                        }
+                        if selection == color {
+                            Circle()
+                                .strokeBorder(AppColor.ink, lineWidth: 2)
+                                .frame(width: 30, height: 30)
+                        }
+                    }
+                    .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+                .help(color.title)
+            }
+        }
     }
 }
 
