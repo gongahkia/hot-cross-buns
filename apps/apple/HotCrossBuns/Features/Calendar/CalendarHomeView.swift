@@ -100,14 +100,14 @@ struct CalendarHomeView: View {
             Button("This event only") {
                 Task { await performCrossCalendarMove(request, scope: .thisOccurrence) }
             }
-            Button("All events in the series") {
+            Button("Every event in the series", role: .destructive) {
                 Task { await performCrossCalendarMove(request, scope: .allInSeries) }
             }
             Button("Cancel", role: .cancel) {
                 pendingCrossCalendarMove = nil
             }
         } message: { request in
-            Text("\"\(request.eventSummary)\" is part of a recurring series.")
+            Text("\"\(request.eventSummary)\" is part of a recurring series. \"Every event in the series\" moves past occurrences too — not just upcoming ones. This is destructive and can't be undone.")
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
@@ -653,7 +653,7 @@ struct EventDetailView: View {
                         Button("This and following events", role: .destructive) {
                             Task { await delete(event, scope: .thisAndFollowing) }
                         }
-                        Button("All events in the series", role: .destructive) {
+                        Button("Every event in the series (past + future)", role: .destructive) {
                             Task { await delete(event, scope: .allInSeries) }
                         }
                     } else {
@@ -663,7 +663,11 @@ struct EventDetailView: View {
                     }
                     Button("Cancel", role: .cancel) {}
                 } message: {
-                    Text("This deletes the event from Google Calendar without sending guest updates.")
+                    if CalendarEventInstance.isRecurring(event) {
+                        Text("\"This and following\" keeps past occurrences and removes this one plus every future one. \"Every event\" wipes the whole series including history — use it only if you want the event gone entirely. No guest updates are sent.")
+                    } else {
+                        Text("This deletes the event from Google Calendar without sending guest updates.")
+                    }
                 }
             } else {
                 ContentUnavailableView("Event not found", systemImage: "calendar.badge.exclamationmark", description: Text("This event may have been deleted in Google Calendar."))
@@ -1168,10 +1172,12 @@ struct EditEventSheet: View {
                 Button("This event only") {
                     Task { await saveEvent(scope: .thisOccurrence) }
                 }
-                Button("All events in the series") {
+                Button("Every event in the series", role: .destructive) {
                     Task { await saveEvent(scope: .allInSeries) }
                 }
                 Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("\"Every event in the series\" rewrites past occurrences too, not just upcoming ones. If you only want future edits, cancel and use Delete → This and following to truncate, then re-create the series from this instance.")
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
