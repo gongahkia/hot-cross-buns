@@ -58,7 +58,6 @@ targets:
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
         CFBundleDevelopmentRegion: en
         NSHumanReadableCopyright: Copyright 2026 Gongahkia
-        NSRemindersUsageDescription: Hot Cross Buns reads your Reminders lists once when you run the one-time import from Settings. It doesn't sync with Reminders after that.
         SUFeedURL: https://gongahkia.github.io/hot-cross-buns/appcast.xml
         SUEnableAutomaticChecks: true
         NSServices:

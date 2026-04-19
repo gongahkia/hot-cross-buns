@@ -37,8 +37,6 @@
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright 2026 Gongahkia</string>
-	<key>NSRemindersUsageDescription</key>
-	<string>Hot Cross Buns reads your Reminders lists once when you run the one-time import from Settings. It doesn't sync with Reminders after that.</string>
 	<key>NSServices</key>
 	<array>
 		<dict>
