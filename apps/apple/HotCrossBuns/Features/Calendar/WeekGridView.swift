@@ -164,29 +164,59 @@ struct WeekGridView: View {
         let laid = CalendarGridLayout.layout(eventsInDay: eventsForDay, calendar: calendar)
 
         return ZStack(alignment: .topLeading) {
-            Rectangle()
-                .fill(Color.clear)
-                .contentShape(Rectangle())
-                .dropDestination(for: DraggedTask.self) { items, location in
-                    guard let dropped = items.first else { return false }
-                    Task {
-                        await scheduleTaskAsEvent(dropped, dropY: location.y, dayStart: startOfDay)
-                    }
-                    return true
+            TapToCreateLayer(
+                hourHeight: hourHeight,
+                dayStart: startOfDay,
+                calendar: calendar,
+                onTap: { start in
+                    router.present(.addEventAt(start, allDay: false))
                 }
-                .dropDestination(for: DraggedEvent.self) { items, location in
-                    guard let dropped = items.first else { return false }
-                    Task {
-                        await rescheduleEvent(dropped, dropY: location.y, dayStart: startOfDay)
-                    }
-                    return true
+            )
+            .dropDestination(for: DraggedTask.self) { items, location in
+                guard let dropped = items.first else { return false }
+                Task {
+                    await scheduleTaskAsEvent(dropped, dropY: location.y, dayStart: startOfDay)
                 }
+                return true
+            }
+            .dropDestination(for: DraggedEvent.self) { items, location in
+                guard let dropped = items.first else { return false }
+                Task {
+                    await rescheduleEvent(dropped, dropY: location.y, dayStart: startOfDay)
+                }
+                return true
+            }
             ForEach(Array(laid.enumerated()), id: \.offset) { _, placed in
                 eventTile(placed: placed, dayStart: startOfDay, dayEnd: endOfDay, columnWidth: width)
             }
         }
         .frame(width: width)
         .offset(x: xOffset)
+    }
+
+    private struct TapToCreateLayer: View {
+        let hourHeight: CGFloat
+        let dayStart: Date
+        let calendar: Calendar
+        let onTap: (Date) -> Void
+
+        var body: some View {
+            Rectangle()
+                .fill(Color.clear)
+                .contentShape(Rectangle())
+                .gesture(
+                    SpatialTapGesture(count: 2)
+                        .onEnded { value in
+                            let start = CalendarDropComputer.snappedStart(
+                                for: value.location.y,
+                                hourHeight: hourHeight,
+                                dayStart: dayStart,
+                                calendar: calendar
+                            )
+                            onTap(start)
+                        }
+                )
+        }
     }
 
     private func scheduleTaskAsEvent(_ dropped: DraggedTask, dropY: CGFloat, dayStart: Date) async {

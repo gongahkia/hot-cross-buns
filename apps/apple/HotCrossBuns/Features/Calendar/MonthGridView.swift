@@ -124,6 +124,13 @@ struct MonthGridView: View {
             Rectangle()
                 .strokeBorder(AppColor.cardStroke, lineWidth: 0.5)
         )
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            // Pre-fill at 9am of the tapped day so the editor opens with a
+            // sensible default the user can tweak.
+            let nineAM = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: dayStart) ?? dayStart
+            router.present(.addEventAt(nineAM, allDay: false))
+        }
     }
 
     private func eventLabel(_ event: CalendarEventMirror, in day: Date) -> String {
