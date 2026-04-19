@@ -700,14 +700,31 @@ private struct EventActionPanel: View {
             .buttonStyle(.bordered)
             .disabled(isMutating)
 
-            Button {
-                Task { _ = await model.duplicateEvent(event) }
+            Menu {
+                Button("Duplicate here") {
+                    Task { _ = await model.duplicateEvent(event, offsetDays: 0) }
+                }
+                .keyboardShortcut("d", modifiers: [.command])
+                Divider()
+                Button("Duplicate to tomorrow") {
+                    Task { _ = await model.duplicateEvent(event, offsetDays: 1) }
+                }
+                Button("Duplicate to next week") {
+                    Task { _ = await model.duplicateEvent(event, offsetDays: 7) }
+                }
+                Button("Duplicate to next month") {
+                    Task { _ = await model.duplicateEvent(event, offsetDays: 30) }
+                }
+                Button("Duplicate in 2 weeks") {
+                    Task { _ = await model.duplicateEvent(event, offsetDays: 14) }
+                }
             } label: {
                 Label("Duplicate", systemImage: "plus.square.on.square")
                     .frame(maxWidth: .infinity)
             }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.visible)
             .buttonStyle(.bordered)
-            .keyboardShortcut("d", modifiers: [.command])
 
             Button(action: copyAsMarkdown) {
                 Label("Copy as Markdown", systemImage: "doc.on.clipboard")
