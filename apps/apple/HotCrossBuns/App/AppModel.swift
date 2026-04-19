@@ -1429,6 +1429,123 @@ final class AppModel {
         return deleted
     }
 
+    // Adds a #tag token to the task title. Idempotent: if the tag is already
+    // present (case-insensitive), no API call is issued.
+    func addTag(_ tag: String, to task: TaskMirror) async -> Bool {
+        let normalized = tag.trimmingCharacters(in: CharacterSet(charactersIn: "# ")).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.isEmpty == false else {
+            lastMutationError = "Tag is empty."
+            return false
+        }
+        let existing = Set(TagExtractor.tags(in: task.title).map { $0.lowercased() })
+        if existing.contains(normalized.lowercased()) { return true }
+        let newTitle = task.title.trimmingCharacters(in: .whitespaces).isEmpty
+            ? "#\(normalized)"
+            : "\(task.title.trimmingCharacters(in: .whitespaces)) #\(normalized)"
+        return await updateTask(task, title: newTitle, notes: task.notes, dueDate: task.dueDate)
+    }
+
+    // Removes a specific #tag token (case-insensitive) from the task title.
+    // Idempotent: if the tag isn't present, no API call is issued.
+    func removeTag(_ tag: String, from task: TaskMirror) async -> Bool {
+        let normalized = tag.trimmingCharacters(in: CharacterSet(charactersIn: "# ")).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.isEmpty == false else {
+            lastMutationError = "Tag is empty."
+            return false
+        }
+        let existing = Set(TagExtractor.tags(in: task.title).map { $0.lowercased() })
+        guard existing.contains(normalized.lowercased()) else { return true }
+        // Match `#tag` preceded by whitespace or start, ending on a non-[A-Za-z0-9_-]
+        // boundary — so `#work` doesn't clobber `#workout`. TagExtractor allows
+        // letters/digits/underscore/hyphen as tag chars, so the boundary is any
+        // char outside that set or end-of-string.
+        let escaped = NSRegularExpression.escapedPattern(for: normalized)
+        let pattern = "(^|\\s)#\(escaped)(?![A-Za-z0-9_\\-])"
+        let cleaned = (try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]))
+            .map { $0.stringByReplacingMatches(in: task.title, range: NSRange(task.title.startIndex..., in: task.title), withTemplate: "$1") }
+            ?? task.title
+        let collapsed = cleaned
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if collapsed == task.title { return true }
+        return await updateTask(task, title: collapsed, notes: task.notes, dueDate: task.dueDate)
+    }
+
+    // Bulk entry point: runs the optimizer, throttles dispatch, aggregates
+    // per-op success/failure. Each op still routes through the optimistic-write
+    // helpers so offline queue + etag conflict paths apply.
+    //
+    // throttleInterval caps request rate against Google's per-user-per-100s
+    // quota. 40 ms ≈ 25 req/s, safely under the documented 100 req/100s bucket.
+    func performBulkTaskOperations(
+        _ ops: [BulkTaskOperation],
+        throttleInterval: Duration = .milliseconds(40)
+    ) async -> BulkTaskExecutionResult {
+        let optimized = BulkTaskOptimizer.optimize(ops, currentTasks: tasks)
+        guard optimized.operations.isEmpty == false else {
+            return BulkTaskExecutionResult(
+                submitted: 0,
+                succeeded: 0,
+                failures: [],
+                droppedAsNoOp: optimized.droppedCount
+            )
+        }
+
+        var succeeded = 0
+        var failures: [BulkTaskFailure] = []
+        var lastDispatchedAt: Date?
+        for op in optimized.operations {
+            if let last = lastDispatchedAt {
+                // Token-bucket substitute: sleep until `throttleInterval` has
+                // elapsed since the previous dispatch. Simple, deterministic,
+                // no background task needed.
+                let elapsed = Duration.seconds(max(0, Date().timeIntervalSince(last)))
+                let remaining = throttleInterval - elapsed
+                if remaining > .zero {
+                    try? await Task.sleep(for: remaining)
+                }
+            }
+            lastDispatchedAt = Date()
+
+            let ok = await dispatchBulkOperation(op)
+            if ok {
+                succeeded += 1
+            } else {
+                failures.append(
+                    BulkTaskFailure(
+                        operation: op,
+                        message: lastMutationError ?? "Operation failed."
+                    )
+                )
+            }
+        }
+
+        return BulkTaskExecutionResult(
+            submitted: optimized.operations.count,
+            succeeded: succeeded,
+            failures: failures,
+            droppedAsNoOp: optimized.droppedCount
+        )
+    }
+
+    private func dispatchBulkOperation(_ op: BulkTaskOperation) async -> Bool {
+        // Re-resolve from current mirror — a previous op in the same batch may
+        // have mutated this task (e.g., moveToList changes taskListID + etag).
+        guard let task = self.task(id: op.taskId) else { return false }
+        switch op {
+        case .complete: return await setTaskCompleted(true, task: task)
+        case .reopen: return await setTaskCompleted(false, task: task)
+        case .delete: return await deleteTask(task)
+        case .setDue(_, let dueDate): return await updateTask(task, title: task.title, notes: task.notes, dueDate: dueDate)
+        case .moveToList(_, let targetListId): return await moveTaskToList(task, toTaskListID: targetListId)
+        case .setStarred(_, let starred):
+            if TaskStarring.isStarred(task) == starred { return true }
+            return await toggleTaskStar(task)
+        case .addTag(_, let tag): return await addTag(tag, to: task)
+        case .removeTag(_, let tag): return await removeTag(tag, from: task)
+        }
+    }
+
     func bulkShiftEvents(_ events: [CalendarEventMirror], byMinutes minutes: Int) async -> Int {
         guard minutes != 0 else { return 0 }
         var shifted = 0
