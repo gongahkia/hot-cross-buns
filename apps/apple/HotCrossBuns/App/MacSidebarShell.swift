@@ -286,8 +286,15 @@ struct MacSidebarShell: View {
         Button {
             toggleSidebarCollapsed()
         } label: {
-            Image(systemName: isSidebarCollapsed ? "sidebar.squares.left" : "sidebar.left")
-                .hcbFontSystem(size: 13, weight: .semibold)
+            Text("⌘S")
+                .hcbFont(.caption, weight: .semibold)
+                .foregroundStyle(.secondary)
+                .hcbScaledPadding(.horizontal, 8)
+                .hcbScaledPadding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(AppColor.ink.opacity(0.08))
+                )
         }
         .buttonStyle(.borderless)
         .help(isSidebarCollapsed ? "Expand sidebar (⌘S)" : "Collapse to icons (⌘S)")
@@ -301,6 +308,7 @@ struct MacSidebarShell: View {
     private var collapsedSidebar: some View {
         VStack(spacing: 0) {
             collapseToggle
+                .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, trafficLightInset)
                 .hcbScaledPadding(.bottom, 10)
             Divider()
@@ -332,11 +340,8 @@ struct MacSidebarShell: View {
         return Button {
             selection = item
         } label: {
-            HStack {
-                Spacer()
-                collapsedSidebarIcon(systemImage: item.systemImage, isSelected: isSelected)
-                Spacer()
-            }
+            collapsedSidebarIcon(systemImage: item.systemImage, isSelected: isSelected)
+                .frame(maxWidth: .infinity, minHeight: 40, alignment: .center)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
