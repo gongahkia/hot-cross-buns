@@ -56,6 +56,7 @@ targets:
             CFBundleURLSchemes:
               - $(GOOGLE_MACOS_REVERSED_CLIENT_ID)
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        CFBundleDevelopmentRegion: en
         NSHumanReadableCopyright: Copyright 2026 Gongahkia
         SUFeedURL: https://gongahkia.github.io/hot-cross-buns/appcast.xml
         SUEnableAutomaticChecks: true
