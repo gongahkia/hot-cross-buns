@@ -18,7 +18,12 @@ struct GuestsSection: View {
                         .labelStyle(.iconOnly)
                 }
                 .buttonStyle(.bordered)
-                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(isDraftValid == false)
+            }
+            if isDraftValid == false, draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                Text("That doesn't look like a valid email address.")
+                    .font(.caption2)
+                    .foregroundStyle(AppColor.ember)
             }
 
             if attendees.isEmpty == false {
@@ -53,10 +58,24 @@ struct GuestsSection: View {
 
     private func addDraft() {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.isEmpty == false, trimmed.contains("@") else { return }
+        guard Self.isPlausibleEmail(trimmed) else { return }
         if attendees.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) == false {
             attendees.append(trimmed)
         }
         draft = ""
+    }
+
+    private var isDraftValid: Bool {
+        Self.isPlausibleEmail(draft.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    // Lightweight RFC-5322-subset check. Requires exactly one '@', at
+    // least one character before and after, a '.' in the domain, and no
+    // whitespace anywhere. Rejects the common bad pastes ("@channel",
+    // "name@", "@email") that the previous contains("@") accepted.
+    static func isPlausibleEmail(_ candidate: String) -> Bool {
+        guard candidate.isEmpty == false else { return false }
+        let pattern = #"^[^@\s]+@[^@\s]+\.[^@\s]+$"#
+        return candidate.range(of: pattern, options: .regularExpression) != nil
     }
 }
