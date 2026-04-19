@@ -55,6 +55,13 @@ cd apps/apple
 xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 'platform=macOS' test CODE_SIGNING_ALLOWED=NO
 ```
 
+To actually **run** the app (not just build), you need code signing. The
+project is configured for a free Apple Personal Team, which can only be
+used via Xcode's GUI (the CLI can't read Xcode's account keychain). See
+[docs/CONTRIBUTING.md § Signing for local runs](./docs/CONTRIBUTING.md#signing-for-local-runs-free-personal-team)
+for first-time setup and troubleshooting "No Account for Team" / "No profiles
+for …" errors.
+
 Create a local macOS DMG:
 
 ```bash

@@ -1,14 +1,19 @@
 # Hot Cross Buns — CLI build shortcuts.
 # All targets operate on the macOS app at apps/apple.
 #
-# NOTE: The app is signed with a free Apple Personal Team. CLI `xcodebuild`
-# cannot read Xcode's account-keychain for provisioning profiles, so
-# `make build` / `make rerun` will fail with "No Account for Team" after
-# a clean. For the edit loop, use Xcode directly: `make open` then ⌘R.
+# NOTE: The app is signed with a free Apple Personal Team (Team ID
+# Q2J4QWZLR7). CLI `xcodebuild` cannot read Xcode's account-keychain for
+# provisioning profiles, so `make build` / `make rerun` will fail with
+# "No Account for Team" after a clean. For the edit loop, use Xcode
+# directly: `make open` then ⌘R.
+#
 # CLI build works only once profiles are pre-cached by a successful
 # Xcode build AND the symlink at ~/Library/MobileDevice/Provisioning
 # Profiles/ points at ~/Library/Developer/Xcode/UserData/Provisioning
 # Profiles/ (Xcode 16+ moved the profile dir).
+#
+# Signing troubleshooting ("No Account for Team", "No profiles for …")
+# is documented in docs/CONTRIBUTING.md § "Signing for local runs".
 
 APPLE_DIR := apps/apple
 PROJECT   := $(APPLE_DIR)/HotCrossBuns.xcodeproj

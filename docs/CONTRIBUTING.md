@@ -33,6 +33,58 @@ cd apps/apple
 xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO
 ```
 
+## Signing for local runs (free Personal Team)
+
+The project is configured to sign with a free Apple Personal Team (Team ID
+`Q2J4QWZLR7`, bound to the maintainer's Apple ID). Running the app with a
+different Apple ID requires one of: (a) adding your own Apple ID to Xcode
+and flipping the Team in `project.yml`, or (b) overriding the Team in
+Xcode's Signing & Capabilities UI and not committing the change.
+
+### First-time setup
+
+1. Xcode → Settings (⌘,) → **Accounts** → **+** → **Apple ID** → sign in.
+2. Once added, a "Personal Team" row appears under the Apple ID.
+3. Select the `HotCrossBunsMac` target → **Signing & Capabilities** → set
+   **Team** to the Personal Team.
+4. Repeat for `HotCrossBunsShareExtension`.
+5. ⌘R. Xcode downloads a provisioning profile on first build.
+
+### CLI builds fail after `make clean` — expected
+
+`xcodebuild` can't read Xcode's account keychain, so it can't download
+fresh provisioning profiles. Symptoms:
+
+```
+error: No Account for Team "Q2J4QWZLR7". Add a new account in Accounts settings...
+error: No profiles for 'com.gongahkia.hotcrossbuns.mac' were found
+```
+
+Fix: open the project in Xcode and build once with ⌘B. That caches the
+profile to disk; subsequent `make build` calls then work until the next
+clean.
+
+### "No Account for Team" even though the Apple ID is added
+
+Xcode occasionally forgets the account after sleep/wake or an iCloud
+re-auth. Re-add the Apple ID in Xcode → Settings → Accounts and the
+profiles regenerate on the next ⌘B.
+
+If re-adding doesn't help, nuke the stale profile cache:
+
+```bash
+rm -rf ~/Library/Developer/Xcode/DerivedData/HotCrossBuns-*
+rm -rf ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles/
+```
+
+Then ⌘R in Xcode. Profiles get re-fetched.
+
+### Why not Developer ID?
+
+Free Personal Team is enough for local dogfooding. Developer ID + notarization
+is required only for shipping a DMG to other machines — see §3 of
+`URGENT-TODO.md`.
+
 Legacy desktop prerequisites:
 
 - Node.js 20+
