@@ -59,4 +59,8 @@ extension Notification.Name {
     // Settings tab (e.g., the "Open Settings" button in Calendar's empty
     // state). MacSidebarShell observes this and updates selection.
     static let hcbOpenSettingsTab = Notification.Name("hcb.open.settings.tab")
+    // Posted by the menu-bar extra when a pinned-filter row is clicked;
+    // MacSidebarShell switches to Store. The caller is responsible for
+    // staging pendingStoreFilterKey on AppModel before posting.
+    static let hcbOpenStoreTab = Notification.Name("hcb.open.store.tab")
 }

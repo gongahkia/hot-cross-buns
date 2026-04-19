@@ -55,13 +55,14 @@ private struct CompactMenuBarPanel: View {
             header
             Divider()
             overview
+            MenuBarPinnedFilters()
             Divider()
             MenuBarQuickAddRow()
             Divider()
             MenuBarQuickActions()
         }
         .hcbScaledPadding(14)
-        .hcbScaledFrame(width: 300)
+        .hcbScaledFrame(width: 316)
     }
 
     private var overview: some View {
@@ -1039,6 +1040,112 @@ private struct MenuBarQuickAddRow: View {
             }
         }
         return model.taskLists.first?.id
+    }
+}
+
+private struct MenuBarPinnedFilters: View {
+    @Environment(AppModel.self) private var model
+
+    // Up to 3 matching tasks are shown inline per pinned filter — enough
+    // to be useful at a glance without letting the popover grow unbounded.
+    private let previewLimit = 3
+    // Cap the whole popover too — 4 pinned filters max in the list.
+    private let pinnedLimit = 4
+
+    var body: some View {
+        let filters = pinnedFilters
+        if filters.isEmpty == false {
+            VStack(alignment: .leading, spacing: 10) {
+                Divider()
+                Text("Pinned filters")
+                    .hcbFont(.caption, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(filters.prefix(pinnedLimit)) { f in
+                        filterRow(for: f)
+                    }
+                }
+            }
+        }
+    }
+
+    private var pinnedFilters: [CustomFilterDefinition] {
+        model.settings.customFilters.filter(\.pinnedToMenuBar)
+    }
+
+    private func matchingTasks(_ f: CustomFilterDefinition) -> [TaskMirror] {
+        f.filter(
+            model.tasks,
+            now: Date(),
+            calendar: .current,
+            taskLists: model.taskLists
+        )
+    }
+
+    @ViewBuilder
+    private func filterRow(for f: CustomFilterDefinition) -> some View {
+        let tasks = matchingTasks(f)
+        Button {
+            openFilter(f)
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Image(systemName: f.systemImage)
+                        .foregroundStyle(AppColor.ember)
+                    Text(f.name)
+                        .hcbFont(.subheadline, weight: .semibold)
+                    Spacer()
+                    Text("\(tasks.count)")
+                        .hcbFont(.caption, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                        .hcbScaledPadding(.horizontal, 6)
+                        .hcbScaledPadding(.vertical, 1)
+                        .background(Capsule().fill(.quaternary.opacity(0.5)))
+                }
+                if tasks.isEmpty {
+                    Text("No matches")
+                        .hcbFont(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(tasks.prefix(previewLimit)) { task in
+                        HStack(spacing: 6) {
+                            Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                                .hcbFont(.caption)
+                                .foregroundStyle(task.isCompleted ? AppColor.moss : AppColor.ember)
+                            Text(TagExtractor.stripped(from: TaskStarring.displayTitle(for: task)))
+                                .hcbFont(.caption)
+                                .lineLimit(1)
+                            Spacer()
+                        }
+                    }
+                    if tasks.count > previewLimit {
+                        Text("+\(tasks.count - previewLimit) more")
+                            .hcbFont(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .hcbScaledPadding(.vertical, 4)
+            .hcbScaledPadding(.horizontal, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(AppColor.cream.opacity(0.35))
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func openFilter(_ f: CustomFilterDefinition) {
+        // Stage the filter key on the shared model, switch the main window
+        // to the Store tab, and raise the app. StoreView consumes the key
+        // on appear (see consumePendingStoreFilter).
+        model.pendingStoreFilterKey = "custom:\(f.id.uuidString)"
+        NotificationCenter.default.post(name: .hcbOpenStoreTab, object: nil)
+        NSApp.activate(ignoringOtherApps: true)
+        if let window = NSApp.windows.first(where: { $0.canBecomeMain }) {
+            window.makeKeyAndOrderFront(nil)
+        }
     }
 }
 

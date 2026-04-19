@@ -102,6 +102,12 @@ private struct CustomFilterEditor: View {
                     TextField("Name", text: $draft.name)
                     TextField("SF Symbol", text: $draft.systemImage)
                         .font(.body.monospaced())
+                    Toggle("Pin to menu bar", isOn: $draft.pinnedToMenuBar)
+                    if draft.pinnedToMenuBar {
+                        Text("Appears as a section in the menu-bar popover with a match count and a short preview.")
+                            .hcbFont(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Section {
