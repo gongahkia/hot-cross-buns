@@ -59,8 +59,13 @@ struct MacSidebarShell: View {
         layoutZoomLadder[max(0, min(zoomStep, layoutZoomLadder.count - 1))]
     }
 
-    private let expandedSidebarWidth: CGFloat = 240
+    // Sized to fit the longest sidebar label ("Calendar") + icon + badge
+    // without leaving acres of whitespace. Bumped narrower from 240pt.
+    private let expandedSidebarWidth: CGFloat = 172
     private let collapsedSidebarWidth: CGFloat = 64
+    // Top inset reserved so the traffic-light buttons don't overlap the
+    // first sidebar row when the window chrome sits over the sidebar.
+    private let trafficLightInset: CGFloat = 28
 
     private var currentSidebarWidth: CGFloat {
         isSidebarCollapsed ? collapsedSidebarWidth : expandedSidebarWidth
@@ -296,7 +301,8 @@ struct MacSidebarShell: View {
     private var collapsedSidebar: some View {
         VStack(spacing: 0) {
             collapseToggle
-                .padding(.vertical, 10)
+                .padding(.top, trafficLightInset)
+                .padding(.bottom, 10)
             Divider()
             List {
                 ForEach(SidebarItem.allCases) { item in
@@ -310,7 +316,7 @@ struct MacSidebarShell: View {
     }
 
     private var collapsedIconColumn: CGFloat {
-        28
+        40
     }
 
     private func collapsedItemButton(_ item: SidebarItem) -> some View {
@@ -334,10 +340,10 @@ struct MacSidebarShell: View {
 
     private func collapsedSidebarIcon(systemImage: String, isSelected: Bool) -> some View {
         Image(systemName: systemImage)
-            .font(.system(size: 14, weight: .medium))
-            .frame(width: collapsedIconColumn, height: 26)
+            .font(.system(size: 20, weight: .medium))
+            .frame(width: collapsedIconColumn, height: 36)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(isSelected ? AppColor.ember.opacity(0.2) : Color.clear)
             )
             .foregroundStyle(isSelected ? AppColor.ember : AppColor.ink)
@@ -353,7 +359,8 @@ struct MacSidebarShell: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.top, trafficLightInset)
+            .padding(.bottom, 10)
 
             Divider()
 
@@ -736,6 +743,8 @@ struct MacSidebarShell: View {
                 }
             } icon: {
                 Image(systemName: item.systemImage)
+                    .font(.system(size: 18, weight: .medium))
+                    .frame(width: 24)
             }
         }
     }
