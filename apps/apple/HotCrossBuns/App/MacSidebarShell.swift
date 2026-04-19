@@ -746,19 +746,22 @@ struct MacSidebarShell: View {
     }
 
     private func handlePendingAppIntentRoute() {
-        guard let route = AppIntentHandoff.consumePendingRoute() else {
-            return
-        }
-
-        switch route {
-        case .addTask:
-            presentSheet(.addTask, on: .store)
-        case .addEvent:
-            presentSheet(.addEvent, on: .calendar)
-        case .store:
-            selection = .store
-        case .calendar:
-            selection = .calendar
+        // Drain all pending routes — rapid intents are queued in order so
+        // we don't silently drop one when two fire back to back. The last
+        // sheet-presenting route wins visually (SwiftUI only presents one
+        // sheet at a time); non-sheet routes (selection changes) all apply.
+        let routes = AppIntentHandoff.consumeAll()
+        for route in routes {
+            switch route {
+            case .addTask:
+                presentSheet(.addTask, on: .store)
+            case .addEvent:
+                presentSheet(.addEvent, on: .calendar)
+            case .store:
+                selection = .store
+            case .calendar:
+                selection = .calendar
+            }
         }
     }
 }
