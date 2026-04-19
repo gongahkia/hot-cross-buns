@@ -75,6 +75,7 @@
 		9ABDB68F86970E1A10FE8184 /* ForecastBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD3A5E1617A36FD0134FB67E /* ForecastBuilder.swift */; };
 		9D509BB5F19F366E80487377 /* RouterPath.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF08213B82A11D35A48E9669 /* RouterPath.swift */; };
 		9EBF3A8E77C96C14106AB758 /* AppSettingsMacSurfacesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE4353BBFBCECA1F1E1EDF1B /* AppSettingsMacSurfacesTests.swift */; };
+		9F5667AD62B1FCFE12C86B22 /* CalendarEventColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF46AED18B8659500C9FDDB8 /* CalendarEventColor.swift */; };
 		A2138064D624D0A1EAB44077 /* VimTranslatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B79FBFAB7AA899E2C59E1956 /* VimTranslatorTests.swift */; };
 		A81AD01F6BC5BAF8F7C15526 /* TaskReminderMarkersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49590AFCCD9974DC7CB5123A /* TaskReminderMarkersTests.swift */; };
 		AAD5E2AC3B28CD1FE0A15AAE /* GuestsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB991136E6E925A2EF0030D /* GuestsSection.swift */; };
@@ -184,6 +185,7 @@
 		AB94773FE862AC2922886257 /* TaskDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDraftTests.swift; sourceTree = "<group>"; };
 		AE5B824BD3DB57E2FA17ECE2 /* HotCrossBunsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotCrossBunsApp.swift; sourceTree = "<group>"; };
 		AF08213B82A11D35A48E9669 /* RouterPath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouterPath.swift; sourceTree = "<group>"; };
+		AF46AED18B8659500C9FDDB8 /* CalendarEventColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventColor.swift; sourceTree = "<group>"; };
 		B1E03BB899FDA9756E7C268E /* OptimisticWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimisticWriter.swift; sourceTree = "<group>"; };
 		B73A839AA07E6C98129ED4BB /* StoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreView.swift; sourceTree = "<group>"; };
 		B73DF47EA023580C762E1BE3 /* VimKeyboardMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VimKeyboardMonitor.swift; sourceTree = "<group>"; };
@@ -483,6 +485,7 @@
 		AD83D94A981707DBA33EF3AF /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				AF46AED18B8659500C9FDDB8 /* CalendarEventColor.swift */,
 				53DBA75E42BFCFB6D9F02C47 /* CalendarEventInstance.swift */,
 				3B56113BE89523BF7D0AE8EA /* CalendarMirror.swift */,
 				F2EDEC1CEE956716394335F3 /* DraggedTask.swift */,
@@ -689,6 +692,7 @@
 				E219DD1B1AD052112F17BD50 /* AppStatusBanner.swift in Sources */,
 				7F105DF2722D09956A81291D /* BackoffPolicy.swift in Sources */,
 				041DE1465AD215C7A592AE13 /* CalendarDropComputer.swift in Sources */,
+				9F5667AD62B1FCFE12C86B22 /* CalendarEventColor.swift in Sources */,
 				BD227D7C6592AF96C011B5EC /* CalendarEventInstance.swift in Sources */,
 				E97AE973C28C215FBD434B5A /* CalendarGridLayout.swift in Sources */,
 				523A574D6D48B12B4587E086 /* CalendarHomeView.swift in Sources */,
