@@ -6,10 +6,10 @@ struct MenuBarExtraContent: View {
 
     var body: some View {
         Group {
-            if model.settings.showDetailedMenuBar {
-                DetailedMenuBarPanel()
-            } else {
-                CompactMenuBarPanel()
+            switch model.settings.menuBarStyle {
+            case .detailed: DetailedMenuBarPanel()
+            case .weekly: WeeklyMenuBarPanel()
+            case .compact: CompactMenuBarPanel()
             }
         }
     }
@@ -507,5 +507,109 @@ private extension Calendar {
                 isToday: isDateInToday(date)
             )
         }
+    }
+}
+
+private struct WeeklyMenuBarPanel: View {
+    @Environment(AppModel.self) private var model
+
+    private var days: [Date] {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        return (0..<7).compactMap { cal.date(byAdding: .day, value: $0, to: today) }
+    }
+
+    private func eventsOn(_ day: Date) -> [CalendarEventMirror] {
+        let cal = Calendar.current
+        let selected = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
+        return model.events.filter { event in
+            selected.contains(event.calendarID)
+                && event.status != .cancelled
+                && cal.isDate(event.startDate, inSameDayAs: day)
+        }
+    }
+
+    private func tasksOn(_ day: Date) -> [TaskMirror] {
+        let cal = Calendar.current
+        let visible: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
+            ? model.settings.selectedTaskListIDs
+            : Set(model.taskLists.map(\.id))
+        return model.tasks.filter { task in
+            guard let due = task.dueDate else { return false }
+            return task.isDeleted == false
+                && task.isCompleted == false
+                && visible.contains(task.taskListID)
+                && cal.isDate(due, inSameDayAs: day)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Next 7 days")
+                    .font(.headline)
+                Spacer()
+                Text(model.syncState.title)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+            Divider()
+            VStack(spacing: 6) {
+                ForEach(days, id: \.self) { day in
+                    dayRow(day)
+                }
+            }
+            Divider()
+            MenuBarQuickAddRow()
+            Divider()
+            MenuBarQuickActions()
+        }
+        .padding(14)
+        .frame(width: 320)
+    }
+
+    private func dayRow(_ day: Date) -> some View {
+        let events = eventsOn(day)
+        let tasks = tasksOn(day)
+        let cal = Calendar.current
+        let isToday = cal.isDateInToday(day)
+        return HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(day.formatted(.dateTime.weekday(.abbreviated)))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(isToday ? AppColor.ember : .secondary)
+                Text("\(cal.component(.day, from: day))")
+                    .font(.headline.monospacedDigit())
+                    .foregroundStyle(isToday ? AppColor.ember : AppColor.ink)
+            }
+            .frame(width: 38)
+            Divider().frame(height: 28)
+            HStack(spacing: 6) {
+                countChip(symbol: "calendar", count: events.count, color: AppColor.blue)
+                countChip(symbol: "checkmark.circle", count: tasks.count, color: AppColor.ember)
+            }
+            Spacer(minLength: 0)
+            if let first = events.first {
+                Text(first.isAllDay ? "All day" : first.startDate.formatted(.dateTime.hour().minute()))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isToday ? AppColor.ember.opacity(0.08) : Color.clear)
+        )
+    }
+
+    private func countChip(symbol: String, count: Int, color: Color) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: symbol)
+                .font(.caption2)
+            Text("\(count)")
+                .font(.caption2.monospacedDigit())
+        }
+        .foregroundStyle(count == 0 ? .secondary : color)
     }
 }

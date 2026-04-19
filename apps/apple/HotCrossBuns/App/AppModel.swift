@@ -1389,6 +1389,14 @@ final class AppModel {
         Task { await saveCurrentState() }
     }
 
+    func setMenuBarStyle(_ style: AppSettings.MenuBarStyle) {
+        guard settings.menuBarStyle != style else { return }
+        settings.menuBarStyle = style
+        // Keep legacy bool in sync so older reads don't misreport
+        settings.showDetailedMenuBar = (style == .detailed)
+        Task { await saveCurrentState() }
+    }
+
     func updateLocalNotificationsEnabled(_ isEnabled: Bool) {
         settings.enableLocalNotifications = isEnabled
         Task {
