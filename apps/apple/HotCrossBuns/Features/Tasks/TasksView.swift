@@ -131,6 +131,7 @@ struct AddTaskSheet: View {
     @State private var notes = ""
     @State private var hasDueDate = false
     @State private var dueDate = Date()
+    @State private var recurrenceRule: RecurrenceRule?
     @State private var isSaving = false
 
     var body: some View {
@@ -162,6 +163,15 @@ struct AddTaskSheet: View {
                         Toggle("Set due date", isOn: $hasDueDate)
                         if hasDueDate {
                             DatePicker("Due", selection: $dueDate, displayedComponents: [.date])
+                        }
+                    }
+
+                    if hasDueDate {
+                        Section("Repeat") {
+                            RecurrenceEditor(rule: $recurrenceRule)
+                            Text("When you complete a recurring task, Hot Cross Buns re-creates it with the next due date.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -205,9 +215,13 @@ struct AddTaskSheet: View {
         isSaving = true
         defer { isSaving = false }
 
+        let notesWithRule = hasDueDate && recurrenceRule != nil
+            ? TaskRecurrenceMarkers.encode(notes: notes, rule: recurrenceRule)
+            : notes
+
         let didCreate = await model.createTask(
             title: title,
-            notes: notes,
+            notes: notesWithRule,
             dueDate: hasDueDate ? Calendar.current.startOfDay(for: dueDate) : nil,
             taskListID: selectedTaskListID
         )
@@ -226,14 +240,16 @@ struct EditTaskSheet: View {
     @State private var notes: String
     @State private var hasDueDate: Bool
     @State private var dueDate: Date
+    @State private var recurrenceRule: RecurrenceRule?
     @State private var isSaving = false
 
     init(task: TaskMirror) {
         self.task = task
         _title = State(initialValue: task.title)
-        _notes = State(initialValue: task.notes)
+        _notes = State(initialValue: TaskRecurrenceMarkers.strippedNotes(from: task.notes))
         _hasDueDate = State(initialValue: task.dueDate != nil)
         _dueDate = State(initialValue: task.dueDate ?? Date())
+        _recurrenceRule = State(initialValue: TaskRecurrenceMarkers.rule(from: task.notes))
     }
 
     var body: some View {
@@ -248,6 +264,15 @@ struct EditTaskSheet: View {
                     Toggle("Set due date", isOn: $hasDueDate)
                     if hasDueDate {
                         DatePicker("Due", selection: $dueDate, displayedComponents: [.date])
+                    }
+                }
+
+                if hasDueDate {
+                    Section("Repeat") {
+                        RecurrenceEditor(rule: $recurrenceRule)
+                        Text("Completing a repeating task re-creates it with the next due date.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -282,10 +307,14 @@ struct EditTaskSheet: View {
         isSaving = true
         defer { isSaving = false }
 
+        let notesWithRule = hasDueDate && recurrenceRule != nil
+            ? TaskRecurrenceMarkers.encode(notes: notes, rule: recurrenceRule)
+            : TaskRecurrenceMarkers.strippedNotes(from: notes)
+
         let didSave = await model.updateTask(
             task,
             title: title,
-            notes: notes,
+            notes: notesWithRule,
             dueDate: hasDueDate ? Calendar.current.startOfDay(for: dueDate) : nil
         )
 
