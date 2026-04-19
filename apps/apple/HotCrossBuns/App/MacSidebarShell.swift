@@ -110,7 +110,11 @@ struct MacSidebarShell: View {
                     syncState: model.syncState,
                     authState: model.authState,
                     mutationError: model.lastMutationError,
-                    retry: { Task { await model.refreshNow() } },
+                    isSyncPaused: model.isSyncPaused,
+                    retry: {
+                        model.resumeSync()
+                        Task { await model.refreshNow() }
+                    },
                     dismiss: { model.clearFailureState() }
                 )
             }
@@ -201,6 +205,10 @@ struct MacSidebarShell: View {
             }
             .onChange(of: scenePhase) { _, newPhase in
                 guard newPhase == .active else { return }
+                // Coming back to the foreground is an implicit "try again."
+                // Clear any persistent-failure pause so the near-realtime
+                // loop re-runs and the next refresh actually hits Google.
+                model.resumeSync()
                 Task {
                     await model.refreshForCurrentSyncMode()
                     handlePendingAppIntentRoute()
@@ -694,8 +702,16 @@ struct MacSidebarShell: View {
 
         let policy = BackoffPolicy.nearRealtime
         var attempt = 0
+        var consecutiveTransientFailures = 0
 
         while Task.isCancelled == false {
+            if model.isSyncPaused {
+                // Stop the loop entirely once we've surfaced "sync paused".
+                // It restarts when scenePhase re-activates or the user taps
+                // refresh — both of which clear the flag before the loop is
+                // scheduled again.
+                return
+            }
             let delay: Duration = attempt == 0 ? policy.baseDelay : policy.delay(forAttempt: attempt)
             do {
                 try await Task.sleep(for: delay)
@@ -707,10 +723,20 @@ struct MacSidebarShell: View {
             switch outcome {
             case .succeeded, .skipped:
                 attempt = 0
+                consecutiveTransientFailures = 0
             case .failed(let error) where policy.shouldBackoff(from: error):
                 attempt = min(attempt + 1, policy.maxAttempts)
+                consecutiveTransientFailures += 1
+                if consecutiveTransientFailures >= policy.maxAttempts {
+                    // Persistent backend / network trouble — stop hammering
+                    // and surface "Sync paused" so the user can choose when
+                    // to retry.
+                    model.markSyncPaused()
+                    return
+                }
             case .failed:
                 attempt = 0
+                consecutiveTransientFailures = 0
             }
         }
     }

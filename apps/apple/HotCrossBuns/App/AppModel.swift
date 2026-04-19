@@ -17,6 +17,10 @@ final class AppModel {
     private(set) var syncState: SyncState = .idle
     private(set) var isMutating: Bool = false
     private var isReplayingMutations: Bool = false
+    // Set by the near-real-time loop when it has exhausted its retry
+    // budget against transient failures; cleared on a successful refresh or
+    // a manual resume (scene activation, user tap).
+    private(set) var isSyncPaused: Bool = false
     private(set) var lastMutationError: String?
     private(set) var taskLists: [TaskListMirror] = []
     private(set) var tasks: [TaskMirror] = []
@@ -180,6 +184,7 @@ final class AppModel {
             apply(syncedState)
             authState = syncedState.account.map(AuthState.signedIn) ?? .signedOut
             syncState = .synced(at: Date())
+            isSyncPaused = false
             await saveCurrentState()
             await synchronizeLocalNotifications()
             return .succeeded
@@ -667,6 +672,14 @@ final class AppModel {
 
     func clearUndo() {
         undoable = nil
+    }
+
+    func markSyncPaused() {
+        isSyncPaused = true
+    }
+
+    func resumeSync() {
+        isSyncPaused = false
     }
 
     // Drops a single PendingMutation by id so the user can unstick a
