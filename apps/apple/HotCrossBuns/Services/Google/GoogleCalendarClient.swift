@@ -209,14 +209,32 @@ private struct GoogleEventDTO: Decodable, Sendable {
         } else {
             renderedDetails = ""
         }
+        // Google Calendar returns `date` (for all-day) as "yyyy-MM-dd" decoded
+        // by GoogleDateParser.dateOnly as UTC midnight. Comparing that against
+        // a local-TZ reference date is unsafe: in UTC-N an event whose date is
+        // "2026-04-19" decodes to April 18 8pm local and appears as April 18
+        // in all snapshot/forecast filters. Re-anchor date-only values to the
+        // user's local midnight of the same Y/M/D so every downstream
+        // comparison uses matching timezones.
+        let isAllDay = start?.date != nil
+        let startDate = GoogleEventDTO.resolveDate(
+            dateTime: start?.dateTime,
+            dateOnly: start?.date,
+            fallback: fallbackDate
+        )
+        let endDate = GoogleEventDTO.resolveDate(
+            dateTime: end?.dateTime,
+            dateOnly: end?.date,
+            fallback: fallbackDate
+        )
         return CalendarEventMirror(
             id: id,
             calendarID: calendarID,
             summary: summary ?? "Untitled event",
             details: renderedDetails,
-            startDate: start?.resolvedDate ?? fallbackDate,
-            endDate: end?.resolvedDate ?? fallbackDate,
-            isAllDay: start?.date != nil,
+            startDate: startDate,
+            endDate: endDate,
+            isAllDay: isAllDay,
             status: CalendarEventStatus(rawValue: status ?? "confirmed") ?? .confirmed,
             recurrence: recurrence ?? [],
             etag: etag,
@@ -225,6 +243,23 @@ private struct GoogleEventDTO: Decodable, Sendable {
             location: location ?? "",
             attendeeEmails: attendees?.compactMap(\.email) ?? []
         )
+    }
+
+    fileprivate static func resolveDate(dateTime: Date?, dateOnly: Date?, fallback: Date) -> Date {
+        if let dateTime {
+            return dateTime
+        }
+        guard let dateOnly else { return fallback }
+        // Re-extract Y/M/D from the UTC-anchored decoded date, then rebuild
+        // at local midnight of the same calendar day.
+        var utcCalendar = Calendar(identifier: .gregorian)
+        utcCalendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        let comps = utcCalendar.dateComponents([.year, .month, .day], from: dateOnly)
+        var localComps = DateComponents()
+        localComps.year = comps.year
+        localComps.month = comps.month
+        localComps.day = comps.day
+        return Calendar.current.date(from: localComps) ?? fallback
     }
 }
 
