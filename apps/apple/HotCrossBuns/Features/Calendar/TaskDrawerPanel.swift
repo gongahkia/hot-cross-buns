@@ -13,7 +13,7 @@ struct TaskDrawerPanel: View {
                             systemImage: "tray",
                             description: Text("Tasks without a due date appear here.")
                         )
-                        .padding(.top, 30)
+                        .hcbScaledPadding(.top, 30)
                     } else {
                         ForEach(undatedTasks) { task in
                             row(task)
@@ -22,8 +22,8 @@ struct TaskDrawerPanel: View {
                 }
             }
         }
-        .padding(12)
-        .frame(width: 260)
+        .hcbScaledPadding(12)
+        .hcbScaledFrame(width: 260)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(AppColor.cream.opacity(0.35))
@@ -48,12 +48,12 @@ struct TaskDrawerPanel: View {
             Image(systemName: "circle.dashed")
                 .foregroundStyle(AppColor.ember)
             Text(task.title)
-                .font(.subheadline)
+                .hcbFont(.subheadline)
                 .lineLimit(2)
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 10)
+        .hcbScaledPadding(.vertical, 8)
+        .hcbScaledPadding(.horizontal, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -65,9 +65,9 @@ struct TaskDrawerPanel: View {
                 Text(task.title)
                     .lineLimit(1)
             }
-            .font(.caption.weight(.semibold))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .hcbFont(.caption, weight: .semibold)
+            .hcbScaledPadding(.horizontal, 10)
+            .hcbScaledPadding(.vertical, 6)
             .background(Capsule().fill(AppColor.ember.opacity(0.3)))
         }
     }

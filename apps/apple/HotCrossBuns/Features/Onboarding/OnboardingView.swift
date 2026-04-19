@@ -36,7 +36,7 @@ struct OnboardingView: View {
                 ReminderPreferenceCard()
                 FinishOnboardingCard(finish: finish)
             }
-            .padding(20)
+            .hcbScaledPadding(20)
         }
     }
 
@@ -58,7 +58,7 @@ private struct IntroView: View {
                         .font(.system(.largeTitle, design: .serif, weight: .bold))
                         .foregroundStyle(AppColor.ink)
                     Text("A Mac-native client for Google Tasks and Google Calendar.")
-                        .font(.title3)
+                        .hcbFont(.title3)
                         .foregroundStyle(.secondary)
                 }
 
@@ -88,29 +88,29 @@ private struct IntroView: View {
                         onContinue()
                     } label: {
                         Label("Continue", systemImage: "arrow.right")
-                            .frame(minWidth: 120)
+                            .hcbScaledFrame(minWidth: 120)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(AppColor.ember)
                     .keyboardShortcut(.defaultAction)
                 }
             }
-            .padding(28)
+            .hcbScaledPadding(28)
             .cardSurface(cornerRadius: 32)
-            .padding(20)
+            .hcbScaledPadding(20)
         }
     }
 
     private func introPoint(icon: String, title: String, body: String) -> some View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: icon)
-                .font(.title3)
+                .hcbFont(.title3)
                 .foregroundStyle(AppColor.ember)
-                .frame(width: 28, height: 28)
+                .hcbScaledFrame(width: 28, height: 28)
                 .background(Circle().fill(AppColor.ember.opacity(0.15)))
             VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.headline)
-                Text(body).font(.subheadline).foregroundStyle(.secondary)
+                Text(title).hcbFont(.headline)
+                Text(body).hcbFont(.subheadline).foregroundStyle(.secondary)
             }
         }
     }
@@ -120,7 +120,7 @@ private struct OnboardingHero: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Google-native planning")
-                .font(.callout.weight(.semibold))
+                .hcbFont(.callout, weight: .semibold)
                 .foregroundStyle(AppColor.moss)
             Text("Make Tasks and Calendar usable from the Apple devices you already use.")
                 .font(.system(.largeTitle, design: .serif, weight: .bold))
@@ -145,13 +145,13 @@ private struct ConnectGoogleCard: View {
                 Label(account.displayName, systemImage: "checkmark.circle.fill")
                     .foregroundStyle(AppColor.moss)
                 Text("Signed in with Tasks + Calendar scopes.")
-                    .font(.footnote)
+                    .hcbFont(.footnote)
                     .foregroundStyle(.secondary)
             case .authenticating:
                 ProgressView("Opening Google Sign-In")
             case .failed(let message):
                 Text(message)
-                    .font(.footnote)
+                    .hcbFont(.footnote)
                     .foregroundStyle(.red)
                 connectButton
                 scopeFootnote
@@ -180,7 +180,7 @@ private struct ConnectGoogleCard: View {
 
     private var scopeFootnote: some View {
         Text("Tokens stay in your Mac Keychain. Disconnecting in Settings wipes local state.")
-            .font(.caption)
+            .hcbFont(.caption)
             .foregroundStyle(.secondary)
     }
 }
@@ -200,7 +200,7 @@ private struct SyncPreferenceCard: View {
             .syncModePickerStyle()
 
             Text(model.settings.syncMode.detail)
-                .font(.footnote)
+                .hcbFont(.footnote)
                 .foregroundStyle(.secondary)
         }
         .cardSurface(cornerRadius: 26)
@@ -236,16 +236,16 @@ private struct SourceSelectionCard: View {
 
             if model.account == nil {
                 Text("Finish step 1 first — your task lists and calendars will appear here once Google is connected.")
-                    .font(.footnote)
+                    .hcbFont(.footnote)
                     .foregroundStyle(.secondary)
             } else if model.taskLists.isEmpty && model.calendars.isEmpty {
                 if case .syncing = model.syncState {
                     Label("Loading from Google…", systemImage: "arrow.triangle.2.circlepath")
-                        .font(.footnote)
+                        .hcbFont(.footnote)
                         .foregroundStyle(.secondary)
                 } else {
                     Text("No lists or calendars yet. Tap Refresh above, or create a list in Google Tasks and try again.")
-                        .font(.footnote)
+                        .hcbFont(.footnote)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -253,7 +253,7 @@ private struct SourceSelectionCard: View {
             if model.taskLists.isEmpty == false {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Task lists")
-                        .font(.headline)
+                        .hcbFont(.headline)
                     ForEach(model.taskLists) { taskList in
                         Toggle(isOn: taskListBinding(taskList.id)) {
                             Text(taskList.title)
@@ -265,13 +265,13 @@ private struct SourceSelectionCard: View {
             if model.calendars.isEmpty == false {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Calendars")
-                        .font(.headline)
+                        .hcbFont(.headline)
                     ForEach(model.calendars) { calendar in
                         Toggle(isOn: calendarBinding(calendar.id)) {
                             HStack(spacing: 10) {
                                 Circle()
                                     .fill(Color(hex: calendar.colorHex))
-                                    .frame(width: 10, height: 10)
+                                    .hcbScaledFrame(width: 10, height: 10)
                                 Text(calendar.summary)
                             }
                         }
@@ -305,7 +305,7 @@ private struct ReminderPreferenceCard: View {
             OnboardingStepHeader(number: 4, title: "Local Reminders", systemImage: "bell.badge")
             Toggle("Schedule device-local reminders", isOn: remindersBinding)
             Text("Task reminders fire at 9:00 AM on the due date. Timed events fire 15 minutes before start.")
-                .font(.footnote)
+                .hcbFont(.footnote)
                 .foregroundStyle(.secondary)
         }
         .cardSurface(cornerRadius: 26)
@@ -335,7 +335,7 @@ private struct FinishOnboardingCard: View {
             .tint(model.account == nil ? AppColor.ember : AppColor.moss)
             if model.account == nil {
                 Text("You can connect Google later from Settings — we'll just show empty states until you do.")
-                    .font(.caption)
+                    .hcbFont(.caption)
                     .foregroundStyle(.secondary)
             }
         }
@@ -351,12 +351,12 @@ private struct OnboardingStepHeader: View {
     var body: some View {
         HStack(spacing: 10) {
             Text("\(number)")
-                .font(.caption.bold())
+                .hcbFont(.caption, weight: .bold)
                 .foregroundStyle(.white)
-                .frame(width: 26, height: 26)
+                .hcbScaledFrame(width: 26, height: 26)
                 .background(AppColor.ink, in: Circle())
             Label(title, systemImage: systemImage)
-                .font(.headline)
+                .hcbFont(.headline)
         }
     }
 }

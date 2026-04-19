@@ -257,45 +257,44 @@ private struct HCBScaledFlexibleFrameModifier: ViewModifier {
 
 private struct HCBFontModifier: ViewModifier {
     @Environment(\.hcbFontFamily) private var family
-    let base: Font
+    let style: HCBFontStyle
+    let weight: Font.Weight?
 
     func body(content: Content) -> some View {
-        if let family, family.isEmpty == false,
-           let resolved = Self.resolvedCustomFont(base, family: family) {
-            content.font(resolved)
-        } else {
-            content.font(base)
-        }
+        content.font(resolved)
     }
 
-    // Applies the family while preserving the relative text-style scaling
-    // semantics for common semantic fonts. For arbitrary fonts falls back
-    // to system-size resolution.
-    static func resolvedCustomFont(_ base: Font, family: String) -> Font? {
-        // Heuristic by comparing against common presets. Font doesn't expose
-        // its underlying descriptor, so we re-derive the custom font for
-        // each semantic size we care about. Unknown fonts fall back to the
-        // system-size custom font, scaled relative to .body so DynamicType
-        // still applies.
-        switch base {
-        case .largeTitle: return .custom(family, size: 34, relativeTo: .largeTitle)
-        case .title: return .custom(family, size: 28, relativeTo: .title)
-        case .title2: return .custom(family, size: 22, relativeTo: .title2)
-        case .title3: return .custom(family, size: 20, relativeTo: .title3)
-        case .headline: return .custom(family, size: 13, relativeTo: .headline)
-        case .subheadline: return .custom(family, size: 11, relativeTo: .subheadline)
-        case .body: return .custom(family, size: 13, relativeTo: .body)
-        case .callout: return .custom(family, size: 12, relativeTo: .callout)
-        case .footnote: return .custom(family, size: 10, relativeTo: .footnote)
-        case .caption: return .custom(family, size: 10, relativeTo: .caption)
-        case .caption2: return .custom(family, size: 10, relativeTo: .caption2)
-        default:
-            // Covers .system(size:) and chained modifiers (.weight, .monospaced…).
-            // We can't reach inside Font to copy weight/design, so apply the
-            // family at body-size. Call sites that need specific size should
-            // use hcbFontSystem(size:weight:) instead.
-            return .custom(family, size: NSFont.systemFontSize, relativeTo: .body)
+    private var resolved: Font {
+        let base: Font
+        if let family, family.isEmpty == false {
+            base = .custom(family, size: style.referenceSize, relativeTo: style.relativeTextStyle)
+        } else {
+            base = style.systemFont
         }
+        if let weight {
+            return base.weight(weight)
+        }
+        return base
+    }
+}
+
+private struct HCBFontSystemModifier: ViewModifier {
+    @Environment(\.hcbFontFamily) private var family
+    let size: CGFloat
+    let weight: Font.Weight
+    let design: Font.Design
+
+    func body(content: Content) -> some View {
+        content.font(resolved)
+    }
+
+    private var resolved: Font {
+        if let family, family.isEmpty == false {
+            // Custom fonts don't honor Font.Design — design is system-only.
+            // Apply weight on top of the custom family.
+            return Font.custom(family, size: size, relativeTo: .body).weight(weight)
+        }
+        return .system(size: size, weight: weight, design: design)
     }
 }
 

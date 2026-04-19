@@ -46,7 +46,7 @@ struct GoToDateSheet: View {
                 }
             }
         }
-        .frame(minWidth: 380, minHeight: 420)
+        .hcbScaledFrame(minWidth: 380, minHeight: 420)
     }
 
     private func shift(days: Int = 0, months: Int = 0) -> Date {

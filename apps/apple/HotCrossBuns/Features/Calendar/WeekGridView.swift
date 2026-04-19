@@ -78,16 +78,16 @@ struct WeekGridView: View {
     private var weekHeader: some View {
         HStack(spacing: 0) {
             Text("")
-                .frame(width: 54)
+                .hcbScaledFrame(width: 54)
             ForEach(weekDays, id: \.self) { day in
                 VStack(spacing: 2) {
                     Text(day.formatted(.dateTime.weekday(.abbreviated)))
-                        .font(.caption.weight(.semibold))
+                        .hcbFont(.caption, weight: .semibold)
                         .foregroundStyle(.secondary)
                     Text(day.formatted(.dateTime.day()))
                         .font(.title3.weight(isToday(day) ? .bold : .regular))
                         .foregroundStyle(isToday(day) ? AppColor.ember : AppColor.ink)
-                        .frame(width: 30, height: 30)
+                        .hcbScaledFrame(width: 30, height: 30)
                         .background(
                             Circle()
                                 .fill(isToday(day) ? AppColor.ember.opacity(0.15) : .clear)
@@ -96,7 +96,7 @@ struct WeekGridView: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .padding(.vertical, 10)
+        .hcbScaledPadding(.vertical, 10)
     }
 
     private struct AllDaySpan: Identifiable {
@@ -167,10 +167,10 @@ struct WeekGridView: View {
             } else {
                 HStack(spacing: 0) {
                     Text("All-day")
-                        .font(.caption2.weight(.semibold))
+                        .hcbFont(.caption2, weight: .semibold)
                         .foregroundStyle(.secondary)
-                        .frame(width: 54, alignment: .trailing)
-                        .padding(.trailing, 6)
+                        .hcbScaledFrame(width: 54, alignment: .trailing)
+                        .hcbScaledPadding(.trailing, 6)
                     GeometryReader { geo in
                         let columnWidth = geo.size.width / 7
                         let laneHeight: CGFloat = 22
@@ -182,7 +182,7 @@ struct WeekGridView: View {
                     }
                     .frame(height: CGFloat(min(laneCount, 3)) * 22)
                 }
-                .padding(.vertical, 4)
+                .hcbScaledPadding(.vertical, 4)
             }
         }
     }
@@ -196,10 +196,10 @@ struct WeekGridView: View {
             router.navigate(to: .event(span.event.id))
         } label: {
             Text(span.event.summary)
-                .font(.caption)
+                .hcbFont(.caption)
                 .lineLimit(1)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
+                .hcbScaledPadding(.horizontal, 6)
+                .hcbScaledPadding(.vertical, 3)
                 .frame(width: max(width, 20), height: laneHeight - 4, alignment: .leading)
                 .background(
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
@@ -267,10 +267,10 @@ struct WeekGridView: View {
             } else {
                 HStack(spacing: 0) {
                     Text("Tasks")
-                        .font(.caption2.weight(.semibold))
+                        .hcbFont(.caption2, weight: .semibold)
                         .foregroundStyle(.secondary)
-                        .frame(width: 54, alignment: .trailing)
-                        .padding(.trailing, 6)
+                        .hcbScaledFrame(width: 54, alignment: .trailing)
+                        .hcbScaledPadding(.trailing, 6)
                     GeometryReader { geo in
                         let columnWidth = geo.size.width / 7
                         ZStack(alignment: .topLeading) {
@@ -282,15 +282,15 @@ struct WeekGridView: View {
                                         } label: {
                                             HStack(spacing: 4) {
                                                 Image(systemName: "circle")
-                                                    .font(.system(size: 8))
+                                                    .hcbFontSystem(size: 8)
                                                     .foregroundStyle(AppColor.ember)
                                                     .accessibilityHidden(true)
                                                 Text(task.title)
-                                                    .font(.caption)
+                                                    .hcbFont(.caption)
                                                     .lineLimit(1)
                                             }
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 3)
+                                            .hcbScaledPadding(.horizontal, 6)
+                                            .hcbScaledPadding(.vertical, 3)
                                             .frame(maxWidth: .infinity, alignment: .leading)
                                             .background(
                                                 RoundedRectangle(cornerRadius: 5, style: .continuous)
@@ -308,12 +308,12 @@ struct WeekGridView: View {
                                     }
                                     if let count = tasksByDay[calendar.startOfDay(for: day)]?.count, count > 3 {
                                         Text("+\(count - 3) more")
-                                            .font(.caption2)
+                                            .hcbFont(.caption2)
                                             .foregroundStyle(.secondary)
-                                            .padding(.leading, 4)
+                                            .hcbScaledPadding(.leading, 4)
                                     }
                                 }
-                                .padding(.horizontal, 2)
+                                .hcbScaledPadding(.horizontal, 2)
                                 .frame(width: columnWidth, alignment: .leading)
                                 .offset(x: CGFloat(idx) * columnWidth)
                             }
@@ -321,7 +321,7 @@ struct WeekGridView: View {
                     }
                     .frame(height: CGFloat(min(maxLanes, 3)) * 22)
                 }
-                .padding(.vertical, 4)
+                .hcbScaledPadding(.vertical, 4)
             }
         }
     }
@@ -351,15 +351,15 @@ struct WeekGridView: View {
                 HStack {
                     Spacer()
                     Text(labelForHour(hour))
-                        .font(.caption2)
+                        .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
                         .offset(y: -6)
-                        .padding(.trailing, 6)
+                        .hcbScaledPadding(.trailing, 6)
                 }
                 .frame(height: hourHeight, alignment: .top)
             }
         }
-        .frame(width: 54)
+        .hcbScaledFrame(width: 54)
     }
 
     private var gridLines: some View {
@@ -493,16 +493,16 @@ struct WeekGridView: View {
         } label: {
             VStack(alignment: .leading, spacing: 2) {
                 Text(placed.event.summary)
-                    .font(.caption.weight(.semibold))
+                    .hcbFont(.caption, weight: .semibold)
                     .lineLimit(2)
                 if height > 34 {
                     Text("\(placed.event.startDate.formatted(.dateTime.hour().minute())) – \(placed.event.endDate.formatted(.dateTime.hour().minute()))")
-                        .font(.caption2)
+                        .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
                 }
             }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 4)
+            .hcbScaledPadding(.horizontal, 6)
+            .hcbScaledPadding(.vertical, 4)
             .frame(width: slotWidth - 2, height: height - 2, alignment: .topLeading)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -541,9 +541,9 @@ struct WeekGridView: View {
             isAllDay: placed.event.isAllDay
         )) {
             Text(placed.event.summary)
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
+                .hcbFont(.caption, weight: .semibold)
+                .hcbScaledPadding(.horizontal, 10)
+                .hcbScaledPadding(.vertical, 6)
                 .background(Capsule().fill(fill.opacity(0.35)))
         }
     }
@@ -559,7 +559,7 @@ struct WeekGridView: View {
     private func nowIndicator(offset: CGFloat) -> some View {
         Rectangle()
             .fill(AppColor.ember)
-            .frame(height: 1)
+            .hcbScaledFrame(height: 1)
             .offset(y: offset)
     }
 

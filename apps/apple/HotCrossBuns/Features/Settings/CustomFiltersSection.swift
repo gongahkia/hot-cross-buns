@@ -9,7 +9,7 @@ struct CustomFiltersSection: View {
         Section("Custom Filters") {
             if model.settings.customFilters.isEmpty {
                 Text("No custom filters yet. Save any combination of due-window, list, and star criteria as a reusable sidebar entry.")
-                    .font(.footnote)
+                    .hcbFont(.footnote)
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(model.settings.customFilters) { filter in
@@ -20,7 +20,7 @@ struct CustomFiltersSection: View {
                             Label(filter.name, systemImage: filter.systemImage)
                             Spacer()
                             Text(summary(filter))
-                                .font(.caption)
+                                .hcbFont(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -131,6 +131,6 @@ private struct CustomFilterEditor: View {
                 }
             }
         }
-        .frame(minWidth: 480, minHeight: 480)
+        .hcbScaledFrame(minWidth: 480, minHeight: 480)
     }
 }

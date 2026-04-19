@@ -63,7 +63,7 @@ struct SettingsView: View {
                         .listRowBackground(vimHighlightBackground(for: .syncMode))
 
                         Text(model.settings.syncMode.detail)
-                            .font(.footnote)
+                            .hcbFont(.footnote)
                             .foregroundStyle(.secondary)
 
                         Button {
@@ -101,7 +101,7 @@ struct SettingsView: View {
                         .tag(VimTarget.localReminders)
                         .listRowBackground(vimHighlightBackground(for: .localReminders))
                     Text("Schedules up to 64 pending reminders for due tasks and upcoming events on this device.")
-                        .font(.footnote)
+                        .hcbFont(.footnote)
                         .foregroundStyle(.secondary)
                 }
 
@@ -136,7 +136,7 @@ struct SettingsView: View {
                                 HStack(spacing: 10) {
                                     Circle()
                                         .fill(Color(hex: calendar.colorHex))
-                                        .frame(width: 10, height: 10)
+                                        .hcbScaledFrame(width: 10, height: 10)
                                     Text(calendar.summary)
                                 }
                             }
@@ -153,14 +153,14 @@ struct SettingsView: View {
                         .tag(VimTarget.globalHotkey)
                         .listRowBackground(vimHighlightBackground(for: .globalHotkey))
                     Text("Capture a task from any app. The Hot Cross Buns quick-add sheet opens immediately, pre-focused.")
-                        .font(.footnote)
+                        .hcbFont(.footnote)
                         .foregroundStyle(.secondary)
                     Toggle("Vim keybindings", isOn: vimBinding)
                         .id(VimTarget.vimBindings)
                         .tag(VimTarget.vimBindings)
                         .listRowBackground(vimHighlightBackground(for: .vimBindings))
                     Text("Modal navigation in lists and sidebar. j/k move, gg top, G bottom, x toggle complete, dd delete, : command palette, / search. Text editors keep native shortcuts.")
-                        .font(.footnote)
+                        .hcbFont(.footnote)
                         .foregroundStyle(.secondary)
                 }
 
@@ -423,7 +423,7 @@ private struct AccountStatusView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Label(authState.title, systemImage: iconName)
-                    .font(.headline)
+                    .hcbFont(.headline)
                 Spacer()
                 if case .authenticating = authState {
                     ProgressView()
@@ -432,15 +432,15 @@ private struct AccountStatusView: View {
 
             if case .failed(let message) = authState {
                 Text(message)
-                    .font(.footnote)
+                    .hcbFont(.footnote)
                     .foregroundStyle(.red)
             }
 
             if let account {
                 Text(account.displayName)
-                    .font(.subheadline.weight(.medium))
+                    .hcbFont(.subheadline, weight: .medium)
                 Text(scopeSummary(for: account))
-                    .font(.footnote)
+                    .hcbFont(.footnote)
                     .foregroundStyle(.secondary)
 
                 Button(role: .destructive, action: disconnect) {
@@ -450,11 +450,11 @@ private struct AccountStatusView: View {
                 .buttonStyle(.bordered)
             } else {
                 GoogleSignInButton(action: connect)
-                    .frame(maxWidth: 320, alignment: .leading)
+                    .hcbScaledFrame(maxWidth: 320, alignment: .leading)
                     .disabled(isAuthenticating)
             }
         }
-        .padding(.vertical, 6)
+        .hcbScaledPadding(.vertical, 6)
     }
 
     private var isAuthenticating: Bool {
@@ -501,14 +501,14 @@ struct SyncSettingsSheet: View {
             List {
                 Section("Current mode") {
                     Text(model.settings.syncMode.title)
-                        .font(.headline)
+                        .hcbFont(.headline)
                     Text(model.settings.syncMode.detail)
                         .foregroundStyle(.secondary)
                 }
 
                 Section("Reality check") {
                     Text("Manual only refreshes on request. Balanced refreshes on launch and foreground. Near real-time adds foreground polling every 90 seconds with backoff on rate-limits.")
-                        .font(.callout)
+                        .hcbFont(.callout)
                 }
             }
             .navigationTitle("Sync Details")

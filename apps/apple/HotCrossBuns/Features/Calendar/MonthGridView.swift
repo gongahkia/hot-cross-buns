@@ -51,12 +51,12 @@ struct MonthGridView: View {
         HStack(spacing: 0) {
             ForEach(weekdaySymbols, id: \.self) { symbol in
                 Text(symbol)
-                    .font(.caption.weight(.semibold))
+                    .hcbFont(.caption, weight: .semibold)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
             }
         }
-        .padding(.vertical, 8)
+        .hcbScaledPadding(.vertical, 8)
     }
 
     private var grid: some View {
@@ -108,10 +108,10 @@ struct MonthGridView: View {
         return VStack(alignment: .leading, spacing: 3) {
             HStack {
                 Text("\(calendar.component(.day, from: day))")
-                    .font(.caption.weight(.semibold))
+                    .hcbFont(.caption, weight: .semibold)
                     .foregroundStyle(dayNumberColor(isCurrentMonth: isCurrentMonth, day: day))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
+                    .hcbScaledPadding(.horizontal, 6)
+                    .hcbScaledPadding(.vertical, 2)
                     .background(
                         Capsule()
                             .fill(calendar.isDateInToday(day) ? AppColor.ember.opacity(0.25) : .clear)
@@ -123,10 +123,10 @@ struct MonthGridView: View {
                     router.navigate(to: .event(event.id))
                 } label: {
                     Text(eventLabel(event, in: day))
-                        .font(.caption2)
+                        .hcbFont(.caption2)
                         .lineLimit(1)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
+                        .hcbScaledPadding(.horizontal, 6)
+                        .hcbScaledPadding(.vertical, 2)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(
                             RoundedRectangle(cornerRadius: 4, style: .continuous)
@@ -144,9 +144,9 @@ struct MonthGridView: View {
                     isAllDay: event.isAllDay
                 )) {
                     Text(event.summary)
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .hcbFont(.caption)
+                        .hcbScaledPadding(.horizontal, 8)
+                        .hcbScaledPadding(.vertical, 4)
                         .background(Capsule().fill(calendarColor(for: event).opacity(0.35)))
                 }
             }
@@ -156,15 +156,15 @@ struct MonthGridView: View {
                 } label: {
                     HStack(spacing: 3) {
                         Image(systemName: "circle")
-                            .font(.system(size: 7))
+                            .hcbFontSystem(size: 7)
                             .foregroundStyle(AppColor.ember)
                             .accessibilityHidden(true)
                         Text(task.title)
-                            .font(.caption2)
+                            .hcbFont(.caption2)
                             .lineLimit(1)
                     }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
+                    .hcbScaledPadding(.horizontal, 6)
+                    .hcbScaledPadding(.vertical, 2)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(
                         RoundedRectangle(cornerRadius: 4, style: .continuous)
@@ -184,13 +184,13 @@ struct MonthGridView: View {
             let hiddenTasks = max(0, tasks.count - taskSlots)
             if hiddenEvents + hiddenTasks > 0 {
                 Text("+\(hiddenEvents + hiddenTasks) more")
-                    .font(.caption2)
+                    .hcbFont(.caption2)
                     .foregroundStyle(.secondary)
-                    .padding(.leading, 6)
+                    .hcbScaledPadding(.leading, 6)
             }
             Spacer(minLength: 0)
         }
-        .padding(6)
+        .hcbScaledPadding(6)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(
             Rectangle()

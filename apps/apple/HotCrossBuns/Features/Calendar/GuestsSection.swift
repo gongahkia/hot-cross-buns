@@ -22,7 +22,7 @@ struct GuestsSection: View {
             }
             if isDraftValid == false, draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
                 Text("That doesn't look like a valid email address.")
-                    .font(.caption2)
+                    .hcbFont(.caption2)
                     .foregroundStyle(AppColor.ember)
             }
 
@@ -33,13 +33,13 @@ struct GuestsSection: View {
                             Image(systemName: "person.crop.circle")
                                 .foregroundStyle(.secondary)
                             Text(email)
-                                .font(.subheadline)
+                                .hcbFont(.subheadline)
                             Spacer()
                             Button {
                                 attendees.removeAll { $0 == email }
                             } label: {
                                 Image(systemName: "xmark.circle")
-                                    .font(.caption)
+                                    .hcbFont(.caption)
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("Remove \(email)")
@@ -51,7 +51,7 @@ struct GuestsSection: View {
             Toggle("Send updates to guests", isOn: $notifyGuests)
                 .disabled(attendees.isEmpty)
             Text("Off by default to avoid accidental emails. Turn on only when you want guests to get a notification for this change.")
-                .font(.footnote)
+                .hcbFont(.footnote)
                 .foregroundStyle(.secondary)
         }
     }

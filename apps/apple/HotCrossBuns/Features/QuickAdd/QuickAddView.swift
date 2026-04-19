@@ -25,7 +25,7 @@ struct QuickAddView: View {
                 .onChange(of: input) { _, newValue in reparse(newValue) }
                 .accessibilityLabel("Task title with optional date and list")
                 .accessibilityHint("Type a task title. Words like tomorrow or #work are parsed into due date and list.")
-                .padding(14)
+                .hcbScaledPadding(14)
                 .background(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .fill(AppColor.cream.opacity(0.8))
@@ -39,7 +39,7 @@ struct QuickAddView: View {
 
             if let errorMessage {
                 Text(errorMessage)
-                    .font(.caption)
+                    .hcbFont(.caption)
                     .foregroundStyle(AppColor.ember)
             }
 
@@ -63,8 +63,8 @@ struct QuickAddView: View {
                 .disabled(canSubmit == false)
             }
         }
-        .padding(22)
-        .frame(width: 560)
+        .hcbScaledPadding(22)
+        .hcbScaledFrame(width: 560)
         .onAppear {
             if input.isEmpty, let shared = model.pendingSharedPrefill, shared.isEmpty == false {
                 // Share-extension handoff takes precedence over clipboard
@@ -106,10 +106,10 @@ struct QuickAddView: View {
             Image(systemName: "sparkles")
                 .foregroundStyle(AppColor.ember)
             Text("Quick Add")
-                .font(.headline)
+                .hcbFont(.headline)
             Spacer(minLength: 0)
             Text("Return to add, Esc to cancel")
-                .font(.caption2)
+                .hcbFont(.caption2)
                 .foregroundStyle(.secondary)
         }
     }
@@ -118,7 +118,7 @@ struct QuickAddView: View {
         HStack(spacing: 8) {
             if parsed.title.isEmpty {
                 Label("Type a title", systemImage: "text.cursor")
-                    .font(.caption)
+                    .hcbFont(.caption)
                     .foregroundStyle(.secondary)
             } else {
                 chip(icon: "text.alignleft", text: parsed.title, tint: AppColor.ink)
@@ -131,7 +131,7 @@ struct QuickAddView: View {
             }
             Spacer(minLength: 0)
         }
-        .frame(minHeight: 26)
+        .hcbScaledFrame(minHeight: 26)
     }
 
     private var listPicker: some View {
@@ -154,9 +154,9 @@ struct QuickAddView: View {
         } icon: {
             Image(systemName: icon)
         }
-        .font(.caption.weight(.medium))
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
+        .hcbFont(.caption, weight: .medium)
+        .hcbScaledPadding(.horizontal, 10)
+        .hcbScaledPadding(.vertical, 5)
         .background(
             Capsule().fill(tint.opacity(0.15))
         )

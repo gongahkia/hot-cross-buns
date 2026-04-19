@@ -12,13 +12,13 @@ struct AppStatusBanner: View {
         if let failure = failureContext {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: failure.systemImage)
-                    .font(.title3)
+                    .hcbFont(.title3)
                     .foregroundStyle(failure.tint)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(failure.title)
-                        .font(.headline)
+                        .hcbFont(.headline)
                     Text(failure.message)
-                        .font(.footnote)
+                        .hcbFont(.footnote)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -33,14 +33,14 @@ struct AppStatusBanner: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Dismiss status message")
             }
-            .padding(14)
+            .hcbScaledPadding(14)
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .stroke(failure.tint.opacity(0.35), lineWidth: 1)
             )
-            .padding(.horizontal, 14)
-            .padding(.top, 8)
+            .hcbScaledPadding(.horizontal, 14)
+            .hcbScaledPadding(.top, 8)
         }
     }
 

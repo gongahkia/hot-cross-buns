@@ -38,10 +38,10 @@ private struct CompactMenuBarPanel: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             Text("Hot Cross Buns")
-                .font(.headline)
+                .hcbFont(.headline)
             Spacer()
             Text(model.syncState.title)
-                .font(.caption.weight(.medium))
+                .hcbFont(.caption, weight: .medium)
                 .foregroundStyle(.secondary)
         }
     }
@@ -56,8 +56,8 @@ private struct CompactMenuBarPanel: View {
             Divider()
             MenuBarQuickActions()
         }
-        .padding(14)
-        .frame(width: 300)
+        .hcbScaledPadding(14)
+        .hcbScaledFrame(width: 300)
     }
 
     private var overview: some View {
@@ -93,14 +93,14 @@ private struct DetailedMenuBarPanel: View {
             Divider()
             MenuBarQuickActions()
         }
-        .padding(12)
-        .frame(width: 352)
+        .hcbScaledPadding(12)
+        .hcbScaledFrame(width: 352)
     }
 
     private var header: some View {
         HStack(spacing: 8) {
             Text(displayedMonth.formatted(.dateTime.month(.abbreviated).year()))
-                .font(.headline.weight(.semibold))
+                .hcbFont(.headline, weight: .semibold)
             Spacer(minLength: 0)
             Button {
                 displayedMonth = Calendar.current.date(byAdding: .month, value: -1, to: displayedMonth) ?? displayedMonth
@@ -114,7 +114,7 @@ private struct DetailedMenuBarPanel: View {
                 selectedDay = Calendar.current.startOfDay(for: Date())
             } label: {
                 Text("Today")
-                    .font(.caption.weight(.medium))
+                    .hcbFont(.caption, weight: .medium)
             }
             .buttonStyle(.borderless)
 
@@ -132,7 +132,7 @@ private struct DetailedMenuBarPanel: View {
         return HStack(spacing: 0) {
             ForEach(symbols, id: \.self) { symbol in
                 Text(symbol.uppercased())
-                    .font(.caption2.weight(.semibold))
+                    .hcbFont(.caption2, weight: .semibold)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
             }
@@ -152,7 +152,7 @@ private struct DetailedMenuBarPanel: View {
                             .frame(maxWidth: .infinity)
                         markerDots(for: day.date)
                     }
-                    .padding(.vertical, 4)
+                    .hcbScaledPadding(.vertical, 4)
                     .background(dayBackground(for: day))
                 }
                 .buttonStyle(.plain)
@@ -165,18 +165,18 @@ private struct DetailedMenuBarPanel: View {
             LazyVStack(alignment: .leading, spacing: 8) {
                 if agendaSections.isEmpty {
                     Text("No tasks or events for the next two weeks.")
-                        .font(.footnote)
+                        .hcbFont(.footnote)
                         .foregroundStyle(.secondary)
-                        .padding(.vertical, 8)
+                        .hcbScaledPadding(.vertical, 8)
                 } else {
                     ForEach(agendaSections) { section in
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
                                 Text(section.title)
-                                    .font(.subheadline.weight(.semibold))
+                                    .hcbFont(.subheadline, weight: .semibold)
                                 Spacer()
                                 Text(section.date.formatted(.dateTime.month().day()))
-                                    .font(.subheadline.weight(.semibold))
+                                    .hcbFont(.subheadline, weight: .semibold)
                                     .foregroundStyle(.secondary)
                             }
 
@@ -184,15 +184,15 @@ private struct DetailedMenuBarPanel: View {
                                 HStack(alignment: .top, spacing: 8) {
                                     Circle()
                                         .fill(item.color)
-                                        .frame(width: 7, height: 7)
-                                        .padding(.top, 5)
+                                        .hcbScaledFrame(width: 7, height: 7)
+                                        .hcbScaledPadding(.top, 5)
                                     VStack(alignment: .leading, spacing: 1) {
                                         Text(item.title)
-                                            .font(.subheadline)
+                                            .hcbFont(.subheadline)
                                             .lineLimit(1)
                                         if item.subtitle.isEmpty == false {
                                             Text(item.subtitle)
-                                                .font(.caption)
+                                                .hcbFont(.caption)
                                                 .foregroundStyle(.secondary)
                                                 .lineLimit(1)
                                         }
@@ -205,9 +205,9 @@ private struct DetailedMenuBarPanel: View {
                     }
                 }
             }
-            .padding(.top, 2)
+            .hcbScaledPadding(.top, 2)
         }
-        .frame(maxHeight: 190)
+        .hcbScaledFrame(maxHeight: 190)
     }
 
     private func dayTextColor(for day: MenuBarGridDay) -> Color {
@@ -240,10 +240,10 @@ private struct DetailedMenuBarPanel: View {
             ForEach(Array(colors.enumerated()), id: \.offset) { _, color in
                 Circle()
                     .fill(color)
-                    .frame(width: 4, height: 4)
+                    .hcbScaledFrame(width: 4, height: 4)
             }
         }
-        .frame(height: 5)
+        .hcbScaledFrame(height: 5)
     }
 
     private func markerColors(for date: Date) -> [Color] {
@@ -398,10 +398,10 @@ private struct FocusStripMenuBarPanel: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Focus strip")
-                    .font(.headline)
+                    .hcbFont(.headline)
                 Spacer()
                 Text(model.syncState.title)
-                    .font(.caption.weight(.medium))
+                    .hcbFont(.caption, weight: .medium)
                     .foregroundStyle(.secondary)
             }
 
@@ -416,17 +416,17 @@ private struct FocusStripMenuBarPanel: View {
             Divider()
             MenuBarQuickActions()
         }
-        .padding(14)
-        .frame(width: 336)
+        .hcbScaledPadding(14)
+        .hcbScaledFrame(width: 336)
     }
 
     @ViewBuilder
     private func laneRow(for row: LaneRow) -> some View {
         HStack(spacing: 8) {
             Text(row.lane.title.uppercased())
-                .font(.caption2.weight(.bold))
+                .hcbFont(.caption2, weight: .bold)
                 .foregroundStyle(row.lane.tint)
-                .frame(width: 40, alignment: .leading)
+                .hcbScaledFrame(width: 40, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(row.title)
@@ -434,7 +434,7 @@ private struct FocusStripMenuBarPanel: View {
                     .lineLimit(1)
                     .foregroundStyle(row.isPlaceholder ? .secondary : .primary)
                 Text(row.subtitle)
-                    .font(.caption)
+                    .hcbFont(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -457,12 +457,12 @@ private struct FocusStripMenuBarPanel: View {
                 .disabled(completingTaskIDs.contains(task.id))
             } else {
                 Image(systemName: row.symbol)
-                    .font(.caption)
+                    .hcbFont(.caption)
                     .foregroundStyle(row.isPlaceholder ? .secondary : row.color)
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .hcbScaledPadding(.horizontal, 8)
+        .hcbScaledPadding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .fill(
@@ -629,10 +629,10 @@ private struct DayTimelineMenuBarPanel: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Day timeline")
-                    .font(.headline)
+                    .hcbFont(.headline)
                 Spacer()
                 Text("Next \(horizonHours)h")
-                    .font(.caption.weight(.medium))
+                    .hcbFont(.caption, weight: .medium)
                     .foregroundStyle(.secondary)
             }
 
@@ -640,26 +640,26 @@ private struct DayTimelineMenuBarPanel: View {
                 LazyVStack(alignment: .leading, spacing: 8) {
                     if timelineEntries.isEmpty {
                         Text("No events or due tasks in the next \(horizonHours) hours.")
-                            .font(.footnote)
+                            .hcbFont(.footnote)
                             .foregroundStyle(.secondary)
-                            .padding(.vertical, 8)
+                            .hcbScaledPadding(.vertical, 8)
                     } else {
                         ForEach(timelineEntries) { entry in
                             timelineRow(entry)
                         }
                     }
                 }
-                .padding(.top, 2)
+                .hcbScaledPadding(.top, 2)
             }
-            .frame(maxHeight: 210)
+            .hcbScaledFrame(maxHeight: 210)
 
             Divider()
             MenuBarQuickAddRow()
             Divider()
             MenuBarQuickActions()
         }
-        .padding(14)
-        .frame(width: 348)
+        .hcbScaledPadding(14)
+        .hcbScaledFrame(width: 348)
     }
 
     @ViewBuilder
@@ -669,24 +669,24 @@ private struct DayTimelineMenuBarPanel: View {
                 Text(entry.timeLabel)
                     .font(.caption2.monospacedDigit().weight(.semibold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 42, alignment: .leading)
+                    .hcbScaledFrame(width: 42, alignment: .leading)
                 Circle()
                     .fill(entry.color)
-                    .frame(width: 6, height: 6)
-                    .frame(width: 42, alignment: .leading)
+                    .hcbScaledFrame(width: 6, height: 6)
+                    .hcbScaledFrame(width: 42, alignment: .leading)
             }
 
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 4) {
                     Image(systemName: entry.symbol)
-                        .font(.caption2)
+                        .hcbFont(.caption2)
                         .foregroundStyle(entry.color)
                     Text(entry.title)
-                        .font(.subheadline.weight(.semibold))
+                        .hcbFont(.subheadline, weight: .semibold)
                         .lineLimit(1)
                 }
                 Text(entry.subtitle)
-                    .font(.caption)
+                    .hcbFont(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -708,8 +708,8 @@ private struct DayTimelineMenuBarPanel: View {
                 .disabled(completingTaskIDs.contains(task.id))
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .hcbScaledPadding(.horizontal, 8)
+        .hcbScaledPadding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .fill(entry.color.opacity(0.10))
@@ -879,10 +879,10 @@ private struct MinimalBadgeMenuBarPanel: View {
         VStack(alignment: .leading, spacing: 9) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Hot Cross Buns")
-                    .font(.headline)
+                    .hcbFont(.headline)
                 Spacer()
                 Text(model.syncState.title)
-                    .font(.caption.weight(.medium))
+                    .hcbFont(.caption, weight: .medium)
                     .foregroundStyle(.secondary)
             }
 
@@ -894,11 +894,11 @@ private struct MinimalBadgeMenuBarPanel: View {
 
             if let lastSync = model.lastSuccessfulSyncAt {
                 Text("Last sync \(lastSync.formatted(date: .omitted, time: .shortened))")
-                    .font(.caption2)
+                    .hcbFont(.caption2)
                     .foregroundStyle(.secondary)
             } else {
                 Text("Last sync never")
-                    .font(.caption2)
+                    .hcbFont(.caption2)
                     .foregroundStyle(.secondary)
             }
 
@@ -934,8 +934,8 @@ private struct MinimalBadgeMenuBarPanel: View {
                 .controlSize(.small)
             }
         }
-        .padding(12)
-        .frame(width: 276)
+        .hcbScaledPadding(12)
+        .hcbScaledFrame(width: 276)
     }
 
     private func bringAppToFront() {
@@ -954,12 +954,12 @@ private struct MetricChip: View {
     var body: some View {
         HStack(spacing: 4) {
             Text(label)
-                .font(.caption2.weight(.semibold))
+                .hcbFont(.caption2, weight: .semibold)
             Text("\(count)")
                 .font(.caption2.monospacedDigit().weight(.semibold))
         }
-        .padding(.horizontal, 7)
-        .padding(.vertical, 4)
+        .hcbScaledPadding(.horizontal, 7)
+        .hcbScaledPadding(.vertical, 4)
         .foregroundStyle(count == 0 ? .secondary : color)
         .background(
             Capsule(style: .continuous)
@@ -983,29 +983,29 @@ private struct MenuBarQuickAddRow: View {
             HStack(spacing: 8) {
                 TextField("Add a task — tmr 9am #work", text: $input)
                     .textFieldStyle(.plain)
-                    .font(.subheadline)
+                    .hcbFont(.subheadline)
                     .onSubmit { Task { await submit() } }
                 if isSubmitting {
                     ProgressView().controlSize(.small)
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
+            .hcbScaledPadding(.horizontal, 8)
+            .hcbScaledPadding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(.quaternary.opacity(0.5))
             )
             if let errorMessage {
                 Text(errorMessage)
-                    .font(.caption2)
+                    .hcbFont(.caption2)
                     .foregroundStyle(AppColor.ember)
             } else if model.account == nil {
                 Text("Connect Google in Settings before adding tasks.")
-                    .font(.caption2)
+                    .hcbFont(.caption2)
                     .foregroundStyle(.secondary)
             } else if model.taskLists.isEmpty {
                 Text("Refresh to load your task lists.")
-                    .font(.caption2)
+                    .hcbFont(.caption2)
                     .foregroundStyle(.secondary)
             }
         }
@@ -1122,7 +1122,7 @@ private struct StatusLine: View {
             Text(value)
                 .font(.body.monospacedDigit())
         }
-        .font(.callout)
+        .hcbFont(.callout)
     }
 }
 
@@ -1193,10 +1193,10 @@ private struct WeeklyMenuBarPanel: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Next 7 days")
-                    .font(.headline)
+                    .hcbFont(.headline)
                 Spacer()
                 Text(model.syncState.title)
-                    .font(.caption.weight(.medium))
+                    .hcbFont(.caption, weight: .medium)
                     .foregroundStyle(.secondary)
             }
             Divider()
@@ -1210,8 +1210,8 @@ private struct WeeklyMenuBarPanel: View {
             Divider()
             MenuBarQuickActions()
         }
-        .padding(14)
-        .frame(width: 320)
+        .hcbScaledPadding(14)
+        .hcbScaledFrame(width: 320)
     }
 
     private func dayRow(_ day: Date) -> some View {
@@ -1222,14 +1222,14 @@ private struct WeeklyMenuBarPanel: View {
         return HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 0) {
                 Text(day.formatted(.dateTime.weekday(.abbreviated)))
-                    .font(.caption2.weight(.semibold))
+                    .hcbFont(.caption2, weight: .semibold)
                     .foregroundStyle(isToday ? AppColor.ember : .secondary)
                 Text("\(cal.component(.day, from: day))")
                     .font(.headline.monospacedDigit())
                     .foregroundStyle(isToday ? AppColor.ember : AppColor.ink)
             }
-            .frame(width: 38)
-            Divider().frame(height: 28)
+            .hcbScaledFrame(width: 38)
+            Divider().hcbScaledFrame(height: 28)
             HStack(spacing: 6) {
                 countChip(symbol: "calendar", count: events.count, color: AppColor.blue)
                 countChip(symbol: "checkmark.circle", count: tasks.count, color: AppColor.ember)
@@ -1241,8 +1241,8 @@ private struct WeeklyMenuBarPanel: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 6)
+        .hcbScaledPadding(.vertical, 4)
+        .hcbScaledPadding(.horizontal, 6)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(isToday ? AppColor.ember.opacity(0.08) : Color.clear)
@@ -1252,7 +1252,7 @@ private struct WeeklyMenuBarPanel: View {
     private func countChip(symbol: String, count: Int, color: Color) -> some View {
         HStack(spacing: 3) {
             Image(systemName: symbol)
-                .font(.caption2)
+                .hcbFont(.caption2)
             Text("\(count)")
                 .font(.caption2.monospacedDigit())
         }

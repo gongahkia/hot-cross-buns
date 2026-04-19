@@ -98,7 +98,7 @@ struct TaskInspectorView: View {
 
                 metadataSection
             }
-            .padding(20)
+            .hcbScaledPadding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(AppColor.cream.opacity(0.35))
@@ -119,7 +119,7 @@ struct TaskInspectorView: View {
             }
             .keyboardShortcut(.return, modifiers: [.command, .shift])
             .opacity(0)
-            .frame(width: 0, height: 0)
+            .hcbScaledFrame(width: 0, height: 0)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
         )
@@ -141,7 +141,7 @@ struct TaskInspectorView: View {
         HStack(spacing: 10) {
             statusDot
             Text(statusLabel)
-                .font(.caption.weight(.semibold))
+                .hcbFont(.caption, weight: .semibold)
                 .foregroundStyle(.secondary)
             starButton
             Spacer(minLength: 0)
@@ -149,7 +149,7 @@ struct TaskInspectorView: View {
                 ProgressView().controlSize(.small)
             } else if let savedAt {
                 Text("Saved \(savedAt.formatted(.relative(presentation: .numeric)))")
-                    .font(.caption2)
+                    .hcbFont(.caption2)
                     .foregroundStyle(.secondary)
             }
             Button {
@@ -157,8 +157,8 @@ struct TaskInspectorView: View {
                 close()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .semibold))
-                    .padding(6)
+                    .hcbFontSystem(size: 11, weight: .semibold)
+                    .hcbScaledPadding(6)
                     .background(Circle().fill(AppColor.cream))
             }
             .buttonStyle(.plain)
@@ -170,7 +170,7 @@ struct TaskInspectorView: View {
     private var statusDot: some View {
         Circle()
             .fill(task.isCompleted ? AppColor.moss : AppColor.ember)
-            .frame(width: 10, height: 10)
+            .hcbScaledFrame(width: 10, height: 10)
     }
 
     private var starButton: some View {
@@ -207,7 +207,7 @@ struct TaskInspectorView: View {
             sectionLabel("DUE DATE")
             Toggle(isOn: $draft.hasDueDate) {
                 Text(draft.hasDueDate ? draft.dueDate.formatted(date: .complete, time: .omitted) : "No due date")
-                    .font(.subheadline)
+                    .hcbFont(.subheadline)
             }
             .toggleStyle(.switch)
             .onChange(of: draft.hasDueDate) { _, _ in scheduleSave() }
@@ -220,10 +220,10 @@ struct TaskInspectorView: View {
             }
 
             Text("Google Tasks stores dates only; reminder times must be set as calendar events.")
-                .font(.caption2)
+                .hcbFont(.caption2)
                 .foregroundStyle(.secondary)
         }
-        .padding(14)
+        .hcbScaledPadding(14)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(.ultraThinMaterial)
@@ -238,7 +238,7 @@ struct TaskInspectorView: View {
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 2) {
                 Text("LIST")
-                    .font(.caption2.weight(.bold))
+                    .hcbFont(.caption2, weight: .bold)
                     .foregroundStyle(.secondary)
                 Picker("Task list", selection: Binding(
                     get: { task.taskListID },
@@ -255,7 +255,7 @@ struct TaskInspectorView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(14)
+        .hcbScaledPadding(14)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(.ultraThinMaterial)
@@ -359,7 +359,7 @@ struct TaskInspectorView: View {
                 ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
                     HStack(spacing: 10) {
                         Image(systemName: "line.3.horizontal")
-                            .font(.caption2)
+                            .hcbFont(.caption2)
                             .foregroundStyle(.secondary)
                             .help("Drag to reorder")
                         Button {
@@ -370,7 +370,7 @@ struct TaskInspectorView: View {
                         }
                         .buttonStyle(.plain)
                         Text(child.title)
-                            .font(.subheadline)
+                            .hcbFont(.subheadline)
                             .strikethrough(child.isCompleted, color: .secondary)
                             .foregroundStyle(child.isCompleted ? .secondary : AppColor.ink)
                         Spacer(minLength: 0)
@@ -378,12 +378,12 @@ struct TaskInspectorView: View {
                             Task { await model.deleteTask(child) }
                         } label: {
                             Image(systemName: "xmark.circle")
-                                .font(.caption)
+                                .hcbFont(.caption)
                                 .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)
                     }
-                    .padding(.vertical, 2)
+                    .hcbScaledPadding(.vertical, 2)
                     .contentShape(Rectangle())
                     .draggable(SubtaskDragPayload(taskID: child.id))
                     .dropDestination(for: SubtaskDragPayload.self) { items, _ in
@@ -401,13 +401,13 @@ struct TaskInspectorView: View {
                         .onSubmit { Task { await addSubtask() } }
                     if isAddingSubtask { ProgressView().controlSize(.small) }
                 }
-                .padding(10)
+                .hcbScaledPadding(10)
                 .background(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(AppColor.cream.opacity(0.5))
                 )
             }
-            .padding(14)
+            .hcbScaledPadding(14)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(.ultraThinMaterial)
@@ -465,10 +465,10 @@ struct TaskInspectorView: View {
             Text(task.dueDate == nil
                  ? "Add a due date to enable repeating."
                  : "When you complete this task, a new copy is created for the next occurrence.")
-                .font(.caption2)
+                .hcbFont(.caption2)
                 .foregroundStyle(.secondary)
         }
-        .padding(14)
+        .hcbScaledPadding(14)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(.ultraThinMaterial)
@@ -505,16 +505,16 @@ struct TaskInspectorView: View {
         VStack(alignment: .leading, spacing: 8) {
             sectionLabel("REMINDERS")
             Text("Local only. Fires at 9:00 AM on the chosen day.")
-                .font(.caption2)
+                .hcbFont(.caption2)
                 .foregroundStyle(.secondary)
             ForEach(presets, id: \.offset) { preset in
                 Toggle(isOn: reminderBinding(offset: preset.offset, current: current)) {
-                    Text(preset.label).font(.subheadline)
+                    Text(preset.label).hcbFont(.subheadline)
                 }
                 .toggleStyle(.switch)
             }
         }
-        .padding(14)
+        .hcbScaledPadding(14)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(.ultraThinMaterial)
@@ -551,7 +551,7 @@ struct TaskInspectorView: View {
             sectionLabel("BLOCKED BY")
             if blockers.isEmpty {
                 Text("Not blocked by anything.")
-                    .font(.caption)
+                    .hcbFont(.caption)
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(blockers, id: \.id) { blocker in
@@ -559,7 +559,7 @@ struct TaskInspectorView: View {
                         Image(systemName: blocker.isCompleted ? "checkmark.circle.fill" : "circle")
                             .foregroundStyle(blocker.isCompleted ? AppColor.moss : AppColor.ember)
                         Text(blocker.title)
-                            .font(.subheadline)
+                            .hcbFont(.subheadline)
                             .strikethrough(blocker.isCompleted)
                         Spacer(minLength: 0)
                         Button {
@@ -585,9 +585,9 @@ struct TaskInspectorView: View {
                     }
                 }
             }
-            .font(.caption)
+            .hcbFont(.caption)
         }
-        .padding(14)
+        .hcbScaledPadding(14)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(.ultraThinMaterial)
@@ -643,9 +643,9 @@ struct TaskInspectorView: View {
                     .foregroundStyle(AppColor.ember)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Couldn't save")
-                        .font(.caption.weight(.semibold))
+                        .hcbFont(.caption, weight: .semibold)
                     Text(saveFailureMessage)
-                        .font(.caption)
+                        .hcbFont(.caption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
@@ -654,11 +654,11 @@ struct TaskInspectorView: View {
                     Task { await saveIfDirty() }
                 } label: {
                     Text("Retry")
-                        .font(.caption.weight(.semibold))
+                        .hcbFont(.caption, weight: .semibold)
                 }
                 .buttonStyle(.bordered)
             }
-            .padding(12)
+            .hcbScaledPadding(12)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(AppColor.ember.opacity(0.1))
@@ -679,11 +679,11 @@ struct TaskInspectorView: View {
                 .foregroundStyle(.secondary)
             if let updated = task.updatedAt {
                 Text("Updated \(updated.formatted(date: .abbreviated, time: .shortened))")
-                    .font(.caption2)
+                    .hcbFont(.caption2)
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(14)
+        .hcbScaledPadding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -694,7 +694,7 @@ struct TaskInspectorView: View {
 
     private func sectionLabel(_ text: String) -> some View {
         Text(text)
-            .font(.caption2.weight(.bold))
+            .hcbFont(.caption2, weight: .bold)
             .foregroundStyle(.secondary)
     }
 
@@ -776,15 +776,15 @@ struct TaskInspectorEmptyState: View {
     var body: some View {
         VStack(spacing: 14) {
             Image(systemName: "text.magnifyingglass")
-                .font(.system(size: 36))
+                .hcbFontSystem(size: 36)
                 .foregroundStyle(.tertiary)
             Text("Select a task")
-                .font(.headline)
+                .hcbFont(.headline)
             Text("Pick a task from the list to view and edit its details.")
-                .font(.subheadline)
+                .hcbFont(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 30)
+                .hcbScaledPadding(.horizontal, 30)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppColor.cream.opacity(0.25))

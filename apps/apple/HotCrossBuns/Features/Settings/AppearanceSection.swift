@@ -11,7 +11,7 @@ struct AppearanceSection: View {
             textSizeRow
             fontRow
             Text("Layout scale resizes UI chrome (sidebar, icons, padding). Text size and font are controlled independently. System dialogs (alerts, confirmation dialogs) follow macOS display settings and aren't affected.")
-                .font(.footnote)
+                .hcbFont(.footnote)
                 .foregroundStyle(.secondary)
         }
         .task {
@@ -41,7 +41,7 @@ struct AppearanceSection: View {
             HStack {
                 Button("Reset") { model.setUILayoutScale(1.0) }
                     .buttonStyle(.borderless)
-                    .font(.caption)
+                    .hcbFont(.caption)
                 Spacer()
             }
         }
@@ -70,7 +70,7 @@ struct AppearanceSection: View {
                 Spacer()
                 Button("System default") { model.setUIFontName(nil) }
                     .buttonStyle(.borderless)
-                    .font(.caption)
+                    .hcbFont(.caption)
                     .disabled(model.settings.uiFontName == nil)
             }
             HStack(spacing: 8) {
@@ -94,8 +94,8 @@ struct AppearanceSection: View {
                 .menuStyle(.borderlessButton)
                 .fixedSize()
             }
-            Text("Custom font applies wherever the app uses the default font. Explicit .font(.headline) / .font(.body) sites still use the system font until migrated.")
-                .font(.caption2)
+            Text("Custom font applies to all text rendered via the app's semantic text styles. Calls that use system design variants (monospaced digits, rounded, serif) keep the system font on purpose.")
+                .hcbFont(.caption2)
                 .foregroundStyle(.secondary)
         }
     }

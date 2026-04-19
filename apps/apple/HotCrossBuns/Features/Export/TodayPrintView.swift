@@ -46,21 +46,21 @@ struct TodayPrintView: View {
             if overdueTasks.isEmpty && todaySnapshot.dueTasks.isEmpty
                 && todaySnapshot.scheduledEvents.isEmpty && upcomingEvents.isEmpty {
                 Text("Clear day. Nothing scheduled.")
-                    .font(.title3)
+                    .hcbFont(.title3)
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
             footer
         }
-        .padding(36)
-        .frame(width: 612, height: 792, alignment: .topLeading) // US Letter @ 72dpi
+        .hcbScaledPadding(36)
+        .hcbScaledFrame(width: 612, height: 792, alignment: .topLeading) // US Letter @ 72dpi
         .background(Color.white)
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Hot Cross Buns")
-                .font(.caption.weight(.semibold))
+                .hcbFont(.caption, weight: .semibold)
                 .foregroundStyle(.secondary)
             Text(todaySnapshot.date.formatted(.dateTime.weekday(.wide).month(.wide).day().year()))
                 .font(.system(.largeTitle, design: .serif, weight: .bold))
@@ -71,7 +71,7 @@ struct TodayPrintView: View {
     private func section<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.caption.weight(.bold))
+                .hcbFont(.caption, weight: .bold)
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 4) {
                 content()
@@ -84,7 +84,7 @@ struct TodayPrintView: View {
             Text("□")
                 .font(.body.monospaced())
             Text(task.title)
-                .font(.body)
+                .hcbFont(.body)
             Spacer(minLength: 0)
             if let due = task.dueDate {
                 Text(due.formatted(.dateTime.month(.abbreviated).day()))
@@ -98,13 +98,13 @@ struct TodayPrintView: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(timeLabel(for: event))
                 .font(.body.monospaced())
-                .frame(width: 120, alignment: .leading)
+                .hcbScaledFrame(width: 120, alignment: .leading)
             VStack(alignment: .leading, spacing: 2) {
                 Text(event.summary)
-                    .font(.body)
+                    .hcbFont(.body)
                 if event.location.isEmpty == false {
                     Text(event.location)
-                        .font(.caption)
+                        .hcbFont(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -121,7 +121,7 @@ struct TodayPrintView: View {
 
     private var footer: some View {
         Text("Generated \(generatedAt.formatted(date: .abbreviated, time: .shortened))")
-            .font(.caption2)
+            .hcbFont(.caption2)
             .foregroundStyle(.secondary)
     }
 }

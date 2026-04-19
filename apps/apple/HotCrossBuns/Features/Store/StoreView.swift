@@ -131,7 +131,7 @@ struct StoreView: View {
                 }
                 .keyboardShortcut(.delete, modifiers: [.command])
                 .opacity(0)
-                .frame(width: 0, height: 0)
+                .hcbScaledFrame(width: 0, height: 0)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
             )
@@ -162,7 +162,7 @@ struct StoreView: View {
     @ViewBuilder
     private var bulkActionButtons: some View {
         Text("\(selection.count) selected")
-            .font(.caption.weight(.semibold))
+            .hcbFont(.caption, weight: .semibold)
             .foregroundStyle(.secondary)
         Button {
             Task { await bulkComplete() }
@@ -434,13 +434,13 @@ struct StoreView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 14) {
                         Text("Lists sorted by idle time. Stale = \(ReviewBuilder.staleAfterDays)+ days without activity.")
-                            .font(.caption)
+                            .hcbFont(.caption)
                             .foregroundStyle(.secondary)
                         ForEach(summaries) { summary in
                             staleCard(summary: summary)
                         }
                     }
-                    .padding(16)
+                    .hcbScaledPadding(16)
                 }
             }
         }
@@ -451,7 +451,7 @@ struct StoreView: View {
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 Label(summary.taskList.title, systemImage: "checklist")
-                    .font(.headline)
+                    .hcbFont(.headline)
                 Spacer(minLength: 0)
                 if let days = summary.daysSinceActivity {
                     Text(days == 0 ? "Active today" : "\(days) day\(days == 1 ? "" : "s") idle")
@@ -459,13 +459,13 @@ struct StoreView: View {
                         .foregroundStyle(stale ? AppColor.ember : .secondary)
                 } else {
                     Text("No activity recorded")
-                        .font(.caption)
+                        .hcbFont(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
             if summary.openTasks.isEmpty {
                 Text("Inbox zero — all items complete.")
-                    .font(.caption)
+                    .hcbFont(.caption)
                     .foregroundStyle(.secondary)
             } else {
                 VStack(spacing: 6) {
@@ -477,16 +477,16 @@ struct StoreView: View {
                                 Image(systemName: "circle")
                                     .foregroundStyle(AppColor.ember)
                                 Text(TagExtractor.stripped(from: TaskStarring.displayTitle(for: task)))
-                                    .font(.subheadline)
+                                    .hcbFont(.subheadline)
                                     .foregroundStyle(AppColor.ink)
                                 Spacer(minLength: 0)
                                 if let due = task.dueDate {
                                     Text(due.formatted(.dateTime.month(.abbreviated).day()))
-                                        .font(.caption2)
+                                        .hcbFont(.caption2)
                                         .foregroundStyle(.secondary)
                                 }
                             }
-                            .padding(10)
+                            .hcbScaledPadding(10)
                             .background(
                                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                                     .fill(AppColor.cream.opacity(0.4))
@@ -496,13 +496,13 @@ struct StoreView: View {
                     }
                     if summary.openTasks.count > 5 {
                         Text("+\(summary.openTasks.count - 5) more")
-                            .font(.caption)
+                            .hcbFont(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
             }
         }
-        .padding(14)
+        .hcbScaledPadding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -659,7 +659,7 @@ struct StoreView: View {
         let stats = model.taskListCompletionStats[section.taskList.id] ?? TaskListCompletionStats(total: 0, completed: 0)
         return HStack(spacing: 10) {
             Text(section.taskList.title)
-                .font(.subheadline.weight(.semibold))
+                .hcbFont(.subheadline, weight: .semibold)
             Spacer(minLength: 8)
             if stats.total > 0 {
                 Text("\(stats.completed)/\(stats.total)")
@@ -668,7 +668,7 @@ struct StoreView: View {
                 ProgressView(value: stats.fraction)
                     .progressViewStyle(.linear)
                     .tint(AppColor.moss)
-                    .frame(width: 60)
+                    .hcbScaledFrame(width: 60)
             }
         }
     }
@@ -704,7 +704,7 @@ private struct StoreTaskRow: View {
             if indentLevel > 0 {
                 Rectangle()
                     .fill(AppColor.cardStroke)
-                    .frame(width: 2)
+                    .hcbScaledFrame(width: 2)
                     .padding(.leading, CGFloat(indentLevel) * 16)
             }
             Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
@@ -714,7 +714,7 @@ private struct StoreTaskRow: View {
                 HStack(spacing: 6) {
                     if TaskStarring.isStarred(task) {
                         Image(systemName: "star.fill")
-                            .font(.caption)
+                            .hcbFont(.caption)
                             .foregroundStyle(.yellow)
                     }
                     Text(TagExtractor.stripped(from: TaskStarring.displayTitle(for: task)))
@@ -722,9 +722,9 @@ private struct StoreTaskRow: View {
                         .foregroundStyle(AppColor.ink)
                     ForEach(TagExtractor.tags(in: task.title), id: \.self) { tag in
                         Text("#\(tag)")
-                            .font(.caption.weight(.medium))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
+                            .hcbFont(.caption, weight: .medium)
+                            .hcbScaledPadding(.horizontal, 6)
+                            .hcbScaledPadding(.vertical, 2)
                             .background(
                                 Capsule().fill(AppColor.blue.opacity(0.15))
                             )
@@ -732,15 +732,15 @@ private struct StoreTaskRow: View {
                     }
                     if OptimisticID.isPending(task.id) {
                         Image(systemName: "icloud.slash")
-                            .font(.caption2)
+                            .hcbFont(.caption2)
                             .foregroundStyle(.secondary)
                             .help("Pending sync with Google")
                     }
                     if isBlocked {
                         Label("Blocked", systemImage: "lock.fill")
-                            .font(.caption2.weight(.medium))
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
+                            .hcbFont(.caption2, weight: .medium)
+                            .hcbScaledPadding(.horizontal, 5)
+                            .hcbScaledPadding(.vertical, 1)
                             .background(Capsule().fill(AppColor.ember.opacity(0.18)))
                             .foregroundStyle(AppColor.ember)
                     }
@@ -748,13 +748,13 @@ private struct StoreTaskRow: View {
                 let displayNotes = TaskDependencyMarkers.strippedNotes(from: task.notes)
                 if !displayNotes.isEmpty {
                     Text.markdown(displayNotes)
-                        .font(.subheadline)
+                        .hcbFont(.subheadline)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
                 if let dueDate = task.dueDate {
                     Label(dueDate.formatted(.dateTime.month(.abbreviated).day()), systemImage: "calendar")
-                        .font(.caption.weight(.medium))
+                        .hcbFont(.caption, weight: .medium)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -791,24 +791,24 @@ private struct StoreSmartRow: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                 .foregroundStyle(task.isCompleted ? AppColor.moss : AppColor.ember)
-                .font(.title3)
+                .hcbFont(.title3)
             VStack(alignment: .leading, spacing: 5) {
                 Text(TagExtractor.stripped(from: TaskStarring.displayTitle(for: task)))
-                    .font(.headline)
+                    .hcbFont(.headline)
                     .foregroundStyle(AppColor.ink)
                 HStack(spacing: 8) {
                     Label(listName, systemImage: "list.bullet")
-                        .font(.caption.weight(.medium))
+                        .hcbFont(.caption, weight: .medium)
                         .foregroundStyle(.secondary)
                     if let due = task.dueDate {
                         Label(relativeDueDateLabel(due), systemImage: "calendar")
-                            .font(.caption.weight(.medium))
+                            .hcbFont(.caption, weight: .medium)
                             .foregroundStyle(dueDateColor(due))
                     }
                 }
                 if !task.notes.isEmpty {
                     Text.markdown(task.notes)
-                        .font(.subheadline)
+                        .hcbFont(.subheadline)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
@@ -862,17 +862,17 @@ private struct BulkSelectionInspector: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
                 Image(systemName: "checkmark.circle.badge.questionmark")
-                    .font(.title)
+                    .hcbFont(.title)
                     .foregroundStyle(AppColor.ember)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(count) tasks selected")
-                        .font(.title3.weight(.semibold))
+                        .hcbFont(.title3, weight: .semibold)
                     Text("Use the toolbar to complete, move, or delete them in bulk.")
-                        .font(.subheadline)
+                        .hcbFont(.subheadline)
                         .foregroundStyle(.secondary)
                 }
             }
-            .padding(16)
+            .hcbScaledPadding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -883,11 +883,11 @@ private struct BulkSelectionInspector: View {
                     .strokeBorder(AppColor.cardStroke, lineWidth: 0.6)
             )
             Text("Cmd-click to toggle individual rows, shift-click to extend the selection.")
-                .font(.caption)
+                .hcbFont(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
         }
-        .padding(20)
+        .hcbScaledPadding(20)
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 }
@@ -906,7 +906,7 @@ private struct BulkMoveSheet: View {
             Form {
                 Section {
                     Text("Move \(taskIDs.count) task\(taskIDs.count == 1 ? "" : "s") to:")
-                        .font(.subheadline)
+                        .hcbFont(.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 Section("Destination list") {
@@ -936,7 +936,7 @@ private struct BulkMoveSheet: View {
                 destinationListID = destinationListID ?? model.taskLists.first?.id
             }
         }
-        .frame(minWidth: 320, minHeight: 320)
+        .hcbScaledFrame(minWidth: 320, minHeight: 320)
         .interactiveDismissDisabled(isMutating)
     }
 
@@ -984,7 +984,7 @@ private struct SnoozePickerSheet: View {
                 }
             }
         }
-        .frame(minWidth: 360, minHeight: 400)
+        .hcbScaledFrame(minWidth: 360, minHeight: 400)
     }
 }
 
@@ -1001,16 +1001,16 @@ struct TaskHoverPreview: View {
                     Image(systemName: "star.fill").foregroundStyle(.yellow)
                 }
                 Text(TagExtractor.stripped(from: TaskStarring.displayTitle(for: task)))
-                    .font(.headline)
+                    .hcbFont(.headline)
                     .lineLimit(2)
             }
             HStack(spacing: 10) {
                 Label(listName, systemImage: "list.bullet")
-                    .font(.caption)
+                    .hcbFont(.caption)
                     .foregroundStyle(.secondary)
                 if let due = task.dueDate {
                     Label(due.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()), systemImage: "calendar")
-                        .font(.caption)
+                        .hcbFont(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -1018,13 +1018,13 @@ struct TaskHoverPreview: View {
             if displayNotes.isEmpty == false {
                 Divider()
                 Text.markdown(displayNotes)
-                    .font(.subheadline)
+                    .hcbFont(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(8)
             }
         }
-        .padding(12)
-        .frame(width: 300, alignment: .leading)
+        .hcbScaledPadding(12)
+        .hcbScaledFrame(width: 300, alignment: .leading)
     }
 
     private var listName: String {
