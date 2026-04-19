@@ -86,6 +86,9 @@ final class AppModel {
         let cachedState = await cacheStore.loadCachedState()
         apply(cachedState)
         authState = cachedState.account.map(AuthState.signedIn) ?? .signedOut
+        if let warning = await cacheStore.lastLoadWarning {
+            lastMutationError = warning
+        }
         await synchronizeLocalNotifications()
     }
 

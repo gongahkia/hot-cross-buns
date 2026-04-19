@@ -4,6 +4,7 @@ actor LocalCacheStore {
     private let fileURL: URL?
     private let fallbackState: CachedAppState
     private var cachedState: CachedAppState
+    private(set) var lastLoadWarning: String?
 
     init(
         fileURL: URL? = LocalCacheStore.defaultCacheFileURL,
@@ -22,12 +23,35 @@ actor LocalCacheStore {
         do {
             let data = try Data(contentsOf: fileURL)
             let state = try JSONDecoder.cachedAppState.decode(CachedAppState.self, from: data)
+            lastLoadWarning = nil
             cachedState = state
             return state
         } catch {
-            cachedState = fallbackState
-            return fallbackState
+            // Full decode failed — likely a schema drift in a future release.
+            // Before discarding everything, try to salvage pendingMutations so
+            // that any offline creates the user was depending on are not lost
+            // silently. They can still be replayed as soon as a successful
+            // sync rebuilds the rest of the state from Google.
+            let salvagedMutations = recoverPendingMutations(from: fileURL)
+            var recovered = fallbackState
+            if salvagedMutations.isEmpty == false {
+                recovered.pendingMutations = salvagedMutations
+            }
+            lastLoadWarning = salvagedMutations.isEmpty
+                ? "Local cache could not be read (\(error.localizedDescription)); starting fresh."
+                : "Local cache was rebuilt after a schema change. \(salvagedMutations.count) pending mutation\(salvagedMutations.count == 1 ? "" : "s") preserved."
+            cachedState = recovered
+            return recovered
         }
+    }
+
+    private func recoverPendingMutations(from fileURL: URL) -> [PendingMutation] {
+        guard let data = try? Data(contentsOf: fileURL) else { return [] }
+        struct PartialState: Decodable { var pendingMutations: [PendingMutation]? }
+        if let partial = try? JSONDecoder.cachedAppState.decode(PartialState.self, from: data) {
+            return partial.pendingMutations ?? []
+        }
+        return []
     }
 
     func save(_ state: CachedAppState) {
