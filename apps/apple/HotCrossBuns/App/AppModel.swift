@@ -867,6 +867,7 @@ final class AppModel {
 
     enum RecurringEventScope: Sendable {
         case thisOccurrence
+        case thisAndFollowing
         case allInSeries
     }
 
@@ -1037,6 +1038,38 @@ final class AppModel {
 
         beginMutation()
         do {
+            if scope == .thisAndFollowing {
+                // Fetch the master so we have its current RRULE(s), then rewrite
+                // each with an UNTIL clause that falls before this instance —
+                // the instance itself and every future one disappear from the
+                // series on the next sync. No delete verb is issued: truncation
+                // alone removes future occurrences.
+                let seriesID = CalendarEventInstance.seriesID(from: event.id)
+                let master = try await calendarClient.getEvent(calendarID: event.calendarID, eventID: seriesID)
+                let cutoff = Calendar.current.date(byAdding: .second, value: -1, to: event.startDate) ?? event.startDate
+                let untilString = RecurrenceUntilRewriter.untilString(fromCutoff: cutoff, isAllDay: master.isAllDay)
+                let rewritten = master.recurrence.map { RecurrenceUntilRewriter.rewrite(rrule: $0, until: untilString) }
+                _ = try await calendarClient.patchEventRecurrence(
+                    calendarID: event.calendarID,
+                    eventID: seriesID,
+                    recurrence: rewritten,
+                    ifMatch: master.etag
+                )
+                // Drop the instance and every later instance of the same series
+                // from the local mirror so the grid updates before the next
+                // sync reconciles.
+                let dropID = seriesID
+                events.removeAll { existing in
+                    guard CalendarEventInstance.seriesID(from: existing.id) == dropID else { return false }
+                    return existing.startDate >= event.startDate
+                }
+                rebuildSnapshots()
+                endMutation(error: nil)
+                await saveCurrentState()
+                await synchronizeLocalNotifications()
+                recordUndo(.eventDelete(snapshot: originalEvent))
+                return true
+            }
             let targetEventID = scope == .allInSeries
                 ? CalendarEventInstance.seriesID(from: event.id)
                 : event.id

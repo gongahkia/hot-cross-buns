@@ -353,6 +353,9 @@ struct EventDetailView: View {
                         Button("This event only", role: .destructive) {
                             Task { await delete(event, scope: .thisOccurrence) }
                         }
+                        Button("This and following events", role: .destructive) {
+                            Task { await delete(event, scope: .thisAndFollowing) }
+                        }
                         Button("All events in the series", role: .destructive) {
                             Task { await delete(event, scope: .allInSeries) }
                         }
