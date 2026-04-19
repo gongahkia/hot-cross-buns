@@ -30,6 +30,9 @@ struct CustomFilterDefinition: Codable, Hashable, Identifiable, Sendable {
     // Optional DSL expression. When non-empty, overrides the structured fields above.
     // Parsed by QueryCompiler. Invalid expressions match nothing (never match everything).
     var queryExpression: String?
+    // Whether this filter shows up in the menu-bar extra popover (§6.10).
+    // Local-only UI affordance — never written back to Google.
+    var pinnedToMenuBar: Bool
 
     init(
         id: UUID = UUID(),
@@ -40,7 +43,8 @@ struct CustomFilterDefinition: Codable, Hashable, Identifiable, Sendable {
         includeCompleted: Bool = false,
         taskListIDs: Set<String> = [],
         tagsAny: [String] = [],
-        queryExpression: String? = nil
+        queryExpression: String? = nil,
+        pinnedToMenuBar: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -51,10 +55,11 @@ struct CustomFilterDefinition: Codable, Hashable, Identifiable, Sendable {
         self.taskListIDs = taskListIDs
         self.tagsAny = tagsAny
         self.queryExpression = queryExpression
+        self.pinnedToMenuBar = pinnedToMenuBar
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, systemImage, dueWindow, starredOnly, includeCompleted, taskListIDs, tagsAny, queryExpression
+        case id, name, systemImage, dueWindow, starredOnly, includeCompleted, taskListIDs, tagsAny, queryExpression, pinnedToMenuBar
     }
 
     init(from decoder: Decoder) throws {
@@ -68,6 +73,7 @@ struct CustomFilterDefinition: Codable, Hashable, Identifiable, Sendable {
         taskListIDs = try c.decodeIfPresent(Set<String>.self, forKey: .taskListIDs) ?? []
         tagsAny = try c.decodeIfPresent([String].self, forKey: .tagsAny) ?? []
         queryExpression = try c.decodeIfPresent(String.self, forKey: .queryExpression)
+        pinnedToMenuBar = try c.decodeIfPresent(Bool.self, forKey: .pinnedToMenuBar) ?? false
     }
 
     var isUsingQueryDSL: Bool {

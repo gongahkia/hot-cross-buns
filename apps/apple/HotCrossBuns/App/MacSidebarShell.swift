@@ -150,6 +150,9 @@ struct MacSidebarShell: View {
             .onReceive(NotificationCenter.default.publisher(for: .hcbOpenSettingsTab)) { _ in
                 selection = .settings
             }
+            .onReceive(NotificationCenter.default.publisher(for: .hcbOpenStoreTab)) { _ in
+                selection = .store
+            }
             .onDisappear {
                 uninstallAppShortcutMonitor()
             }
