@@ -435,7 +435,7 @@ final class AppModel {
 
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedTitle.isEmpty == false else {
-            lastMutationError = "Task list title cannot be empty."
+            lastMutationError = "Give the task list a name before saving."
             return false
         }
 
@@ -464,7 +464,7 @@ final class AppModel {
 
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedTitle.isEmpty == false else {
-            lastMutationError = "Task list title cannot be empty."
+            lastMutationError = "Give the task list a name before saving."
             return false
         }
 
@@ -545,7 +545,7 @@ final class AppModel {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedTitle.isEmpty == false else {
-            lastMutationError = "Task title cannot be empty."
+            lastMutationError = "Give the task a title before saving."
             return false
         }
 
@@ -1003,7 +1003,7 @@ final class AppModel {
 
         let trimmedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedSummary.isEmpty == false else {
-            lastMutationError = "Event summary cannot be empty."
+            lastMutationError = "Give the event a title before saving."
             return false
         }
 
@@ -1400,7 +1400,7 @@ final class AppModel {
             await saveCurrentState()
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
-            lastMutationError = "Sync will retry: \(error.localizedDescription)"
+            lastMutationError = "Can't reach Google right now — queued for automatic retry."
         } catch {
             if let payload = try? PendingMutationEncoder.decodeTaskCreate(mutation.payload) {
                 removeTask(id: payload.localID)
@@ -1427,7 +1427,7 @@ final class AppModel {
             await saveCurrentState()
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
-            lastMutationError = "Sync will retry: \(error.localizedDescription)"
+            lastMutationError = "Can't reach Google right now — queued for automatic retry."
         } catch let error as GoogleAPIError where error == .preconditionFailed {
             // Queued edit was based on stale state — drop it and refresh so
             // the user can re-apply against the current server state.
@@ -1468,7 +1468,7 @@ final class AppModel {
             await saveCurrentState()
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
-            lastMutationError = "Sync will retry: \(error.localizedDescription)"
+            lastMutationError = "Can't reach Google right now — queued for automatic retry."
         } catch let error as GoogleAPIError where error == .preconditionFailed {
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "A queued completion was rejected because the task changed elsewhere. Refreshing."
@@ -1494,7 +1494,7 @@ final class AppModel {
             await saveCurrentState()
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
-            lastMutationError = "Sync will retry: \(error.localizedDescription)"
+            lastMutationError = "Can't reach Google right now — queued for automatic retry."
         } catch let error as GoogleAPIError where error == .preconditionFailed {
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "A queued delete was rejected because the task changed elsewhere. Refreshing."
@@ -1532,7 +1532,7 @@ final class AppModel {
             await saveCurrentState()
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
-            lastMutationError = "Sync will retry: \(error.localizedDescription)"
+            lastMutationError = "Can't reach Google right now — queued for automatic retry."
         } catch let error as GoogleAPIError where error == .preconditionFailed {
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "A queued edit was rejected because the event changed elsewhere. Refreshing."
@@ -1558,7 +1558,7 @@ final class AppModel {
             await saveCurrentState()
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
-            lastMutationError = "Sync will retry: \(error.localizedDescription)"
+            lastMutationError = "Can't reach Google right now — queued for automatic retry."
         } catch let error as GoogleAPIError where error == .preconditionFailed {
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "A queued delete was rejected because the event changed elsewhere. Refreshing."
@@ -1595,7 +1595,7 @@ final class AppModel {
             await saveCurrentState()
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
-            lastMutationError = "Sync will retry: \(error.localizedDescription)"
+            lastMutationError = "Can't reach Google right now — queued for automatic retry."
         } catch {
             if let payload = try? PendingMutationEncoder.decodeEventCreate(mutation.payload) {
                 removeEvent(id: payload.localID)
@@ -1608,7 +1608,7 @@ final class AppModel {
 
     private func requireAccount(mutationDescription: String) -> Bool {
         guard account != nil else {
-            lastMutationError = "Connect Google before \(mutationDescription)."
+            lastMutationError = "Sign in to Google in Settings to \(mutationDescription)."
             return false
         }
         return true
@@ -1619,7 +1619,7 @@ final class AppModel {
     // 404 and leave the UI in an indeterminate state.
     private func requirePersisted(_ id: String) -> Bool {
         guard OptimisticID.isPending(id) else { return true }
-        lastMutationError = "This item is still syncing — try again in a moment."
+        lastMutationError = "This item is still syncing to Google. Try again once the pending sync indicator clears."
         return false
     }
 
