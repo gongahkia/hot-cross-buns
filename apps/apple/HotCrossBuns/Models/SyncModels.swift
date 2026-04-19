@@ -109,6 +109,9 @@ struct AppSettings: Hashable, Codable, Sendable {
     var customFilters: [CustomFilterDefinition]
     var eventTemplates: [EventTemplate]
     var menuBarStyle: MenuBarStyle
+    var uiLayoutScale: Double // 0.80–1.50, geometric scale of UI chrome only (not text)
+    var uiTextSizeStep: Int // 0–6 ladder index into HCBTextSizeLadder
+    var uiFontName: String? // PostScript name, nil for system
 
     init(
         syncMode: SyncMode,
@@ -125,7 +128,10 @@ struct AppSettings: Hashable, Codable, Sendable {
         enableGlobalHotkey: Bool = true,
         customFilters: [CustomFilterDefinition] = [],
         eventTemplates: [EventTemplate] = [],
-        menuBarStyle: MenuBarStyle = .compact
+        menuBarStyle: MenuBarStyle = .compact,
+        uiLayoutScale: Double = 1.0,
+        uiTextSizeStep: Int = 3,
+        uiFontName: String? = nil
     ) {
         self.syncMode = syncMode
         self.selectedCalendarIDs = selectedCalendarIDs
@@ -142,6 +148,9 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.customFilters = customFilters
         self.eventTemplates = eventTemplates
         self.menuBarStyle = menuBarStyle
+        self.uiLayoutScale = uiLayoutScale
+        self.uiTextSizeStep = uiTextSizeStep
+        self.uiFontName = uiFontName
     }
 
     enum CodingKeys: String, CodingKey {
@@ -160,6 +169,9 @@ struct AppSettings: Hashable, Codable, Sendable {
         case customFilters
         case eventTemplates
         case menuBarStyle
+        case uiLayoutScale
+        case uiTextSizeStep
+        case uiFontName
     }
 
     init(from decoder: Decoder) throws {
@@ -184,6 +196,9 @@ struct AppSettings: Hashable, Codable, Sendable {
             // Migrate legacy showDetailedMenuBar bool into the new style enum
             menuBarStyle = showDetailedMenuBar ? .detailed : .compact
         }
+        uiLayoutScale = try container.decodeIfPresent(Double.self, forKey: .uiLayoutScale) ?? 1.0
+        uiTextSizeStep = try container.decodeIfPresent(Int.self, forKey: .uiTextSizeStep) ?? 3
+        uiFontName = try container.decodeIfPresent(String.self, forKey: .uiFontName)
     }
 
     enum MenuBarStyle: String, Codable, Hashable, Sendable, CaseIterable {

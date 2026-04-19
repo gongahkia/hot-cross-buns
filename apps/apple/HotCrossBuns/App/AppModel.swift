@@ -1308,6 +1308,33 @@ final class AppModel {
         Task { await saveCurrentState() }
     }
 
+    func updateSettings(_ next: AppSettings) {
+        guard settings != next else { return }
+        settings = next
+        Task { await saveCurrentState() }
+    }
+
+    func setUILayoutScale(_ scale: Double) {
+        guard settings.uiLayoutScale != scale else { return }
+        settings.uiLayoutScale = scale
+        Task { await saveCurrentState() }
+    }
+
+    func setUITextSizeStep(_ step: Int) {
+        let clamped = HCBTextSizeLadder.clamped(step)
+        guard settings.uiTextSizeStep != clamped else { return }
+        settings.uiTextSizeStep = clamped
+        Task { await saveCurrentState() }
+    }
+
+    func setUIFontName(_ name: String?) {
+        let normalized = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolved = (normalized?.isEmpty ?? true) ? nil : normalized
+        guard settings.uiFontName != resolved else { return }
+        settings.uiFontName = resolved
+        Task { await saveCurrentState() }
+    }
+
     func upsertCustomFilter(_ filter: CustomFilterDefinition) {
         if let index = settings.customFilters.firstIndex(where: { $0.id == filter.id }) {
             settings.customFilters[index] = filter

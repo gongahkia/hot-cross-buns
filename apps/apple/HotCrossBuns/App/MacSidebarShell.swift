@@ -9,63 +9,30 @@ struct MacSidebarShell: View {
     @Environment(\.scenePhase) private var scenePhase
     @SceneStorage("sidebarSelection") private var storedSelection: String = SidebarItem.calendar.rawValue
     @SceneStorage("sidebarCollapsed") private var isSidebarCollapsed = false
-    @SceneStorage("uiZoomStep") private var zoomStep: Int = 3 // legacy default; migrated on first launch
-    @SceneStorage("uiZoomScaleMigrationVersion") private var zoomScaleMigrationVersion: Int = 0
 
-    private let zoomLadder: [DynamicTypeSize] = [
-        .xSmall,
-        .small,
-        .medium,
-        .medium,
-        .large,
-        .large,
-        .large,
-        .xLarge,
-        .xLarge,
-        .xxLarge,
-        .xxLarge,
-        .xxxLarge,
-        .accessibility1,
-        .accessibility1,
-        .accessibility2,
-        .accessibility2,
-        .accessibility3
-    ]
-    private let layoutZoomLadder: [CGFloat] = [
-        0.82,
-        0.86,
-        0.9,
-        0.94,
-        0.97,
-        0.99,
-        1.0,
-        1.02,
-        1.05,
-        1.09,
-        1.14,
-        1.2,
-        1.27,
-        1.34,
-        1.4,
-        1.45,
-        1.48
-    ]
-
-    private var dynamicTypeSize: DynamicTypeSize {
-        zoomLadder[max(0, min(zoomStep, zoomLadder.count - 1))]
-    }
+    private let layoutScaleMin: Double = 0.80
+    private let layoutScaleMax: Double = 1.50
+    private let layoutScaleStep: Double = 0.05
 
     private var layoutZoomScale: CGFloat {
-        layoutZoomLadder[max(0, min(zoomStep, layoutZoomLadder.count - 1))]
+        CGFloat(max(layoutScaleMin, min(model.settings.uiLayoutScale, layoutScaleMax)))
+    }
+
+    private var dynamicTypeSize: DynamicTypeSize {
+        HCBTextSizeLadder.size(forStep: model.settings.uiTextSizeStep)
     }
 
     // Sized to fit the longest sidebar label ("Calendar") + icon + badge
     // without leaving acres of whitespace. Bumped narrower from 240pt.
-    private let expandedSidebarWidth: CGFloat = 172
-    private let collapsedSidebarWidth: CGFloat = 64
+    private let expandedSidebarWidthBase: CGFloat = 172
+    private let collapsedSidebarWidthBase: CGFloat = 64
     // Top inset reserved so the traffic-light buttons don't overlap the
     // first sidebar row when the window chrome sits over the sidebar.
-    private let trafficLightInset: CGFloat = 28
+    private let trafficLightInsetBase: CGFloat = 28
+
+    private var expandedSidebarWidth: CGFloat { expandedSidebarWidthBase * layoutZoomScale }
+    private var collapsedSidebarWidth: CGFloat { collapsedSidebarWidthBase * layoutZoomScale }
+    private var trafficLightInset: CGFloat { trafficLightInsetBase * layoutZoomScale }
 
     private var currentSidebarWidth: CGFloat {
         isSidebarCollapsed ? collapsedSidebarWidth : expandedSidebarWidth
@@ -100,32 +67,14 @@ struct MacSidebarShell: View {
             detail
         }
         .navigationSplitViewStyle(.balanced)
-        .dynamicTypeSize(dynamicTypeSize)
-        .animation(.easeInOut(duration: 0.12), value: zoomStep)
+        .animation(.easeInOut(duration: 0.12), value: layoutZoomScale)
+        .animation(.easeInOut(duration: 0.12), value: dynamicTypeSize)
     }
 
     var body: some View {
-        // Only pay the GeometryReader cost when zoom is actually active;
-        // at 1.0× (the common case) render the NavigationSplitView directly
-        // so size-change invalidations don't cascade through the whole tree.
-        Group {
-            if layoutZoomScale == 1.0 {
-                shellCore
-            } else {
-                GeometryReader { geometry in
-                    shellCore
-                        .scaleEffect(layoutZoomScale, anchor: .topLeading)
-                        .frame(
-                            width: geometry.size.width / layoutZoomScale,
-                            height: geometry.size.height / layoutZoomScale,
-                            alignment: .topLeading
-                        )
-                        .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
-                        .clipped()
-                }
-            }
-        }
-        .appBackground()
+        shellCore
+            .withHCBAppearance(model.settings)
+            .appBackground()
             .safeAreaInset(edge: .top) {
                 AppStatusBanner(
                     syncState: model.syncState,
@@ -142,6 +91,7 @@ struct MacSidebarShell: View {
             .sheet(isPresented: $isPresentingOnboarding) {
                 OnboardingView()
                     .environment(model)
+                    .withHCBAppearance(model.settings)
             }
             .sheet(isPresented: $isPresentingCommandPalette) {
                 CommandPaletteView(
@@ -156,10 +106,12 @@ struct MacSidebarShell: View {
                     }
                 )
                 .environment(model)
+                .withHCBAppearance(model.settings)
             }
             .sheet(isPresented: $isPresentingHelp) {
                 HelpView()
                     .environment(model)
+                    .withHCBAppearance(model.settings)
             }
             .overlay {
                 if model.settings.enableVimKeybindings {
@@ -173,7 +125,6 @@ struct MacSidebarShell: View {
             .focusedSceneValue(\.appCommandActions, appCommandActions)
             .onAppear {
                 selection = SidebarItem(rawValue: storedSelection) ?? .calendar
-                migrateZoomStepIfNeeded()
                 configureCommandActions()
                 configureVimMonitor()
                 configureGlobalHotkey()
@@ -571,31 +522,23 @@ struct MacSidebarShell: View {
     }
 
     private func performZoomIn() {
-        zoomStep = min(zoomStep + 1, zoomLadder.count - 1)
+        adjustLayoutScale(by: layoutScaleStep)
     }
 
     private func performZoomOut() {
-        zoomStep = max(zoomStep - 1, 0)
+        adjustLayoutScale(by: -layoutScaleStep)
     }
 
     private func performZoomReset() {
-        zoomStep = 6
+        var next = model.settings
+        next.uiLayoutScale = 1.0
+        model.updateSettings(next)
     }
 
-    private func migrateZoomStepIfNeeded() {
-        guard zoomScaleMigrationVersion < 1 else { return }
-
-        // Map old 10-step zoom values to the nearest value in the new finer-grained ladder.
-        let oldLayoutZoomLadder: [CGFloat] = [0.82, 0.9, 0.96, 1.0, 1.08, 1.16, 1.24, 1.32, 1.4, 1.48]
-        let oldIndex = max(0, min(zoomStep, oldLayoutZoomLadder.count - 1))
-        let oldScale = oldLayoutZoomLadder[oldIndex]
-        let nearestIndex = layoutZoomLadder
-            .enumerated()
-            .min { abs($0.element - oldScale) < abs($1.element - oldScale) }?
-            .offset ?? 6
-
-        zoomStep = nearestIndex
-        zoomScaleMigrationVersion = 1
+    private func adjustLayoutScale(by delta: Double) {
+        var next = model.settings
+        next.uiLayoutScale = max(layoutScaleMin, min(next.uiLayoutScale + delta, layoutScaleMax))
+        model.updateSettings(next)
     }
 
     private func installAppShortcutMonitor() {
