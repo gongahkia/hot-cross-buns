@@ -466,6 +466,11 @@ final class AppModel {
     @discardableResult
     func clearCompletedTasks(in taskListID: TaskListMirror.ID) async -> Int {
         guard requireAccount(mutationDescription: "clearing completed tasks") else { return 0 }
+        // Drain any pending delete/completion mutations targeting this list
+        // first so the batch clear doesn't race with them — otherwise a
+        // queued delete can replay against a task Google has already
+        // hidden via clear and 404 with a confusing lastMutationError.
+        await replayPendingMutations()
         beginMutation()
         do {
             try await tasksClient.clearCompletedTasks(taskListID: taskListID)
