@@ -4,6 +4,7 @@ struct AppStatusBanner: View {
     let syncState: SyncState
     let authState: AuthState
     let mutationError: String?
+    var isSyncPaused: Bool = false
     let retry: () -> Void
     let dismiss: () -> Void
 
@@ -61,6 +62,16 @@ struct AppStatusBanner: View {
                 systemImage: "exclamationmark.triangle",
                 tint: AppColor.ember,
                 canRetry: false
+            )
+        }
+
+        if isSyncPaused {
+            return FailureContext(
+                title: "Sync paused",
+                message: "Google wasn't reachable after several attempts. Hit Retry to try again.",
+                systemImage: "pause.circle",
+                tint: AppColor.ember,
+                canRetry: true
             )
         }
 
