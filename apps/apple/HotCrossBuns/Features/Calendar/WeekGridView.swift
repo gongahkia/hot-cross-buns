@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct WeekGridView: View {
     @Environment(AppModel.self) private var model
@@ -213,6 +215,28 @@ struct WeekGridView: View {
         .offset(x: x, y: y)
         .accessibilityLabel(eventAccessibilityLabel(span.event))
         .accessibilityHint("Opens event details")
+    }
+
+    private func exportSingleEventICS(_ event: CalendarEventMirror) {
+        let ics = EventICSExporter.ics(for: event)
+        let sanitized = event.summary
+            .replacingOccurrences(of: "/", with: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = sanitized.isEmpty ? "event" : sanitized
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(base).ics"
+        panel.allowedContentTypes = [UTType(filenameExtension: "ics") ?? .data]
+        panel.canCreateDirectories = true
+        if panel.runModal() == .OK, let url = panel.url {
+            try? ics.data(using: .utf8)?.write(to: url)
+        }
+    }
+
+    private func copyEventMarkdown(_ event: CalendarEventMirror) {
+        let title = model.calendars.first(where: { $0.id == event.calendarID })?.summary
+        let md = EventMarkdownExporter.markdown(for: event, calendarTitle: title)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(md, forType: .string)
     }
 
     private func toggleSelection(_ id: String) {
@@ -506,6 +530,10 @@ struct WeekGridView: View {
         .accessibilityLabel(eventAccessibilityLabel(placed.event))
         .accessibilityHint("Opens event details")
         .modifier(EventHoverPreviewModifier(event: placed.event))
+        .contextMenu {
+            Button("Export .ics…") { exportSingleEventICS(placed.event) }
+            Button("Copy as Markdown") { copyEventMarkdown(placed.event) }
+        }
         .draggable(DraggedEvent(
             eventID: placed.event.id,
             calendarID: placed.event.calendarID,

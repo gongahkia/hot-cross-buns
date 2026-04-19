@@ -45,46 +45,60 @@ enum EventMarkdownExporter {
 
 enum EventICSExporter {
     static func ics(for event: CalendarEventMirror) -> String {
-        let now = Date()
-        let uid = "\(event.id)@hotcrossbuns"
+        wrap(veventBlocks(for: [event]))
+    }
+
+    static func ics(for events: [CalendarEventMirror]) -> String {
+        wrap(veventBlocks(for: events))
+    }
+
+    private static func wrap(_ vevents: [String]) -> String {
         var lines: [String] = [
             "BEGIN:VCALENDAR",
             "VERSION:2.0",
             "PRODID:-//Hot Cross Buns//EN",
-            "CALSCALE:GREGORIAN",
-            "BEGIN:VEVENT",
-            "UID:\(escape(uid))",
-            "DTSTAMP:\(icsTimestamp(now))",
-            "SUMMARY:\(escape(event.summary))"
+            "CALSCALE:GREGORIAN"
         ]
-
-        if event.isAllDay {
-            lines.append("DTSTART;VALUE=DATE:\(icsDate(event.startDate))")
-            lines.append("DTEND;VALUE=DATE:\(icsDate(event.endDate))")
-        } else {
-            lines.append("DTSTART:\(icsTimestamp(event.startDate))")
-            lines.append("DTEND:\(icsTimestamp(event.endDate))")
+        for block in vevents {
+            lines.append(contentsOf: block.split(separator: "\r\n", omittingEmptySubsequences: false).map(String.init))
         }
-
-        if event.details.isEmpty == false {
-            lines.append("DESCRIPTION:\(escape(event.details))")
-        }
-
-        if event.location.isEmpty == false {
-            lines.append("LOCATION:\(escape(event.location))")
-        }
-
-        for minutes in event.reminderMinutes {
-            lines.append("BEGIN:VALARM")
-            lines.append("ACTION:DISPLAY")
-            lines.append("DESCRIPTION:\(escape(event.summary))")
-            lines.append("TRIGGER:-PT\(minutes)M")
-            lines.append("END:VALARM")
-        }
-
-        lines.append("END:VEVENT")
         lines.append("END:VCALENDAR")
         return lines.joined(separator: "\r\n") + "\r\n"
+    }
+
+    private static func veventBlocks(for events: [CalendarEventMirror]) -> [String] {
+        let now = Date()
+        return events.map { event in
+            let uid = "\(event.id)@hotcrossbuns"
+            var lines: [String] = [
+                "BEGIN:VEVENT",
+                "UID:\(escape(uid))",
+                "DTSTAMP:\(icsTimestamp(now))",
+                "SUMMARY:\(escape(event.summary))"
+            ]
+            if event.isAllDay {
+                lines.append("DTSTART;VALUE=DATE:\(icsDate(event.startDate))")
+                lines.append("DTEND;VALUE=DATE:\(icsDate(event.endDate))")
+            } else {
+                lines.append("DTSTART:\(icsTimestamp(event.startDate))")
+                lines.append("DTEND:\(icsTimestamp(event.endDate))")
+            }
+            if event.details.isEmpty == false {
+                lines.append("DESCRIPTION:\(escape(event.details))")
+            }
+            if event.location.isEmpty == false {
+                lines.append("LOCATION:\(escape(event.location))")
+            }
+            for minutes in event.reminderMinutes {
+                lines.append("BEGIN:VALARM")
+                lines.append("ACTION:DISPLAY")
+                lines.append("DESCRIPTION:\(escape(event.summary))")
+                lines.append("TRIGGER:-PT\(minutes)M")
+                lines.append("END:VALARM")
+            }
+            lines.append("END:VEVENT")
+            return lines.joined(separator: "\r\n")
+        }
     }
 
     private static let utcFormatter: DateFormatter = {
