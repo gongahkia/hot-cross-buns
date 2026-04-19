@@ -12,6 +12,7 @@ struct CalendarHomeView: View {
     @State private var showTaskDrawer: Bool = false
     @State private var searchQuery: String = ""
     @State private var pendingCrossCalendarMove: CrossCalendarMoveRequest?
+    @State private var importResultMessage: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -50,6 +51,20 @@ struct CalendarHomeView: View {
         }
         .appBackground()
         .navigationTitle("Google Calendar")
+        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+            handleICSDrop(providers)
+        }
+        .alert(
+            "ICS import",
+            isPresented: Binding(
+                get: { importResultMessage != nil },
+                set: { if $0 == false { importResultMessage = nil } }
+            )
+        ) {
+            Button("OK") { importResultMessage = nil }
+        } message: {
+            Text(importResultMessage ?? "")
+        }
         .confirmationDialog(
             "Move which occurrences?",
             isPresented: Binding(
@@ -169,6 +184,57 @@ struct CalendarHomeView: View {
             return "\(first.formatted(.dateTime.month(.abbreviated).day())) – \(last.formatted(.dateTime.month(.abbreviated).day().year()))"
         case .month:
             return selectedDate.formatted(.dateTime.month(.wide).year())
+        }
+    }
+
+    private func handleICSDrop(_ providers: [NSItemProvider]) -> Bool {
+        let calendarID = model.calendarSnapshot.selectedCalendars.first?.id ?? model.calendars.first?.id
+        guard let calendarID else {
+            importResultMessage = "No calendar selected to import events into."
+            return true
+        }
+        Task {
+            var imported = 0
+            var failed = 0
+            for provider in providers {
+                guard let url = await loadFileURL(from: provider) else { continue }
+                guard url.pathExtension.lowercased() == "ics" else { continue }
+                guard let contents = try? String(contentsOf: url, encoding: .utf8) else {
+                    failed += 1
+                    continue
+                }
+                let drafts = ICSImporter.parse(contents)
+                for draft in drafts {
+                    let didCreate = await model.createEvent(
+                        summary: draft.summary,
+                        details: draft.description,
+                        startDate: draft.startDate,
+                        endDate: draft.endDate,
+                        isAllDay: draft.isAllDay,
+                        reminderMinutes: nil,
+                        calendarID: calendarID,
+                        location: draft.location,
+                        recurrence: draft.recurrence
+                    )
+                    if didCreate { imported += 1 } else { failed += 1 }
+                }
+            }
+            if imported == 0 && failed == 0 {
+                importResultMessage = "No events found in the dropped files."
+            } else if failed == 0 {
+                importResultMessage = "Imported \(imported) event\(imported == 1 ? "" : "s")."
+            } else {
+                importResultMessage = "Imported \(imported), failed \(failed)."
+            }
+        }
+        return true
+    }
+
+    private func loadFileURL(from provider: NSItemProvider) async -> URL? {
+        await withCheckedContinuation { continuation in
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                continuation.resume(returning: url)
+            }
         }
     }
 
