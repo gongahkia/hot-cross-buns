@@ -178,6 +178,14 @@ final class AppModel {
             await synchronizeLocalNotifications()
             return .succeeded
         } catch {
+            // A 401/403 from Google usually means the user revoked the Tasks
+            // or Calendar scope (via myaccount.google.com, by changing their
+            // Google password, etc.). Promote the authState so the reconnect
+            // CTA is visible; otherwise the user is stuck in a loop of "Sync
+            // needs attention" banners with no path forward.
+            if case let GoogleAPIError.httpStatus(status, _) = error, status == 401 || status == 403 {
+                authState = .failed(error.localizedDescription)
+            }
             syncState = .failed(message: error.localizedDescription)
             return .failed(error)
         }

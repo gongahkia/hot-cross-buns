@@ -30,6 +30,17 @@ final class GoogleAuthService {
         }
 
         let user = try await GIDSignIn.sharedInstance.restorePreviousSignIn()
+        // Verify Tasks + Calendar scopes are still granted. If the user
+        // revoked them from myaccount.google.com between sessions the restore
+        // would otherwise succeed silently and every subsequent API call
+        // would 403. Returning nil here surfaces the "Connect Google" CTA.
+        let missingScopes = requiredScopes.filter { scope in
+            user.grantedScopes?.contains(scope) != true
+        }
+        guard missingScopes.isEmpty else {
+            GIDSignIn.sharedInstance.signOut()
+            return nil
+        }
         return try account(from: user)
     }
 
