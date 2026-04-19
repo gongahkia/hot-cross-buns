@@ -84,16 +84,7 @@ Dogfood with a real account for at least one workday on macOS. Smoke checklist (
 
 ## 7. Next feature work
 
-Tier C elevates the app beyond "web client pretending to be native."
-
-### Tier C — macOS-native polish
-
-1. **Share Extension** — "Share to Hot Cross Buns" target from Safari / Mail to create a task or event with URL + selected text pre-filled.
-2. **Services menu** — "Create Hot Cross Buns task from selection" anywhere the user highlights text system-wide.
-3. **Spotlight QuickLook previews** — Spotlight indexing already exists; add a QuickLook provider so users can peek event details from Spotlight results without launching the app.
-4. **Drag `.ics` file onto the app to import as event(s)** — parse and route through `createEvent` (with conflict detection).
-5. **Print support** — `Exporters.swift` has markdown + ICS output; add a native Print sheet layout for today / week / selected task list.
-6. **Localization scaffolding** — wrap user-visible strings in `LocalizedStringKey` now so future translations are cheap. English-only for v1.
+All Tier A / B / C feature work is complete. Remaining items are either out-of-repo blockers (§1–§3), on-device verification (§4–§5), or deferred (§8).
 
 ## 8. Deferred (lower priority but on the roadmap)
 
