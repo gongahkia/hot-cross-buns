@@ -43,6 +43,7 @@ struct HelpView: View {
 
                     section(title: "Calendar") {
                         keyRow("⌘←  ⌘→", "Previous / next period in the grid")
+                        keyRow("⌘⌥←  ⌘⌥→", "Jump one larger period (month in week view, year in month)")
                         keyRow("⌘T", "Jump to today")
                         keyRow("⌘J", "Toggle schedule drawer in week view")
                         bullet("Drag a task from the drawer onto any day column to create a 60-minute event back-linked to the task.")
@@ -51,7 +52,8 @@ struct HelpView: View {
 
                     section(title: "Task editor") {
                         keyRow("⌘↩", "Toggle complete")
-                        keyRow("⌘⌫", "Delete task")
+                        keyRow("⌘⇧↩", "Save pending edits and close the inspector")
+                        keyRow("⌘⌫", "Delete task (in inspector or Store selection)")
                         keyRow("⌘D", "Duplicate task")
                         keyRow("Tab / ⇧Tab", "Indent / outdent (subtask)")
                         bullet("Star a task with ⭐ — it shows as a real star emoji in Google Tasks everywhere.")
