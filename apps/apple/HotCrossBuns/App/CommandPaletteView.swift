@@ -53,8 +53,8 @@ struct CommandPaletteView: View {
                                     CommandPaletteRow(command: command)
                                 }
                                 .buttonStyle(.plain)
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 8)
+                                .hcbScaledPadding(.horizontal, 20)
+                                .hcbScaledPadding(.vertical, 8)
                             }
                         }
                         if searchResults.isEmpty == false {
@@ -64,27 +64,27 @@ struct CommandPaletteView: View {
                                     resultRow(row)
                                 }
                                 .buttonStyle(.plain)
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 8)
+                                .hcbScaledPadding(.horizontal, 20)
+                                .hcbScaledPadding(.vertical, 8)
                             }
                         }
                     }
                 }
-                .padding(.vertical, 12)
+                .hcbScaledPadding(.vertical, 12)
             }
             .onAppear {
                 isSearchFocused = true
             }
             .onSubmit(of: .text, executeFirstMatch)
         }
-        .frame(minWidth: 760, idealWidth: 760, minHeight: 520, idealHeight: 560)
+        .hcbScaledFrame(minWidth: 760, idealWidth: 760, minHeight: 520, idealHeight: 560)
         .background {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(.regularMaterial)
         }
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .presentationBackground(.clear)
-        .padding(14)
+        .hcbScaledPadding(14)
     }
 
     private var trimmedQuery: String {
@@ -161,7 +161,7 @@ struct CommandPaletteView: View {
     private var searchHeader: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .font(.body.weight(.medium))
+                .hcbFont(.body, weight: .medium)
                 .foregroundStyle(.secondary)
 
             TextField("Commands, tasks, events…", text: $query)
@@ -174,28 +174,28 @@ struct CommandPaletteView: View {
                 Text("⌘P")
                     .font(.system(.title3, design: .rounded, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
+                    .hcbScaledPadding(.horizontal, 10)
+                    .hcbScaledPadding(.vertical, 4)
                     .background(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(.thinMaterial)
                     )
             }
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
+        .hcbScaledPadding(.horizontal, 18)
+        .hcbScaledPadding(.vertical, 14)
     }
 
     private func sectionHeader(_ title: String) -> some View {
         HStack {
             Text(title.uppercased())
-                .font(.caption.weight(.bold))
+                .hcbFont(.caption, weight: .bold)
                 .foregroundStyle(.secondary)
             Spacer()
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 6)
-        .padding(.bottom, 4)
+        .hcbScaledPadding(.horizontal, 20)
+        .hcbScaledPadding(.top, 6)
+        .hcbScaledPadding(.bottom, 4)
     }
 
     @ViewBuilder
@@ -205,9 +205,9 @@ struct CommandPaletteView: View {
         case .task(let task):
             HStack(spacing: 12) {
                 Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .font(.headline)
+                    .hcbFont(.headline)
                     .foregroundStyle(task.isCompleted ? AppColor.moss : AppColor.ember)
-                    .frame(width: 24)
+                    .hcbScaledFrame(width: 24)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(TagExtractor.stripped(from: TaskStarring.displayTitle(for: task)))
                         .font(.system(.title3, design: .rounded, weight: .semibold))
@@ -227,8 +227,8 @@ struct CommandPaletteView: View {
             HStack(spacing: 12) {
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(AppColor.blue)
-                    .frame(width: 6, height: 24)
-                    .padding(.leading, 9)
+                    .hcbScaledFrame(width: 6, height: 24)
+                    .hcbScaledPadding(.leading, 9)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(event.summary)
                         .font(.system(.title3, design: .rounded, weight: .semibold))
@@ -238,7 +238,7 @@ struct CommandPaletteView: View {
                 }
                 Spacer(minLength: 12)
                 Text(eventTimeLabel(event))
-                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                    .hcbFontSystem(size: 13, weight: .medium, design: .monospaced)
                     .foregroundStyle(.secondary)
             }
             .contentShape(Rectangle())
@@ -253,10 +253,10 @@ struct CommandPaletteView: View {
     private var emptyState: some View {
         VStack(spacing: 10) {
             Image(systemName: "command")
-                .font(.title2.weight(.semibold))
+                .hcbFont(.title2, weight: .semibold)
                 .foregroundStyle(.secondary)
             Text("Nothing matches \"\(query)\"")
-                .font(.headline)
+                .hcbFont(.headline)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, minHeight: 180)
@@ -269,13 +269,13 @@ private struct CommandPaletteRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: command.symbol)
-                .font(.headline)
+                .hcbFont(.headline)
                 .foregroundStyle(.secondary)
-                .frame(width: 24)
+                .hcbScaledFrame(width: 24)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(command.title)
-                    .font(.system(size: 19, weight: .semibold, design: .rounded))
+                    .hcbFontSystem(size: 19, weight: .semibold, design: .rounded)
                 Text(command.subtitle)
                     .font(.system(.subheadline, design: .rounded))
                     .foregroundStyle(.secondary)
@@ -290,7 +290,7 @@ private struct CommandPaletteRow: View {
             }
         }
         .contentShape(Rectangle())
-        .padding(.vertical, 2)
+        .hcbScaledPadding(.vertical, 2)
     }
 
     private var formattedShortcut: String {

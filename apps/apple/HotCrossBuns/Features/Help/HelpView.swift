@@ -65,11 +65,11 @@ struct HelpView: View {
                     section(title: "Vim mode") {
                         if model.settings.enableVimKeybindings {
                             Text("Vim mode is enabled. Press **?** anywhere (outside text fields) to open the in-app cheatsheet overlay.")
-                                .font(.callout)
+                                .hcbFont(.callout)
                                 .foregroundStyle(.secondary)
                         } else {
                             Text("Turn it on in Settings → Keyboard. Modal navigation: j/k move, gg/G jump, x complete, dd delete, : palette, / search. Text editors keep native macOS shortcuts.")
-                                .font(.callout)
+                                .hcbFont(.callout)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -86,7 +86,7 @@ struct HelpView: View {
                         bullet("Something weird? Settings → Diagnostics and Recovery dumps state and lets you wipe cache.")
                     }
                 }
-                .padding(24)
+                .hcbScaledPadding(24)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .appBackground()
@@ -98,22 +98,22 @@ struct HelpView: View {
                 }
             }
         }
-        .frame(minWidth: 640, idealWidth: 720, minHeight: 520, idealHeight: 620)
+        .hcbScaledFrame(minWidth: 640, idealWidth: 720, minHeight: 520, idealHeight: 620)
     }
 
     private var header: some View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: "checkmark.circle")
-                .font(.system(size: 40))
+                .hcbFontSystem(size: 40)
                 .foregroundStyle(AppColor.ember)
-                .frame(width: 60, height: 60)
+                .hcbScaledFrame(width: 60, height: 60)
                 .background(Circle().fill(AppColor.ember.opacity(0.12)))
             VStack(alignment: .leading, spacing: 4) {
                 Text("Hot Cross Buns")
                     .font(.system(.largeTitle, design: .serif, weight: .bold))
                     .foregroundStyle(AppColor.ink)
                 Text("A Mac-native planner on top of Google Tasks and Google Calendar.")
-                    .font(.title3)
+                    .hcbFont(.title3)
                     .foregroundStyle(.secondary)
             }
         }
@@ -123,11 +123,11 @@ struct HelpView: View {
     private func section<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title.uppercased())
-                .font(.caption.weight(.bold))
+                .hcbFont(.caption, weight: .bold)
                 .foregroundStyle(.secondary)
             content()
         }
-        .padding(16)
+        .hcbScaledPadding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -143,7 +143,7 @@ struct HelpView: View {
         HStack(alignment: .top, spacing: 8) {
             Text("•").foregroundStyle(.secondary)
             Text(.init(text))
-                .font(.callout)
+                .hcbFont(.callout)
                 .foregroundStyle(AppColor.ink)
             Spacer(minLength: 0)
         }
@@ -153,9 +153,9 @@ struct HelpView: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(keys)
                 .font(.system(.callout, design: .monospaced, weight: .semibold))
-                .frame(width: 96, alignment: .leading)
+                .hcbScaledFrame(width: 96, alignment: .leading)
             Text(description)
-                .font(.callout)
+                .hcbFont(.callout)
                 .foregroundStyle(AppColor.ink)
             Spacer(minLength: 0)
         }

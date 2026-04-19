@@ -26,7 +26,7 @@ struct UndoToast: View {
             Image(systemName: action.sfSymbol)
                 .foregroundStyle(AppColor.moss)
             Text(action.summary)
-                .font(.subheadline.weight(.medium))
+                .hcbFont(.subheadline, weight: .medium)
                 .lineLimit(1)
             Spacer(minLength: 16)
             Button("Undo") {
@@ -37,13 +37,13 @@ struct UndoToast: View {
                 model.clearUndo()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.caption)
+                    .hcbFont(.caption)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Dismiss")
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .hcbScaledPadding(.horizontal, 16)
+        .hcbScaledPadding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(.regularMaterial)
@@ -53,6 +53,6 @@ struct UndoToast: View {
                 .strokeBorder(AppColor.cardStroke, lineWidth: 0.8)
         )
         .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 3)
-        .padding(18)
+        .hcbScaledPadding(18)
     }
 }

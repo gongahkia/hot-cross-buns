@@ -18,7 +18,7 @@ struct TaskDetailView: View {
                             .foregroundStyle(AppColor.ink)
                         if !task.notes.isEmpty {
                             Text.markdown(task.notes)
-                                .font(.body)
+                                .hcbFont(.body)
                                 .foregroundStyle(.secondary)
                         }
                         DetailField(label: "Status", value: task.status.rawValue)
@@ -43,7 +43,7 @@ struct TaskDetailView: View {
                         DetailField(label: "Google ID", value: task.id)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(20)
+                    .hcbScaledPadding(20)
                 }
                 .appBackground()
                 .sheet(isPresented: $isEditing) {
@@ -170,7 +170,7 @@ struct AddTaskSheet: View {
                         Section("Repeat") {
                             RecurrenceEditor(rule: $recurrenceRule)
                             Text("When you complete a recurring task, Hot Cross Buns re-creates it with the next due date.")
-                                .font(.caption2)
+                                .hcbFont(.caption2)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -271,7 +271,7 @@ struct EditTaskSheet: View {
                     Section("Repeat") {
                         RecurrenceEditor(rule: $recurrenceRule)
                         Text("Completing a repeating task re-creates it with the next due date.")
-                            .font(.caption2)
+                            .hcbFont(.caption2)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -382,7 +382,7 @@ struct ManageTaskListsSheet: View {
             .overlay {
                 if isMutating {
                     ProgressView("Updating...")
-                        .padding(18)
+                        .hcbScaledPadding(18)
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
             }
@@ -449,9 +449,9 @@ private struct TaskListManagementRow: View {
                 .foregroundStyle(isSelected ? AppColor.moss : .secondary)
             VStack(alignment: .leading, spacing: 4) {
                 Text(taskList.title)
-                    .font(.headline)
+                    .hcbFont(.headline)
                 Text("\(taskCount) active \(taskCount == 1 ? "task" : "tasks")")
-                    .font(.caption)
+                    .hcbFont(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
@@ -464,7 +464,7 @@ private struct TaskListManagementRow: View {
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
-                    .font(.title3)
+                    .hcbFont(.title3)
             }
             .menuStyle(.button)
         }
@@ -592,7 +592,7 @@ struct DetailField: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label.uppercased())
-                .font(.caption.weight(.bold))
+                .hcbFont(.caption, weight: .bold)
                 .foregroundStyle(.secondary)
             Text(value)
                 .font(.body.monospaced())

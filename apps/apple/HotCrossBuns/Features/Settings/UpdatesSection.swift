@@ -15,12 +15,12 @@ struct UpdatesSection: View {
                 }
                 if let last = updater.lastUpdateCheckDate {
                     Text("Last checked \(last.formatted(date: .abbreviated, time: .shortened))")
-                        .font(.footnote)
+                        .hcbFont(.footnote)
                         .foregroundStyle(.secondary)
                 }
             } else {
                 Label("Updates unavailable until Sparkle keys are configured.", systemImage: "exclamationmark.triangle")
-                    .font(.footnote)
+                    .hcbFont(.footnote)
                     .foregroundStyle(.secondary)
             }
         }

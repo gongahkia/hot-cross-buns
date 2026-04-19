@@ -19,7 +19,7 @@ struct RecurrenceEditor: View {
                 DisclosureGroup("Custom", isExpanded: $isCustomExpanded) {
                     intervalStepper
                 }
-                .padding(.leading, 4)
+                .hcbScaledPadding(.leading, 4)
             }
         }
         .onChange(of: rule) { _, newValue in
@@ -48,7 +48,7 @@ struct RecurrenceEditor: View {
                     .monospacedDigit()
             }
         }
-        .padding(.vertical, 6)
+        .hcbScaledPadding(.vertical, 6)
     }
 
     private var intervalBinding: Binding<Int> {

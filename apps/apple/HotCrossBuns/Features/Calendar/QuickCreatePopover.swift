@@ -22,15 +22,15 @@ struct QuickCreatePopover: View {
             Divider()
             TextField("What would you like to do?", text: $summary, axis: .vertical)
                 .textFieldStyle(.plain)
-                .font(.title3)
+                .hcbFont(.title3)
                 .lineLimit(2...5)
-                .padding(16)
+                .hcbScaledPadding(16)
                 .focused($summaryFocused)
                 .onSubmit { Task { await save() } }
             Divider()
             bottomBar
         }
-        .frame(width: 420)
+        .hcbScaledFrame(width: 420)
         .background(.regularMaterial)
         .task {
             selectedListID = model.taskLists.first?.id
@@ -43,7 +43,7 @@ struct QuickCreatePopover: View {
         HStack(spacing: 10) {
             Label(dateLabel, systemImage: "calendar")
                 .labelStyle(.titleAndIcon)
-                .font(.caption.weight(.semibold))
+                .hcbFont(.caption, weight: .semibold)
                 .foregroundStyle(AppColor.ember)
             Spacer(minLength: 8)
             Picker("", selection: $mode) {
@@ -53,8 +53,8 @@ struct QuickCreatePopover: View {
             .pickerStyle(.segmented)
             .fixedSize()
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .hcbScaledPadding(.horizontal, 14)
+        .hcbScaledPadding(.vertical, 10)
     }
 
     private var bottomBar: some View {
@@ -69,8 +69,8 @@ struct QuickCreatePopover: View {
                 .keyboardShortcut(.defaultAction)
                 .disabled(canCreate == false)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .hcbScaledPadding(.horizontal, 12)
+        .hcbScaledPadding(.vertical, 10)
     }
 
     @ViewBuilder
@@ -83,7 +83,7 @@ struct QuickCreatePopover: View {
                 }
             } label: {
                 Label(currentCalendarTitle, systemImage: "calendar.circle")
-                    .font(.caption)
+                    .hcbFont(.caption)
                     .lineLimit(1)
             }
             .menuStyle(.borderlessButton)
@@ -95,7 +95,7 @@ struct QuickCreatePopover: View {
                 }
             } label: {
                 Label(currentListTitle, systemImage: "tray")
-                    .font(.caption)
+                    .hcbFont(.caption)
                     .lineLimit(1)
             }
             .menuStyle(.borderlessButton)

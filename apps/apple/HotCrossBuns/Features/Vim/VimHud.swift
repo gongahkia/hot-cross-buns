@@ -18,7 +18,7 @@ struct VimHud: View {
                 Spacer(minLength: 0)
                 if let pending = state.pendingChord {
                     chordChip(pending)
-                        .padding(14)
+                        .hcbScaledPadding(14)
                 }
             }
         }
@@ -36,8 +36,8 @@ struct VimHud: View {
             Text("\(chord)…")
                 .font(.caption.monospaced())
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .hcbScaledPadding(.horizontal, 10)
+        .hcbScaledPadding(.vertical, 6)
         .background(
             Capsule().fill(.ultraThickMaterial)
         )
@@ -58,21 +58,21 @@ struct VimHud: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     Image(systemName: "keyboard")
-                    Text("Vim Keybindings").font(.headline)
+                    Text("Vim Keybindings").hcbFont(.headline)
                     Spacer()
                     Text("Esc or ? to close")
-                        .font(.caption2)
+                        .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
                 }
 
                 bindingsGrid
 
                 Text("Text editors keep native macOS shortcuts. Modifier-key shortcuts (⌘, ⌃, ⌥) pass through.")
-                    .font(.caption)
+                    .hcbFont(.caption)
                     .foregroundStyle(.secondary)
             }
-            .padding(22)
-            .frame(width: 460)
+            .hcbScaledPadding(22)
+            .hcbScaledFrame(width: 460)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(.regularMaterial)
@@ -91,9 +91,9 @@ struct VimHud: View {
                 HStack(alignment: .top, spacing: 16) {
                     Text(binding.keys)
                         .font(.subheadline.monospaced().weight(.semibold))
-                        .frame(width: 70, alignment: .leading)
+                        .hcbScaledFrame(width: 70, alignment: .leading)
                     Text(binding.label)
-                        .font(.subheadline)
+                        .hcbFont(.subheadline)
                         .foregroundStyle(.secondary)
                     Spacer(minLength: 0)
                 }

@@ -29,7 +29,7 @@ struct DiagnosticsView: View {
                     DiagnosticRow(label: "Keychain", value: model.keychainHealth.displayTitle)
                     if model.keychainHealth == .denied {
                         Text("macOS denied access to the Keychain. Unlock it (Applications → Utilities → Keychain Access → log in) then Reconnect Google.")
-                            .font(.caption)
+                            .hcbFont(.caption)
                             .foregroundStyle(AppColor.ember)
                     }
                 }
@@ -58,18 +58,18 @@ struct DiagnosticsView: View {
                             DiagnosticRow(label: "Failed events", value: summary.failedEvents.formatted())
                             DiagnosticRow(label: "Failed tasks", value: summary.failedTasks.formatted())
                             Text("macOS rejected \(summary.totalFailed) reminder\(summary.totalFailed == 1 ? "" : "s"). Check System Settings → Notifications → Hot Cross Buns, or the app logs for the underlying error.")
-                                .font(.caption)
+                                .hcbFont(.caption)
                                 .foregroundStyle(.red)
                         }
                         if summary.hasDeferred {
                             DiagnosticRow(label: "Deferred events", value: summary.deferredEvents.formatted())
                             DiagnosticRow(label: "Deferred tasks", value: summary.deferredTasks.formatted())
                             Text("More reminders exist in the next \(summary.windowDays) days than macOS allows the app to schedule at once. They will be scheduled as earlier ones fire or are cancelled.")
-                                .font(.caption)
+                                .hcbFont(.caption)
                                 .foregroundStyle(AppColor.ember)
                         } else if summary.hasFailures == false {
                             Text("All reminders within the next \(summary.windowDays) days are scheduled.")
-                                .font(.caption)
+                                .hcbFont(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -125,7 +125,7 @@ struct DiagnosticsView: View {
                 if systemCrashReports.isEmpty == false {
                     Section("System crash reports") {
                         Text("macOS writes a symbolicated report each time the app crashes. Use these to see the exact Swift stack.")
-                            .font(.caption)
+                            .hcbFont(.caption)
                             .foregroundStyle(.secondary)
                         ForEach(systemCrashReports) { report in
                             SystemCrashRow(
@@ -187,7 +187,7 @@ struct DiagnosticsView: View {
                 if auditEntries.isEmpty == false {
                     Section("Mutation history") {
                         Text("Last \(auditEntries.count) user mutations. Useful for reconstructing \"when did I do that?\" after the undo window has closed.")
-                            .font(.caption)
+                            .hcbFont(.caption)
                             .foregroundStyle(.secondary)
                         ScrollView {
                             LazyVStack(alignment: .leading, spacing: 3) {
@@ -196,7 +196,7 @@ struct DiagnosticsView: View {
                                 }
                             }
                         }
-                        .frame(maxHeight: 220)
+                        .hcbScaledFrame(maxHeight: 220)
                     }
                 }
 
@@ -218,7 +218,7 @@ struct DiagnosticsView: View {
                     }
                     if logEntries.isEmpty {
                         Text("No log entries at this level yet.")
-                            .font(.caption)
+                            .hcbFont(.caption)
                             .foregroundStyle(.secondary)
                     } else {
                         ScrollView {
@@ -228,7 +228,7 @@ struct DiagnosticsView: View {
                                 }
                             }
                         }
-                        .frame(maxHeight: 220)
+                        .hcbScaledFrame(maxHeight: 220)
                     }
                     HStack {
                         Button {
@@ -271,7 +271,7 @@ struct DiagnosticsView: View {
             .overlay {
                 if isWorking {
                     ProgressView("Working...")
-                        .padding(18)
+                        .hcbScaledPadding(18)
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
             }
@@ -398,9 +398,9 @@ private struct AuditEntryRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: symbol)
-                .font(.caption)
+                .hcbFont(.caption)
                 .foregroundStyle(tint)
-                .frame(width: 14)
+                .hcbScaledFrame(width: 14)
             VStack(alignment: .leading, spacing: 1) {
                 Text(entry.summary)
                     .font(.caption.monospaced())
@@ -437,9 +437,9 @@ private struct LogEntryRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: entry.level.systemSymbol)
-                .font(.caption)
+                .hcbFont(.caption)
                 .foregroundStyle(tint)
-                .frame(width: 14)
+                .hcbScaledFrame(width: 14)
             VStack(alignment: .leading, spacing: 1) {
                 Text("[\(entry.category.rawValue)] \(entry.message)")
                     .font(.caption.monospaced())
@@ -462,7 +462,7 @@ private struct LogEntryRow: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 1)
+        .hcbScaledPadding(.vertical, 1)
     }
 
     private var tint: Color {
@@ -490,11 +490,11 @@ private struct SystemCrashRow: View {
                     .foregroundStyle(AppColor.ember)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(report.filename)
-                        .font(.subheadline.weight(.medium))
+                        .hcbFont(.subheadline, weight: .medium)
                         .lineLimit(1)
                         .truncationMode(.middle)
                     Text(report.modificationDate.formatted(date: .abbreviated, time: .shortened))
-                        .font(.caption2)
+                        .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 8)
@@ -511,7 +511,7 @@ private struct SystemCrashRow: View {
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
+                    .hcbScaledPadding(8)
                     .background(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(AppColor.cream.opacity(0.6))
@@ -529,10 +529,10 @@ private struct PendingMutationRow: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: symbol)
                 .foregroundStyle(tint)
-                .frame(width: 18, alignment: .center)
+                .hcbScaledFrame(width: 18, alignment: .center)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.subheadline.weight(.medium))
+                    .hcbFont(.subheadline, weight: .medium)
                 Text(subtitle)
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(.secondary)

@@ -248,7 +248,7 @@ struct MacSidebarShell: View {
             toggleSidebarCollapsed()
         } label: {
             Image(systemName: isSidebarCollapsed ? "sidebar.squares.left" : "sidebar.left")
-                .font(.system(size: 13, weight: .semibold))
+                .hcbFontSystem(size: 13, weight: .semibold)
         }
         .buttonStyle(.borderless)
         .help(isSidebarCollapsed ? "Expand sidebar (⌘S)" : "Collapse to icons (⌘S)")
@@ -269,7 +269,7 @@ struct MacSidebarShell: View {
         VStack(spacing: 0) {
             collapseToggle
                 .padding(.top, trafficLightInset)
-                .padding(.bottom, 10)
+                .hcbScaledPadding(.bottom, 10)
             Divider()
             List {
                 ForEach(SidebarItem.allCases) { item in
@@ -307,7 +307,7 @@ struct MacSidebarShell: View {
 
     private func collapsedSidebarIcon(systemImage: String, isSelected: Bool) -> some View {
         Image(systemName: systemImage)
-            .font(.system(size: 20, weight: .medium))
+            .hcbFontSystem(size: 20, weight: .medium)
             .frame(width: collapsedIconColumn, height: 36)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -321,13 +321,13 @@ struct MacSidebarShell: View {
             HStack(spacing: 8) {
                 collapseToggle
                 Text("Hot Cross Buns")
-                    .font(.headline)
+                    .hcbFont(.headline)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
+            .hcbScaledPadding(.horizontal, 12)
             .padding(.top, trafficLightInset)
-            .padding(.bottom, 10)
+            .hcbScaledPadding(.bottom, 10)
 
             Divider()
 
@@ -694,8 +694,8 @@ struct MacSidebarShell: View {
                 }
             } icon: {
                 Image(systemName: item.systemImage)
-                    .font(.system(size: 18, weight: .medium))
-                    .frame(width: 24)
+                    .hcbFontSystem(size: 18, weight: .medium)
+                    .hcbScaledFrame(width: 24)
             }
         }
     }

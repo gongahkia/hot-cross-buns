@@ -9,22 +9,22 @@ struct EventHoverPreview: View {
             HStack(spacing: 8) {
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
                     .fill(accent)
-                    .frame(width: 4, height: 20)
+                    .hcbScaledFrame(width: 4, height: 20)
                 Text(event.summary)
-                    .font(.headline)
+                    .hcbFont(.headline)
                     .lineLimit(2)
             }
             VStack(alignment: .leading, spacing: 4) {
                 Label(timeLabel, systemImage: "clock")
-                    .font(.subheadline)
+                    .hcbFont(.subheadline)
                 if let cal = model.calendars.first(where: { $0.id == event.calendarID }) {
                     Label(cal.summary, systemImage: "calendar")
-                        .font(.caption)
+                        .hcbFont(.caption)
                         .foregroundStyle(.secondary)
                 }
                 if event.location.isEmpty == false {
                     Label(event.location, systemImage: "mappin.and.ellipse")
-                        .font(.caption)
+                        .hcbFont(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -32,13 +32,13 @@ struct EventHoverPreview: View {
             if event.details.isEmpty == false {
                 Divider()
                 Text(event.details)
-                    .font(.caption)
+                    .hcbFont(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(6)
             }
         }
-        .padding(12)
-        .frame(width: 300, alignment: .leading)
+        .hcbScaledPadding(12)
+        .hcbScaledFrame(width: 300, alignment: .leading)
     }
 
     private var accent: Color {

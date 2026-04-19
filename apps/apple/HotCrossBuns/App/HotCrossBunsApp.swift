@@ -21,7 +21,7 @@ struct HotCrossBunsApp: App {
                 .environment(appModel)
                 .environment(updater)
                 .environment(networkMonitor)
-                .frame(minWidth: 900, minHeight: 600)
+                .hcbScaledFrame(minWidth: 900, minHeight: 600)
                 .dockBadge(
                     overdueCount: appModel.todaySnapshot.overdueCount,
                     enabled: appModel.settings.showDockBadge
@@ -51,7 +51,7 @@ struct HotCrossBunsApp: App {
             Image("MenuBarIcon")
                 .renderingMode(.template)
                 .foregroundStyle(.black)
-                .frame(width: 18, height: 18)
+                .hcbScaledFrame(width: 18, height: 18)
                 .accessibilityLabel("Hot Cross Buns")
         }
         .menuBarExtraStyle(.window)

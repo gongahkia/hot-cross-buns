@@ -154,14 +154,15 @@ Fixed since the last audit pass:
 
 ## 15. Harden all endpoints and usecases from cybersecurity perspective
 
-## 16. Appearance Phase 2 — migrate hardcoded layout constants to `hcbLayoutScale`
+## 16. Appearance — done
 
-Phase 1 split the single zoom slider into independent Layout Scale / Text Size / UI Font controls, wired `\.hcbLayoutScale` and `\.hcbFontFamily` env values, and applied the new appearance modifier to the shell, sheets (via `SheetDestinationHost`), and menu bar panel.
+Phase 1 added the env infrastructure; Phase 2 migrated 508 call sites across 29 files.
 
-Remaining migration for true app-wide UI-only scaling:
+- `.font(.X)` / `.font(.X.weight(.Y))` → `.hcbFont(.X)` / `.hcbFont(.X, weight: .Y)`
+- `.font(.system(size: N, weight: .W, design: .D))` → `.hcbFontSystem(size: N, weight: .W, design: .D)`
+- `.padding(N)` / `.padding(.edge, N)` → `.hcbScaledPadding(...)`
+- `.frame(width/height: N)` and min/ideal/max variants → `.hcbScaledFrame(...)`
 
-- Replace hardcoded `.padding(N)` / `.frame(width: N, height: N)` with `hcbScaledPadding(N)` / `hcbScaledFrame(width:height:)` in Calendar views (MonthGridView, WeekGridView, DayGridView), Store views (TasksView, TaskInspectorView), and Settings rows.
-- Convert `.font(.system(size: N))` sites in sidebar/toolbar chrome to scale-aware variants — the ambient `\.font` override only reaches views that use the default font.
-- Audit event-tile tap geometry in WeekGridView/DayGridView: `hourHeight` is a hardcoded `44` / `48`. Wrap with scale multiplier so drop computation still snaps correctly.
-- Custom-font honesty: the Appearance section explains that explicit `.font(.headline)` / `.font(.body)` overrides bypass the env font. Phase 2 should introduce `.hcbFont(.body)` etc. that reads `\.hcbFontFamily` and falls back to system.
-- Native AppKit dialogs (`.alert`, `.confirmationDialog`, `NSSavePanel`) are drawn by macOS and can't be scaled by SwiftUI — document, don't fight it.
+Intentionally left alone: `.font(.body.monospaced())`, `.font(.caption.monospacedDigit())`, `.font(.system(.largeTitle, design: .serif))`, etc. These rely on system-font design variants that SwiftUI's `Font.custom` can't reproduce — preserving system font here is by design.
+
+Also left alone: native `.alert` / `.confirmationDialog` / `NSSavePanel`. AppKit-drawn, can't be scaled by SwiftUI; they follow macOS display settings.

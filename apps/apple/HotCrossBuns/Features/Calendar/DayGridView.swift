@@ -17,9 +17,9 @@ struct DayGridView: View {
                 .frame(maxWidth: .infinity)
             Divider()
             tasksPanel
-                .frame(width: 260)
+                .hcbScaledFrame(width: 260)
         }
-        .padding(12)
+        .hcbScaledPadding(12)
     }
 
     private var dayStart: Date { calendar.startOfDay(for: anchorDate) }
@@ -72,17 +72,17 @@ struct DayGridView: View {
             if allDayEvents.isEmpty == false {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("ALL-DAY")
-                        .font(.caption2.weight(.bold))
+                        .hcbFont(.caption2, weight: .bold)
                         .foregroundStyle(.secondary)
                     ForEach(allDayEvents) { event in
                         Button {
                             router.navigate(to: .event(event.id))
                         } label: {
                             Text(event.summary)
-                                .font(.caption.weight(.medium))
+                                .hcbFont(.caption, weight: .medium)
                                 .lineLimit(1)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
+                                .hcbScaledPadding(.horizontal, 8)
+                                .hcbScaledPadding(.vertical, 4)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(Capsule().fill(calendarColor(for: event).opacity(0.25)))
                                 .foregroundStyle(AppColor.ink)
@@ -122,7 +122,7 @@ struct DayGridView: View {
                     if let offset = currentTimeOffset() {
                         Rectangle()
                             .fill(AppColor.ember)
-                            .frame(height: 1)
+                            .hcbScaledFrame(height: 1)
                             .offset(x: 52, y: offset)
                     }
                 }
@@ -138,10 +138,10 @@ struct DayGridView: View {
                     Text(hourLabel(hour))
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(.secondary)
-                        .frame(width: 48, alignment: .trailing)
+                        .hcbScaledFrame(width: 48, alignment: .trailing)
                     Rectangle()
                         .fill(AppColor.cardStroke)
-                        .frame(height: 0.5)
+                        .hcbScaledFrame(height: 0.5)
                         .frame(maxWidth: .infinity)
                 }
                 .frame(height: hourHeight, alignment: .top)
@@ -170,22 +170,22 @@ struct DayGridView: View {
         } label: {
             VStack(alignment: .leading, spacing: 2) {
                 Text(event.summary)
-                    .font(.caption.weight(.semibold))
+                    .hcbFont(.caption, weight: .semibold)
                     .lineLimit(2)
                 if height > 38 {
                     Text("\(event.startDate.formatted(.dateTime.hour().minute())) – \(event.endDate.formatted(.dateTime.hour().minute()))")
-                        .font(.caption2)
+                        .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
                 }
                 if height > 60, event.location.isEmpty == false {
                     Text(event.location)
-                        .font(.caption2)
+                        .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .hcbScaledPadding(.horizontal, 8)
+            .hcbScaledPadding(.vertical, 4)
             .frame(width: max(columnWidth, 60), height: height - 2, alignment: .topLeading)
             .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(fill.opacity(0.22)))
             .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(fill.opacity(0.55), lineWidth: 0.8))
@@ -207,7 +207,7 @@ struct DayGridView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Due Today")
-                    .font(.headline)
+                    .hcbFont(.headline)
                 Spacer()
                 Text("\(dayTasks.filter { $0.isCompleted == false }.count) open")
                     .font(.caption.monospacedDigit())
@@ -231,12 +231,12 @@ struct DayGridView: View {
                                     Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                                         .foregroundStyle(task.isCompleted ? AppColor.moss : AppColor.ember)
                                     Text(task.title)
-                                        .font(.subheadline)
+                                        .hcbFont(.subheadline)
                                         .strikethrough(task.isCompleted)
                                         .foregroundStyle(AppColor.ink)
                                     Spacer(minLength: 0)
                                 }
-                                .padding(8)
+                                .hcbScaledPadding(8)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(AppColor.cream.opacity(0.4)))
                             }

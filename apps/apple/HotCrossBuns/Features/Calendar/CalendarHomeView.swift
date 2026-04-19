@@ -64,7 +64,7 @@ struct CalendarHomeView: View {
                                 selection: $selectedEventIDs,
                                 events: selectedEvents
                             )
-                            .padding(.bottom, 16)
+                            .hcbScaledPadding(.bottom, 16)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                     }
@@ -148,7 +148,7 @@ struct CalendarHomeView: View {
     private var navigationBar: some View {
         HStack(spacing: 12) {
             Button { shift(by: -1) } label: {
-                Image(systemName: "chevron.left").font(.body.weight(.semibold))
+                Image(systemName: "chevron.left").hcbFont(.body, weight: .semibold)
             }
             .buttonStyle(.plain)
             .keyboardShortcut(.leftArrow, modifiers: [.command])
@@ -158,9 +158,9 @@ struct CalendarHomeView: View {
                 selectedDate = Date()
             } label: {
                 Text("Today")
-                    .font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
+                    .hcbFont(.subheadline, weight: .semibold)
+                    .hcbScaledPadding(.horizontal, 10)
+                    .hcbScaledPadding(.vertical, 4)
                     .background(
                         Capsule().fill(AppColor.cream.opacity(0.7))
                     )
@@ -170,14 +170,14 @@ struct CalendarHomeView: View {
             .accessibilityLabel("Jump to today")
 
             Button { shift(by: 1) } label: {
-                Image(systemName: "chevron.right").font(.body.weight(.semibold))
+                Image(systemName: "chevron.right").hcbFont(.body, weight: .semibold)
             }
             .buttonStyle(.plain)
             .keyboardShortcut(.rightArrow, modifiers: [.command])
             .accessibilityLabel("Next \(mode.title.lowercased())")
 
             Text(periodTitle)
-                .font(.title3.weight(.semibold))
+                .hcbFont(.title3, weight: .semibold)
                 .foregroundStyle(AppColor.ink)
 
             Spacer(minLength: 0)
@@ -190,8 +190,8 @@ struct CalendarHomeView: View {
             .pickerStyle(.segmented)
             .fixedSize()
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .hcbScaledPadding(.horizontal, 16)
+        .hcbScaledPadding(.vertical, 10)
         .disabled(model.account == nil)
         .background(
             HStack(spacing: 0) {
@@ -203,7 +203,7 @@ struct CalendarHomeView: View {
                     .keyboardShortcut("g", modifiers: [.command, .shift])
             }
             .opacity(0)
-            .frame(width: 0, height: 0)
+            .hcbScaledFrame(width: 0, height: 0)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
         )
@@ -542,17 +542,17 @@ private struct EventListRow: View {
         HStack(spacing: 12) {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(AppColor.blue)
-                .frame(width: 6)
+                .hcbScaledFrame(width: 6)
             VStack(alignment: .leading, spacing: 5) {
                 Text(event.summary)
-                    .font(.headline)
+                    .hcbFont(.headline)
                     .foregroundStyle(AppColor.ink)
                 Text(timeRange)
-                    .font(.subheadline.weight(.medium))
+                    .hcbFont(.subheadline, weight: .medium)
                     .foregroundStyle(.secondary)
                 if !event.details.isEmpty {
                     Text(event.details)
-                        .font(.caption)
+                        .hcbFont(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
@@ -577,12 +577,12 @@ private struct CalendarBadgeRow: View {
         HStack(spacing: 12) {
             Circle()
                 .fill(Color(hex: calendar.colorHex))
-                .frame(width: 12, height: 12)
+                .hcbScaledFrame(width: 12, height: 12)
             Text(calendar.summary)
-                .font(.headline)
+                .hcbFont(.headline)
             Spacer()
             Text(calendar.accessRole)
-                .font(.caption.weight(.medium))
+                .hcbFont(.caption, weight: .medium)
                 .foregroundStyle(.secondary)
         }
     }
@@ -606,7 +606,7 @@ struct EventDetailView: View {
                             .foregroundStyle(AppColor.ink)
                         if !event.details.isEmpty {
                             Text.markdown(event.details)
-                                .font(.body)
+                                .hcbFont(.body)
                                 .foregroundStyle(.secondary)
                         }
                         DetailField(label: "Starts", value: formattedStart(for: event))
@@ -639,7 +639,7 @@ struct EventDetailView: View {
                         DetailField(label: "Google ID", value: event.id)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(20)
+                    .hcbScaledPadding(20)
                 }
                 .appBackground()
                 .sheet(isPresented: $isEditing) {
@@ -887,9 +887,9 @@ struct AddEventSheet: View {
                                 HStack(spacing: 6) {
                                     ForEach(Array(preview.matchedTokens.enumerated()), id: \.offset) { _, token in
                                         Text(token.display)
-                                            .font(.caption.weight(.medium))
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
+                                            .hcbFont(.caption, weight: .medium)
+                                            .hcbScaledPadding(.horizontal, 6)
+                                            .hcbScaledPadding(.vertical, 2)
                                             .background(Capsule().fill(AppColor.blue.opacity(0.15)))
                                             .foregroundStyle(AppColor.blue)
                                     }
@@ -906,7 +906,7 @@ struct AddEventSheet: View {
                         Text("Quick Create")
                     } footer: {
                         Text("Type natural language and press Return, or click Apply, to prefill the form.")
-                            .font(.caption2)
+                            .hcbFont(.caption2)
                             .foregroundStyle(.secondary)
                     }
 
@@ -930,7 +930,7 @@ struct AddEventSheet: View {
                         DatePicker("Ends", selection: $endDate, displayedComponents: isAllDay ? [.date] : [.date, .hourAndMinute])
                         if isValidDateRange == false {
                             Text(isAllDay ? "End date cannot be before start date." : "End time must be after start time.")
-                                .font(.footnote)
+                                .hcbFont(.footnote)
                                 .foregroundStyle(.red)
                         }
                     }
@@ -978,7 +978,7 @@ struct AddEventSheet: View {
                 }
             }
         }
-        .frame(minWidth: 540, idealWidth: 580, minHeight: 560, idealHeight: 720) // keep toolbar visible in small windows
+        .hcbScaledFrame(minWidth: 540, idealWidth: 580, minHeight: 560, idealHeight: 720) // keep toolbar visible in small windows
         .interactiveDismissDisabled(isSaving)
     }
 
@@ -1128,7 +1128,7 @@ struct EditEventSheet: View {
                     DatePicker("Ends", selection: $endDate, displayedComponents: isAllDay ? [.date] : [.date, .hourAndMinute])
                     if isValidDateRange == false {
                         Text(isAllDay ? "End date cannot be before start date." : "End time must be after start time.")
-                            .font(.footnote)
+                            .hcbFont(.footnote)
                             .foregroundStyle(.red)
                     }
                 }
@@ -1204,7 +1204,7 @@ struct EditEventSheet: View {
                 }
             }
         }
-        .frame(minWidth: 540, idealWidth: 580, minHeight: 560, idealHeight: 720) // keep toolbar visible in small windows
+        .hcbScaledFrame(minWidth: 540, idealWidth: 580, minHeight: 560, idealHeight: 720) // keep toolbar visible in small windows
         .interactiveDismissDisabled(isSaving)
     }
 
@@ -1355,15 +1355,15 @@ struct CalendarDropChipsStrip: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
                         Text("Drop on a calendar to move:")
-                            .font(.caption2.weight(.semibold))
+                            .hcbFont(.caption2, weight: .semibold)
                             .foregroundStyle(.secondary)
-                            .padding(.leading, 6)
+                            .hcbScaledPadding(.leading, 6)
                         ForEach(writable) { calendar in
                             chip(for: calendar)
                         }
                     }
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 10)
+                    .hcbScaledPadding(.vertical, 6)
+                    .hcbScaledPadding(.horizontal, 10)
                 }
             }
         }
@@ -1373,13 +1373,13 @@ struct CalendarDropChipsStrip: View {
         HStack(spacing: 6) {
             Circle()
                 .fill(Color(hex: calendar.colorHex))
-                .frame(width: 8, height: 8)
+                .hcbScaledFrame(width: 8, height: 8)
             Text(calendar.summary)
-                .font(.caption)
+                .hcbFont(.caption)
                 .lineLimit(1)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
+        .hcbScaledPadding(.horizontal, 10)
+        .hcbScaledPadding(.vertical, 4)
         .background(
             Capsule().fill(AppColor.cream.opacity(0.4))
         )
@@ -1402,27 +1402,27 @@ struct CalendarSearchField: View {
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass")
-                .font(.caption)
+                .hcbFont(.caption)
                 .foregroundStyle(.secondary)
             TextField("Filter events", text: $text)
                 .textFieldStyle(.plain)
-                .frame(width: 180)
-                .font(.subheadline)
+                .hcbScaledFrame(width: 180)
+                .hcbFont(.subheadline)
                 .focused($isFocused)
             if text.isEmpty == false {
                 Button {
                     text = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.caption)
+                        .hcbFont(.caption)
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear search")
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .hcbScaledPadding(.horizontal, 8)
+        .hcbScaledPadding(.vertical, 4)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(.quaternary.opacity(0.4))
@@ -1431,7 +1431,7 @@ struct CalendarSearchField: View {
             Button("Focus Search") { isFocused = true }
                 .keyboardShortcut("f", modifiers: [.command])
                 .opacity(0)
-                .frame(width: 0, height: 0)
+                .hcbScaledFrame(width: 0, height: 0)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         )
@@ -1469,14 +1469,14 @@ struct EventReminderPicker: View {
             .accessibilityHint("Choose when the reminder fires before the event starts")
             if case .custom(let m) = selection {
                 Text("Currently \(EventReminderOption.label(forMinutes: m))")
-                    .font(.caption)
+                    .hcbFont(.caption)
                     .foregroundStyle(.secondary)
             }
             if isEditingCustom {
                 HStack(spacing: 8) {
                     TextField("Minutes before", text: $customMinutes)
                         .textFieldStyle(.roundedBorder)
-                        .frame(maxWidth: 120)
+                        .hcbScaledFrame(maxWidth: 120)
                         .accessibilityLabel("Custom minutes before event")
                     Button("Set") {
                         if let minutes = Int(customMinutes), minutes >= 0, minutes <= 40320 {
@@ -1517,24 +1517,24 @@ struct EventColorPicker: View {
                         if let hex = color.hex {
                             Circle()
                                 .fill(Color(hex: hex))
-                                .frame(width: 24, height: 24)
+                                .hcbScaledFrame(width: 24, height: 24)
                         } else {
                             Circle()
                                 .strokeBorder(AppColor.cardStroke, lineWidth: 1)
-                                .frame(width: 24, height: 24)
+                                .hcbScaledFrame(width: 24, height: 24)
                                 .overlay(
                                     Image(systemName: "slash.circle")
-                                        .font(.caption2)
+                                        .hcbFont(.caption2)
                                         .foregroundStyle(.secondary)
                                 )
                         }
                         if selection == color {
                             Circle()
                                 .strokeBorder(AppColor.ink, lineWidth: 2)
-                                .frame(width: 30, height: 30)
+                                .hcbScaledFrame(width: 30, height: 30)
                         }
                     }
-                    .frame(width: 32, height: 32)
+                    .hcbScaledFrame(width: 32, height: 32)
                 }
                 .buttonStyle(.plain)
                 .help(color.title)
@@ -1554,7 +1554,7 @@ struct MeetLinkCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("VIDEO CALL")
-                .font(.caption.weight(.bold))
+                .hcbFont(.caption, weight: .bold)
                 .foregroundStyle(.secondary)
             Link(destination: URL(string: link) ?? URL(string: "https://meet.google.com")!) {
                 HStack(spacing: 10) {
@@ -1573,7 +1573,7 @@ struct MeetLinkCard: View {
                 NSPasteboard.general.setString(link, forType: .string)
             } label: {
                 Label("Copy link", systemImage: "doc.on.doc")
-                    .font(.caption)
+                    .hcbFont(.caption)
             }
             .buttonStyle(.borderless)
         }
@@ -1588,7 +1588,7 @@ struct AttendeeResponsesCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("GUESTS (\(responses.count))")
-                .font(.caption.weight(.bold))
+                .hcbFont(.caption, weight: .bold)
                 .foregroundStyle(.secondary)
             ForEach(responses, id: \.email) { attendee in
                 HStack(spacing: 10) {
@@ -1596,17 +1596,17 @@ struct AttendeeResponsesCard: View {
                         .foregroundStyle(tint(for: attendee.responseStatus))
                     VStack(alignment: .leading, spacing: 1) {
                         Text(attendee.displayName ?? attendee.email)
-                            .font(.subheadline)
+                            .hcbFont(.subheadline)
                             .foregroundStyle(AppColor.ink)
                         if attendee.displayName != nil {
                             Text(attendee.email)
-                                .font(.caption2)
+                                .hcbFont(.caption2)
                                 .foregroundStyle(.secondary)
                         }
                     }
                     Spacer(minLength: 8)
                     Text(attendee.responseStatus.displayTitle)
-                        .font(.caption.weight(.medium))
+                        .hcbFont(.caption, weight: .medium)
                         .foregroundStyle(tint(for: attendee.responseStatus))
                 }
             }
@@ -1636,15 +1636,15 @@ struct CalendarTodayStatusHeader: View {
         HStack(alignment: .center, spacing: 14) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(snapshot.date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
-                    .font(.headline)
+                    .hcbFont(.headline)
                     .foregroundStyle(AppColor.ink)
                 HStack(spacing: 6) {
                     Image(systemName: reachability.systemSymbol)
-                        .font(.caption)
+                        .hcbFont(.caption)
                         .foregroundStyle(reachabilityTint)
                         .help("Network: \(reachability.displayTitle)")
                     Text(syncState.title)
-                        .font(.caption)
+                        .hcbFont(.caption)
                         .foregroundStyle(.secondary)
                     if pendingCount > 0 {
                         PendingSyncPill(count: pendingCount)
@@ -1662,8 +1662,8 @@ struct CalendarTodayStatusHeader: View {
             .buttonStyle(.bordered)
             .accessibilityLabel("Refresh Google data")
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .hcbScaledPadding(.horizontal, 16)
+        .hcbScaledPadding(.vertical, 8)
     }
 
     private var reachabilityTint: Color {
@@ -1683,8 +1683,8 @@ struct PendingSyncPill: View {
         Label("\(count) pending", systemImage: "icloud.slash")
             .font(.caption2.weight(.semibold).monospacedDigit())
             .labelStyle(.titleAndIcon)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 2)
+            .hcbScaledPadding(.horizontal, 8)
+            .hcbScaledPadding(.vertical, 2)
             .background(Capsule().fill(AppColor.ember.opacity(0.18)))
             .foregroundStyle(AppColor.ember)
             .help("Tasks or events created while offline are waiting for Google to accept them.")
@@ -1703,11 +1703,11 @@ private struct StatusPill: View {
                 .font(.title3.bold().monospacedDigit())
                 .foregroundStyle(tint ?? AppColor.ink)
             Text(label)
-                .font(.caption2.weight(.medium))
+                .hcbFont(.caption2, weight: .medium)
                 .foregroundStyle(.secondary)
         }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 10)
+        .hcbScaledPadding(.vertical, 4)
+        .hcbScaledPadding(.horizontal, 10)
         .background(
             Capsule().fill((tint ?? AppColor.cream).opacity(0.35))
         )

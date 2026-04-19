@@ -11,8 +11,8 @@ struct EventBulkActionBar: View {
     var body: some View {
         HStack(spacing: 14) {
             Text("\(events.count) event\(events.count == 1 ? "" : "s")")
-                .font(.subheadline.weight(.semibold))
-            Divider().frame(height: 20)
+                .hcbFont(.subheadline, weight: .semibold)
+            Divider().hcbScaledFrame(height: 20)
             Menu {
                 Button("+ 15 minutes") { Task { await shift(by: 15) } }
                 Button("+ 1 hour") { Task { await shift(by: 60) } }
@@ -37,8 +37,8 @@ struct EventBulkActionBar: View {
                 Label("Clear", systemImage: "xmark.circle")
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .hcbScaledPadding(.horizontal, 16)
+        .hcbScaledPadding(.vertical, 10)
         .background(.thinMaterial, in: Capsule())
         .overlay(Capsule().strokeBorder(AppColor.cardStroke, lineWidth: 0.6))
         .shadow(radius: 6, y: 2)

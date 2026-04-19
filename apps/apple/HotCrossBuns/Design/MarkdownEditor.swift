@@ -15,9 +15,9 @@ struct MarkdownEditor: View {
             editor
             if showInlinePreview, isFocused == false, trimmed.isEmpty == false {
                 Text.markdown(trimmed)
-                    .font(.callout)
+                    .hcbFont(.callout)
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 2)
+                    .hcbScaledPadding(.horizontal, 2)
             }
         }
     }
@@ -31,7 +31,7 @@ struct MarkdownEditor: View {
             toolbarButton(title: "B", systemImage: "bold", help: "Bold (**text**)") {
                 wrapSelection(prefix: "**", suffix: "**", placeholder: "bold")
             }
-            .font(.caption.weight(.bold))
+            .hcbFont(.caption, weight: .bold)
             toolbarButton(title: "I", systemImage: "italic", help: "Italic (*text*)") {
                 wrapSelection(prefix: "*", suffix: "*", placeholder: "italic")
             }
@@ -39,7 +39,7 @@ struct MarkdownEditor: View {
             toolbarButton(title: "U", systemImage: "underline", help: "Underline (__text__, Calendar only)") {
                 wrapSelection(prefix: "__", suffix: "__", placeholder: "underline")
             }
-            .font(.caption.weight(.semibold))
+            .hcbFont(.caption, weight: .semibold)
             toolbarButton(title: "•", systemImage: "list.bullet", help: "Bulleted list") {
                 insertLinePrefix("- ")
             }
@@ -56,14 +56,14 @@ struct MarkdownEditor: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.horizontal, 2)
+        .hcbScaledPadding(.horizontal, 2)
     }
 
     private func toolbarButton(title: String, systemImage: String, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.caption)
-                .frame(width: 22, height: 20)
+                .hcbFont(.caption)
+                .hcbScaledFrame(width: 22, height: 20)
         }
         .buttonStyle(.borderless)
         .help(help)
@@ -74,16 +74,16 @@ struct MarkdownEditor: View {
             if text.isEmpty, placeholder.isEmpty == false {
                 Text(placeholder)
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 14)
-                    .padding(.top, 14)
+                    .hcbScaledPadding(.horizontal, 14)
+                    .hcbScaledPadding(.top, 14)
                     .allowsHitTesting(false)
             }
             TextEditor(text: $text)
-                .font(.body)
+                .hcbFont(.body)
                 .scrollContentBackground(.hidden)
                 .enableWritingTools()
                 .frame(minHeight: minHeight, maxHeight: maxHeight)
-                .padding(10)
+                .hcbScaledPadding(10)
                 .background(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(AppColor.cream.opacity(0.6))
