@@ -85,7 +85,7 @@ struct GoogleTasksClient: Sendable {
         let requestBody = GoogleTaskMutationDTO(
             title: title,
             notes: notes.isEmpty ? nil : notes,
-            due: dueDate
+            due: dueDate.map { GoogleTaskDueDateFormatter.string(from: $0) }
         )
         var queryItems: [URLQueryItem] = []
         if let parent { queryItems.append(URLQueryItem(name: "parent", value: parent)) }
@@ -126,14 +126,15 @@ struct GoogleTasksClient: Sendable {
         dueDate: Date?,
         ifMatch: String? = nil
     ) async throws -> TaskMirror {
-        try await patchTask(
+        let dueString = dueDate.map { GoogleTaskDueDateFormatter.string(from: $0) }
+        return try await patchTask(
             taskListID: taskListID,
             taskID: taskID,
             body: GoogleTaskPatchDTO(
                 title: title,
                 notes: .value(notes),
                 status: nil,
-                due: dueDate.map(NullableField.value) ?? .null,
+                due: dueString.map(NullableField.value) ?? .null,
                 completed: .omitted
             ),
             ifMatch: ifMatch
@@ -208,7 +209,7 @@ private struct GoogleTaskDTO: Decodable, Sendable {
     var title: String
     var notes: String?
     var status: String
-    var due: Date?
+    var due: String?
     var completed: Date?
     var deleted: Bool?
     var hidden: Bool?
@@ -225,7 +226,7 @@ private struct GoogleTaskDTO: Decodable, Sendable {
             title: title,
             notes: notes ?? "",
             status: TaskStatus(rawValue: status) ?? .needsAction,
-            dueDate: due,
+            dueDate: due.flatMap { GoogleTaskDueDateFormatter.localMidnight(from: $0) },
             completedAt: completed,
             isDeleted: deleted ?? false,
             isHidden: hidden ?? false,
@@ -239,7 +240,7 @@ private struct GoogleTaskDTO: Decodable, Sendable {
 private struct GoogleTaskMutationDTO: Encodable, Sendable {
     var title: String
     var notes: String?
-    var due: Date?
+    var due: String?
 }
 
 private struct GoogleTaskListMutationDTO: Encodable, Sendable {
@@ -250,7 +251,7 @@ private struct GoogleTaskPatchDTO: Encodable, Sendable {
     var title: String?
     var notes: NullableField<String>
     var status: TaskStatus?
-    var due: NullableField<Date>
+    var due: NullableField<String>
     var completed: NullableField<Date>
 
     enum CodingKeys: String, CodingKey {
@@ -310,5 +311,51 @@ private extension String {
         var allowedCharacters = CharacterSet.urlPathAllowed
         allowedCharacters.remove(charactersIn: "/?#")
         return addingPercentEncoding(withAllowedCharacters: allowedCharacters) ?? self
+    }
+}
+
+// Google Tasks' `due` field is RFC3339 but the API documents it as date-only —
+// "time info is ignored" and stored as the date portion in UTC. Encoding a
+// Swift Date via the default .iso8601 strategy emits the UTC wall-clock time,
+// so local-midnight April 19 in UTC+8 becomes "2026-04-18T16:00:00Z" and
+// Google stores the task as due April 18. We instead serialise the user's
+// local Y/M/D directly into the timestamp so Google's date portion matches
+// what the user picked, regardless of timezone. Reads reverse the mapping:
+// Google returns UTC midnight of the stored date, which we re-anchor to
+// local midnight of that same Y/M/D so subsequent local-calendar comparisons
+// behave predictably.
+enum GoogleTaskDueDateFormatter {
+    static func string(from date: Date, calendar: Calendar = .current) -> String {
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        guard
+            let year = components.year,
+            let month = components.month,
+            let day = components.day
+        else {
+            return "1970-01-01T00:00:00.000Z"
+        }
+        return String(format: "%04d-%02d-%02dT00:00:00.000Z", year, month, day)
+    }
+
+    static func localMidnight(from rfc3339: String, calendar: Calendar = .current) -> Date? {
+        // Accept either full RFC3339 ("2026-04-19T00:00:00.000Z") or date-only
+        // ("2026-04-19") — both occur in responses.
+        let prefix = String(rfc3339.prefix(10))
+        let digits = prefix.split(separator: "-")
+        guard digits.count == 3,
+              let year = Int(digits[0]),
+              let month = Int(digits[1]),
+              let day = Int(digits[2])
+        else {
+            return nil
+        }
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.day = day
+        components.hour = 0
+        components.minute = 0
+        components.second = 0
+        return calendar.date(from: components)
     }
 }

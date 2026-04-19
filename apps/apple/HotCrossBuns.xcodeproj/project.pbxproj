@@ -34,6 +34,7 @@
 		34DF4A454B9BAB7772BA611F /* SpotlightIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A88DE6FAF6CB6673FAFBC3A /* SpotlightIndexer.swift */; };
 		3B7E0CB45C3A8F28831C31C5 /* ReviewBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2902AF84DDE381956C0D149E /* ReviewBuilderTests.swift */; };
 		3CD7D2817F178F819CEDA958 /* Snapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1622469DA249EE1B10188D98 /* Snapshots.swift */; };
+		3E796CFC3C8917CD171472AC /* GoogleTaskDueDateFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BFD977211942ADB9C88E1CF /* GoogleTaskDueDateFormatterTests.swift */; };
 		46D517DF3CCDC62A677E30B0 /* StoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B73A839AA07E6C98129ED4BB /* StoreView.swift */; };
 		4A0CC79BFC861B5D27E9F288 /* AppCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 838CDC9397AEB8B081E732EE /* AppCommands.swift */; };
 		4D00CE67951243CCE90386B4 /* QuickAddView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDB427444279DD0F8E4B2281 /* QuickAddView.swift */; };
@@ -171,6 +172,7 @@
 		892DDFFD7ECD0890E98DEC1C /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		89EA3416048E26FDC6F7B0BC /* Exporters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Exporters.swift; sourceTree = "<group>"; };
 		8A76571F1E7EF40F32A62835 /* CustomFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomFilter.swift; sourceTree = "<group>"; };
+		8BFD977211942ADB9C88E1CF /* GoogleTaskDueDateFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleTaskDueDateFormatterTests.swift; sourceTree = "<group>"; };
 		8FF54DB319263C6A1FD8A97D /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteView.swift; sourceTree = "<group>"; };
 		9062C2E730F1E70F0DCBDADA /* RecurrenceEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceEditor.swift; sourceTree = "<group>"; };
 		9339ABE2548F1E94C5297FEF /* VimHud.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VimHud.swift; sourceTree = "<group>"; };
@@ -434,6 +436,7 @@
 				F8744975197402E661FA13A2 /* CustomFilterTests.swift */,
 				3A247BD19F3FCC74244C279E /* ExporterTests.swift */,
 				2316DAFF7860DC61BD91AF52 /* ForecastBuilderTests.swift */,
+				8BFD977211942ADB9C88E1CF /* GoogleTaskDueDateFormatterTests.swift */,
 				16A222520E37F1BD9721EF0B /* MarkdownHTMLTests.swift */,
 				FB9745E7FFF1CDB75E4D4820 /* ModelPersistenceTests.swift */,
 				4B3C9FACB76521CB9850BC84 /* NaturalLanguageTaskParserTests.swift */,
@@ -766,6 +769,7 @@
 				E98AEB930CC53067A2C2BCE3 /* CustomFilterTests.swift in Sources */,
 				532307C515FAB37584D4B968 /* ExporterTests.swift in Sources */,
 				870B6E741963A990B14961F4 /* ForecastBuilderTests.swift in Sources */,
+				3E796CFC3C8917CD171472AC /* GoogleTaskDueDateFormatterTests.swift in Sources */,
 				7D78BE1A86E813F0669673E5 /* MarkdownHTMLTests.swift in Sources */,
 				90939888F987285A40E2C421 /* ModelPersistenceTests.swift in Sources */,
 				B961C661A38D5CE2845E6580 /* NaturalLanguageTaskParserTests.swift in Sources */,
