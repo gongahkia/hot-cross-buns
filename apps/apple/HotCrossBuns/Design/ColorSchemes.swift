@@ -290,29 +290,291 @@ extension HCBColorScheme {
         cardStroke: .init("3E3D32")
     )
 
-    // Order as presented in Settings: Notion first (default), HCB original
-    // second, then alphabetical by title so users can scan the list.
+    static let oneLight = HCBColorScheme(
+        id: "oneLight",
+        title: "One Light",
+        isDark: false,
+        ember: .init("4078F2"),
+        moss: .init("50A14F"),
+        blue: .init("4078F2"),
+        ink: .init("383A42"),
+        cream: .init("FAFAFA"),
+        cardStroke: .init("E5E5E6")
+    )
+
+    static let ayuMirage = HCBColorScheme(
+        id: "ayuMirage",
+        title: "Ayu Mirage",
+        isDark: true,
+        ember: .init("FFCC66"),
+        moss: .init("87D96C"),
+        blue: .init("73D0FF"),
+        ink: .init("CBCCC6"),
+        cream: .init("1F2430"),
+        cardStroke: .init("171B24")
+    )
+
+    static let everforestDark = HCBColorScheme(
+        id: "everforestDark",
+        title: "Everforest Dark",
+        isDark: true,
+        ember: .init("E67E80"),
+        moss: .init("A7C080"),
+        blue: .init("7FBBB3"),
+        ink: .init("D3C6AA"),
+        cream: .init("2D353B"),
+        cardStroke: .init("3D484D")
+    )
+
+    static let everforestLight = HCBColorScheme(
+        id: "everforestLight",
+        title: "Everforest Light",
+        isDark: false,
+        ember: .init("F85552"),
+        moss: .init("8DA101"),
+        blue: .init("3A94C5"),
+        ink: .init("5C6A72"),
+        cream: .init("FDF6E3"),
+        cardStroke: .init("EFEBD4")
+    )
+
+    static let kanagawa = HCBColorScheme(
+        id: "kanagawa",
+        title: "Kanagawa",
+        isDark: true,
+        ember: .init("FFA066"),
+        moss: .init("98BB6C"),
+        blue: .init("7E9CD8"),
+        ink: .init("DCD7BA"),
+        cream: .init("1F1F28"),
+        cardStroke: .init("2A2A37")
+    )
+
+    static let rosePineMoon = HCBColorScheme(
+        id: "rosePineMoon",
+        title: "Rosé Pine Moon",
+        isDark: true,
+        ember: .init("EA9A97"),
+        moss: .init("9CCFD8"),
+        blue: .init("C4A7E7"),
+        ink: .init("E0DEF4"),
+        cream: .init("232136"),
+        cardStroke: .init("393552")
+    )
+
+    static let rosePineDawn = HCBColorScheme(
+        id: "rosePineDawn",
+        title: "Rosé Pine Dawn",
+        isDark: false,
+        ember: .init("D7827E"),
+        moss: .init("56949F"),
+        blue: .init("286983"),
+        ink: .init("575279"),
+        cream: .init("FAF4ED"),
+        cardStroke: .init("DFDAD9")
+    )
+
+    static let moonlight = HCBColorScheme(
+        id: "moonlight",
+        title: "Moonlight",
+        isDark: true,
+        ember: .init("C099FF"),
+        moss: .init("C3E88D"),
+        blue: .init("86E1FC"),
+        ink: .init("C8D3F5"),
+        cream: .init("212337"),
+        cardStroke: .init("2F334D")
+    )
+
+    static let cobalt2 = HCBColorScheme(
+        id: "cobalt2",
+        title: "Cobalt2",
+        isDark: true,
+        ember: .init("FFC600"),
+        moss: .init("3AD900"),
+        blue: .init("9EFFFF"),
+        ink: .init("FFFFFF"),
+        cream: .init("193549"),
+        cardStroke: .init("1F4662")
+    )
+
+    static let synthwave84 = HCBColorScheme(
+        id: "synthwave84",
+        title: "SynthWave '84",
+        isDark: true,
+        ember: .init("FF7EDB"),
+        moss: .init("72F1B8"),
+        blue: .init("36F9F6"),
+        ink: .init("F1F1F0"),
+        cream: .init("241B2F"),
+        cardStroke: .init("34294F")
+    )
+
+    static let shadesOfPurple = HCBColorScheme(
+        id: "shadesOfPurple",
+        title: "Shades of Purple",
+        isDark: true,
+        ember: .init("FAD000"),
+        moss: .init("3AD900"),
+        blue: .init("9EFFFF"),
+        ink: .init("F5F5F5"),
+        cream: .init("2D2B55"),
+        cardStroke: .init("1E1E3F")
+    )
+
+    static let oceanicNext = HCBColorScheme(
+        id: "oceanicNext",
+        title: "Oceanic Next",
+        isDark: true,
+        ember: .init("F99157"),
+        moss: .init("99C794"),
+        blue: .init("6699CC"),
+        ink: .init("D8DEE9"),
+        cream: .init("1B2B34"),
+        cardStroke: .init("343D46")
+    )
+
+    static let tomorrowNight = HCBColorScheme(
+        id: "tomorrowNight",
+        title: "Tomorrow Night",
+        isDark: true,
+        ember: .init("CC6666"),
+        moss: .init("B5BD68"),
+        blue: .init("81A2BE"),
+        ink: .init("C5C8C6"),
+        cream: .init("1D1F21"),
+        cardStroke: .init("373B41")
+    )
+
+    static let zenburn = HCBColorScheme(
+        id: "zenburn",
+        title: "Zenburn",
+        isDark: true,
+        ember: .init("F0DFAF"),
+        moss: .init("7F9F7F"),
+        blue: .init("8CD0D3"),
+        ink: .init("DCDCCC"),
+        cream: .init("3F3F3F"),
+        cardStroke: .init("4F4F4F")
+    )
+
+    static let horizon = HCBColorScheme(
+        id: "horizon",
+        title: "Horizon",
+        isDark: true,
+        ember: .init("E95678"),
+        moss: .init("29D398"),
+        blue: .init("26BBD9"),
+        ink: .init("C7C7C7"),
+        cream: .init("1C1E26"),
+        cardStroke: .init("2E303E")
+    )
+
+    static let iceberg = HCBColorScheme(
+        id: "iceberg",
+        title: "Iceberg",
+        isDark: true,
+        ember: .init("E2A478"),
+        moss: .init("B5BF77"),
+        blue: .init("84A0C6"),
+        ink: .init("C6C8D1"),
+        cream: .init("161821"),
+        cardStroke: .init("1E2132")
+    )
+
+    static let pandaSyntax = HCBColorScheme(
+        id: "pandaSyntax",
+        title: "Panda Syntax",
+        isDark: true,
+        ember: .init("FF75B5"),
+        moss: .init("19F9D8"),
+        blue: .init("45A9F9"),
+        ink: .init("E6E6E6"),
+        cream: .init("292A2B"),
+        cardStroke: .init("3A3B3D")
+    )
+
+    static let poimandres = HCBColorScheme(
+        id: "poimandres",
+        title: "Poimandres",
+        isDark: true,
+        ember: .init("89DDFF"),
+        moss: .init("5DE4C7"),
+        blue: .init("91B4D5"),
+        ink: .init("A6ACCD"),
+        cream: .init("1B1E28"),
+        cardStroke: .init("303340")
+    )
+
+    static let vitesseDark = HCBColorScheme(
+        id: "vitesseDark",
+        title: "Vitesse Dark",
+        isDark: true,
+        ember: .init("4D9375"),
+        moss: .init("4D9375"),
+        blue: .init("6394BF"),
+        ink: .init("DBD7CA"),
+        cream: .init("121212"),
+        cardStroke: .init("393A34")
+    )
+
+    static let vitesseLight = HCBColorScheme(
+        id: "vitesseLight",
+        title: "Vitesse Light",
+        isDark: false,
+        ember: .init("1E754F"),
+        moss: .init("1E754F"),
+        blue: .init("2993A3"),
+        ink: .init("393A34"),
+        cream: .init("FFFFFF"),
+        cardStroke: .init("DBD7CA")
+    )
+
+    // Order as presented in Settings: Notion first (default), then sorted
+    // roughly by aggregate popularity (VSCode marketplace installs,
+    // GitHub stars, cross-editor presence). Hot Cross Buns last — it's
+    // the house theme, not a ported palette.
     static let all: [HCBColorScheme] = [
         .notion,
-        .hotCrossBuns,
-        .ayuDark,
-        .ayuLight,
-        .catppuccinLatte,
-        .catppuccinMocha,
-        .dracula,
+        .oneDarkPro,
         .githubDark,
         .githubLight,
-        .gruvboxDark,
-        .gruvboxLight,
-        .materialPalenight,
-        .monokai,
-        .nightOwl,
-        .nord,
-        .oneDarkPro,
-        .rosePine,
+        .dracula,
         .solarizedDark,
         .solarizedLight,
-        .tokyoNight
+        .monokai,
+        .tokyoNight,
+        .materialPalenight,
+        .nord,
+        .gruvboxDark,
+        .gruvboxLight,
+        .catppuccinMocha,
+        .catppuccinLatte,
+        .ayuDark,
+        .ayuLight,
+        .ayuMirage,
+        .nightOwl,
+        .oneLight,
+        .rosePine,
+        .rosePineMoon,
+        .rosePineDawn,
+        .kanagawa,
+        .everforestDark,
+        .everforestLight,
+        .moonlight,
+        .cobalt2,
+        .synthwave84,
+        .shadesOfPurple,
+        .oceanicNext,
+        .tomorrowNight,
+        .zenburn,
+        .horizon,
+        .iceberg,
+        .pandaSyntax,
+        .poimandres,
+        .vitesseDark,
+        .vitesseLight,
+        .hotCrossBuns
     ]
 
     static func scheme(id: String) -> HCBColorScheme? {
