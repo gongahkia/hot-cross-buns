@@ -54,13 +54,20 @@ struct DiagnosticsView: View {
                     Section("Reminder schedule") {
                         DiagnosticRow(label: "Scheduled events", value: summary.scheduledEvents.formatted())
                         DiagnosticRow(label: "Scheduled tasks", value: summary.scheduledTasks.formatted())
+                        if summary.hasFailures {
+                            DiagnosticRow(label: "Failed events", value: summary.failedEvents.formatted())
+                            DiagnosticRow(label: "Failed tasks", value: summary.failedTasks.formatted())
+                            Text("macOS rejected \(summary.totalFailed) reminder\(summary.totalFailed == 1 ? "" : "s"). Check System Settings → Notifications → Hot Cross Buns, or the app logs for the underlying error.")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
                         if summary.hasDeferred {
                             DiagnosticRow(label: "Deferred events", value: summary.deferredEvents.formatted())
                             DiagnosticRow(label: "Deferred tasks", value: summary.deferredTasks.formatted())
                             Text("More reminders exist in the next \(summary.windowDays) days than macOS allows the app to schedule at once. They will be scheduled as earlier ones fire or are cancelled.")
                                 .font(.caption)
                                 .foregroundStyle(AppColor.ember)
-                        } else {
+                        } else if summary.hasFailures == false {
                             Text("All reminders within the next \(summary.windowDays) days are scheduled.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
