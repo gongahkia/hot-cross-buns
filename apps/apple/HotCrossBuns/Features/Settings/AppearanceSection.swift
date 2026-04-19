@@ -49,18 +49,6 @@ struct AppearanceSection: View {
             }
             .pickerStyle(.menu)
             .labelsHidden()
-            HStack(spacing: 8) {
-                ForEach(HCBColorScheme.all.prefix(6)) { scheme in
-                    ColorSchemeSwatch(scheme: scheme)
-                        .onTapGesture { model.setColorSchemeID(scheme.id) }
-                        .overlay(
-                            Circle()
-                                .strokeBorder(model.settings.colorSchemeID == scheme.id ? scheme.ember.swiftColor : .clear, lineWidth: 2)
-                                .padding(-3)
-                        )
-                        .help(scheme.title)
-                }
-            }
         }
     }
 

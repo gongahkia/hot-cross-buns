@@ -110,7 +110,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var eventTemplates: [EventTemplate]
     var menuBarStyle: MenuBarStyle
     var uiLayoutScale: Double // 0.80–1.50, geometric scale of UI chrome only (not text)
-    var uiTextSizeStep: Int // 0–6 ladder index into HCBTextSizeLadder
+    var uiTextSizePoints: Double // literal body-text point size (9–24), drives every semantic style
     var uiFontName: String? // PostScript name, nil for system
     var colorSchemeID: String // identifier into HCBColorScheme.all
 
@@ -131,7 +131,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         eventTemplates: [EventTemplate] = [],
         menuBarStyle: MenuBarStyle = .compact,
         uiLayoutScale: Double = 1.0,
-        uiTextSizeStep: Int = 3,
+        uiTextSizePoints: Double = 13.0,
         uiFontName: String? = nil,
         colorSchemeID: String = "notion"
     ) {
@@ -151,7 +151,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.eventTemplates = eventTemplates
         self.menuBarStyle = menuBarStyle
         self.uiLayoutScale = uiLayoutScale
-        self.uiTextSizeStep = uiTextSizeStep
+        self.uiTextSizePoints = uiTextSizePoints
         self.uiFontName = uiFontName
         self.colorSchemeID = colorSchemeID
     }
@@ -173,9 +173,18 @@ struct AppSettings: Hashable, Codable, Sendable {
         case eventTemplates
         case menuBarStyle
         case uiLayoutScale
-        case uiTextSizeStep
+        case uiTextSizePoints
         case uiFontName
         case colorSchemeID
+    }
+
+    // Legacy key (0-6 ladder) read via dynamic CodingKey so it stays out of
+    // synthesized encode(to:) while still being readable by init(from:).
+    private struct LegacyKey: CodingKey {
+        var stringValue: String
+        var intValue: Int? { nil }
+        init?(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { return nil }
     }
 
     init(from decoder: Decoder) throws {
@@ -201,7 +210,16 @@ struct AppSettings: Hashable, Codable, Sendable {
             menuBarStyle = showDetailedMenuBar ? .detailed : .compact
         }
         uiLayoutScale = try container.decodeIfPresent(Double.self, forKey: .uiLayoutScale) ?? 1.0
-        uiTextSizeStep = try container.decodeIfPresent(Int.self, forKey: .uiTextSizeStep) ?? 3
+        if let points = try container.decodeIfPresent(Double.self, forKey: .uiTextSizePoints) {
+            uiTextSizePoints = points
+        } else if let legacyStep = try container.decodeIfPresent(Int.self, forKey: .uiTextSizeStep) {
+            // Migrate 0-6 ladder to literal points. Prior mapping:
+            // xSmall=11, small=12, medium=12, large=13, xLarge=15, xxLarge=17, xxxLarge=19.
+            let ladder: [Double] = [11, 12, 12, 13, 15, 17, 19]
+            uiTextSizePoints = ladder[max(0, min(legacyStep, ladder.count - 1))]
+        } else {
+            uiTextSizePoints = 13.0
+        }
         uiFontName = try container.decodeIfPresent(String.self, forKey: .uiFontName)
         colorSchemeID = try container.decodeIfPresent(String.self, forKey: .colorSchemeID) ?? "notion"
     }
