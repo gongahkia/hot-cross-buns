@@ -689,6 +689,32 @@ final class AppModel {
     private func recordUndo(_ action: UndoableAction) {
         undoable = action
         undoActionID = UUID()
+        // Record a permanent audit entry in parallel — the undo window
+        // is short (~6s) but the audit log is a forever record of what
+        // the user did, useful when reconstructing "when did I mark
+        // that task done?" months later.
+        let (kind, resourceID, summary, metadata) = Self.auditTuple(for: action)
+        Task { await MutationAuditLog.shared.record(kind: kind, resourceID: resourceID, summary: summary, metadata: metadata) }
+    }
+
+    private static func auditTuple(for action: UndoableAction) -> (String, String, String, [String: String]) {
+        switch action {
+        case .taskCompletion(let id, let prior, let title):
+            return (
+                prior ? "task.reopen" : "task.complete",
+                id,
+                title,
+                ["priorCompleted": String(prior)]
+            )
+        case .taskDelete(let snap):
+            return ("task.delete", snap.id, snap.title, ["list": snap.taskListID])
+        case .taskEdit(let prior):
+            return ("task.edit", prior.id, prior.title, ["list": prior.taskListID])
+        case .eventDelete(let snap):
+            return ("event.delete", snap.id, snap.summary, ["calendar": snap.calendarID])
+        case .eventEdit(let prior):
+            return ("event.edit", prior.id, prior.summary, ["calendar": prior.calendarID])
+        }
     }
 
     func clearUndo() {

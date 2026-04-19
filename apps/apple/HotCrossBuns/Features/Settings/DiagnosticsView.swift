@@ -14,6 +14,7 @@ struct DiagnosticsView: View {
     @State private var logEntries: [LogEntry] = []
     @State private var logLevelFilter: LogLevel = .info
     @State private var logCopiedAt: Date?
+    @State private var auditEntries: [MutationAuditEntry] = []
     @State private var expandedSystemReportID: String?
     @State private var systemReportPreview: String = ""
 
@@ -170,6 +171,22 @@ struct DiagnosticsView: View {
                     }
                 }
 
+                if auditEntries.isEmpty == false {
+                    Section("Mutation history") {
+                        Text("Last \(auditEntries.count) user mutations. Useful for reconstructing \"when did I do that?\" after the undo window has closed.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 3) {
+                                ForEach(auditEntries) { entry in
+                                    AuditEntryRow(entry: entry)
+                                }
+                            }
+                        }
+                        .frame(maxHeight: 220)
+                    }
+                }
+
                 Section("Logs") {
                     HStack {
                         Picker("Level", selection: $logLevelFilter) {
@@ -250,6 +267,7 @@ struct DiagnosticsView: View {
                 lastCrash = CrashReporter.readLastCrash()
                 systemCrashReports = SystemCrashReportReader.recentReports(limit: 5)
                 notificationSummary = await model.notificationScheduleSummary()
+                auditEntries = await MutationAuditLog.shared.recentEntries(limit: 100)
                 refreshLogs()
             }
             .confirmationDialog(
@@ -357,6 +375,45 @@ struct DiagnosticsView: View {
         )
         if url != nil {
             copiedAt = Date() // reuse the button-label success indicator
+        }
+    }
+}
+
+private struct AuditEntryRow: View {
+    let entry: MutationAuditEntry
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: symbol)
+                .font(.caption)
+                .foregroundStyle(tint)
+                .frame(width: 14)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(entry.summary)
+                    .font(.caption.monospaced())
+                    .lineLimit(2)
+                Text("\(entry.kind) · \(entry.timestamp.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var symbol: String {
+        switch entry.kind {
+        case "task.complete", "task.reopen": "checkmark.circle"
+        case "task.delete", "event.delete": "trash"
+        case "task.edit", "event.edit": "pencil"
+        default: "circle"
+        }
+    }
+
+    private var tint: Color {
+        switch entry.kind {
+        case "task.delete", "event.delete": AppColor.ember
+        case "task.edit", "event.edit": AppColor.blue
+        default: AppColor.moss
         }
     }
 }
