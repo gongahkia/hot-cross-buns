@@ -260,8 +260,15 @@ actor SyncScheduler {
         let fullSyncTaskListIDs = Set(results.filter(\.didFullSync).map(\.taskListID))
         var tasksByID: [TaskMirror.ID: TaskMirror] = [:]
 
-        for task in existing where fullSyncTaskListIDs.contains(task.taskListID) == false {
-            tasksByID[task.id] = task
+        for task in existing {
+            let isPending = OptimisticID.isPending(task.id)
+            let preservedByIncrementalSync = fullSyncTaskListIDs.contains(task.taskListID) == false
+            // Optimistic local-ID tasks must survive full syncs — they will never be in the
+            // server response until their create mutation lands, and dropping them here leaves
+            // the row invisible until the next replay attempt.
+            if isPending || preservedByIncrementalSync {
+                tasksByID[task.id] = task
+            }
         }
 
         for task in results.flatMap(\.tasks) {
@@ -279,8 +286,12 @@ actor SyncScheduler {
         let fullSyncCalendarIDs = Set(results.filter(\.didFullSync).map(\.calendarID))
         var eventsByID: [CalendarEventMirror.ID: CalendarEventMirror] = [:]
 
-        for event in existing where fullSyncCalendarIDs.contains(event.calendarID) == false {
-            eventsByID[event.id] = event
+        for event in existing {
+            let isPending = OptimisticID.isPending(event.id)
+            let preservedByIncrementalSync = fullSyncCalendarIDs.contains(event.calendarID) == false
+            if isPending || preservedByIncrementalSync {
+                eventsByID[event.id] = event
+            }
         }
 
         for event in results.flatMap(\.events) {
