@@ -15,7 +15,11 @@ struct MenuBarExtraContent: View {
             case .compact: CompactMenuBarPanel()
             }
         }
+        .id(model.settings.colorSchemeID)
         .withHCBAppearance(model.settings)
+        .onChange(of: model.settings.colorSchemeID, initial: true) { _, newID in
+            HCBColorSchemeStore.current = HCBColorScheme.scheme(id: newID) ?? .notion
+        }
     }
 }
 

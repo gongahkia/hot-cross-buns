@@ -1,54 +1,39 @@
 import AppKit
 import SwiftUI
 
+// Semantic colors resolve through the active HCBColorScheme. AppColor.X
+// accessors stay as static properties so the 185 existing call sites keep
+// working; the actual palette comes from HCBColorSchemeStore.current,
+// which Settings updates. The MacSidebarShell applies .id(schemeID) so
+// views re-render when the scheme changes.
 enum AppColor {
-    static let ember = Color(red: 0.965, green: 0.420, blue: 0.231)
-    static let moss = Color(red: 0.235, green: 0.447, blue: 0.333)
-    static let blue = Color(red: 0.086, green: 0.467, blue: 1.000)
-
-    static let ink = dynamic(
-        light: NSColor(red: 0.106, green: 0.118, blue: 0.145, alpha: 1),
-        dark: NSColor(red: 0.960, green: 0.955, blue: 0.935, alpha: 1)
-    )
-
-    static let cream = dynamic(
-        light: NSColor(red: 0.988, green: 0.957, blue: 0.894, alpha: 1),
-        dark: NSColor(red: 0.145, green: 0.135, blue: 0.120, alpha: 1)
-    )
-
-    static let cardStroke = dynamic(
-        light: NSColor(white: 0, alpha: 0.08),
-        dark: NSColor(white: 1, alpha: 0.14)
-    )
-
-    private static func dynamic(light: NSColor, dark: NSColor) -> Color {
-        Color(nsColor: NSColor(name: nil) { appearance in
-            let isDark = appearance.bestMatch(from: [.darkAqua, .vibrantDark, .accessibilityHighContrastDarkAqua, .accessibilityHighContrastVibrantDark]) != nil
-            return isDark ? dark : light
-        })
-    }
+    static var ember: Color { HCBColorSchemeStore.current.ember.swiftColor }
+    static var moss: Color { HCBColorSchemeStore.current.moss.swiftColor }
+    static var blue: Color { HCBColorSchemeStore.current.blue.swiftColor }
+    static var ink: Color { HCBColorSchemeStore.current.ink.swiftColor }
+    static var cream: Color { HCBColorSchemeStore.current.cream.swiftColor }
+    static var cardStroke: Color { HCBColorSchemeStore.current.cardStroke.swiftColor }
 }
 
 struct AppBackground: ViewModifier {
-    @Environment(\.colorScheme) private var colorScheme
-
     func body(content: Content) -> some View {
-        content
+        let scheme = HCBColorSchemeStore.current
+        return content
             .scrollContentBackground(.hidden)
             .background {
                 ZStack {
                     LinearGradient(
-                        colors: gradientColors,
+                        colors: gradientColors(for: scheme),
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                     Circle()
-                        .fill(AppColor.ember.opacity(colorScheme == .dark ? 0.22 : 0.30))
+                        .fill(AppColor.ember.opacity(scheme.isDark ? 0.22 : 0.30))
                         .frame(width: 280, height: 280)
                         .blur(radius: 36)
                         .offset(x: -160, y: -260)
                     Circle()
-                        .fill(AppColor.blue.opacity(colorScheme == .dark ? 0.14 : 0.18))
+                        .fill(AppColor.blue.opacity(scheme.isDark ? 0.14 : 0.18))
                         .frame(width: 360, height: 360)
                         .blur(radius: 48)
                         .offset(x: 180, y: 240)
@@ -57,18 +42,22 @@ struct AppBackground: ViewModifier {
             }
     }
 
-    private var gradientColors: [Color] {
-        if colorScheme == .dark {
-            return [
-                Color(red: 0.102, green: 0.095, blue: 0.090),
-                Color(red: 0.158, green: 0.134, blue: 0.110)
-            ]
-        }
-        return [
-            AppColor.cream,
-            Color(red: 0.992, green: 0.886, blue: 0.737)
-        ]
+    // Derive a subtle second gradient stop by brightening (light scheme)
+    // or darkening (dark scheme) the base cream — avoids hard-coding per
+    // scheme and still reads as a gradient, not a flat fill.
+    private func gradientColors(for scheme: HCBColorScheme) -> [Color] {
+        let base = scheme.cream
+        let delta: Double = scheme.isDark ? 0.04 : -0.04
+        let second = HCBColorScheme.RGB(
+            red: clamp(base.red - delta),
+            green: clamp(base.green - delta),
+            blue: clamp(base.blue - delta),
+            alpha: base.alpha
+        )
+        return [base.swiftColor, second.swiftColor]
     }
+
+    private func clamp(_ v: Double) -> Double { max(0, min(1, v)) }
 }
 
 struct CardSurface: ViewModifier {

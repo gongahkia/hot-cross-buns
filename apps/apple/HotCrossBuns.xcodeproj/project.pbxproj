@@ -47,6 +47,7 @@
 		3CD7D2817F178F819CEDA958 /* Snapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1622469DA249EE1B10188D98 /* Snapshots.swift */; };
 		3D213BE8FAC38B7A5EA94EEB /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F51F65CDD611063E476A60A9 /* NetworkMonitor.swift */; };
 		3E796CFC3C8917CD171472AC /* GoogleTaskDueDateFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BFD977211942ADB9C88E1CF /* GoogleTaskDueDateFormatterTests.swift */; };
+		423A2928A33D4C5387CC339B /* ColorSchemes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C23CE545813F082C04B501C8 /* ColorSchemes.swift */; };
 		46D517DF3CCDC62A677E30B0 /* StoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B73A839AA07E6C98129ED4BB /* StoreView.swift */; };
 		4A0CC79BFC861B5D27E9F288 /* AppCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 838CDC9397AEB8B081E732EE /* AppCommands.swift */; };
 		4D00CE67951243CCE90386B4 /* QuickAddView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDB427444279DD0F8E4B2281 /* QuickAddView.swift */; };
@@ -271,6 +272,7 @@
 		BD404C87FD0BC2462B844C8C /* TaskHierarchy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskHierarchy.swift; sourceTree = "<group>"; };
 		BF1701AD968AE58FBC7E76F7 /* GuestsSectionEmailTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestsSectionEmailTests.swift; sourceTree = "<group>"; };
 		BFA7DEBBF786934A5D85FE41 /* AppStatusBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStatusBanner.swift; sourceTree = "<group>"; };
+		C23CE545813F082C04B501C8 /* ColorSchemes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorSchemes.swift; sourceTree = "<group>"; };
 		C9947809DE2CC9C0058C3BA2 /* OptimisticWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimisticWriterTests.swift; sourceTree = "<group>"; };
 		CA877143F8C7670474448015 /* EventTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventTemplate.swift; sourceTree = "<group>"; };
 		CC9C2158939F77166D48250B /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
@@ -721,6 +723,7 @@
 		D9B2C75CF27FEC1C9568088A /* Design */ = {
 			isa = PBXGroup;
 			children = (
+				C23CE545813F082C04B501C8 /* ColorSchemes.swift */,
 				CC9C2158939F77166D48250B /* DesignTokens.swift */,
 				11D2101729E351EFCFEB1B66 /* HCBAppearance.swift */,
 				2A2CC11D691079D5BE603A94 /* MarkdownEditor.swift */,
@@ -897,6 +900,7 @@
 				E97AE973C28C215FBD434B5A /* CalendarGridLayout.swift in Sources */,
 				523A574D6D48B12B4587E086 /* CalendarHomeView.swift in Sources */,
 				06BEC9D87D21345A636AADB8 /* CalendarMirror.swift in Sources */,
+				423A2928A33D4C5387CC339B /* ColorSchemes.swift in Sources */,
 				2520B85F92EAE261CAEE3A4B /* CommandPaletteView.swift in Sources */,
 				31AF912F0C07426A97089C29 /* CrashReporter.swift in Sources */,
 				F544AFBC74E117992DB58913 /* CustomFilter.swift in Sources */,

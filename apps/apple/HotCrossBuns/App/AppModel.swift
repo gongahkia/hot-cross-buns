@@ -1335,6 +1335,13 @@ final class AppModel {
         Task { await saveCurrentState() }
     }
 
+    func setColorSchemeID(_ id: String) {
+        guard settings.colorSchemeID != id else { return }
+        guard HCBColorScheme.scheme(id: id) != nil else { return }
+        settings.colorSchemeID = id
+        Task { await saveCurrentState() }
+    }
+
     func upsertCustomFilter(_ filter: CustomFilterDefinition) {
         if let index = settings.customFilters.firstIndex(where: { $0.id == filter.id }) {
             settings.customFilters[index] = filter
@@ -1897,6 +1904,7 @@ final class AppModel {
         settings = state.settings
         syncCheckpoints = state.syncCheckpoints
         pendingMutations = state.pendingMutations
+        HCBColorSchemeStore.current = HCBColorScheme.scheme(id: settings.colorSchemeID) ?? .notion
         rebuildSnapshots()
     }
 

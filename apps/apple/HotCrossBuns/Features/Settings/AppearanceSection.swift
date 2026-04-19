@@ -7,16 +7,59 @@ struct AppearanceSection: View {
 
     var body: some View {
         Section("Appearance") {
+            colorSchemeRow
             layoutScaleRow
             textSizeRow
             fontRow
-            Text("Layout scale resizes UI chrome (sidebar, icons, padding). Text size and font are controlled independently. System dialogs (alerts, confirmation dialogs) follow macOS display settings and aren't affected.")
+            Text("Layout scale resizes UI chrome (sidebar, icons, padding). Text size, font, and color scheme are controlled independently. System dialogs (alerts, confirmation dialogs) follow macOS display settings and aren't affected.")
                 .hcbFont(.footnote)
                 .foregroundStyle(.secondary)
         }
         .task {
             if availableFonts.isEmpty {
                 availableFonts = HCBInstalledFonts.available()
+            }
+        }
+    }
+
+    private var colorSchemeRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Color scheme")
+                Spacer()
+                Button("Reset to Notion") { model.setColorSchemeID("notion") }
+                    .buttonStyle(.borderless)
+                    .hcbFont(.caption)
+                    .disabled(model.settings.colorSchemeID == "notion")
+            }
+            Picker("Scheme", selection: Binding(
+                get: { model.settings.colorSchemeID },
+                set: { model.setColorSchemeID($0) }
+            )) {
+                ForEach(HCBColorScheme.all) { scheme in
+                    HStack(spacing: 8) {
+                        ColorSchemeSwatch(scheme: scheme)
+                        Text(scheme.title)
+                        if scheme.isDark {
+                            Text("· dark").foregroundStyle(.secondary)
+                        }
+                    }
+                    .tag(scheme.id)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            HStack(spacing: 8) {
+                ForEach(HCBColorScheme.all.prefix(6)) { scheme in
+                    ColorSchemeSwatch(scheme: scheme)
+                        .onTapGesture { model.setColorSchemeID(scheme.id) }
+                        .overlay(
+                            Circle()
+                                .strokeBorder(model.settings.colorSchemeID == scheme.id ? scheme.ember.swiftColor : .clear, lineWidth: 2)
+                                .padding(-3)
+                        )
+                        .help(scheme.title)
+                }
             }
         }
     }
@@ -104,5 +147,25 @@ struct AppearanceSection: View {
         let q = fontQuery.trimmingCharacters(in: .whitespaces)
         guard q.isEmpty == false else { return availableFonts }
         return availableFonts.filter { $0.localizedCaseInsensitiveContains(q) }
+    }
+}
+
+private struct ColorSchemeSwatch: View {
+    let scheme: HCBColorScheme
+
+    var body: some View {
+        ZStack {
+            Circle().fill(scheme.cream.swiftColor)
+            Circle()
+                .fill(scheme.ember.swiftColor)
+                .frame(width: 8, height: 8)
+                .offset(x: -3, y: -3)
+            Circle()
+                .fill(scheme.blue.swiftColor)
+                .frame(width: 8, height: 8)
+                .offset(x: 3, y: 3)
+        }
+        .frame(width: 22, height: 22)
+        .overlay(Circle().strokeBorder(scheme.cardStroke.swiftColor, lineWidth: 0.5))
     }
 }

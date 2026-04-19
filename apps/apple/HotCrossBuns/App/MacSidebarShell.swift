@@ -73,7 +73,9 @@ struct MacSidebarShell: View {
 
     var body: some View {
         shellCore
+            .id(model.settings.colorSchemeID) // force re-render so AppColor.X picks up the new palette
             .withHCBAppearance(model.settings)
+            .preferredColorScheme(HCBColorScheme.scheme(id: model.settings.colorSchemeID)?.isDark == true ? .dark : .light)
             .appBackground()
             .safeAreaInset(edge: .top) {
                 AppStatusBanner(
@@ -125,6 +127,7 @@ struct MacSidebarShell: View {
             .focusedSceneValue(\.appCommandActions, appCommandActions)
             .onAppear {
                 selection = SidebarItem(rawValue: storedSelection) ?? .calendar
+                HCBColorSchemeStore.current = HCBColorScheme.scheme(id: model.settings.colorSchemeID) ?? .notion
                 configureCommandActions()
                 configureVimMonitor()
                 configureGlobalHotkey()
@@ -138,6 +141,9 @@ struct MacSidebarShell: View {
             }
             .onChange(of: model.settings.enableVimKeybindings) { _, newValue in
                 vimMonitor.isEnabled = newValue
+            }
+            .onChange(of: model.settings.colorSchemeID, initial: true) { _, newID in
+                HCBColorSchemeStore.current = HCBColorScheme.scheme(id: newID) ?? .notion
             }
             .onChange(of: model.settings.enableGlobalHotkey) { _, newValue in
                 if let delegate = NSApp.delegate as? AppDelegate {
