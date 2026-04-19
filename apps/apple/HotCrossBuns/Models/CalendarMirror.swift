@@ -7,6 +7,46 @@ struct CalendarListMirror: Identifiable, Hashable, Codable, Sendable {
     var isSelected: Bool
     var accessRole: String
     var etag: String?
+    var defaultReminderMinutes: [Int]
+
+    init(
+        id: String,
+        summary: String,
+        colorHex: String,
+        isSelected: Bool,
+        accessRole: String,
+        etag: String? = nil,
+        defaultReminderMinutes: [Int] = []
+    ) {
+        self.id = id
+        self.summary = summary
+        self.colorHex = colorHex
+        self.isSelected = isSelected
+        self.accessRole = accessRole
+        self.etag = etag
+        self.defaultReminderMinutes = defaultReminderMinutes
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case summary
+        case colorHex
+        case isSelected
+        case accessRole
+        case etag
+        case defaultReminderMinutes
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        summary = try container.decode(String.self, forKey: .summary)
+        colorHex = try container.decode(String.self, forKey: .colorHex)
+        isSelected = try container.decode(Bool.self, forKey: .isSelected)
+        accessRole = try container.decode(String.self, forKey: .accessRole)
+        etag = try container.decodeIfPresent(String.self, forKey: .etag)
+        defaultReminderMinutes = try container.decodeIfPresent([Int].self, forKey: .defaultReminderMinutes) ?? []
+    }
 }
 
 struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
@@ -22,6 +62,7 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
     var etag: String?
     var updatedAt: Date?
     var reminderMinutes: [Int]
+    var usedDefaultReminders: Bool
     var location: String
     var attendeeEmails: [String]
     var attendeeResponses: [CalendarEventAttendee]
@@ -41,6 +82,7 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         etag: String?,
         updatedAt: Date?,
         reminderMinutes: [Int] = [],
+        usedDefaultReminders: Bool = false,
         location: String = "",
         attendeeEmails: [String] = [],
         attendeeResponses: [CalendarEventAttendee] = [],
@@ -59,6 +101,7 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         self.etag = etag
         self.updatedAt = updatedAt
         self.reminderMinutes = reminderMinutes
+        self.usedDefaultReminders = usedDefaultReminders
         self.location = location
         self.attendeeEmails = attendeeEmails
         self.attendeeResponses = attendeeResponses
@@ -79,6 +122,7 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         case etag
         case updatedAt
         case reminderMinutes
+        case usedDefaultReminders
         case location
         case attendeeEmails
         case attendeeResponses
@@ -100,6 +144,7 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         etag = try container.decodeIfPresent(String.self, forKey: .etag)
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
         reminderMinutes = try container.decodeIfPresent([Int].self, forKey: .reminderMinutes) ?? []
+        usedDefaultReminders = try container.decodeIfPresent(Bool.self, forKey: .usedDefaultReminders) ?? false
         location = try container.decodeIfPresent(String.self, forKey: .location) ?? ""
         attendeeEmails = try container.decodeIfPresent([String].self, forKey: .attendeeEmails) ?? []
         attendeeResponses = try container.decodeIfPresent([CalendarEventAttendee].self, forKey: .attendeeResponses) ?? []

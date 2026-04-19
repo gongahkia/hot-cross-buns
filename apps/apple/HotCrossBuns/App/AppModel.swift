@@ -1956,10 +1956,23 @@ final class AppModel {
     }
 
     private func upsert(_ event: CalendarEventMirror) {
-        if let index = events.firstIndex(where: { $0.id == event.id }) {
-            events[index] = event
+        var resolved = event
+        // When Google reports useDefault=true and no explicit overrides,
+        // surface the calendar's defaultReminders so the local-notification
+        // scheduler fires at the user's actual configured offset instead
+        // of a hard-coded fallback. Only applies to timed events — all-day
+        // Google events don't honour the default in Calendar either.
+        if resolved.usedDefaultReminders,
+           resolved.reminderMinutes.isEmpty,
+           resolved.isAllDay == false,
+           let cal = calendars.first(where: { $0.id == resolved.calendarID }),
+           cal.defaultReminderMinutes.isEmpty == false {
+            resolved.reminderMinutes = cal.defaultReminderMinutes
+        }
+        if let index = events.firstIndex(where: { $0.id == resolved.id }) {
+            events[index] = resolved
         } else {
-            events.append(event)
+            events.append(resolved)
         }
         rebuildSnapshots()
     }

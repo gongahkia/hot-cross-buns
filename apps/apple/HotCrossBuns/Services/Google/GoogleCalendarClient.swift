@@ -16,7 +16,11 @@ struct GoogleCalendarClient: Sendable {
                 colorHex: item.backgroundColor ?? "#F66B3D",
                 isSelected: item.selected ?? true,
                 accessRole: item.accessRole,
-                etag: item.etag
+                etag: item.etag,
+                defaultReminderMinutes: item.defaultReminders?
+                    .filter { $0.method == "popup" }
+                    .map(\.minutes)
+                    .sorted() ?? []
             )
         }
     }
@@ -247,6 +251,7 @@ private struct GoogleCalendarListItemDTO: Decodable, Sendable {
     var selected: Bool?
     var accessRole: String
     var etag: String?
+    var defaultReminders: [GoogleEventReminderDTO]?
 }
 
 private struct GoogleEventsResponse: Decodable, Sendable {
@@ -319,6 +324,7 @@ private struct GoogleEventDTO: Decodable, Sendable {
             etag: etag,
             updatedAt: updated,
             reminderMinutes: reminders?.customPopupMinutes ?? [],
+            usedDefaultReminders: reminders?.useDefault == true,
             location: location ?? "",
             attendeeEmails: attendeeList.compactMap(\.email),
             attendeeResponses: attendeeResponses,
