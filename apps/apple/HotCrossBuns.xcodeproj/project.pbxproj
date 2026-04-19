@@ -72,6 +72,7 @@
 		843376C55956307CFD28B153 /* TaskInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA7AA6D7D06BBC2852BAFCDF /* TaskInspectorView.swift */; };
 		84DA071F41D735D2217D9544 /* ReviewBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88FB5A6B5626CA82F91766D0 /* ReviewBuilder.swift */; };
 		870B6E741963A990B14961F4 /* ForecastBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2316DAFF7860DC61BD91AF52 /* ForecastBuilderTests.swift */; };
+		8794B1B9554FAEC8B6C4D07E /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB5F4EB983E593C181231248 /* AppLogger.swift */; };
 		87ED382937C47396AA2BC11E /* VimTranslator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB4C3356A3497005EE824DBB /* VimTranslator.swift */; };
 		880402797CE64EBB95F67CBE /* SharedInboxItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = E082142928EB9001E39C6CA1 /* SharedInboxItem.swift */; };
 		8CF3F07B84CA27F8F2DEF4A8 /* GoogleAPITransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EC332C6DC51DB8C6B72B7A7 /* GoogleAPITransport.swift */; };
@@ -240,6 +241,7 @@
 		B73A839AA07E6C98129ED4BB /* StoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreView.swift; sourceTree = "<group>"; };
 		B73DF47EA023580C762E1BE3 /* VimKeyboardMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VimKeyboardMonitor.swift; sourceTree = "<group>"; };
 		B79FBFAB7AA899E2C59E1956 /* VimTranslatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VimTranslatorTests.swift; sourceTree = "<group>"; };
+		BB5F4EB983E593C181231248 /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		BC17ECA270BCECA15B26A6D2 /* TaskReminderMarkers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskReminderMarkers.swift; sourceTree = "<group>"; };
 		BD3A5E1617A36FD0134FB67E /* ForecastBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForecastBuilder.swift; sourceTree = "<group>"; };
 		BD404C87FD0BC2462B844C8C /* TaskHierarchy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskHierarchy.swift; sourceTree = "<group>"; };
@@ -513,6 +515,7 @@
 				925C270356E32422F9A8BDF9 /* Auth */,
 				1D684E4385C9F2F47D71AE21 /* Google */,
 				575A2CD2A66287D806567296 /* ICS */,
+				E793F86B374AC59A9E087732 /* Logging */,
 				76F8E601031E265C7FC5372B /* Markdown */,
 				F5A39C8020ABD1C960424487 /* Notifications */,
 				C5B02D0F18393C84A0D6B240 /* Persistence */,
@@ -676,6 +679,14 @@
 			path = Design;
 			sourceTree = "<group>";
 		};
+		E793F86B374AC59A9E087732 /* Logging */ = {
+			isa = PBXGroup;
+			children = (
+				BB5F4EB983E593C181231248 /* AppLogger.swift */,
+			);
+			path = Logging;
+			sourceTree = "<group>";
+		};
 		F5A39C8020ABD1C960424487 /* Notifications */ = {
 			isa = PBXGroup;
 			children = (
@@ -819,6 +830,7 @@
 				4A0CC79BFC861B5D27E9F288 /* AppCommands.swift in Sources */,
 				5BBDE6D66EBF10AFEFFA71F9 /* AppDelegate.swift in Sources */,
 				B2D69FAFF7FB7BFDDD816728 /* AppIntentHandoff.swift in Sources */,
+				8794B1B9554FAEC8B6C4D07E /* AppLogger.swift in Sources */,
 				1D9C5B69B8A123DB5CA67B87 /* AppModel.swift in Sources */,
 				E219DD1B1AD052112F17BD50 /* AppStatusBanner.swift in Sources */,
 				7F105DF2722D09956A81291D /* BackoffPolicy.swift in Sources */,
