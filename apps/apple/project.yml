@@ -59,6 +59,14 @@ targets:
         NSHumanReadableCopyright: Copyright 2026 Gongahkia
         SUFeedURL: https://gongahkia.github.io/hot-cross-buns/appcast.xml
         SUEnableAutomaticChecks: true
+        NSServices:
+          - NSMenuItem:
+              default: Create Hot Cross Buns task
+            NSMessage: handleCreateTaskService
+            NSPortName: Hot Cross Buns
+            NSSendTypes:
+              - public.utf8-plain-text
+            NSReturnTypes: []
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.gongahkia.hotcrossbuns.mac
