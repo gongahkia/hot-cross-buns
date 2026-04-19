@@ -79,7 +79,15 @@ struct RecurrenceRule: Equatable, Hashable, Sendable {
 
     var summary: String {
         if interval == 1 { return frequency.title }
-        let label = frequency.title.lowercased()
-        return "Every \(interval) \(label.trimmingCharacters(in: CharacterSet(charactersIn: "ly")))s"
+        return "Every \(interval) \(pluralUnit)"
+    }
+
+    private var pluralUnit: String {
+        switch frequency {
+        case .daily: "days"
+        case .weekly: "weeks"
+        case .monthly: "months"
+        case .yearly: "years"
+        }
     }
 }
