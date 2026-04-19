@@ -55,4 +55,57 @@ enum KeychainProbe {
         ])
         return health
     }
+
+    // End-to-end write/read/delete cycle against a throwaway generic password.
+    // GIDSignIn's "keychain error" (-2) wraps GTMKeychainStore failures without
+    // exposing the underlying OSStatus. Running this probe before sign-in lets
+    // us confirm whether the process can write to the Keychain at all — if
+    // this succeeds but GIDSignIn still fails, the bug is in how the SDK
+    // configures its access group, not a general Keychain permission issue.
+    static func runWriteProbe() {
+        let service = "com.gongahkia.hotcrossbuns.keychain-write-probe"
+        let account = "diagnostic"
+        let data = "probe".data(using: .utf8) ?? Data()
+
+        // Best-effort cleanup of any prior probe entry before we try to add.
+        let deletePre: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        let preDeleteStatus = SecItemDelete(deletePre as CFDictionary)
+
+        let add: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+        ]
+        let addStatus = SecItemAdd(add as CFDictionary, nil)
+
+        let read: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: AnyObject?
+        let readStatus = SecItemCopyMatching(read as CFDictionary, &result)
+
+        let deletePost: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        let deleteStatus = SecItemDelete(deletePost as CFDictionary)
+
+        AppLogger.info("keychain write-probe", category: .auth, metadata: [
+            "preDelete": String(preDeleteStatus),
+            "add": String(addStatus),
+            "read": String(readStatus),
+            "delete": String(deleteStatus)
+        ])
+    }
 }

@@ -190,12 +190,18 @@ struct AppSettings: Hashable, Codable, Sendable {
         case compact
         case detailed
         case weekly
+        case focusStrip
+        case dayTimeline
+        case minimalBadge
 
         var title: String {
             switch self {
             case .compact: "Compact"
             case .detailed: "Calendar"
             case .weekly: "Week-at-a-glance"
+            case .focusStrip: "Focus strip"
+            case .dayTimeline: "Day timeline"
+            case .minimalBadge: "Minimal badges"
             }
         }
     }
