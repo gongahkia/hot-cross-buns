@@ -59,9 +59,11 @@ enum AppRoute: Hashable {
 
 enum SheetDestination: Identifiable, Hashable {
     case addTask
+    case editTask(TaskMirror.ID)
     case quickAddTask
     case quickAddEvent
     case addEvent
+    case editEvent(CalendarEventMirror.ID)
     case addEventAt(Date, allDay: Bool)
     case addEventRange(Date, Date, allDay: Bool)
     case quickCreate(Date, allDay: Bool)
@@ -71,26 +73,21 @@ enum SheetDestination: Identifiable, Hashable {
 
     var id: String {
         switch self {
-        case .addTask:
-            "addTask"
-        case .quickAddTask:
-            "quickAddTask"
-        case .quickAddEvent:
-            "quickAddEvent"
-        case .addEvent:
-            "addEvent"
+        case .addTask: "addTask"
+        case .editTask(let id): "editTask-\(id)"
+        case .quickAddTask: "quickAddTask"
+        case .quickAddEvent: "quickAddEvent"
+        case .addEvent: "addEvent"
+        case .editEvent(let id): "editEvent-\(id)"
         case .addEventAt(let date, let allDay):
             "addEventAt-\(date.timeIntervalSince1970)-\(allDay)"
         case .addEventRange(let start, let end, let allDay):
             "addEventRange-\(start.timeIntervalSince1970)-\(end.timeIntervalSince1970)-\(allDay)"
         case .quickCreate(let date, let allDay):
             "quickCreate-\(date.timeIntervalSince1970)-\(allDay)"
-        case .syncSettings:
-            "syncSettings"
-        case .diagnostics:
-            "diagnostics"
-        case .manageTaskLists:
-            "manageTaskLists"
+        case .syncSettings: "syncSettings"
+        case .diagnostics: "diagnostics"
+        case .manageTaskLists: "manageTaskLists"
         }
     }
 }
@@ -128,12 +125,26 @@ private struct SheetDestinationHost: View {
         switch destination {
         case .addTask:
             AddTaskSheet()
+        case .editTask(let id):
+            if let task = model.task(id: id) {
+                AddTaskSheet(existingTask: task)
+            } else {
+                ContentUnavailableView("Task not found", systemImage: "checklist",
+                                       description: Text("This task may have been deleted in Google Tasks."))
+            }
         case .quickAddTask:
             QuickAddView()
         case .quickAddEvent:
             QuickAddEventView()
         case .addEvent:
             AddEventSheet()
+        case .editEvent(let id):
+            if let event = model.event(id: id) {
+                AddEventSheet(existingEvent: event)
+            } else {
+                ContentUnavailableView("Event not found", systemImage: "calendar.badge.exclamationmark",
+                                       description: Text("This event may have been deleted in Google Calendar."))
+            }
         case .addEventAt(let date, let allDay):
             AddEventSheet(prefilledStart: date, prefilledIsAllDay: allDay)
         case .addEventRange(let start, let end, let allDay):

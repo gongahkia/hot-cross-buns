@@ -343,16 +343,9 @@ struct MacSidebarShell: View {
         Button {
             toggleSidebarCollapsed()
         } label: {
-            Text("Cmd S")
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .lineLimit(1)
+            Image(systemName: isSidebarCollapsed ? "sidebar.squares.left" : "sidebar.left")
+                .hcbFontSystem(size: 13, weight: .semibold)
                 .foregroundStyle(.secondary)
-                .hcbScaledPadding(.horizontal, 8)
-                .hcbScaledPadding(.vertical, 4)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(AppColor.ink.opacity(0.08))
-                )
         }
         .buttonStyle(.borderless)
         .help(isSidebarCollapsed ? "Expand sidebar (⌘S)" : "Collapse to icons (⌘S)")
@@ -437,6 +430,7 @@ struct MacSidebarShell: View {
                 }
             }
             .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
         }
         .frame(width: expandedSidebarWidth)
         .toolbar(removing: .sidebarToggle)

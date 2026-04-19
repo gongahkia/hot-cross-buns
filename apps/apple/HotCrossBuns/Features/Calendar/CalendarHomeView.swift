@@ -103,10 +103,6 @@ struct CalendarHomeView: View {
             Text("\"\(request.eventSummary)\" is part of a recurring series. \"Every event in the series\" moves past occurrences too — not just upcoming ones. This is destructive and can't be undone.")
         }
         .toolbar {
-            ToolbarItem(placement: .navigation) {
-                CalendarSearchField(text: $searchQuery)
-                    .disabled(model.account == nil)
-            }
             ToolbarItemGroup {
                 if mode == .week {
                     Button {
@@ -118,12 +114,6 @@ struct CalendarHomeView: View {
                     .help("Toggle task drawer (Cmd+J)")
                     .disabled(model.account == nil)
                 }
-                Button {
-                    router.present(.addEvent)
-                } label: {
-                    Label("Add Event", systemImage: "plus")
-                }
-                .disabled(model.account == nil)
             }
         }
         .onAppear {
@@ -190,6 +180,7 @@ struct CalendarHomeView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
             .fixedSize()
         }
         .hcbScaledPadding(.horizontal, 16)
@@ -878,6 +869,10 @@ struct AddEventSheet: View {
     @State private var isSaving = false
     @State private var quickCreateText = ""
     @State private var parsedPreview: ParsedQuickAddEvent?
+    // Non-nil when the sheet is editing an existing event. Editing mode
+    // hides the Quick Create block, flips the title + primary button, and
+    // dispatches updateEvent instead of createEvent.
+    @State private var editingEvent: CalendarEventMirror?
 
     init(prefilledStart: Date? = nil, prefilledIsAllDay: Bool = false, prefilledEnd: Date? = nil) {
         let start = prefilledStart ?? Date()
@@ -885,6 +880,29 @@ struct AddEventSheet: View {
         _startDate = State(initialValue: start)
         _endDate = State(initialValue: prefilledEnd ?? defaultEnd)
         _isAllDay = State(initialValue: prefilledIsAllDay)
+    }
+
+    // Edit-mode init: prefill every field from `existingEvent` so the same
+    // "New Event" sheet becomes an edit surface. Recurring-scope handling is
+    // currently limited to .thisOccurrence — see the flag in URGENT-TODO /
+    // merge audit.
+    init(existingEvent: CalendarEventMirror) {
+        let cal = Calendar.current
+        _startDate = State(initialValue: existingEvent.startDate)
+        _endDate = State(initialValue: existingEvent.isAllDay
+            ? (cal.date(byAdding: .day, value: -1, to: existingEvent.endDate) ?? existingEvent.endDate)
+            : existingEvent.endDate)
+        _isAllDay = State(initialValue: existingEvent.isAllDay)
+        _summary = State(initialValue: existingEvent.summary)
+        _details = State(initialValue: existingEvent.details)
+        _location = State(initialValue: existingEvent.location)
+        _selectedCalendarID = State(initialValue: existingEvent.calendarID)
+        _reminderOption = State(initialValue: EventReminderOption(minutes: existingEvent.reminderMinutes.first))
+        _recurrenceRule = State(initialValue: existingEvent.recurrence.lazy.compactMap(RecurrenceRule.parse).first)
+        _attendees = State(initialValue: existingEvent.attendeeEmails)
+        _addGoogleMeet = State(initialValue: existingEvent.meetLink.isEmpty == false)
+        _eventColor = State(initialValue: CalendarEventColor.from(colorId: existingEvent.colorId))
+        _editingEvent = State(initialValue: existingEvent)
     }
 
     var body: some View {
@@ -904,7 +922,7 @@ struct AddEventSheet: View {
                 }
             }
             .appBackground()
-            .navigationTitle("New Event")
+            .navigationTitle(editingEvent == nil ? "New Event" : "Edit Event")
             .task {
                 selectedCalendarID = selectedCalendarID ?? defaultCalendarID
                 applyDeepLinkPrefillIfAny()
@@ -915,8 +933,8 @@ struct AddEventSheet: View {
                         .disabled(isSaving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
-                        Task { await createEvent() }
+                    Button(editingEvent == nil ? "Create" : "Save") {
+                        Task { await createOrUpdateEvent() }
                     }
                     .disabled(canCreate == false || isSaving)
                 }
@@ -929,7 +947,12 @@ struct AddEventSheet: View {
     private var twoColumnBody: some View {
         HStack(alignment: .top, spacing: 18) {
             VStack(alignment: .leading, spacing: 14) {
-                quickCreateBlock
+                // Quick Create parses natural language to fill every field,
+                // so it only makes sense when creating — editing already has
+                // concrete values.
+                if editingEvent == nil {
+                    quickCreateBlock
+                }
                 summaryBlock
                 timeBlock
                 detailsBlock
@@ -942,7 +965,7 @@ struct AddEventSheet: View {
                 guestsBlock
                 repeatBlock
                 meetBlock
-                if model.settings.eventTemplates.isEmpty == false {
+                if editingEvent == nil, model.settings.eventTemplates.isEmpty == false {
                     templateBlock
                 }
             }
@@ -1165,6 +1188,14 @@ struct AddEventSheet: View {
         parsedPreview = nil
     }
 
+    private func createOrUpdateEvent() async {
+        if let existing = editingEvent {
+            await updateExistingEvent(existing)
+        } else {
+            await createEvent()
+        }
+    }
+
     private func createEvent() async {
         guard let selectedCalendarID else {
             return
@@ -1190,6 +1221,36 @@ struct AddEventSheet: View {
         )
 
         if didCreate {
+            dismiss()
+        }
+    }
+
+    // Edit-mode save path. Dispatches updateEvent with .thisOccurrence scope.
+    // Recurring-series scope (this + following, all in series) isn't surfaced
+    // yet in this sheet — see URGENT-TODO §6.x merge flag. Users who need it
+    // still have the legacy EditEventSheet via the detail view for now.
+    private func updateExistingEvent(_ existing: CalendarEventMirror) async {
+        guard let selectedCalendarID else { return }
+        isSaving = true
+        defer { isSaving = false }
+        let didUpdate = await model.updateEvent(
+            existing,
+            summary: summary,
+            details: details,
+            startDate: normalizedStartDate,
+            endDate: normalizedEndDate,
+            isAllDay: isAllDay,
+            reminderMinutes: reminderOption.minutes,
+            calendarID: selectedCalendarID,
+            location: location,
+            recurrence: recurrenceRule.map { [$0.rruleString()] } ?? [],
+            attendeeEmails: attendees,
+            notifyGuests: notifyGuests,
+            scope: .thisOccurrence,
+            addGoogleMeet: addGoogleMeet,
+            colorId: eventColor.wireValue
+        )
+        if didUpdate {
             dismiss()
         }
     }

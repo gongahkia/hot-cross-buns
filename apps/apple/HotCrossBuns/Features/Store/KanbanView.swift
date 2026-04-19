@@ -67,6 +67,7 @@ struct KanbanView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
             .fixedSize()
             Spacer(minLength: 0)
             Text("\(tasks.count) task\(tasks.count == 1 ? "" : "s")")
