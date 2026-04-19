@@ -88,6 +88,12 @@ struct TaskListSectionSnapshot: Identifiable, Equatable, Sendable {
 }
 
 struct CachedAppState: Codable, Sendable {
+    // Bumped whenever the cache layout changes in a way that can't be
+    // decoded field-by-field. CacheSchemaMigrator routes older decoded
+    // payloads through migration shims before the decoder returns.
+    static let currentSchemaVersion: Int = 1
+
+    var schemaVersion: Int
     var account: GoogleAccount?
     var taskLists: [TaskListMirror]
     var tasks: [TaskMirror]
@@ -105,8 +111,10 @@ struct CachedAppState: Codable, Sendable {
         events: [CalendarEventMirror],
         settings: AppSettings,
         syncCheckpoints: [SyncCheckpoint] = [],
-        pendingMutations: [PendingMutation] = []
+        pendingMutations: [PendingMutation] = [],
+        schemaVersion: Int = CachedAppState.currentSchemaVersion
     ) {
+        self.schemaVersion = schemaVersion
         self.account = account
         self.taskLists = taskLists
         self.tasks = tasks
@@ -118,6 +126,7 @@ struct CachedAppState: Codable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
+        case schemaVersion
         case account
         case taskLists
         case tasks
@@ -130,6 +139,9 @@ struct CachedAppState: Codable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        // Absent schemaVersion means the cache was written before versioning
+        // was introduced — treat as v0 so future migrations can tell.
+        schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 0
         account = try container.decodeIfPresent(GoogleAccount.self, forKey: .account)
         taskLists = try container.decodeIfPresent([TaskListMirror].self, forKey: .taskLists) ?? []
         tasks = try container.decodeIfPresent([TaskMirror].self, forKey: .tasks) ?? []
@@ -138,6 +150,14 @@ struct CachedAppState: Codable, Sendable {
         settings = try container.decodeIfPresent(AppSettings.self, forKey: .settings) ?? .default
         syncCheckpoints = try container.decodeIfPresent([SyncCheckpoint].self, forKey: .syncCheckpoints) ?? []
         pendingMutations = try container.decodeIfPresent([PendingMutation].self, forKey: .pendingMutations) ?? []
+        // Stamp-forward so the in-memory model always carries the current
+        // version; LocalCacheStore writes this back on the next save.
+        if schemaVersion < CachedAppState.currentSchemaVersion {
+            schemaVersion = CacheSchemaMigrator.migrateInPlace(
+                from: schemaVersion,
+                to: CachedAppState.currentSchemaVersion
+            )
+        }
     }
 
     static let empty = CachedAppState(
