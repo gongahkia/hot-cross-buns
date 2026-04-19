@@ -11,6 +11,9 @@ struct DiagnosticsView: View {
     @State private var lastCrash: String?
     @State private var systemCrashReports: [SystemCrashReport] = []
     @State private var notificationSummary: NotificationScheduleSummary?
+    @State private var logEntries: [LogEntry] = []
+    @State private var logLevelFilter: LogLevel = .info
+    @State private var logCopiedAt: Date?
     @State private var expandedSystemReportID: String?
     @State private var systemReportPreview: String = ""
 
@@ -167,6 +170,54 @@ struct DiagnosticsView: View {
                     }
                 }
 
+                Section("Logs") {
+                    HStack {
+                        Picker("Level", selection: $logLevelFilter) {
+                            ForEach(LogLevel.allCases, id: \.self) { level in
+                                Text(level.rawValue.capitalized).tag(level)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: logLevelFilter) { _, _ in refreshLogs() }
+                        Spacer()
+                        Button {
+                            refreshLogs()
+                        } label: {
+                            Label("Refresh", systemImage: "arrow.clockwise")
+                        }
+                    }
+                    if logEntries.isEmpty {
+                        Text("No log entries at this level yet.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 2) {
+                                ForEach(logEntries) { entry in
+                                    LogEntryRow(entry: entry)
+                                }
+                            }
+                        }
+                        .frame(maxHeight: 220)
+                    }
+                    HStack {
+                        Button {
+                            let full = AppLogger.shared.loadPersistedLog()
+                            Clipboard.copy(full.isEmpty ? logEntries.map { $0.formattedLine() }.joined(separator: "\n") : full)
+                            logCopiedAt = Date()
+                        } label: {
+                            Label(logCopiedAt == nil ? "Copy full log" : "Copied", systemImage: logCopiedAt == nil ? "doc.on.doc" : "checkmark")
+                        }
+                        if let url = AppLogger.shared.currentLogFileURL() {
+                            Button {
+                                NSWorkspace.shared.activateFileViewerSelecting([url])
+                            } label: {
+                                Label("Reveal log file", systemImage: "folder")
+                            }
+                        }
+                    }
+                }
+
                 Section("Support") {
                     Button {
                         copyDiagnostics()
@@ -193,6 +244,7 @@ struct DiagnosticsView: View {
                 lastCrash = CrashReporter.readLastCrash()
                 systemCrashReports = SystemCrashReportReader.recentReports(limit: 5)
                 notificationSummary = await model.notificationScheduleSummary()
+                refreshLogs()
             }
             .confirmationDialog(
                 confirmation?.title ?? "Confirm",
@@ -284,6 +336,54 @@ struct DiagnosticsView: View {
     private func copyDiagnostics() {
         Clipboard.copy(model.diagnosticSummary(cachePath: cachePath))
         copiedAt = Date()
+    }
+
+    private func refreshLogs() {
+        logEntries = AppLogger.shared.recentEntries(limit: 200, minimumLevel: logLevelFilter)
+    }
+}
+
+private struct LogEntryRow: View {
+    let entry: LogEntry
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: entry.level.systemSymbol)
+                .font(.caption)
+                .foregroundStyle(tint)
+                .frame(width: 14)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("[\(entry.category.rawValue)] \(entry.message)")
+                    .font(.caption.monospaced())
+                    .foregroundStyle(AppColor.ink)
+                    .lineLimit(3)
+                HStack(spacing: 6) {
+                    Text(entry.timestamp.formatted(date: .omitted, time: .standard))
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary)
+                    if entry.metadata.isEmpty == false {
+                        Text(entry.metadata
+                            .sorted { $0.key < $1.key }
+                            .map { "\($0.key)=\($0.value)" }
+                            .joined(separator: " "))
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 1)
+    }
+
+    private var tint: Color {
+        switch entry.level {
+        case .debug: .secondary
+        case .info: AppColor.blue
+        case .warn: AppColor.ember
+        case .error: .red
+        }
     }
 }
 
