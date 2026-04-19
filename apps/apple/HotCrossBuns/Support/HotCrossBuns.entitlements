@@ -16,5 +16,9 @@
 	<array>
 		<string>com.gongahkia.hotcrossbuns.mac-spks</string>
 	</array>
+	<key>keychain-access-groups</key>
+	<array>
+		<string>com.gongahkia.hotcrossbuns.mac</string>
+	</array>
 </dict>
 </plist>
