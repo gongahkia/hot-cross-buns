@@ -17,6 +17,8 @@ final class AppCommandActions {
     var openCommandPalette: () -> Void = {}
     var openHelp: () -> Void = {}
     var printToday: () -> Void = {}
+    var exportDayICS: () -> Void = {}
+    var exportWeekICS: () -> Void = {}
     var zoomIn: () -> Void = {}
     var zoomOut: () -> Void = {}
     var zoomReset: () -> Void = {}
@@ -54,6 +56,11 @@ struct AppCommands: Commands {
                 .disabled(actions == nil)
             Button("Print Today…") { actions?.printToday() }
                 .keyboardShortcut("p", modifiers: [.command, .shift])
+                .disabled(actions == nil)
+            Divider()
+            Button("Export Day as .ics…") { actions?.exportDayICS() }
+                .disabled(actions == nil)
+            Button("Export Week as .ics…") { actions?.exportWeekICS() }
                 .disabled(actions == nil)
         }
 

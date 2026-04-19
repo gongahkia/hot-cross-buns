@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 import CoreSpotlight
 import SwiftUI
 
@@ -501,10 +502,49 @@ struct MacSidebarShell: View {
         appCommandActions.openCommandPalette = { isPresentingCommandPalette = true }
         appCommandActions.openHelp = { isPresentingHelp = true }
         appCommandActions.printToday = { TodayPrinter.print(model: model) }
+        appCommandActions.exportDayICS = { exportICS(range: .day) }
+        appCommandActions.exportWeekICS = { exportICS(range: .week) }
         appCommandActions.zoomIn = { performZoomIn() }
         appCommandActions.zoomOut = { performZoomOut() }
         appCommandActions.zoomReset = { performZoomReset() }
         appCommandActions.isVimDetailFocused = isVimDetailFocused
+    }
+
+    private enum ICSRange {
+        case day
+        case week
+    }
+
+    private func exportICS(range: ICSRange) {
+        let cal = Calendar.current
+        let now = Date()
+        let rangeStart: Date
+        let rangeEnd: Date
+        let suggestedFilename: String
+        switch range {
+        case .day:
+            rangeStart = cal.startOfDay(for: now)
+            rangeEnd = cal.date(byAdding: .day, value: 1, to: rangeStart) ?? rangeStart
+            suggestedFilename = "hot-cross-buns-\(now.formatted(.iso8601.year().month().day())).ics"
+        case .week:
+            rangeStart = CalendarGridLayout.startOfWeek(containing: now, calendar: cal)
+            rangeEnd = cal.date(byAdding: .day, value: 7, to: rangeStart) ?? rangeStart
+            suggestedFilename = "hot-cross-buns-week-\(rangeStart.formatted(.iso8601.year().month().day())).ics"
+        }
+        let selected = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
+        let events = model.events
+            .filter { selected.contains($0.calendarID) }
+            .filter { $0.status != .cancelled }
+            .filter { $0.endDate > rangeStart && $0.startDate < rangeEnd }
+            .sorted { $0.startDate < $1.startDate }
+        let ics = EventICSExporter.ics(for: events)
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = suggestedFilename
+        panel.allowedContentTypes = [UTType(filenameExtension: "ics") ?? .data]
+        panel.canCreateDirectories = true
+        if panel.runModal() == .OK, let url = panel.url {
+            try? ics.data(using: .utf8)?.write(to: url)
+        }
     }
 
     private func performZoomIn() {
