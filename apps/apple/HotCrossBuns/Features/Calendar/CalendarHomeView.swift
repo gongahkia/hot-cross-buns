@@ -7,9 +7,9 @@ struct CalendarHomeView: View {
     @Environment(RouterPath.self) private var router
     @Environment(NetworkMonitor.self) private var networkMonitor
     @State private var selectedDate = Date()
-    @SceneStorage("calendarGridMode") private var storedMode: String = CalendarGridMode.week.rawValue
+    @SceneStorage("calendarGridMode") private var storedMode: String = CalendarGridMode.month.rawValue
     @SceneStorage("calendarShowDrawer") private var storedShowDrawer: Bool = false
-    @State private var mode: CalendarGridMode = .week
+    @State private var mode: CalendarGridMode = .month
     @State private var showTaskDrawer: Bool = false
     @State private var searchQuery: String = ""
     @State private var pendingCrossCalendarMove: CrossCalendarMoveRequest?
@@ -19,14 +19,6 @@ struct CalendarHomeView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            CalendarTodayStatusHeader(
-                snapshot: model.todaySnapshot,
-                syncState: model.syncState,
-                pendingCount: model.pendingMutations.count,
-                reachability: networkMonitor.reachability,
-                refresh: { Task { await model.refreshNow() } }
-            )
-            Divider()
             CalendarDropChipsStrip(
                 calendars: model.calendars,
                 onDrop: { droppedEvent, destinationCalendarID in
@@ -134,7 +126,7 @@ struct CalendarHomeView: View {
             }
         }
         .onAppear {
-            mode = CalendarGridMode(rawValue: storedMode) ?? .week
+            mode = CalendarGridMode(rawValue: storedMode) ?? .month
             showTaskDrawer = storedShowDrawer
         }
         .onChange(of: mode) { _, newValue in
@@ -201,6 +193,14 @@ struct CalendarHomeView: View {
                     .hcbKeyboardShortcut(.calendarJumpForward)
                 Button("Go to Date") { isGoToDateShown = true }
                     .hcbKeyboardShortcut(.calendarGoToDate)
+                Button("Agenda View") { mode = .agenda }
+                    .hcbKeyboardShortcut(.calendarViewAgenda)
+                Button("Day View") { mode = .day }
+                    .hcbKeyboardShortcut(.calendarViewDay)
+                Button("Week View") { mode = .week }
+                    .hcbKeyboardShortcut(.calendarViewWeek)
+                Button("Month View") { mode = .month }
+                    .hcbKeyboardShortcut(.calendarViewMonth)
             }
             .opacity(0)
             .hcbScaledFrame(width: 0, height: 0)
