@@ -61,6 +61,7 @@ enum SheetDestination: Identifiable, Hashable {
     case addTask
     case quickAddTask
     case addEvent
+    case addEventAt(Date, allDay: Bool)
     case syncSettings
     case diagnostics
     case manageTaskLists
@@ -73,6 +74,8 @@ enum SheetDestination: Identifiable, Hashable {
             "quickAddTask"
         case .addEvent:
             "addEvent"
+        case .addEventAt(let date, let allDay):
+            "addEventAt-\(date.timeIntervalSince1970)-\(allDay)"
         case .syncSettings:
             "syncSettings"
         case .diagnostics:
@@ -104,6 +107,8 @@ extension View {
                 QuickAddView()
             case .addEvent:
                 AddEventSheet()
+            case .addEventAt(let date, let allDay):
+                AddEventSheet(prefilledStart: date, prefilledIsAllDay: allDay)
             case .syncSettings:
                 SyncSettingsSheet()
             case .diagnostics:

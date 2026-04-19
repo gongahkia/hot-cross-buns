@@ -474,15 +474,24 @@ struct AddEventSheet: View {
     @State private var summary = ""
     @State private var details = ""
     @State private var location = ""
-    @State private var startDate = Date()
-    @State private var endDate = Date().addingTimeInterval(3600)
-    @State private var isAllDay = false
+    @State private var startDate: Date
+    @State private var endDate: Date
+    @State private var isAllDay: Bool
     @State private var reminderOption: EventReminderOption = .fifteenMinutes
     @State private var recurrenceRule: RecurrenceRule?
     @State private var attendees: [String] = []
     @State private var attendeeDraft: String = ""
     @State private var notifyGuests: Bool = false
     @State private var isSaving = false
+
+    init(prefilledStart: Date? = nil, prefilledIsAllDay: Bool = false) {
+        let start = prefilledStart ?? Date()
+        _startDate = State(initialValue: start)
+        _endDate = State(initialValue: prefilledIsAllDay
+            ? start
+            : start.addingTimeInterval(3600))
+        _isAllDay = State(initialValue: prefilledIsAllDay)
+    }
 
     var body: some View {
         NavigationStack {
