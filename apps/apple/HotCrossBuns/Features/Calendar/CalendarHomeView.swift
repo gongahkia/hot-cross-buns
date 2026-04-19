@@ -1238,6 +1238,7 @@ struct CalendarDropChipsStrip: View {
 
 struct CalendarSearchField: View {
     @Binding var text: String
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         HStack(spacing: 6) {
@@ -1248,6 +1249,7 @@ struct CalendarSearchField: View {
                 .textFieldStyle(.plain)
                 .frame(width: 180)
                 .font(.subheadline)
+                .focused($isFocused)
             if text.isEmpty == false {
                 Button {
                     text = ""
@@ -1265,6 +1267,14 @@ struct CalendarSearchField: View {
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(.quaternary.opacity(0.4))
+        )
+        .background(
+            Button("Focus Search") { isFocused = true }
+                .keyboardShortcut("f", modifiers: [.command])
+                .opacity(0)
+                .frame(width: 0, height: 0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
         )
     }
 }
