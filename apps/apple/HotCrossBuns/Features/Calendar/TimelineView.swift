@@ -51,6 +51,7 @@ struct TimelineView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
             .fixedSize()
             Spacer(minLength: 0)
             Text("\(items.count) item\(items.count == 1 ? "" : "s")")

@@ -92,7 +92,6 @@ struct StoreView: View {
         content
             .appBackground()
             .navigationTitle(navigationTitle)
-            .searchable(text: $searchQuery, placement: .sidebar, prompt: "Filter")
             .toolbar {
                 ToolbarItemGroup {
                     if selection.count > 1 {
@@ -113,30 +112,23 @@ struct StoreView: View {
                         Label("Manage Lists", systemImage: "list.bullet.rectangle")
                     }
                     .disabled(isDisconnected)
-                    Button {
-                        router.present(.addTask)
-                    } label: {
-                        Label("Add Task", systemImage: "plus")
-                    }
-                    .disabled(isDisconnected)
-                    Toggle(isOn: $showCompleted) {
-                        Label("Show Completed", systemImage: showCompleted ? "checkmark.circle.fill" : "checkmark.circle")
-                    }
-                    .toggleStyle(.button)
-                    .help("Show completed tasks")
-                    .disabled(isDisconnected)
                     clearCompletedMenu
                         .disabled(isDisconnected)
-                    Button {
-                        isInspectorPresented.toggle()
-                    } label: {
-                        Label("Toggle Inspector", systemImage: "sidebar.trailing")
-                    }
-                    .hcbKeyboardShortcut(.storeShowInspector)
-                    .help("Toggle task details (Cmd+I)")
-                    .disabled(isDisconnected)
                 }
             }
+            // Hidden Cmd+I shortcut — the visible Toggle Inspector button was
+            // removed per user request, but the key binding still toggles the
+            // inspector pane for muscle memory.
+            .background(
+                Button("Toggle Inspector") {
+                    isInspectorPresented.toggle()
+                }
+                .hcbKeyboardShortcut(.storeShowInspector)
+                .opacity(0)
+                .hcbScaledFrame(width: 0, height: 0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            )
             .background(
                 Button("Delete Selected") {
                     Task { await deleteSelection() }
@@ -149,6 +141,7 @@ struct StoreView: View {
             )
             .inspector(isPresented: inspectorBinding) {
                 inspectorContent
+                    .appBackground()
                     .inspectorColumnWidth(min: 340, ideal: 380, max: 520)
             }
             .sheet(isPresented: $isBulkMoveSheetPresented) {
@@ -202,6 +195,7 @@ struct StoreView: View {
             }
         }
         .pickerStyle(.segmented)
+        .labelsHidden()
         .fixedSize()
         .help("Switch between List and Kanban")
     }

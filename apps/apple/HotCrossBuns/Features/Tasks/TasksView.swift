@@ -135,6 +135,23 @@ struct AddTaskSheet: View {
     @State private var isSaving = false
     @State private var isCreatingList = false
     @State private var newListTitle = ""
+    // Non-nil when editing an existing task — flips title + primary button,
+    // dispatches updateTask instead of createTask. Mirrors the Event sheet's
+    // dual-mode pattern so the same "New … / Edit …" visual serves both paths.
+    @State private var editingTask: TaskMirror?
+    @State private var isConfirmingDelete = false
+
+    init() {}
+
+    init(existingTask: TaskMirror) {
+        _title = State(initialValue: existingTask.title)
+        _notes = State(initialValue: TaskRecurrenceMarkers.strippedNotes(from: existingTask.notes))
+        _hasDueDate = State(initialValue: existingTask.dueDate != nil)
+        _dueDate = State(initialValue: existingTask.dueDate ?? Date())
+        _recurrenceRule = State(initialValue: TaskRecurrenceMarkers.rule(from: existingTask.notes))
+        _selectedTaskListID = State(initialValue: existingTask.taskListID)
+        _editingTask = State(initialValue: existingTask)
+    }
 
     var body: some View {
         NavigationStack {
@@ -176,7 +193,7 @@ struct AddTaskSheet: View {
             }
             .formStyle(.grouped)
             .hcbScaledPadding(.horizontal, 4)
-            .navigationTitle("New Task")
+            .navigationTitle(editingTask == nil ? "New Task" : "Edit Task")
             .task {
                 selectedTaskListID = selectedTaskListID ?? model.taskLists.first?.id
                 applyDeepLinkPrefillIfAny()
@@ -190,13 +207,37 @@ struct AddTaskSheet: View {
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
+                    Button(editingTask == nil ? "Create" : "Save") {
                         Task {
-                            await createTask()
+                            await createOrUpdateTask()
                         }
                     }
                     .disabled(canCreate == false || isSaving)
                 }
+
+                if editingTask != nil {
+                    ToolbarItem(placement: .destructiveAction) {
+                        Button(role: .destructive) {
+                            isConfirmingDelete = true
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                        .disabled(isSaving)
+                    }
+                }
+            }
+            .confirmationDialog(
+                "Delete this task?",
+                isPresented: $isConfirmingDelete,
+                titleVisibility: .visible,
+                presenting: editingTask
+            ) { task in
+                Button("Delete Task", role: .destructive) {
+                    Task { await deleteTaskAndDismiss(task) }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: { _ in
+                Text("This deletes the task from Google Tasks.")
             }
             .sheet(isPresented: $isCreatingList) {
                 NewTaskListInlineSheet(
@@ -285,6 +326,14 @@ struct AddTaskSheet: View {
             && model.account != nil
     }
 
+    private func createOrUpdateTask() async {
+        if let existing = editingTask {
+            await updateExistingTask(existing)
+        } else {
+            await createTask()
+        }
+    }
+
     private func createTask() async {
         guard let selectedTaskListID else {
             return
@@ -305,6 +354,39 @@ struct AddTaskSheet: View {
         )
 
         if didCreate {
+            dismiss()
+        }
+    }
+
+    private func updateExistingTask(_ existing: TaskMirror) async {
+        isSaving = true
+        defer { isSaving = false }
+        let notesWithRule = hasDueDate && recurrenceRule != nil
+            ? TaskRecurrenceMarkers.encode(notes: notes, rule: recurrenceRule)
+            : notes
+        let didUpdate = await model.updateTask(
+            existing,
+            title: title,
+            notes: notesWithRule,
+            dueDate: hasDueDate ? Calendar.current.startOfDay(for: dueDate) : nil
+        )
+        // Move list separately if the user changed it — updateTask doesn't
+        // relocate across lists, so we fire moveToList after the edit lands.
+        if didUpdate,
+           let targetListID = selectedTaskListID,
+           targetListID != existing.taskListID,
+           let refreshed = model.task(id: existing.id) {
+            _ = await model.moveTaskToList(refreshed, toTaskListID: targetListID)
+        }
+        if didUpdate {
+            dismiss()
+        }
+    }
+
+    private func deleteTaskAndDismiss(_ task: TaskMirror) async {
+        isSaving = true
+        defer { isSaving = false }
+        if await model.deleteTask(task) {
             dismiss()
         }
     }
@@ -453,7 +535,9 @@ struct ManageTaskListsSheet: View {
                         ContentUnavailableView(
                             "No task lists loaded",
                             systemImage: "checklist",
-                            description: Text("Connect Google and refresh before managing lists.")
+                            description: Text(model.account == nil
+                                ? "Connect Google and refresh before managing lists."
+                                : "Still loading — pull-to-refresh or give it a second.")
                         )
                     } else {
                         ForEach(model.taskLists) { taskList in
@@ -522,7 +606,15 @@ struct ManageTaskListsSheet: View {
                 }
             }
         }
+        .hcbScaledFrame(minWidth: 560, idealWidth: 640, minHeight: 420, idealHeight: 520)
         .interactiveDismissDisabled(isMutating)
+        .task {
+            // Kick a refresh so newly-added lists show up without the user
+            // needing to hit the top-bar refresh themselves.
+            if model.account != nil {
+                await model.refreshNow()
+            }
+        }
     }
 
     private var deleteConfirmationBinding: Binding<Bool> {

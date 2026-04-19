@@ -86,7 +86,7 @@ struct CalendarEventPreviewButton<Label: View>: View {
                     Spacer(minLength: 0)
                     Button("Open") {
                         isPresented = false
-                        router.navigate(to: .event(event.id))
+                        router.present(.editEvent(event.id))
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(AppColor.ember)
@@ -123,7 +123,7 @@ struct CalendarTaskPreviewButton<Label: View>: View {
                     Spacer(minLength: 0)
                     Button("Open") {
                         isPresented = false
-                        router.navigate(to: .task(task.id))
+                        router.present(.editTask(task.id))
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(AppColor.ember)
