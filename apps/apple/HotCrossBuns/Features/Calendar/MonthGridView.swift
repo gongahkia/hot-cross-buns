@@ -104,11 +104,49 @@ struct MonthGridView: View {
         }
         return GeometryReader { geo in
             let rowHeight = geo.size.height / CGFloat(groupedCells.count)
-            VStack(spacing: 0) {
-                ForEach(Array(groupedCells.enumerated()), id: \.offset) { _, row in
-                    weekRow(row, rowHeight: rowHeight, weekWidth: geo.size.width)
+            let cellWidth = geo.size.width / 7
+            ZStack(alignment: .topLeading) {
+                VStack(spacing: 0) {
+                    ForEach(Array(groupedCells.enumerated()), id: \.offset) { _, row in
+                        weekRow(row, rowHeight: rowHeight, weekWidth: geo.size.width)
+                    }
                 }
+                // Grid-level drag highlight — spans multiple rows so a
+                // diagonal drag (e.g. 20 → 29) correctly shades every row
+                // it touches, not just the row the drag started on.
+                gridDragHighlight(
+                    groupedCells: groupedCells,
+                    cellWidth: cellWidth,
+                    rowHeight: rowHeight
+                )
             }
+            // Drag-to-create at grid level so x/y both track the cursor.
+            // minimumDistance: 6 keeps simple taps routed to the cell's
+            // onTapGesture (single-day quick create popover).
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 6)
+                    .onChanged { value in
+                        guard let start = date(
+                            at: value.startLocation,
+                            groupedCells: groupedCells,
+                            cellWidth: cellWidth,
+                            rowHeight: rowHeight
+                        ), let curr = date(
+                            at: value.location,
+                            groupedCells: groupedCells,
+                            cellWidth: cellWidth,
+                            rowHeight: rowHeight
+                        ) else { return }
+                        dragSelection = DragSelection(start: start, end: curr)
+                    }
+                    .onEnded { _ in
+                        guard let sel = dragSelection else { return }
+                        dragSelection = nil
+                        let (from, to) = sel.normalized
+                        let endExclusive = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: to)) ?? to
+                        router.present(.quickCreateRange(calendar.startOfDay(for: from), endExclusive, allDay: true))
+                    }
+            )
         }
     }
 
@@ -127,29 +165,6 @@ struct MonthGridView: View {
                         .frame(maxWidth: .infinity, minHeight: rowHeight, maxHeight: rowHeight, alignment: .top)
                 }
             }
-            .overlay(alignment: .topLeading) {
-                dragHighlight(days: days, cellWidth: cellWidth, rowHeight: rowHeight)
-            }
-            // Click-drag across cells to create a multi-day all-day event.
-            // minimumDistance: 6 keeps simple taps routed to the cell's
-            // existing onTapGesture (single-day quick create popover).
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 6)
-                    .onChanged { value in
-                        let startIdx = cellIndex(for: value.startLocation.x, cellWidth: cellWidth, count: days.count)
-                        let currIdx = cellIndex(for: value.location.x, cellWidth: cellWidth, count: days.count)
-                        guard days.indices.contains(startIdx), days.indices.contains(currIdx) else { return }
-                        dragSelection = DragSelection(start: days[startIdx], end: days[currIdx])
-                    }
-                    .onEnded { _ in
-                        guard let sel = dragSelection else { return }
-                        dragSelection = nil
-                        let (from, to) = sel.normalized
-                        // Google all-day end is exclusive next-day.
-                        let endExclusive = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: to)) ?? to
-                        router.present(.quickCreateRange(calendar.startOfDay(for: from), endExclusive, allDay: true))
-                    }
-            )
             bandOverlay(bands: bands, cellWidth: cellWidth)
         }
     }
@@ -159,24 +174,70 @@ struct MonthGridView: View {
         return max(0, min(count - 1, Int(x / cellWidth)))
     }
 
-    private func dragHighlight(days: [Date], cellWidth: CGFloat, rowHeight: CGFloat) -> some View {
-        Group {
-            if let sel = dragSelection,
-               let startIdx = days.firstIndex(of: sel.normalized.0) ?? days.firstIndex(where: { calendar.isDate($0, inSameDayAs: sel.normalized.0) }),
-               let endIdx = days.firstIndex(of: sel.normalized.1) ?? days.firstIndex(where: { calendar.isDate($0, inSameDayAs: sel.normalized.1) }) {
-                let left = CGFloat(min(startIdx, endIdx)) * cellWidth
-                let width = CGFloat(abs(endIdx - startIdx) + 1) * cellWidth
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(AppColor.ember.opacity(0.2))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .strokeBorder(AppColor.ember.opacity(0.6), lineWidth: 1.2)
-                    )
-                    .frame(width: max(width - 4, 4), height: rowHeight - 4)
-                    .offset(x: left + 2, y: 2)
-                    .allowsHitTesting(false)
+    // Resolves a hit point inside the grid to the date under the cursor.
+    // Clamps row/col to the grid bounds so drags that leave the view don't
+    // return nil mid-gesture (nicer UX than the selection disappearing).
+    private func date(
+        at point: CGPoint,
+        groupedCells: [[Date]],
+        cellWidth: CGFloat,
+        rowHeight: CGFloat
+    ) -> Date? {
+        guard rowHeight > 0, cellWidth > 0, groupedCells.isEmpty == false else { return nil }
+        let row = max(0, min(groupedCells.count - 1, Int(point.y / rowHeight)))
+        let col = max(0, min(6, Int(point.x / cellWidth)))
+        let rowDays = groupedCells[row]
+        guard rowDays.indices.contains(col) else { return nil }
+        return rowDays[col]
+    }
+
+    @ViewBuilder
+    private func gridDragHighlight(
+        groupedCells: [[Date]],
+        cellWidth: CGFloat,
+        rowHeight: CGFloat
+    ) -> some View {
+        if let sel = dragSelection {
+            let (from, to) = sel.normalized
+            let fromStart = calendar.startOfDay(for: from)
+            let toStart = calendar.startOfDay(for: to)
+            ForEach(Array(groupedCells.enumerated()), id: \.offset) { rowIdx, row in
+                if let (colStart, colEnd) = rowRange(row, fromStart: fromStart, toStart: toStart) {
+                    let left = CGFloat(colStart) * cellWidth
+                    let width = CGFloat(colEnd - colStart + 1) * cellWidth
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(AppColor.ember.opacity(0.2))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .strokeBorder(AppColor.ember.opacity(0.6), lineWidth: 1.2)
+                        )
+                        .frame(width: max(width - 4, 4), height: rowHeight - 4)
+                        .offset(x: left + 2, y: CGFloat(rowIdx) * rowHeight + 2)
+                        .allowsHitTesting(false)
+                }
             }
         }
+    }
+
+    // Intersects a row's days with the inclusive [fromStart, toStart] range
+    // and returns the contiguous column span, or nil when the row is fully
+    // outside the selection.
+    private func rowRange(
+        _ row: [Date],
+        fromStart: Date,
+        toStart: Date
+    ) -> (Int, Int)? {
+        var first: Int?
+        var last: Int?
+        for (idx, day) in row.enumerated() {
+            let d = calendar.startOfDay(for: day)
+            if d >= fromStart && d <= toStart {
+                if first == nil { first = idx }
+                last = idx
+            }
+        }
+        if let first, let last { return (first, last) }
+        return nil
     }
 
     private func bandOverlay(bands: [CalendarGridLayout.MonthBand], cellWidth: CGFloat) -> some View {

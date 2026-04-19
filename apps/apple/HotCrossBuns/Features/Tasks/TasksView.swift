@@ -38,45 +38,52 @@ struct AddTaskSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            Group {
                 if model.taskLists.isEmpty {
-                    Section {
-                        ContentUnavailableView(
-                            "No task lists loaded",
-                            systemImage: "checklist",
-                            description: Text("Connect Google and refresh before creating a task.")
-                        )
+                    ContentUnavailableView(
+                        "No task lists loaded",
+                        systemImage: "checklist",
+                        description: Text("Connect Google and refresh before creating a task.")
+                    )
+                } else if editingTask != nil, isEditing == false {
+                    // Read-only card — only populated fields; notes render as
+                    // markdown. Edit button in the toolbar flips into the
+                    // Form-based editor below.
+                    ScrollView {
+                        viewOnlyBody
+                            .hcbScaledPadding(18)
                     }
                 } else {
-                    Section("Task") {
-                        TextField("Title", text: $title)
-                        MarkdownEditor(text: $notes, placeholder: "Notes (markdown supported)", minHeight: 90, maxHeight: 200)
-                    }
+                    Form {
+                        Section("Task") {
+                            TextField("Title", text: $title)
+                            MarkdownEditor(text: $notes, placeholder: "Notes (markdown supported)", minHeight: 90, maxHeight: 200)
+                        }
 
-                    Section("Destination") {
-                        taskListMenu
-                    }
+                        Section("Destination") {
+                            taskListMenu
+                        }
 
-                    Section("Due date") {
-                        Toggle("Set due date", isOn: $hasDueDate)
+                        Section("Due date") {
+                            Toggle("Set due date", isOn: $hasDueDate)
+                            if hasDueDate {
+                                DatePicker("Due", selection: $dueDate, displayedComponents: [.date])
+                            }
+                        }
+
                         if hasDueDate {
-                            DatePicker("Due", selection: $dueDate, displayedComponents: [.date])
+                            Section("Repeat") {
+                                RecurrenceEditor(rule: $recurrenceRule)
+                                Text("When you complete a recurring task, Hot Cross Buns re-creates it with the next due date.")
+                                    .hcbFont(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
-
-                    if hasDueDate {
-                        Section("Repeat") {
-                            RecurrenceEditor(rule: $recurrenceRule)
-                            Text("When you complete a recurring task, Hot Cross Buns re-creates it with the next due date.")
-                                .hcbFont(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+                    .formStyle(.grouped)
+                    .hcbScaledPadding(.horizontal, 4)
                 }
             }
-            .formStyle(.grouped)
-            .hcbScaledPadding(.horizontal, 4)
-            .disabled(isEditing == false)
             .navigationTitle(navTitle)
             .task {
                 selectedTaskListID = selectedTaskListID ?? model.taskLists.first?.id
@@ -344,275 +351,84 @@ struct AddTaskSheet: View {
         if let exact = model.taskLists.first(where: { $0.id == ref }) { return exact }
         return model.taskLists.first(where: { $0.title.localizedCaseInsensitiveCompare(ref) == .orderedSame })
     }
-}
 
-struct ManageTaskListsSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(AppModel.self) private var model
-    @State private var editor: TaskListEditor?
-    @State private var taskListPendingDeletion: TaskListMirror?
-    @State private var isMutating = false
+    // MARK: - View-only card (read-only surface for the Open flow).
 
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    if model.taskLists.isEmpty {
-                        ContentUnavailableView(
-                            "No task lists loaded",
-                            systemImage: "checklist",
-                            description: Text(model.account == nil
-                                ? "Connect Google and refresh before managing lists."
-                                : "Still loading — pull-to-refresh or give it a second.")
-                        )
-                    } else {
-                        ForEach(model.taskLists) { taskList in
-                            TaskListManagementRow(
-                                taskList: taskList,
-                                taskCount: taskCount(for: taskList.id),
-                                isSelected: model.isTaskListSelected(taskList.id),
-                                rename: {
-                                    editor = .rename(taskList)
-                                },
-                                delete: {
-                                    taskListPendingDeletion = taskList
-                                }
-                            )
-                            .disabled(isMutating)
-                        }
-                    }
-                } footer: {
-                    Text("Deleting a task list deletes the list and its tasks from Google Tasks. Some Google-owned default lists may not be deletable.")
-                }
+    private var viewOnlyBody: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            readTaskCard
+            if notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                readNotesCard
             }
-            .navigationTitle("Task Lists")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        dismiss()
-                    }
-                    .disabled(isMutating)
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button {
-                        editor = .create
-                    } label: {
-                        Label("New List", systemImage: "plus")
-                    }
-                    .disabled(model.account == nil || isMutating)
-                }
-            }
-            .overlay {
-                if isMutating {
-                    ProgressView("Updating...")
-                        .hcbScaledPadding(18)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                }
-            }
-            .sheet(item: $editor) { editor in
-                TaskListEditorSheet(editor: editor)
-            }
-            .confirmationDialog(
-                "Delete task list?",
-                isPresented: deleteConfirmationBinding,
-                titleVisibility: .visible
-            ) {
-                if let taskListPendingDeletion {
-                    Button("Delete \(taskListPendingDeletion.title)", role: .destructive) {
-                        Task {
-                            await delete(taskListPendingDeletion)
-                        }
-                    }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                if let taskListPendingDeletion {
-                    Text("This deletes \"\(taskListPendingDeletion.title)\" and all tasks in it from Google Tasks.")
-                }
-            }
+            readListCard
+            if hasDueDate { readDueCard }
+            if recurrenceRule != nil { readRepeatCard }
         }
-        .hcbScaledFrame(minWidth: 560, idealWidth: 640, minHeight: 420, idealHeight: 520)
-        .interactiveDismissDisabled(isMutating)
-        .task {
-            // Kick a refresh so newly-added lists show up without the user
-            // needing to hit the top-bar refresh themselves.
-            if model.account != nil {
-                await model.refreshNow()
-            }
-        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
-    private var deleteConfirmationBinding: Binding<Bool> {
-        Binding(
-            get: { taskListPendingDeletion != nil },
-            set: { isPresented in
-                if isPresented == false {
-                    taskListPendingDeletion = nil
-                }
-            }
+    @ViewBuilder
+    private func readCard<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title.uppercased())
+                .hcbFont(.caption2, weight: .bold)
+                .foregroundStyle(.secondary)
+            content()
+        }
+        .hcbScaledPadding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(AppColor.cream.opacity(0.5))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(AppColor.cardStroke, lineWidth: 0.6)
         )
     }
 
-    private func taskCount(for taskListID: TaskListMirror.ID) -> Int {
-        model.tasks.filter { $0.taskListID == taskListID && !$0.isDeleted }.count
-    }
-
-    private func delete(_ taskList: TaskListMirror) async {
-        isMutating = true
-        defer {
-            isMutating = false
-            taskListPendingDeletion = nil
+    private var readTaskCard: some View {
+        readCard("Task") {
+            Text(title.isEmpty ? "Untitled" : title)
+                .hcbFont(.title3, weight: .semibold)
+                .foregroundStyle(AppColor.ink)
+                .textSelection(.enabled)
         }
-        _ = await model.deleteTaskList(taskList)
     }
-}
 
-private struct TaskListManagementRow: View {
-    let taskList: TaskListMirror
-    let taskCount: Int
-    let isSelected: Bool
-    let rename: () -> Void
-    let delete: () -> Void
+    private var readNotesCard: some View {
+        readCard("Notes") {
+            Text.markdown(notes)
+                .hcbFont(.body)
+                .foregroundStyle(AppColor.ink)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
 
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(isSelected ? AppColor.moss : .secondary)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(taskList.title)
-                    .hcbFont(.headline)
-                Text("\(taskCount) active \(taskCount == 1 ? "task" : "tasks")")
-                    .hcbFont(.caption)
-                    .foregroundStyle(.secondary)
+    private var readListCard: some View {
+        readCard("List") {
+            Label(selectedListTitle, systemImage: "tray")
+                .hcbFont(.subheadline)
+                .foregroundStyle(AppColor.ink)
+        }
+    }
+
+    private var readDueCard: some View {
+        readCard("Due") {
+            Label(dueDate.formatted(.dateTime.weekday(.wide).day().month(.wide).year()), systemImage: "calendar")
+                .hcbFont(.subheadline)
+                .foregroundStyle(AppColor.ink)
+        }
+    }
+
+    private var readRepeatCard: some View {
+        readCard("Repeat") {
+            if let rule = recurrenceRule {
+                Label(rule.summary, systemImage: "repeat")
+                    .hcbFont(.subheadline)
+                    .foregroundStyle(AppColor.ink)
             }
-            Spacer(minLength: 0)
-            Menu {
-                Button(action: rename) {
-                    Label("Rename", systemImage: "pencil")
-                }
-                Button(role: .destructive, action: delete) {
-                    Label("Delete", systemImage: "trash")
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .hcbFont(.title3)
-            }
-            .menuStyle(.button)
-        }
-        .contentShape(Rectangle())
-        .swipeActions {
-            Button(role: .destructive, action: delete) {
-                Label("Delete", systemImage: "trash")
-            }
-            Button(action: rename) {
-                Label("Rename", systemImage: "pencil")
-            }
-            .tint(AppColor.blue)
-        }
-    }
-}
-
-private enum TaskListEditor: Identifiable, Hashable {
-    case create
-    case rename(TaskListMirror)
-
-    var id: String {
-        switch self {
-        case .create:
-            "create"
-        case .rename(let taskList):
-            "rename-\(taskList.id)"
-        }
-    }
-
-    var navigationTitle: String {
-        switch self {
-        case .create:
-            "New Task List"
-        case .rename:
-            "Rename Task List"
-        }
-    }
-
-    var confirmationTitle: String {
-        switch self {
-        case .create:
-            "Create"
-        case .rename:
-            "Save"
-        }
-    }
-
-    var initialTitle: String {
-        switch self {
-        case .create:
-            ""
-        case .rename(let taskList):
-            taskList.title
-        }
-    }
-}
-
-private struct TaskListEditorSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(AppModel.self) private var model
-    let editor: TaskListEditor
-    @State private var title: String
-    @State private var isSaving = false
-
-    init(editor: TaskListEditor) {
-        self.editor = editor
-        _title = State(initialValue: editor.initialTitle)
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Task list") {
-                    TextField("Title", text: $title)
-                }
-            }
-            .navigationTitle(editor.navigationTitle)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .disabled(isSaving)
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(editor.confirmationTitle) {
-                        Task {
-                            await save()
-                        }
-                    }
-                    .disabled(canSave == false || isSaving)
-                }
-            }
-        }
-        .interactiveDismissDisabled(isSaving)
-    }
-
-    private var canSave: Bool {
-        title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false && model.account != nil
-    }
-
-    private func save() async {
-        isSaving = true
-        defer { isSaving = false }
-
-        let didSave: Bool
-        switch editor {
-        case .create:
-            didSave = await model.createTaskList(title: title)
-        case .rename(let taskList):
-            didSave = await model.updateTaskList(taskList, title: title)
-        }
-
-        if didSave {
-            dismiss()
         }
     }
 }

@@ -130,7 +130,6 @@ struct SettingsView: View {
             }
         }
         .appBackground()
-        .navigationTitle("Settings")
     }
 
     private var syncModeBinding: Binding<SyncMode> {

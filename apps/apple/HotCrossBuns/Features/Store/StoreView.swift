@@ -66,6 +66,17 @@ struct StoreView: View {
     @State private var snoozeCustomTask: TaskMirror?
     @State private var bulkResultMessage: String?
     @State private var bulkResultIsWarning: Bool = false
+    // Inline list-management state — the per-section ellipsis menu and
+    // "+ New List" row drive these; sheets / confirmation dialog render
+    // off the body modifiers below. Kept on StoreView (not on a sub-view)
+    // so both the All Tasks section headers and the trailing footer row
+    // share the same editing surfaces.
+    @State private var renamingList: TaskListMirror?
+    @State private var renameDraft: String = ""
+    @State private var pendingListDeletion: TaskListMirror?
+    @State private var isCreatingList: Bool = false
+    @State private var newListTitle: String = ""
+    @State private var isMutatingList: Bool = false
     @SceneStorage("storeFilter") private var filterKey: String = "all"
     @SceneStorage("storeShowCompleted") private var showCompleted: Bool = true
     @SceneStorage("storeViewMode") private var viewModeKey: String = StoreViewMode.list.rawValue
@@ -91,7 +102,6 @@ struct StoreView: View {
     var body: some View {
         content
             .appBackground()
-            .navigationTitle(navigationTitle)
             .toolbar {
                 ToolbarItemGroup {
                     if selection.count > 1 {
@@ -106,12 +116,6 @@ struct StoreView: View {
                     }
                     filterMenu
                         .disabled(isDisconnected)
-                    Button {
-                        router.present(.manageTaskLists)
-                    } label: {
-                        Label("Manage Lists", systemImage: "list.bullet.rectangle")
-                    }
-                    .disabled(isDisconnected)
                     clearCompletedMenu
                         .disabled(isDisconnected)
                 }
@@ -154,6 +158,43 @@ struct StoreView: View {
             .sheet(item: $snoozeCustomTask) { task in
                 SnoozePickerSheet(task: task) { newDate in
                     Task { await snooze(task, to: newDate) }
+                }
+            }
+            .sheet(item: $renamingList) { list in
+                ListRenameSheet(
+                    list: list,
+                    draft: $renameDraft,
+                    onCancel: { renamingList = nil },
+                    onSave: { Task { await renameCurrentList(list) } }
+                )
+            }
+            .sheet(isPresented: $isCreatingList) {
+                ListCreateSheet(
+                    title: $newListTitle,
+                    onCancel: {
+                        isCreatingList = false
+                        newListTitle = ""
+                    },
+                    onCreate: { Task { await createNewList() } }
+                )
+            }
+            .confirmationDialog(
+                "Delete task list?",
+                isPresented: Binding(
+                    get: { pendingListDeletion != nil },
+                    set: { if $0 == false { pendingListDeletion = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                if let list = pendingListDeletion {
+                    Button("Delete \(list.title)", role: .destructive) {
+                        Task { await deleteCurrentList(list) }
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                if let list = pendingListDeletion {
+                    Text("This deletes \"\(list.title)\" and all tasks in it from Google Tasks.")
                 }
             }
             .onChange(of: selection) { _, newValue in
@@ -305,15 +346,6 @@ struct StoreView: View {
         return model.taskLists.filter { visible.contains($0.id) }
     }
 
-    private var navigationTitle: String {
-        switch filter {
-        case .custom(let id):
-            model.settings.customFilters.first(where: { $0.id == id })?.name ?? "Filter"
-        default:
-            filter.title
-        }
-    }
-
     @ViewBuilder
     private var content: some View {
         ZStack(alignment: .bottom) {
@@ -396,7 +428,7 @@ struct StoreView: View {
             if case .syncing = model.syncState {
                 Text("Loading your Google Tasks lists…")
             } else {
-                Text("We haven't seen any task lists. Hit Refresh or create one with the Manage Lists button above.")
+                Text("We haven't seen any task lists. Hit Refresh, or open the Lists filter to create one.")
             }
         } actions: {
             Button("Refresh") {
@@ -517,6 +549,21 @@ struct StoreView: View {
                 } header: {
                     taskListSectionHeader(for: section)
                 }
+            }
+            // Trailing "+ New List" affordance. Lives inside the List so it
+            // stays visually grouped with the task-list sections above it.
+            Section {
+                Button {
+                    newListTitle = ""
+                    isCreatingList = true
+                } label: {
+                    Label("New List…", systemImage: "plus.circle")
+                        .hcbFont(.subheadline, weight: .medium)
+                        .foregroundStyle(AppColor.ember)
+                }
+                .buttonStyle(.plain)
+                .disabled(isDisconnected || isMutatingList)
+                .listRowBackground(Color.clear)
             }
         }
         .scrollContentBackground(.hidden)
@@ -700,8 +747,9 @@ struct StoreView: View {
     @ViewBuilder
     private func taskListSectionHeader(for section: TaskListSectionSnapshot) -> some View {
         let stats = model.taskListCompletionStats[section.taskList.id] ?? TaskListCompletionStats(total: 0, completed: 0)
+        let list = section.taskList
         return HStack(spacing: 10) {
-            Text(section.taskList.title)
+            Text(list.title)
                 .hcbFont(.subheadline, weight: .semibold)
             Spacer(minLength: 8)
             if stats.total > 0 {
@@ -713,7 +761,62 @@ struct StoreView: View {
                     .tint(AppColor.moss)
                     .hcbScaledFrame(width: 60)
             }
+            Menu {
+                Button {
+                    renameDraft = list.title
+                    renamingList = list
+                } label: {
+                    Label("Rename", systemImage: "pencil")
+                }
+                Button {
+                    Task { _ = await model.clearCompletedTasks(in: list.id) }
+                } label: {
+                    Label("Clear Completed", systemImage: "eraser")
+                }
+                .disabled(completedCount(in: list.id) == 0)
+                Divider()
+                Button(role: .destructive) {
+                    pendingListDeletion = list
+                } label: {
+                    Label("Delete List", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .hcbFont(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .disabled(isDisconnected || isMutatingList)
         }
+    }
+
+    private func renameCurrentList(_ list: TaskListMirror) async {
+        let trimmed = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return }
+        isMutatingList = true
+        defer { isMutatingList = false }
+        _ = await model.updateTaskList(list, title: trimmed)
+        renamingList = nil
+    }
+
+    private func createNewList() async {
+        let trimmed = newListTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return }
+        isMutatingList = true
+        defer { isMutatingList = false }
+        _ = await model.createTaskList(title: trimmed)
+        isCreatingList = false
+        newListTitle = ""
+    }
+
+    private func deleteCurrentList(_ list: TaskListMirror) async {
+        isMutatingList = true
+        defer {
+            isMutatingList = false
+            pendingListDeletion = nil
+        }
+        _ = await model.deleteTaskList(list)
     }
 
     @ViewBuilder
@@ -1299,5 +1402,60 @@ struct TaskHoverPreview: View {
 
     private var listName: String {
         model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Unknown list"
+    }
+}
+
+private struct ListRenameSheet: View {
+    let list: TaskListMirror
+    @Binding var draft: String
+    let onCancel: () -> Void
+    let onSave: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Rename list") {
+                    TextField("Title", text: $draft)
+                }
+            }
+            .navigationTitle("Rename")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save", action: onSave)
+                        .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .hcbScaledFrame(minWidth: 380, minHeight: 180)
+    }
+}
+
+private struct ListCreateSheet: View {
+    @Binding var title: String
+    let onCancel: () -> Void
+    let onCreate: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("New list") {
+                    TextField("Title", text: $title)
+                }
+            }
+            .navigationTitle("New Task List")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create", action: onCreate)
+                        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .hcbScaledFrame(minWidth: 380, minHeight: 180)
     }
 }

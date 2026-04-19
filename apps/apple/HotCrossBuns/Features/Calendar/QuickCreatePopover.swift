@@ -134,7 +134,12 @@ struct QuickCreatePopover: View {
         // Timed drag in the day/week body.
         let startTime = initialDate.formatted(.dateTime.hour().minute())
         let endTime = end.formatted(.dateTime.hour().minute())
-        return "\(startStr) · \(startTime) – \(endTime)"
+        if cal.isDate(initialDate, inSameDayAs: end) {
+            return "\(startStr) · \(startTime) – \(endTime)"
+        }
+        // Cross-day timed drag from the week grid.
+        let endStr = end.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+        return "\(startStr), \(startTime) → \(endStr), \(endTime)"
     }
 
     private var currentListTitle: String {
