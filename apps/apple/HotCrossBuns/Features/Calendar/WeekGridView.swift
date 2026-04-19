@@ -192,9 +192,7 @@ struct WeekGridView: View {
         let width = CGFloat(span.columnCount) * columnWidth - 4
         let y = CGFloat(span.laneIndex) * laneHeight + 2
         let fill = calendarColor(for: span.event)
-        return Button {
-            router.navigate(to: .event(span.event.id))
-        } label: {
+        return CalendarEventPreviewButton(event: span.event) {
             Text(span.event.summary)
                 .hcbFont(.caption)
                 .lineLimit(1)
@@ -211,10 +209,8 @@ struct WeekGridView: View {
                 )
                 .foregroundStyle(AppColor.ink)
         }
-        .buttonStyle(.plain)
         .offset(x: x, y: y)
         .accessibilityLabel(eventAccessibilityLabel(span.event))
-        .accessibilityHint("Opens event details")
     }
 
     private func exportSingleEventICS(_ event: CalendarEventMirror) {
@@ -277,9 +273,7 @@ struct WeekGridView: View {
                             ForEach(Array(weekDays.enumerated()), id: \.offset) { idx, day in
                                 VStack(alignment: .leading, spacing: 2) {
                                     ForEach((tasksByDay[calendar.startOfDay(for: day)] ?? []).prefix(3)) { task in
-                                        Button {
-                                            router.navigate(to: .task(task.id))
-                                        } label: {
+                                        CalendarTaskPreviewButton(task: task) {
                                             HStack(spacing: 4) {
                                                 Image(systemName: "circle")
                                                     .hcbFontSystem(size: 8)
@@ -302,9 +296,7 @@ struct WeekGridView: View {
                                             )
                                             .foregroundStyle(AppColor.ink)
                                         }
-                                        .buttonStyle(.plain)
                                         .accessibilityLabel("Task due \(day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())): \(task.title)")
-                                        .accessibilityHint("Opens task details")
                                     }
                                     if let count = tasksByDay[calendar.startOfDay(for: day)]?.count, count > 3 {
                                         Text("+\(count - 3) more")
@@ -488,9 +480,7 @@ struct WeekGridView: View {
         let fill = calendarColor(for: placed.event)
         let fullDurationMinutes = Int(max(placed.event.endDate.timeIntervalSince(placed.event.startDate) / 60, 15))
 
-        return Button {
-            router.navigate(to: .event(placed.event.id))
-        } label: {
+        return CalendarEventPreviewButton(event: placed.event) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(placed.event.summary)
                     .hcbFont(.caption, weight: .semibold)
@@ -513,7 +503,6 @@ struct WeekGridView: View {
                     .strokeBorder(fill.opacity(0.55), lineWidth: 0.8)
             )
         }
-        .buttonStyle(.plain)
         .offset(x: xOffsetWithinDay + 1, y: yOffset)
         .overlay(
             RoundedRectangle(cornerRadius: 6, style: .continuous)

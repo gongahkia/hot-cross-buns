@@ -133,6 +133,8 @@ struct AddTaskSheet: View {
     @State private var dueDate = Date()
     @State private var recurrenceRule: RecurrenceRule?
     @State private var isSaving = false
+    @State private var isCreatingList = false
+    @State private var newListTitle = ""
 
     var body: some View {
         NavigationStack {
@@ -152,11 +154,7 @@ struct AddTaskSheet: View {
                     }
 
                     Section("Destination") {
-                        Picker("Task list", selection: $selectedTaskListID) {
-                            ForEach(model.taskLists) { taskList in
-                                Text(taskList.title).tag(Optional(taskList.id))
-                            }
-                        }
+                        taskListMenu
                     }
 
                     Section("Due date") {
@@ -176,6 +174,8 @@ struct AddTaskSheet: View {
                     }
                 }
             }
+            .formStyle(.grouped)
+            .hcbScaledPadding(.horizontal, 4)
             .navigationTitle("New Task")
             .task {
                 selectedTaskListID = selectedTaskListID ?? model.taskLists.first?.id
@@ -197,8 +197,85 @@ struct AddTaskSheet: View {
                     .disabled(canCreate == false || isSaving)
                 }
             }
+            .sheet(isPresented: $isCreatingList) {
+                NewTaskListInlineSheet(
+                    title: $newListTitle,
+                    onCancel: {
+                        isCreatingList = false
+                        newListTitle = ""
+                    },
+                    onCreate: {
+                        Task { await createListInline() }
+                    }
+                )
+            }
         }
+        .hcbScaledFrame(minWidth: 520, idealWidth: 560, minHeight: 520, idealHeight: 640)
         .interactiveDismissDisabled(isSaving)
+    }
+
+    private var taskListMenu: some View {
+        HStack {
+            Text("Task list")
+            Spacer(minLength: 12)
+            Menu {
+                ForEach(model.taskLists) { taskList in
+                    Button {
+                        selectedTaskListID = taskList.id
+                    } label: {
+                        HStack {
+                            Text(taskList.title)
+                            if selectedTaskListID == taskList.id {
+                                Spacer()
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+                Divider()
+                Button {
+                    newListTitle = ""
+                    isCreatingList = true
+                } label: {
+                    Label("Create new list…", systemImage: "plus")
+                }
+                .disabled(model.account == nil)
+            } label: {
+                HStack(spacing: 6) {
+                    Text(selectedListTitle)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .hcbFont(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+        }
+    }
+
+    private var selectedListTitle: String {
+        guard let id = selectedTaskListID,
+              let list = model.taskLists.first(where: { $0.id == id }) else {
+            return "Select list"
+        }
+        return list.title
+    }
+
+    private func createListInline() async {
+        let trimmed = newListTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return }
+        isSaving = true
+        defer { isSaving = false }
+        let didCreate = await model.createTaskList(title: trimmed)
+        if didCreate {
+            // Wait a beat for the model to ingest the new list, then select it.
+            if let match = model.taskLists.first(where: { $0.title == trimmed }) {
+                selectedTaskListID = match.id
+            }
+            isCreatingList = false
+            newListTitle = ""
+        }
     }
 
     private var canCreate: Bool {
@@ -582,6 +659,33 @@ private struct TaskListEditorSheet: View {
         if didSave {
             dismiss()
         }
+    }
+}
+
+private struct NewTaskListInlineSheet: View {
+    @Binding var title: String
+    let onCancel: () -> Void
+    let onCreate: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Task list") {
+                    TextField("Title", text: $title)
+                }
+            }
+            .navigationTitle("New Task List")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create", action: onCreate)
+                        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .hcbScaledFrame(minWidth: 360, minHeight: 180)
     }
 }
 

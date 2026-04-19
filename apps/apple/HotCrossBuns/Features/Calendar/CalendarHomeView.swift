@@ -856,130 +856,186 @@ struct AddEventSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            Group {
                 if model.calendars.isEmpty {
-                    Section {
-                        ContentUnavailableView(
-                            "No calendars loaded",
-                            systemImage: "calendar.badge.exclamationmark",
-                            description: Text("Connect Google and refresh before creating an event.")
-                        )
-                    }
+                    ContentUnavailableView(
+                        "No calendars loaded",
+                        systemImage: "calendar.badge.exclamationmark",
+                        description: Text("Connect Google and refresh before creating an event.")
+                    )
                 } else {
-                    if model.settings.eventTemplates.isEmpty == false {
-                        Section("Template") {
-                            Menu {
-                                ForEach(model.settings.eventTemplates) { template in
-                                    Button(template.name) { applyTemplate(template) }
-                                }
-                            } label: {
-                                Label("New from template…", systemImage: "doc.on.doc")
-                            }
-                        }
-                    }
-
-                    Section {
-                        VStack(alignment: .leading, spacing: 6) {
-                            TextField("Quick create — e.g., \"Lunch with Bob tomorrow 1pm at Philz for 45 min\"", text: $quickCreateText)
-                                .textFieldStyle(.roundedBorder)
-                                .onSubmit(applyQuickCreate)
-                            if let preview = parsedPreview, preview.hasParsedMetadata {
-                                HStack(spacing: 6) {
-                                    ForEach(Array(preview.matchedTokens.enumerated()), id: \.offset) { _, token in
-                                        Text(token.display)
-                                            .hcbFont(.caption, weight: .medium)
-                                            .hcbScaledPadding(.horizontal, 6)
-                                            .hcbScaledPadding(.vertical, 2)
-                                            .background(Capsule().fill(AppColor.blue.opacity(0.15)))
-                                            .foregroundStyle(AppColor.blue)
-                                    }
-                                    Spacer(minLength: 0)
-                                    Button("Apply") { applyQuickCreate() }
-                                        .buttonStyle(.borderless)
-                                }
-                            }
-                        }
-                        .onChange(of: quickCreateText) { _, newValue in
-                            parsedPreview = newValue.isEmpty ? nil : NaturalLanguageEventParser().parse(newValue)
-                        }
-                    } header: {
-                        Text("Quick Create")
-                    } footer: {
-                        Text("Type natural language and press Return, or click Apply, to prefill the form.")
-                            .hcbFont(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Section("Event") {
-                        TextField("Summary", text: $summary)
-                        MarkdownEditor(text: $details, placeholder: "Details (markdown supported)", minHeight: 90, maxHeight: 200)
-                        TextField("Location", text: $location)
-                    }
-
-                    Section("Calendar") {
-                        Picker("Calendar", selection: $selectedCalendarID) {
-                            ForEach(model.calendars) { calendar in
-                                Text(calendar.summary).tag(Optional(calendar.id))
-                            }
-                        }
-                    }
-
-                    Section("Time") {
-                        Toggle("All-day event", isOn: $isAllDay)
-                        DatePicker("Starts", selection: $startDate, displayedComponents: isAllDay ? [.date] : [.date, .hourAndMinute])
-                        DatePicker("Ends", selection: $endDate, displayedComponents: isAllDay ? [.date] : [.date, .hourAndMinute])
-                        if isValidDateRange == false {
-                            Text(isAllDay ? "End date cannot be before start date." : "End time must be after start time.")
-                                .hcbFont(.footnote)
-                                .foregroundStyle(.red)
-                        }
-                    }
-
-                    Section("Repeat") {
-                        RecurrenceEditor(rule: $recurrenceRule)
-                    }
-
-                    Section("Guests") {
-                        GuestsSection(attendees: $attendees, draft: $attendeeDraft, notifyGuests: $notifyGuests)
-                    }
-
-                    Section("Video call") {
-                        Toggle("Add Google Meet video conferencing", isOn: $addGoogleMeet)
-                    }
-
-                    Section("Color") {
-                        EventColorPicker(selection: $eventColor)
-                    }
-
-                    Section("Reminder") {
-                        EventReminderPicker(selection: $reminderOption)
+                    ScrollView {
+                        twoColumnBody
+                            .hcbScaledPadding(18)
                     }
                 }
             }
+            .appBackground()
             .navigationTitle("New Event")
             .task {
                 selectedCalendarID = selectedCalendarID ?? defaultCalendarID
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .disabled(isSaving)
+                    Button("Cancel") { dismiss() }
+                        .disabled(isSaving)
                 }
-
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Create") {
-                        Task {
-                            await createEvent()
-                        }
+                        Task { await createEvent() }
                     }
                     .disabled(canCreate == false || isSaving)
                 }
             }
         }
-        .hcbScaledFrame(minWidth: 540, idealWidth: 580, minHeight: 560, idealHeight: 720) // keep toolbar visible in small windows
+        .hcbScaledFrame(minWidth: 820, idealWidth: 920, minHeight: 560, idealHeight: 680)
         .interactiveDismissDisabled(isSaving)
+    }
+
+    private var twoColumnBody: some View {
+        HStack(alignment: .top, spacing: 18) {
+            VStack(alignment: .leading, spacing: 14) {
+                quickCreateBlock
+                summaryBlock
+                timeBlock
+                detailsBlock
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+
+            VStack(alignment: .leading, spacing: 14) {
+                calendarBlock
+                colorReminderBlock
+                guestsBlock
+                repeatBlock
+                meetBlock
+                if model.settings.eventTemplates.isEmpty == false {
+                    templateBlock
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+    }
+
+    @ViewBuilder
+    private func sectionCard<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title.uppercased())
+                .hcbFont(.caption2, weight: .bold)
+                .foregroundStyle(.secondary)
+            content()
+        }
+        .hcbScaledPadding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(AppColor.cream.opacity(0.5))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(AppColor.cardStroke, lineWidth: 0.6)
+        )
+    }
+
+    private var quickCreateBlock: some View {
+        sectionCard("Quick Create") {
+            TextField("e.g., \"Lunch with Bob tomorrow 1pm at Philz for 45 min\"", text: $quickCreateText)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit(applyQuickCreate)
+                .onChange(of: quickCreateText) { _, newValue in
+                    parsedPreview = newValue.isEmpty ? nil : NaturalLanguageEventParser().parse(newValue)
+                }
+            if let preview = parsedPreview, preview.hasParsedMetadata {
+                HStack(spacing: 6) {
+                    ForEach(Array(preview.matchedTokens.enumerated()), id: \.offset) { _, token in
+                        Text(token.display)
+                            .hcbFont(.caption, weight: .medium)
+                            .hcbScaledPadding(.horizontal, 6)
+                            .hcbScaledPadding(.vertical, 2)
+                            .background(Capsule().fill(AppColor.blue.opacity(0.15)))
+                            .foregroundStyle(AppColor.blue)
+                    }
+                    Spacer(minLength: 0)
+                    Button("Apply") { applyQuickCreate() }
+                        .buttonStyle(.borderless)
+                }
+            }
+        }
+    }
+
+    private var summaryBlock: some View {
+        sectionCard("Event") {
+            TextField("Summary", text: $summary)
+                .textFieldStyle(.roundedBorder)
+            TextField("Location", text: $location)
+                .textFieldStyle(.roundedBorder)
+        }
+    }
+
+    private var timeBlock: some View {
+        sectionCard("Time") {
+            Toggle("All-day event", isOn: $isAllDay)
+            DatePicker("Starts", selection: $startDate, displayedComponents: isAllDay ? [.date] : [.date, .hourAndMinute])
+            DatePicker("Ends", selection: $endDate, displayedComponents: isAllDay ? [.date] : [.date, .hourAndMinute])
+            if isValidDateRange == false {
+                Text(isAllDay ? "End date cannot be before start date." : "End time must be after start time.")
+                    .hcbFont(.footnote)
+                    .foregroundStyle(.red)
+            }
+        }
+    }
+
+    private var detailsBlock: some View {
+        sectionCard("Details") {
+            MarkdownEditor(text: $details, placeholder: "Notes (markdown supported)", minHeight: 90, maxHeight: 200)
+        }
+    }
+
+    private var calendarBlock: some View {
+        sectionCard("Calendar") {
+            Picker("Calendar", selection: $selectedCalendarID) {
+                ForEach(model.calendars) { calendar in
+                    Text(calendar.summary).tag(Optional(calendar.id))
+                }
+            }
+            .labelsHidden()
+        }
+    }
+
+    private var colorReminderBlock: some View {
+        sectionCard("Color · Reminder") {
+            EventColorPicker(selection: $eventColor)
+            EventReminderPicker(selection: $reminderOption)
+        }
+    }
+
+    private var guestsBlock: some View {
+        sectionCard("Guests") {
+            GuestsSection(attendees: $attendees, draft: $attendeeDraft, notifyGuests: $notifyGuests)
+        }
+    }
+
+    private var repeatBlock: some View {
+        sectionCard("Repeat") {
+            RecurrenceEditor(rule: $recurrenceRule)
+        }
+    }
+
+    private var meetBlock: some View {
+        sectionCard("Video call") {
+            Toggle("Add Google Meet video conferencing", isOn: $addGoogleMeet)
+        }
+    }
+
+    private var templateBlock: some View {
+        sectionCard("Template") {
+            Menu {
+                ForEach(model.settings.eventTemplates) { template in
+                    Button(template.name) { applyTemplate(template) }
+                }
+            } label: {
+                Label("New from template…", systemImage: "doc.on.doc")
+            }
+        }
     }
 
     private var defaultCalendarID: CalendarListMirror.ID? {

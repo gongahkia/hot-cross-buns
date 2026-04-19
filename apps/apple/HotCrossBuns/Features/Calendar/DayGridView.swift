@@ -75,9 +75,7 @@ struct DayGridView: View {
                         .hcbFont(.caption2, weight: .bold)
                         .foregroundStyle(.secondary)
                     ForEach(allDayEvents) { event in
-                        Button {
-                            router.navigate(to: .event(event.id))
-                        } label: {
+                        CalendarEventPreviewButton(event: event) {
                             Text(event.summary)
                                 .hcbFont(.caption, weight: .medium)
                                 .lineLimit(1)
@@ -87,7 +85,6 @@ struct DayGridView: View {
                                 .background(Capsule().fill(calendarColor(for: event).opacity(0.25)))
                                 .foregroundStyle(AppColor.ink)
                         }
-                        .buttonStyle(.plain)
                         .accessibilityLabel("\(event.summary), all day")
                     }
                 }
@@ -165,9 +162,7 @@ struct DayGridView: View {
         let height = CGFloat(durationMinutes) * (hourHeight / 60)
         let fill = calendarColor(for: event)
 
-        return Button {
-            router.navigate(to: .event(event.id))
-        } label: {
+        return CalendarEventPreviewButton(event: event) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(event.summary)
                     .hcbFont(.caption, weight: .semibold)
@@ -190,7 +185,6 @@ struct DayGridView: View {
             .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(fill.opacity(0.22)))
             .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(fill.opacity(0.55), lineWidth: 0.8))
         }
-        .buttonStyle(.plain)
         .offset(x: 56, y: yOffset)
         .accessibilityLabel("\(event.summary), \(event.startDate.formatted(.dateTime.hour().minute())) to \(event.endDate.formatted(.dateTime.hour().minute()))")
     }
@@ -224,9 +218,7 @@ struct DayGridView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(dayTasks) { task in
-                            Button {
-                                router.navigate(to: .task(task.id))
-                            } label: {
+                            CalendarTaskPreviewButton(task: task) {
                                 HStack(spacing: 8) {
                                     Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                                         .foregroundStyle(task.isCompleted ? AppColor.moss : AppColor.ember)
@@ -240,7 +232,6 @@ struct DayGridView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(AppColor.cream.opacity(0.4)))
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                 }
