@@ -16,6 +16,7 @@ final class AppCommandActions {
     var openDiagnostics: () -> Void = {}
     var openCommandPalette: () -> Void = {}
     var openHelp: () -> Void = {}
+    var printToday: () -> Void = {}
     var zoomIn: () -> Void = {}
     var zoomOut: () -> Void = {}
     var zoomReset: () -> Void = {}
@@ -50,6 +51,9 @@ struct AppCommands: Commands {
         CommandGroup(replacing: .printItem) {
             Button("Command Palette…") { actions?.openCommandPalette() }
                 .keyboardShortcut("p", modifiers: [.command])
+                .disabled(actions == nil)
+            Button("Print Today…") { actions?.printToday() }
+                .keyboardShortcut("p", modifiers: [.command, .shift])
                 .disabled(actions == nil)
         }
 
