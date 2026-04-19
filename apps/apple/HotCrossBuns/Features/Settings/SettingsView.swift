@@ -66,6 +66,8 @@ struct SettingsView: View {
 
             AppearanceSection()
 
+            PerSurfaceFontSection()
+
             LayoutSection()
 
             KeybindingsSection()

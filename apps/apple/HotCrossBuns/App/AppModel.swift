@@ -1343,6 +1343,20 @@ final class AppModel {
         Task { await saveCurrentState() }
     }
 
+    // Updates a per-surface font override (§6.11). Passing `.empty` clears
+    // the override so the surface falls back to the global Appearance font.
+    func setPerSurfaceFont(_ surface: HCBSurface, override: HCBSurfaceFontOverride) {
+        var next = settings.perSurfaceFontOverrides
+        if override.isEmpty {
+            next.removeValue(forKey: surface.rawValue)
+        } else {
+            next[surface.rawValue] = override
+        }
+        guard next != settings.perSurfaceFontOverrides else { return }
+        settings.perSurfaceFontOverrides = next
+        Task { await saveCurrentState() }
+    }
+
     func setStoreViewModeHidden(_ mode: StoreViewMode, hidden: Bool) {
         var next = settings.hiddenStoreViewModes
         if hidden {
