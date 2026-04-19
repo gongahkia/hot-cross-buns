@@ -10,6 +10,7 @@ struct CalendarHomeView: View {
     @SceneStorage("calendarShowDrawer") private var storedShowDrawer: Bool = false
     @State private var mode: CalendarGridMode = .week
     @State private var showTaskDrawer: Bool = false
+    @State private var searchQuery: String = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -31,16 +32,19 @@ struct CalendarHomeView: View {
                             TaskDrawerPanel()
                                 .transition(.move(edge: .leading).combined(with: .opacity))
                         }
-                        WeekGridView(anchorDate: $selectedDate)
+                        WeekGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
                     }
                     .animation(.easeInOut(duration: 0.2), value: showTaskDrawer)
-                case .month: MonthGridView(anchorDate: $selectedDate)
+                case .month: MonthGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
                 }
             }
         }
         .appBackground()
         .navigationTitle("Google Calendar")
         .toolbar {
+            ToolbarItem(placement: .navigation) {
+                CalendarSearchField(text: $searchQuery)
+            }
             ToolbarItemGroup {
                 if mode == .week {
                     Button {
@@ -893,6 +897,39 @@ enum EventReminderOption: Hashable, Identifiable {
         } else {
             self = .custom(minutes)
         }
+    }
+}
+
+struct CalendarSearchField: View {
+    @Binding var text: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField("Filter events", text: $text)
+                .textFieldStyle(.plain)
+                .frame(width: 180)
+                .font(.subheadline)
+            if text.isEmpty == false {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(.quaternary.opacity(0.4))
+        )
     }
 }
 
