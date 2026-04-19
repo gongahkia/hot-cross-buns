@@ -209,6 +209,9 @@ struct MacSidebarShell: View {
                 // Clear any persistent-failure pause so the near-realtime
                 // loop re-runs and the next refresh actually hits Google.
                 model.resumeSync()
+                if model.consumePendingSharedItems() {
+                    presentSheet(.quickAddTask, on: .store)
+                }
                 Task {
                     await model.refreshForCurrentSyncMode()
                     handlePendingAppIntentRoute()
