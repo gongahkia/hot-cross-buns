@@ -64,10 +64,13 @@ actor SpotlightIndexer {
         let attrs = CSSearchableItemAttributeSet(contentType: UTType.text)
         attrs.title = task.title
         attrs.contentDescription = task.notes.isEmpty ? nil : task.notes
+        attrs.textContent = Self.taskTextContent(task)
         attrs.dueDate = task.dueDate
         attrs.displayName = task.title
         attrs.keywords = ["task", task.status.rawValue]
         attrs.contentURL = URL(string: Self.taskURLScheme + task.id)
+        attrs.contentModificationDate = task.updatedAt
+        attrs.metadataModificationDate = task.updatedAt
 
         return CSSearchableItem(
             uniqueIdentifier: Self.taskURLScheme + task.id,
@@ -80,18 +83,81 @@ actor SpotlightIndexer {
         let attrs = CSSearchableItemAttributeSet(contentType: UTType.calendarEvent)
         attrs.title = event.summary
         attrs.contentDescription = event.details.isEmpty ? nil : event.details
+        attrs.textContent = Self.eventTextContent(event)
         attrs.startDate = event.startDate
         attrs.endDate = event.endDate
         attrs.allDay = event.isAllDay as NSNumber
         attrs.displayName = event.summary
-        attrs.keywords = ["event", event.status.rawValue]
+        attrs.keywords = eventKeywords(for: event)
         attrs.contentURL = URL(string: Self.eventURLScheme + event.id)
+        attrs.contentModificationDate = event.updatedAt
+        attrs.metadataModificationDate = event.updatedAt
+        if event.location.isEmpty == false {
+            attrs.namedLocation = event.location
+        }
+        if event.attendeeEmails.isEmpty == false {
+            attrs.recipientEmailAddresses = event.attendeeEmails
+        }
 
         return CSSearchableItem(
             uniqueIdentifier: Self.eventURLScheme + event.id,
             domainIdentifier: Self.eventDomain,
             attributeSet: attrs
         )
+    }
+
+    nonisolated private func eventKeywords(for event: CalendarEventMirror) -> [String] {
+        var keywords = ["event", event.status.rawValue]
+        if event.meetLink.isEmpty == false { keywords.append("meet") }
+        if event.attendeeEmails.isEmpty == false { keywords.append("meeting") }
+        if event.isAllDay { keywords.append("all-day") }
+        return keywords
+    }
+
+    // Spotlight shows the inline preview (cmd-space → space) using
+    // textContent. Assembling a rich single-blurb here gives users the
+    // full "who / when / where / link" summary without leaving Spotlight.
+    nonisolated static func taskTextContent(_ task: TaskMirror) -> String {
+        var parts: [String] = []
+        if let due = task.dueDate {
+            parts.append("Due \(due.formatted(date: .abbreviated, time: .omitted))")
+        }
+        if task.isCompleted {
+            parts.append("Completed")
+        }
+        if task.notes.isEmpty == false {
+            parts.append(task.notes)
+        }
+        return parts.joined(separator: "\n")
+    }
+
+    nonisolated static func eventTextContent(_ event: CalendarEventMirror) -> String {
+        var parts: [String] = []
+        let timeLabel: String
+        if event.isAllDay {
+            let inclusiveEnd = Calendar.current.date(byAdding: .day, value: -1, to: event.endDate) ?? event.endDate
+            let startString = event.startDate.formatted(date: .abbreviated, time: .omitted)
+            let endString = inclusiveEnd.formatted(date: .abbreviated, time: .omitted)
+            timeLabel = startString == endString ? "All day · \(startString)" : "All day · \(startString) – \(endString)"
+        } else {
+            let startString = event.startDate.formatted(date: .abbreviated, time: .shortened)
+            let endString = event.endDate.formatted(date: .omitted, time: .shortened)
+            timeLabel = "\(startString) – \(endString)"
+        }
+        parts.append(timeLabel)
+        if event.location.isEmpty == false {
+            parts.append("📍 \(event.location)")
+        }
+        if event.meetLink.isEmpty == false {
+            parts.append("📹 \(event.meetLink)")
+        }
+        if event.attendeeEmails.isEmpty == false {
+            parts.append("👥 \(event.attendeeEmails.joined(separator: ", "))")
+        }
+        if event.details.isEmpty == false {
+            parts.append(event.details)
+        }
+        return parts.joined(separator: "\n")
     }
 }
 
