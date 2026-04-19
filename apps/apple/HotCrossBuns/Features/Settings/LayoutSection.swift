@@ -8,6 +8,8 @@ struct LayoutSection: View {
             sidebarTabsBlock
             Divider()
             calendarViewsBlock
+            Divider()
+            storeViewsBlock
         }
     }
 
@@ -42,6 +44,22 @@ struct LayoutSection: View {
         }
     }
 
+    private var storeViewsBlock: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Store view modes")
+                .hcbFont(.subheadline, weight: .medium)
+            ForEach(StoreViewMode.allCases, id: \.self) { mode in
+                Toggle(isOn: storeModeVisibleBinding(mode)) {
+                    Label(mode.title, systemImage: mode.systemImage)
+                }
+                .disabled(isLastVisibleStoreMode(mode))
+            }
+            Text("Hidden modes disappear from the Store view picker. At least one mode stays visible.")
+                .hcbFont(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     private func sidebarItemVisibleBinding(_ item: SidebarItem) -> Binding<Bool> {
         Binding(
             get: { model.settings.hiddenSidebarItems.contains(item.rawValue) == false },
@@ -62,6 +80,21 @@ struct LayoutSection: View {
         guard model.settings.hiddenCalendarViewModes.contains(mode.rawValue) == false else { return false }
         let visibleCount = CalendarGridMode.allCases.reduce(0) { acc, m in
             acc + (model.settings.hiddenCalendarViewModes.contains(m.rawValue) ? 0 : 1)
+        }
+        return visibleCount <= 1
+    }
+
+    private func storeModeVisibleBinding(_ mode: StoreViewMode) -> Binding<Bool> {
+        Binding(
+            get: { model.settings.hiddenStoreViewModes.contains(mode.rawValue) == false },
+            set: { isVisible in model.setStoreViewModeHidden(mode, hidden: isVisible == false) }
+        )
+    }
+
+    private func isLastVisibleStoreMode(_ mode: StoreViewMode) -> Bool {
+        guard model.settings.hiddenStoreViewModes.contains(mode.rawValue) == false else { return false }
+        let visibleCount = StoreViewMode.allCases.reduce(0) { acc, m in
+            acc + (model.settings.hiddenStoreViewModes.contains(m.rawValue) ? 0 : 1)
         }
         return visibleCount <= 1
     }
