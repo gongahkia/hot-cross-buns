@@ -1304,6 +1304,40 @@ final class AppModel {
         Task { await saveCurrentState() }
     }
 
+    func bulkDeleteEvents(_ events: [CalendarEventMirror]) async -> Int {
+        var deleted = 0
+        for event in events {
+            if await deleteEvent(event, scope: .thisOccurrence) {
+                deleted += 1
+            }
+        }
+        return deleted
+    }
+
+    func bulkShiftEvents(_ events: [CalendarEventMirror], byMinutes minutes: Int) async -> Int {
+        guard minutes != 0 else { return 0 }
+        var shifted = 0
+        for event in events {
+            guard event.isAllDay == false else { continue }
+            let newStart = event.startDate.addingTimeInterval(TimeInterval(minutes) * 60)
+            let newEnd = event.endDate.addingTimeInterval(TimeInterval(minutes) * 60)
+            let didUpdate = await updateEvent(
+                event,
+                summary: event.summary,
+                details: event.details,
+                startDate: newStart,
+                endDate: newEnd,
+                isAllDay: event.isAllDay,
+                reminderMinutes: event.reminderMinutes.first,
+                calendarID: event.calendarID,
+                location: event.location,
+                scope: .thisOccurrence
+            )
+            if didUpdate { shifted += 1 }
+        }
+        return shifted
+    }
+
     func saveAsEventTemplate(_ event: CalendarEventMirror, name: String) {
         let duration = max(Int(event.endDate.timeIntervalSince(event.startDate) / 60), 15)
         let template = EventTemplate(

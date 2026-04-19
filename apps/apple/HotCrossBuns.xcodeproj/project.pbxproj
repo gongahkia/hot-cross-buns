@@ -29,6 +29,7 @@
 		1D9C5B69B8A123DB5CA67B87 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 892DDFFD7ECD0890E98DEC1C /* AppModel.swift */; };
 		1E6A7C7E3264A42EF264A860 /* VimKeyboardMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B73DF47EA023580C762E1BE3 /* VimKeyboardMonitor.swift */; };
 		1EB09DC829E32132539C4C0E /* DayGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5219CCB9C481FFD04A218A66 /* DayGridView.swift */; };
+		1F0EAE7D0AB522B5BA989377 /* EventBulkActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D137D2E12066C5E9B77CEDA /* EventBulkActionBar.swift */; };
 		200CB3413E3917BC9D0CC25F /* RecurrenceEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9062C2E730F1E70F0DCBDADA /* RecurrenceEditor.swift */; };
 		2280EEE6CF4070EA9056DEE5 /* GoogleTasksClientTransportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09882AE6212AFABA6285AACF /* GoogleTasksClientTransportTests.swift */; };
 		23DEF8936535B7AAA96AB9D9 /* DraggedTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2EDEC1CEE956716394335F3 /* DraggedTask.swift */; };
@@ -185,6 +186,7 @@
 		1AE4271884E414A0922884E1 /* CalendarDropComputerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDropComputerTests.swift; sourceTree = "<group>"; };
 		1B0DFDCF8E31CE997881CE68 /* TaskDrawerPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDrawerPanel.swift; sourceTree = "<group>"; };
 		1CD03A9C296FAC6BEBC942B0 /* HotCrossBunsShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HotCrossBunsShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		1D137D2E12066C5E9B77CEDA /* EventBulkActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventBulkActionBar.swift; sourceTree = "<group>"; };
 		22DB41A975AB784A9EBDD654 /* CalendarEventInstanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventInstanceTests.swift; sourceTree = "<group>"; };
 		22EC7CE0BFC4074C6B02F03B /* UndoAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoAction.swift; sourceTree = "<group>"; };
 		2316DAFF7860DC61BD91AF52 /* ForecastBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForecastBuilderTests.swift; sourceTree = "<group>"; };
@@ -679,6 +681,7 @@
 				382C796971460006AB7D939E /* CalendarGridLayout.swift */,
 				F2263C896865029DCEC3A53B /* CalendarHomeView.swift */,
 				5219CCB9C481FFD04A218A66 /* DayGridView.swift */,
+				1D137D2E12066C5E9B77CEDA /* EventBulkActionBar.swift */,
 				E7E237D56DC5E422A168E311 /* EventHoverPreview.swift */,
 				3FB991136E6E925A2EF0030D /* GuestsSection.swift */,
 				0854A71DD603264D078FB733 /* MonthGridView.swift */,
@@ -875,6 +878,7 @@
 				61E276C2555F3F36F976E697 /* DiagnosticsView.swift in Sources */,
 				AC3FE199F79468DAA1B9D9EF /* DockBadgeController.swift in Sources */,
 				23DEF8936535B7AAA96AB9D9 /* DraggedTask.swift in Sources */,
+				1F0EAE7D0AB522B5BA989377 /* EventBulkActionBar.swift in Sources */,
 				B2DCB4955F59EABE220DFBEB /* EventHoverPreview.swift in Sources */,
 				12CA0C50A8A32E71E1AE5A0A /* EventTemplate.swift in Sources */,
 				74E52E17654990328A3FCF08 /* Exporters.swift in Sources */,
