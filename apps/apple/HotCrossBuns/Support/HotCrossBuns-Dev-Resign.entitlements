@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Applied after `xcodebuild` completes via a post-build codesign CLI step.
+  Xcode's build-time entitlement checker refuses keychain-access-groups
+  without a provisioning profile, but the `codesign` CLI applies whatever
+  we hand it — so we build with minimal entitlements (see
+  HotCrossBuns-Dev.entitlements) then re-sign with THIS file, which adds
+  the keychain-access-groups GoogleSignIn's Data Protection Keychain
+  needs on macOS.
+-->
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>keychain-access-groups</key>
+	<array>
+		<string>com.gongahkia.hotcrossbuns.mac</string>
+	</array>
+</dict>
+</plist>

@@ -9,9 +9,25 @@ struct MenuBarExtraContent: View {
             switch model.settings.menuBarStyle {
             case .detailed: DetailedMenuBarPanel()
             case .weekly: WeeklyMenuBarPanel()
+            case .focusStrip: FocusStripMenuBarPanel()
+            case .dayTimeline: DayTimelineMenuBarPanel()
+            case .minimalBadge: MinimalBadgeMenuBarPanel()
             case .compact: CompactMenuBarPanel()
             }
         }
+    }
+}
+
+private extension AppModel {
+    var menuBarSelectedCalendarIDs: Set<CalendarListMirror.ID> {
+        let selected = Set(calendarSnapshot.selectedCalendars.map(\.id))
+        return selected.isEmpty ? Set(calendars.map(\.id)) : selected
+    }
+
+    var menuBarVisibleTaskListIDs: Set<TaskListMirror.ID> {
+        settings.hasConfiguredTaskListSelection
+            ? settings.selectedTaskListIDs
+            : Set(taskLists.map(\.id))
     }
 }
 
