@@ -34,6 +34,7 @@
 		28206596F2C65EB227EA1448 /* SyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46640F8301E1D6444BE62A73 /* SyncModels.swift */; };
 		2996536E95132A91602EF187 /* CacheSchemaMigrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62B7E28F16E7ED3A3AF854DC /* CacheSchemaMigrator.swift */; };
 		2D19FBD327EF4A9C87C0CD02 /* RecurrenceRule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C304D2E832B788B8FAF20E /* RecurrenceRule.swift */; };
+		31AF912F0C07426A97089C29 /* CrashReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04200A166E83F915A6DECF28 /* CrashReporter.swift */; };
 		34DF4A454B9BAB7772BA611F /* SpotlightIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A88DE6FAF6CB6673FAFBC3A /* SpotlightIndexer.swift */; };
 		3B7E0CB45C3A8F28831C31C5 /* ReviewBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2902AF84DDE381956C0D149E /* ReviewBuilderTests.swift */; };
 		3CD7D2817F178F819CEDA958 /* Snapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1622469DA249EE1B10188D98 /* Snapshots.swift */; };
@@ -128,6 +129,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		04200A166E83F915A6DECF28 /* CrashReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReporter.swift; sourceTree = "<group>"; };
 		049F4CDAC1343692B257156B /* SyncScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncScheduler.swift; sourceTree = "<group>"; };
 		0854A71DD603264D078FB733 /* MonthGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthGridView.swift; sourceTree = "<group>"; };
 		09882AE6212AFABA6285AACF /* GoogleTasksClientTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleTasksClientTransportTests.swift; sourceTree = "<group>"; };
@@ -562,6 +564,7 @@
 			isa = PBXGroup;
 			children = (
 				62B7E28F16E7ED3A3AF854DC /* CacheSchemaMigrator.swift */,
+				04200A166E83F915A6DECF28 /* CrashReporter.swift */,
 				4D35E61D1B3B91A6E21DCC27 /* LocalCacheStore.swift */,
 			);
 			path = Persistence;
@@ -731,6 +734,7 @@
 				523A574D6D48B12B4587E086 /* CalendarHomeView.swift in Sources */,
 				06BEC9D87D21345A636AADB8 /* CalendarMirror.swift in Sources */,
 				2520B85F92EAE261CAEE3A4B /* CommandPaletteView.swift in Sources */,
+				31AF912F0C07426A97089C29 /* CrashReporter.swift in Sources */,
 				F544AFBC74E117992DB58913 /* CustomFilter.swift in Sources */,
 				76FE748A00BF7565093EB3C2 /* CustomFiltersSection.swift in Sources */,
 				7092CA5C7D2C3A052185B566 /* DesignTokens.swift in Sources */,

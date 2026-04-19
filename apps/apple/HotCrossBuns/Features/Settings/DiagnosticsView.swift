@@ -8,6 +8,7 @@ struct DiagnosticsView: View {
     @State private var isWorking = false
     @State private var confirmation: DiagnosticsConfirmation?
     @State private var copiedAt: Date?
+    @State private var lastCrash: String?
 
     var body: some View {
         NavigationStack {
@@ -82,6 +83,29 @@ struct DiagnosticsView: View {
                     .disabled(isWorking)
                 }
 
+                if let crash = lastCrash {
+                    Section("Previous crash") {
+                        Text(crash)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                            .lineLimit(12)
+                        HStack {
+                            Button {
+                                Clipboard.copy(crash)
+                            } label: {
+                                Label("Copy crash log", systemImage: "doc.on.doc")
+                            }
+                            Button(role: .destructive) {
+                                CrashReporter.clearLastCrash()
+                                lastCrash = nil
+                            } label: {
+                                Label("Clear", systemImage: "trash")
+                            }
+                        }
+                    }
+                }
+
                 Section("Support") {
                     Button {
                         copyDiagnostics()
@@ -105,6 +129,7 @@ struct DiagnosticsView: View {
             }
             .task {
                 cachePath = await model.cacheFilePath()
+                lastCrash = CrashReporter.readLastCrash()
             }
             .confirmationDialog(
                 confirmation?.title ?? "Confirm",
