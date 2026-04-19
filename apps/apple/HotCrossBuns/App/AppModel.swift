@@ -1290,6 +1290,37 @@ final class AppModel {
         Task { await saveCurrentState() }
     }
 
+    func upsertEventTemplate(_ template: EventTemplate) {
+        if let index = settings.eventTemplates.firstIndex(where: { $0.id == template.id }) {
+            settings.eventTemplates[index] = template
+        } else {
+            settings.eventTemplates.append(template)
+        }
+        Task { await saveCurrentState() }
+    }
+
+    func deleteEventTemplate(_ id: EventTemplate.ID) {
+        settings.eventTemplates.removeAll { $0.id == id }
+        Task { await saveCurrentState() }
+    }
+
+    func saveAsEventTemplate(_ event: CalendarEventMirror, name: String) {
+        let duration = max(Int(event.endDate.timeIntervalSince(event.startDate) / 60), 15)
+        let template = EventTemplate(
+            name: name,
+            summary: event.summary,
+            details: event.details,
+            location: event.location,
+            durationMinutes: duration,
+            isAllDay: event.isAllDay,
+            reminderMinutes: event.reminderMinutes.first,
+            colorId: event.colorId,
+            attendees: event.attendeeEmails,
+            addGoogleMeet: event.meetLink.isEmpty == false
+        )
+        upsertEventTemplate(template)
+    }
+
     func setShowDetailedMenuBar(_ isEnabled: Bool) {
         guard settings.showDetailedMenuBar != isEnabled else {
             return
