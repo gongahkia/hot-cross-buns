@@ -44,6 +44,7 @@
 		46D517DF3CCDC62A677E30B0 /* StoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B73A839AA07E6C98129ED4BB /* StoreView.swift */; };
 		4A0CC79BFC861B5D27E9F288 /* AppCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 838CDC9397AEB8B081E732EE /* AppCommands.swift */; };
 		4D00CE67951243CCE90386B4 /* QuickAddView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDB427444279DD0F8E4B2281 /* QuickAddView.swift */; };
+		4E8052E74A055E77BC2698D9 /* TodayPrintView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C43EE423C47E35EC405972E /* TodayPrintView.swift */; };
 		5049BDF0BCBF8FAE6B9344DB /* LocalCacheStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D35E61D1B3B91A6E21DCC27 /* LocalCacheStore.swift */; };
 		5226407217146D0223282096 /* HotCrossBunsShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1CD03A9C296FAC6BEBC942B0 /* HotCrossBunsShareExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		523A574D6D48B12B4587E086 /* CalendarHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2263C896865029DCEC3A53B /* CalendarHomeView.swift */; };
@@ -189,6 +190,7 @@
 		382C796971460006AB7D939E /* CalendarGridLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarGridLayout.swift; sourceTree = "<group>"; };
 		3A247BD19F3FCC74244C279E /* ExporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExporterTests.swift; sourceTree = "<group>"; };
 		3B56113BE89523BF7D0AE8EA /* CalendarMirror.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarMirror.swift; sourceTree = "<group>"; };
+		3C43EE423C47E35EC405972E /* TodayPrintView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayPrintView.swift; sourceTree = "<group>"; };
 		3FB991136E6E925A2EF0030D /* GuestsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestsSection.swift; sourceTree = "<group>"; };
 		451F7A551BAF39DA361383F4 /* NaturalLanguageTaskParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NaturalLanguageTaskParser.swift; sourceTree = "<group>"; };
 		46640F8301E1D6444BE62A73 /* SyncModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncModels.swift; sourceTree = "<group>"; };
@@ -348,6 +350,7 @@
 			isa = PBXGroup;
 			children = (
 				89EA3416048E26FDC6F7B0BC /* Exporters.swift */,
+				3C43EE423C47E35EC405972E /* TodayPrintView.swift */,
 			);
 			path = Export;
 			sourceTree = "<group>";
@@ -881,6 +884,7 @@
 				0E508E9852C85C2E60A64756 /* TaskReminderMarkers.swift in Sources */,
 				565F287CFA9B4102EE96A9DB /* TaskStarring.swift in Sources */,
 				D469641DB76139A358F0A8CB /* TasksView.swift in Sources */,
+				4E8052E74A055E77BC2698D9 /* TodayPrintView.swift in Sources */,
 				53E6931013FCFB5C1A0858EE /* UndoAction.swift in Sources */,
 				1D5AAB0DDD1DA8BD51016E71 /* UndoToast.swift in Sources */,
 				E79EDFC3AF65AA17E5FB5E03 /* UpdaterController.swift in Sources */,

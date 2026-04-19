@@ -490,6 +490,7 @@ struct MacSidebarShell: View {
         appCommandActions.openDiagnostics = { presentSheet(.diagnostics, on: selection) }
         appCommandActions.openCommandPalette = { isPresentingCommandPalette = true }
         appCommandActions.openHelp = { isPresentingHelp = true }
+        appCommandActions.printToday = { TodayPrinter.print(model: model) }
         appCommandActions.zoomIn = { performZoomIn() }
         appCommandActions.zoomOut = { performZoomOut() }
         appCommandActions.zoomReset = { performZoomReset() }
