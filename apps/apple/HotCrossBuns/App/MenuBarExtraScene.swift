@@ -15,6 +15,7 @@ struct MenuBarExtraContent: View {
             case .compact: CompactMenuBarPanel()
             }
         }
+        .withHCBAppearance(model.settings)
     }
 }
 
