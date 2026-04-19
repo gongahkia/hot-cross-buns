@@ -631,6 +631,12 @@ struct AddEventSheet: View {
     // hides the Quick Create block, flips the title + primary button, and
     // dispatches updateEvent instead of createEvent.
     @State private var editingEvent: CalendarEventMirror?
+    // Editing-state flag: true in create mode; false when opened on an
+    // existing event (view-only). The view-only pass disables every field
+    // and swaps the primary toolbar button to "Edit" — clicking Edit flips
+    // this true and the form becomes live. Clicking Open on the hover
+    // preview now lands users here first, not in a destructive edit.
+    @State private var isEditing: Bool
     // Recurring-scope picker state (shown only when saving a recurring event
     // in edit mode). Mirrors the legacy EditEventSheet behaviour.
     @State private var pendingRecurringScope = false
@@ -644,12 +650,14 @@ struct AddEventSheet: View {
         _startDate = State(initialValue: start)
         _endDate = State(initialValue: prefilledEnd ?? defaultEnd)
         _isAllDay = State(initialValue: prefilledIsAllDay)
+        _isEditing = State(initialValue: true) // create mode is always editable
     }
 
     // Edit-mode init: prefill every field from `existingEvent` so the same
-    // "New Event" sheet becomes an edit surface. Recurring-scope handling is
-    // currently limited to .thisOccurrence — see the flag in URGENT-TODO /
-    // merge audit.
+    // "New Event" sheet becomes an edit surface. Starts in VIEW-ONLY mode
+    // (isEditing = false) per user-requested flow — clicking Open on the
+    // hover preview shouldn't immediately drop users into a destructive
+    // edit; they tap "Edit" in the toolbar to unlock fields.
     init(existingEvent: CalendarEventMirror) {
         let cal = Calendar.current
         _startDate = State(initialValue: existingEvent.startDate)
@@ -657,6 +665,7 @@ struct AddEventSheet: View {
             ? (cal.date(byAdding: .day, value: -1, to: existingEvent.endDate) ?? existingEvent.endDate)
             : existingEvent.endDate)
         _isAllDay = State(initialValue: existingEvent.isAllDay)
+        _isEditing = State(initialValue: false)
         _summary = State(initialValue: existingEvent.summary)
         _details = State(initialValue: existingEvent.details)
         _location = State(initialValue: existingEvent.location)
@@ -682,11 +691,16 @@ struct AddEventSheet: View {
                     ScrollView {
                         twoColumnBody
                             .hcbScaledPadding(18)
+                            // View-only pass: the whole form is disabled so
+                            // fields read but don't mutate. Tapping Edit in
+                            // the toolbar flips isEditing and the form goes
+                            // live without the sheet dismissing.
+                            .disabled(isEditing == false)
                     }
                 }
             }
             .appBackground()
-            .navigationTitle(editingEvent == nil ? "New Event" : "Edit Event")
+            .navigationTitle(navTitle)
             .task {
                 selectedCalendarID = selectedCalendarID ?? defaultCalendarID
                 applyDeepLinkPrefillIfAny()
@@ -696,20 +710,33 @@ struct AddEventSheet: View {
                     Button("Cancel") { dismiss() }
                         .disabled(isSaving)
                 }
-                if editingEvent != nil {
+                // Overflow menu with Delete / Duplicate / Copy as Markdown /
+                // Export .ics / Save as Template only surfaces once the user
+                // actively enters edit mode — the view-only pass keeps the
+                // toolbar minimal.
+                if editingEvent != nil, isEditing {
                     ToolbarItem(placement: .primaryAction) {
                         editMoreMenu
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(editingEvent == nil ? "Create" : "Save") {
-                        if editingEvent != nil, isRecurringEvent {
-                            pendingRecurringScope = true
-                        } else {
-                            Task { await createOrUpdateEvent(scope: .thisOccurrence) }
+                    if editingEvent != nil, isEditing == false {
+                        // View-only pass: primary button escalates to edit.
+                        Button("Edit") {
+                            withAnimation(.easeInOut(duration: 0.12)) {
+                                isEditing = true
+                            }
                         }
+                    } else {
+                        Button(editingEvent == nil ? "Create" : "Save") {
+                            if editingEvent != nil, isRecurringEvent {
+                                pendingRecurringScope = true
+                            } else {
+                                Task { await createOrUpdateEvent(scope: .thisOccurrence) }
+                            }
+                        }
+                        .disabled(canCreate == false || isSaving)
                     }
-                    .disabled(canCreate == false || isSaving)
                 }
             }
             .confirmationDialog(
@@ -753,6 +780,13 @@ struct AddEventSheet: View {
     private var isRecurringEvent: Bool {
         guard let editingEvent else { return false }
         return CalendarEventInstance.isRecurring(editingEvent)
+    }
+
+    // Sheet title flips through three states: create (New Event), view-only
+    // on an existing event (Event), and active edit (Edit Event).
+    private var navTitle: String {
+        guard editingEvent != nil else { return "New Event" }
+        return isEditing ? "Edit Event" : "Event"
     }
 
     // Sentinel used only to satisfy the confirmationDialog title interpolation

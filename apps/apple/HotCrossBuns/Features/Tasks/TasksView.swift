@@ -17,8 +17,13 @@ struct AddTaskSheet: View {
     // dual-mode pattern so the same "New … / Edit …" visual serves both paths.
     @State private var editingTask: TaskMirror?
     @State private var isConfirmingDelete = false
+    // View-only / edit toggle: create mode is always live; edit-mode starts
+    // view-only (per user-requested Open flow) and flips true on Edit.
+    @State private var isEditing: Bool
 
-    init() {}
+    init() {
+        _isEditing = State(initialValue: true)
+    }
 
     init(existingTask: TaskMirror) {
         _title = State(initialValue: existingTask.title)
@@ -28,6 +33,7 @@ struct AddTaskSheet: View {
         _recurrenceRule = State(initialValue: TaskRecurrenceMarkers.rule(from: existingTask.notes))
         _selectedTaskListID = State(initialValue: existingTask.taskListID)
         _editingTask = State(initialValue: existingTask)
+        _isEditing = State(initialValue: false)
     }
 
     var body: some View {
@@ -70,7 +76,8 @@ struct AddTaskSheet: View {
             }
             .formStyle(.grouped)
             .hcbScaledPadding(.horizontal, 4)
-            .navigationTitle(editingTask == nil ? "New Task" : "Edit Task")
+            .disabled(isEditing == false)
+            .navigationTitle(navTitle)
             .task {
                 selectedTaskListID = selectedTaskListID ?? model.taskLists.first?.id
                 applyDeepLinkPrefillIfAny()
@@ -84,15 +91,23 @@ struct AddTaskSheet: View {
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(editingTask == nil ? "Create" : "Save") {
-                        Task {
-                            await createOrUpdateTask()
+                    if editingTask != nil, isEditing == false {
+                        Button("Edit") {
+                            withAnimation(.easeInOut(duration: 0.12)) {
+                                isEditing = true
+                            }
                         }
+                    } else {
+                        Button(editingTask == nil ? "Create" : "Save") {
+                            Task { await createOrUpdateTask() }
+                        }
+                        .disabled(canCreate == false || isSaving)
                     }
-                    .disabled(canCreate == false || isSaving)
                 }
 
-                if let existing = editingTask {
+                // Overflow only surfaces in active-edit mode so view-only
+                // can't accidentally Complete/Delete via a half-click.
+                if let existing = editingTask, isEditing {
                     ToolbarItem(placement: .primaryAction) {
                         Menu {
                             Button {
@@ -287,6 +302,11 @@ struct AddTaskSheet: View {
         isSaving = true
         defer { isSaving = false }
         _ = await model.setTaskCompleted(!task.isCompleted, task: task)
+    }
+
+    private var navTitle: String {
+        guard editingTask != nil else { return "New Task" }
+        return isEditing ? "Edit Task" : "Task"
     }
 
     private func applyDeepLinkPrefillIfAny() {

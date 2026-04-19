@@ -339,29 +339,17 @@ struct MacSidebarShell: View {
         .clipped()
     }
 
-    private var collapseToggle: some View {
-        Button {
-            toggleSidebarCollapsed()
-        } label: {
-            Image(systemName: isSidebarCollapsed ? "sidebar.squares.left" : "sidebar.left")
-                .hcbFontSystem(size: 13, weight: .semibold)
-                .foregroundStyle(.secondary)
-        }
-        .buttonStyle(.borderless)
-        .help(isSidebarCollapsed ? "Expand sidebar (⌘S)" : "Collapse to icons (⌘S)")
-        .accessibilityLabel(isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar to icons")
-    }
-
+    // Visible collapse toggle removed per user request. ⌘S still toggles via
+    // handleAppShortcut in the NSEvent monitor below. Method stays so the
+    // shortcut has a mutating entry point.
     private func toggleSidebarCollapsed() {
         isSidebarCollapsed.toggle()
     }
 
     private var collapsedSidebar: some View {
         VStack(spacing: 0) {
-            collapseToggle
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, trafficLightInset)
-                .hcbScaledPadding(.bottom, 10)
+            Color.clear
+                .frame(height: trafficLightInset)
             ScrollView(showsIndicators: false) {
                 VStack(spacing: collapsedRowSpacing) {
                     Color.clear
@@ -415,15 +403,11 @@ struct MacSidebarShell: View {
 
     private var expandedSidebar: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                collapseToggle
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .hcbScaledPadding(.horizontal, 12)
-            .padding(.top, trafficLightInset)
-            .hcbScaledPadding(.bottom, 6)
-
+            // Reserved gap so the traffic-light window buttons don't overlap
+            // the first row. The visible collapse-toggle button was removed
+            // per user request — ⌘S still collapses via handleAppShortcut.
+            Color.clear
+                .frame(height: trafficLightInset)
             List(selection: sidebarSelectionBinding) {
                 ForEach(visibleSidebarItems) { item in
                     sidebarRow(for: item)
