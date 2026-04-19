@@ -192,6 +192,14 @@ final class AppModel {
             if case let GoogleAPIError.httpStatus(status, _) = error, status == 401 || status == 403 {
                 authState = .failed(error.localizedDescription)
             }
+            // Token-refresh failures (expired refresh token, revoked app
+            // permissions, Keychain wiped) never reach the server — the
+            // request is never made. GIDSignIn surfaces these as throws
+            // from refreshTokensIfNeeded. Route through the reconnect CTA
+            // too.
+            if let tokenError = error as? GoogleTokenRefreshError, tokenError.requiresReconnect {
+                authState = .failed(tokenError.localizedDescription ?? "Reconnect Google to continue.")
+            }
             syncState = .failed(message: error.localizedDescription)
             return .failed(error)
         }
