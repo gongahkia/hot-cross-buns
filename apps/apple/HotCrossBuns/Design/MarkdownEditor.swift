@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct MarkdownEditor: View {
+    @Environment(AppModel.self) private var model
     @Binding var text: String
     var placeholder: String = ""
     var minHeight: CGFloat = 120
@@ -8,6 +9,13 @@ struct MarkdownEditor: View {
     var showInlinePreview: Bool = true
 
     @FocusState private var isFocused: Bool
+
+    // Per-surface font (§6.11). Falls back to the global Appearance font
+    // when no editor-specific override is set.
+    private var editorFont: Font {
+        let base = CGFloat(HCBTextSize.clamp(model.settings.uiTextSizePoints))
+        return model.settings.resolvedFont(for: .editor, baseSize: base)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -79,7 +87,7 @@ struct MarkdownEditor: View {
                     .allowsHitTesting(false)
             }
             TextEditor(text: $text)
-                .hcbFont(.body)
+                .font(editorFont)
                 .foregroundColor(AppColor.ink)
                 .tint(AppColor.ember)
                 .scrollContentBackground(.hidden)
