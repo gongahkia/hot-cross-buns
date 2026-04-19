@@ -119,7 +119,29 @@ Dogfood with a real account for at least one workday on macOS. Smoke checklist:
 
 In-repo feature work targeting developers + Obsidian/Notion crowd. Implement top-to-bottom. Every item must preserve the Google-is-SoT invariant: no new data fields that don't round-trip to Google (via native attributes or notes-marker encoding), no parallel local stores masquerading as canonical data.
 
-### 6.1 Configurable view visibility (prereq for §6.5/§6.6)
+**Status: §6.1–§6.13 all shipped.** Commits:
+
+- §6.1 configurable view visibility — `ac0556a`
+- §6.2 query DSL — `ac0556a`
+- §6.3 URL-scheme deep links — `ac0556a`
+- §6.4 bulk-select + client-batched actions — `de8be1c`
+- §6.5 kanban view — `95fde2b`
+- §6.6 timeline / Gantt view — `82e18a8`
+- §6.7 quick switcher + palette split + week-timed drag-to-create — `9ac4b6b`
+- §6.8 advanced search (regex + field operators) — `3c0e6ba`
+- §6.9 leader-key chord bindings + which-key HUD — `1c87844`
+- §6.10 pinned filters on menu-bar popover — `c1885a6`
+- §6.11 per-surface font picker (infra + markdown editor wired) — `612853d`
+- §6.12 passphrase-gated local cache encryption — `da33498`
+- §6.13 task templates with variable expansion — `bc20880`
+
+Ad-hoc additions shipped alongside §6 (not originally listed):
+
+- Google Maps Embed full-view sheet for event locations — `8c43cb4`
+
+Specs below kept for history + follow-up surface-wiring work.
+
+### 6.1 Configurable view visibility (prereq for §6.5/§6.6) — shipped `ac0556a`
 
 Users pick which sidebar tabs appear, and which view-modes appear inside tabs that host multiple views (Calendar today; Store once §6.5 lands). Nothing is force-visible.
 
@@ -128,7 +150,7 @@ Users pick which sidebar tabs appear, and which view-modes appear inside tabs th
 - **Store sub-view visibility** (adds once §6.5 lands). Same pattern: list / kanban toggles.
 - Keep existing keyboard shortcuts (`goToCalendar`/`goToStore`/`goToSettings`, view-mode shortcuts) functional even when the target tab/view is hidden — shortcut unhides and focuses, or no-ops. Decide during impl; no-op is simpler.
 
-### 6.2 Query-language sidebar items
+### 6.2 Query-language sidebar items — shipped `ac0556a`
 
 Extend `CustomFilterDefinition` with a text-DSL mode alongside the existing structured form.
 
@@ -137,7 +159,7 @@ Extend `CustomFilterDefinition` with a text-DSL mode alongside the existing stru
 - Parser + evaluator unit-tested against `TaskMirror` fixtures. Pure read-side over existing mirror — no Google data writes.
 - Error surfaces in-place (red underline + message) without crashing the sidebar.
 
-### 6.3 URL-scheme deep links
+### 6.3 URL-scheme deep links — shipped `ac0556a`
 
 Register `hotcrossbuns://` scheme. Pure routing — every mutation still goes through existing Google flows.
 
@@ -149,7 +171,7 @@ Register `hotcrossbuns://` scheme. Pure routing — every mutation still goes th
 - Handle via `NSAppleEventManager` or SwiftUI `.onOpenURL`. Route through `RouterPath`.
 - Unknown hosts / malformed params → silent no-op or toast; never crash.
 
-### 6.4 Bulk-select + client-batched bulk actions
+### 6.4 Bulk-select + client-batched bulk actions — shipped `de8be1c`
 
 Tasks already lag events on this — `EventBulkActionBar` exists, tasks don't. Add parity, then layer client-side batching so we don't hammer Google.
 
@@ -163,7 +185,7 @@ Tasks already lag events on this — `EventBulkActionBar` exists, tasks don't. A
   - On partial failure, surface per-item status in the undo toast; retry only the failed subset.
 - Route through existing `OptimisticWriter` so offline queue + etag conflict paths still apply.
 
-### 6.5 Kanban view (opt-in, not forced)
+### 6.5 Kanban view (opt-in, not forced) — shipped `95fde2b`
 
 A different lens on Google Tasks. Columns are **Google-native or derivable only** — no invented status/priority fields.
 
@@ -176,7 +198,7 @@ A different lens on Google Tasks. Columns are **Google-native or derivable only*
 - Drag between columns = real Google mutation (change list / change due / toggle star / edit title to swap tag). No local-only "status" column.
 - Respects current sidebar filter / saved query if one is selected.
 
-### 6.6 Timeline / Gantt view (opt-in, not forced)
+### 6.6 Timeline / Gantt view (opt-in, not forced) — shipped `82e18a8`
 
 Time-axis lens on tasks + events.
 
@@ -186,7 +208,7 @@ Time-axis lens on tasks + events.
 - Drag-to-reschedule: task drag writes `dueDate`, event drag writes `start`/`end`. Existing reschedule paths.
 - Zoom levels: day / week / month / quarter.
 
-### 6.7 Quick-switcher + command-palette split
+### 6.7 Quick-switcher + command-palette split — shipped `9ac4b6b`
 
 Today `CommandPaletteView` mixes two distinct jobs in one list: running commands **and** finding task/event entities. Split them — the palette becomes a strict action launcher, a new quick-switcher owns entity navigation. Dedup the behavior so each surface has one purpose.
 
@@ -197,7 +219,7 @@ Today `CommandPaletteView` mixes two distinct jobs in one list: running commands
 - Advanced search operators (§6.8) are hosted inside the quick switcher — the palette has no search field after this split.
 - Mental model: palette = "do", switcher = "go". Both reachable from the same `⌘`-family gesture space.
 
-### 6.8 Advanced search
+### 6.8 Advanced search — shipped `3c0e6ba`
 
 Hosted in the quick switcher (§6.7). Extends beyond plain title substring.
 
@@ -207,7 +229,7 @@ Hosted in the quick switcher (§6.7). Extends beyond plain title substring.
 - Fuzzy fallback on plain-text queries.
 - Results still just point at the mirror — all opens/edits go through normal Google paths.
 
-### 6.9 Leader-key chord bindings
+### 6.9 Leader-key chord bindings — shipped `1c87844`
 
 Vim-style chord bindings alongside existing single-shortcut `KeybindingsSection`.
 
@@ -217,7 +239,7 @@ Vim-style chord bindings alongside existing single-shortcut `KeybindingsSection`
 - HUD: on leader press, show an overlay listing available next-keys (which-key-style). Reuse `VimHud`.
 - Does not replace single-shortcut bindings — they coexist.
 
-### 6.10 Pinned filters on menu-bar extra popover
+### 6.10 Pinned filters on menu-bar extra popover — shipped `c1885a6`
 
 Menu-bar popover currently shows quick-add + recent. Add user-pinned custom filters / saved queries for quick-glance.
 
@@ -226,7 +248,7 @@ Menu-bar popover currently shows quick-add + recent. Add user-pinned custom filt
 - Click a filter row → opens main app focused on that filter.
 - No new data model — just a `pinnedToMenuBar: Bool` on `CustomFilterDefinition`. Local-only, app config.
 
-### 6.11 Per-surface font picker
+### 6.11 Per-surface font picker — shipped `612853d` (infra + markdown editor wired; other surfaces still need retrofit)
 
 Current `HCBAppearance` has a global font-size input. Extend to per-surface typeface choice.
 
@@ -236,7 +258,7 @@ Current `HCBAppearance` has a global font-size input. Extend to per-surface type
 - Fall-through: unset surfaces inherit a global default (current behavior).
 - Respect the existing "preserve system font design" carve-outs noted in §14.
 
-### 6.12 Encrypted local cache
+### 6.12 Encrypted local cache — shipped `da33498`
 
 Optional passphrase-gated encryption of the JSON snapshot cache and offline mutation queue.
 
@@ -246,7 +268,7 @@ Optional passphrase-gated encryption of the JSON snapshot cache and offline muta
 - Wipe on repeated wrong passphrases? No — just stay locked.
 - Google tokens already live in Keychain; this covers the offline cache only.
 
-### 6.13 Templates with variables (client-only, must NOT leak to Google)
+### 6.13 Templates with variables (client-only, must NOT leak to Google) — shipped `bc20880` (task templates; event templates still pending)
 
 Named templates that expand into real Google tasks/events at instantiation.
 
@@ -258,6 +280,29 @@ Named templates that expand into real Google tasks/events at instantiation.
   - No template metadata ever lands in task/event notes/descriptions. The instantiated entry must be indistinguishable on google.com from a manually-created one.
   - No "template id" stored in `extendedProperties` — cross-client fragile and leaks implementation.
   - Corruption risk: write templates to a throwaway dir first, test instantiation in a dry-run mode that renders the resulting Google payload for the user to inspect before first real use.
+
+### 6.14 Scrollable month navigation — pending
+
+Make `MonthGridView` respond to vertical scroll so users move through time without hunting for the `◀ ▶` chevrons.
+
+- Scroll down → advance to the next month; scroll up → previous month.
+- Throttle: a single gesture steps one month per "significant" scroll, not one per pixel. Accumulate scroll delta and fire when it crosses a threshold.
+- Trackpad + mouse-wheel both work; keyboard arrows continue to scroll the visible grid contents, not shift the month.
+- Animation: transition between months should read as a month swap, not a scroll. Pin the weekday header; crossfade or slide the day grid rows.
+- Must not break drag-to-create across days (the existing `DragGesture` on the grid) — scroll gesture needs a higher threshold so it doesn't trigger mid-drag.
+- Acceptable to scope to Month view only for v1; Week/Day already have `◀ ▶` buttons that feel natural.
+
+### 6.15 Vim keybind removal sweep — pending
+
+A prior commit (`4674f8a refactor: remove Vim keybindings end-to-end`) excised the vim mode. Re-verify nothing has crept back in:
+
+- `Features/Vim/` directory contents (should be empty or removed).
+- References to `VimHud`, `VimKeyboardMonitor`, `VimTranslator`, `VimAction`, `vimContextHandler`, `isVimDetailFocused` across the codebase.
+- Stale references in copy: Settings text, Help panel, README, URGENT-TODO spec lines that say "in vim mode" or reference the leader-key default of `<space>`.
+- Leader-chord doc default in §6.9 ("`<space>` in vim mode, `Cmd-K` in insert mode") should be updated to drop the vim-mode half — the chord feature already ships with `⌘K` only.
+- Any residual AppCommandActions fields (`vimContextHandler`, `isVimDetailFocused`) that were only wired to the vim mode.
+
+Deliverable: a clean grep over the repo that produces only historical/commit-message hits, no live code.
 
 ## 7. Performance optimisation and RAM / memory usage
 
