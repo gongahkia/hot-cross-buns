@@ -166,14 +166,38 @@ enum GoogleAuthError: LocalizedError, Equatable {
     }
 }
 
+enum GoogleTokenRefreshError: LocalizedError {
+    case noCurrentUser
+    case refreshFailed(Error)
+
+    var errorDescription: String? {
+        switch self {
+        case .noCurrentUser:
+            "Not signed in to Google. Reconnect to continue syncing."
+        case .refreshFailed(let underlying):
+            "Google sign-in session expired: \(underlying.localizedDescription). Reconnect to continue."
+        }
+    }
+
+    // Token refresh failures mean the user needs to re-authenticate — surface
+    // to the reconnect CTA rather than the generic sync banner.
+    var requiresReconnect: Bool {
+        true
+    }
+}
+
 struct GoogleSignInAccessTokenProvider: AccessTokenProviding {
     @MainActor
     func accessToken() async throws -> String {
         guard let user = GIDSignIn.sharedInstance.currentUser else {
-            throw GoogleAuthError.noCurrentUser
+            throw GoogleTokenRefreshError.noCurrentUser
         }
 
-        let refreshedUser = try await user.refreshTokensIfNeeded()
-        return refreshedUser.accessToken.tokenString
+        do {
+            let refreshedUser = try await user.refreshTokensIfNeeded()
+            return refreshedUser.accessToken.tokenString
+        } catch {
+            throw GoogleTokenRefreshError.refreshFailed(error)
+        }
     }
 }
