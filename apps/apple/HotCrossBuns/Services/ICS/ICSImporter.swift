@@ -158,34 +158,40 @@ private struct ICSBuilder {
 enum ICSDateParser {
     // Returns (parsed Date, isAllDayHint). Honours VALUE=DATE for all-day,
     // UTC suffix Z, TZID parameter, and floating local time.
+    //
+    // Each call builds its own DateFormatter. Previous implementation shared
+    // static formatters and mutated timeZone per call — fine for serial ICS
+    // import (the only caller today), but a latent data race if any future
+    // caller parsed concurrently. Formatter construction is cheap relative
+    // to network-bound ICS import, so per-call is the safe default.
     static func parse(value: String, params: [String: String]) -> (Date?, Bool) {
         if params["VALUE"]?.uppercased() == "DATE" || (value.count == 8 && value.allSatisfy(\.isNumber)) {
-            guard let date = dateOnlyFormatter.date(from: value) else { return (nil, true) }
+            guard let date = makeDateOnlyFormatter().date(from: value) else { return (nil, true) }
             return (localMidnight(matching: date), true)
         }
         let tzIdentifier = params["TZID"]
-        let formatter = dateTimeFormatter
-        formatter.timeZone = timeZone(forIdentifier: tzIdentifier, fallback: value.hasSuffix("Z"))
+        let formatter = makeDateTimeFormatter(timeZone: timeZone(forIdentifier: tzIdentifier, fallback: value.hasSuffix("Z")))
         let trimmed = value.hasSuffix("Z") ? String(value.dropLast()) : value
         return (formatter.date(from: trimmed), false)
     }
 
-    private static let dateOnlyFormatter: DateFormatter = {
+    private static func makeDateOnlyFormatter() -> DateFormatter {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.calendar = Calendar(identifier: .gregorian)
         f.timeZone = TimeZone(secondsFromGMT: 0)
         f.dateFormat = "yyyyMMdd"
         return f
-    }()
+    }
 
-    private static let dateTimeFormatter: DateFormatter = {
+    private static func makeDateTimeFormatter(timeZone: TimeZone) -> DateFormatter {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.calendar = Calendar(identifier: .gregorian)
         f.dateFormat = "yyyyMMdd'T'HHmmss"
+        f.timeZone = timeZone
         return f
-    }()
+    }
 
     private static func timeZone(forIdentifier id: String?, fallback utc: Bool) -> TimeZone {
         if let id, let tz = TimeZone(identifier: id) {
