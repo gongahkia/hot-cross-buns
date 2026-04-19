@@ -62,18 +62,6 @@ struct HelpView: View {
                         bullet("Add reminders, repeat rules, and guests right from the inspector.")
                     }
 
-                    section(title: "Vim mode") {
-                        if model.settings.enableVimKeybindings {
-                            Text("Vim mode is enabled. Press **?** anywhere (outside text fields) to open the in-app cheatsheet overlay.")
-                                .hcbFont(.callout)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Text("Turn it on in Settings → Keyboard. Modal navigation: j/k move, gg/G jump, x complete, dd delete, : palette, / search. Text editors keep native macOS shortcuts.")
-                                .hcbFont(.callout)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
                     section(title: "Sync behavior") {
                         bullet("Creates appear instantly (optimistic) and show an icloud-slash glyph until Google accepts them.")
                         bullet("Updates send If-Match etags — if Google rejects as out-of-date, HCB refreshes so you see the winning state before retrying.")

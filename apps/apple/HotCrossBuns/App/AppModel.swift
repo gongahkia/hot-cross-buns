@@ -1296,12 +1296,6 @@ final class AppModel {
         Task { await saveCurrentState() }
     }
 
-    func setEnableVimKeybindings(_ isEnabled: Bool) {
-        guard settings.enableVimKeybindings != isEnabled else { return }
-        settings.enableVimKeybindings = isEnabled
-        Task { await saveCurrentState() }
-    }
-
     func setEnableGlobalHotkey(_ isEnabled: Bool) {
         guard settings.enableGlobalHotkey != isEnabled else { return }
         settings.enableGlobalHotkey = isEnabled

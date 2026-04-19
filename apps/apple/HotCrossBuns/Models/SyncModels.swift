@@ -104,7 +104,6 @@ struct AppSettings: Hashable, Codable, Sendable {
     var showMenuBarExtra: Bool
     var showDetailedMenuBar: Bool
     var showDockBadge: Bool
-    var enableVimKeybindings: Bool
     var enableGlobalHotkey: Bool
     var customFilters: [CustomFilterDefinition]
     var eventTemplates: [EventTemplate]
@@ -126,7 +125,6 @@ struct AppSettings: Hashable, Codable, Sendable {
         showMenuBarExtra: Bool = true,
         showDetailedMenuBar: Bool = false,
         showDockBadge: Bool = true,
-        enableVimKeybindings: Bool = false,
         enableGlobalHotkey: Bool = true,
         customFilters: [CustomFilterDefinition] = [],
         eventTemplates: [EventTemplate] = [],
@@ -147,7 +145,6 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.showMenuBarExtra = showMenuBarExtra
         self.showDetailedMenuBar = showDetailedMenuBar
         self.showDockBadge = showDockBadge
-        self.enableVimKeybindings = enableVimKeybindings
         self.enableGlobalHotkey = enableGlobalHotkey
         self.customFilters = customFilters
         self.eventTemplates = eventTemplates
@@ -170,7 +167,6 @@ struct AppSettings: Hashable, Codable, Sendable {
         case showMenuBarExtra
         case showDetailedMenuBar
         case showDockBadge
-        case enableVimKeybindings
         case enableGlobalHotkey
         case customFilters
         case eventTemplates
@@ -203,7 +199,6 @@ struct AppSettings: Hashable, Codable, Sendable {
         showMenuBarExtra = try container.decodeIfPresent(Bool.self, forKey: .showMenuBarExtra) ?? true
         showDetailedMenuBar = try container.decodeIfPresent(Bool.self, forKey: .showDetailedMenuBar) ?? false
         showDockBadge = try container.decodeIfPresent(Bool.self, forKey: .showDockBadge) ?? true
-        enableVimKeybindings = try container.decodeIfPresent(Bool.self, forKey: .enableVimKeybindings) ?? false
         enableGlobalHotkey = try container.decodeIfPresent(Bool.self, forKey: .enableGlobalHotkey) ?? true
         customFilters = try container.decodeIfPresent([CustomFilterDefinition].self, forKey: .customFilters) ?? []
         eventTemplates = try container.decodeIfPresent([EventTemplate].self, forKey: .eventTemplates) ?? []

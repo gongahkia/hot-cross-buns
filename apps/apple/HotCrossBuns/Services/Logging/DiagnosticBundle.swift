@@ -95,7 +95,6 @@ enum DiagnosticBundle {
         }
         lines.append("Menu bar extra: \(model.settings.showMenuBarExtra)")
         lines.append("Dock badge: \(model.settings.showDockBadge)")
-        lines.append("Vim keybindings: \(model.settings.enableVimKeybindings)")
         return lines.joined(separator: "\n")
     }
 

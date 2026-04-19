@@ -45,16 +45,7 @@ struct MacSidebarShell: View {
     @State private var isPresentingCommandPalette = false
     @State private var isPresentingHelp = false
     @State private var appCommandActions = AppCommandActions()
-    @State private var vimMonitor = VimKeyboardMonitor()
-    @State private var vimState = VimState()
     @State private var appShortcutMonitor: Any?
-    @State private var collapsedVimFocus: CollapsedVimFocus = .detail
-    @State private var isVimDetailFocused = false
-
-    private enum CollapsedVimFocus {
-        case sidebar
-        case detail
-    }
 
     private enum CollapsedSidebarDestination: Equatable {
         case item(SidebarItem)
@@ -117,12 +108,6 @@ struct MacSidebarShell: View {
                     .withHCBAppearance(model.settings)
             }
             .overlay {
-                if model.settings.enableVimKeybindings {
-                    VimHud()
-                        .environment(vimState)
-                }
-            }
-            .overlay {
                 UndoToast()
             }
             .focusedSceneValue(\.appCommandActions, appCommandActions)
@@ -130,7 +115,6 @@ struct MacSidebarShell: View {
                 selection = SidebarItem(rawValue: storedSelection) ?? .calendar
                 HCBColorSchemeStore.current = HCBColorScheme.scheme(id: model.settings.colorSchemeID) ?? .notion
                 configureCommandActions()
-                configureVimMonitor()
                 configureGlobalHotkey()
                 installAppShortcutMonitor()
             }
@@ -139,9 +123,6 @@ struct MacSidebarShell: View {
             }
             .onDisappear {
                 uninstallAppShortcutMonitor()
-            }
-            .onChange(of: model.settings.enableVimKeybindings) { _, newValue in
-                vimMonitor.isEnabled = newValue
             }
             .onChange(of: model.settings.colorSchemeID, initial: true) { _, newID in
                 HCBColorSchemeStore.current = HCBColorScheme.scheme(id: newID) ?? .notion
@@ -263,13 +244,7 @@ struct MacSidebarShell: View {
     }
 
     private func toggleSidebarCollapsed() {
-        let shouldCollapse = isSidebarCollapsed == false
-        isSidebarCollapsed = shouldCollapse
-        // After toggling sidebar density, reset Vim navigation focus to sidebar.
-        setVimFocus(detail: false)
-        if shouldCollapse {
-            collapsedVimFocus = .sidebar
-        }
+        isSidebarCollapsed.toggle()
     }
 
     private var collapsedSidebar: some View {
@@ -296,8 +271,6 @@ struct MacSidebarShell: View {
     private func collapsedItemButton(_ item: SidebarItem) -> some View {
         let isSelected = selection == item
         return Button {
-            collapsedVimFocus = .sidebar
-            setVimFocus(detail: false)
             selection = item
         } label: {
             HStack {
@@ -381,94 +354,6 @@ struct MacSidebarShell: View {
         delegate.setGlobalHotkeyEnabled(model.settings.enableGlobalHotkey)
     }
 
-    private func configureVimMonitor() {
-        vimMonitor.state = vimState
-        vimMonitor.actionHandler = { [appCommandActions] action in
-            switch action {
-            case .moveLeft:
-                setVimFocus(detail: false)
-            case .moveRight:
-                setVimFocus(detail: true)
-            default:
-                break
-            }
-            if handleCollapsedSidebarVimAction(action, commands: appCommandActions) {
-                return
-            }
-            VimActionDispatcher.dispatch(action, commands: appCommandActions)
-        }
-        vimMonitor.isEnabled = model.settings.enableVimKeybindings
-    }
-
-    private func setVimFocus(detail: Bool) {
-        isVimDetailFocused = detail
-        appCommandActions.isVimDetailFocused = detail
-    }
-
-    private var collapsedSidebarDestinations: [CollapsedSidebarDestination] {
-        SidebarItem.allCases.map { .item($0) }
-    }
-
-    private var activeCollapsedSidebarDestination: CollapsedSidebarDestination {
-        .item(selection)
-    }
-
-    private func selectCollapsedSidebarDestination(_ destination: CollapsedSidebarDestination) {
-        switch destination {
-        case .item(let item):
-            selection = item
-        }
-    }
-
-    private func handleCollapsedSidebarVimAction(_ action: VimAction, commands: AppCommandActions) -> Bool {
-        guard isSidebarCollapsed else { return false }
-
-        switch action {
-        case .moveLeft:
-            collapsedVimFocus = .sidebar
-            VimActionDispatcher.dispatch(action, commands: commands)
-            return true
-        case .moveRight:
-            collapsedVimFocus = .detail
-            VimActionDispatcher.dispatch(action, commands: commands)
-            return true
-        case .moveDown:
-            guard collapsedVimFocus == .sidebar else { return false }
-            return shiftCollapsedSidebarSelection(by: 1)
-        case .moveUp:
-            guard collapsedVimFocus == .sidebar else { return false }
-            return shiftCollapsedSidebarSelection(by: -1)
-        case .scrollTop:
-            guard collapsedVimFocus == .sidebar else { return false }
-            return jumpCollapsedSidebarSelection(toTop: true)
-        case .scrollBottom:
-            guard collapsedVimFocus == .sidebar else { return false }
-            return jumpCollapsedSidebarSelection(toTop: false)
-        default:
-            return false
-        }
-    }
-
-    private func shiftCollapsedSidebarSelection(by offset: Int) -> Bool {
-        let destinations = collapsedSidebarDestinations
-        guard destinations.isEmpty == false else { return false }
-
-        let currentIndex = destinations.firstIndex(of: activeCollapsedSidebarDestination) ?? 0
-        let nextIndex = max(0, min(currentIndex + offset, destinations.count - 1))
-        let nextDestination = destinations[nextIndex]
-        selectCollapsedSidebarDestination(nextDestination)
-        return true
-    }
-
-    private func jumpCollapsedSidebarSelection(toTop: Bool) -> Bool {
-        let destinations = collapsedSidebarDestinations
-        guard let target = toTop ? destinations.first : destinations.last else {
-            return false
-        }
-        selectCollapsedSidebarDestination(target)
-        return true
-    }
-
     private func configureCommandActions() {
         appCommandActions.newTask = { presentSheet(.quickAddTask, on: .store) }
         appCommandActions.newEvent = { presentSheet(.addEvent, on: .calendar) }
@@ -484,7 +369,6 @@ struct MacSidebarShell: View {
         appCommandActions.zoomIn = { performZoomIn() }
         appCommandActions.zoomOut = { performZoomOut() }
         appCommandActions.zoomReset = { performZoomReset() }
-        appCommandActions.isVimDetailFocused = isVimDetailFocused
     }
 
     private enum ICSRange {
