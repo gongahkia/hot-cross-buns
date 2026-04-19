@@ -639,19 +639,16 @@ struct StoreView: View {
 
     @ViewBuilder
     private func taskListSectionHeader(for section: TaskListSectionSnapshot) -> some View {
-        let allTasks = model.tasks.filter { $0.taskListID == section.taskList.id && $0.isDeleted == false }
-        let total = allTasks.count
-        let done = allTasks.filter(\.isCompleted).count
-        let fraction = total == 0 ? 0 : Double(done) / Double(total)
-        HStack(spacing: 10) {
+        let stats = model.taskListCompletionStats[section.taskList.id] ?? TaskListCompletionStats(total: 0, completed: 0)
+        return HStack(spacing: 10) {
             Text(section.taskList.title)
                 .font(.subheadline.weight(.semibold))
             Spacer(minLength: 8)
-            if total > 0 {
-                Text("\(done)/\(total)")
+            if stats.total > 0 {
+                Text("\(stats.completed)/\(stats.total)")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
-                ProgressView(value: fraction)
+                ProgressView(value: stats.fraction)
                     .progressViewStyle(.linear)
                     .tint(AppColor.moss)
                     .frame(width: 60)

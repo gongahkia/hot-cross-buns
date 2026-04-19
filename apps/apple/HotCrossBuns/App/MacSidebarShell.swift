@@ -93,25 +93,39 @@ struct MacSidebarShell: View {
         case item(SidebarItem)
     }
 
+    private var shellCore: some View {
+        NavigationSplitView(columnVisibility: $sidebarVisibility) {
+            sidebar
+        } detail: {
+            detail
+        }
+        .navigationSplitViewStyle(.balanced)
+        .dynamicTypeSize(dynamicTypeSize)
+        .animation(.easeInOut(duration: 0.12), value: zoomStep)
+    }
+
     var body: some View {
-        GeometryReader { geometry in
-            NavigationSplitView(columnVisibility: $sidebarVisibility) {
-                sidebar
-            } detail: {
-                detail
+        // Only pay the GeometryReader cost when zoom is actually active;
+        // at 1.0× (the common case) render the NavigationSplitView directly
+        // so size-change invalidations don't cascade through the whole tree.
+        Group {
+            if layoutZoomScale == 1.0 {
+                shellCore
+            } else {
+                GeometryReader { geometry in
+                    shellCore
+                        .scaleEffect(layoutZoomScale, anchor: .topLeading)
+                        .frame(
+                            width: geometry.size.width / layoutZoomScale,
+                            height: geometry.size.height / layoutZoomScale,
+                            alignment: .topLeading
+                        )
+                        .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+                        .clipped()
+                }
             }
-            .navigationSplitViewStyle(.balanced)
-            .dynamicTypeSize(dynamicTypeSize)
-            .animation(.easeInOut(duration: 0.12), value: zoomStep)
-            .scaleEffect(layoutZoomScale, anchor: .topLeading)
-            .frame(
-                width: geometry.size.width / layoutZoomScale,
-                height: geometry.size.height / layoutZoomScale,
-                alignment: .topLeading
-            )
-            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
-            .clipped()
-            .appBackground()
+        }
+        .appBackground()
             .safeAreaInset(edge: .top) {
                 AppStatusBanner(
                     syncState: model.syncState,
@@ -242,7 +256,6 @@ struct MacSidebarShell: View {
             .onContinueUserActivity(CSSearchableItemActionType) { userActivity in
                 handleSpotlightActivity(userActivity)
             }
-        }
     }
 
     private func handleSpotlightActivity(_ activity: NSUserActivity) {
@@ -716,21 +729,11 @@ struct MacSidebarShell: View {
             let count = model.todaySnapshot.scheduledEvents.count
             return count > 0 ? "\(count)" : nil
         case .store:
-            let count = visibleTasksForSidebar.filter { $0.isCompleted == false && $0.isDeleted == false }.count
+            let count = model.openTaskCountForSidebar
             return count > 0 ? "\(count)" : nil
         case .settings:
             return nil
         }
-    }
-
-    private var visibleTasksForSidebar: [TaskMirror] {
-        let visibleTaskListIDs: Set<TaskListMirror.ID> = {
-            if model.settings.hasConfiguredTaskListSelection {
-                return model.settings.selectedTaskListIDs
-            }
-            return Set(model.taskLists.map(\.id))
-        }()
-        return model.tasks.filter { visibleTaskListIDs.contains($0.taskListID) }
     }
 
     @ViewBuilder
