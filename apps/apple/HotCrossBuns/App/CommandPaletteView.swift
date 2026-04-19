@@ -80,10 +80,11 @@ struct CommandPaletteView: View {
         .onAppear { isSearchFocused = true }
         .onSubmit(of: .text, executeFirstMatch)
         .hcbScaledFrame(
-            minWidth: 760,
-            idealWidth: 760,
-            minHeight: trimmedQuery.isEmpty ? 88 : 520,
-            idealHeight: trimmedQuery.isEmpty ? 88 : 560
+            minWidth: 520,
+            idealWidth: 560,
+            maxWidth: 620,
+            minHeight: trimmedQuery.isEmpty ? 54 : 360,
+            idealHeight: trimmedQuery.isEmpty ? 54 : 420
         )
         .background {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -166,31 +167,31 @@ struct CommandPaletteView: View {
     }
 
     private var searchHeader: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .hcbFont(.body, weight: .medium)
+                .hcbFont(.subheadline, weight: .medium)
                 .foregroundStyle(.secondary)
 
             TextField("Commands, tasks, events…", text: $query)
                 .textFieldStyle(.plain)
                 .focused($isSearchFocused)
-                .font(.system(.title2, design: .rounded, weight: .medium))
+                .font(.system(.body, design: .rounded))
                 .onSubmit(executeFirstMatch)
 
             if query.isEmpty {
                 Text("⌘P")
-                    .font(.system(.title3, design: .rounded, weight: .semibold))
+                    .font(.system(.caption, design: .rounded, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .hcbScaledPadding(.horizontal, 10)
-                    .hcbScaledPadding(.vertical, 4)
+                    .hcbScaledPadding(.horizontal, 6)
+                    .hcbScaledPadding(.vertical, 2)
                     .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
                             .fill(.thinMaterial)
                     )
             }
         }
-        .hcbScaledPadding(.horizontal, 18)
-        .hcbScaledPadding(.vertical, 14)
+        .hcbScaledPadding(.horizontal, 12)
+        .hcbScaledPadding(.vertical, 9)
     }
 
     private func sectionHeader(_ title: String) -> some View {
