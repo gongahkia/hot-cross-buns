@@ -135,6 +135,8 @@ struct MonthGridView: View {
                         .foregroundStyle(AppColor.ink)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("\(event.summary) on \(day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))")
+                .accessibilityHint("Opens event details")
                 .draggable(DraggedEvent(
                     eventID: event.id,
                     calendarID: event.calendarID,
@@ -156,6 +158,7 @@ struct MonthGridView: View {
                         Image(systemName: "circle")
                             .font(.system(size: 7))
                             .foregroundStyle(AppColor.ember)
+                            .accessibilityHidden(true)
                         Text(task.title)
                             .font(.caption2)
                             .lineLimit(1)
@@ -174,6 +177,8 @@ struct MonthGridView: View {
                     .foregroundStyle(AppColor.ink)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Task due \(day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())): \(task.title)")
+                .accessibilityHint("Opens task details")
             }
             let hiddenEvents = max(0, events.count - eventSlots)
             let hiddenTasks = max(0, tasks.count - taskSlots)
