@@ -79,19 +79,27 @@ struct AppearanceSection: View {
     }
 
     private var textSizeRow: some View {
-        Picker("Text size", selection: textStepBinding) {
-            ForEach(Array(HCBTextSizeLadder.titles.enumerated()), id: \.offset) { idx, title in
-                Text(title).tag(idx)
+        HStack {
+            Text("Text size")
+            Spacer()
+            Stepper(
+                value: Binding(
+                    get: { model.settings.uiTextSizePoints },
+                    set: { model.setUITextSizePoints($0) }
+                ),
+                in: HCBTextSize.minPoints...HCBTextSize.maxPoints,
+                step: HCBTextSize.stepPoints
+            ) {
+                Text("\(Int(model.settings.uiTextSizePoints.rounded())) pt")
+                    .monospacedDigit()
+                    .frame(minWidth: 48, alignment: .trailing)
             }
+            .labelsHidden()
+            Button("Reset") { model.setUITextSizePoints(HCBTextSize.defaultPoints) }
+                .buttonStyle(.borderless)
+                .hcbFont(.caption)
+                .disabled(model.settings.uiTextSizePoints == HCBTextSize.defaultPoints)
         }
-        .pickerStyle(.segmented)
-    }
-
-    private var textStepBinding: Binding<Int> {
-        Binding(
-            get: { model.settings.uiTextSizeStep },
-            set: { model.setUITextSizeStep($0) }
-        )
     }
 
     private var fontRow: some View {
