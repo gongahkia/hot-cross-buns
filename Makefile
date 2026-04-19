@@ -8,6 +8,7 @@ DEST      := platform=macOS,arch=arm64
 DERIVED   := build/apple/DerivedData
 APP_PATH  := $(DERIVED)/Build/Products/Debug/HotCrossBunsMac.app
 DEV_ENTITLEMENTS := $(abspath $(APPLE_DIR)/HotCrossBuns/Support/HotCrossBuns-Dev.entitlements)
+DEV_RESIGN_ENTITLEMENTS := $(abspath $(APPLE_DIR)/HotCrossBuns/Support/HotCrossBuns-Dev-Resign.entitlements)
 
 XCODEBUILD := xcodebuild \
 	-project $(PROJECT) \
@@ -32,8 +33,10 @@ gen: ## Regenerate the Xcode project from project.yml (required after adding fil
 	cd $(APPLE_DIR) && xcodegen generate
 
 .PHONY: build
-build: gen ## Compile the macOS app (unsigned)
+build: gen ## Compile the macOS app (unsigned) and add Keychain entitlement via post-build re-sign
 	$(XCODEBUILD) build
+	@echo "⚙️  Re-signing with dev Keychain entitlement…"
+	codesign --force --sign - --entitlements $(DEV_RESIGN_ENTITLEMENTS) $(APP_PATH)
 
 .PHONY: run
 run: build ## Build and launch the app

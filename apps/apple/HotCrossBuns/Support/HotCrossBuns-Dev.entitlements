@@ -1,27 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Dev-only entitlements. Used for unsigned local builds via `make run` so the
-  Keychain + network work without needing an Apple Developer team. Ships with
-  sandbox DISABLED — do not distribute builds signed with this file. Release
-  / DMG builds should point CODE_SIGN_ENTITLEMENTS back at HotCrossBuns.entitlements.
+  Dev-only entitlements used for unsigned local QA via `make run`. Sandbox
+  disabled so the Keychain works without an Apple Developer team. Do not
+  distribute builds signed with this file. Release / DMG builds must
+  point CODE_SIGN_ENTITLEMENTS back at HotCrossBuns.entitlements.
 -->
 <plist version="1.0">
 <dict>
 	<key>com.apple.security.network.client</key>
 	<true/>
-	<!--
-	  GoogleSignIn-iOS 7+ uses the Data Protection Keychain
-	  (kSecUseDataProtectionKeychain=YES) which requires a
-	  keychain-access-groups entitlement on macOS. Without it, GIDSignIn
-	  fails with Code=-2 "keychain error" and no underlying error to
-	  diagnose. Ad-hoc signing accepts arbitrary access-group literals
-	  since there's no team to validate against, so we use a plain
-	  bundle-ID value here instead of $(AppIdentifierPrefix)….
-	-->
-	<key>keychain-access-groups</key>
-	<array>
-		<string>com.gongahkia.hotcrossbuns.mac</string>
-	</array>
 </dict>
 </plist>
