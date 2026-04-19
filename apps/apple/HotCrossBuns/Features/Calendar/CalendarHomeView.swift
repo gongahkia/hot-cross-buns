@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct CalendarHomeView: View {
     @Environment(AppModel.self) private var model
     @Environment(RouterPath.self) private var router
+    @Environment(NetworkMonitor.self) private var networkMonitor
     @State private var selectedDate = Date()
     @SceneStorage("calendarGridMode") private var storedMode: String = CalendarGridMode.week.rawValue
     @SceneStorage("calendarShowDrawer") private var storedShowDrawer: Bool = false
@@ -20,6 +21,7 @@ struct CalendarHomeView: View {
                 snapshot: model.todaySnapshot,
                 syncState: model.syncState,
                 pendingCount: model.pendingMutations.count,
+                reachability: networkMonitor.reachability,
                 refresh: { Task { await model.refreshNow() } }
             )
             Divider()
@@ -1372,6 +1374,7 @@ struct CalendarTodayStatusHeader: View {
     let snapshot: TodaySnapshot
     let syncState: SyncState
     let pendingCount: Int
+    var reachability: NetworkReachability = .unknown
     let refresh: () -> Void
 
     var body: some View {
@@ -1381,6 +1384,10 @@ struct CalendarTodayStatusHeader: View {
                     .font(.headline)
                     .foregroundStyle(AppColor.ink)
                 HStack(spacing: 6) {
+                    Image(systemName: reachability.systemSymbol)
+                        .font(.caption)
+                        .foregroundStyle(reachabilityTint)
+                        .help("Network: \(reachability.displayTitle)")
                     Text(syncState.title)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -1402,6 +1409,15 @@ struct CalendarTodayStatusHeader: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
+    }
+
+    private var reachabilityTint: Color {
+        switch reachability {
+        case .online: AppColor.moss
+        case .constrained: AppColor.ember
+        case .offline: .red
+        case .unknown: .secondary
+        }
     }
 }
 
