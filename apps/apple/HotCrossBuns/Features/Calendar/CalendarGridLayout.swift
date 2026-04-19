@@ -2,12 +2,14 @@ import Foundation
 
 enum CalendarGridMode: String, CaseIterable, Hashable, Sendable {
     case agenda
+    case day
     case week
     case month
 
     var title: String {
         switch self {
         case .agenda: "Agenda"
+        case .day: "Day"
         case .week: "Week"
         case .month: "Month"
         }
@@ -16,6 +18,7 @@ enum CalendarGridMode: String, CaseIterable, Hashable, Sendable {
     var systemImage: String {
         switch self {
         case .agenda: "list.bullet.rectangle"
+        case .day: "calendar.day.timeline.leading"
         case .week: "calendar.day.timeline.left"
         case .month: "calendar"
         }

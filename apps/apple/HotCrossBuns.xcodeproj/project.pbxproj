@@ -27,6 +27,7 @@
 		1D5AAB0DDD1DA8BD51016E71 /* UndoToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5810826FCEA91EE340801C40 /* UndoToast.swift */; };
 		1D9C5B69B8A123DB5CA67B87 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 892DDFFD7ECD0890E98DEC1C /* AppModel.swift */; };
 		1E6A7C7E3264A42EF264A860 /* VimKeyboardMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B73DF47EA023580C762E1BE3 /* VimKeyboardMonitor.swift */; };
+		1EB09DC829E32132539C4C0E /* DayGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5219CCB9C481FFD04A218A66 /* DayGridView.swift */; };
 		200CB3413E3917BC9D0CC25F /* RecurrenceEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9062C2E730F1E70F0DCBDADA /* RecurrenceEditor.swift */; };
 		2280EEE6CF4070EA9056DEE5 /* GoogleTasksClientTransportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09882AE6212AFABA6285AACF /* GoogleTasksClientTransportTests.swift */; };
 		23DEF8936535B7AAA96AB9D9 /* DraggedTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2EDEC1CEE956716394335F3 /* DraggedTask.swift */; };
@@ -209,6 +210,7 @@
 		4D768DB4E22AFC1D29F84EB1 /* BackoffPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffPolicyTests.swift; sourceTree = "<group>"; };
 		4DE3C9162F20EE6482E67FCB /* TaskStarringTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskStarringTests.swift; sourceTree = "<group>"; };
 		515AE22366D9FEE4138091FF /* GoogleCalendarClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleCalendarClient.swift; sourceTree = "<group>"; };
+		5219CCB9C481FFD04A218A66 /* DayGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayGridView.swift; sourceTree = "<group>"; };
 		52C304D2E832B788B8FAF20E /* RecurrenceRule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceRule.swift; sourceTree = "<group>"; };
 		53DBA75E42BFCFB6D9F02C47 /* CalendarEventInstance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventInstance.swift; sourceTree = "<group>"; };
 		5810826FCEA91EE340801C40 /* UndoToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoToast.swift; sourceTree = "<group>"; };
@@ -671,6 +673,7 @@
 				09D526E7EC054A5BAA2ED4E3 /* CalendarDropComputer.swift */,
 				382C796971460006AB7D939E /* CalendarGridLayout.swift */,
 				F2263C896865029DCEC3A53B /* CalendarHomeView.swift */,
+				5219CCB9C481FFD04A218A66 /* DayGridView.swift */,
 				3FB991136E6E925A2EF0030D /* GuestsSection.swift */,
 				0854A71DD603264D078FB733 /* MonthGridView.swift */,
 				81B6DCD044EB92F7793567B7 /* NaturalLanguageEventParser.swift */,
@@ -860,6 +863,7 @@
 				31AF912F0C07426A97089C29 /* CrashReporter.swift in Sources */,
 				F544AFBC74E117992DB58913 /* CustomFilter.swift in Sources */,
 				76FE748A00BF7565093EB3C2 /* CustomFiltersSection.swift in Sources */,
+				1EB09DC829E32132539C4C0E /* DayGridView.swift in Sources */,
 				7092CA5C7D2C3A052185B566 /* DesignTokens.swift in Sources */,
 				718D9F745F2817A8139B00C0 /* DiagnosticBundle.swift in Sources */,
 				61E276C2555F3F36F976E697 /* DiagnosticsView.swift in Sources */,
