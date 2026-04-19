@@ -23,6 +23,33 @@ final class AppCommandActions {
     var zoomIn: () -> Void = {}
     var zoomOut: () -> Void = {}
     var zoomReset: () -> Void = {}
+
+    // Routes a canonical HCBShortcutCommand to the corresponding closure.
+    // Used by the leader-chord state machine (§6.9) so chord execution reuses
+    // the same action plumbing the menu bar and keyboard shortcuts already do.
+    // Commands that have no corresponding AppCommandActions closure (calendar
+    // navigation, task-inspector keys, store-specific) no-op — those live in
+    // views that own their own focused handlers.
+    func execute(_ command: HCBShortcutCommand) {
+        switch command {
+        case .newTask: newTask()
+        case .newEvent: newEvent()
+        case .commandPalette: openCommandPalette()
+        case .quickSwitcher: openQuickSwitcher()
+        case .refresh: refresh()
+        case .forceResync: forceResync()
+        case .diagnostics: openDiagnostics()
+        case .help: openHelp()
+        case .goToCalendar: switchTo(.calendar)
+        case .goToStore: switchTo(.store)
+        case .goToSettings: switchTo(.settings)
+        case .zoomIn: zoomIn()
+        case .zoomOut: zoomOut()
+        case .zoomReset: zoomReset()
+        case .printToday: printToday()
+        default: break
+        }
+    }
 }
 
 private struct AppCommandActionsKey: FocusedValueKey {
