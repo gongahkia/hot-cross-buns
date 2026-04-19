@@ -385,7 +385,7 @@ struct WeekGridView: View {
                 dayStart: startOfDay,
                 calendar: calendar,
                 onTap: { start in
-                    router.present(.addEventAt(start, allDay: false))
+                    router.present(.quickCreate(start, allDay: false))
                 }
             )
             .dropDestination(for: DraggedTask.self) { items, location in
@@ -421,7 +421,7 @@ struct WeekGridView: View {
                 .fill(Color.clear)
                 .contentShape(Rectangle())
                 .gesture(
-                    SpatialTapGesture(count: 2)
+                    SpatialTapGesture(count: 1)
                         .onEnded { value in
                             let start = CalendarDropComputer.snappedStart(
                                 for: value.location.y,
