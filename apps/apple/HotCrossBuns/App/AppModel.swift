@@ -15,7 +15,12 @@ final class AppModel {
     private(set) var account: GoogleAccount?
     private(set) var authState: AuthState = .signedOut
     private(set) var syncState: SyncState = .idle
-    private(set) var isMutating: Bool = false
+    // Reference-counted so overlapping mutations (e.g. TaskInspectorView's
+    // detached commit-on-close race with a simultaneous completion toggle
+    // elsewhere) don't prematurely flip isMutating to false and let
+    // refreshNow start syncing while another mutation's still in flight.
+    private var mutationCount: Int = 0
+    var isMutating: Bool { mutationCount > 0 }
     private var isReplayingMutations: Bool = false
     // Set by the near-real-time loop when it has exhausted its retry
     // budget against transient failures; cleared on a successful refresh or
@@ -1576,12 +1581,12 @@ final class AppModel {
     }
 
     private func beginMutation() {
-        isMutating = true
+        mutationCount += 1
         lastMutationError = nil
     }
 
     private func endMutation(error: Error?) {
-        isMutating = false
+        mutationCount = max(0, mutationCount - 1)
         if let error {
             lastMutationError = error.localizedDescription
         }

@@ -593,10 +593,26 @@ struct TaskInspectorView: View {
     }
 
     private func commitPending() {
+        // Cancel the debounce. We must fire-and-forget here because
+        // .onDisappear is synchronous — but thanks to the reference-
+        // counted mutationCount in AppModel, an overlapping save from
+        // this detached Task no longer races with a concurrent mutation
+        // elsewhere to prematurely clear isMutating. saveIfDirty itself
+        // checks `draft.differs` / `hasUsableTitle` before hitting the
+        // network, so late-arriving drafts don't re-submit a stale one.
         saveTask?.cancel()
         saveTask = nil
         guard draft.differs(from: task), draft.hasUsableTitle else { return }
-        Task { await saveIfDirty() }
+        let snapshot = draft
+        let targetTask = task
+        Task { @MainActor in
+            _ = await model.updateTask(
+                targetTask,
+                title: snapshot.title,
+                notes: snapshot.notes,
+                dueDate: snapshot.resolvedDueDate()
+            )
+        }
     }
 
     private func refreshDraftIfClean() {
