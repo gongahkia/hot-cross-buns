@@ -30,6 +30,8 @@ final class AppModel {
     // handler) queues text for the main app. QuickAddView reads this
     // on appear, prefills its title field, then clears it.
     var pendingSharedPrefill: String?
+    // Populated on first launch-time check; DiagnosticsView surfaces.
+    private(set) var keychainHealth: KeychainHealth = .unknown
     private(set) var lastMutationError: String?
     private(set) var taskLists: [TaskListMirror] = []
     private(set) var tasks: [TaskMirror] = []
@@ -99,6 +101,13 @@ final class AppModel {
     }
 
     func loadInitialState() async {
+        // Probe Keychain before anything that would touch GIDSignIn. If
+        // the Keychain is locked/denied the restore will fail generically;
+        // the probe lets us surface a specific reason in Diagnostics.
+        keychainHealth = KeychainProbe.run()
+        if keychainHealth == .denied {
+            AppLogger.warn("keychain inaccessible at launch", category: .auth)
+        }
         let cachedState = await cacheStore.loadCachedState()
         apply(cachedState)
         authState = cachedState.account.map(AuthState.signedIn) ?? .signedOut

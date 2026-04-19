@@ -26,6 +26,12 @@ struct DiagnosticsView: View {
                     DiagnosticRow(label: "Sync", value: model.syncState.title)
                     DiagnosticRow(label: "Mode", value: model.settings.syncMode.title)
                     DiagnosticRow(label: "Last sync", value: lastSyncText)
+                    DiagnosticRow(label: "Keychain", value: model.keychainHealth.displayTitle)
+                    if model.keychainHealth == .denied {
+                        Text("macOS denied access to the Keychain. Unlock it (Applications → Utilities → Keychain Access → log in) then Reconnect Google.")
+                            .font(.caption)
+                            .foregroundStyle(AppColor.ember)
+                    }
                 }
 
                 Section("Local data") {
