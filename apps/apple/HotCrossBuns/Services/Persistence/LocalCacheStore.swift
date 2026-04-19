@@ -28,10 +28,6 @@ actor LocalCacheStore {
             return state
         } catch {
             // Full decode failed — likely a schema drift in a future release.
-            // Before discarding everything, try to salvage pendingMutations so
-            // that any offline creates the user was depending on are not lost
-            // silently. They can still be replayed as soon as a successful
-            // sync rebuilds the rest of the state from Google.
             let salvagedMutations = recoverPendingMutations(from: fileURL)
             var recovered = fallbackState
             if salvagedMutations.isEmpty == false {
@@ -40,6 +36,10 @@ actor LocalCacheStore {
             lastLoadWarning = salvagedMutations.isEmpty
                 ? "Local cache could not be read (\(error.localizedDescription)); starting fresh."
                 : "Local cache was rebuilt after a schema change. \(salvagedMutations.count) pending mutation\(salvagedMutations.count == 1 ? "" : "s") preserved."
+            AppLogger.error("cache decode failed", category: .cache, metadata: [
+                "error": String(describing: error),
+                "salvagedMutations": String(salvagedMutations.count)
+            ])
             cachedState = recovered
             return recovered
         }
@@ -70,6 +70,7 @@ actor LocalCacheStore {
             try data.write(to: fileURL, options: [.atomic])
         } catch {
             // Keep the in-memory cache usable even when the filesystem write fails.
+            AppLogger.warn("cache write failed", category: .cache, metadata: ["error": String(describing: error)])
         }
     }
 
