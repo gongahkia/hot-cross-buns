@@ -1288,10 +1288,27 @@ final class AppModel {
         isReplayingMutations = true
         defer { isReplayingMutations = false }
 
-        let snapshot = pendingMutations
-        for mutation in snapshot {
-            guard pendingMutations.contains(where: { $0.id == mutation.id }) else { continue }
-            await replay(mutation)
+        // Cap how many times we re-enter the loop to avoid spinning on a
+        // mutation that keeps getting retried (transient error that never
+        // resolves within this activation). Each pass we only keep going
+        // if we made progress — which guarantees termination either by
+        // draining or by stabilising on a non-shrinking queue.
+        let maxPasses = 4
+        var processedIDs: Set<PendingMutation.ID> = []
+        for _ in 0..<maxPasses {
+            let snapshot = pendingMutations.filter { processedIDs.contains($0.id) == false }
+            guard snapshot.isEmpty == false else { break }
+            for mutation in snapshot {
+                guard pendingMutations.contains(where: { $0.id == mutation.id }) else {
+                    processedIDs.insert(mutation.id)
+                    continue
+                }
+                await replay(mutation)
+                processedIDs.insert(mutation.id)
+            }
+            // If nothing new was added during this pass, we're done.
+            let remaining = pendingMutations.filter { processedIDs.contains($0.id) == false }
+            if remaining.isEmpty { break }
         }
     }
 
