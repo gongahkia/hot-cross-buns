@@ -38,49 +38,56 @@ struct CommandPaletteView: View {
         VStack(spacing: 0) {
             searchHeader
 
-            Divider()
-                .overlay(.secondary.opacity(0.25))
+            // Alfred-style: empty query = just the search bar. Dropdown
+            // only appears after the user types something.
+            if trimmedQuery.isEmpty == false {
+                Divider()
+                    .overlay(.secondary.opacity(0.25))
 
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    if filteredCommands.isEmpty, searchResults.isEmpty {
-                        emptyState
-                    } else {
-                        if filteredCommands.isEmpty == false {
-                            sectionHeader("Commands")
-                            ForEach(filteredCommands) { command in
-                                Button { run(.command(command)) } label: {
-                                    CommandPaletteRow(command: command)
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        if filteredCommands.isEmpty, searchResults.isEmpty {
+                            emptyState
+                        } else {
+                            if filteredCommands.isEmpty == false {
+                                sectionHeader("Commands")
+                                ForEach(filteredCommands) { command in
+                                    Button { run(.command(command)) } label: {
+                                        CommandPaletteRow(command: command)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .hcbScaledPadding(.horizontal, 20)
+                                    .hcbScaledPadding(.vertical, 8)
                                 }
-                                .buttonStyle(.plain)
-                                .hcbScaledPadding(.horizontal, 20)
-                                .hcbScaledPadding(.vertical, 8)
                             }
-                        }
-                        if searchResults.isEmpty == false {
-                            sectionHeader("Results")
-                            ForEach(searchResults) { row in
-                                Button { run(row) } label: {
-                                    resultRow(row)
+                            if searchResults.isEmpty == false {
+                                sectionHeader("Results")
+                                ForEach(searchResults) { row in
+                                    Button { run(row) } label: {
+                                        resultRow(row)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .hcbScaledPadding(.horizontal, 20)
+                                    .hcbScaledPadding(.vertical, 8)
                                 }
-                                .buttonStyle(.plain)
-                                .hcbScaledPadding(.horizontal, 20)
-                                .hcbScaledPadding(.vertical, 8)
                             }
                         }
                     }
+                    .hcbScaledPadding(.vertical, 12)
                 }
-                .hcbScaledPadding(.vertical, 12)
             }
-            .onAppear {
-                isSearchFocused = true
-            }
-            .onSubmit(of: .text, executeFirstMatch)
         }
-        .hcbScaledFrame(minWidth: 760, idealWidth: 760, minHeight: 520, idealHeight: 560)
+        .onAppear { isSearchFocused = true }
+        .onSubmit(of: .text, executeFirstMatch)
+        .hcbScaledFrame(
+            minWidth: 760,
+            idealWidth: 760,
+            minHeight: trimmedQuery.isEmpty ? 88 : 520,
+            idealHeight: trimmedQuery.isEmpty ? 88 : 560
+        )
         .background {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(.regularMaterial)
+                .fill(.ultraThinMaterial) // Alfred-style translucent vibrancy
         }
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .presentationBackground(.clear)
