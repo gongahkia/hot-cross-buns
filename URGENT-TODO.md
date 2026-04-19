@@ -47,6 +47,29 @@ GitHub Actions release workflow references these secrets (not yet set); without 
   - `NOTARIZE_MACOS_DMG` set to `1`
 - Download the CI DMG and confirm Gatekeeper opens it without unsigned-app warnings.
 
+### 3a. Undo the local-QA entitlements workaround before shipping
+
+During live QA on a machine without an Apple Developer team, `make run` / `make build` were pointed at a stripped-down **`HotCrossBuns-Dev.entitlements`** (network client only, **sandbox disabled**) so GoogleSignIn's Keychain write wouldn't fail. Ad-hoc signed + sandboxed builds hit `GIDSignIn Code=-2 "keychain error"` because the team-prefix access group expansion needs a real provisioning profile.
+
+Before cutting a production DMG:
+
+- Restore `CODE_SIGN_ENTITLEMENTS` in the `Makefile` back to `HotCrossBuns/Support/HotCrossBuns.entitlements` (or remove the override so Xcode's default from `project.yml` applies).
+- Re-add the two entitlements that were stripped from `HotCrossBuns.entitlements` during local QA:
+  - `com.apple.security.application-groups` → `group.com.gongahkia.hotcrossbuns` (Share Extension ↔ main app handoff)
+  - `keychain-access-groups` → `$(AppIdentifierPrefix)com.gongahkia.hotcrossbuns.mac` (proper Keychain scope once we have a team ID)
+- Re-add the matching `application-groups` to `HotCrossBunsShareExtension.entitlements`.
+- Delete `HotCrossBuns/Support/HotCrossBuns-Dev.entitlements` after confirming the prod build signs cleanly with the Developer ID cert.
+- Verify sign-in still works on a release build (the GoogleSignIn Keychain path should then succeed because the team-prefixed access group resolves against the real provisioning profile).
+
+### 3b. Clean up Google Cloud project after QA
+
+Post-QA / before handing off to other users, revisit <https://console.cloud.google.com/auth/clients>:
+
+- Audit the existing OAuth client for unused redirect URIs / platforms.
+- Decide whether to keep the app in **Testing** mode (caps at ~100 test users, no verification needed) or submit for **Production** verification (required for any public distribution — Google reviews the scopes).
+- If multiple throwaway clients were created during QA, delete the unused ones so the Credentials list stays clean.
+- Confirm the enabled APIs list is still just **Tasks API** + **Calendar API** — nothing else should have been enabled accidentally.
+
 ## 4. Single-window + 2-tab sidebar on-device verification
 
 On-device checks still outstanding:
