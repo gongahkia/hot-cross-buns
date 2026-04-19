@@ -15,7 +15,8 @@ XCODEBUILD := xcodebuild \
 	-derivedDataPath $(DERIVED) \
 	CODE_SIGN_IDENTITY="-" \
 	CODE_SIGN_STYLE=Manual \
-	DEVELOPMENT_TEAM=""
+	DEVELOPMENT_TEAM="" \
+	CODE_SIGN_ENTITLEMENTS=HotCrossBuns/Support/HotCrossBuns-Dev.entitlements
 
 .DEFAULT_GOAL := help
 
