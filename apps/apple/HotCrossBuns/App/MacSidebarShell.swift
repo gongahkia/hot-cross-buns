@@ -192,7 +192,16 @@ struct MacSidebarShell: View {
                 await model.loadInitialState()
                 isPresentingOnboarding = model.settings.hasCompletedOnboarding == false
                 await model.restoreGoogleSession()
-                await model.refreshForCurrentSyncMode()
+                // Only auto-refresh when the session restore actually
+                // succeeded. If restoreGoogleSession surfaced a .failed
+                // authState (Keychain timing after wake-from-sleep, token
+                // expiry, scope revocation), kicking off a refresh would
+                // hit 401 and render a misleading "Sync needs attention"
+                // banner on every launch even though the user just needs
+                // to reconnect.
+                if case .signedIn = model.authState {
+                    await model.refreshForCurrentSyncMode()
+                }
                 handlePendingAppIntentRoute()
             }
             .onChange(of: model.settings.hasCompletedOnboarding) { _, hasCompleted in
