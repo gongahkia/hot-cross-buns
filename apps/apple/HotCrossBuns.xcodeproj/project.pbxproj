@@ -19,6 +19,7 @@
 		06FE121137213164AD3251BB /* ICSImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAD0C012D8B9B6623C44F25 /* ICSImporterTests.swift */; };
 		0C3DFA7D3E4DCD020EB7F6F2 /* TaskDependencyMarkers.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCE5BDCDF63B0B50B0A3A26C /* TaskDependencyMarkers.swift */; };
 		0C684E4902EA8C1B8C94322E /* CalendarGridLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7CCAAA53D6C1875F338A5B /* CalendarGridLayoutTests.swift */; };
+		0D378235C8E06E9BECC9C81D /* TemplatesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D71121A9391311854DE3FD37 /* TemplatesSection.swift */; };
 		0E508E9852C85C2E60A64756 /* TaskReminderMarkers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC17ECA270BCECA15B26A6D2 /* TaskReminderMarkers.swift */; };
 		0EFE84A258E8CB65C847749C /* NaturalLanguageEventParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B6DCD044EB92F7793567B7 /* NaturalLanguageEventParser.swift */; };
 		10A04046C06A95B5585E071A /* QueryDSL.swift in Sources */ = {isa = PBXBuildFile; fileRef = C17A2CA31D4325F3BF696AD8 /* QueryDSL.swift */; };
@@ -41,12 +42,14 @@
 		277CAF0A19ABD1F6844B943E /* GoogleCalendarClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 515AE22366D9FEE4138091FF /* GoogleCalendarClient.swift */; };
 		28206596F2C65EB227EA1448 /* SyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46640F8301E1D6444BE62A73 /* SyncModels.swift */; };
 		2996536E95132A91602EF187 /* CacheSchemaMigrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62B7E28F16E7ED3A3AF854DC /* CacheSchemaMigrator.swift */; };
+		2C07F4E827E1C0F708F9C9F8 /* HCBTemplateExpander.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FCE1E9B77CF162DAED39DE5 /* HCBTemplateExpander.swift */; };
 		2CDC1D878700011509715762 /* StoreViewMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FC293FBF1818802ED9D013A /* StoreViewMode.swift */; };
 		2D19FBD327EF4A9C87C0CD02 /* RecurrenceRule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C304D2E832B788B8FAF20E /* RecurrenceRule.swift */; };
 		2F2435D0A0AD7F53377DAA06 /* HCBCacheCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E4CDC1A1234A242228D7CD /* HCBCacheCrypto.swift */; };
 		30C254F4376E7BFEEC7B5A99 /* SharedInboxItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35AD02E0F85CA96B243D335E /* SharedInboxItem.swift */; };
 		31AF912F0C07426A97089C29 /* CrashReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04200A166E83F915A6DECF28 /* CrashReporter.swift */; };
 		34DF4A454B9BAB7772BA611F /* SpotlightIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A88DE6FAF6CB6673FAFBC3A /* SpotlightIndexer.swift */; };
+		392B80CF6FEC882EA9AED78C /* HCBTemplateExpanderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B67B046600700AA50D42A500 /* HCBTemplateExpanderTests.swift */; };
 		3B7E0CB45C3A8F28831C31C5 /* ReviewBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2902AF84DDE381956C0D149E /* ReviewBuilderTests.swift */; };
 		3C46C59104156AB21A28EF72 /* QuickSwitcherView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFFAF688032DE70E8A828C30 /* QuickSwitcherView.swift */; };
 		3CD7D2817F178F819CEDA958 /* Snapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1622469DA249EE1B10188D98 /* Snapshots.swift */; };
@@ -114,6 +117,7 @@
 		955573546C6EE1A304362928 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2DAF9EC4D904A84E8BC06FC /* ShareViewController.swift */; };
 		981EAEC817813AB5AC211094 /* OptimisticWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9947809DE2CC9C0058C3BA2 /* OptimisticWriterTests.swift */; };
 		9ABDB68F86970E1A10FE8184 /* ForecastBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD3A5E1617A36FD0134FB67E /* ForecastBuilder.swift */; };
+		9C9BFE48B53DBF5D2FECD34A /* InsertTaskTemplateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3C281076BBBC06FADE80BBB /* InsertTaskTemplateSheet.swift */; };
 		9CB6F05B30F36FB5D60CFC8D /* QuickCreatePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 681B9DB65E8B12860BF51B3D /* QuickCreatePopover.swift */; };
 		9D509BB5F19F366E80487377 /* RouterPath.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF08213B82A11D35A48E9669 /* RouterPath.swift */; };
 		9D78958B97CA82C8F51F677D /* DeepLinkErrorToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A8E603703D051876757E55F /* DeepLinkErrorToast.swift */; };
@@ -239,6 +243,7 @@
 		2902AF84DDE381956C0D149E /* ReviewBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewBuilderTests.swift; sourceTree = "<group>"; };
 		2A2CC11D691079D5BE603A94 /* MarkdownEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownEditor.swift; sourceTree = "<group>"; };
 		2B5A02F709EC80DD855D2C87 /* ISO8601DateFormatter+Google.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ISO8601DateFormatter+Google.swift"; sourceTree = "<group>"; };
+		2FCE1E9B77CF162DAED39DE5 /* HCBTemplateExpander.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HCBTemplateExpander.swift; sourceTree = "<group>"; };
 		339394C0D1D19EE6C0831091 /* UpdaterController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterController.swift; sourceTree = "<group>"; };
 		33A7C862FCE08662E355A0FA /* TaskBulkActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskBulkActionBar.swift; sourceTree = "<group>"; };
 		35AD02E0F85CA96B243D335E /* SharedInboxItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedInboxItem.swift; sourceTree = "<group>"; };
@@ -322,6 +327,8 @@
 		AF08213B82A11D35A48E9669 /* RouterPath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouterPath.swift; sourceTree = "<group>"; };
 		AF46AED18B8659500C9FDDB8 /* CalendarEventColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventColor.swift; sourceTree = "<group>"; };
 		B1E03BB899FDA9756E7C268E /* OptimisticWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimisticWriter.swift; sourceTree = "<group>"; };
+		B3C281076BBBC06FADE80BBB /* InsertTaskTemplateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsertTaskTemplateSheet.swift; sourceTree = "<group>"; };
+		B67B046600700AA50D42A500 /* HCBTemplateExpanderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HCBTemplateExpanderTests.swift; sourceTree = "<group>"; };
 		B73A839AA07E6C98129ED4BB /* StoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreView.swift; sourceTree = "<group>"; };
 		B8C7F2CE45DD479F7574C012 /* HCBChordTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HCBChordTests.swift; sourceTree = "<group>"; };
 		B92120AB5AC37805D5E63BBF /* KanbanGrouping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KanbanGrouping.swift; sourceTree = "<group>"; };
@@ -345,6 +352,7 @@
 		CD5F8A89100AE1891AD53FA3 /* DiagnosticBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticBundle.swift; sourceTree = "<group>"; };
 		CDAD0C012D8B9B6623C44F25 /* ICSImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICSImporterTests.swift; sourceTree = "<group>"; };
 		D1E5EC5EF558326D415F76B1 /* GoogleMapsConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleMapsConfigTests.swift; sourceTree = "<group>"; };
+		D71121A9391311854DE3FD37 /* TemplatesSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplatesSection.swift; sourceTree = "<group>"; };
 		D890CE64490C8AB18F8589F6 /* BulkTaskOperation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BulkTaskOperation.swift; sourceTree = "<group>"; };
 		D8AF38F4F743ECB0079BDD30 /* SmartListFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartListFilterTests.swift; sourceTree = "<group>"; };
 		DA7AA6D7D06BBC2852BAFCDF /* TaskInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskInspectorView.swift; sourceTree = "<group>"; };
@@ -565,6 +573,7 @@
 				A8A8597ECC59F5DA91D6D5C9 /* Status */,
 				0C62E0B59686D6FE0D68ED22 /* Store */,
 				467F16808E7CAC7CA139CF9C /* Tasks */,
+				FB43DB3A1FA04EF86E41EEE6 /* Templates */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -659,6 +668,7 @@
 				DD98EA6DAE12DEC1BADC82FA /* HCBCacheCryptoTests.swift */,
 				B8C7F2CE45DD479F7574C012 /* HCBChordTests.swift */,
 				85D5CDB76149A63DCE082991 /* HCBDeepLinkRouterTests.swift */,
+				B67B046600700AA50D42A500 /* HCBTemplateExpanderTests.swift */,
 				CDAD0C012D8B9B6623C44F25 /* ICSImporterTests.swift */,
 				E1F9819BB9588096043C4039 /* KanbanGroupingTests.swift */,
 				16A222520E37F1BD9721EF0B /* MarkdownHTMLTests.swift */,
@@ -864,9 +874,19 @@
 				9742B8184AB071BE000E4235 /* LayoutSection.swift */,
 				A29E4EA796CF06BFCDDDEE8F /* PerSurfaceFontSection.swift */,
 				AB15E1D3EF730B024771A746 /* SettingsView.swift */,
+				D71121A9391311854DE3FD37 /* TemplatesSection.swift */,
 				0EF85250959558DF48B98023 /* UpdatesSection.swift */,
 			);
 			path = Settings;
+			sourceTree = "<group>";
+		};
+		FB43DB3A1FA04EF86E41EEE6 /* Templates */ = {
+			isa = PBXGroup;
+			children = (
+				2FCE1E9B77CF162DAED39DE5 /* HCBTemplateExpander.swift */,
+				B3C281076BBBC06FADE80BBB /* InsertTaskTemplateSheet.swift */,
+			);
+			path = Templates;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1037,11 +1057,13 @@
 				6C767E7BC697FE433BF5AAA2 /* HCBDeepLinkRouter.swift in Sources */,
 				03DDA60B71A6CF24C09880A6 /* HCBShortcuts.swift in Sources */,
 				B9D9962B30CA73EFBD0719AD /* HCBSurface.swift in Sources */,
+				2C07F4E827E1C0F708F9C9F8 /* HCBTemplateExpander.swift in Sources */,
 				71EA6FF162806AFA0CADB908 /* HelpView.swift in Sources */,
 				D569DDF00E3A25CFF189D40F /* HotCrossBunsApp.swift in Sources */,
 				1B7F6F790CF80AF97AB3E65C /* HotCrossBunsIntents.swift in Sources */,
 				AC8BEAE2688675504A251128 /* ICSImporter.swift in Sources */,
 				1D14CFF9E1E31D6FC0995EAA /* ISO8601DateFormatter+Google.swift in Sources */,
+				9C9BFE48B53DBF5D2FECD34A /* InsertTaskTemplateSheet.swift in Sources */,
 				E96B683F08F8DF7C7128CADF /* KanbanGrouping.swift in Sources */,
 				BC1B43B0C73F002D0EA83908 /* KanbanView.swift in Sources */,
 				BD26C0402828576210A868C0 /* KeybindingsSection.swift in Sources */,
@@ -1097,6 +1119,7 @@
 				0E508E9852C85C2E60A64756 /* TaskReminderMarkers.swift in Sources */,
 				565F287CFA9B4102EE96A9DB /* TaskStarring.swift in Sources */,
 				D469641DB76139A358F0A8CB /* TasksView.swift in Sources */,
+				0D378235C8E06E9BECC9C81D /* TemplatesSection.swift in Sources */,
 				D280DABA928A2B86751240A5 /* TimelineLayout.swift in Sources */,
 				DE83356E5AA419C51A01C8EC /* TimelineView.swift in Sources */,
 				4E8052E74A055E77BC2698D9 /* TodayPrintView.swift in Sources */,
@@ -1132,6 +1155,7 @@
 				76A6C1E3FB84BBA6C85AD47B /* HCBCacheCryptoTests.swift in Sources */,
 				81A1C2AB5441CE9439ED0268 /* HCBChordTests.swift in Sources */,
 				B346B65453F1D3C0676D7803 /* HCBDeepLinkRouterTests.swift in Sources */,
+				392B80CF6FEC882EA9AED78C /* HCBTemplateExpanderTests.swift in Sources */,
 				06FE121137213164AD3251BB /* ICSImporterTests.swift in Sources */,
 				AF02EC6FCF69EF4B3DBB5FE2 /* KanbanGroupingTests.swift in Sources */,
 				7D78BE1A86E813F0669673E5 /* MarkdownHTMLTests.swift in Sources */,
