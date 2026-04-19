@@ -668,6 +668,26 @@ struct MacSidebarShell: View {
                 keywords: ["store", "tasks", "notes", "lists", "review"]
             ) {
                 selection = .store
+            },
+            CommandPaletteCommand(
+                id: "go-settings",
+                title: "Go to Settings",
+                subtitle: "Appearance, account, sync, keyboard, calendars",
+                symbol: "gearshape",
+                shortcut: "Cmd+3",
+                keywords: ["settings", "preferences", "appearance", "font", "theme"]
+            ) {
+                selection = .settings
+            },
+            CommandPaletteCommand(
+                id: "open-help",
+                title: "Help",
+                subtitle: "Keyboard shortcuts, sync behavior, troubleshooting",
+                symbol: "questionmark.circle",
+                shortcut: "Cmd+?",
+                keywords: ["help", "docs", "shortcuts", "keys", "guide"]
+            ) {
+                isPresentingHelp = true
             }
         ]
     }
