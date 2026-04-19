@@ -1,6 +1,16 @@
 import Foundation
 
 actor SyncScheduler {
+    // Slack subtracted from the local sync-start timestamp when setting the
+    // next Tasks `updatedMin` watermark. Was 60s; widened to 300s because a
+    // 60s slack silently drops tasks updated in the window if the user's
+    // system clock drifts forward relative to Google's servers by >60s. A
+    // 5-minute window fetches a few extra tasks on each incremental sync
+    // (cheap) but stays correct up to 5 min of clock drift. A fully robust
+    // fix would derive the watermark from the Google response `Date`
+    // header — tracked as a follow-up.
+    static let tasksWatermarkSlackSeconds: TimeInterval = 300
+
     private let tasksClient: GoogleTasksClient
     private let calendarClient: GoogleCalendarClient
 
@@ -108,7 +118,7 @@ actor SyncScheduler {
                         resourceType: .taskList,
                         resourceID: taskList.id,
                         calendarSyncToken: nil,
-                        tasksUpdatedMin: syncStartedAt.addingTimeInterval(-60),
+                        tasksUpdatedMin: syncStartedAt.addingTimeInterval(-Self.tasksWatermarkSlackSeconds),
                         lastSuccessfulSyncAt: Date()
                     )
                     return TaskListSyncResult(
