@@ -17,11 +17,15 @@ struct NotificationScheduleSummary: Equatable, Sendable {
     var scheduledTasks: Int
     var deferredEvents: Int
     var deferredTasks: Int
+    var failedEvents: Int
+    var failedTasks: Int
     var windowDays: Int
     var computedAt: Date
 
     var hasDeferred: Bool { deferredEvents + deferredTasks > 0 }
+    var hasFailures: Bool { failedEvents + failedTasks > 0 }
     var totalScheduled: Int { scheduledEvents + scheduledTasks }
+    var totalFailed: Int { failedEvents + failedTasks }
 }
 
 actor LocalNotificationScheduler {
@@ -73,20 +77,31 @@ actor LocalNotificationScheduler {
         let remainingSlots = max(0, Self.pendingRequestLimit - eventSlice.count)
         let taskSlice = Array(taskNotifications.prefix(remainingSlots))
 
-        var failedCount = 0
+        var failedEvents = 0
+        var failedTasks = 0
+        let eventIdentifiers = Set(eventSlice.map(\.request.identifier))
         for notification in eventSlice + taskSlice {
             do {
                 try await add(notification.request)
             } catch {
-                failedCount += 1
+                if eventIdentifiers.contains(notification.request.identifier) {
+                    failedEvents += 1
+                } else {
+                    failedTasks += 1
+                }
                 AppLogger.warn("notification add failed", category: .notifications, metadata: [
                     "identifier": notification.request.identifier,
                     "error": String(describing: error)
                 ])
             }
         }
-        if failedCount > 0 {
-            AppLogger.warn("notifications partial failure", category: .notifications, metadata: ["failed": String(failedCount)])
+        let totalFailed = failedEvents + failedTasks
+        if totalFailed > 0 {
+            AppLogger.warn("notifications partial failure", category: .notifications, metadata: [
+                "failed": String(totalFailed),
+                "failedEvents": String(failedEvents),
+                "failedTasks": String(failedTasks)
+            ])
         } else if eventSlice.isEmpty == false || taskSlice.isEmpty == false {
             AppLogger.info("notifications scheduled", category: .notifications, metadata: [
                 "events": String(eventSlice.count),
@@ -95,10 +110,12 @@ actor LocalNotificationScheduler {
         }
 
         lastSummary = NotificationScheduleSummary(
-            scheduledEvents: eventSlice.count,
-            scheduledTasks: taskSlice.count,
+            scheduledEvents: eventSlice.count - failedEvents,
+            scheduledTasks: taskSlice.count - failedTasks,
             deferredEvents: max(0, eventNotifications.count - eventSlice.count),
             deferredTasks: max(0, taskNotifications.count - taskSlice.count),
+            failedEvents: failedEvents,
+            failedTasks: failedTasks,
             windowDays: Self.schedulingWindowDays,
             computedAt: Date()
         )
