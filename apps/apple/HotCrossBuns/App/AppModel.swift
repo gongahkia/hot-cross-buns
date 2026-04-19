@@ -1789,6 +1789,10 @@ final class AppModel {
         return endDate > startDate
     }
 
+    func notificationScheduleSummary() async -> NotificationScheduleSummary? {
+        await notificationScheduler.lastSummary
+    }
+
     private func synchronizeLocalNotifications(requestAuthorization: Bool = false) async {
         await notificationScheduler.synchronize(
             tasks: tasks,

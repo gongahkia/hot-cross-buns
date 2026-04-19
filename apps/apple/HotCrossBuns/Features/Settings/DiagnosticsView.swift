@@ -10,6 +10,7 @@ struct DiagnosticsView: View {
     @State private var copiedAt: Date?
     @State private var lastCrash: String?
     @State private var systemCrashReports: [SystemCrashReport] = []
+    @State private var notificationSummary: NotificationScheduleSummary?
     @State private var expandedSystemReportID: String?
     @State private var systemReportPreview: String = ""
 
@@ -37,6 +38,24 @@ struct DiagnosticsView: View {
                     DiagnosticRow(label: "Selected calendars", value: selectedCalendarText)
                     DiagnosticRow(label: "Local reminders", value: model.settings.enableLocalNotifications ? "Enabled" : "Disabled")
                     DiagnosticRow(label: "Onboarding", value: model.settings.hasCompletedOnboarding ? "Completed" : "Not completed")
+                }
+
+                if let summary = notificationSummary {
+                    Section("Reminder schedule") {
+                        DiagnosticRow(label: "Scheduled events", value: summary.scheduledEvents.formatted())
+                        DiagnosticRow(label: "Scheduled tasks", value: summary.scheduledTasks.formatted())
+                        if summary.hasDeferred {
+                            DiagnosticRow(label: "Deferred events", value: summary.deferredEvents.formatted())
+                            DiagnosticRow(label: "Deferred tasks", value: summary.deferredTasks.formatted())
+                            Text("More reminders exist in the next \(summary.windowDays) days than macOS allows the app to schedule at once. They will be scheduled as earlier ones fire or are cancelled.")
+                                .font(.caption)
+                                .foregroundStyle(AppColor.ember)
+                        } else {
+                            Text("All reminders within the next \(summary.windowDays) days are scheduled.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
 
                 Section("Cache") {
@@ -173,6 +192,7 @@ struct DiagnosticsView: View {
                 cachePath = await model.cacheFilePath()
                 lastCrash = CrashReporter.readLastCrash()
                 systemCrashReports = SystemCrashReportReader.recentReports(limit: 5)
+                notificationSummary = await model.notificationScheduleSummary()
             }
             .confirmationDialog(
                 confirmation?.title ?? "Confirm",

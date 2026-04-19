@@ -1,9 +1,35 @@
 import Foundation
 import UserNotifications
 
-struct LocalNotificationScheduler {
+// macOS / iOS cap at 64 pending UNNotificationRequest slots per app.
+// Previously we took the 64 nearest-sortDate items from *every*
+// task/event the user owned — a year-out event would never schedule if
+// 64 nearer items existed, silently dropping distant reminders.
+//
+// We now cap on a 30-day rolling window. Items beyond the window will
+// be scheduled on the next sync that moves the window past their
+// trigger. If the window still overflows (>64 items in 30 days, rare
+// for daily-driver use), we tier: events first (they have exact
+// scheduled times), then task reminders. A summary of the last
+// scheduling pass is exposed so DiagnosticsView can flag truncation.
+struct NotificationScheduleSummary: Equatable, Sendable {
+    var scheduledEvents: Int
+    var scheduledTasks: Int
+    var deferredEvents: Int
+    var deferredTasks: Int
+    var windowDays: Int
+    var computedAt: Date
+
+    var hasDeferred: Bool { deferredEvents + deferredTasks > 0 }
+    var totalScheduled: Int { scheduledEvents + scheduledTasks }
+}
+
+actor LocalNotificationScheduler {
     private static let notificationPrefix = "hot-cross-buns."
+    private static let schedulingWindowDays = 30
+    private static let pendingRequestLimit = 64
     private let notificationCenter: UNUserNotificationCenter
+    private(set) var lastSummary: NotificationScheduleSummary?
 
     init(notificationCenter: UNUserNotificationCenter = .current()) {
         self.notificationCenter = notificationCenter
@@ -19,6 +45,7 @@ struct LocalNotificationScheduler {
     ) async {
         guard settings.enableLocalNotifications else {
             await removeScheduledNotifications()
+            lastSummary = nil
             return
         }
 
@@ -29,17 +56,35 @@ struct LocalNotificationScheduler {
 
         await removeScheduledNotifications()
 
-        let requests = makeRequests(
-            tasks: tasks,
-            events: events,
-            referenceDate: referenceDate,
-            calendar: calendar
-        )
-        .prefix(64)
+        let windowEnd = calendar.date(byAdding: .day, value: Self.schedulingWindowDays, to: referenceDate) ?? referenceDate
+        let eventNotifications = events
+            .compactMap { eventNotificationRequest(for: $0, referenceDate: referenceDate, calendar: calendar) }
+            .filter { $0.sortDate < windowEnd }
+            .sorted { $0.sortDate < $1.sortDate }
+        let taskNotifications = tasks
+            .flatMap { taskNotificationRequests(for: $0, referenceDate: referenceDate, calendar: calendar) }
+            .filter { $0.sortDate < windowEnd }
+            .sorted { $0.sortDate < $1.sortDate }
 
-        for request in requests {
-            try? await add(request)
+        // Events first (they have exact times users rely on); tasks fill
+        // the rest up to the OS cap. Anything beyond is deferred until the
+        // next sync pushes the window forward.
+        let eventSlice = Array(eventNotifications.prefix(Self.pendingRequestLimit))
+        let remainingSlots = max(0, Self.pendingRequestLimit - eventSlice.count)
+        let taskSlice = Array(taskNotifications.prefix(remainingSlots))
+
+        for notification in eventSlice + taskSlice {
+            try? await add(notification.request)
         }
+
+        lastSummary = NotificationScheduleSummary(
+            scheduledEvents: eventSlice.count,
+            scheduledTasks: taskSlice.count,
+            deferredEvents: max(0, eventNotifications.count - eventSlice.count),
+            deferredTasks: max(0, taskNotifications.count - taskSlice.count),
+            windowDays: Self.schedulingWindowDays,
+            computedAt: Date()
+        )
     }
 
     private func hasAuthorization(requestAuthorization: Bool) async -> Bool {
@@ -53,24 +98,6 @@ struct LocalNotificationScheduler {
         default:
             return false
         }
-    }
-
-    private func makeRequests(
-        tasks: [TaskMirror],
-        events: [CalendarEventMirror],
-        referenceDate: Date,
-        calendar: Calendar
-    ) -> [UNNotificationRequest] {
-        let taskRequests = tasks.flatMap { task in
-            taskNotificationRequests(for: task, referenceDate: referenceDate, calendar: calendar)
-        }
-        let eventRequests = events.compactMap { event in
-            eventNotificationRequest(for: event, referenceDate: referenceDate, calendar: calendar)
-        }
-
-        return (taskRequests + eventRequests).sorted { lhs, rhs in
-            lhs.sortDate < rhs.sortDate
-        }.map(\.request)
     }
 
     private func taskNotificationRequests(
