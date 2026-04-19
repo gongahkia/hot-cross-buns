@@ -166,6 +166,17 @@ struct GoogleTasksClient: Sendable {
         )
     }
 
+    // Hides every completed task in the list from the Tasks web/mobile UI.
+    // Hidden tasks remain accessible via `showHidden=true` on list() but are
+    // not returned by default.
+    func clearCompletedTasks(taskListID: String) async throws {
+        let encodedTaskListID = taskListID.googlePathComponentEncoded
+        try await transport.send(
+            method: "POST",
+            path: "/tasks/v1/lists/\(encodedTaskListID)/clear"
+        )
+    }
+
     private func patchTask(
         taskListID: String,
         taskID: String,
