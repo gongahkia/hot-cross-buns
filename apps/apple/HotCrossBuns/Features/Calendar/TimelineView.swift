@@ -193,9 +193,9 @@ struct TimelineView: View {
     private func openItem(_ item: TimelineItem) {
         switch item.kind {
         case .task(let task):
-            router.navigate(to: .task(task.id))
+            router.present(.editTask(task.id))
         case .event(let event):
-            router.navigate(to: .event(event.id))
+            router.present(.editEvent(event.id))
         }
     }
 

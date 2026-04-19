@@ -488,7 +488,7 @@ struct CalendarHomeView: View {
                 } else {
                     ForEach(eventsForSelectedDate) { event in
                         Button {
-                            router.navigate(to: .event(event.id))
+                            router.present(.editEvent(event.id))
                         } label: {
                             EventListRow(event: event)
                         }
@@ -510,7 +510,7 @@ struct CalendarHomeView: View {
                 } else {
                     ForEach(model.calendarSnapshot.upcomingEvents) { event in
                         Button {
-                            router.navigate(to: .event(event.id))
+                            router.present(.editEvent(event.id))
                         } label: {
                             EventListRow(event: event)
                         }
@@ -607,248 +607,6 @@ private struct CalendarBadgeRow: View {
     }
 }
 
-struct EventDetailView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(AppModel.self) private var model
-    let eventID: CalendarEventMirror.ID
-    @State private var isEditing = false
-    @State private var isMutating = false
-    @State private var isConfirmingDelete = false
-
-    var body: some View {
-        Group {
-            if let event = model.event(id: eventID) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        Text(event.summary)
-                            .font(.system(.largeTitle, design: .serif, weight: .bold))
-                            .foregroundStyle(AppColor.ink)
-                        if !event.details.isEmpty {
-                            Text.markdown(event.details)
-                                .hcbFont(.body)
-                                .foregroundStyle(.secondary)
-                        }
-                        DetailField(label: "Starts", value: formattedStart(for: event))
-                        DetailField(label: "Ends", value: formattedEnd(for: event))
-                        if event.location.isEmpty == false {
-                            VStack(alignment: .leading, spacing: 6) {
-                                DetailField(label: "Location", value: event.location)
-                                // Read-only preview — tapping opens the full
-                                // Google Maps embed (MapKit fallback when the
-                                // Maps Embed API key is not configured).
-                                LocationMapPreview(locationText: event.location)
-                            }
-                        }
-                        if event.meetLink.isEmpty == false {
-                            MeetLinkCard(link: event.meetLink)
-                        }
-                        if event.attendeeResponses.isEmpty == false {
-                            AttendeeResponsesCard(responses: event.attendeeResponses)
-                        } else if event.attendeeEmails.isEmpty == false {
-                            DetailField(label: "Guests", value: event.attendeeEmails.joined(separator: "\n"))
-                        }
-                        if event.reminderMinutes.isEmpty == false {
-                            DetailField(label: "Reminders", value: event.reminderMinutes.map(reminderLabel).joined(separator: ", "))
-                        }
-                        DetailField(label: "Calendar ID", value: event.calendarID)
-                        EventActionPanel(
-                            event: event,
-                            isMutating: isMutating,
-                            onEdit: {
-                                isEditing = true
-                            },
-                            onDelete: {
-                                isConfirmingDelete = true
-                            }
-                        )
-                        DetailField(label: "Google ID", value: event.id)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .hcbScaledPadding(20)
-                }
-                .appBackground()
-                .sheet(isPresented: $isEditing) {
-                    EditEventSheet(event: event)
-                }
-                .confirmationDialog(
-                    CalendarEventInstance.isRecurring(event) ? "Delete which events?" : "Delete this event?",
-                    isPresented: $isConfirmingDelete,
-                    titleVisibility: .visible
-                ) {
-                    if CalendarEventInstance.isRecurring(event) {
-                        Button("This event only", role: .destructive) {
-                            Task { await delete(event, scope: .thisOccurrence) }
-                        }
-                        Button("This and following events", role: .destructive) {
-                            Task { await delete(event, scope: .thisAndFollowing) }
-                        }
-                        Button("Every event in the series (past + future)", role: .destructive) {
-                            Task { await delete(event, scope: .allInSeries) }
-                        }
-                    } else {
-                        Button("Delete Event", role: .destructive) {
-                            Task { await delete(event, scope: .thisOccurrence) }
-                        }
-                    }
-                    Button("Cancel", role: .cancel) {}
-                } message: {
-                    if CalendarEventInstance.isRecurring(event) {
-                        Text("\"This and following\" keeps past occurrences and removes this one plus every future one. \"Every event\" wipes the whole series including history — use it only if you want the event gone entirely. No guest updates are sent.")
-                    } else {
-                        Text("This deletes the event from Google Calendar without sending guest updates.")
-                    }
-                }
-            } else {
-                ContentUnavailableView("Event not found", systemImage: "calendar.badge.exclamationmark", description: Text("This event may have been deleted in Google Calendar."))
-            }
-        }
-        .navigationTitle("Event")
-    }
-
-    private func formattedStart(for event: CalendarEventMirror) -> String {
-        event.isAllDay
-            ? event.startDate.formatted(date: .abbreviated, time: .omitted)
-            : event.startDate.formatted(date: .abbreviated, time: .shortened)
-    }
-
-    private func formattedEnd(for event: CalendarEventMirror) -> String {
-        if event.isAllDay {
-            let inclusiveEndDate = Calendar.current.date(byAdding: .day, value: -1, to: event.endDate) ?? event.endDate
-            return inclusiveEndDate.formatted(date: .abbreviated, time: .omitted)
-        }
-
-        return event.endDate.formatted(date: .abbreviated, time: .shortened)
-    }
-
-    private func reminderLabel(_ minutes: Int) -> String {
-        EventReminderOption.label(forMinutes: minutes)
-    }
-
-    private func delete(_ event: CalendarEventMirror, scope: AppModel.RecurringEventScope) async {
-        isMutating = true
-        defer { isMutating = false }
-        let didDelete = await model.deleteEvent(event, scope: scope)
-        if didDelete {
-            dismiss()
-        }
-    }
-}
-
-private struct EventActionPanel: View {
-    @Environment(AppModel.self) private var model
-    let event: CalendarEventMirror
-    let isMutating: Bool
-    let onEdit: () -> Void
-    let onDelete: () -> Void
-
-    @State private var isNamingTemplate = false
-    @State private var templateName: String = ""
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Button(action: onEdit) {
-                Label("Edit Event", systemImage: "square.and.pencil")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(AppColor.blue)
-            .disabled(isMutating)
-
-            Button(role: .destructive, action: onDelete) {
-                Label("Delete Event", systemImage: "trash")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .disabled(isMutating)
-
-            Menu {
-                Button("Duplicate here") {
-                    Task { _ = await model.duplicateEvent(event, offsetDays: 0) }
-                }
-                .hcbKeyboardShortcut(.calendarDuplicateEvent)
-                Divider()
-                Button("Duplicate to tomorrow") {
-                    Task { _ = await model.duplicateEvent(event, offsetDays: 1) }
-                }
-                Button("Duplicate to next week") {
-                    Task { _ = await model.duplicateEvent(event, offsetDays: 7) }
-                }
-                Button("Duplicate to next month") {
-                    Task { _ = await model.duplicateEvent(event, offsetDays: 30) }
-                }
-                Button("Duplicate in 2 weeks") {
-                    Task { _ = await model.duplicateEvent(event, offsetDays: 14) }
-                }
-            } label: {
-                Label("Duplicate", systemImage: "plus.square.on.square")
-                    .frame(maxWidth: .infinity)
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.visible)
-            .buttonStyle(.bordered)
-
-            Button(action: copyAsMarkdown) {
-                Label("Copy as Markdown", systemImage: "doc.on.clipboard")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-
-            Button(action: exportICS) {
-                Label("Export .ics", systemImage: "square.and.arrow.up")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-
-            Button {
-                templateName = event.summary
-                isNamingTemplate = true
-            } label: {
-                Label("Save as Template", systemImage: "doc.badge.plus")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-        }
-        .cardSurface(cornerRadius: 22)
-        .alert("Save as template", isPresented: $isNamingTemplate) {
-            TextField("Template name", text: $templateName)
-            Button("Save") {
-                let trimmed = templateName.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard trimmed.isEmpty == false else { return }
-                model.saveAsEventTemplate(event, name: trimmed)
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Saves this event's summary, duration, reminders, attendees, and color as a reusable blueprint in Settings.")
-        }
-    }
-
-    private func copyAsMarkdown() {
-        let calendarTitle = model.calendars.first(where: { $0.id == event.calendarID })?.summary
-        let markdown = EventMarkdownExporter.markdown(for: event, calendarTitle: calendarTitle)
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(markdown, forType: .string)
-    }
-
-    private func exportICS() {
-        let content = EventICSExporter.ics(for: event)
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = suggestedFilename()
-        panel.allowedContentTypes = [UTType(filenameExtension: "ics") ?? .data]
-        panel.canCreateDirectories = true
-        if panel.runModal() == .OK, let url = panel.url {
-            try? content.data(using: .utf8)?.write(to: url)
-        }
-    }
-
-    private func suggestedFilename() -> String {
-        let sanitized = event.summary
-            .replacingOccurrences(of: "/", with: "-")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let base = sanitized.isEmpty ? "event" : sanitized
-        return "\(base).ics"
-    }
-}
-
 struct AddEventSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
@@ -873,6 +631,12 @@ struct AddEventSheet: View {
     // hides the Quick Create block, flips the title + primary button, and
     // dispatches updateEvent instead of createEvent.
     @State private var editingEvent: CalendarEventMirror?
+    // Recurring-scope picker state (shown only when saving a recurring event
+    // in edit mode). Mirrors the legacy EditEventSheet behaviour.
+    @State private var pendingRecurringScope = false
+    // Save-as-template state (edit-mode overflow menu).
+    @State private var isNamingTemplate = false
+    @State private var templateName: String = ""
 
     init(prefilledStart: Date? = nil, prefilledIsAllDay: Bool = false, prefilledEnd: Date? = nil) {
         let start = prefilledStart ?? Date()
@@ -932,16 +696,158 @@ struct AddEventSheet: View {
                     Button("Cancel") { dismiss() }
                         .disabled(isSaving)
                 }
+                if editingEvent != nil {
+                    ToolbarItem(placement: .primaryAction) {
+                        editMoreMenu
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(editingEvent == nil ? "Create" : "Save") {
-                        Task { await createOrUpdateEvent() }
+                        if editingEvent != nil, isRecurringEvent {
+                            pendingRecurringScope = true
+                        } else {
+                            Task { await createOrUpdateEvent(scope: .thisOccurrence) }
+                        }
                     }
                     .disabled(canCreate == false || isSaving)
                 }
             }
+            .confirmationDialog(
+                CalendarEventInstance.isRecurring(editingEvent ?? placeholderEvent)
+                    ? "Update which occurrences?"
+                    : "Update",
+                isPresented: $pendingRecurringScope,
+                titleVisibility: .visible
+            ) {
+                Button("This event only") {
+                    Task { await createOrUpdateEvent(scope: .thisOccurrence) }
+                }
+                Button("This and following events", role: .destructive) {
+                    Task { await createOrUpdateEvent(scope: .thisAndFollowing) }
+                }
+                Button("Every event in the series (past + future)", role: .destructive) {
+                    Task { await createOrUpdateEvent(scope: .allInSeries) }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This event is part of a recurring series. \"Every event in the series\" updates past occurrences too — not just upcoming. No guest updates are sent.")
+            }
+            .alert("Save as template", isPresented: $isNamingTemplate) {
+                TextField("Template name", text: $templateName)
+                Button("Save") {
+                    let trimmed = templateName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard let existing = editingEvent, trimmed.isEmpty == false else { return }
+                    model.saveAsEventTemplate(existing, name: trimmed)
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Saves this event's summary, duration, reminders, attendees, and color as a reusable blueprint in Settings.")
+            }
         }
         .hcbScaledFrame(minWidth: 820, idealWidth: 920, minHeight: 560, idealHeight: 680)
         .interactiveDismissDisabled(isSaving)
+    }
+
+    // True if the event being edited carries a recurrence rule or is an
+    // instance of a recurring series. Drives the scope-picker dialog.
+    private var isRecurringEvent: Bool {
+        guard let editingEvent else { return false }
+        return CalendarEventInstance.isRecurring(editingEvent)
+    }
+
+    // Sentinel used only to satisfy the confirmationDialog title interpolation
+    // when editingEvent is nil (dialog won't be shown in that case; this is
+    // belt-and-braces).
+    private var placeholderEvent: CalendarEventMirror {
+        CalendarEventMirror(
+            id: "", calendarID: "", summary: "", details: "",
+            startDate: Date(), endDate: Date(), isAllDay: false,
+            status: .confirmed, recurrence: [], etag: nil, updatedAt: nil
+        )
+    }
+
+    // Overflow menu shown in edit mode — migrated from the old
+    // EventActionPanel on EventDetailView: Delete, Duplicate (5 offsets),
+    // Copy as Markdown, Export .ics, Save as Template.
+    @ViewBuilder
+    private var editMoreMenu: some View {
+        Menu {
+            Button(role: .destructive) {
+                guard let existing = editingEvent else { return }
+                Task { await deleteExistingEvent(existing) }
+            } label: {
+                Label("Delete Event", systemImage: "trash")
+            }
+            Divider()
+            Menu("Duplicate") {
+                Button("Duplicate here") { duplicateExisting(offsetDays: 0) }
+                    .hcbKeyboardShortcut(.calendarDuplicateEvent)
+                Button("Duplicate to tomorrow") { duplicateExisting(offsetDays: 1) }
+                Button("Duplicate to next week") { duplicateExisting(offsetDays: 7) }
+                Button("Duplicate in 2 weeks") { duplicateExisting(offsetDays: 14) }
+                Button("Duplicate to next month") { duplicateExisting(offsetDays: 30) }
+            }
+            Divider()
+            Button {
+                guard let existing = editingEvent else { return }
+                let calendarTitle = model.calendars.first(where: { $0.id == existing.calendarID })?.summary
+                let markdown = EventMarkdownExporter.markdown(for: existing, calendarTitle: calendarTitle)
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(markdown, forType: .string)
+            } label: {
+                Label("Copy as Markdown", systemImage: "doc.on.clipboard")
+            }
+            Button {
+                guard let existing = editingEvent else { return }
+                exportEventAsICS(existing)
+            } label: {
+                Label("Export .ics…", systemImage: "square.and.arrow.up")
+            }
+            Button {
+                templateName = editingEvent?.summary ?? ""
+                isNamingTemplate = true
+            } label: {
+                Label("Save as Template…", systemImage: "doc.badge.plus")
+            }
+        } label: {
+            Label("More", systemImage: "ellipsis.circle")
+        }
+        .disabled(isSaving)
+    }
+
+    private func duplicateExisting(offsetDays: Int) {
+        guard let existing = editingEvent else { return }
+        Task {
+            _ = await model.duplicateEvent(existing, offsetDays: offsetDays)
+            dismiss()
+        }
+    }
+
+    private func deleteExistingEvent(_ existing: CalendarEventMirror) async {
+        isSaving = true
+        defer { isSaving = false }
+        // Single-occurrence delete by default. Recurring-series delete still
+        // lives on EditEventSheet path (being removed alongside EventDetailView);
+        // users who want all-in-series delete should use the "Every event in
+        // the series" option once it's promoted here. For now single-scope.
+        if await model.deleteEvent(existing, scope: .thisOccurrence) {
+            dismiss()
+        }
+    }
+
+    private func exportEventAsICS(_ existing: CalendarEventMirror) {
+        let content = EventICSExporter.ics(for: existing)
+        let panel = NSSavePanel()
+        let sanitized = existing.summary
+            .replacingOccurrences(of: "/", with: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = sanitized.isEmpty ? "event" : sanitized
+        panel.nameFieldStringValue = "\(base).ics"
+        panel.allowedContentTypes = [UTType(filenameExtension: "ics") ?? .data]
+        panel.canCreateDirectories = true
+        if panel.runModal() == .OK, let url = panel.url {
+            try? content.data(using: .utf8)?.write(to: url)
+        }
     }
 
     private var twoColumnBody: some View {
@@ -1073,6 +979,13 @@ struct AddEventSheet: View {
 
     private var guestsBlock: some View {
         sectionCard("Guests") {
+            // Read-only response chips — only shown in edit mode when
+            // responses exist. Migrated from AttendeeResponsesCard on the
+            // removed EventDetailView.
+            if let existing = editingEvent, existing.attendeeResponses.isEmpty == false {
+                AttendeeResponsesCard(responses: existing.attendeeResponses)
+                    .hcbScaledPadding(.bottom, 6)
+            }
             GuestsSection(attendees: $attendees, draft: $attendeeDraft, notifyGuests: $notifyGuests)
         }
     }
@@ -1086,6 +999,17 @@ struct AddEventSheet: View {
     private var meetBlock: some View {
         sectionCard("Video call") {
             Toggle("Add Google Meet video conferencing", isOn: $addGoogleMeet)
+            // Read-only link row when an existing event already has a Meet
+            // URL — migrated from MeetLinkCard on the removed EventDetailView.
+            if let existing = editingEvent, existing.meetLink.isEmpty == false,
+               let meetURL = URL(string: existing.meetLink) {
+                Link(destination: meetURL) {
+                    Label(existing.meetLink, systemImage: "video.fill")
+                        .foregroundStyle(AppColor.blue)
+                        .lineLimit(1)
+                }
+                .hcbScaledPadding(.top, 4)
+            }
         }
     }
 
@@ -1188,9 +1112,9 @@ struct AddEventSheet: View {
         parsedPreview = nil
     }
 
-    private func createOrUpdateEvent() async {
+    private func createOrUpdateEvent(scope: AppModel.RecurringEventScope = .thisOccurrence) async {
         if let existing = editingEvent {
-            await updateExistingEvent(existing)
+            await updateExistingEvent(existing, scope: scope)
         } else {
             await createEvent()
         }
@@ -1225,11 +1149,11 @@ struct AddEventSheet: View {
         }
     }
 
-    // Edit-mode save path. Dispatches updateEvent with .thisOccurrence scope.
-    // Recurring-series scope (this + following, all in series) isn't surfaced
-    // yet in this sheet — see URGENT-TODO §6.x merge flag. Users who need it
-    // still have the legacy EditEventSheet via the detail view for now.
-    private func updateExistingEvent(_ existing: CalendarEventMirror) async {
+    // Edit-mode save path. Scope defaults to .thisOccurrence for non-
+    // recurring events; the toolbar's confirmation dialog asks for
+    // this-occurrence / this-and-following / all-in-series when the event
+    // is part of a recurring series.
+    private func updateExistingEvent(_ existing: CalendarEventMirror, scope: AppModel.RecurringEventScope) async {
         guard let selectedCalendarID else { return }
         isSaving = true
         defer { isSaving = false }
@@ -1246,7 +1170,7 @@ struct AddEventSheet: View {
             recurrence: recurrenceRule.map { [$0.rruleString()] } ?? [],
             attendeeEmails: attendees,
             notifyGuests: notifyGuests,
-            scope: .thisOccurrence,
+            scope: scope,
             addGoogleMeet: addGoogleMeet,
             colorId: eventColor.wireValue
         )
@@ -1263,202 +1187,6 @@ struct AddEventSheet: View {
         isAllDay ? Calendar.current.startOfDay(for: endDate) : endDate
     }
 }
-
-struct EditEventSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(AppModel.self) private var model
-    let event: CalendarEventMirror
-    @State private var isShowingScopeDialog = false
-    @State private var summary: String
-    @State private var details: String
-    @State private var location: String
-    @State private var startDate: Date
-    @State private var endDate: Date
-    @State private var isAllDay: Bool
-    @State private var reminderOption: EventReminderOption
-    @State private var selectedCalendarID: CalendarListMirror.ID?
-    @State private var recurrenceRule: RecurrenceRule?
-    @State private var attendees: [String] = []
-    @State private var attendeeDraft: String = ""
-    @State private var notifyGuests: Bool = false
-    @State private var addGoogleMeet: Bool = false
-    @State private var eventColor: CalendarEventColor = .defaultColor
-    @State private var isSaving = false
-
-    init(event: CalendarEventMirror) {
-        self.event = event
-        _summary = State(initialValue: event.summary)
-        _details = State(initialValue: event.details)
-        _location = State(initialValue: event.location)
-        _startDate = State(initialValue: event.startDate)
-        _endDate = State(initialValue: event.isAllDay ? Calendar.current.date(byAdding: .day, value: -1, to: event.endDate) ?? event.endDate : event.endDate)
-        _isAllDay = State(initialValue: event.isAllDay)
-        _reminderOption = State(initialValue: EventReminderOption(minutes: event.reminderMinutes.first))
-        _selectedCalendarID = State(initialValue: event.calendarID)
-        _recurrenceRule = State(initialValue: event.recurrence.lazy.compactMap(RecurrenceRule.parse).first)
-        _attendees = State(initialValue: event.attendeeEmails)
-        // Pre-check the toggle if the event already carries a Meet link so the
-        // picker state reflects reality. Toggling off doesn't remove the
-        // existing link — clearing conferenceData via PATCH requires its own
-        // API shape and is out of scope for v1.
-        _addGoogleMeet = State(initialValue: event.meetLink.isEmpty == false)
-        _eventColor = State(initialValue: CalendarEventColor.from(colorId: event.colorId))
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Event") {
-                    TextField("Summary", text: $summary)
-                    MarkdownEditor(text: $details, placeholder: "Details (markdown supported)", minHeight: 90, maxHeight: 200)
-                    TextField("Location", text: $location)
-                }
-
-                Section("Time") {
-                    Toggle("All-day event", isOn: $isAllDay)
-                    DatePicker("Starts", selection: $startDate, displayedComponents: isAllDay ? [.date] : [.date, .hourAndMinute])
-                    DatePicker("Ends", selection: $endDate, displayedComponents: isAllDay ? [.date] : [.date, .hourAndMinute])
-                    if isValidDateRange == false {
-                        Text(isAllDay ? "End date cannot be before start date." : "End time must be after start time.")
-                            .hcbFont(.footnote)
-                            .foregroundStyle(.red)
-                    }
-                }
-
-                Section("Repeat") {
-                    RecurrenceEditor(rule: $recurrenceRule)
-                }
-
-                Section("Guests") {
-                    GuestsSection(attendees: $attendees, draft: $attendeeDraft, notifyGuests: $notifyGuests)
-                }
-
-                Section("Video call") {
-                    Toggle("Add Google Meet video conferencing", isOn: $addGoogleMeet)
-                        .disabled(event.meetLink.isEmpty == false)
-                    if event.meetLink.isEmpty == false {
-                        Link(destination: URL(string: event.meetLink) ?? URL(string: "https://meet.google.com")!) {
-                            Label(event.meetLink, systemImage: "video.fill")
-                                .foregroundStyle(AppColor.blue)
-                        }
-                    }
-                }
-
-                Section("Color") {
-                    EventColorPicker(selection: $eventColor)
-                }
-
-                Section("Reminder") {
-                    EventReminderPicker(selection: $reminderOption)
-                }
-
-                Section("Calendar") {
-                    Picker("Calendar", selection: $selectedCalendarID) {
-                        ForEach(model.calendars) { calendar in
-                            Text(calendar.summary).tag(Optional(calendar.id))
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Edit Event")
-            .confirmationDialog(
-                "Apply to which events?",
-                isPresented: $isShowingScopeDialog,
-                titleVisibility: .visible
-            ) {
-                Button("This event only") {
-                    Task { await saveEvent(scope: .thisOccurrence) }
-                }
-                Button("Every event in the series", role: .destructive) {
-                    Task { await saveEvent(scope: .allInSeries) }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("\"Every event in the series\" rewrites past occurrences too, not just upcoming ones. If you only want future edits, cancel and use Delete → This and following to truncate, then re-create the series from this instance.")
-            }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .disabled(isSaving)
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        if CalendarEventInstance.isRecurring(event) {
-                            isShowingScopeDialog = true
-                        } else {
-                            Task { await saveEvent(scope: .thisOccurrence) }
-                        }
-                    }
-                    .disabled(canSave == false || isSaving)
-                }
-            }
-        }
-        .hcbScaledFrame(minWidth: 540, idealWidth: 580, minHeight: 560, idealHeight: 720) // keep toolbar visible in small windows
-        .interactiveDismissDisabled(isSaving)
-    }
-
-    private var canSave: Bool {
-        summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-            && isValidDateRange
-            && selectedCalendarID != nil
-            && model.account != nil
-    }
-
-    private var isValidDateRange: Bool {
-        if isAllDay {
-            return Calendar.current.startOfDay(for: endDate) >= Calendar.current.startOfDay(for: startDate)
-        }
-
-        return endDate > startDate
-    }
-
-    private func saveEvent(scope: AppModel.RecurringEventScope) async {
-        guard let selectedCalendarID else {
-            return
-        }
-
-        isSaving = true
-        defer { isSaving = false }
-
-        let didSave = await model.updateEvent(
-            event,
-            summary: summary,
-            details: details,
-            startDate: normalizedStartDate,
-            endDate: normalizedEndDate,
-            isAllDay: isAllDay,
-            reminderMinutes: reminderOption.minutes,
-            calendarID: selectedCalendarID,
-            location: location,
-            recurrence: recurrenceRule.map { [$0.rruleString()] } ?? [],
-            attendeeEmails: attendees,
-            notifyGuests: notifyGuests,
-            scope: scope,
-            // Only send createRequest when the toggle flipped from off to on.
-            // If the event already had a Meet link, the toggle is disabled and
-            // addGoogleMeet stays true — but we don't want to re-create the
-            // conference on every save. Detect the transition.
-            addGoogleMeet: addGoogleMeet && event.meetLink.isEmpty,
-            colorId: eventColor.wireValue
-        )
-
-        if didSave {
-            dismiss()
-        }
-    }
-
-    private var normalizedStartDate: Date {
-        isAllDay ? Calendar.current.startOfDay(for: startDate) : startDate
-    }
-
-    private var normalizedEndDate: Date {
-        isAllDay ? Calendar.current.startOfDay(for: endDate) : endDate
-    }
-}
-
 enum EventReminderOption: Hashable, Identifiable {
     case useDefault
     case preset(Int) // minutes
@@ -1739,41 +1467,6 @@ struct EventColorPicker: View {
         .accessibilityLabel("Event color")
     }
 }
-
-struct MeetLinkCard: View {
-    let link: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("VIDEO CALL")
-                .hcbFont(.caption, weight: .bold)
-                .foregroundStyle(.secondary)
-            Link(destination: URL(string: link) ?? URL(string: "https://meet.google.com")!) {
-                HStack(spacing: 10) {
-                    Image(systemName: "video.fill")
-                        .foregroundStyle(AppColor.blue)
-                    Text(link)
-                        .font(.body.monospaced())
-                        .foregroundStyle(AppColor.blue)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-            }
-            .buttonStyle(.plain)
-            Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(link, forType: .string)
-            } label: {
-                Label("Copy link", systemImage: "doc.on.doc")
-                    .hcbFont(.caption)
-            }
-            .buttonStyle(.borderless)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface(cornerRadius: 22)
-    }
-}
-
 struct AttendeeResponsesCard: View {
     let responses: [CalendarEventAttendee]
 

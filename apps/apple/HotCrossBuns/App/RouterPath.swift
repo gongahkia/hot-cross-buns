@@ -1,6 +1,11 @@
 import SwiftUI
 import Observation
 
+// Tab-scoped navigation state. Paths are intentionally empty-by-design now
+// that the legacy full-screen TaskDetailView / EventDetailView have been
+// replaced by edit sheets — every task/event surface is sheet-based. The
+// path[] / navigate() vestiges are kept so future detail routes (e.g. a
+// per-task attachment viewer) can slot in without reshuffling SheetDestination.
 @MainActor
 @Observable
 final class RouterPath {
@@ -52,10 +57,9 @@ final class TabRouter {
     }
 }
 
-enum AppRoute: Hashable {
-    case task(TaskMirror.ID)
-    case event(CalendarEventMirror.ID)
-}
+// Deliberately empty. Held as a type so the NavigationStack's path Binding
+// still type-checks even though no navigation destinations exist post-refactor.
+enum AppRoute: Hashable {}
 
 enum SheetDestination: Identifiable, Hashable {
     case addTask
@@ -93,16 +97,10 @@ enum SheetDestination: Identifiable, Hashable {
 }
 
 extension View {
-    func withAppDestinations() -> some View {
-        navigationDestination(for: AppRoute.self) { route in
-            switch route {
-            case .task(let id):
-                TaskDetailView(taskID: id)
-            case .event(let id):
-                EventDetailView(eventID: id)
-            }
-        }
-    }
+    // withAppDestinations() is a no-op now that AppRoute has no cases. Left
+    // as an identity modifier so existing call sites keep compiling; can be
+    // deleted entirely once callers are pruned.
+    func withAppDestinations() -> some View { self }
 
     func withSheetDestinations(sheet: Binding<SheetDestination?>) -> some View {
         self.sheet(item: sheet) { destination in

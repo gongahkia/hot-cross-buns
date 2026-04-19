@@ -1,128 +1,5 @@
 import SwiftUI
 
-struct TaskDetailView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(AppModel.self) private var model
-    let taskID: TaskMirror.ID
-    @State private var isEditing = false
-    @State private var isMutating = false
-    @State private var isConfirmingDelete = false
-
-    var body: some View {
-        Group {
-            if let task = model.task(id: taskID) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        Text(task.title)
-                            .font(.system(.largeTitle, design: .serif, weight: .bold))
-                            .foregroundStyle(AppColor.ink)
-                        if !task.notes.isEmpty {
-                            Text.markdown(task.notes)
-                                .hcbFont(.body)
-                                .foregroundStyle(.secondary)
-                        }
-                        DetailField(label: "Status", value: task.status.rawValue)
-                        if let dueDate = task.dueDate {
-                            DetailField(label: "Due", value: dueDate.formatted(date: .abbreviated, time: .omitted))
-                        }
-                        TaskActionPanel(
-                            task: task,
-                            isMutating: isMutating,
-                            onToggleCompletion: {
-                                Task {
-                                    await setCompletion(for: task)
-                                }
-                            },
-                            onEdit: {
-                                isEditing = true
-                            },
-                            onDelete: {
-                                isConfirmingDelete = true
-                            }
-                        )
-                        DetailField(label: "Google ID", value: task.id)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .hcbScaledPadding(20)
-                }
-                .appBackground()
-                .sheet(isPresented: $isEditing) {
-                    EditTaskSheet(task: task)
-                }
-                .confirmationDialog(
-                    "Delete this task?",
-                    isPresented: $isConfirmingDelete,
-                    titleVisibility: .visible
-                ) {
-                    Button("Delete Task", role: .destructive) {
-                        Task {
-                            await delete(task)
-                        }
-                    }
-
-                    Button("Cancel", role: .cancel) {}
-                } message: {
-                    Text("This deletes the task from Google Tasks.")
-                }
-            } else {
-                ContentUnavailableView("Task not found", systemImage: "checklist", description: Text("This task may have been deleted in Google Tasks."))
-            }
-        }
-        .navigationTitle("Task")
-    }
-
-    private func setCompletion(for task: TaskMirror) async {
-        isMutating = true
-        defer { isMutating = false }
-        _ = await model.setTaskCompleted(!task.isCompleted, task: task)
-    }
-
-    private func delete(_ task: TaskMirror) async {
-        isMutating = true
-        defer { isMutating = false }
-        let didDelete = await model.deleteTask(task)
-        if didDelete {
-            dismiss()
-        }
-    }
-}
-
-private struct TaskActionPanel: View {
-    let task: TaskMirror
-    let isMutating: Bool
-    let onToggleCompletion: () -> Void
-    let onEdit: () -> Void
-    let onDelete: () -> Void
-
-    var body: some View {
-        VStack(spacing: 10) {
-            Button(action: onToggleCompletion) {
-                Label(
-                    task.isCompleted ? "Mark Needs Action" : "Mark Complete",
-                    systemImage: task.isCompleted ? "arrow.uturn.backward.circle" : "checkmark.circle.fill"
-                )
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(task.isCompleted ? AppColor.blue : AppColor.moss)
-
-            Button(action: onEdit) {
-                Label("Edit Details", systemImage: "square.and.pencil")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-
-            Button(role: .destructive, action: onDelete) {
-                Label("Delete Task", systemImage: "trash")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-        }
-        .disabled(isMutating)
-        .cardSurface(cornerRadius: 22)
-    }
-}
-
 struct AddTaskSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
@@ -215,12 +92,27 @@ struct AddTaskSheet: View {
                     .disabled(canCreate == false || isSaving)
                 }
 
-                if editingTask != nil {
-                    ToolbarItem(placement: .destructiveAction) {
-                        Button(role: .destructive) {
-                            isConfirmingDelete = true
+                if let existing = editingTask {
+                    ToolbarItem(placement: .primaryAction) {
+                        Menu {
+                            Button {
+                                Task { await toggleCompletion(for: existing) }
+                            } label: {
+                                Label(
+                                    existing.isCompleted ? "Mark Needs Action" : "Mark Complete",
+                                    systemImage: existing.isCompleted
+                                        ? "arrow.uturn.backward.circle"
+                                        : "checkmark.circle.fill"
+                                )
+                            }
+                            Divider()
+                            Button(role: .destructive) {
+                                isConfirmingDelete = true
+                            } label: {
+                                Label("Delete Task", systemImage: "trash")
+                            }
                         } label: {
-                            Label("Delete", systemImage: "trash")
+                            Label("More", systemImage: "ellipsis.circle")
                         }
                         .disabled(isSaving)
                     }
@@ -391,6 +283,12 @@ struct AddTaskSheet: View {
         }
     }
 
+    private func toggleCompletion(for task: TaskMirror) async {
+        isSaving = true
+        defer { isSaving = false }
+        _ = await model.setTaskCompleted(!task.isCompleted, task: task)
+    }
+
     private func applyDeepLinkPrefillIfAny() {
         // hotcrossbuns://new/task?… stages a prefill struct on AppModel. The
         // sheet consumes it here and nils it so a subsequent plain New Task
@@ -425,98 +323,6 @@ struct AddTaskSheet: View {
     private func resolveTaskList(_ ref: String) -> TaskListMirror? {
         if let exact = model.taskLists.first(where: { $0.id == ref }) { return exact }
         return model.taskLists.first(where: { $0.title.localizedCaseInsensitiveCompare(ref) == .orderedSame })
-    }
-}
-
-struct EditTaskSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(AppModel.self) private var model
-    let task: TaskMirror
-    @State private var title: String
-    @State private var notes: String
-    @State private var hasDueDate: Bool
-    @State private var dueDate: Date
-    @State private var recurrenceRule: RecurrenceRule?
-    @State private var isSaving = false
-
-    init(task: TaskMirror) {
-        self.task = task
-        _title = State(initialValue: task.title)
-        _notes = State(initialValue: TaskRecurrenceMarkers.strippedNotes(from: task.notes))
-        _hasDueDate = State(initialValue: task.dueDate != nil)
-        _dueDate = State(initialValue: task.dueDate ?? Date())
-        _recurrenceRule = State(initialValue: TaskRecurrenceMarkers.rule(from: task.notes))
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Task") {
-                    TextField("Title", text: $title)
-                    MarkdownEditor(text: $notes, placeholder: "Notes (markdown supported)", minHeight: 90, maxHeight: 200)
-                }
-
-                Section("Due date") {
-                    Toggle("Set due date", isOn: $hasDueDate)
-                    if hasDueDate {
-                        DatePicker("Due", selection: $dueDate, displayedComponents: [.date])
-                    }
-                }
-
-                if hasDueDate {
-                    Section("Repeat") {
-                        RecurrenceEditor(rule: $recurrenceRule)
-                        Text("Completing a repeating task re-creates it with the next due date.")
-                            .hcbFont(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .navigationTitle("Edit Task")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .disabled(isSaving)
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        Task {
-                            await saveTask()
-                        }
-                    }
-                    .disabled(canSave == false || isSaving)
-                }
-            }
-        }
-        .interactiveDismissDisabled(isSaving)
-    }
-
-    private var canSave: Bool {
-        title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-            && model.account != nil
-    }
-
-    private func saveTask() async {
-        isSaving = true
-        defer { isSaving = false }
-
-        let notesWithRule = hasDueDate && recurrenceRule != nil
-            ? TaskRecurrenceMarkers.encode(notes: notes, rule: recurrenceRule)
-            : TaskRecurrenceMarkers.strippedNotes(from: notes)
-
-        let didSave = await model.updateTask(
-            task,
-            title: title,
-            notes: notesWithRule,
-            dueDate: hasDueDate ? Calendar.current.startOfDay(for: dueDate) : nil
-        )
-
-        if didSave {
-            dismiss()
-        }
     }
 }
 
