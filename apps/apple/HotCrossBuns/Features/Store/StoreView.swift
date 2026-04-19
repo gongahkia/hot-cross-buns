@@ -556,9 +556,16 @@ struct StoreView: View {
 
     private var inspectorBinding: Binding<Bool> {
         Binding(
-            get: { isInspectorPresented },
+            // Hide the inspector pane while there's nothing to inspect —
+            // no account, or no tasks yet. As soon as tasks exist the pane
+            // becomes available again and honours the user's toggle.
+            get: { isInspectorPresented && hasInspectableContent },
             set: { isInspectorPresented = $0 }
         )
+    }
+
+    private var hasInspectableContent: Bool {
+        model.account != nil && model.tasks.isEmpty == false
     }
 
     @ViewBuilder
