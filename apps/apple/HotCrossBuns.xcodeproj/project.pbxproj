@@ -100,6 +100,7 @@
 		AC3FE199F79468DAA1B9D9EF /* DockBadgeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6366F53ACB2CE1B4D522E41D /* DockBadgeController.swift */; };
 		AC8BEAE2688675504A251128 /* ICSImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDA5E3D3896AF69DD2D510C6 /* ICSImporter.swift */; };
 		B2D69FAFF7FB7BFDDD816728 /* AppIntentHandoff.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25AD254487BE0AE26B9D81B8 /* AppIntentHandoff.swift */; };
+		B2DCB4955F59EABE220DFBEB /* EventHoverPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E237D56DC5E422A168E311 /* EventHoverPreview.swift */; };
 		B3700FF9237085BF5E14CCE8 /* RecurrenceUntilRewriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E24E974EA5B94188A538989B /* RecurrenceUntilRewriterTests.swift */; };
 		B38730DBE9FD19E383B35D92 /* SidebarItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1002C76B1614FACBF7D37818 /* SidebarItem.swift */; };
 		B3F746B7B5C48FF0EE0D5378 /* GoogleTasksClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4E896952661629A01EB26B0 /* GoogleTasksClient.swift */; };
@@ -274,6 +275,7 @@
 		E2BC795AF619D093596D767D /* MacSidebarShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSidebarShell.swift; sourceTree = "<group>"; };
 		E3D347AB668EE3CD836DBF55 /* MarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownText.swift; sourceTree = "<group>"; };
 		E60A02AA0EB32C0C012F2AF0 /* TagExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagExtractor.swift; sourceTree = "<group>"; };
+		E7E237D56DC5E422A168E311 /* EventHoverPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventHoverPreview.swift; sourceTree = "<group>"; };
 		EF455BE4BA241A0C46869EF5 /* RecurrenceRuleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceRuleTests.swift; sourceTree = "<group>"; };
 		F03D73411CAA330A1556C797 /* TagExtractorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagExtractorTests.swift; sourceTree = "<group>"; };
 		F0EF302AF854336F06AFD4BE /* TaskStarring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskStarring.swift; sourceTree = "<group>"; };
@@ -674,6 +676,7 @@
 				382C796971460006AB7D939E /* CalendarGridLayout.swift */,
 				F2263C896865029DCEC3A53B /* CalendarHomeView.swift */,
 				5219CCB9C481FFD04A218A66 /* DayGridView.swift */,
+				E7E237D56DC5E422A168E311 /* EventHoverPreview.swift */,
 				3FB991136E6E925A2EF0030D /* GuestsSection.swift */,
 				0854A71DD603264D078FB733 /* MonthGridView.swift */,
 				81B6DCD044EB92F7793567B7 /* NaturalLanguageEventParser.swift */,
@@ -869,6 +872,7 @@
 				61E276C2555F3F36F976E697 /* DiagnosticsView.swift in Sources */,
 				AC3FE199F79468DAA1B9D9EF /* DockBadgeController.swift in Sources */,
 				23DEF8936535B7AAA96AB9D9 /* DraggedTask.swift in Sources */,
+				B2DCB4955F59EABE220DFBEB /* EventHoverPreview.swift in Sources */,
 				74E52E17654990328A3FCF08 /* Exporters.swift in Sources */,
 				9ABDB68F86970E1A10FE8184 /* ForecastBuilder.swift in Sources */,
 				26F27A606CAB73AC71A858D5 /* GlobalHotkey.swift in Sources */,

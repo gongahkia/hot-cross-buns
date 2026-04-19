@@ -474,6 +474,7 @@ struct WeekGridView: View {
         .offset(x: xOffsetWithinDay + 1, y: yOffset)
         .accessibilityLabel(eventAccessibilityLabel(placed.event))
         .accessibilityHint("Opens event details")
+        .modifier(EventHoverPreviewModifier(event: placed.event))
         .draggable(DraggedEvent(
             eventID: placed.event.id,
             calendarID: placed.event.calendarID,

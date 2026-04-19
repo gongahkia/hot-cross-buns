@@ -677,6 +677,8 @@ struct StoreView: View {
 private struct StoreTaskRow: View {
     let task: TaskMirror
     var indentLevel: Int = 0
+    @State private var showPreview = false
+    @State private var hoverTask: Task<Void, Never>?
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -732,12 +734,29 @@ private struct StoreTaskRow: View {
         }
         .padding(.leading, indentLevel > 0 ? 6 : 0)
         .contentShape(Rectangle())
+        .onHover { hovering in
+            hoverTask?.cancel()
+            if hovering {
+                hoverTask = Task {
+                    try? await Task.sleep(nanoseconds: 600_000_000)
+                    guard Task.isCancelled == false else { return }
+                    await MainActor.run { showPreview = true }
+                }
+            } else {
+                showPreview = false
+            }
+        }
+        .popover(isPresented: $showPreview, arrowEdge: .trailing) {
+            TaskHoverPreview(task: task)
+        }
     }
 }
 
 private struct StoreSmartRow: View {
     let task: TaskMirror
     let listName: String
+    @State private var showPreview = false
+    @State private var hoverTask: Task<Void, Never>?
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -768,6 +787,21 @@ private struct StoreSmartRow: View {
             Spacer(minLength: 0)
         }
         .contentShape(Rectangle())
+        .onHover { hovering in
+            hoverTask?.cancel()
+            if hovering {
+                hoverTask = Task {
+                    try? await Task.sleep(nanoseconds: 600_000_000)
+                    guard Task.isCancelled == false else { return }
+                    await MainActor.run { showPreview = true }
+                }
+            } else {
+                showPreview = false
+            }
+        }
+        .popover(isPresented: $showPreview, arrowEdge: .trailing) {
+            TaskHoverPreview(task: task)
+        }
     }
 
     private func relativeDueDateLabel(_ due: Date) -> String {
@@ -922,5 +956,48 @@ private struct SnoozePickerSheet: View {
             }
         }
         .frame(minWidth: 360, minHeight: 400)
+    }
+}
+
+struct TaskHoverPreview: View {
+    @Environment(AppModel.self) private var model
+    let task: TaskMirror
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(task.isCompleted ? AppColor.moss : AppColor.ember)
+                if TaskStarring.isStarred(task) {
+                    Image(systemName: "star.fill").foregroundStyle(.yellow)
+                }
+                Text(TagExtractor.stripped(from: TaskStarring.displayTitle(for: task)))
+                    .font(.headline)
+                    .lineLimit(2)
+            }
+            HStack(spacing: 10) {
+                Label(listName, systemImage: "list.bullet")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let due = task.dueDate {
+                    Label(due.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()), systemImage: "calendar")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if task.notes.isEmpty == false {
+                Divider()
+                Text.markdown(task.notes)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(8)
+            }
+        }
+        .padding(12)
+        .frame(width: 300, alignment: .leading)
+    }
+
+    private var listName: String {
+        model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Unknown list"
     }
 }
