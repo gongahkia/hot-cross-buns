@@ -82,44 +82,20 @@ Dogfood with a real account for at least one workday on macOS. Smoke checklist:
 
 ## 6. Next in-repo feature work
 
-In priority order. Tiers 1–3 close the gap between "good MVP" and "genuine product"; Tier 4 is net-new surface area.
-
-### Tier 1 — observability foundation
-
-Foundation: right now every failure mode collapses into `lastMutationError` (ephemeral) or is silently swallowed. You can't answer "what was the app doing between 10:00 and 10:05?" — that's the single biggest blocker to treating this as a real product.
-
-1. **Structured `AppLogger` with rotating file sink.** Tiered levels (debug / info / warn / error). Each entry carries timestamp, level, category, message, optional key-value metadata. Writes to `~/Library/Application Support/<bundle>/logs/app.log`; rotates at 1 MB, keeps the last 3 files. Also bridges to `os.Logger` so entries show up in Console.app alongside system logs. Exposes `recentEntries(limit:)` for the UI to read back the tail.
-2. **"Logs" section in `DiagnosticsView`.** Renders the last N entries, filter by level, colour-coded, with copy-to-clipboard and export-to-file buttons. Refreshes on appear. Same UX pattern as the existing System Crash Reports surface.
-3. **Error-path instrumentation across key seams.** Replace swallow-with-`try?` and silent `catch` sites with `AppLogger.warn` / `.error` calls that record context. Coverage points:
-   - `GoogleAuthService`: sign-in start / success / failure, token refresh success / failure, scope-mismatch rejections.
-   - `AppModel`: every mutation entry point (`createTask`, `updateEvent`, etc.) logs verb + resource ID + outcome + HTTP status on error.
-   - `SyncScheduler`: refresh attempt start, duration, items-changed counts, per-resource failures.
-   - `replayPendingMutations`: queue size at entry, per-item replay outcome, transient vs terminal classification.
-   - `LocalNotificationScheduler`: scheduled / deferred / skipped with reasons (bumps `try?` sites to real error logs).
-   - `LocalCacheStore`: write success, decode failures with partial-recovery detail.
-4. **Diagnostic bundle export.** Single button in `DiagnosticsView` that packages the current log file + the last crash log + pending-mutation dump + settings snapshot + cache metadata into a `.zip` via `NSSavePanel`. Redacts access tokens and email addresses before writing. Single-button issue-reporting.
-
-### Tier 2 — fault tolerance on top of logging
-
-Once Tier 1 gives us visibility, these become tractable:
-
-5. **Cache snapshots / rollback.** `LocalCacheStore` rotates the previous cache to `cache-state.json.1` before each write, keeping the last 3 generations. On decode failure, escalate: v1 → v2 → v3 → empty. Complements the M1 pending-mutation recovery with a full rollback path.
-6. **Network-quality indicator.** Use `NWPathMonitor` to classify connection as online / constrained / offline. Surface as a small glyph in the status header (green / amber / red) so the user knows whether a stuck spinner is "app bug" or "my wifi." Sync scheduler also consumes this: skip near-realtime polling when offline, resume on reconnect.
-7. **Mutation audit log.** Append-only ledger of every user-originated mutation with timestamp + before / after snapshot. Lives in `~/Library/Application Support/<bundle>/audit.log`. A new "Mutation history" section in `DiagnosticsView` renders the last 100 entries so you can answer "when did I mark that task done?" without guessing. Complements the undo stack (short window) with a permanent record.
-8. **Keychain resilience.** On launch, probe that the `GIDSignIn` Keychain entry is readable. If it throws (Keychain locked, corrupted, wiped), surface a specific "Reconnect Google (Keychain access was denied)" banner instead of the generic token-refresh error. Log to `AppLogger`.
+Tiers 1 and 2 are complete (observability foundation + fault tolerance shipped in commits e2b7edc → a2d2a8a). Tier 3 (UX polish) and Tier 4 (net-new product features) remain.
 
 ### Tier 3 — UX polish
 
 All of the small cuts a daily user notices:
 
-9. **Loading / empty-state audit.** Every view that fetches or filters should have a deliberate "nothing here yet" message; every async action should show a spinner / progress. Surfaces to audit: `StoreView` (per-filter empty states), `CalendarHomeView` (per-grid-mode empty state on first sync), `TaskInspectorView` (loading state while saving), `AddEventSheet` / `AddTaskSheet` (submit spinners), `QuickAddView` (submit spinner — already present but verify consistency), `DiagnosticsView` (async loads), `Onboarding` (connecting / refreshing states).
-10. **Error-message rewrite pass.** Replace generic messages with actionable copy. Examples:
+1. **Loading / empty-state audit.** Every view that fetches or filters should have a deliberate "nothing here yet" message; every async action should show a spinner / progress. Surfaces to audit: `StoreView` (per-filter empty states), `CalendarHomeView` (per-grid-mode empty state on first sync), `TaskInspectorView` (loading state while saving), `AddEventSheet` / `AddTaskSheet` (submit spinners), `QuickAddView` (submit spinner — already present but verify consistency), `DiagnosticsView` (async loads), `Onboarding` (connecting / refreshing states).
+2. **Error-message rewrite pass.** Replace generic messages with actionable copy. Examples:
     - "Google API request failed with status 429" → "Google is rate-limiting Hot Cross Buns. It'll retry automatically in ~2 minutes."
     - "Sync failed" → "Couldn't reach Google Calendar. Check your connection or try Refresh."
     - "Task title cannot be empty" → "Give the task a title before saving."
     - "Reconnect Google to continue" → "Your Google session expired. Tap Reconnect to sign in again."
     Audit every `lastMutationError` / `syncState.failed` / `authState.failed` site and rewrite with the concrete condition + the concrete next step.
-11. **Keyboard-shortcut completeness audit.** Every menu item that doesn't have a shortcut, plus every common in-view action. Proposed additions:
+3. **Keyboard-shortcut completeness audit.** Every menu item that doesn't have a shortcut, plus every common in-view action. Proposed additions:
     - `⌘⌫` in `StoreView` with a selection — delete selected task(s).
     - `⌘↩` in `TaskInspectorView` — complete / uncomplete the focused task.
     - `⌘⇧↩` in `TaskInspectorView` — save and close.
@@ -128,37 +104,37 @@ All of the small cuts a daily user notices:
     - `⌘F` to focus the in-grid search field (Calendar) / the Store filter field.
     - `⇧⌘G` to show go-to-date picker in Calendar.
     Document the full set in `HelpView`.
-12. **First-run onboarding polish.** Audit the `OnboardingView` flow end-to-end:
+4. **First-run onboarding polish.** Audit the `OnboardingView` flow end-to-end:
     - Graceful state when Google has zero calendars / tasks (new Google account).
     - "Skip for now" paths that don't leave the user stranded.
     - Clear copy on what scopes we request and why.
     - Re-run from Settings works identically to first run.
     - Visual polish (cards spacing, button hierarchy, illustration if feasible).
-13. **Dark-mode + Dynamic Type audit.** Every view renders cleanly at:
+5. **Dark-mode + Dynamic Type audit.** Every view renders cleanly at:
     - Light + dark appearance.
     - The three size classes we support (our custom `zoomStep` ladder plus system Dynamic Type).
     - Sidebar collapsed vs expanded.
     Fix clipped text, overlapping icons, hard-coded colors that don't have dark variants.
-14. **Accessibility / VoiceOver pass.** Every interactive element has an `accessibilityLabel`. Every list row announces a useful summary. Focus traversal order makes sense keyboard-only. `StoreView` filter picker, `CalendarHomeView` grid tiles, `EventColorPicker`, `EventReminderPicker` are the highest-friction surfaces today.
+6. **Accessibility / VoiceOver pass.** Every interactive element has an `accessibilityLabel`. Every list row announces a useful summary. Focus traversal order makes sense keyboard-only. `StoreView` filter picker, `CalendarHomeView` grid tiles, `EventColorPicker`, `EventReminderPicker` are the highest-friction surfaces today.
 
 ### Tier 4 — net-new product features
 
 Not required for daily-driver use, but each elevates the product above MVP. Pick à la carte.
 
-15. **Natural-language in event creation.** We already parse "tmr 9am" / "#list" for tasks in `NaturalLanguageTaskParser`. Extend to events: `AddEventSheet` gains a top-level "Quick create" text field that parses "lunch with Bob tomorrow 1pm at Philz" into summary + start + end + location. Power-user entry path for events.
-16. **Task snooze.** Right-click / context-menu entry in `StoreView` rows: "Snooze to tomorrow", "Snooze to next week", "Snooze until…". Updates `dueDate` without mutating other fields. Saves a lot of clicks vs opening the inspector.
-17. **Day view mode in Calendar.** Agenda / Week / Month exists; a single-day hour-grid mode with the day's events full-width plus the day's tasks in a right panel. Fills the gap between Agenda (list-only) and Week (7-day grid).
-18. **Event duplicate-with-offset.** `duplicateEvent` exists; add a submenu "Duplicate to next week / next month / +N days" that clones the event and shifts the dates. Useful for repeating monthly-ish events that don't fit an RRULE.
-19. **Quick-peek previews.** Hover over a task row in `StoreView` or an event tile in the grid → popover showing details without navigating. Similar to macOS QuickLook's spacebar gesture.
-20. **Event templates.** "Save as template" on any event → a named blueprint (summary, duration, reminders, attendees, description, colour). "New from template" picks one and opens `AddEventSheet` pre-filled. Power user time-blocking ergonomics.
-21. **Multi-select in Calendar.** Cmd-click events in Week / Month → toolbar actions: delete all, move to calendar, shift by offset. Mirror of the bulk-select work we did for Store.
-22. **Task dependencies (blocks / blocked-by).** Encode via a dedicated private extended-property on the task notes block (since Google Tasks has no native dependency field). "Blocked" tasks show greyed-out in Store until their blocker is completed. Requires UX design for the link affordance.
-23. **Recurring tasks (not just events).** Google Tasks API doesn't natively support recurrence the way Calendar does; we'd emulate it client-side: on complete, re-create with advanced dueDate (we partially do this already via `TaskRecurrenceMarkers`). Surface as a first-class "Repeat" control in `AddTaskSheet` / `EditTaskSheet`.
-24. **Go-to-date.** `⇧⌘G` opens a date picker modal; calendar jumps to that date and Store's "Due Today" filter pivots to that date. Useful for scanning a specific upcoming day.
-25. **Subtask drag-reorder.** Task hierarchy supports subtasks but reordering them requires the indent / outdent keyboard shortcut. Add drag-to-reorder within a parent's children, within a list.
-26. **Week-at-a-glance summary in menu bar extra.** Current menu bar extra shows today. A new mode shows a compact 7-day forecast with events-per-day counts. Configurable toggle.
-27. **Apple Reminders import.** One-time migration button in Settings: read the user's Reminders app lists (requires EventKit permission), import each as a task list + tasks. One-shot, no ongoing sync.
-28. **ICS export per selection.** `Exporters.swift` has `EventMarkdownExporter`; add `EventICSExporter` that emits an `.ics` file for a single event, a day, or a week. Drag-out target on event tiles.
+7. **Natural-language in event creation.** We already parse "tmr 9am" / "#list" for tasks in `NaturalLanguageTaskParser`. Extend to events: `AddEventSheet` gains a top-level "Quick create" text field that parses "lunch with Bob tomorrow 1pm at Philz" into summary + start + end + location. Power-user entry path for events.
+8. **Task snooze.** Right-click / context-menu entry in `StoreView` rows: "Snooze to tomorrow", "Snooze to next week", "Snooze until…". Updates `dueDate` without mutating other fields. Saves a lot of clicks vs opening the inspector.
+9. **Day view mode in Calendar.** Agenda / Week / Month exists; a single-day hour-grid mode with the day's events full-width plus the day's tasks in a right panel. Fills the gap between Agenda (list-only) and Week (7-day grid).
+10. **Event duplicate-with-offset.** `duplicateEvent` exists; add a submenu "Duplicate to next week / next month / +N days" that clones the event and shifts the dates. Useful for repeating monthly-ish events that don't fit an RRULE.
+11. **Quick-peek previews.** Hover over a task row in `StoreView` or an event tile in the grid → popover showing details without navigating. Similar to macOS QuickLook's spacebar gesture.
+12. **Event templates.** "Save as template" on any event → a named blueprint (summary, duration, reminders, attendees, description, colour). "New from template" picks one and opens `AddEventSheet` pre-filled. Power user time-blocking ergonomics.
+13. **Multi-select in Calendar.** Cmd-click events in Week / Month → toolbar actions: delete all, move to calendar, shift by offset. Mirror of the bulk-select work we did for Store.
+14. **Task dependencies (blocks / blocked-by).** Encode via a dedicated private extended-property on the task notes block (since Google Tasks has no native dependency field). "Blocked" tasks show greyed-out in Store until their blocker is completed. Requires UX design for the link affordance.
+15. **Recurring tasks (not just events).** Google Tasks API doesn't natively support recurrence the way Calendar does; we'd emulate it client-side: on complete, re-create with advanced dueDate (we partially do this already via `TaskRecurrenceMarkers`). Surface as a first-class "Repeat" control in `AddTaskSheet` / `EditTaskSheet`.
+16. **Go-to-date.** `⇧⌘G` opens a date picker modal; calendar jumps to that date and Store's "Due Today" filter pivots to that date. Useful for scanning a specific upcoming day.
+17. **Subtask drag-reorder.** Task hierarchy supports subtasks but reordering them requires the indent / outdent keyboard shortcut. Add drag-to-reorder within a parent's children, within a list.
+18. **Week-at-a-glance summary in menu bar extra.** Current menu bar extra shows today. A new mode shows a compact 7-day forecast with events-per-day counts. Configurable toggle.
+19. **Apple Reminders import.** One-time migration button in Settings: read the user's Reminders app lists (requires EventKit permission), import each as a task list + tasks. One-shot, no ongoing sync.
+20. **ICS export per selection.** `Exporters.swift` has `EventMarkdownExporter`; add `EventICSExporter` that emits an `.ics` file for a single event, a day, or a week. Drag-out target on event tiles.
 
 ## 7. Deferred roadmap
 
