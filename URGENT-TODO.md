@@ -1,6 +1,18 @@
 # URGENT-TODO
 
-Active work remaining for Hot Cross Buns as a daily-driver Google Tasks / Calendar client. Items are either out-of-repo setup the maintainer has to do themselves (§1–§3), on-device verification (§4–§5), in-repo feature work that elevates the app beyond MVP (§6), deferred roadmap that isn't scheduled but isn't forgotten (§7), or known residual risks to watch for in daily use (§8).
+Active work remaining for Hot Cross Buns as a daily-driver Google Tasks / Calendar client. Ordered by what blocks shipping or what the next maintainer should pick up first.
+
+Core invariant: Google Tasks + Google Calendar are the source of truth. Every feature below round-trips to Google or is explicitly local-only app config (keybindings, templates, themes, cache). Nothing invents a data field Google cannot see without a deliberate, documented notes-marker encoding.
+
+Ranking principle:
+
+1. **§1–§5** — setup + QA that block a shippable build. Cannot ship without these.
+2. **§6** — in-repo power-user feature work, ranked in order of implementation.
+3. **§7–§8** — perf / battery passes.
+4. **§9** — deprioritized extended-interop work.
+5. **§10** — cybersecurity hardening.
+6. **§11** — least-priority: daily local backup (implement last).
+7. **§12–§15** — status / history / known risks / done. Reference only.
 
 ## 1. Google OAuth wiring
 
@@ -103,32 +115,231 @@ Dogfood with a real account for at least one workday on macOS. Smoke checklist:
 17. **Services menu round-trip.** Select text anywhere (TextEdit, a web page) → right-click → Services → "Create Hot Cross Buns task". App should foreground and open QuickAdd with the selection prefilled.
 18. **.ics drop.** Export a Google Calendar to `.ics` (Settings → Import/Export) and drag onto the Calendar view. Should create events on the first writable calendar. Drop the same file a second time — alert should say "skipped N duplicates, imported 0".
 
-## 6. Next in-repo feature work
+## 6. Power-user feature work (ranked)
 
-Tiers 1, 2, 3, and 4 are all complete. Tier 1/2 observability + fault tolerance shipped in e2b7edc → a2d2a8a; Tier 3 UX polish shipped through eaf663c; Tier 4 net-new product features shipped through 216581f.
+In-repo feature work targeting developers + Obsidian/Notion crowd. Implement top-to-bottom. Every item must preserve the Google-is-SoT invariant: no new data fields that don't round-trip to Google (via native attributes or notes-marker encoding), no parallel local stores masquerading as canonical data.
 
-Nothing scheduled in this section. Next-up work lives in §5 (live QA) and §7 (deferred roadmap). When picking up from here, prefer to resolve items in §5 or §8 before adding new feature scope.
+### 6.1 Configurable view visibility (prereq for §6.5/§6.6)
 
-Carve-outs that were explicitly deferred rather than implemented:
+Users pick which sidebar tabs appear, and which view-modes appear inside tabs that host multiple views (Calendar today; Store once §6.5 lands). Nothing is force-visible.
 
-- **`⌘\` task drawer alternate binding.** Skipped — `⌘J` already handles the same action, adding `⌘\` as a second shortcut is redundant.
-- **Drag-out event tile to Finder.** Spec mentioned this under Tier 4 #14; we shipped a "Export .ics…" right-click entry instead, because combining `.draggable(DraggedEvent)` with a separate file-drag exports conflicted with the existing reschedule-drag gesture. Worth revisiting with a modifier-key gate if users ask.
-- **Cross-calendar series-split.** See §7 "This and following" — scope too big to fold into Tier 4.
+- **Sidebar tab visibility.** Settings → new "Layout" section: checkbox list of sidebar entries. Applies to existing tabs (Calendar, Store) and any added below. Persist in `@AppStorage` under a stable key. Default = all on. `MacSidebarShell` filters `SidebarItem.allCases` before rendering.
+- **Calendar sub-view visibility.** Same Layout section: checkbox list of Calendar view modes (day / week / month; plus timeline once §6.6 ships). User hides what they don't use; the view-mode segmented control renders only enabled modes. Default = all on. If the currently-selected view gets disabled, fall back to the first enabled one.
+- **Store sub-view visibility** (adds once §6.5 lands). Same pattern: list / kanban toggles.
+- Keep existing keyboard shortcuts (`goToCalendar`/`goToStore`/`goToSettings`, view-mode shortcuts) functional even when the target tab/view is hidden — shortcut unhides and focuses, or no-ops. Decide during impl; no-op is simpler.
 
-## 7. Deferred roadmap
+### 6.2 Query-language sidebar items
 
-Not actively in scope but worth implementing eventually. Each is substantial enough that it should be its own focused push.
+Extend `CustomFilterDefinition` with a text-DSL mode alongside the existing structured form.
 
-- ~~**"This and following" recurring-event edit**~~ — deliberately NOT implemented. Users rarely check past events, so the cheaper fix shipped in 8698bfe: flag "Every event in the series" as destructive with copy that explicitly names the retroactive effect, and point users at Delete → This and following + re-create as the workaround. Reopen only if a real user complains about past-event mutation in practice.
+- Grammar (suggested, refine on impl): `list:"Work" AND (tag:deep OR tag:focus) AND due<+7d AND -star AND -completed`. Operators: `AND`, `OR`, `NOT`/`-`, parens. Fields: `list`, `tag`, `star`, `completed`, `due` (`<`, `>`, `=`, relative `+Nd`/`-Nd` and absolute `YYYY-MM-DD`), `title` (substring / fuzzy).
+- Saved queries pin to sidebar like current custom filters. Reuse `CustomFiltersSection` UI; add a "Query" tab in the editor sheet.
+- Parser + evaluator unit-tested against `TaskMirror` fixtures. Pure read-side over existing mirror — no Google data writes.
+- Error surfaces in-place (red underline + message) without crashing the sidebar.
+
+### 6.3 URL-scheme deep links
+
+Register `hotcrossbuns://` scheme. Pure routing — every mutation still goes through existing Google flows.
+
+- `hotcrossbuns://task/<id>` → open task in inspector (switch sidebar → Store → focus task).
+- `hotcrossbuns://event/<id>` → open event in calendar.
+- `hotcrossbuns://new/task?title=&notes=&due=&list=&tags=` → open QuickAdd prefilled.
+- `hotcrossbuns://new/event?title=&start=&end=&location=&calendar=` → open QuickAddEventView prefilled.
+- `hotcrossbuns://search?q=` → open command palette with query prefilled.
+- Handle via `NSAppleEventManager` or SwiftUI `.onOpenURL`. Route through `RouterPath`.
+- Unknown hosts / malformed params → silent no-op or toast; never crash.
+
+### 6.4 Bulk-select + client-batched bulk actions
+
+Tasks already lag events on this — `EventBulkActionBar` exists, tasks don't. Add parity, then layer client-side batching so we don't hammer Google.
+
+- `TasksView` gains multi-select (Cmd-click, Shift-click range). Selection state lives in the view model, not `TaskMirror`.
+- Bulk action bar: complete / reopen, reschedule (relative + absolute), move list, add/remove tag (edits title's `#tag` tokens), star/unstar, delete.
+- **Client-side optimizer before dispatch:**
+  - Coalesce no-ops (e.g. completing an already-completed task is dropped).
+  - Dedup redundant ops on the same id (last-write-wins within the batch).
+  - Group by endpoint + method so we can use Google's batch endpoints where they exist (`tasks.batch`, Calendar events don't have a batch endpoint — serialize with throttle).
+  - Respect Google's documented per-user-per-100s quotas: throttle via a token bucket in `OptimisticWriter` / `SyncScheduler`.
+  - On partial failure, surface per-item status in the undo toast; retry only the failed subset.
+- Route through existing `OptimisticWriter` so offline queue + etag conflict paths still apply.
+
+### 6.5 Kanban view (opt-in, not forced)
+
+A different lens on Google Tasks. Columns are **Google-native or derivable only** — no invented status/priority fields.
+
+- Placement: **view-mode toggle inside the Store tab** (decided). User can hide the Kanban mode via §6.1 Store sub-view visibility setting. No new sidebar tab.
+- Column-grouping modes (all round-trip or derive cleanly):
+  - By **list** (native).
+  - By **due bucket** (overdue / today / this week / later / no-date — derived).
+  - By **star** (starred / not).
+  - By **tag** (from `#tag` extraction in title — round-trips as plain text).
+- Drag between columns = real Google mutation (change list / change due / toggle star / edit title to swap tag). No local-only "status" column.
+- Respects current sidebar filter / saved query if one is selected.
+
+### 6.6 Timeline / Gantt view (opt-in, not forced)
+
+Time-axis lens on tasks + events.
+
+- Placement: **view-mode toggle inside the Calendar tab** (decided), alongside day / week / month. User can hide the Timeline mode via §6.1 Calendar sub-view visibility setting. No new sidebar tab.
+- Horizontal time axis, one row per task / event. Tasks with `dueDate` render as points or short bars; events render as spans using `start`/`end`.
+- Dependency arrows: rendered only if `TaskDependencyMarkers` already round-trips via notes-field encoding. Verify on pickup; if not, drop arrows rather than invent local-only dep links.
+- Drag-to-reschedule: task drag writes `dueDate`, event drag writes `start`/`end`. Existing reschedule paths.
+- Zoom levels: day / week / month / quarter.
+
+### 6.7 Quick-switcher + command-palette split
+
+Today `CommandPaletteView` mixes two distinct jobs in one list: running commands **and** finding task/event entities. Split them — the palette becomes a strict action launcher, a new quick-switcher owns entity navigation. Dedup the behavior so each surface has one purpose.
+
+- **Command palette (`⇧⌘P`, unchanged hotkey):** commands only. New Task, New Event, Refresh, Force Resync, Print Today, Export Day/Week ICS, Switch Tab, Open Settings, Open Help, Insert Template (§6.13), and any future command. No task/event rows. `CommandPaletteView` keeps its Alfred-style empty-when-blank behavior.
+- **Quick switcher (`⌘O`, new — decided):** entities only. Fuzzy-match against task titles, event titles, task lists, calendars, and saved-query names (§6.2). Enter → open/navigate; `⌘↩` → open in a new inspector column or focused window where applicable. Narrower UI than the palette; optimized for muscle-memory "go to X".
+- **Migration:** move `CommandPaletteView`'s task/event/result rows into a new `QuickSwitcherView`. Palette loses the `onSelectTask` / `onSelectEvent` callbacks entirely.
+- **Shared infra:** factor fuzzy scoring + recent-items + keyboard nav into a common `FuzzySearcher` used by both. Avoids divergent ranking.
+- Advanced search operators (§6.8) are hosted inside the quick switcher — the palette has no search field after this split.
+- Mental model: palette = "do", switcher = "go". Both reachable from the same `⌘`-family gesture space.
+
+### 6.8 Advanced search
+
+Hosted in the quick switcher (§6.7). Extends beyond plain title substring.
+
+- Field operators: `attendee:`, `duration>30m`, `has:notes`, `has:location`, `list:`, `calendar:`, `tag:`, `due<+7d`, `starts>=today`.
+- Full-text across title + notes + location + attendees.
+- Regex mode (toggle or leading `/…/`).
+- Fuzzy fallback on plain-text queries.
+- Results still just point at the mirror — all opens/edits go through normal Google paths.
+
+### 6.9 Leader-key chord bindings
+
+Vim-style chord bindings alongside existing single-shortcut `KeybindingsSection`.
+
+- Leader key configurable (default: `<space>` in vim mode, `Cmd-K` in insert mode).
+- Chord sequences like `<leader>tn` = new task, `<leader>cp` = command palette, `<leader>gs` = go to store.
+- Storage: extend `HCBShortcutStorage` JSON to support a `chord: ["space", "t", "n"]` form alongside the existing single-key form.
+- HUD: on leader press, show an overlay listing available next-keys (which-key-style). Reuse `VimHud`.
+- Does not replace single-shortcut bindings — they coexist.
+
+### 6.10 Pinned filters on menu-bar extra popover
+
+Menu-bar popover currently shows quick-add + recent. Add user-pinned custom filters / saved queries for quick-glance.
+
+- Users mark a filter / saved query (§6.2) as "pin to menu bar" in its editor.
+- Popover renders pinned filters as sections with count badges + first N matches inline.
+- Click a filter row → opens main app focused on that filter.
+- No new data model — just a `pinnedToMenuBar: Bool` on `CustomFilterDefinition`. Local-only, app config.
+
+### 6.11 Per-surface font picker
+
+Current `HCBAppearance` has a global font-size input. Extend to per-surface typeface choice.
+
+- Surfaces: editor (markdown), sidebar, calendar grid, task list, inspector, menu bar popover.
+- Each surface: font family + size + weight.
+- Storage: `@AppStorage`-backed struct keyed by surface.
+- Fall-through: unset surfaces inherit a global default (current behavior).
+- Respect the existing "preserve system font design" carve-outs noted in §14.
+
+### 6.12 Encrypted local cache
+
+Optional passphrase-gated encryption of the JSON snapshot cache and offline mutation queue.
+
+- Off by default (no regression for existing users).
+- When enabled: user sets passphrase → key derived via PBKDF2 / Argon2 → cache written with AES-GCM. Passphrase cached in Keychain for the session with user-configurable lock timeout.
+- On launch: if encryption enabled and Keychain missing entry → show unlock sheet blocking app content.
+- Wipe on repeated wrong passphrases? No — just stay locked.
+- Google tokens already live in Keychain; this covers the offline cache only.
+
+### 6.13 Templates with variables (client-only, must NOT leak to Google)
+
+Named templates that expand into real Google tasks/events at instantiation.
+
+- Template definitions stored **locally only** (`~/Library/Application Support/HotCrossBuns/templates/*.json`). They are app config, not data — same tier as keybindings.
+- Variables: `{{today}}`, `{{tomorrow}}`, `{{+Nd}}`, `{{-Nd}}`, `{{nextWeekday:mon}}`, `{{cursor}}`, `{{clipboard}}`, `{{prompt:Label}}`.
+- Fields templatable: title, notes/description, due/start/end, list, calendar, tags (via title `#tag` tokens), attendees, reminders, recurrence rule.
+- Instantiation flow: palette → "Insert template…" → pick → prompt for `{{prompt:…}}` vars → produces a real Google Task/Event via existing write path.
+- **Hard constraints:**
+  - No template metadata ever lands in task/event notes/descriptions. The instantiated entry must be indistinguishable on google.com from a manually-created one.
+  - No "template id" stored in `extendedProperties` — cross-client fragile and leaks implementation.
+  - Corruption risk: write templates to a throwaway dir first, test instantiation in a dry-run mode that renders the resulting Google payload for the user to inspect before first real use.
+
+## 7. Performance optimisation and RAM / memory usage
+
+Placeholder — scope during pickup. Likely includes: lazy-loading grid cells, image caching for location previews, reducing `AppModel` observable republishing, profiling `CalendarMirror` growth with large event counts.
+
+## 8. Battery optimisation
+
+Ensure foreground polling + background refresh don't drain battery. Includes: respecting `NetworkMonitor` low-power mode, throttling polling when window unfocused, suspending calendar grid animations off-screen, checking Spotlight indexer load.
+
+## 9. Deprioritized extended interop
+
+Implement only after §6 and §7/§8. Order within this section flexible.
+
+### 9.1 Multi-format import / export
+
+Readers + writers beyond the existing ICS path. All imports create real Google Tasks/Events; all exports are read-only snapshots. No parallel local store.
+
+- **Readers:** Things 3 (SQLite db or JSON export), Todoist (JSON/CSV API export), Apple Reminders (EventKit), OmniFocus (OFOCUS archive or taskpaper export), TaskPaper (plain text), org-mode (plain text + PROPERTIES), Microsoft To Do, Google Keep lists.
+- **Writers:** Markdown (per-task and digest), TaskPaper, org-mode, OPML, CSV, JSON.
+- Progress UI for long imports with per-item failure reporting.
+- Dedup on re-import (same as ICS flow).
+
+### 9.2 Optional CLI surface (`hcb`)
+
+Thin CLI that talks to the running app via local IPC (Unix socket or XPC) — does not open a second Google session. Commands: `add`, `list`, `complete`, `search`, `agenda`, `open <id>`. Read paths query the mirror; write paths dispatch through the same `OptimisticWriter`.
+
+### 9.3 MCP servers for AI agent integration
+
+Expose the mirror + mutation surface as an MCP server so external AI agents (Claude Desktop, others) can read tasks/events and propose changes. Every write still flows through the confirmation-gated path in §9.4. No background agent writes to Google without user approval.
+
+### 9.4 Optional BYOK AI manager
+
+User supplies their own API key (Anthropic / OpenAI). Natural-language input + image upload. Every interpreted action is presented as a diff-style confirmation before any Google write. Never auto-executes. Never stores API keys in plaintext — Keychain only. Deprioritized because it's additive, not blocking.
+
+## 10. Cybersecurity hardening
+
+End-to-end pass. Not a single item — schedule as its own focused push.
+
+- Audit all inputs to `NaturalLanguageTaskParser` / `NaturalLanguageEventParser` / palette for injection vectors.
+- Confirm URL-scheme handler (§6.3) strictly validates query params and rejects unexpected hosts/paths.
+- Review `hotcrossbuns://` and Share Extension handoff for data exfil via crafted payloads.
+- Verify all Google API responses are decoded against strict Codable schemas; no eval-style paths.
+- Confirm no plaintext secrets in logs or crash reports (`CrashReporter`, `SystemCrashReportReader`).
+- Verify Keychain access groups are correctly scoped post-§3a.
+- Dependency vulnerability scan on SwiftPM graph (GoogleSignIn, Sparkle, etc.).
+
+## 11. Daily local backup (least priority — implement last)
+
+Defensive copy. Only exists for the case where Google loses user data on both surfaces (web + HCB cache). Not a sync target. Not a SoT.
+
+- Off by default. Settings toggle + interval picker (off / daily / every N hours / on-launch only).
+- Storage location: user-configurable, default `~/Library/Application Support/HotCrossBuns/backups/` with day-stamped files. User can redirect to iCloud Drive / external disk.
+- Retention: user-configurable (keep last N / keep N days). Default: keep last 14.
+- **Schema priorities:**
+  1. **Storage-compact.** Must stay small with thousands of events + tasks. Use a binary-ish layout: MessagePack or CBOR top-level, per-record field interning for repeated strings (list IDs, calendar IDs, tag names), varint timestamps, gzip the outer file. Target <1MB per 10k entries before compression.
+  2. **Round-trippable to JSON / the §9.1 export formats.** Ship a transpiler: `backup.hcbpack → JSON/Markdown/OPML/org/CSV`. Transpilation is a nice-to-have, not a hot path.
+  3. **Versioned.** Include a schema-version header; refuse to load unknown-version files rather than silently mis-decode.
+- Restore path: explicit user action in Diagnostics → "Restore from backup…". Never auto-restores on launch. Restore = diff against current mirror, preview, then write missing entries to Google (so backup → Google, not backup → local SoT).
+- Custom schema is acceptable here **only because** it never leaves the local device and never substitutes for Google as SoT. If Google is reachable and has newer data, Google wins.
+
+## 12. Carve-outs explicitly deferred (not in scope)
+
+Previously considered, deliberately not implemented.
+
+- **`⌘\` task drawer alternate binding.** `⌘J` already handles the same action; second shortcut is redundant.
+- **Drag-out event tile to Finder.** Shipped "Export .ics…" right-click entry instead. Combining `.draggable(DraggedEvent)` with a file-drag conflicts with the reschedule-drag gesture. Revisit with a modifier-key gate if users ask.
+- **Cross-calendar series-split.** See §13 "This and following" — scope too big to fold in previously.
+
+## 13. Deferred roadmap
+
+Not actively scheduled. Each is substantial enough to be its own focused push.
+
+- ~~**"This and following" recurring-event edit**~~ — deliberately NOT implemented. Users rarely check past events; the cheaper fix shipped in 8698bfe: flag "Every event in the series" as destructive with copy that explicitly names the retroactive effect, and point users at Delete → This and following + re-create as the workaround. Reopen only if a real user complains about past-event mutation in practice.
 - ~~**Cross-calendar drag for recurring `thisAndFollowing` scope**~~ — not needed. Move dialog's "Every event in the series" now carries the same retroactive warning as edit/delete.
 - **Push-via-APNs relay** — requires a server, violates "Google is the backend" principle. Reconsider only if foreground polling proves inadequate in practice.
 - **Rich metadata in Calendar private extended properties** — cross-client fragility; app-only annotations would disappear outside Hot Cross Buns.
 - **SQLite migration for the local cache** — current JSON snapshot is adequate for one user's data volume. Reconsider if the cache grows past ~50MB or needs indexed queries.
 - **Windows / Linux / Android ports** — out of scope by product decision.
 
-## 8. Known residual risks
+## 14. Known residual risks
 
-Low-severity items the audits surfaced that we haven't fixed. None are data-loss risks; each is either a narrow edge case, a latent bug that's not currently hit, or a behaviour gap that only matters if you notice it. Listed here so they don't get forgotten if you do.
+Low-severity items the audits surfaced that we haven't fixed. None are data-loss risks; each is either a narrow edge case, a latent bug that's not currently hit, or a behaviour gap that only matters if you notice it.
 
 - **Single-occurrence recurring-event PATCH may need `originalStartTime`.** (`Services/Google/GoogleCalendarClient.swift` `updateEvent`.) When `scope == .thisOccurrence` and the event ID has the instance-suffix form `_<yyyymmddThhmmssZ>`, we currently assume Google's API infers the occurrence from the ID alone. If that's wrong, PATCH promotes the edit to the whole series — silent data mutation. **Verified only by §5 step 15 during live QA.** If that test fails, add an optional `originalStartTime: GoogleEventMutationDateDTO?` to the mutation DTO (mirroring the `start` encoding) and populate it from `event.startDate` for single-occurrence PATCHes on instance IDs.
 - **Tasks watermark could be derived from the Google response `Date` header** rather than local time. Today a 300s local-clock slack covers most drift (widened from 60s in 906a7f2). Follow-up only — not a real bug, just a correctness upgrade over an already-safe default.
@@ -140,21 +351,7 @@ Fixed since the last audit pass:
 - ~~`ICSDateParser` DateFormatter is shared across calls with per-call mutation of `.timeZone`~~ — d4e1346 builds a fresh formatter per call.
 - ~~Tasks `updatedMin` watermark has a 60-second slack~~ — 906a7f2 widens to 300s via a named constant; the stronger "derive from response Date header" form is listed above as a follow-up.
 
-## 9. Performance optimisation and RAM and memory usage
-
-## 10. Battery optimsiation to ensure not eating battery
-
-## 11. Add multiple import/export formats after everything else is stableq
-
-## 12. Add optional CLI surface for users tow ork with
-
-## 13. Rework as necessary to ex[pose MCP servers for ai agents to integrate with as necessarya
-
-## 14. Only if useful, then add an optional BYOK AI manager that allows natural text and still asks the user if their interpretaion of hte user's task is correct, allow image upload for max utility
-
-## 15. Harden all endpoints and usecases from cybersecurity perspective
-
-## 16. Appearance — done
+## 15. Appearance — done
 
 Phase 1 added the env infrastructure; Phase 2 migrated 508 call sites across 29 files.
 

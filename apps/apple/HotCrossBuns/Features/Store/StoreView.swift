@@ -524,7 +524,16 @@ struct StoreView: View {
     }
 
     private func customFilterTasks(_ def: CustomFilterDefinition) -> [TaskMirror] {
-        let base = model.tasks.filter { def.matches($0) }
+        // def.filter(_:) compiles any DSL expression once, then evaluates across
+        // all tasks. On compile failure it yields [] — an empty list, never a
+        // list wider than the user's intent — so a malformed query fails loud
+        // (via the red inline error in CustomFiltersSection) rather than quiet.
+        let base = def.filter(
+            model.tasks,
+            now: Date(),
+            calendar: .current,
+            taskLists: model.taskLists
+        )
         return applySearch(base)
     }
 

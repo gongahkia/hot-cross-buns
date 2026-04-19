@@ -179,6 +179,7 @@ struct AddTaskSheet: View {
             .navigationTitle("New Task")
             .task {
                 selectedTaskListID = selectedTaskListID ?? model.taskLists.first?.id
+                applyDeepLinkPrefillIfAny()
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -306,6 +307,42 @@ struct AddTaskSheet: View {
         if didCreate {
             dismiss()
         }
+    }
+
+    private func applyDeepLinkPrefillIfAny() {
+        // hotcrossbuns://new/task?… stages a prefill struct on AppModel. The
+        // sheet consumes it here and nils it so a subsequent plain New Task
+        // (⌘N) doesn't inherit stale values.
+        guard let prefill = model.pendingTaskPrefill else { return }
+        defer { model.pendingTaskPrefill = nil }
+
+        if let t = prefill.title, t.isEmpty == false, title.isEmpty {
+            title = t
+        }
+        // Tags round-trip through the task title as #foo (TagExtractor format).
+        if prefill.tags.isEmpty == false {
+            let hashed = prefill.tags
+                .filter { $0.isEmpty == false }
+                .map { "#\($0)" }
+                .joined(separator: " ")
+            title = title.isEmpty ? hashed : "\(title) \(hashed)"
+        }
+        if let n = prefill.notes, n.isEmpty == false, notes.isEmpty {
+            notes = n
+        }
+        if let due = prefill.dueDate {
+            hasDueDate = true
+            dueDate = due
+        }
+        if let listRef = prefill.listIdOrTitle, listRef.isEmpty == false,
+           let match = resolveTaskList(listRef) {
+            selectedTaskListID = match.id
+        }
+    }
+
+    private func resolveTaskList(_ ref: String) -> TaskListMirror? {
+        if let exact = model.taskLists.first(where: { $0.id == ref }) { return exact }
+        return model.taskLists.first(where: { $0.title.localizedCaseInsensitiveCompare(ref) == .orderedSame })
     }
 }
 

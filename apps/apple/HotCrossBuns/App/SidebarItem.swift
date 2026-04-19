@@ -31,6 +31,15 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
+    // Settings stays always visible so the user can always reach the Layout
+    // section to unhide other tabs. Calendar and Store are user-hideable.
+    var isHideable: Bool {
+        switch self {
+        case .calendar, .store: true
+        case .settings: false
+        }
+    }
+
     @MainActor
     @ViewBuilder
     func makeContentView() -> some View {

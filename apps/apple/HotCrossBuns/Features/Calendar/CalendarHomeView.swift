@@ -126,11 +126,20 @@ struct CalendarHomeView: View {
             }
         }
         .onAppear {
-            mode = CalendarGridMode(rawValue: storedMode) ?? .month
+            let restored = CalendarGridMode(rawValue: storedMode) ?? .month
+            mode = visibleCalendarModes.contains(restored) ? restored : (visibleCalendarModes.first ?? .month)
             showTaskDrawer = storedShowDrawer
         }
         .onChange(of: mode) { _, newValue in
             storedMode = newValue.rawValue
+        }
+        .onChange(of: model.settings.hiddenCalendarViewModes) { _, _ in
+            // if the user just hid the currently-selected mode, fall back to
+            // the first still-visible one so the detail area doesn't render
+            // a mode that's gone from the picker.
+            if visibleCalendarModes.contains(mode) == false, let first = visibleCalendarModes.first {
+                mode = first
+            }
         }
         .onChange(of: showTaskDrawer) { _, newValue in
             storedShowDrawer = newValue
@@ -175,7 +184,7 @@ struct CalendarHomeView: View {
             Spacer(minLength: 0)
 
             Picker("View", selection: $mode) {
-                ForEach(CalendarGridMode.allCases, id: \.self) { m in
+                ForEach(visibleCalendarModes, id: \.self) { m in
                     Label(m.title, systemImage: m.systemImage).tag(m)
                 }
             }
@@ -193,13 +202,13 @@ struct CalendarHomeView: View {
                     .hcbKeyboardShortcut(.calendarJumpForward)
                 Button("Go to Date") { isGoToDateShown = true }
                     .hcbKeyboardShortcut(.calendarGoToDate)
-                Button("Agenda View") { mode = .agenda }
+                Button("Agenda View") { selectMode(.agenda) }
                     .hcbKeyboardShortcut(.calendarViewAgenda)
-                Button("Day View") { mode = .day }
+                Button("Day View") { selectMode(.day) }
                     .hcbKeyboardShortcut(.calendarViewDay)
-                Button("Week View") { mode = .week }
+                Button("Week View") { selectMode(.week) }
                     .hcbKeyboardShortcut(.calendarViewWeek)
-                Button("Month View") { mode = .month }
+                Button("Month View") { selectMode(.month) }
                     .hcbKeyboardShortcut(.calendarViewMonth)
             }
             .opacity(0)
@@ -216,6 +225,20 @@ struct CalendarHomeView: View {
 
     private var selectedEvents: [CalendarEventMirror] {
         model.events.filter { selectedEventIDs.contains($0.id) }
+    }
+
+    // CalendarGridMode.allCases filtered by user-hidden set from Layout settings.
+    // If the user hides every mode, allCases still returns something — the
+    // AppModel.setCalendarViewModeHidden setter refuses to hide the last one.
+    private var visibleCalendarModes: [CalendarGridMode] {
+        CalendarGridMode.allCases.filter { model.settings.hiddenCalendarViewModes.contains($0.rawValue) == false }
+    }
+
+    // Keyboard shortcuts route here so hidden modes no-op rather than forcing
+    // the picker back onto a mode the user chose to remove.
+    private func selectMode(_ target: CalendarGridMode) {
+        guard visibleCalendarModes.contains(target) else { return }
+        mode = target
     }
 
     private var periodTitle: String {
@@ -873,6 +896,7 @@ struct AddEventSheet: View {
             .navigationTitle("New Event")
             .task {
                 selectedCalendarID = selectedCalendarID ?? defaultCalendarID
+                applyDeepLinkPrefillIfAny()
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -1042,6 +1066,41 @@ struct AddEventSheet: View {
 
     private var defaultCalendarID: CalendarListMirror.ID? {
         model.calendarSnapshot.selectedCalendars.first?.id ?? model.calendars.first?.id
+    }
+
+    private func applyDeepLinkPrefillIfAny() {
+        // hotcrossbuns://new/event?… stages a prefill struct on AppModel. The
+        // sheet consumes it here and nils it so a subsequent plain New Event
+        // doesn't inherit stale values.
+        guard let prefill = model.pendingEventPrefill else { return }
+        defer { model.pendingEventPrefill = nil }
+
+        if let t = prefill.title, t.isEmpty == false, summary.isEmpty {
+            summary = t
+        }
+        if let loc = prefill.location, loc.isEmpty == false, location.isEmpty {
+            location = loc
+        }
+        if let start = prefill.startDate {
+            startDate = start
+            if let end = prefill.endDate, end > start {
+                endDate = end
+            } else if prefill.isAllDay {
+                endDate = start
+            } else {
+                endDate = start.addingTimeInterval(3600)
+            }
+        }
+        if prefill.isAllDay { isAllDay = true }
+        if let calRef = prefill.calendarIdOrSummary, calRef.isEmpty == false,
+           let match = resolveCalendar(calRef) {
+            selectedCalendarID = match.id
+        }
+    }
+
+    private func resolveCalendar(_ ref: String) -> CalendarListMirror? {
+        if let exact = model.calendars.first(where: { $0.id == ref }) { return exact }
+        return model.calendars.first(where: { $0.summary.localizedCaseInsensitiveCompare(ref) == .orderedSame })
     }
 
     private var canCreate: Bool {

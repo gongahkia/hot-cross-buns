@@ -30,6 +30,14 @@ final class AppModel {
     // handler) queues text for the main app. QuickAddView reads this
     // on appear, prefills its title field, then clears it.
     var pendingSharedPrefill: String?
+    // Populated by HCBDeepLinkRouter when a hotcrossbuns:// URL routes to
+    // new/task. The AddTaskSheet reads these on appear, populates its fields,
+    // then clears to nil. Deep links never auto-submit — the user always
+    // confirms the prefilled sheet before any Google write.
+    var pendingTaskPrefill: DeepLinkTaskPrefill?
+    var pendingEventPrefill: DeepLinkEventPrefill?
+    // Query pre-populated into the command palette when a search deep link fires.
+    var pendingPaletteQuery: String?
     // Populated on first launch-time check; DiagnosticsView surfaces.
     private(set) var keychainHealth: KeychainHealth = .unknown
     private(set) var lastMutationError: String?
@@ -1299,6 +1307,36 @@ final class AppModel {
     func setEnableGlobalHotkey(_ isEnabled: Bool) {
         guard settings.enableGlobalHotkey != isEnabled else { return }
         settings.enableGlobalHotkey = isEnabled
+        Task { await saveCurrentState() }
+    }
+
+    func setSidebarItemHidden(_ item: SidebarItem, hidden: Bool) {
+        guard item.isHideable else { return } // Settings is always visible
+        var next = settings.hiddenSidebarItems
+        if hidden {
+            next.insert(item.rawValue)
+        } else {
+            next.remove(item.rawValue)
+        }
+        guard next != settings.hiddenSidebarItems else { return }
+        settings.hiddenSidebarItems = next
+        Task { await saveCurrentState() }
+    }
+
+    func setCalendarViewModeHidden(_ mode: CalendarGridMode, hidden: Bool) {
+        var next = settings.hiddenCalendarViewModes
+        if hidden {
+            // never hide every mode — Calendar tab needs at least one visible
+            let wouldRemainVisible = CalendarGridMode.allCases.contains { other in
+                other != mode && next.contains(other.rawValue) == false
+            }
+            guard wouldRemainVisible else { return }
+            next.insert(mode.rawValue)
+        } else {
+            next.remove(mode.rawValue)
+        }
+        guard next != settings.hiddenCalendarViewModes else { return }
+        settings.hiddenCalendarViewModes = next
         Task { await saveCurrentState() }
     }
 

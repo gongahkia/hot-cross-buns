@@ -66,6 +66,8 @@ struct SettingsView: View {
 
             AppearanceSection()
 
+            LayoutSection()
+
             KeybindingsSection()
 
             Section("Mac surfaces") {
