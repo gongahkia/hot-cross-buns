@@ -1320,10 +1320,10 @@ final class AppModel {
         Task { await saveCurrentState() }
     }
 
-    func setUITextSizeStep(_ step: Int) {
-        let clamped = HCBTextSizeLadder.clamped(step)
-        guard settings.uiTextSizeStep != clamped else { return }
-        settings.uiTextSizeStep = clamped
+    func setUITextSizePoints(_ points: Double) {
+        let clamped = HCBTextSize.clamp(points)
+        guard settings.uiTextSizePoints != clamped else { return }
+        settings.uiTextSizePoints = clamped
         Task { await saveCurrentState() }
     }
 
