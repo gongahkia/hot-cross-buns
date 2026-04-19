@@ -1296,6 +1296,8 @@ struct EventReminderPicker: View {
                 Divider()
                 Text("Custom…").tag(-2)
             }
+            .accessibilityLabel("Event alert")
+            .accessibilityHint("Choose when the reminder fires before the event starts")
             if case .custom(let m) = selection {
                 Text("Currently \(EventReminderOption.label(forMinutes: m))")
                     .font(.caption)
@@ -1306,6 +1308,7 @@ struct EventReminderPicker: View {
                     TextField("Minutes before", text: $customMinutes)
                         .textFieldStyle(.roundedBorder)
                         .frame(maxWidth: 120)
+                        .accessibilityLabel("Custom minutes before event")
                     Button("Set") {
                         if let minutes = Int(customMinutes), minutes >= 0, minutes <= 40320 {
                             selection = .custom(minutes)
@@ -1366,8 +1369,13 @@ struct EventColorPicker: View {
                 }
                 .buttonStyle(.plain)
                 .help(color.title)
+                .accessibilityLabel(color.title)
+                .accessibilityAddTraits(selection == color ? [.isSelected, .isButton] : .isButton)
+                .accessibilityHint("Sets event color to \(color.title)")
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Event color")
     }
 }
 

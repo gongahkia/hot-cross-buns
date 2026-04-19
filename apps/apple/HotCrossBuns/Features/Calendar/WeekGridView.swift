@@ -200,6 +200,17 @@ struct WeekGridView: View {
         }
         .buttonStyle(.plain)
         .offset(x: x, y: y)
+        .accessibilityLabel(eventAccessibilityLabel(span.event))
+        .accessibilityHint("Opens event details")
+    }
+
+    private func eventAccessibilityLabel(_ event: CalendarEventMirror) -> String {
+        if event.isAllDay {
+            return "\(event.summary), all day \(event.startDate.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))"
+        }
+        let start = event.startDate.formatted(.dateTime.weekday(.wide).hour().minute())
+        let end = event.endDate.formatted(.dateTime.hour().minute())
+        return "\(event.summary), \(start) to \(end)"
     }
 
     private var tasksStrip: some View {
@@ -230,6 +241,7 @@ struct WeekGridView: View {
                                                 Image(systemName: "circle")
                                                     .font(.system(size: 8))
                                                     .foregroundStyle(AppColor.ember)
+                                                    .accessibilityHidden(true)
                                                 Text(task.title)
                                                     .font(.caption)
                                                     .lineLimit(1)
@@ -248,6 +260,8 @@ struct WeekGridView: View {
                                             .foregroundStyle(AppColor.ink)
                                         }
                                         .buttonStyle(.plain)
+                                        .accessibilityLabel("Task due \(day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())): \(task.title)")
+                                        .accessibilityHint("Opens task details")
                                     }
                                     if let count = tasksByDay[calendar.startOfDay(for: day)]?.count, count > 3 {
                                         Text("+\(count - 3) more")
@@ -458,6 +472,8 @@ struct WeekGridView: View {
         }
         .buttonStyle(.plain)
         .offset(x: xOffsetWithinDay + 1, y: yOffset)
+        .accessibilityLabel(eventAccessibilityLabel(placed.event))
+        .accessibilityHint("Opens event details")
         .draggable(DraggedEvent(
             eventID: placed.event.id,
             calendarID: placed.event.calendarID,
