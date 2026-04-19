@@ -108,6 +108,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var enableGlobalHotkey: Bool
     var customFilters: [CustomFilterDefinition]
     var eventTemplates: [EventTemplate]
+    var menuBarStyle: MenuBarStyle
 
     init(
         syncMode: SyncMode,
@@ -123,7 +124,8 @@ struct AppSettings: Hashable, Codable, Sendable {
         enableVimKeybindings: Bool = false,
         enableGlobalHotkey: Bool = true,
         customFilters: [CustomFilterDefinition] = [],
-        eventTemplates: [EventTemplate] = []
+        eventTemplates: [EventTemplate] = [],
+        menuBarStyle: MenuBarStyle = .compact
     ) {
         self.syncMode = syncMode
         self.selectedCalendarIDs = selectedCalendarIDs
@@ -139,6 +141,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.enableGlobalHotkey = enableGlobalHotkey
         self.customFilters = customFilters
         self.eventTemplates = eventTemplates
+        self.menuBarStyle = menuBarStyle
     }
 
     enum CodingKeys: String, CodingKey {
@@ -156,6 +159,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case enableGlobalHotkey
         case customFilters
         case eventTemplates
+        case menuBarStyle
     }
 
     init(from decoder: Decoder) throws {
@@ -174,6 +178,26 @@ struct AppSettings: Hashable, Codable, Sendable {
         enableGlobalHotkey = try container.decodeIfPresent(Bool.self, forKey: .enableGlobalHotkey) ?? true
         customFilters = try container.decodeIfPresent([CustomFilterDefinition].self, forKey: .customFilters) ?? []
         eventTemplates = try container.decodeIfPresent([EventTemplate].self, forKey: .eventTemplates) ?? []
+        if let explicit = try container.decodeIfPresent(MenuBarStyle.self, forKey: .menuBarStyle) {
+            menuBarStyle = explicit
+        } else {
+            // Migrate legacy showDetailedMenuBar bool into the new style enum
+            menuBarStyle = showDetailedMenuBar ? .detailed : .compact
+        }
+    }
+
+    enum MenuBarStyle: String, Codable, Hashable, Sendable, CaseIterable {
+        case compact
+        case detailed
+        case weekly
+
+        var title: String {
+            switch self {
+            case .compact: "Compact"
+            case .detailed: "Calendar"
+            case .weekly: "Week-at-a-glance"
+            }
+        }
     }
 
     static let `default` = AppSettings(

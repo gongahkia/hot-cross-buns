@@ -104,10 +104,12 @@ struct SettingsView: View {
                         .id(VimTarget.menuBarExtra)
                         .tag(VimTarget.menuBarExtra)
                         .listRowBackground(vimHighlightBackground(for: .menuBarExtra))
-                    Toggle("Detailed menu bar panel", isOn: detailedMenuBarBinding)
-                        .id(VimTarget.detailedMenuBar)
-                        .tag(VimTarget.detailedMenuBar)
-                        .listRowBackground(vimHighlightBackground(for: .detailedMenuBar))
+                    Picker("Menu bar panel", selection: menuBarStyleBinding) {
+                        ForEach(AppSettings.MenuBarStyle.allCases, id: \.self) { style in
+                            Text(style.title).tag(style)
+                        }
+                    }
+                    .pickerStyle(.menu)
                     Toggle("Dock badge for overdue tasks", isOn: dockBadgeBinding)
                         .id(VimTarget.dockBadge)
                         .tag(VimTarget.dockBadge)
@@ -231,6 +233,13 @@ struct SettingsView: View {
         Binding(
             get: { model.settings.showDetailedMenuBar },
             set: { model.setShowDetailedMenuBar($0) }
+        )
+    }
+
+    private var menuBarStyleBinding: Binding<AppSettings.MenuBarStyle> {
+        Binding(
+            get: { model.settings.menuBarStyle },
+            set: { model.setMenuBarStyle($0) }
         )
     }
 
