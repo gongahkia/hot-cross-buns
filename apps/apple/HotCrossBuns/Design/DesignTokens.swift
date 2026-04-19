@@ -17,47 +17,13 @@ enum AppColor {
 
 struct AppBackground: ViewModifier {
     func body(content: Content) -> some View {
-        let scheme = HCBColorSchemeStore.current
-        return content
+        content
             .scrollContentBackground(.hidden)
             .background {
-                ZStack {
-                    LinearGradient(
-                        colors: gradientColors(for: scheme),
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    Circle()
-                        .fill(AppColor.ember.opacity(scheme.isDark ? 0.22 : 0.30))
-                        .frame(width: 280, height: 280)
-                        .blur(radius: 36)
-                        .offset(x: -160, y: -260)
-                    Circle()
-                        .fill(AppColor.blue.opacity(scheme.isDark ? 0.14 : 0.18))
-                        .frame(width: 360, height: 360)
-                        .blur(radius: 48)
-                        .offset(x: 180, y: 240)
-                }
-                .ignoresSafeArea()
+                AppColor.cream
+                    .ignoresSafeArea()
             }
     }
-
-    // Derive a subtle second gradient stop by brightening (light scheme)
-    // or darkening (dark scheme) the base cream — avoids hard-coding per
-    // scheme and still reads as a gradient, not a flat fill.
-    private func gradientColors(for scheme: HCBColorScheme) -> [Color] {
-        let base = scheme.cream
-        let delta: Double = scheme.isDark ? 0.04 : -0.04
-        let second = HCBColorScheme.RGB(
-            red: clamp(base.red - delta),
-            green: clamp(base.green - delta),
-            blue: clamp(base.blue - delta),
-            alpha: base.alpha
-        )
-        return [base.swiftColor, second.swiftColor]
-    }
-
-    private func clamp(_ v: Double) -> Double { max(0, min(1, v)) }
 }
 
 struct CardSurface: ViewModifier {
