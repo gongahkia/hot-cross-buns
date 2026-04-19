@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 actor LocalCacheStore {
     private let fileURL: URL?
@@ -6,6 +7,19 @@ actor LocalCacheStore {
     private var cachedState: CachedAppState
     private(set) var lastLoadWarning: String?
     private let snapshotGenerations = 3
+    // §6.12 — when non-nil, cache writes encrypt and reads decrypt via AES-GCM.
+    // The caller (AppModel) sets this after loading the key from Keychain.
+    // When nil but the file on disk is encrypted, load returns fallback with
+    // a "cache locked" warning — we never silently destroy the encrypted
+    // file in case the key is recoverable later.
+    private var encryptionKey: SymmetricKey?
+
+    // Sidecar: stores the salt used to derive the current encryption key.
+    // Salts are not secret — we keep it next to the cache so re-deriving the
+    // key after a Keychain wipe only requires the passphrase.
+    private var saltURL: URL? {
+        fileURL?.deletingLastPathComponent().appending(path: "cache-state.salt")
+    }
 
     init(
         fileURL: URL? = LocalCacheStore.defaultCacheFileURL,
@@ -14,6 +28,47 @@ actor LocalCacheStore {
         self.fileURL = fileURL
         self.fallbackState = cachedState
         self.cachedState = cachedState
+    }
+
+    func setEncryptionKey(_ key: SymmetricKey?) {
+        encryptionKey = key
+    }
+
+    // Loads salt from sidecar; when absent, generates a fresh one.
+    func ensureSalt() -> Data {
+        if let saltURL, let existing = try? Data(contentsOf: saltURL), existing.count == HCBCacheCrypto.saltBytes {
+            return existing
+        }
+        let fresh = HCBCacheCrypto.randomSalt()
+        if let saltURL {
+            try? FileManager.default.createDirectory(
+                at: saltURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try? fresh.write(to: saltURL, options: [.atomic])
+        }
+        return fresh
+    }
+
+    func currentSalt() -> Data? {
+        guard let saltURL, let data = try? Data(contentsOf: saltURL), data.count == HCBCacheCrypto.saltBytes else { return nil }
+        return data
+    }
+
+    // Exposes the sidecar URL so the change-passphrase flow can rotate the
+    // salt atomically before re-saving the cache with the new key.
+    func saltFileURL() -> URL? { saltURL }
+
+    // Called from AppModel when the user disables encryption. Rewrites the
+    // current cache as plaintext + deletes the salt sidecar so a stray
+    // encrypted file won't linger.
+    func dropEncryption() throws {
+        encryptionKey = nil
+        if let saltURL {
+            try? FileManager.default.removeItem(at: saltURL)
+        }
+        // Force a plaintext rewrite of current in-memory state.
+        save(cachedState)
     }
 
     func loadCachedState() -> CachedAppState {
@@ -30,6 +85,21 @@ actor LocalCacheStore {
 
         do {
             let data = try Data(contentsOf: fileURL)
+            // Try the encrypted envelope first. The envelope decodes only
+            // when the top-level JSON has `encryptedV1` — plaintext caches
+            // won't, so they fall through to the plain path below.
+            if let envelope = try? JSONDecoder.cachedAppState.decode(EncryptedEnvelope.self, from: data) {
+                guard let key = encryptionKey else {
+                    lastLoadWarning = "Local cache is encrypted; unlock to read. Google remains the source of truth."
+                    cachedState = fallbackState
+                    return fallbackState
+                }
+                let plaintext = try HCBCacheCrypto.decrypt(envelope.encryptedV1, key: key)
+                let state = try JSONDecoder.cachedAppState.decode(CachedAppState.self, from: plaintext)
+                lastLoadWarning = nil
+                cachedState = state
+                return state
+            }
             let state = try JSONDecoder.cachedAppState.decode(CachedAppState.self, from: data)
             lastLoadWarning = nil
             cachedState = state
@@ -69,11 +139,28 @@ actor LocalCacheStore {
             let url = snapshotURL(at: index, basedOn: fileURL)
             guard FileManager.default.fileExists(atPath: url.path) else { continue }
             guard let data = try? Data(contentsOf: url) else { continue }
+            // Snapshots inherit whatever format the primary was written in
+            // (plain or encrypted). Try the envelope first so encrypted
+            // snapshots still recover when the key is cached.
+            if let envelope = try? JSONDecoder.cachedAppState.decode(EncryptedEnvelope.self, from: data),
+               let key = encryptionKey,
+               let plaintext = try? HCBCacheCrypto.decrypt(envelope.encryptedV1, key: key),
+               let state = try? JSONDecoder.cachedAppState.decode(CachedAppState.self, from: plaintext) {
+                return state
+            }
             if let state = try? JSONDecoder.cachedAppState.decode(CachedAppState.self, from: data) {
                 return state
             }
         }
         return nil
+    }
+
+    // On-disk discriminator for an encrypted cache file. The top-level
+    // `encryptedV1` key is the sole signal between plain JSON and blob JSON,
+    // so plaintext caches (which never contain this key) fall through to
+    // the legacy decode path cleanly.
+    fileprivate struct EncryptedEnvelope: Codable {
+        let encryptedV1: HCBCacheCrypto.EncryptedBlob
     }
 
     private func snapshotURL(at index: Int, basedOn fileURL: URL) -> URL {
@@ -121,8 +208,16 @@ actor LocalCacheStore {
                 withIntermediateDirectories: true
             )
             rotateSnapshotsBeforeWrite(fileURL: fileURL)
-            let data = try JSONEncoder.cachedAppState.encode(state)
-            try data.write(to: fileURL, options: [.atomic])
+            let plaintext = try JSONEncoder.cachedAppState.encode(state)
+            let dataToWrite: Data
+            if let key = encryptionKey {
+                let salt = ensureSalt()
+                let blob = try HCBCacheCrypto.encrypt(plaintext, key: key, salt: salt)
+                dataToWrite = try JSONEncoder.cachedAppState.encode(EncryptedEnvelope(encryptedV1: blob))
+            } else {
+                dataToWrite = plaintext
+            }
+            try dataToWrite.write(to: fileURL, options: [.atomic])
         } catch {
             // Keep the in-memory cache usable even when the filesystem write fails.
             AppLogger.warn("cache write failed", category: .cache, metadata: ["error": String(describing: error)])

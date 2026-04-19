@@ -117,6 +117,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var hiddenCalendarViewModes: Set<String> // CalendarGridMode.rawValues user has hidden from Calendar picker
     var hiddenStoreViewModes: Set<String> // StoreViewMode.rawValues user has hidden from Store picker
     var perSurfaceFontOverrides: [String: HCBSurfaceFontOverride] // HCBSurface.rawValue → override
+    var cacheEncryptionEnabled: Bool // §6.12 — whether LocalCacheStore should encrypt at rest
 
     init(
         syncMode: SyncMode,
@@ -141,7 +142,8 @@ struct AppSettings: Hashable, Codable, Sendable {
         hiddenSidebarItems: Set<String> = [],
         hiddenCalendarViewModes: Set<String> = [],
         hiddenStoreViewModes: Set<String> = [],
-        perSurfaceFontOverrides: [String: HCBSurfaceFontOverride] = [:]
+        perSurfaceFontOverrides: [String: HCBSurfaceFontOverride] = [:],
+        cacheEncryptionEnabled: Bool = false
     ) {
         self.syncMode = syncMode
         self.selectedCalendarIDs = selectedCalendarIDs
@@ -166,6 +168,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.hiddenCalendarViewModes = hiddenCalendarViewModes
         self.hiddenStoreViewModes = hiddenStoreViewModes
         self.perSurfaceFontOverrides = perSurfaceFontOverrides
+        self.cacheEncryptionEnabled = cacheEncryptionEnabled
     }
 
     enum CodingKeys: String, CodingKey {
@@ -192,6 +195,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case hiddenCalendarViewModes
         case hiddenStoreViewModes
         case perSurfaceFontOverrides
+        case cacheEncryptionEnabled
     }
 
     // Legacy key (0-6 ladder) read via dynamic CodingKey so it stays out of
@@ -246,6 +250,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         hiddenCalendarViewModes = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenCalendarViewModes) ?? []
         hiddenStoreViewModes = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenStoreViewModes) ?? []
         perSurfaceFontOverrides = try container.decodeIfPresent([String: HCBSurfaceFontOverride].self, forKey: .perSurfaceFontOverrides) ?? [:]
+        cacheEncryptionEnabled = try container.decodeIfPresent(Bool.self, forKey: .cacheEncryptionEnabled) ?? false
     }
 
     enum MenuBarStyle: String, Codable, Hashable, Sendable, CaseIterable {
