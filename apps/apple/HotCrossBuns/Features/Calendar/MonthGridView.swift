@@ -71,10 +71,33 @@ struct MonthGridView: View {
         }
     }
 
+    private var visibleTasks: [TaskMirror] {
+        let visibleLists: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
+            ? model.settings.selectedTaskListIDs
+            : Set(model.taskLists.map(\.id))
+        return model.tasks.filter { task in
+            task.isDeleted == false
+                && task.isCompleted == false
+                && visibleLists.contains(task.taskListID)
+                && task.dueDate != nil
+        }
+    }
+
+    private func tasksForDay(_ day: Date) -> [TaskMirror] {
+        let dayStart = calendar.startOfDay(for: day)
+        return visibleTasks.filter { task in
+            guard let due = task.dueDate else { return false }
+            return calendar.isDate(due, inSameDayAs: dayStart)
+        }
+    }
+
     private func monthCell(day: Date) -> some View {
         let dayStart = calendar.startOfDay(for: day)
         let isCurrentMonth = calendar.component(.month, from: day) == calendar.component(.month, from: anchorDate)
         let events = eventsByDay[dayStart] ?? []
+        let tasks = tasksForDay(day)
+        let eventSlots = 3
+        let taskSlots = max(0, 2)
         return VStack(alignment: .leading, spacing: 3) {
             HStack {
                 Text("\(calendar.component(.day, from: day))")
@@ -88,7 +111,7 @@ struct MonthGridView: View {
                     )
                 Spacer(minLength: 0)
             }
-            ForEach(events.prefix(3), id: \.id) { event in
+            ForEach(events.prefix(eventSlots), id: \.id) { event in
                 Button {
                     router.navigate(to: .event(event.id))
                 } label: {
@@ -106,8 +129,37 @@ struct MonthGridView: View {
                 }
                 .buttonStyle(.plain)
             }
-            if events.count > 3 {
-                Text("+\(events.count - 3) more")
+            ForEach(tasks.prefix(taskSlots)) { task in
+                Button {
+                    router.navigate(to: .task(task.id))
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: "circle")
+                            .font(.system(size: 7))
+                            .foregroundStyle(AppColor.ember)
+                        Text(task.title)
+                            .font(.caption2)
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(AppColor.ember.opacity(0.15))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .strokeBorder(AppColor.ember.opacity(0.35), lineWidth: 0.6)
+                    )
+                    .foregroundStyle(AppColor.ink)
+                }
+                .buttonStyle(.plain)
+            }
+            let hiddenEvents = max(0, events.count - eventSlots)
+            let hiddenTasks = max(0, tasks.count - taskSlots)
+            if hiddenEvents + hiddenTasks > 0 {
+                Text("+\(hiddenEvents + hiddenTasks) more")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .padding(.leading, 6)

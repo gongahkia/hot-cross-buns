@@ -15,6 +15,7 @@ struct WeekGridView: View {
             weekHeader
             Divider()
             allDayStrip
+            tasksStrip
             Divider()
             ScrollView {
                 timeGrid
@@ -29,6 +30,28 @@ struct WeekGridView: View {
     private var visibleEvents: [CalendarEventMirror] {
         let selected = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
         return model.events.filter { selected.contains($0.calendarID) && $0.status != .cancelled }
+    }
+
+    private var visibleTasks: [TaskMirror] {
+        let visibleLists: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
+            ? model.settings.selectedTaskListIDs
+            : Set(model.taskLists.map(\.id))
+        return model.tasks.filter { task in
+            task.isDeleted == false
+                && task.isCompleted == false
+                && visibleLists.contains(task.taskListID)
+                && task.dueDate != nil
+        }
+    }
+
+    private func tasksForDay(_ day: Date) -> [TaskMirror] {
+        let dayStart = calendar.startOfDay(for: day)
+        return visibleTasks
+            .filter { task in
+                guard let due = task.dueDate else { return false }
+                return calendar.isDate(due, inSameDayAs: dayStart)
+            }
+            .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     }
 
     private var weekHeader: some View {
@@ -95,6 +118,73 @@ struct WeekGridView: View {
                                                 .foregroundStyle(AppColor.ink)
                                         }
                                         .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(.horizontal, 2)
+                                .frame(width: columnWidth, alignment: .leading)
+                                .offset(x: CGFloat(idx) * columnWidth)
+                            }
+                        }
+                    }
+                    .frame(height: CGFloat(min(maxLanes, 3)) * 22)
+                }
+                .padding(.vertical, 4)
+            }
+        }
+    }
+
+    private var tasksStrip: some View {
+        let tasksByDay: [Date: [TaskMirror]] = Dictionary(uniqueKeysWithValues: weekDays.map { day in
+            (calendar.startOfDay(for: day), tasksForDay(day))
+        })
+        let maxLanes = tasksByDay.values.map(\.count).max() ?? 0
+        return Group {
+            if maxLanes == 0 {
+                EmptyView()
+            } else {
+                HStack(spacing: 0) {
+                    Text("Tasks")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 54, alignment: .trailing)
+                        .padding(.trailing, 6)
+                    GeometryReader { geo in
+                        let columnWidth = geo.size.width / 7
+                        ZStack(alignment: .topLeading) {
+                            ForEach(Array(weekDays.enumerated()), id: \.offset) { idx, day in
+                                VStack(alignment: .leading, spacing: 2) {
+                                    ForEach((tasksByDay[calendar.startOfDay(for: day)] ?? []).prefix(3)) { task in
+                                        Button {
+                                            router.navigate(to: .task(task.id))
+                                        } label: {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: "circle")
+                                                    .font(.system(size: 8))
+                                                    .foregroundStyle(AppColor.ember)
+                                                Text(task.title)
+                                                    .font(.caption)
+                                                    .lineLimit(1)
+                                            }
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 3)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                                    .fill(AppColor.ember.opacity(0.15))
+                                            )
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                                    .strokeBorder(AppColor.ember.opacity(0.35), lineWidth: 0.8)
+                                            )
+                                            .foregroundStyle(AppColor.ink)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                    if let count = tasksByDay[calendar.startOfDay(for: day)]?.count, count > 3 {
+                                        Text("+\(count - 3) more")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                            .padding(.leading, 4)
                                     }
                                 }
                                 .padding(.horizontal, 2)
