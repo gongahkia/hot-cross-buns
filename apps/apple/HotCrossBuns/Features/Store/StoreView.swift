@@ -64,6 +64,8 @@ struct StoreView: View {
     @State private var searchQuery: String = ""
     @State private var isBulkMoveSheetPresented = false
     @State private var snoozeCustomTask: TaskMirror?
+    @State private var bulkResultMessage: String?
+    @State private var bulkResultIsWarning: Bool = false
     @SceneStorage("storeFilter") private var filterKey: String = "all"
     @SceneStorage("storeShowCompleted") private var showCompleted: Bool = true
 
@@ -163,27 +165,11 @@ struct StoreView: View {
 
     @ViewBuilder
     private var bulkActionButtons: some View {
+        // Toolbar displays only the count + clear. Actual actions live in the
+        // floating TaskBulkActionBar so the toolbar doesn't balloon with menus.
         Text("\(selection.count) selected")
             .hcbFont(.caption, weight: .semibold)
             .foregroundStyle(.secondary)
-        Button {
-            Task { await bulkComplete() }
-        } label: {
-            Label("Complete", systemImage: "checkmark.circle")
-        }
-        .help("Mark all selected tasks complete")
-        Button {
-            isBulkMoveSheetPresented = true
-        } label: {
-            Label("Move", systemImage: "arrow.right.circle")
-        }
-        .help("Move selected tasks to another list")
-        Button(role: .destructive) {
-            Task { await bulkDelete() }
-        } label: {
-            Label("Delete", systemImage: "trash")
-        }
-        .help("Delete all selected tasks")
         Button {
             selection = []
         } label: {
@@ -192,29 +178,17 @@ struct StoreView: View {
         .help("Clear selection")
     }
 
-    private func bulkComplete() async {
-        let ids = selection
-        for id in ids {
-            if let task = model.task(id: id), task.isCompleted == false {
-                _ = await model.setTaskCompleted(true, task: task)
-            }
-        }
-        selection = []
-    }
-
-    private func bulkDelete() async {
-        let ids = selection
-        for id in ids {
-            if let task = model.task(id: id) {
-                _ = await model.deleteTask(task)
-            }
-        }
-        selection = []
-    }
-
     private func deleteSelection() async {
         guard selection.isEmpty == false else { return }
-        await bulkDelete()
+        let ops = selection.map { BulkTaskOperation.delete(taskId: $0) }
+        let result = await model.performBulkTaskOperations(ops)
+        handleBulkResult(result)
+        if result.failedCount == 0 {
+            selection.removeAll()
+        } else {
+            let failingIds = Set(result.failures.map(\.operation.taskId))
+            selection = selection.intersection(failingIds)
+        }
     }
 
     @ViewBuilder
@@ -295,13 +269,61 @@ struct StoreView: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.account == nil {
-            signedOutPrompt
-        } else if model.taskLists.isEmpty {
-            noTaskListsPrompt
-        } else {
-            scopedContent
+        ZStack(alignment: .bottom) {
+            Group {
+                if model.account == nil {
+                    signedOutPrompt
+                } else if model.taskLists.isEmpty {
+                    noTaskListsPrompt
+                } else {
+                    scopedContent
+                }
+            }
+            if selection.count >= 2 {
+                TaskBulkActionBar(
+                    selection: $selection,
+                    tasks: selectedTasksFromModel,
+                    onFinished: handleBulkResult
+                )
+                .hcbScaledPadding(.bottom, 16)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+            BulkResultToast(message: $bulkResultMessage, isWarning: bulkResultIsWarning)
         }
+        .animation(.easeInOut(duration: 0.2), value: selection.count >= 2)
+    }
+
+    private var selectedTasksFromModel: [TaskMirror] {
+        // Resolve to live mirror rows so the bar's enable/disable state (e.g.,
+        // "Star" vs "Unstar") reflects up-to-date task state, including any
+        // optimistic changes from an in-flight bulk batch.
+        selection.compactMap { model.task(id: $0) }
+    }
+
+    private func handleBulkResult(_ result: BulkTaskExecutionResult) {
+        if result.nothingToDo {
+            bulkResultIsWarning = false
+            bulkResultMessage = "Nothing to do — all selected tasks were already in the requested state."
+            return
+        }
+        if result.allSucceeded {
+            var parts = ["\(result.succeeded) task\(result.succeeded == 1 ? "" : "s") updated."]
+            if result.droppedAsNoOp > 0 {
+                parts.append("\(result.droppedAsNoOp) skipped as no-op.")
+            }
+            bulkResultIsWarning = false
+            bulkResultMessage = parts.joined(separator: " ")
+            return
+        }
+        var parts = ["\(result.succeeded) updated, \(result.failedCount) failed"]
+        if result.droppedAsNoOp > 0 {
+            parts.append("\(result.droppedAsNoOp) skipped as no-op")
+        }
+        if let first = result.failures.first {
+            parts.append("first failure — \(first.operation.summary): \(first.message)")
+        }
+        bulkResultIsWarning = true
+        bulkResultMessage = parts.joined(separator: " · ")
     }
 
     @ViewBuilder
