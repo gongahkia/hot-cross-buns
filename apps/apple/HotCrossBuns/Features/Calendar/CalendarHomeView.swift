@@ -196,6 +196,7 @@ struct CalendarHomeView: View {
         Task {
             var imported = 0
             var failed = 0
+            var duplicates = 0
             for provider in providers {
                 guard let url = await loadFileURL(from: provider) else { continue }
                 guard url.pathExtension.lowercased() == "ics" else { continue }
@@ -205,6 +206,10 @@ struct CalendarHomeView: View {
                 }
                 let drafts = ICSImporter.parse(contents)
                 for draft in drafts {
+                    if isDuplicateOfExistingEvent(draft, targetCalendarID: calendarID) {
+                        duplicates += 1
+                        continue
+                    }
                     let didCreate = await model.createEvent(
                         summary: draft.summary,
                         details: draft.description,
@@ -219,15 +224,44 @@ struct CalendarHomeView: View {
                     if didCreate { imported += 1 } else { failed += 1 }
                 }
             }
-            if imported == 0 && failed == 0 {
+            var parts: [String] = []
+            if imported > 0 {
+                parts.append("Imported \(imported) event\(imported == 1 ? "" : "s")")
+            }
+            if duplicates > 0 {
+                parts.append("skipped \(duplicates) duplicate\(duplicates == 1 ? "" : "s")")
+            }
+            if failed > 0 {
+                parts.append("\(failed) failed")
+            }
+            if parts.isEmpty {
                 importResultMessage = "No events found in the dropped files."
-            } else if failed == 0 {
-                importResultMessage = "Imported \(imported) event\(imported == 1 ? "" : "s")."
             } else {
-                importResultMessage = "Imported \(imported), failed \(failed)."
+                importResultMessage = parts.joined(separator: ", ") + "."
             }
         }
         return true
+    }
+
+    // Dropping the same .ics twice (the user re-exports weekly and
+    // drags the file for a backup, then drags again for another backup)
+    // would otherwise produce exact duplicates in Google Calendar —
+    // there's no canonical ID to key on since Google assigns a fresh
+    // one per insertEvent. Match against existing events by summary,
+    // start time within a minute, and isAllDay alignment in the
+    // destination calendar.
+    private func isDuplicateOfExistingEvent(
+        _ draft: ICSEventDraft,
+        targetCalendarID: CalendarListMirror.ID
+    ) -> Bool {
+        let tolerance: TimeInterval = 60
+        return model.events.contains { existing in
+            guard existing.calendarID == targetCalendarID else { return false }
+            guard existing.status != .cancelled else { return false }
+            guard existing.isAllDay == draft.isAllDay else { return false }
+            guard existing.summary.caseInsensitiveCompare(draft.summary) == .orderedSame else { return false }
+            return abs(existing.startDate.timeIntervalSince(draft.startDate)) < tolerance
+        }
     }
 
     private func loadFileURL(from provider: NSItemProvider) async -> URL? {
