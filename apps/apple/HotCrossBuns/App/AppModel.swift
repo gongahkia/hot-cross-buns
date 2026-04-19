@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import AppKit
 
 @MainActor
 @Observable
@@ -1346,6 +1347,70 @@ final class AppModel {
         guard next != settings.hiddenCalendarViewModes else { return }
         settings.hiddenCalendarViewModes = next
         Task { await saveCurrentState() }
+    }
+
+    // §6.13 — Task templates. Stored locally only; never written to Google.
+    func upsertTaskTemplate(_ template: TaskTemplate) {
+        if let index = settings.taskTemplates.firstIndex(where: { $0.id == template.id }) {
+            settings.taskTemplates[index] = template
+        } else {
+            settings.taskTemplates.append(template)
+        }
+        Task { await saveCurrentState() }
+    }
+
+    func deleteTaskTemplate(_ id: UUID) {
+        settings.taskTemplates.removeAll { $0.id == id }
+        Task { await saveCurrentState() }
+    }
+
+    // Instantiates a task template: expands every field with the given
+    // variable context, then creates a real Google Task via the existing
+    // createTask path. Returns true on success. `prompts` maps the label of
+    // each {{prompt:Label}} placeholder to the user's typed answer.
+    @discardableResult
+    func instantiateTaskTemplate(_ template: TaskTemplate, prompts: [String: String] = [:]) async -> Bool {
+        let ctx = HCBTemplateContext(
+            now: Date(),
+            calendar: .current,
+            clipboard: NSPasteboard.general.string(forType: .string),
+            prompts: prompts
+        )
+        let title = HCBTemplateExpander.expand(template.title, context: ctx)
+            .replacingOccurrences(of: HCBTemplateExpander.cursorSentinel, with: "")
+        let notes = HCBTemplateExpander.expand(template.notes, context: ctx)
+            .replacingOccurrences(of: HCBTemplateExpander.cursorSentinel, with: "")
+        let dueString = HCBTemplateExpander.expand(template.due, context: ctx)
+            .replacingOccurrences(of: HCBTemplateExpander.cursorSentinel, with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let listRef = HCBTemplateExpander.expand(template.listIdOrTitle, context: ctx)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let dueDate: Date? = {
+            guard dueString.isEmpty == false else { return nil }
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.dateFormat = "yyyy-MM-dd"
+            return f.date(from: dueString).map { Calendar.current.startOfDay(for: $0) }
+        }()
+
+        let resolvedListID: String? = {
+            if listRef.isEmpty { return taskLists.first?.id }
+            if let exact = taskLists.first(where: { $0.id == listRef }) { return exact.id }
+            return taskLists.first(where: { $0.title.localizedCaseInsensitiveCompare(listRef) == .orderedSame })?.id
+        }()
+
+        guard let listID = resolvedListID else {
+            lastMutationError = "No task list available for template '\(template.name)'."
+            return false
+        }
+
+        return await createTask(
+            title: title,
+            notes: notes,
+            dueDate: dueDate,
+            taskListID: listID
+        )
     }
 
     // §6.12 — Cache encryption lifecycle. Enabling derives a key from the

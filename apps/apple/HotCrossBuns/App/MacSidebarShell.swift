@@ -55,6 +55,7 @@ struct MacSidebarShell: View {
     @State private var isPresentingCommandPalette = false
     @State private var isPresentingQuickSwitcher = false
     @State private var isPresentingHelp = false
+    @State private var isPresentingInsertTemplate = false
     @State private var appCommandActions = AppCommandActions()
     @State private var appShortcutMonitor: Any?
     @State private var deepLinkErrorMessage: String?
@@ -114,6 +115,11 @@ struct MacSidebarShell: View {
             }
             .sheet(isPresented: $isPresentingQuickSwitcher) {
                 QuickSwitcherView(onSelect: routeQuickSwitcherEntity)
+                    .environment(model)
+                    .withHCBAppearance(model.settings)
+            }
+            .sheet(isPresented: $isPresentingInsertTemplate) {
+                InsertTaskTemplateSheet()
                     .environment(model)
                     .withHCBAppearance(model.settings)
             }
@@ -761,6 +767,16 @@ struct MacSidebarShell: View {
                 keywords: ["settings", "preferences", "appearance", "font", "theme"]
             ) {
                 selection = .settings
+            },
+            CommandPaletteCommand(
+                id: "insert-task-template",
+                title: "Insert Task Template…",
+                subtitle: "Pre-fill a task from a saved template",
+                symbol: "doc.text",
+                shortcut: "",
+                keywords: ["template", "insert", "snippet", "prefill"]
+            ) {
+                isPresentingInsertTemplate = true
             },
             CommandPaletteCommand(
                 id: "open-quick-switcher",

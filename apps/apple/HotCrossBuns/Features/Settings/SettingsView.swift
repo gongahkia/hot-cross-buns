@@ -114,6 +114,8 @@ struct SettingsView: View {
 
             CustomFiltersSection()
 
+            TemplatesSection()
+
             Section("Task lists") {
                 if model.taskLists.isEmpty {
                     Text("Refresh after connecting Google to load task lists.")
