@@ -255,10 +255,10 @@ struct MacSidebarShell: View {
         switch entity {
         case .task(let task):
             selection = .store
-            tabRouter.router(for: sidebarItemKey(.store)).navigate(to: .task(task.id))
+            tabRouter.router(for: sidebarItemKey(.store)).present(.editTask(task.id))
         case .event(let event):
             selection = .calendar
-            tabRouter.router(for: sidebarItemKey(.calendar)).navigate(to: .event(event.id))
+            tabRouter.router(for: sidebarItemKey(.calendar)).present(.editEvent(event.id))
         case .taskList:
             // No single-list scope exists in StoreView today — land the user
             // in Store with the "Lists" management view selected so they can
@@ -287,10 +287,10 @@ struct MacSidebarShell: View {
         switch action {
         case .openTask(let id):
             selection = .store
-            tabRouter.router(for: sidebarItemKey(.store)).navigate(to: .task(id))
+            tabRouter.router(for: sidebarItemKey(.store)).present(.editTask(id))
         case .openEvent(let id):
             selection = .calendar
-            tabRouter.router(for: sidebarItemKey(.calendar)).navigate(to: .event(id))
+            tabRouter.router(for: sidebarItemKey(.calendar)).present(.editEvent(id))
         case .newTask(let prefill):
             // Stage the prefill before presenting — AddTaskSheet reads model
             // state on .task and nils the prefill once consumed.
@@ -314,10 +314,10 @@ struct MacSidebarShell: View {
         switch identifier {
         case .task(let id):
             selection = .store
-            tabRouter.router(for: sidebarItemKey(.store)).navigate(to: .task(id))
+            tabRouter.router(for: sidebarItemKey(.store)).present(.editTask(id))
         case .event(let id):
             selection = .calendar
-            tabRouter.router(for: sidebarItemKey(.calendar)).navigate(to: .event(id))
+            tabRouter.router(for: sidebarItemKey(.calendar)).present(.editEvent(id))
         }
     }
 
