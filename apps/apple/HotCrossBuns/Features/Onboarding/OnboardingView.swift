@@ -1,28 +1,37 @@
 import SwiftUI
+import AppKit
+
+private enum OnboardingStage {
+    case introWelcome
+    case introDetails
+    case setup
+}
 
 struct OnboardingView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
-    @State private var hasSeenIntro = false
+    @State private var stage: OnboardingStage = .introWelcome
 
     var body: some View {
         NavigationStack {
             Group {
-                if hasSeenIntro {
+                switch stage {
+                case .introWelcome:
+                    IntroWelcomeView(
+                        onContinue: { stage = .introDetails },
+                        onLater: finish
+                    )
+                case .introDetails:
+                    IntroDetailsView(
+                        onContinue: { stage = .setup },
+                        onLater: finish
+                    )
+                case .setup:
                     setupBody
-                } else {
-                    IntroView(onContinue: { hasSeenIntro = true }, onSkip: finish)
                 }
             }
             .appBackground()
-            .navigationTitle(hasSeenIntro ? "Set Up" : "Welcome")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Later") {
-                        finish()
-                    }
-                }
-            }
+            .navigationTitle(stage == .setup ? "Set Up" : "Welcome")
         }
         .interactiveDismissDisabled(model.settings.hasCompletedOnboarding == false)
     }
@@ -46,9 +55,69 @@ struct OnboardingView: View {
     }
 }
 
-private struct IntroView: View {
+private struct IntroWelcomeView: View {
     let onContinue: () -> Void
-    let onSkip: () -> Void
+    let onLater: () -> Void
+
+    private var heroImage: NSImage? {
+        guard let url = Bundle.main.url(
+            forResource: "buns-welcomepage",
+            withExtension: "webp",
+            subdirectory: "Onboarding"
+        ) else {
+            return nil
+        }
+        return NSImage(contentsOf: url)
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 28) {
+                Text("Welcome to Hot Cross Buns")
+                    .font(.system(.largeTitle, design: .serif, weight: .bold))
+                    .foregroundStyle(AppColor.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Group {
+                    if let heroImage {
+                        Image(nsImage: heroImage)
+                            .resizable()
+                            .scaledToFit()
+                    } else {
+                        Image(systemName: "photo")
+                            .resizable()
+                            .scaledToFit()
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .hcbScaledFrame(maxWidth: 520)
+                .frame(maxWidth: .infinity)
+
+                HStack {
+                    Button("Later", action: onLater)
+                        .buttonStyle(.borderless)
+                    Spacer()
+                    Button {
+                        onContinue()
+                    } label: {
+                        Label("Continue", systemImage: "arrow.right")
+                            .hcbScaledFrame(minWidth: 120)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AppColor.ember)
+                    .keyboardShortcut(.defaultAction)
+                }
+            }
+            .hcbScaledPadding(28)
+            .cardSurface(cornerRadius: 32)
+            .hcbScaledPadding(20)
+        }
+    }
+}
+
+private struct IntroDetailsView: View {
+    let onContinue: () -> Void
+    let onLater: () -> Void
 
     var body: some View {
         ScrollView {
@@ -81,7 +150,7 @@ private struct IntroView: View {
                 }
 
                 HStack {
-                    Button("Skip intro", action: onSkip)
+                    Button("Later", action: onLater)
                         .buttonStyle(.borderless)
                     Spacer()
                     Button {
