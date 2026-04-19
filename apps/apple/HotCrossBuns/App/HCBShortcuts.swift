@@ -304,6 +304,22 @@ func hcbEffectiveBinding(
     overrides[command.rawValue] ?? command.defaultBinding
 }
 
+// Returns the commands that would collide with `proposed` if bound to
+// `command`. Used by the Settings recorder to reject duplicates before
+// persisting them. Excludes `command` itself from the collision check so
+// re-binding to the same value (or to its existing default) is a no-op.
+@MainActor
+func hcbConflictingCommands(
+    proposed: HCBKeyBinding,
+    for command: HCBShortcutCommand,
+    overrides: [String: HCBKeyBinding]
+) -> [HCBShortcutCommand] {
+    HCBShortcutCommand.allCases.filter { other in
+        other != command
+            && hcbEffectiveBinding(other, overrides: overrides) == proposed
+    }
+}
+
 extension View {
     // Apply a rebindable keyboard shortcut. Reads overrides from the env
     // and falls back to the command's default binding. Must be applied to
