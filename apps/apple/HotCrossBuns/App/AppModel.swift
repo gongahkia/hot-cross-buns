@@ -16,6 +16,7 @@ final class AppModel {
     private(set) var authState: AuthState = .signedOut
     private(set) var syncState: SyncState = .idle
     private(set) var isMutating: Bool = false
+    private var isReplayingMutations: Bool = false
     private(set) var lastMutationError: String?
     private(set) var taskLists: [TaskListMirror] = []
     private(set) var tasks: [TaskMirror] = []
@@ -859,6 +860,14 @@ final class AppModel {
     func replayPendingMutations() async {
         guard account != nil else { return }
         guard pendingMutations.isEmpty == false else { return }
+        // Serialise replay loops: `createTask` / `createEvent` spawn detached
+        // `Task { replayPendingMutations() }` calls and `refreshNow` also
+        // calls us. Without this flag two loops can pass each mutation's
+        // "still queued" guard simultaneously and both fire insertTask,
+        // creating a duplicate on Google.
+        guard isReplayingMutations == false else { return }
+        isReplayingMutations = true
+        defer { isReplayingMutations = false }
 
         let snapshot = pendingMutations
         for mutation in snapshot {
