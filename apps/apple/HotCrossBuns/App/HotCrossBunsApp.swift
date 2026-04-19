@@ -8,9 +8,11 @@ struct HotCrossBunsApp: App {
     @State private var settingsRouter = RouterPath()
 
     init() {
-        // Catch uncaught Obj-C exceptions and common fatal signals so a
-        // subsequent launch can surface the crash via DiagnosticsView.
         CrashReporter.install()
+        AppLogger.info("app launch", category: .misc, metadata: [
+            "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?",
+            "build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        ])
     }
 
     var body: some Scene {

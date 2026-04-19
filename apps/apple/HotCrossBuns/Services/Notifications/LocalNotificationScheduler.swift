@@ -73,8 +73,25 @@ actor LocalNotificationScheduler {
         let remainingSlots = max(0, Self.pendingRequestLimit - eventSlice.count)
         let taskSlice = Array(taskNotifications.prefix(remainingSlots))
 
+        var failedCount = 0
         for notification in eventSlice + taskSlice {
-            try? await add(notification.request)
+            do {
+                try await add(notification.request)
+            } catch {
+                failedCount += 1
+                AppLogger.warn("notification add failed", category: .notifications, metadata: [
+                    "identifier": notification.request.identifier,
+                    "error": String(describing: error)
+                ])
+            }
+        }
+        if failedCount > 0 {
+            AppLogger.warn("notifications partial failure", category: .notifications, metadata: ["failed": String(failedCount)])
+        } else if eventSlice.isEmpty == false || taskSlice.isEmpty == false {
+            AppLogger.info("notifications scheduled", category: .notifications, metadata: [
+                "events": String(eventSlice.count),
+                "tasks": String(taskSlice.count)
+            ])
         }
 
         lastSummary = NotificationScheduleSummary(

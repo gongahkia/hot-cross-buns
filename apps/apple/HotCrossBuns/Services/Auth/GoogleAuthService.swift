@@ -22,45 +22,68 @@ final class GoogleAuthService {
 
     func restorePreviousSignIn() async throws -> GoogleAccount? {
         guard isConfigured else {
+            AppLogger.warn("restore skipped: OAuth not configured", category: .auth)
             return nil
         }
 
         guard GIDSignIn.sharedInstance.hasPreviousSignIn() else {
+            AppLogger.info("restore: no previous session", category: .auth)
             return nil
         }
 
-        let user = try await GIDSignIn.sharedInstance.restorePreviousSignIn()
-        // Verify Tasks + Calendar scopes are still granted. If the user
-        // revoked them from myaccount.google.com between sessions the restore
-        // would otherwise succeed silently and every subsequent API call
-        // would 403. Returning nil here surfaces the "Connect Google" CTA.
-        let missingScopes = requiredScopes.filter { scope in
-            user.grantedScopes?.contains(scope) != true
+        do {
+            let user = try await GIDSignIn.sharedInstance.restorePreviousSignIn()
+            let missingScopes = requiredScopes.filter { scope in
+                user.grantedScopes?.contains(scope) != true
+            }
+            guard missingScopes.isEmpty else {
+                AppLogger.warn("restore: scopes revoked, forcing sign-out", category: .auth, metadata: ["missing": missingScopes.count.description])
+                GIDSignIn.sharedInstance.signOut()
+                return nil
+            }
+            let acc = try account(from: user)
+            AppLogger.info("restore: success", category: .auth, metadata: ["email": Self.redact(acc.email)])
+            return acc
+        } catch {
+            AppLogger.error("restore failed", category: .auth, metadata: ["error": String(describing: error)])
+            throw error
         }
-        guard missingScopes.isEmpty else {
-            GIDSignIn.sharedInstance.signOut()
-            return nil
-        }
-        return try account(from: user)
+    }
+
+    private static func redact(_ email: String) -> String {
+        guard let at = email.firstIndex(of: "@") else { return "<redacted>" }
+        let local = email[..<at]
+        let domain = email[email.index(after: at)...]
+        let prefix = local.prefix(2)
+        return "\(prefix)***@\(domain)"
     }
 
     func signIn() async throws -> GoogleAccount {
         guard isConfigured else {
+            AppLogger.error("signIn: OAuth not configured", category: .auth)
             throw GoogleAuthError.notConfigured
         }
 
         if let currentUser = GIDSignIn.sharedInstance.currentUser {
+            AppLogger.info("signIn: reusing current user", category: .auth)
             return try await accountWithRequiredScopes(for: currentUser)
         }
 
+        AppLogger.info("signIn: presenting Google sheet", category: .auth)
         let anchor = try currentPresentationAnchor()
-        let result = try await GIDSignIn.sharedInstance.signIn(
-            withPresenting: anchor,
-            hint: nil,
-            additionalScopes: requiredScopes
-        )
-
-        return try account(from: result.user)
+        do {
+            let result = try await GIDSignIn.sharedInstance.signIn(
+                withPresenting: anchor,
+                hint: nil,
+                additionalScopes: requiredScopes
+            )
+            let acc = try account(from: result.user)
+            AppLogger.info("signIn: success", category: .auth, metadata: ["email": Self.redact(acc.email)])
+            return acc
+        } catch {
+            AppLogger.error("signIn failed", category: .auth, metadata: ["error": String(describing: error)])
+            throw error
+        }
     }
 
     func signOut() {
@@ -190,6 +213,7 @@ struct GoogleSignInAccessTokenProvider: AccessTokenProviding {
     @MainActor
     func accessToken() async throws -> String {
         guard let user = GIDSignIn.sharedInstance.currentUser else {
+            AppLogger.warn("accessToken: no current user", category: .auth)
             throw GoogleTokenRefreshError.noCurrentUser
         }
 
@@ -197,6 +221,7 @@ struct GoogleSignInAccessTokenProvider: AccessTokenProviding {
             let refreshedUser = try await user.refreshTokensIfNeeded()
             return refreshedUser.accessToken.tokenString
         } catch {
+            AppLogger.error("token refresh failed", category: .auth, metadata: ["error": String(describing: error)])
             throw GoogleTokenRefreshError.refreshFailed(error)
         }
     }

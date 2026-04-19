@@ -175,15 +175,19 @@ final class AppModel {
         }
 
         if isMutating {
+            AppLogger.debug("refresh skipped: mutation in flight", category: .sync)
             return .skipped // defer refresh until mutation settles to avoid state races
         }
 
         guard account != nil else {
+            AppLogger.warn("refresh skipped: no account", category: .sync)
             syncState = .failed(message: "Connect Google before syncing.")
             return .skipped
         }
 
-        syncState = .syncing(startedAt: Date())
+        let started = Date()
+        AppLogger.info("refresh start", category: .sync, metadata: ["mode": settings.syncMode.rawValue])
+        syncState = .syncing(startedAt: started)
         await replayPendingMutations()
         do {
             let syncedState = try await syncScheduler.syncNow(
@@ -196,24 +200,27 @@ final class AppModel {
             isSyncPaused = false
             await saveCurrentState()
             await synchronizeLocalNotifications()
+            let duration = Int(Date().timeIntervalSince(started) * 1000)
+            AppLogger.info("refresh succeeded", category: .sync, metadata: [
+                "ms": String(duration),
+                "tasks": String(tasks.count),
+                "events": String(events.count)
+            ])
             return .succeeded
         } catch {
-            // A 401/403 from Google usually means the user revoked the Tasks
-            // or Calendar scope (via myaccount.google.com, by changing their
-            // Google password, etc.). Promote the authState so the reconnect
-            // CTA is visible; otherwise the user is stuck in a loop of "Sync
-            // needs attention" banners with no path forward.
-            if case let GoogleAPIError.httpStatus(status, _) = error, status == 401 || status == 403 {
-                authState = .failed(error.localizedDescription)
+            var httpStatus: String? = nil
+            if case let GoogleAPIError.httpStatus(status, _) = error {
+                httpStatus = String(status)
+                if status == 401 || status == 403 {
+                    authState = .failed(error.localizedDescription)
+                }
             }
-            // Token-refresh failures (expired refresh token, revoked app
-            // permissions, Keychain wiped) never reach the server — the
-            // request is never made. GIDSignIn surfaces these as throws
-            // from refreshTokensIfNeeded. Route through the reconnect CTA
-            // too.
             if let tokenError = error as? GoogleTokenRefreshError, tokenError.requiresReconnect {
                 authState = .failed(tokenError.localizedDescription ?? "Reconnect Google to continue.")
             }
+            var meta: [String: String] = ["error": String(describing: error)]
+            if let httpStatus { meta["status"] = httpStatus }
+            AppLogger.error("refresh failed", category: .sync, metadata: meta)
             syncState = .failed(message: error.localizedDescription)
             return .failed(error)
         }
@@ -1284,6 +1291,7 @@ final class AppModel {
     func replayPendingMutations() async {
         guard account != nil else { return }
         guard pendingMutations.isEmpty == false else { return }
+        AppLogger.info("replay start", category: .replay, metadata: ["queued": String(pendingMutations.count)])
         // Serialise replay loops: `createTask` / `createEvent` spawn detached
         // `Task { replayPendingMutations() }` calls and `refreshNow` also
         // calls us. Without this flag two loops can pass each mutation's
@@ -1589,6 +1597,11 @@ final class AppModel {
         mutationCount = max(0, mutationCount - 1)
         if let error {
             lastMutationError = error.localizedDescription
+            var meta: [String: String] = ["error": String(describing: error)]
+            if case let GoogleAPIError.httpStatus(status, _) = error {
+                meta["status"] = String(status)
+            }
+            AppLogger.warn("mutation failed", category: .mutation, metadata: meta)
         }
     }
 
