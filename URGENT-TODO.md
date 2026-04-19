@@ -82,32 +82,15 @@ Dogfood with a real account for at least one workday on macOS. Smoke checklist:
 
 ## 6. Next in-repo feature work
 
-Tiers 1, 2, and 3 are complete (observability, fault tolerance, and UX polish shipped through commit eaf663c). Tier 4 (net-new product features) remains.
+Tiers 1, 2, 3, and 4 are all complete. Tier 1/2 observability + fault tolerance shipped in e2b7edc → a2d2a8a; Tier 3 UX polish shipped through eaf663c; Tier 4 net-new product features shipped through 216581f.
 
-Residual Tier 3 carve-outs — small items deliberately deferred rather than solved because each would expand scope:
+Nothing scheduled in this section. Next-up work lives in §5 (live QA) and §7 (deferred roadmap). When picking up from here, prefer to resolve items in §5 or §8 before adding new feature scope.
 
-- `⌘F` to focus the Calendar in-grid search / the Store filter field. `.searchable` already wires ⌘F natively for Store's sidebar search; Calendar's `CalendarSearchField` in the toolbar needs an explicit `.searchable` adoption to pick up the system shortcut.
-- `⇧⌘G` go-to-date picker in Calendar. Requires a new modal sheet + wiring; tracked as Tier 4 item 10.
-- `⌘\` task drawer toggle alternate binding (Cmd+J already works). Skipped — redundant with existing shortcut.
+Carve-outs that were explicitly deferred rather than implemented:
 
-### Tier 4 — net-new product features
-
-Not required for daily-driver use, but each elevates the product above MVP. Pick à la carte.
-
-1. **Natural-language in event creation.** We already parse "tmr 9am" / "#list" for tasks in `NaturalLanguageTaskParser`. Extend to events: `AddEventSheet` gains a top-level "Quick create" text field that parses "lunch with Bob tomorrow 1pm at Philz" into summary + start + end + location. Power-user entry path for events.
-2. **Task snooze.** Right-click / context-menu entry in `StoreView` rows: "Snooze to tomorrow", "Snooze to next week", "Snooze until…". Updates `dueDate` without mutating other fields. Saves a lot of clicks vs opening the inspector.
-3. **Day view mode in Calendar.** Agenda / Week / Month exists; a single-day hour-grid mode with the day's events full-width plus the day's tasks in a right panel. Fills the gap between Agenda (list-only) and Week (7-day grid).
-4. **Event duplicate-with-offset.** `duplicateEvent` exists; add a submenu "Duplicate to next week / next month / +N days" that clones the event and shifts the dates. Useful for repeating monthly-ish events that don't fit an RRULE.
-5. **Quick-peek previews.** Hover over a task row in `StoreView` or an event tile in the grid → popover showing details without navigating. Similar to macOS QuickLook's spacebar gesture.
-6. **Event templates.** "Save as template" on any event → a named blueprint (summary, duration, reminders, attendees, description, colour). "New from template" picks one and opens `AddEventSheet` pre-filled. Power user time-blocking ergonomics.
-7. **Multi-select in Calendar.** Cmd-click events in Week / Month → toolbar actions: delete all, move to calendar, shift by offset. Mirror of the bulk-select work we did for Store.
-8. **Task dependencies (blocks / blocked-by).** Encode via a dedicated private extended-property on the task notes block (since Google Tasks has no native dependency field). "Blocked" tasks show greyed-out in Store until their blocker is completed. Requires UX design for the link affordance.
-9. **Recurring tasks (not just events).** Google Tasks API doesn't natively support recurrence the way Calendar does; we'd emulate it client-side: on complete, re-create with advanced dueDate (we partially do this already via `TaskRecurrenceMarkers`). Surface as a first-class "Repeat" control in `AddTaskSheet` / `EditTaskSheet`.
-10. **Go-to-date.** `⇧⌘G` opens a date picker modal; calendar jumps to that date and Store's "Due Today" filter pivots to that date. Useful for scanning a specific upcoming day.
-11. **Subtask drag-reorder.** Task hierarchy supports subtasks but reordering them requires the indent / outdent keyboard shortcut. Add drag-to-reorder within a parent's children, within a list.
-12. **Week-at-a-glance summary in menu bar extra.** Current menu bar extra shows today. A new mode shows a compact 7-day forecast with events-per-day counts. Configurable toggle.
-13. **Apple Reminders import.** One-time migration button in Settings: read the user's Reminders app lists (requires EventKit permission), import each as a task list + tasks. One-shot, no ongoing sync.
-14. **ICS export per selection.** `Exporters.swift` has `EventMarkdownExporter`; add `EventICSExporter` that emits an `.ics` file for a single event, a day, or a week. Drag-out target on event tiles.
+- **`⌘\` task drawer alternate binding.** Skipped — `⌘J` already handles the same action, adding `⌘\` as a second shortcut is redundant.
+- **Drag-out event tile to Finder.** Spec mentioned this under Tier 4 #14; we shipped a "Export .ics…" right-click entry instead, because combining `.draggable(DraggedEvent)` with a separate file-drag exports conflicted with the existing reschedule-drag gesture. Worth revisiting with a modifier-key gate if users ask.
+- **Cross-calendar series-split.** See §7 "This and following" — scope too big to fold into Tier 4.
 
 ## 7. Deferred roadmap
 
