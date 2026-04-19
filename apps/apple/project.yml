@@ -4,6 +4,9 @@ options:
   deploymentTarget:
     macOS: "14.0"
   createIntermediateGroups: true
+configFiles:
+  Debug: Configuration/GoogleOAuth.local.xcconfig
+  Release: Configuration/GoogleOAuth.local.xcconfig
 settings:
   base:
     SWIFT_VERSION: "5.9"
@@ -14,8 +17,6 @@ settings:
     ENABLE_HARDENED_RUNTIME: YES
     ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
     ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-    GOOGLE_MACOS_CLIENT_ID: ""
-    GOOGLE_MACOS_REVERSED_CLIENT_ID: ""
 packages:
   GoogleSignIn:
     url: https://github.com/google/GoogleSignIn-iOS
