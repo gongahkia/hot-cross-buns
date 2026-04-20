@@ -3,7 +3,6 @@ import SwiftUI
 enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
     case calendar
     case store
-    case settings
 
     var id: String { rawValue }
 
@@ -11,7 +10,6 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .calendar: "Calendar"
         case .store: "Store"
-        case .settings: "Settings"
         }
     }
 
@@ -19,7 +17,6 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .calendar: "calendar"
         case .store: "brain.head.profile" // covers tasks + notes
-        case .settings: "gearshape"
         }
     }
 
@@ -27,16 +24,14 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .calendar: "1"
         case .store: "2"
-        case .settings: nil
         }
     }
 
-    // Settings stays always visible so the user can always reach the Layout
-    // section to unhide other tabs. Calendar and Store are user-hideable.
+    // Both tabs are user-hideable. At least one must remain visible; the
+    // toggle in Layout settings enforces that invariant.
     var isHideable: Bool {
         switch self {
         case .calendar, .store: true
-        case .settings: false
         }
     }
 
@@ -48,19 +43,15 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
             CalendarHomeView()
         case .store:
             StoreView()
-        case .settings:
-            SettingsView()
         }
     }
 }
 
 extension Notification.Name {
     // Posted when any part of the app wants to switch the sidebar to the
-    // Settings tab (e.g., the "Open Settings" button in Calendar's empty
-    // state). MacSidebarShell observes this and updates selection.
-    static let hcbOpenSettingsTab = Notification.Name("hcb.open.settings.tab")
-    // Posted by the menu-bar extra when a pinned-filter row is clicked;
-    // MacSidebarShell switches to Store. The caller is responsible for
-    // staging pendingStoreFilterKey on AppModel before posting.
+    // Store tab. MacSidebarShell observes this and updates selection.
     static let hcbOpenStoreTab = Notification.Name("hcb.open.store.tab")
+    // Posted by the "Settings…" menu command + ⌘,; AppDelegate opens the
+    // detached Settings window in response.
+    static let hcbOpenSettingsWindow = Notification.Name("hcb.open.settings.window")
 }

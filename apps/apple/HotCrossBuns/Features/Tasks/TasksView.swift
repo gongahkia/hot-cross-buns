@@ -97,6 +97,22 @@ struct AddTaskSheet: View {
                     .disabled(isSaving)
                 }
 
+                // Delete on the view-only pass sits alongside Cancel / Edit so
+                // users can remove a task without going through the edit
+                // overflow menu. Tap routes through the existing confirmation
+                // dialog so the destructive action stays behind a deliberate
+                // second click.
+                if editingTask != nil, isEditing == false {
+                    ToolbarItem(placement: .destructiveAction) {
+                        Button(role: .destructive) {
+                            isConfirmingDelete = true
+                        } label: {
+                            Text("Delete")
+                        }
+                        .disabled(isSaving)
+                    }
+                }
+
                 ToolbarItem(placement: .confirmationAction) {
                     if editingTask != nil, isEditing == false {
                         Button("Edit") {
@@ -398,7 +414,7 @@ struct AddTaskSheet: View {
 
     private var readNotesCard: some View {
         readCard("Notes") {
-            Text.markdown(notes)
+            MarkdownBlock(source: notes)
                 .hcbFont(.body)
                 .foregroundStyle(AppColor.ink)
                 .textSelection(.enabled)

@@ -37,6 +37,29 @@ struct GoogleAPITransport: Sendable {
         try await request(path: path, queryItems: queryItems, decoder: decoder)
     }
 
+    // §14 — GET variant that also returns the server's Date header. Used by
+    // the Tasks client to derive an incremental-sync watermark from Google's
+    // clock rather than the local one, eliminating the 300s drift slack.
+    // Returns nil for `serverDate` when the header is missing or malformed
+    // so callers can fall back safely.
+    func getWithServerDate<Response: Decodable & Sendable>(
+        path: String,
+        queryItems: [URLQueryItem] = [],
+        decoder: JSONDecoder = .googleAPI
+    ) async throws -> (Response, Date?) {
+        var request = try await makeRequest(method: "GET", path: path, queryItems: queryItems, ifMatch: nil)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await urlSession.data(for: request)
+        try validate(response: response, data: data)
+        let decoded = try decoder.decode(Response.self, from: data)
+        let serverDate: Date? = {
+            guard let http = response as? HTTPURLResponse,
+                  let header = http.value(forHTTPHeaderField: "Date") else { return nil }
+            return HTTPDateParser.parse(header)
+        }()
+        return (decoded, serverDate)
+    }
+
     func request<Response: Decodable & Sendable, Body: Encodable & Sendable>(
         method: String = "GET",
         path: String,
@@ -213,6 +236,39 @@ extension JSONEncoder {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         return encoder
+    }
+}
+
+// Parses the HTTP `Date` response header. RFC 7231 requires IMF-fixdate
+// (RFC 1123), but some intermediaries still emit RFC 850 or asctime. We
+// accept all three to stay robust; the result is a UTC Date.
+enum HTTPDateParser {
+    private static let rfc1123: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        f.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+        return f
+    }()
+
+    private static let rfc850: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        f.dateFormat = "EEEE, dd-MMM-yy HH:mm:ss zzz"
+        return f
+    }()
+
+    private static let asctime: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        f.dateFormat = "EEE MMM d HH:mm:ss yyyy"
+        return f
+    }()
+
+    static func parse(_ s: String) -> Date? {
+        rfc1123.date(from: s) ?? rfc850.date(from: s) ?? asctime.date(from: s)
     }
 }
 

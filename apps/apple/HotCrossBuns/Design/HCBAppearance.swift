@@ -295,3 +295,38 @@ enum HCBInstalledFonts {
         return names.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
 }
+
+// §6.11: per-surface appearance override. Re-derives the ambient
+// hcbFontFamily / hcbTextSizePoints for a subtree so every nested
+// `.hcbFont(.role)` call site inherits the surface's family + size without
+// touching individual call sites. Unset fields on the override fall back to
+// the global Appearance values, so users only see overrides where they've
+// explicitly set one.
+extension View {
+    func hcbSurface(_ surface: HCBSurface) -> some View {
+        modifier(HCBSurfaceAppearanceModifier(surface: surface))
+    }
+}
+
+private struct HCBSurfaceAppearanceModifier: ViewModifier {
+    @Environment(AppModel.self) private var model
+    @Environment(\.hcbFontFamily) private var ambientFamily
+    @Environment(\.hcbTextSizePoints) private var ambientPoints
+    let surface: HCBSurface
+
+    func body(content: Content) -> some View {
+        let override = model.settings.perSurfaceFontOverrides[surface.rawValue] ?? .empty
+        // Family: surface override → ambient (global) → nil (system font).
+        let resolvedFamily: String? = {
+            if let name = override.fontName, name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                return name
+            }
+            return ambientFamily
+        }()
+        // Size: surface override clamped → ambient base points (already clamped upstream).
+        let resolvedPoints: Double = override.pointSize.map { HCBTextSize.clamp($0) } ?? ambientPoints
+        return content
+            .environment(\.hcbFontFamily, resolvedFamily)
+            .environment(\.hcbTextSizePoints, resolvedPoints)
+    }
+}

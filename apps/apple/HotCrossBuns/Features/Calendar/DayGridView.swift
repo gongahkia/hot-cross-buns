@@ -267,20 +267,23 @@ struct DayGridView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(dayTasks) { task in
-                            CalendarTaskPreviewButton(task: task) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                                        .foregroundStyle(task.isCompleted ? AppColor.moss : AppColor.ember)
-                                    Text(task.title)
-                                        .hcbFont(.subheadline)
-                                        .strikethrough(task.isCompleted)
-                                        .foregroundStyle(AppColor.ink)
-                                    Spacer(minLength: 0)
+                            HStack(spacing: 8) {
+                                CalendarTaskCheckbox(task: task, size: 15)
+                                CalendarTaskPreviewButton(task: task) {
+                                    HStack(spacing: 8) {
+                                        Text(task.title)
+                                            .hcbFont(.subheadline)
+                                            .strikethrough(task.isCompleted)
+                                            .foregroundStyle(AppColor.ink)
+                                        Spacer(minLength: 0)
+                                    }
+                                    .contentShape(Rectangle())
                                 }
-                                .hcbScaledPadding(8)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(AppColor.cream.opacity(0.4)))
                             }
+                            .hcbScaledPadding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(AppColor.cream.opacity(0.4)))
+                            .opacity(task.isCompleted ? 0.6 : 1.0)
                         }
                     }
                 }

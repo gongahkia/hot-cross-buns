@@ -8,15 +8,21 @@ struct WeekGridView: View {
     @Binding var anchorDate: Date
     var searchQuery: String = ""
     @Binding var selectedEventIDs: Set<String>
+    // §7.01 Phase D2 — multi-day variant. When non-nil, renders N consecutive
+    // days starting at `anchorDate` instead of the full calendar week. nil
+    // preserves the classic 7-day week-aligned layout.
+    var multiDayCount: Int? = nil
 
     init(
         anchorDate: Binding<Date>,
         searchQuery: String = "",
-        selectedEventIDs: Binding<Set<String>> = .constant([])
+        selectedEventIDs: Binding<Set<String>> = .constant([]),
+        multiDayCount: Int? = nil
     ) {
         _anchorDate = anchorDate
         self.searchQuery = searchQuery
         _selectedEventIDs = selectedEventIDs
+        self.multiDayCount = multiDayCount
     }
 
     private let hourHeight: CGFloat = 44
@@ -59,7 +65,11 @@ struct WeekGridView: View {
     }
 
     private var weekDays: [Date] {
-        CalendarGridLayout.weekDays(containing: anchorDate, calendar: calendar)
+        if let count = multiDayCount, count > 0 {
+            let start = calendar.startOfDay(for: anchorDate)
+            return (0..<count).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+        }
+        return CalendarGridLayout.weekDays(containing: anchorDate, calendar: calendar)
     }
 
     private var visibleEvents: [CalendarEventMirror] {
@@ -190,7 +200,7 @@ struct WeekGridView: View {
                 .hcbScaledFrame(width: 54, alignment: .trailing)
                 .hcbScaledPadding(.trailing, 6)
             GeometryReader { geo in
-                let columnWidth = geo.size.width / 7
+                let columnWidth = geo.size.width / CGFloat(max(weekDays.count, 1))
                 let laneHeight: CGFloat = 22
                 ZStack(alignment: .topLeading) {
                     Rectangle()
@@ -324,34 +334,34 @@ struct WeekGridView: View {
                         .hcbScaledFrame(width: 54, alignment: .trailing)
                         .hcbScaledPadding(.trailing, 6)
                     GeometryReader { geo in
-                        let columnWidth = geo.size.width / 7
+                        let columnWidth = geo.size.width / CGFloat(max(weekDays.count, 1))
                         ZStack(alignment: .topLeading) {
                             ForEach(Array(weekDays.enumerated()), id: \.offset) { idx, day in
                                 VStack(alignment: .leading, spacing: 2) {
                                     ForEach((tasksByDay[calendar.startOfDay(for: day)] ?? []).prefix(3)) { task in
-                                        CalendarTaskPreviewButton(task: task) {
-                                            HStack(spacing: 4) {
-                                                Image(systemName: "circle")
-                                                    .hcbFontSystem(size: 8)
-                                                    .foregroundStyle(AppColor.ember)
-                                                    .accessibilityHidden(true)
+                                        HStack(spacing: 4) {
+                                            CalendarTaskCheckbox(task: task, size: 10)
+                                            CalendarTaskPreviewButton(task: task) {
                                                 Text(task.title)
                                                     .hcbFont(.caption)
                                                     .lineLimit(1)
+                                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                                    .contentShape(Rectangle())
                                             }
-                                            .hcbScaledPadding(.horizontal, 6)
-                                            .hcbScaledPadding(.vertical, 3)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                            .background(
-                                                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                                    .fill(AppColor.ember.opacity(0.15))
-                                            )
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                                    .strokeBorder(AppColor.ember.opacity(0.35), lineWidth: 0.8)
-                                            )
-                                            .foregroundStyle(AppColor.ink)
                                         }
+                                        .hcbScaledPadding(.horizontal, 6)
+                                        .hcbScaledPadding(.vertical, 3)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                                .fill(AppColor.ember.opacity(0.15))
+                                        )
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                                .strokeBorder(AppColor.ember.opacity(0.35), lineWidth: 0.8)
+                                        )
+                                        .foregroundStyle(AppColor.ink)
+                                        .strikethrough(task.isCompleted, color: .secondary)
+                                        .opacity(task.isCompleted ? 0.55 : 1.0)
                                         .accessibilityLabel("Task due \(day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())): \(task.title)")
                                     }
                                     if let count = tasksByDay[calendar.startOfDay(for: day)]?.count, count > 3 {
@@ -378,7 +388,7 @@ struct WeekGridView: View {
         HStack(alignment: .top, spacing: 0) {
             hoursColumn
             GeometryReader { geo in
-                let columnWidth = geo.size.width / 7
+                let columnWidth = geo.size.width / CGFloat(max(weekDays.count, 1))
                 let totalHeight = CGFloat(hourEnd - hourStart) * hourHeight
                 ZStack(alignment: .topLeading) {
                     gridLines

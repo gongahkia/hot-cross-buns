@@ -135,6 +135,28 @@ struct CalendarTaskPreviewButton<Label: View>: View {
     }
 }
 
+// §7.01 Phase D1 — clickable checkbox on calendar task tiles. Lets users
+// complete / reopen a task without opening the preview or sheet. Routes
+// through the same setTaskCompleted path as list-mode completion.
+struct CalendarTaskCheckbox: View {
+    @Environment(AppModel.self) private var model
+    let task: TaskMirror
+    var size: CGFloat = 10
+
+    var body: some View {
+        Button {
+            Task { await model.setTaskCompleted(!task.isCompleted, task: task) }
+        } label: {
+            Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                .hcbFontSystem(size: size)
+                .foregroundStyle(task.isCompleted ? AppColor.moss : AppColor.ember)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(task.isCompleted ? "Reopen task" : "Complete task")
+    }
+}
+
 struct EventHoverPreviewModifier: ViewModifier {
     let event: CalendarEventMirror
     @State private var showPreview = false

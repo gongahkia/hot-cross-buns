@@ -10,7 +10,33 @@ struct LayoutSection: View {
             calendarViewsBlock
             Divider()
             storeViewsBlock
+            Divider()
+            quickCreateBlock
         }
+    }
+
+    private var quickCreateBlock: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Quick create popover")
+                .hcbFont(.subheadline, weight: .medium)
+            Toggle(isOn: quickCreateExpandedBinding) {
+                Label("Show all fields by default", systemImage: "rectangle.expand.vertical")
+            }
+            Text("Off: the popover starts compact and hides optional fields behind \"More\". On: the popover opens detailed — matches Apple Calendar's inline expansion.")
+                .hcbFont(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var quickCreateExpandedBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.quickCreateExpandedByDefault },
+            set: { newValue in
+                var next = model.settings
+                next.quickCreateExpandedByDefault = newValue
+                model.updateSettings(next)
+            }
+        )
     }
 
     private var sidebarTabsBlock: some View {

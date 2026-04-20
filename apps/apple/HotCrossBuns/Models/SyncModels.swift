@@ -119,6 +119,10 @@ struct AppSettings: Hashable, Codable, Sendable {
     var perSurfaceFontOverrides: [String: HCBSurfaceFontOverride] // HCBSurface.rawValue → override
     var cacheEncryptionEnabled: Bool // §6.12 — whether LocalCacheStore should encrypt at rest
     var taskTemplates: [TaskTemplate] // §6.13 — local-only task templates with variable expansion
+    var eventRetentionDaysBack: Int // §7.02 — drop events with endDate older than (now - N days) during sync merge; 0 = keep forever
+    var collapsedTaskListIDs: Set<TaskListMirror.ID> // §7.01 — task-list section IDs the user has folded shut in StoreView
+    var multiDayCount: Int // §7.01 Phase D2 — day count for Multi-Day view (2-7, default 3)
+    var quickCreateExpandedByDefault: Bool // §7.01 follow-up — show all QuickCreate fields up-front instead of behind [+ More]
 
     init(
         syncMode: SyncMode,
@@ -145,7 +149,11 @@ struct AppSettings: Hashable, Codable, Sendable {
         hiddenStoreViewModes: Set<String> = [],
         perSurfaceFontOverrides: [String: HCBSurfaceFontOverride] = [:],
         cacheEncryptionEnabled: Bool = false,
-        taskTemplates: [TaskTemplate] = []
+        taskTemplates: [TaskTemplate] = [],
+        eventRetentionDaysBack: Int = 365,
+        collapsedTaskListIDs: Set<TaskListMirror.ID> = [],
+        multiDayCount: Int = 3,
+        quickCreateExpandedByDefault: Bool = true
     ) {
         self.syncMode = syncMode
         self.selectedCalendarIDs = selectedCalendarIDs
@@ -172,6 +180,10 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.perSurfaceFontOverrides = perSurfaceFontOverrides
         self.cacheEncryptionEnabled = cacheEncryptionEnabled
         self.taskTemplates = taskTemplates
+        self.eventRetentionDaysBack = eventRetentionDaysBack
+        self.collapsedTaskListIDs = collapsedTaskListIDs
+        self.multiDayCount = max(2, min(7, multiDayCount))
+        self.quickCreateExpandedByDefault = quickCreateExpandedByDefault
     }
 
     enum CodingKeys: String, CodingKey {
@@ -200,6 +212,10 @@ struct AppSettings: Hashable, Codable, Sendable {
         case perSurfaceFontOverrides
         case cacheEncryptionEnabled
         case taskTemplates
+        case eventRetentionDaysBack
+        case collapsedTaskListIDs
+        case multiDayCount
+        case quickCreateExpandedByDefault
     }
 
     // Legacy key (0-6 ladder) read via dynamic CodingKey so it stays out of
@@ -256,6 +272,11 @@ struct AppSettings: Hashable, Codable, Sendable {
         perSurfaceFontOverrides = try container.decodeIfPresent([String: HCBSurfaceFontOverride].self, forKey: .perSurfaceFontOverrides) ?? [:]
         cacheEncryptionEnabled = try container.decodeIfPresent(Bool.self, forKey: .cacheEncryptionEnabled) ?? false
         taskTemplates = try container.decodeIfPresent([TaskTemplate].self, forKey: .taskTemplates) ?? []
+        eventRetentionDaysBack = try container.decodeIfPresent(Int.self, forKey: .eventRetentionDaysBack) ?? 365
+        collapsedTaskListIDs = try container.decodeIfPresent(Set<TaskListMirror.ID>.self, forKey: .collapsedTaskListIDs) ?? []
+        let rawMultiDay = try container.decodeIfPresent(Int.self, forKey: .multiDayCount) ?? 3
+        multiDayCount = max(2, min(7, rawMultiDay))
+        quickCreateExpandedByDefault = try container.decodeIfPresent(Bool.self, forKey: .quickCreateExpandedByDefault) ?? true
     }
 
     enum MenuBarStyle: String, Codable, Hashable, Sendable, CaseIterable {

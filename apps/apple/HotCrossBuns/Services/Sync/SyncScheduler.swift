@@ -1,14 +1,13 @@
 import Foundation
 
 actor SyncScheduler {
-    // Slack subtracted from the local sync-start timestamp when setting the
-    // next Tasks `updatedMin` watermark. Was 60s; widened to 300s because a
-    // 60s slack silently drops tasks updated in the window if the user's
-    // system clock drifts forward relative to Google's servers by >60s. A
-    // 5-minute window fetches a few extra tasks on each incremental sync
-    // (cheap) but stays correct up to 5 min of clock drift. A fully robust
-    // fix would derive the watermark from the Google response `Date`
-    // header — tracked as a follow-up.
+    // Slack subtracted from the Tasks `updatedMin` watermark when we have to
+    // fall back to the local clock (Date header missing or unparseable from
+    // Google's response). The preferred path — §14 fix — reads Google's
+    // server Date header on each listTasks call and uses that directly, so
+    // clock drift between the user's device and Google is irrelevant. The
+    // fallback slack handles the rare case where the header isn't available
+    // (network quirks, mocks in tests without a Date header set).
     static let tasksWatermarkSlackSeconds: TimeInterval = 300
 
     private let tasksClient: GoogleTasksClient
@@ -76,7 +75,7 @@ actor SyncScheduler {
                 calendar.isSelected = selectedCalendarIDs.contains(calendar.id)
                 return calendar
             },
-            events: mergeEvents(existing: baseState.events, results: eventResults),
+            events: mergeEvents(existing: baseState.events, results: eventResults, retentionDaysBack: settings.eventRetentionDaysBack, now: syncStartedAt),
             settings: settings,
             syncCheckpoints: mergeCheckpoints(
                 existing: baseState.syncCheckpoints,
@@ -104,10 +103,15 @@ actor SyncScheduler {
                 )
 
                 group.addTask {
-                    let tasks = try await tasksClient.listTasks(
+                    let page = try await tasksClient.listTasks(
                         taskListID: taskList.id,
                         updatedMin: checkpoint?.tasksUpdatedMin
                     )
+                    // Prefer Google's server Date — no clock-drift exposure.
+                    // Fallback path uses local clock minus the slack for the
+                    // rare case where the header is absent.
+                    let nextWatermark: Date = page.serverDate
+                        ?? syncStartedAt.addingTimeInterval(-Self.tasksWatermarkSlackSeconds)
                     let nextCheckpoint = SyncCheckpoint(
                         id: SyncCheckpoint.stableID(
                             accountID: accountID,
@@ -118,12 +122,12 @@ actor SyncScheduler {
                         resourceType: .taskList,
                         resourceID: taskList.id,
                         calendarSyncToken: nil,
-                        tasksUpdatedMin: syncStartedAt.addingTimeInterval(-Self.tasksWatermarkSlackSeconds),
+                        tasksUpdatedMin: nextWatermark,
                         lastSuccessfulSyncAt: Date()
                     )
                     return TaskListSyncResult(
                         taskListID: taskList.id,
-                        tasks: tasks,
+                        tasks: page.tasks,
                         didFullSync: checkpoint?.tasksUpdatedMin == nil,
                         checkpoint: nextCheckpoint
                     )
@@ -292,7 +296,12 @@ actor SyncScheduler {
             }
     }
 
-    private func mergeEvents(existing: [CalendarEventMirror], results: [CalendarSyncResult]) -> [CalendarEventMirror] {
+    private func mergeEvents(
+        existing: [CalendarEventMirror],
+        results: [CalendarSyncResult],
+        retentionDaysBack: Int,
+        now: Date
+    ) -> [CalendarEventMirror] {
         let fullSyncCalendarIDs = Set(results.filter(\.didFullSync).map(\.calendarID))
         var eventsByID: [CalendarEventMirror.ID: CalendarEventMirror] = [:]
 
@@ -308,8 +317,28 @@ actor SyncScheduler {
             eventsByID[event.id] = event
         }
 
+        // §7.02: drop events whose endDate is older than the retention window.
+        // `retentionDaysBack <= 0` disables pruning (keep-forever). Optimistic
+        // writes (pending-id) are ALWAYS kept so a local mutation from earlier
+        // today isn't torched before it's confirmed by Google. Same reasoning
+        // applies to recently-updated events — ignore the end-in-past rule if
+        // the event was mutated on Google within the retention window (via
+        // `updatedAt`), because users frequently reopen past meetings to edit
+        // notes / action items.
+        let cutoff: Date? = {
+            guard retentionDaysBack > 0 else { return nil }
+            return Calendar.current.date(byAdding: .day, value: -retentionDaysBack, to: now)
+        }()
+
         return eventsByID.values
             .filter { $0.status != .cancelled } // purge cancellations post-merge
+            .filter { event in
+                guard let cutoff else { return true }
+                if OptimisticID.isPending(event.id) { return true }
+                if event.endDate >= cutoff { return true }
+                if let updatedAt = event.updatedAt, updatedAt >= cutoff { return true }
+                return false
+            }
             .sorted { lhs, rhs in
                 lhs.startDate < rhs.startDate
             }

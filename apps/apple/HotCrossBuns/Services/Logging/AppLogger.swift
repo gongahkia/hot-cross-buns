@@ -119,12 +119,27 @@ final class AppLogger: @unchecked Sendable {
         }
     }
 
+    // §10 — metadata values may include error descriptions that transitively
+    // carry OAuth / API response fragments, so only non-sensitive framing
+    // fields (timestamp, level, category, bare message) go through as public.
+    // The metadata map is rendered with privacy: .private so Console.app
+    // readers without the device-owner role see it as <private>. The local
+    // file ring + in-memory ring still capture the full text for in-app
+    // Diagnostics.
     private func bridgeToOSLogger(_ entry: LogEntry) {
+        let time = LogEntry.formatter.string(from: entry.timestamp)
+        let lvl = entry.level.rawValue.uppercased()
+        let cat = entry.category.rawValue
+        let msg = entry.message
+        let meta = entry.metadata.isEmpty ? "" : " " + entry.metadata
+            .sorted { $0.key < $1.key }
+            .map { "\($0.key)=\($0.value)" }
+            .joined(separator: " ")
         switch entry.level {
-        case .debug: osLogger.debug("\(entry.formattedLine(), privacy: .public)")
-        case .info: osLogger.info("\(entry.formattedLine(), privacy: .public)")
-        case .warn: osLogger.warning("\(entry.formattedLine(), privacy: .public)")
-        case .error: osLogger.error("\(entry.formattedLine(), privacy: .public)")
+        case .debug: osLogger.debug("[\(time, privacy: .public)] [\(lvl, privacy: .public)] [\(cat, privacy: .public)] \(msg, privacy: .public)\(meta, privacy: .private)")
+        case .info: osLogger.info("[\(time, privacy: .public)] [\(lvl, privacy: .public)] [\(cat, privacy: .public)] \(msg, privacy: .public)\(meta, privacy: .private)")
+        case .warn: osLogger.warning("[\(time, privacy: .public)] [\(lvl, privacy: .public)] [\(cat, privacy: .public)] \(msg, privacy: .public)\(meta, privacy: .private)")
+        case .error: osLogger.error("[\(time, privacy: .public)] [\(lvl, privacy: .public)] [\(cat, privacy: .public)] \(msg, privacy: .public)\(meta, privacy: .private)")
         }
     }
 

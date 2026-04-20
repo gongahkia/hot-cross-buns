@@ -3,16 +3,20 @@ import Foundation
 enum CalendarGridMode: String, CaseIterable, Hashable, Sendable {
     case agenda
     case day
+    case multiDay // §7.01 Phase D2 — N-day configurable window
     case week
     case month
+    case year // §7.01 Phase D3 — 4x3 mini-months overview
     case timeline
 
     var title: String {
         switch self {
         case .agenda: "Agenda"
         case .day: "Day"
+        case .multiDay: "Multi-Day"
         case .week: "Week"
         case .month: "Month"
+        case .year: "Year"
         case .timeline: "Timeline"
         }
     }
@@ -21,8 +25,10 @@ enum CalendarGridMode: String, CaseIterable, Hashable, Sendable {
         switch self {
         case .agenda: "list.bullet.rectangle"
         case .day: "calendar.day.timeline.leading"
+        case .multiDay: "calendar.day.timeline.trailing"
         case .week: "calendar.day.timeline.left"
         case .month: "calendar"
+        case .year: "square.grid.3x3"
         case .timeline: "chart.bar.doc.horizontal"
         }
     }

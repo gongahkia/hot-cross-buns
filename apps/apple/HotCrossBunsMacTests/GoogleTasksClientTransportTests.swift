@@ -126,6 +126,53 @@ final class GoogleTasksClientTransportTests: XCTestCase {
         XCTAssertEqual(captured.url?.path, "/tasks/v1/lists/list-1/clear")
     }
 
+    // §14 — listTasks should carry the first-page Date header back to
+    // SyncScheduler so the incremental-sync watermark is derived from
+    // Google's clock rather than the local one. Missing header → nil.
+    func testListTasksCapturesServerDateHeader() async throws {
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: [
+                    "Content-Type": "application/json",
+                    "Date": "Sun, 19 Apr 2026 23:59:12 GMT"
+                ]
+            )!
+            let body = #"{"items":[]}"#
+            return (response, body.data(using: .utf8)!)
+        }
+
+        let page = try await client.listTasks(taskListID: "list-1", updatedMin: nil)
+        XCTAssertEqual(page.tasks.count, 0)
+        let serverDate = try XCTUnwrap(page.serverDate)
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0)!
+        let comps = cal.dateComponents([.year, .month, .day, .hour, .minute, .second], from: serverDate)
+        XCTAssertEqual(comps.year, 2026)
+        XCTAssertEqual(comps.month, 4)
+        XCTAssertEqual(comps.day, 19)
+        XCTAssertEqual(comps.hour, 23)
+        XCTAssertEqual(comps.minute, 59)
+        XCTAssertEqual(comps.second, 12)
+    }
+
+    func testListTasksReturnsNilServerDateWhenHeaderMissing() async throws {
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, #"{"items":[]}"#.data(using: .utf8)!)
+        }
+
+        let page = try await client.listTasks(taskListID: "list-1", updatedMin: nil)
+        XCTAssertNil(page.serverDate)
+    }
+
     func testTaskDueDateSerializedAsLocalDateString() async throws {
         var captured: Data?
         MockURLProtocol.requestHandler = { request in
