@@ -746,14 +746,14 @@ struct MacSidebarShell: View {
                 selection = .store
             },
             CommandPaletteCommand(
-                id: "go-settings",
-                title: "Go to Settings",
+                id: "open-settings",
+                title: "Settings…",
                 subtitle: "Appearance, account, sync, keyboard, calendars",
                 symbol: "gearshape",
-                shortcut: "Cmd+3",
+                shortcut: "Cmd+,",
                 keywords: ["settings", "preferences", "appearance", "font", "theme"]
             ) {
-                selection = .settings
+                NotificationCenter.default.post(name: .hcbOpenSettingsWindow, object: nil)
             },
             CommandPaletteCommand(
                 id: "insert-task-template",
