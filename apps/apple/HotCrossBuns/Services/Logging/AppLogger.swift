@@ -44,6 +44,7 @@ enum LogCategory: String, Sendable, CaseIterable {
     case cache
     case share
     case ui
+    case perf
     case misc
 }
 

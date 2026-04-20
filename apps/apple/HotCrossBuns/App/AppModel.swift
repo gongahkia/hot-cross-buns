@@ -2725,6 +2725,12 @@ final class AppModel {
     }
 
     private func rebuildSnapshots(referenceDate: Date = Date()) {
+        // D-lite instrumentation: every snapshot rebuild passes a timing
+        // measurement into the logger so we can later see how often
+        // rebuildSnapshots runs and how long it takes on real corpora. If
+        // this shows cost scaling with (tasks + events), that's the signal
+        // to split AppModel into finer-grained @Observable stores.
+        let started = ContinuousClock.now
         let visibleTaskListIDs = settings.hasConfiguredTaskListSelection
             ? settings.selectedTaskListIDs
             : Set(taskLists.map(\.id))
@@ -2756,6 +2762,16 @@ final class AppModel {
             stats[task.taskListID] = entry
         }
         taskListCompletionStats = stats
+
+        let elapsed = started.duration(to: .now)
+        let micros = (elapsed.components.seconds * 1_000_000)
+            + (elapsed.components.attoseconds / 1_000_000_000_000)
+        AppLogger.debug("rebuildSnapshots", category: .perf, metadata: [
+            "duration_us": String(micros),
+            "tasks": String(tasks.count),
+            "events": String(events.count),
+            "visible_tasks": String(visibleTasks.count)
+        ])
     }
 }
 
