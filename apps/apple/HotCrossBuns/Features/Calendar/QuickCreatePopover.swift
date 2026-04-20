@@ -31,6 +31,8 @@ struct QuickCreatePopover: View {
     let initialDate: Date
     let initialEnd: Date?
     let initiallyAllDay: Bool
+    let taskOnly: Bool
+    let initialTaskListID: TaskListMirror.ID?
 
     @State private var mode: CreateMode = .event
     @State private var summary: String = ""
@@ -80,10 +82,18 @@ struct QuickCreatePopover: View {
 
     enum CreateMode: String, Hashable { case event, task }
 
-    init(initialDate: Date, isAllDay: Bool, initialEnd: Date? = nil) {
+    init(
+        initialDate: Date,
+        isAllDay: Bool,
+        initialEnd: Date? = nil,
+        taskOnly: Bool = false,
+        initialTaskListID: TaskListMirror.ID? = nil
+    ) {
         self.initialDate = initialDate
         self.initialEnd = initialEnd
         self.initiallyAllDay = isAllDay
+        self.taskOnly = taskOnly
+        self.initialTaskListID = initialTaskListID
     }
 
     var body: some View {
@@ -126,8 +136,15 @@ struct QuickCreatePopover: View {
         .hcbScaledFrame(width: 440)
         .background(.regularMaterial)
         .task {
-            selectedListID = model.taskLists.first?.id
+            selectedListID = initialTaskListID ?? model.taskLists.first?.id
             selectedCalendarID = model.calendarSnapshot.selectedCalendars.first?.id ?? model.calendars.first?.id
+            if taskOnly {
+                mode = .task
+                // Task-only callers originate from the Notes/Tasks surface
+                // where "undated" is the common default — leave hasDueDate
+                // on so users can pick a date, but flip to .task mode so
+                // the first tap doesn't create an event.
+            }
             summaryFocused = true
             // Seed the editable date/time fields from the drag-derived
             // bounds so click-only (no drag) gets a 1-hour window and
@@ -158,12 +175,21 @@ struct QuickCreatePopover: View {
 
     private var topBar: some View {
         HStack(spacing: 10) {
-            Picker("", selection: $mode) {
-                Text("Event").tag(CreateMode.event)
-                Text("Task").tag(CreateMode.task)
+            if taskOnly {
+                // Task-only entry (e.g. clicking empty Kanban space) — the
+                // Event/Task switcher is omitted so the popover can't slip
+                // back into event mode from the Tasks tab.
+                Label("New Task", systemImage: "checklist")
+                    .hcbFont(.subheadline, weight: .semibold)
+                    .foregroundStyle(AppColor.ink)
+            } else {
+                Picker("", selection: $mode) {
+                    Text("Event").tag(CreateMode.event)
+                    Text("Task").tag(CreateMode.task)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
             Spacer(minLength: 0)
             destinationMenu
         }

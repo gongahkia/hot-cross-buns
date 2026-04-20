@@ -43,6 +43,7 @@ final class AppCommandActions {
         case .help: openHelp()
         case .goToCalendar: switchTo(.calendar)
         case .goToStore: switchTo(.store)
+        case .goToNotes: switchTo(.notes)
         case .goToSettings: openSettingsWindow()
         case .zoomIn: zoomIn()
         case .zoomOut: zoomOut()
@@ -163,6 +164,7 @@ struct AppCommands: Commands {
         switch item {
         case .calendar: .goToCalendar
         case .store: .goToStore
+        case .notes: .goToNotes
         }
     }
 

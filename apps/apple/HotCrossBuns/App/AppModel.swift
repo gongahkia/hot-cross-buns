@@ -39,8 +39,11 @@ final class AppModel {
     var pendingEventPrefill: DeepLinkEventPrefill?
     // Query pre-populated into the command palette when a search deep link fires.
     var pendingPaletteQuery: String?
-    // Store filter the quick switcher asks the Store to apply on appear.
-    // Store clears it once consumed so a subsequent tab switch doesn't reapply.
+    // TODO: prune — dead after the Calendar/Tasks/Notes sidebar refactor.
+    // QuickSwitcherView + MenuBarExtraScene still write this, but no view
+    // reads it (the Tasks tab no longer exposes filter scopes). Delete the
+    // field once those writers are updated to route to the appropriate
+    // Kanban group-by mode, or dropped entirely.
     var pendingStoreFilterKey: String?
     // Populated on first launch-time check; DiagnosticsView surfaces.
     private(set) var keychainHealth: KeychainHealth = .unknown
@@ -55,6 +58,11 @@ final class AppModel {
     // Cached during rebuildSnapshots so the sidebar badge doesn't have to
     // re-filter the full tasks array on every sidebar render.
     private(set) var openTaskCountForSidebar: Int = 0
+    // Split badges for the post-refactor sidebar: dated tasks land in Tasks,
+    // undated ones in Notes. Recomputed in rebuildSnapshots alongside the
+    // combined count so the sidebar can render without re-filtering.
+    private(set) var datedOpenTaskCount: Int = 0
+    private(set) var undatedOpenTaskCount: Int = 0
     // Per-list completion stats for Store section headers — avoids O(n)
     // filtering per list on every header render.
     private(set) var taskListCompletionStats: [TaskListMirror.ID: TaskListCompletionStats] = [:]
@@ -1552,6 +1560,9 @@ final class AppModel {
         Task { await saveCurrentState() }
     }
 
+    // TODO: prune — dead after the Calendar/Tasks/Notes sidebar refactor.
+    // No caller remains; StoreViewMode + hiddenStoreViewModes follow. Safe
+    // to delete alongside the enum file and the AppSettings field.
     func setStoreViewModeHidden(_ mode: StoreViewMode, hidden: Bool) {
         var next = settings.hiddenStoreViewModes
         if hidden {
@@ -2545,11 +2556,14 @@ final class AppModel {
 
         // Precompute the sidebar open-task count so the badge doesn't have
         // to re-filter every render.
-        openTaskCountForSidebar = visibleTasks.reduce(into: 0) { acc, task in
-            if task.isCompleted == false && task.isDeleted == false {
-                acc += 1
-            }
+        var dated = 0
+        var undated = 0
+        for task in visibleTasks where task.isCompleted == false && task.isDeleted == false {
+            if task.dueDate == nil { undated += 1 } else { dated += 1 }
         }
+        datedOpenTaskCount = dated
+        undatedOpenTaskCount = undated
+        openTaskCountForSidebar = dated + undated
 
         // Precompute completion stats per list. Walks `tasks` once rather
         // than once-per-section during Store render.

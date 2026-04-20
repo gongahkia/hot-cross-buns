@@ -115,7 +115,10 @@ struct AppSettings: Hashable, Codable, Sendable {
     var shortcutOverrides: [String: HCBKeyBinding] // HCBShortcutCommand.rawValue → binding
     var hiddenSidebarItems: Set<String> // SidebarItem.rawValues user has hidden (Settings never hidable)
     var hiddenCalendarViewModes: Set<String> // CalendarGridMode.rawValues user has hidden from Calendar picker
-    var hiddenStoreViewModes: Set<String> // StoreViewMode.rawValues user has hidden from Store picker
+    // TODO: prune — dead after the Calendar/Tasks/Notes sidebar refactor.
+    // StoreView is Kanban-only; the hide/show picker went with it. Drop
+    // alongside StoreViewMode + setStoreViewModeHidden.
+    var hiddenStoreViewModes: Set<String>
     var perSurfaceFontOverrides: [String: HCBSurfaceFontOverride] // HCBSurface.rawValue → override
     var cacheEncryptionEnabled: Bool // §6.12 — whether LocalCacheStore should encrypt at rest
     var taskTemplates: [TaskTemplate] // §6.13 — local-only task templates with variable expansion

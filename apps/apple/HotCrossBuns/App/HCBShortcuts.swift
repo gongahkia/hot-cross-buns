@@ -20,6 +20,7 @@ enum HCBShortcutCommand: String, CaseIterable, Identifiable {
     // Navigation
     case goToCalendar
     case goToStore
+    case goToNotes
     case goToSettings
     case zoomIn
     case zoomOut
@@ -28,7 +29,6 @@ enum HCBShortcutCommand: String, CaseIterable, Identifiable {
     case storeShowInspector
     case storeClearCompleted
     // Calendar
-    case calendarTasksDrawer
     case calendarPrevious
     case calendarToday
     case calendarNext
@@ -61,14 +61,14 @@ enum HCBShortcutCommand: String, CaseIterable, Identifiable {
         case .diagnostics: "Diagnostics and Recovery"
         case .help: "Help"
         case .goToCalendar: "Go to Calendar"
-        case .goToStore: "Go to Store"
+        case .goToStore: "Go to Tasks"
+        case .goToNotes: "Go to Notes"
         case .goToSettings: "Go to Settings"
         case .zoomIn: "Zoom In"
         case .zoomOut: "Zoom Out"
         case .zoomReset: "Actual Size"
         case .storeShowInspector: "Toggle Task Inspector"
         case .storeClearCompleted: "Clear Completed Tasks"
-        case .calendarTasksDrawer: "Toggle Tasks Drawer"
         case .calendarPrevious: "Previous Period"
         case .calendarToday: "Jump to Today"
         case .calendarNext: "Next Period"
@@ -93,12 +93,12 @@ enum HCBShortcutCommand: String, CaseIterable, Identifiable {
         case .newTask, .newEvent, .commandPalette, .quickSwitcher, .printToday,
              .refresh, .forceResync, .diagnostics, .help:
             .app
-        case .goToCalendar, .goToStore, .goToSettings,
+        case .goToCalendar, .goToStore, .goToNotes, .goToSettings,
              .zoomIn, .zoomOut, .zoomReset:
             .navigation
         case .storeShowInspector, .storeClearCompleted:
             .store
-        case .calendarTasksDrawer, .calendarPrevious, .calendarToday,
+        case .calendarPrevious, .calendarToday,
              .calendarNext, .calendarJumpBack, .calendarJumpForward,
              .calendarGoToDate, .calendarDuplicateEvent, .calendarFocusSearch,
              .calendarViewAgenda, .calendarViewDay, .calendarViewWeek, .calendarViewMonth:
@@ -121,13 +121,13 @@ enum HCBShortcutCommand: String, CaseIterable, Identifiable {
         case .help: .init(key: .char("?"), modifiers: [.command])
         case .goToCalendar: .init(key: .char("1"), modifiers: [.command])
         case .goToStore: .init(key: .char("2"), modifiers: [.command])
-        case .goToSettings: .init(key: .char("3"), modifiers: [.command])
+        case .goToNotes: .init(key: .char("3"), modifiers: [.command])
+        case .goToSettings: .init(key: .char(","), modifiers: [.command])
         case .zoomIn: .init(key: .char("="), modifiers: [.command])
         case .zoomOut: .init(key: .char("-"), modifiers: [.command])
         case .zoomReset: .init(key: .char("0"), modifiers: [.command])
         case .storeShowInspector: .init(key: .char("i"), modifiers: [.command])
         case .storeClearCompleted: .init(key: .delete, modifiers: [.command])
-        case .calendarTasksDrawer: .init(key: .char("j"), modifiers: [.command])
         case .calendarPrevious: .init(key: .leftArrow, modifiers: [.command])
         case .calendarToday: .init(key: .char("t"), modifiers: [.command])
         case .calendarNext: .init(key: .rightArrow, modifiers: [.command])
