@@ -8,7 +8,7 @@ final class HCBChordTests: XCTestCase {
         HCBChordBinding(sequence: ["g", "s"], command: .goToStore, hint: "Go to Store"),
         HCBChordBinding(sequence: ["g", "c"], command: .goToCalendar, hint: "Go to Calendar"),
         HCBChordBinding(sequence: ["p"], command: .commandPalette, hint: "Command Palette"),
-        HCBChordBinding(sequence: ["o"], command: .quickSwitcher, hint: "Quick Switcher")
+        HCBChordBinding(sequence: ["r"], command: .refresh, hint: "Refresh")
     ]
 
     // MARK: - matches

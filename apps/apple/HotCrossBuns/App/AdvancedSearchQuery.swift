@@ -5,7 +5,10 @@ import Foundation
 // boolean-tree structured). This one:
 //  - Works across tasks, events, lists, calendars, custom filters.
 //  - Accepts field prefixes (title:, tag:, list:, calendar:, attendee:,
-//    has:notes|location|due) and bare keywords (overdue, completed).
+//    kind:, has:notes|location|due) and bare keywords (overdue, completed).
+//    `kind:` accepts task | note | event | list | calendar | filter and
+//    restricts the result to that entity kind. Task vs note is the
+//    dueDate nil/non-nil split that the Tasks and Notes tabs enforce.
 //  - Supports regex mode via leading + trailing slashes: /pattern/
 //  - Falls back to free-text fuzzy matching on any residue.
 //
@@ -18,6 +21,7 @@ struct AdvancedSearchQuery: Equatable {
     var listMatch: String? // list:X — matches a task's list (id or title)
     var calendarMatch: String? // calendar:X — matches an event's calendar
     var attendeeMatch: String? // attendee:X — event attendee email/name
+    var kind: EntityKind? // kind:task|note|event|list|calendar|filter
     var requireNotes: Bool
     var requireLocation: Bool
     var requireDue: Bool
@@ -32,6 +36,7 @@ struct AdvancedSearchQuery: Equatable {
         listMatch: nil,
         calendarMatch: nil,
         attendeeMatch: nil,
+        kind: nil,
         requireNotes: false,
         requireLocation: false,
         requireDue: false,
@@ -43,6 +48,19 @@ struct AdvancedSearchQuery: Equatable {
     var isEmpty: Bool {
         self == .empty
     }
+}
+
+// Discriminator for `kind:` in the DSL. Task and note both resolve to
+// the TaskMirror case — a note is a task without a due date, and vice
+// versa — but they appear as separate rows in the palette so the filter
+// pair splits them.
+enum EntityKind: String, Equatable, Sendable {
+    case task
+    case note
+    case event
+    case list
+    case calendar
+    case filter
 }
 
 enum AdvancedSearchParser {
@@ -64,6 +82,7 @@ enum AdvancedSearchParser {
                     listMatch: nil,
                     calendarMatch: nil,
                     attendeeMatch: nil,
+                    kind: nil,
                     requireNotes: false,
                     requireLocation: false,
                     requireDue: false,
@@ -143,6 +162,12 @@ enum AdvancedSearchParser {
         case "attendee":
             query.attendeeMatch = value.lowercased()
             return true
+        case "kind":
+            if let k = EntityKind(rawValue: value.lowercased()) {
+                query.kind = k
+                return true
+            }
+            return false
         case "has":
             switch value.lowercased() {
             case "notes": query.requireNotes = true; return true

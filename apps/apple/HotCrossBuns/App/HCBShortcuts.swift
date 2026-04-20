@@ -12,7 +12,6 @@ enum HCBShortcutCommand: String, CaseIterable, Identifiable {
     case newNote
     case newEvent
     case commandPalette
-    case quickSwitcher
     case printToday
     case refresh
     case forceResync
@@ -56,7 +55,6 @@ enum HCBShortcutCommand: String, CaseIterable, Identifiable {
         case .newNote: "New Note"
         case .newEvent: "New Event"
         case .commandPalette: "Command Palette"
-        case .quickSwitcher: "Quick Switcher"
         case .printToday: "Print Today"
         case .refresh: "Refresh Sync"
         case .forceResync: "Force Full Resync"
@@ -92,7 +90,7 @@ enum HCBShortcutCommand: String, CaseIterable, Identifiable {
 
     var group: HCBShortcutGroup {
         switch self {
-        case .newTask, .newNote, .newEvent, .commandPalette, .quickSwitcher, .printToday,
+        case .newTask, .newNote, .newEvent, .commandPalette, .printToday,
              .refresh, .forceResync, .diagnostics, .help:
             .app
         case .goToCalendar, .goToStore, .goToNotes, .goToSettings,
@@ -116,7 +114,6 @@ enum HCBShortcutCommand: String, CaseIterable, Identifiable {
         case .newNote: .init(key: .char("n"), modifiers: [.command, .shift])
         case .newEvent: .init(key: .char("e"), modifiers: [.command, .shift])
         case .commandPalette: .init(key: .char("p"), modifiers: [.command])
-        case .quickSwitcher: .init(key: .char("o"), modifiers: [.command])
         case .printToday: .init(key: .char("p"), modifiers: [.command, .shift])
         case .refresh: .init(key: .char("r"), modifiers: [.command])
         case .forceResync: .init(key: .char("r"), modifiers: [.command, .shift])

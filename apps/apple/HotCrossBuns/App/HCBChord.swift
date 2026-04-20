@@ -38,7 +38,6 @@ enum HCBChordRegistry {
         HCBChordBinding(sequence: ["g", "c"], command: .goToCalendar, hint: "Go to Calendar"),
         HCBChordBinding(sequence: ["g", "x"], command: .goToSettings, hint: "Go to Settings"),
         HCBChordBinding(sequence: ["p"], command: .commandPalette, hint: "Command Palette"),
-        HCBChordBinding(sequence: ["o"], command: .quickSwitcher, hint: "Quick Switcher"),
         HCBChordBinding(sequence: ["r"], command: .refresh, hint: "Refresh Sync"),
         HCBChordBinding(sequence: ["d"], command: .diagnostics, hint: "Diagnostics"),
         HCBChordBinding(sequence: ["h"], command: .help, hint: "Help")
