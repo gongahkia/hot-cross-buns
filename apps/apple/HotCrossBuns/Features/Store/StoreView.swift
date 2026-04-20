@@ -553,7 +553,7 @@ struct TaskHoverPreview: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            let displayNotes = TaskReminderMarkers.strippedNotes(from: TaskRecurrenceMarkers.strippedNotes(from: task.notes))
+            let displayNotes = TaskReminderMarkers.strippedNotes(from: task.notes)
             if displayNotes.isEmpty == false {
                 Divider()
                 Text.markdown(displayNotes)
@@ -791,8 +791,7 @@ private struct NoteCard: View {
                         .multilineTextAlignment(.leading)
                     Spacer(minLength: 0)
                 }
-                let trimmed = TaskReminderMarkers.strippedNotes(from:
-                    TaskRecurrenceMarkers.strippedNotes(from: task.notes))
+                let trimmed = TaskReminderMarkers.strippedNotes(from: task.notes)
                 if trimmed.isEmpty == false {
                     Text.markdown(trimmed)
                         .hcbFont(.caption)

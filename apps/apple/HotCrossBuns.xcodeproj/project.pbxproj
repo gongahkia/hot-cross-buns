@@ -139,7 +139,6 @@
 		B3FD5B5CFC0A25BB3A2D0F19 /* RecurrenceUntilRewriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 789C6E4688F23FCD6DA9A6D0 /* RecurrenceUntilRewriter.swift */; };
 		B4007C7CDFB8A24313A04A5F /* GoogleMapsConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E5EC5EF558326D415F76B1 /* GoogleMapsConfigTests.swift */; };
 		B63D287732D4657D498E55CD /* AppearanceSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB531053D620E337F1946147 /* AppearanceSection.swift */; };
-		B642E9E46E226784A49868B4 /* TaskRecurrenceMarkers.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD2813E1AA5D3C77A5B6B41E /* TaskRecurrenceMarkers.swift */; };
 		B961C661A38D5CE2845E6580 /* NaturalLanguageTaskParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B3C9FACB76521CB9850BC84 /* NaturalLanguageTaskParserTests.swift */; };
 		B9D9962B30CA73EFBD0719AD /* HCBSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06F2696FD874FEEBAEB421DC /* HCBSurface.swift */; };
 		BC1B43B0C73F002D0EA83908 /* KanbanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AD899D7DA4173441D6AF8D4 /* KanbanView.swift */; };
@@ -359,7 +358,6 @@
 		DA7AA6D7D06BBC2852BAFCDF /* TaskInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskInspectorView.swift; sourceTree = "<group>"; };
 		DA7DF4809F264613EBB2B93A /* CacheSchemaVersioningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheSchemaVersioningTests.swift; sourceTree = "<group>"; };
 		DAC3322BC3706CFF61AE52DB /* TaskHierarchyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskHierarchyTests.swift; sourceTree = "<group>"; };
-		DD2813E1AA5D3C77A5B6B41E /* TaskRecurrenceMarkers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskRecurrenceMarkers.swift; sourceTree = "<group>"; };
 		DD98EA6DAE12DEC1BADC82FA /* HCBCacheCryptoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HCBCacheCryptoTests.swift; sourceTree = "<group>"; };
 		DDA5E3D3896AF69DD2D510C6 /* ICSImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICSImporter.swift; sourceTree = "<group>"; };
 		DF84D26BB3BD8AD0DB3337B8 /* HotCrossBunsIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotCrossBunsIntents.swift; sourceTree = "<group>"; };
@@ -741,7 +739,6 @@
 				E60A02AA0EB32C0C012F2AF0 /* TagExtractor.swift */,
 				BD404C87FD0BC2462B844C8C /* TaskHierarchy.swift */,
 				165DF0F051694E742FB59FB7 /* TaskMirror.swift */,
-				DD2813E1AA5D3C77A5B6B41E /* TaskRecurrenceMarkers.swift */,
 				BC17ECA270BCECA15B26A6D2 /* TaskReminderMarkers.swift */,
 			);
 			path = Models;
@@ -1111,7 +1108,6 @@
 				804FDD2DCFA8CC6E75971B58 /* TaskHierarchy.swift in Sources */,
 				843376C55956307CFD28B153 /* TaskInspectorView.swift in Sources */,
 				8EE90A74A634E8BAC7DC5C44 /* TaskMirror.swift in Sources */,
-				B642E9E46E226784A49868B4 /* TaskRecurrenceMarkers.swift in Sources */,
 				0E508E9852C85C2E60A64756 /* TaskReminderMarkers.swift in Sources */,
 				D469641DB76139A358F0A8CB /* TasksView.swift in Sources */,
 				0D378235C8E06E9BECC9C81D /* TemplatesSection.swift in Sources */,

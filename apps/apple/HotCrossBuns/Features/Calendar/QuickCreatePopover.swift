@@ -63,7 +63,6 @@ struct QuickCreatePopover: View {
     // Editable task fields
     @State private var taskDueDate: Date = Date()
     @State private var hasDueDate: Bool = true
-    @State private var taskRecurrenceRule: RecurrenceRule?
     // Per-section expansion for the task popover (Apple Reminders style).
     // Tapping a card expands it; tapping anywhere outside the card in the
     // popover body collapses it.
@@ -498,7 +497,6 @@ struct QuickCreatePopover: View {
         taskNotesCard
         sectionHeader("Date & Time")
         taskDateCard
-        taskRepeatCard
         sectionHeader("Organisation")
         taskListCard
     }
@@ -574,34 +572,6 @@ struct QuickCreatePopover: View {
         )
     }
 
-    private var taskRepeatCard: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "repeat")
-                .hcbFont(.body)
-                .foregroundStyle(.secondary)
-                .hcbScaledFrame(width: 22)
-            Text("Repeat")
-                .hcbFont(.body)
-                .foregroundStyle(AppColor.ink)
-            Spacer(minLength: 8)
-            Picker("", selection: taskFrequencyBinding) {
-                Text("Never").tag(RecurrenceFrequency?.none)
-                Text("Daily").tag(Optional(RecurrenceFrequency.daily))
-                Text("Weekly").tag(Optional(RecurrenceFrequency.weekly))
-                Text("Monthly").tag(Optional(RecurrenceFrequency.monthly))
-                Text("Yearly").tag(Optional(RecurrenceFrequency.yearly))
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .fixedSize()
-            .disabled(hasDueDate == false)
-        }
-        .hcbScaledPadding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(AppColor.cream.opacity(0.35))
-        )
-    }
 
     private var taskListCard: some View {
         HStack(spacing: 10) {
@@ -730,19 +700,6 @@ struct QuickCreatePopover: View {
         recurrenceRule = rule
     }
 
-    private var taskFrequencyBinding: Binding<RecurrenceFrequency?> {
-        Binding(
-            get: { taskRecurrenceRule?.frequency },
-            set: { new in
-                if let new {
-                    taskRecurrenceRule = RecurrenceRule(frequency: new, interval: taskRecurrenceRule?.interval ?? 1)
-                } else {
-                    taskRecurrenceRule = nil
-                }
-            }
-        )
-    }
-
     // MARK: - Derived
 
     private var currentListTitle: String {
@@ -796,14 +753,9 @@ struct QuickCreatePopover: View {
             if didCreate { dismiss() }
         case .task:
             guard let listID = selectedListID else { return }
-            // §6.13 recurrence encoding: rule survives in notes markers so
-            // completing the task in Tasks recreates it for the next cycle.
-            let notesWithRecurrence = taskRecurrenceRule.map {
-                TaskRecurrenceMarkers.encode(notes: notes, rule: $0)
-            } ?? notes
             let didCreate = await model.createTask(
                 title: trimmed,
-                notes: notesWithRecurrence,
+                notes: notes,
                 dueDate: hasDueDate ? Calendar.current.startOfDay(for: taskDueDate) : nil,
                 taskListID: listID
             )
