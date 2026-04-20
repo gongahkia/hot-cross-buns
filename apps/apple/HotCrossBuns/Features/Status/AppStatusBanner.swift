@@ -5,6 +5,8 @@ struct AppStatusBanner: View {
     let authState: AuthState
     let mutationError: String?
     var isSyncPaused: Bool = false
+    var quarantinedCount: Int = 0
+    var openDiagnostics: (() -> Void)? = nil
     let retry: () -> Void
     let dismiss: () -> Void
 
@@ -50,6 +52,17 @@ struct AppStatusBanner: View {
                 title: "Reconnect Google to keep syncing",
                 message: message,
                 systemImage: "person.crop.circle.badge.exclamationmark",
+                tint: .red,
+                canRetry: false
+            )
+        }
+
+        if quarantinedCount > 0 {
+            let noun = quarantinedCount == 1 ? "change" : "changes"
+            return FailureContext(
+                title: "\(quarantinedCount) \(noun) need your attention",
+                message: "Google rejected these writes after several retries. Open Diagnostics to review and retry or discard them.",
+                systemImage: "exclamationmark.octagon",
                 tint: .red,
                 canRetry: false
             )

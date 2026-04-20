@@ -2032,9 +2032,16 @@ final class AppModel {
         // if we made progress — which guarantees termination either by
         // draining or by stabilising on a non-shrinking queue.
         let maxPasses = 4
+        let policy = BackoffPolicy.nearRealtime
         var processedIDs: Set<PendingMutation.ID> = []
         for _ in 0..<maxPasses {
-            let snapshot = pendingMutations.filter { processedIDs.contains($0.id) == false }
+            let now = Date()
+            // Skip quarantined mutations (they require explicit user action
+            // via Diagnostics) and mutations whose backoff window hasn't
+            // elapsed yet (we'll pick them up on a later call).
+            let snapshot = pendingMutations.filter {
+                processedIDs.contains($0.id) == false && $0.isReadyToReplay(now: now, policy: policy)
+            }
             guard snapshot.isEmpty == false else { break }
             for mutation in snapshot {
                 guard pendingMutations.contains(where: { $0.id == mutation.id }) else {
@@ -2048,6 +2055,48 @@ final class AppModel {
             let remaining = pendingMutations.filter { processedIDs.contains($0.id) == false }
             if remaining.isEmpty { break }
         }
+    }
+
+    // On a transient failure, bump attempt count + stamp the backoff timer on
+    // the mutation. When we hit BackoffPolicy.maxAttempts, the mutation moves
+    // into quarantine and stops auto-replaying. The user can retry or discard
+    // from DiagnosticsView.
+    private func markMutationTransientFailure(_ mutationID: PendingMutation.ID, error: Error) {
+        guard let idx = pendingMutations.firstIndex(where: { $0.id == mutationID }) else { return }
+        pendingMutations[idx].attemptCount += 1
+        pendingMutations[idx].lastAttemptAt = Date()
+        pendingMutations[idx].lastErrorSummary = error.localizedDescription
+        if pendingMutations[idx].attemptCount >= BackoffPolicy.nearRealtime.maxAttempts {
+            pendingMutations[idx].quarantinedAt = Date()
+            AppLogger.warn("mutation quarantined after \(pendingMutations[idx].attemptCount) attempts", category: .replay, metadata: [
+                "id": mutationID.uuidString,
+                "resourceType": pendingMutations[idx].resourceType.rawValue,
+                "action": pendingMutations[idx].action.rawValue,
+                "error": error.localizedDescription
+            ])
+        }
+    }
+
+    // Count of mutations that have exceeded the retry ceiling. Drives the
+    // AppStatusBanner warning + the DiagnosticsView quarantine section.
+    var quarantinedMutationCount: Int {
+        pendingMutations.filter(\.isQuarantined).count
+    }
+
+    // Releases a quarantined mutation back into the automatic replay loop.
+    // Called from the Diagnostics "Retry" button.
+    @discardableResult
+    func requeueQuarantinedMutation(id: PendingMutation.ID) -> Bool {
+        guard let idx = pendingMutations.firstIndex(where: { $0.id == id }) else { return false }
+        pendingMutations[idx].attemptCount = 0
+        pendingMutations[idx].lastAttemptAt = nil
+        pendingMutations[idx].lastErrorSummary = nil
+        pendingMutations[idx].quarantinedAt = nil
+        Task {
+            await saveCurrentState()
+            await replayPendingMutations()
+        }
+        return true
     }
 
     private func replay(_ mutation: PendingMutation) async {
@@ -2090,7 +2139,9 @@ final class AppModel {
             await saveCurrentState()
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
+            markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
+            await saveCurrentState()
         } catch {
             if let payload = try? PendingMutationEncoder.decodeTaskCreate(mutation.payload) {
                 removeTask(id: payload.localID)
@@ -2117,7 +2168,9 @@ final class AppModel {
             await saveCurrentState()
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
+            markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
+            await saveCurrentState()
         } catch let error as GoogleAPIError where error == .preconditionFailed {
             // Queued edit was based on stale state — drop it and refresh so
             // the user can re-apply against the current server state.
@@ -2158,7 +2211,9 @@ final class AppModel {
             await saveCurrentState()
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
+            markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
+            await saveCurrentState()
         } catch let error as GoogleAPIError where error == .preconditionFailed {
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "A queued completion was rejected because the task changed elsewhere. Refreshing."
@@ -2184,7 +2239,9 @@ final class AppModel {
             await saveCurrentState()
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
+            markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
+            await saveCurrentState()
         } catch let error as GoogleAPIError where error == .preconditionFailed {
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "A queued delete was rejected because the task changed elsewhere. Refreshing."
@@ -2223,7 +2280,9 @@ final class AppModel {
             await saveCurrentState()
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
+            markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
+            await saveCurrentState()
         } catch let error as GoogleAPIError where error == .preconditionFailed {
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "A queued edit was rejected because the event changed elsewhere. Refreshing."
@@ -2249,7 +2308,9 @@ final class AppModel {
             await saveCurrentState()
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
+            markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
+            await saveCurrentState()
         } catch let error as GoogleAPIError where error == .preconditionFailed {
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "A queued delete was rejected because the event changed elsewhere. Refreshing."
@@ -2287,7 +2348,9 @@ final class AppModel {
             await saveCurrentState()
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
+            markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
+            await saveCurrentState()
         } catch {
             if let payload = try? PendingMutationEncoder.decodeEventCreate(mutation.payload) {
                 removeEvent(id: payload.localID)
