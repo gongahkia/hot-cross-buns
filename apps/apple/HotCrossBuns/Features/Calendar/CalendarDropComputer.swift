@@ -20,8 +20,4 @@ enum CalendarDropComputer {
     static func defaultEndDate(from start: Date, calendar: Calendar = .current) -> Date {
         calendar.date(byAdding: .minute, value: defaultDurationMinutes, to: start) ?? start
     }
-
-    static func backLinkDescription(for title: String, taskID: String) -> String {
-        "Linked task: \(title)\nhcb://task/\(taskID)"
-    }
 }

@@ -949,7 +949,8 @@ final class AppModel {
         attendeeEmails: [String] = [],
         notifyGuests: Bool = false,
         addGoogleMeet: Bool = false,
-        colorId: String? = nil
+        colorId: String? = nil,
+        hcbTaskID: String? = nil
     ) async -> Bool {
         guard requireAccount(mutationDescription: "creating events") else {
             return false
@@ -986,7 +987,8 @@ final class AppModel {
                 CalendarEventAttendee(email: $0, displayName: nil, responseStatus: .needsAction)
             },
             meetLink: "",
-            colorId: colorId
+            colorId: colorId,
+            hcbTaskID: hcbTaskID
         )
         upsert(optimisticEvent)
 
@@ -1005,7 +1007,8 @@ final class AppModel {
                 attendeeEmails: cleanedEmails,
                 notifyGuests: notifyGuests,
                 addGoogleMeet: addGoogleMeet,
-                colorId: colorId
+                colorId: colorId,
+                hcbTaskID: hcbTaskID
             )
             let mutation = try PendingMutation.eventCreate(payload: payload)
             pendingMutations.append(mutation)
@@ -1041,7 +1044,8 @@ final class AppModel {
         notifyGuests: Bool = false,
         scope: RecurringEventScope = .thisOccurrence,
         addGoogleMeet: Bool = false,
-        colorId: String? = nil
+        colorId: String? = nil,
+        hcbTaskID: String? = nil
     ) async -> Bool {
         guard requireAccount(mutationDescription: "updating events") else {
             return false
@@ -1110,6 +1114,13 @@ final class AppModel {
                 ? CalendarEventInstance.seriesID(from: eventToUpdate.id)
                 : eventToUpdate.id
 
+            // Preserve any existing hcb backlink on the event unless the caller
+            // explicitly supplied a new one. Without this, every update would
+            // clear extendedProperties.private.hcbTaskID (Google Calendar
+            // treats an omitted field on PATCH as "leave as-is" for the outer
+            // bag — but we pass a dict, so we need to echo it back ourselves).
+            let effectiveHCBTaskID = hcbTaskID ?? event.hcbTaskID
+
             let updatedEvent = try await calendarClient.updateEvent(
                 calendarID: eventToUpdate.calendarID,
                 eventID: targetEventID,
@@ -1125,6 +1136,7 @@ final class AppModel {
                 sendUpdates: notifyGuests ? "all" : "none",
                 addGoogleMeet: addGoogleMeet,
                 colorId: colorId,
+                hcbTaskID: effectiveHCBTaskID,
                 ifMatch: scope == .allInSeries ? nil : eventToUpdate.etag
             )
             if calendarID != event.calendarID {
@@ -1152,7 +1164,8 @@ final class AppModel {
                 notifyGuests: notifyGuests,
                 etagSnapshot: event.etag,
                 addGoogleMeet: addGoogleMeet,
-                colorId: colorId
+                colorId: colorId,
+                hcbTaskID: hcbTaskID ?? event.hcbTaskID
             )
             if let mutation = try? PendingMutation.eventUpdate(payload: payload) {
                 pendingMutations.append(mutation)
@@ -2202,6 +2215,7 @@ final class AppModel {
                 sendUpdates: payload.notifyGuests ? "all" : "none",
                 addGoogleMeet: payload.addGoogleMeet,
                 colorId: payload.colorId,
+                hcbTaskID: payload.hcbTaskID,
                 ifMatch: payload.etagSnapshot
             )
             upsert(updated)
@@ -2264,7 +2278,8 @@ final class AppModel {
                 attendeeEmails: payload.attendeeEmails,
                 sendUpdates: payload.notifyGuests ? "all" : "none",
                 addGoogleMeet: payload.addGoogleMeet,
-                colorId: payload.colorId
+                colorId: payload.colorId,
+                hcbTaskID: payload.hcbTaskID
             )
             removeEvent(id: payload.localID)
             upsert(created)

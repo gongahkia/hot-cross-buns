@@ -617,14 +617,18 @@ struct WeekGridView: View {
         let end = CalendarDropComputer.defaultEndDate(from: start, calendar: calendar)
         let destinationCalendar = primaryEditableCalendarID() ?? model.calendarSnapshot.selectedCalendars.first?.id
         guard let calendarID = destinationCalendar else { return }
+        // Backlink travels in Google's native extendedProperties.private bag
+        // (HCB-only; invisible in google.com web UI) — not in the event
+        // description, which was the legacy schema-polluting behaviour.
         _ = await model.createEvent(
             summary: dropped.title,
-            details: CalendarDropComputer.backLinkDescription(for: dropped.title, taskID: dropped.taskID),
+            details: "",
             startDate: start,
             endDate: end,
             isAllDay: false,
             reminderMinutes: nil,
-            calendarID: calendarID
+            calendarID: calendarID,
+            hcbTaskID: dropped.taskID
         )
     }
 

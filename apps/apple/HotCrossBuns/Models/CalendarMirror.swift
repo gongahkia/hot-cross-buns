@@ -68,6 +68,13 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
     var attendeeResponses: [CalendarEventAttendee]
     var meetLink: String
     var colorId: String?
+    // HCB-only metadata stored in Google's native `extendedProperties.private`
+    // bag. `private` is HCB-only — other Google clients don't render it —
+    // which is exactly the philosophy-compliant place to attach per-event
+    // app state without polluting user-visible fields like description.
+    // Used today for the time-blocking backlink (task → event) so the UI can
+    // jump from an event tile back to its originating task.
+    var hcbTaskID: String?
 
     init(
         id: String,
@@ -87,7 +94,8 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         attendeeEmails: [String] = [],
         attendeeResponses: [CalendarEventAttendee] = [],
         meetLink: String = "",
-        colorId: String? = nil
+        colorId: String? = nil,
+        hcbTaskID: String? = nil
     ) {
         self.id = id
         self.calendarID = calendarID
@@ -107,6 +115,7 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         self.attendeeResponses = attendeeResponses
         self.meetLink = meetLink
         self.colorId = colorId
+        self.hcbTaskID = hcbTaskID
     }
 
     enum CodingKeys: String, CodingKey {
@@ -128,6 +137,7 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         case attendeeResponses
         case meetLink
         case colorId
+        case hcbTaskID
     }
 
     init(from decoder: Decoder) throws {
@@ -150,6 +160,7 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         attendeeResponses = try container.decodeIfPresent([CalendarEventAttendee].self, forKey: .attendeeResponses) ?? []
         meetLink = try container.decodeIfPresent(String.self, forKey: .meetLink) ?? ""
         colorId = try container.decodeIfPresent(String.self, forKey: .colorId)
+        hcbTaskID = try container.decodeIfPresent(String.self, forKey: .hcbTaskID)
     }
 }
 

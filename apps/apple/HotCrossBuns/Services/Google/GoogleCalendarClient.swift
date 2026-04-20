@@ -78,7 +78,8 @@ struct GoogleCalendarClient: Sendable {
         attendeeEmails: [String] = [],
         sendUpdates: String = "none",
         addGoogleMeet: Bool = false,
-        colorId: String? = nil
+        colorId: String? = nil,
+        hcbTaskID: String? = nil
     ) async throws -> CalendarEventMirror {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
         let htmlDetails = MarkdownHTML.markdownToCalendarHTML(details)
@@ -100,7 +101,8 @@ struct GoogleCalendarClient: Sendable {
             reminders: GoogleEventMutationRemindersDTO.custom(minutes: reminderMinutes),
             attendees: attendeeEmails.isEmpty ? nil : attendeeEmails.map { GoogleEventAttendeeMutationDTO(email: $0) },
             conferenceData: conference,
-            colorId: colorId
+            colorId: colorId,
+            extendedProperties: GoogleEventExtendedPropertiesEncodeDTO.hcb(taskID: hcbTaskID)
         )
         var queryItems: [URLQueryItem] = [URLQueryItem(name: "sendUpdates", value: sendUpdates)]
         if addGoogleMeet {
@@ -132,6 +134,7 @@ struct GoogleCalendarClient: Sendable {
         sendUpdates: String = "none",
         addGoogleMeet: Bool = false,
         colorId: String? = nil,
+        hcbTaskID: String? = nil,
         ifMatch: String? = nil
     ) async throws -> CalendarEventMirror {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
@@ -155,7 +158,8 @@ struct GoogleCalendarClient: Sendable {
             reminders: GoogleEventMutationRemindersDTO.custom(minutes: reminderMinutes),
             attendees: attendeeEmails.map { GoogleEventAttendeeMutationDTO(email: $0) },
             conferenceData: conference,
-            colorId: colorId
+            colorId: colorId,
+            extendedProperties: GoogleEventExtendedPropertiesEncodeDTO.hcb(taskID: hcbTaskID)
         )
         var queryItems: [URLQueryItem] = [URLQueryItem(name: "sendUpdates", value: sendUpdates)]
         if addGoogleMeet {
@@ -275,15 +279,25 @@ private struct GoogleEventDTO: Decodable, Sendable {
     var updated: Date?
     var conferenceData: GoogleConferenceDataDTO?
     var colorId: String?
+    var extendedProperties: GoogleEventExtendedPropertiesDTO?
 
     func mirror(calendarID: String) -> CalendarEventMirror {
         let fallbackDate = updated ?? Date()
+        // Details rendering + one-shot migration of the legacy time-blocking
+        // backlink that HCB used to embed in `description`:
+        //   "Linked task: <title>\nhcb://task/<id>"
+        // On read we extract the id into `hcbTaskID` and strip the block from
+        // the rendered details so the user never sees the marker. On next
+        // write, the stripped description gets written back — completing the
+        // migration to extendedProperties.private.
+        let (scrubbedDescription, legacyTaskID) = GoogleEventDTO.stripLegacyBacklink(description ?? "")
         let renderedDetails: String
-        if let description, description.isEmpty == false {
-            renderedDetails = MarkdownHTML.calendarHTMLToMarkdown(description)
+        if scrubbedDescription.isEmpty == false {
+            renderedDetails = MarkdownHTML.calendarHTMLToMarkdown(scrubbedDescription)
         } else {
             renderedDetails = ""
         }
+        let hcbTaskID = extendedProperties?.privateProperties?["hcbTaskID"] ?? legacyTaskID
         // Google Calendar returns `date` (for all-day) as "yyyy-MM-dd" decoded
         // by GoogleDateParser.dateOnly as UTC midnight. Comparing that against
         // a local-TZ reference date is unsafe: in UTC-N an event whose date is
@@ -329,8 +343,39 @@ private struct GoogleEventDTO: Decodable, Sendable {
             attendeeEmails: attendeeList.compactMap(\.email),
             attendeeResponses: attendeeResponses,
             meetLink: conferenceData?.meetLink ?? "",
-            colorId: colorId
+            colorId: colorId,
+            hcbTaskID: hcbTaskID
         )
+    }
+
+    // Strips any legacy "Linked task: X\nhcb://task/<id>" footer from the
+    // event description. Returns the scrubbed description and the extracted
+    // task id (if present). The footer is HCB-only schema in a Google-visible
+    // field and is being retired in favour of extendedProperties.private.
+    fileprivate static func stripLegacyBacklink(_ raw: String) -> (scrubbed: String, taskID: String?) {
+        guard raw.isEmpty == false,
+              let regex = try? NSRegularExpression(
+                pattern: "(?m)(?:^|\\n)Linked task:[^\\n]*\\nhcb://task/([^\\s<]+)",
+                options: []
+              )
+        else {
+            return (raw, nil)
+        }
+        let range = NSRange(raw.startIndex..., in: raw)
+        guard let match = regex.firstMatch(in: raw, range: range),
+              match.numberOfRanges >= 2,
+              let idRange = Range(match.range(at: 1), in: raw),
+              let fullRange = Range(match.range, in: raw)
+        else {
+            return (raw, nil)
+        }
+        let taskID = String(raw[idRange])
+        var scrubbed = raw
+        scrubbed.removeSubrange(fullRange)
+        scrubbed = scrubbed
+            .replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (scrubbed, taskID)
     }
 
     fileprivate static func resolveDate(dateTime: Date?, dateOnly: Date?, fallback: Date) -> Date {
@@ -426,10 +471,12 @@ private struct GoogleEventMutationDTO: Encodable, Sendable {
     var attendees: [GoogleEventAttendeeMutationDTO]?
     var conferenceData: GoogleConferenceCreateDTO?
     var colorId: String?
+    var extendedProperties: GoogleEventExtendedPropertiesEncodeDTO?
 
     enum CodingKeys: String, CodingKey {
         case summary, description, location, start, end
         case recurrence, reminders, attendees, conferenceData, colorId
+        case extendedProperties
     }
 
     // Custom encoding so nil optionals are omitted rather than emitted as
@@ -448,6 +495,31 @@ private struct GoogleEventMutationDTO: Encodable, Sendable {
         try container.encodeIfPresent(attendees, forKey: .attendees)
         try container.encodeIfPresent(conferenceData, forKey: .conferenceData)
         try container.encodeIfPresent(colorId, forKey: .colorId)
+        try container.encodeIfPresent(extendedProperties, forKey: .extendedProperties)
+    }
+}
+
+// Google's field is `extendedProperties.private` — `private` is a Swift
+// keyword, so encode/decode through custom CodingKeys. We only read/write
+// the `private` bag; `shared` is reserved for future cross-client metadata.
+private struct GoogleEventExtendedPropertiesDTO: Decodable, Sendable {
+    var privateProperties: [String: String]?
+
+    enum CodingKeys: String, CodingKey {
+        case privateProperties = "private"
+    }
+}
+
+private struct GoogleEventExtendedPropertiesEncodeDTO: Encodable, Sendable {
+    var privateProperties: [String: String]
+
+    enum CodingKeys: String, CodingKey {
+        case privateProperties = "private"
+    }
+
+    static func hcb(taskID: String?) -> GoogleEventExtendedPropertiesEncodeDTO? {
+        guard let taskID, taskID.isEmpty == false else { return nil }
+        return GoogleEventExtendedPropertiesEncodeDTO(privateProperties: ["hcbTaskID": taskID])
     }
 }
 
