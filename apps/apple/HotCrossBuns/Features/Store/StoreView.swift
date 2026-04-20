@@ -62,6 +62,13 @@ struct StoreView: View {
                     .disabled(isDisconnected || isMutatingList)
                     clearCompletedMenu
                         .disabled(isDisconnected)
+                    Button {
+                        router.present(.quickCreateTask(listID: nil))
+                    } label: {
+                        Label("New Task", systemImage: "plus")
+                    }
+                    .help("Create a new task")
+                    .disabled(isDisconnected)
                 }
             }
             .background(
@@ -642,7 +649,6 @@ struct NotesView: View {
     @Environment(AppModel.self) private var model
     @Environment(RouterPath.self) private var router
 
-    @State private var searchQuery: String = ""
     // Local-order store — drag-to-reorder is view-local. We persist nothing
     // back to Google because Google Tasks position fields are already used
     // for intra-list ordering under the Tasks tab; overloading them for a
@@ -657,8 +663,6 @@ struct NotesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-            Divider()
             Group {
                 if model.account == nil {
                     ContentUnavailableView(
@@ -668,11 +672,9 @@ struct NotesView: View {
                     )
                 } else if undatedTasks.isEmpty {
                     ContentUnavailableView(
-                        searchQuery.isEmpty ? "No notes" : "No matches",
+                        "No notes",
                         systemImage: "note.text",
-                        description: Text(searchQuery.isEmpty
-                                          ? "Tasks without a due date show up here. Use the + button to capture a quick thought."
-                                          : "Adjust the search to see more notes.")
+                        description: Text("Tasks without a due date show up here. Use the + button to capture a quick thought.")
                     )
                 } else {
                     ScrollView {
@@ -720,35 +722,15 @@ struct NotesView: View {
         .onChange(of: model.tasks) { _, _ in rebuildOrder() }
     }
 
-    private var header: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            TextField("Search notes", text: $searchQuery)
-                .textFieldStyle(.plain)
-            Spacer(minLength: 8)
-            Text("\(undatedTasks.count) note\(undatedTasks.count == 1 ? "" : "s")")
-                .hcbFont(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .hcbScaledPadding(.horizontal, 16)
-        .hcbScaledPadding(.vertical, 10)
-    }
-
     private var undatedTasks: [TaskMirror] {
         let visible: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
             ? model.settings.selectedTaskListIDs
             : Set(model.taskLists.map(\.id))
-        let base = model.tasks.filter {
+        return model.tasks.filter {
             $0.isDeleted == false
                 && $0.isCompleted == false
                 && $0.dueDate == nil
                 && visible.contains($0.taskListID)
-        }
-        let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard q.isEmpty == false else { return base }
-        return base.filter {
-            $0.title.localizedCaseInsensitiveContains(q) || $0.notes.localizedCaseInsensitiveContains(q)
         }
     }
 
