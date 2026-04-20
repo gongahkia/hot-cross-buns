@@ -76,7 +76,7 @@ final class HCBChordTests: XCTestCase {
 
     func testHudHintsAtRootShowsAllRoots() {
         let hints = HCBChordMatcher.hudHints(current: [], in: bindings)
-        XCTAssertEqual(hints.map(\.key).sorted(), ["g", "n", "o", "p"])
+        XCTAssertEqual(hints.map(\.key).sorted(), ["g", "n", "p", "r"])
     }
 
     func testHudHintsSingleBindingShowsDirectLabel() {
