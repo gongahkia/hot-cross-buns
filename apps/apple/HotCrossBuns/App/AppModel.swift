@@ -1952,6 +1952,28 @@ final class AppModel {
         }
     }
 
+    func setTaskReminderThresholdDays(_ days: Int) {
+        let clamped = max(0, min(365, days))
+        guard settings.taskReminderThresholdDays != clamped else { return }
+        settings.taskReminderThresholdDays = clamped
+        Task {
+            await saveCurrentState()
+            await synchronizeLocalNotifications()
+        }
+    }
+
+    func setTaskReminderTime(hour: Int, minute: Int) {
+        let h = max(0, min(23, hour))
+        let m = max(0, min(59, minute))
+        guard settings.taskReminderHour != h || settings.taskReminderMinute != m else { return }
+        settings.taskReminderHour = h
+        settings.taskReminderMinute = m
+        Task {
+            await saveCurrentState()
+            await synchronizeLocalNotifications()
+        }
+    }
+
     func completeOnboarding() {
         settings.hasCompletedOnboarding = true
         Task {
