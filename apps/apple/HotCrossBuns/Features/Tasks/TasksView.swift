@@ -8,7 +8,6 @@ struct AddTaskSheet: View {
     @State private var notes = ""
     @State private var hasDueDate = false
     @State private var dueDate = Date()
-    @State private var recurrenceRule: RecurrenceRule?
     @State private var isSaving = false
     @State private var isCreatingList = false
     @State private var newListTitle = ""
@@ -27,10 +26,9 @@ struct AddTaskSheet: View {
 
     init(existingTask: TaskMirror) {
         _title = State(initialValue: existingTask.title)
-        _notes = State(initialValue: TaskRecurrenceMarkers.strippedNotes(from: existingTask.notes))
+        _notes = State(initialValue: existingTask.notes)
         _hasDueDate = State(initialValue: existingTask.dueDate != nil)
         _dueDate = State(initialValue: existingTask.dueDate ?? Date())
-        _recurrenceRule = State(initialValue: TaskRecurrenceMarkers.rule(from: existingTask.notes))
         _selectedTaskListID = State(initialValue: existingTask.taskListID)
         _editingTask = State(initialValue: existingTask)
         _isEditing = State(initialValue: false)
@@ -71,14 +69,6 @@ struct AddTaskSheet: View {
                             }
                         }
 
-                        if hasDueDate {
-                            Section("Repeat") {
-                                RecurrenceEditor(rule: $recurrenceRule)
-                                Text("When you complete a recurring task, Hot Cross Buns re-creates it with the next due date.")
-                                    .hcbFont(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
                     }
                     .formStyle(.grouped)
                     .hcbScaledPadding(.horizontal, 4)
@@ -272,13 +262,9 @@ struct AddTaskSheet: View {
         isSaving = true
         defer { isSaving = false }
 
-        let notesWithRule = hasDueDate && recurrenceRule != nil
-            ? TaskRecurrenceMarkers.encode(notes: notes, rule: recurrenceRule)
-            : notes
-
         let didCreate = await model.createTask(
             title: title,
-            notes: notesWithRule,
+            notes: notes,
             dueDate: hasDueDate ? Calendar.current.startOfDay(for: dueDate) : nil,
             taskListID: selectedTaskListID
         )
@@ -291,13 +277,10 @@ struct AddTaskSheet: View {
     private func updateExistingTask(_ existing: TaskMirror) async {
         isSaving = true
         defer { isSaving = false }
-        let notesWithRule = hasDueDate && recurrenceRule != nil
-            ? TaskRecurrenceMarkers.encode(notes: notes, rule: recurrenceRule)
-            : notes
         let didUpdate = await model.updateTask(
             existing,
             title: title,
-            notes: notesWithRule,
+            notes: notes,
             dueDate: hasDueDate ? Calendar.current.startOfDay(for: dueDate) : nil
         )
         // Move list separately if the user changed it — updateTask doesn't
@@ -378,7 +361,6 @@ struct AddTaskSheet: View {
             }
             readListCard
             if hasDueDate { readDueCard }
-            if recurrenceRule != nil { readRepeatCard }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
@@ -438,15 +420,6 @@ struct AddTaskSheet: View {
         }
     }
 
-    private var readRepeatCard: some View {
-        readCard("Repeat") {
-            if let rule = recurrenceRule {
-                Label(rule.summary, systemImage: "repeat")
-                    .hcbFont(.subheadline)
-                    .foregroundStyle(AppColor.ink)
-            }
-        }
-    }
 }
 
 private struct NewTaskListInlineSheet: View {

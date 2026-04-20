@@ -44,16 +44,4 @@ final class RecurrenceRuleTests: XCTestCase {
         XCTAssertEqual(rule.advance(start, calendar: calendar), expected)
     }
 
-    func testMarkerRoundTrip() {
-        let rule = RecurrenceRule(frequency: .weekly, interval: 1)
-        let notes = "body text"
-        let encoded = TaskRecurrenceMarkers.encode(notes: notes, rule: rule)
-        XCTAssertEqual(TaskRecurrenceMarkers.rule(from: encoded), rule)
-        XCTAssertEqual(TaskRecurrenceMarkers.strippedNotes(from: encoded), "body text")
-    }
-
-    func testMarkerEncodeNilStripsExisting() {
-        let original = "body\n\n[recurrence: RRULE:FREQ=DAILY;INTERVAL=1]"
-        XCTAssertEqual(TaskRecurrenceMarkers.encode(notes: original, rule: nil), "body")
-    }
 }

@@ -85,7 +85,6 @@ struct TaskInspectorView: View {
                     }
 
                     dueDateSection
-                    recurrenceSection
                     remindersSection
                     taskListSection
                     subtasksSection
@@ -140,10 +139,7 @@ struct TaskInspectorView: View {
     // MARK: - View-only body (renders populated fields only).
 
     private var viewOnlyBody: some View {
-        let strippedNotes = TaskReminderMarkers.strippedNotes(
-            from: TaskRecurrenceMarkers.strippedNotes(from: task.notes)
-        )
-        let recurrence = TaskRecurrenceMarkers.rule(from: task.notes)
+        let strippedNotes = TaskReminderMarkers.strippedNotes(from: task.notes)
         let reminderOffsets = TaskReminderMarkers.offsetsInDays(from: task.notes)
         let listTitle = model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Unknown list"
         let subtasks = children
@@ -168,14 +164,6 @@ struct TaskInspectorView: View {
                 readCard("DUE DATE") {
                     Label(due.formatted(.dateTime.weekday(.wide).day().month(.wide).year()),
                           systemImage: "calendar")
-                        .hcbFont(.subheadline)
-                        .foregroundStyle(AppColor.ink)
-                }
-            }
-
-            if let rule = recurrence {
-                readCard("REPEAT") {
-                    Label(rule.summary, systemImage: "repeat")
                         .hcbFont(.subheadline)
                         .foregroundStyle(AppColor.ink)
                 }
@@ -557,41 +545,9 @@ struct TaskInspectorView: View {
         if created { newSubtaskTitle = "" }
     }
 
-    @ViewBuilder
-    private var recurrenceSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionLabel("REPEAT")
-            RecurrenceEditor(rule: recurrenceBinding)
-            Text(task.dueDate == nil
-                 ? "Add a due date to enable repeating."
-                 : "When you complete this task, a new copy is created for the next occurrence.")
-                .hcbFont(.caption2)
-                .foregroundStyle(.secondary)
-        }
-        .hcbScaledPadding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.ultraThinMaterial)
-        )
-        .disabled(task.dueDate == nil)
-    }
-
-    private var recurrenceBinding: Binding<RecurrenceRule?> {
-        Binding(
-            get: { TaskRecurrenceMarkers.rule(from: task.notes) },
-            set: { newRule in
-                let newNotes = TaskRecurrenceMarkers.encode(notes: task.notes, rule: newRule)
-                Task {
-                    _ = await model.updateTask(
-                        task,
-                        title: task.title,
-                        notes: newNotes,
-                        dueDate: task.dueDate
-                    )
-                }
-            }
-        )
-    }
+    // Task recurrence removed — Google Tasks API has no native recurrence
+    // field, so we no longer write one into notes. Event recurrence still
+    // works (native Google Calendar field).
 
     @ViewBuilder
     private var remindersSection: some View {
@@ -718,8 +674,7 @@ struct TaskInspectorView: View {
     }
 
     private var notesForPreview: String {
-        let withoutReminders = TaskReminderMarkers.strippedNotes(from: draft.notes)
-        return TaskRecurrenceMarkers.strippedNotes(from: withoutReminders)
+        TaskReminderMarkers.strippedNotes(from: draft.notes)
     }
 
     private func sectionLabel(_ text: String) -> some View {
