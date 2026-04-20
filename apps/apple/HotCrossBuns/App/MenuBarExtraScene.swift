@@ -17,6 +17,7 @@ struct MenuBarExtraContent: View {
         }
         .id(model.settings.colorSchemeID)
         .withHCBAppearance(model.settings)
+        .hcbSurface(.menuBar) // §6.11 per-surface font override
         .onChange(of: model.settings.colorSchemeID, initial: true) { _, newID in
             HCBColorSchemeStore.current = HCBColorScheme.scheme(id: newID) ?? .notion
         }

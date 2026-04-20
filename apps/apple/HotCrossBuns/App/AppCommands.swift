@@ -13,6 +13,7 @@ final class AppCommandActions {
     var refresh: () -> Void = {}
     var forceResync: () -> Void = {}
     var switchTo: (SidebarItem) -> Void = { _ in }
+    var openSettingsWindow: () -> Void = {}
     var openDiagnostics: () -> Void = {}
     var openCommandPalette: () -> Void = {}
     var openQuickSwitcher: () -> Void = {}
@@ -42,7 +43,7 @@ final class AppCommandActions {
         case .help: openHelp()
         case .goToCalendar: switchTo(.calendar)
         case .goToStore: switchTo(.store)
-        case .goToSettings: switchTo(.settings)
+        case .goToSettings: openSettingsWindow()
         case .zoomIn: zoomIn()
         case .zoomOut: zoomOut()
         case .zoomReset: zoomReset()
@@ -162,7 +163,6 @@ struct AppCommands: Commands {
         switch item {
         case .calendar: .goToCalendar
         case .store: .goToStore
-        case .settings: .goToSettings
         }
     }
 

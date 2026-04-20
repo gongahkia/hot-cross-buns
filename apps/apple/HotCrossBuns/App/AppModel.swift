@@ -1319,6 +1319,29 @@ final class AppModel {
         Task { await saveCurrentState() }
     }
 
+    // §7.02 — event retention window. Clamped to a sane [0, 3650] range so a
+    // corrupt cache can't request a 100-year cutoff. 0 = keep-forever.
+    func setEventRetentionDaysBack(_ days: Int) {
+        let clamped = max(0, min(days, 3650))
+        guard settings.eventRetentionDaysBack != clamped else { return }
+        settings.eventRetentionDaysBack = clamped
+        // Apply in-memory immediately so users see the cache shrink without
+        // waiting for the next sync tick. Pruning mirrors the SyncScheduler
+        // logic — same cutoff semantics, same preserve-recent-edits carveout.
+        if clamped > 0 {
+            let cutoff = Calendar.current.date(byAdding: .day, value: -clamped, to: Date())
+            if let cutoff {
+                events = events.filter { event in
+                    if OptimisticID.isPending(event.id) { return true }
+                    if event.endDate >= cutoff { return true }
+                    if let updatedAt = event.updatedAt, updatedAt >= cutoff { return true }
+                    return false
+                }
+            }
+        }
+        Task { await saveCurrentState() }
+    }
+
     func setSidebarItemHidden(_ item: SidebarItem, hidden: Bool) {
         guard item.isHideable else { return } // Settings is always visible
         var next = settings.hiddenSidebarItems
@@ -1624,6 +1647,128 @@ final class AppModel {
     func deleteEventTemplate(_ id: EventTemplate.ID) {
         settings.eventTemplates.removeAll { $0.id == id }
         Task { await saveCurrentState() }
+    }
+
+    // §6.13b — Instantiates an event template: expands every templated field
+    // with the supplied prompt answers + clipboard + date vars, resolves the
+    // date + time anchors into a real start Date, and creates a Google event
+    // via the existing createEvent path. Returns true on success.
+    //
+    // Date/time composition:
+    //   dateAnchor expands to "YYYY-MM-DD"; empty → today (start-of-day).
+    //   timeAnchor is literal "HH:mm" in 24h; empty → now rounded up to the
+    //   next 15-minute boundary. When isAllDay, timeAnchor is ignored and
+    //   endDate = startDate + max(durationMinutes/1440 * 1, 1) days (treated
+    //   as inclusive-end by createEvent).
+    //
+    // Like task templates, NO template metadata ever lands in the Google
+    // event — the resulting event is indistinguishable on google.com from a
+    // manually-created one.
+    @discardableResult
+    func instantiateEventTemplate(_ template: EventTemplate, prompts: [String: String] = [:]) async -> Bool {
+        let ctx = HCBTemplateContext(
+            now: Date(),
+            calendar: .current,
+            clipboard: NSPasteboard.general.string(forType: .string),
+            prompts: prompts
+        )
+        func expand(_ s: String) -> String {
+            HCBTemplateExpander.expand(s, context: ctx)
+                .replacingOccurrences(of: HCBTemplateExpander.cursorSentinel, with: "")
+        }
+
+        let summary = expand(template.summary)
+        let details = expand(template.details)
+        let location = expand(template.location)
+        let dateString = expand(template.dateAnchor).trimmingCharacters(in: .whitespacesAndNewlines)
+        let calendarRef = expand(template.calendarIdOrTitle).trimmingCharacters(in: .whitespacesAndNewlines)
+        let attendees = template.attendees
+            .map { expand($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.isEmpty == false }
+
+        // Resolve date.
+        let baseCalendar = Calendar.current
+        let now = Date()
+        let startOfDay: Date
+        if dateString.isEmpty {
+            startOfDay = baseCalendar.startOfDay(for: now)
+        } else {
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.dateFormat = "yyyy-MM-dd"
+            guard let parsed = f.date(from: dateString) else {
+                lastMutationError = "Event template '\(template.name)' has an invalid dateAnchor: \(dateString)."
+                return false
+            }
+            startOfDay = baseCalendar.startOfDay(for: parsed)
+        }
+
+        // Compose start Date.
+        let startDate: Date
+        let endDate: Date
+        if template.isAllDay {
+            startDate = startOfDay
+            let days = max(Int(ceil(Double(template.durationMinutes) / (24 * 60))), 1)
+            endDate = baseCalendar.date(byAdding: .day, value: days, to: startOfDay) ?? startOfDay
+        } else {
+            let timeString = template.timeAnchor.trimmingCharacters(in: .whitespacesAndNewlines)
+            let (hour, minute): (Int, Int) = {
+                if timeString.isEmpty {
+                    // Round up to the next 15-minute boundary.
+                    let comps = baseCalendar.dateComponents([.hour, .minute], from: now)
+                    let rawMin = (comps.minute ?? 0)
+                    let bumped = ((rawMin / 15) + 1) * 15
+                    if bumped >= 60 {
+                        return ((comps.hour ?? 0) + 1, 0)
+                    }
+                    return (comps.hour ?? 0, bumped)
+                }
+                let parts = timeString.split(separator: ":").compactMap { Int($0) }
+                if parts.count == 2, (0...23).contains(parts[0]), (0...59).contains(parts[1]) {
+                    return (parts[0], parts[1])
+                }
+                return (9, 0) // fallback default
+            }()
+            let resolvedStart = baseCalendar.date(bySettingHour: hour, minute: minute, second: 0, of: startOfDay) ?? startOfDay
+            startDate = resolvedStart
+            endDate = resolvedStart.addingTimeInterval(TimeInterval(max(template.durationMinutes, 5) * 60))
+        }
+
+        // Resolve calendar — "" / unknown falls back to the first writable.
+        let writable = calendars.filter { $0.accessRole == "owner" || $0.accessRole == "writer" }
+        let resolvedCalendarID: CalendarListMirror.ID? = {
+            if calendarRef.isEmpty { return writable.first?.id ?? calendars.first?.id }
+            if let exact = calendars.first(where: { $0.id == calendarRef }) { return exact.id }
+            return calendars.first(where: { $0.summary.localizedCaseInsensitiveCompare(calendarRef) == .orderedSame })?.id
+        }()
+        guard let calendarID = resolvedCalendarID else {
+            lastMutationError = "No calendar available for template '\(template.name)'."
+            return false
+        }
+
+        // Recurrence: Google expects an array of "RRULE:..." strings.
+        let recurrence: [String] = {
+            let trimmed = template.recurrenceRule.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.isEmpty == false else { return [] }
+            if trimmed.uppercased().hasPrefix("RRULE:") { return [trimmed] }
+            return ["RRULE:\(trimmed)"]
+        }()
+
+        return await createEvent(
+            summary: summary,
+            details: details,
+            startDate: startDate,
+            endDate: endDate,
+            isAllDay: template.isAllDay,
+            reminderMinutes: template.reminderMinutes,
+            calendarID: calendarID,
+            location: location,
+            recurrence: recurrence,
+            attendeeEmails: attendees,
+            notifyGuests: false,
+            addGoogleMeet: template.addGoogleMeet,
+            colorId: template.colorId
+        )
     }
 
     func bulkDeleteEvents(_ events: [CalendarEventMirror]) async -> Int {

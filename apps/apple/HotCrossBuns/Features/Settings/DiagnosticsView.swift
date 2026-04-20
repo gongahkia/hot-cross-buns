@@ -298,6 +298,10 @@ struct DiagnosticsView: View {
                 Text(confirmation?.message ?? "")
             }
         }
+        // macOS sheets don't auto-size to their List content; without an
+        // explicit frame the sheet collapses to toolbar-height and the
+        // sections are hidden.
+        .frame(minWidth: 620, minHeight: 520)
     }
 
     private var googleStatus: String {

@@ -29,23 +29,43 @@ enum RecurrenceFrequency: String, CaseIterable, Hashable, Sendable {
     }
 }
 
+// End-condition on a recurrence. Maps to RFC 5545 COUNT / UNTIL tokens
+// which Google Calendar honours directly. Default is `.never` (open-ended).
+enum RecurrenceEnd: Hashable, Sendable {
+    case never
+    case after(Int)    // COUNT=N  (minimum 1)
+    case until(Date)   // UNTIL=YYYYMMDDTHHMMSSZ (UTC, per RFC 5545)
+}
+
 struct RecurrenceRule: Equatable, Hashable, Sendable {
     var frequency: RecurrenceFrequency
     var interval: Int
+    var end: RecurrenceEnd
 
-    init(frequency: RecurrenceFrequency, interval: Int = 1) {
+    init(frequency: RecurrenceFrequency, interval: Int = 1, end: RecurrenceEnd = .never) {
         self.frequency = frequency
         self.interval = max(1, interval)
+        self.end = end
     }
 
     func rruleString() -> String {
-        "RRULE:FREQ=\(frequency.rfcValue);INTERVAL=\(max(interval, 1))"
+        var body = "RRULE:FREQ=\(frequency.rfcValue);INTERVAL=\(max(interval, 1))"
+        switch end {
+        case .never:
+            break
+        case .after(let count):
+            body += ";COUNT=\(max(1, count))"
+        case .until(let date):
+            body += ";UNTIL=\(Self.untilFormatter.string(from: date))"
+        }
+        return body
     }
 
     static func parse(rrule: String) -> RecurrenceRule? {
         let trimmed = rrule.hasPrefix("RRULE:") ? String(rrule.dropFirst(6)) : rrule
         var frequency: RecurrenceFrequency?
         var interval = 1
+        var end: RecurrenceEnd = .never
         for component in trimmed.split(separator: ";") {
             let parts = component.split(separator: "=", maxSplits: 1)
             guard parts.count == 2 else { continue }
@@ -56,12 +76,20 @@ struct RecurrenceRule: Equatable, Hashable, Sendable {
                 frequency = RecurrenceFrequency.parse(value)
             case "INTERVAL":
                 interval = Int(value) ?? 1
+            case "COUNT":
+                if let n = Int(value), n > 0 {
+                    end = .after(n)
+                }
+            case "UNTIL":
+                if let date = Self.untilFormatter.date(from: value) ?? Self.untilDateOnlyFormatter.date(from: value) {
+                    end = .until(date)
+                }
             default:
                 continue
             }
         }
         guard let frequency else { return nil }
-        return RecurrenceRule(frequency: frequency, interval: interval)
+        return RecurrenceRule(frequency: frequency, interval: interval, end: end)
     }
 
     func advance(_ date: Date, calendar: Calendar = .current) -> Date? {
@@ -78,8 +106,15 @@ struct RecurrenceRule: Equatable, Hashable, Sendable {
     }
 
     var summary: String {
-        if interval == 1 { return frequency.title }
-        return "Every \(interval) \(pluralUnit)"
+        let base = interval == 1 ? frequency.title : "Every \(interval) \(pluralUnit)"
+        switch end {
+        case .never:
+            return base
+        case .after(let n):
+            return "\(base) · \(n) time\(n == 1 ? "" : "s")"
+        case .until(let date):
+            return "\(base) · until \(date.formatted(.dateTime.day().month(.abbreviated).year()))"
+        }
     }
 
     private var pluralUnit: String {
@@ -90,4 +125,24 @@ struct RecurrenceRule: Equatable, Hashable, Sendable {
         case .yearly: "years"
         }
     }
+
+    // RFC 5545: UNTIL MUST be in UTC with the literal Z suffix when the
+    // DTSTART is a datetime. Google accepts both forms (date-only and
+    // datetime) — we always emit the datetime form; parse falls back to
+    // date-only for legacy strings.
+    private static let untilFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
+        return f
+    }()
+
+    private static let untilDateOnlyFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.dateFormat = "yyyyMMdd"
+        return f
+    }()
 }

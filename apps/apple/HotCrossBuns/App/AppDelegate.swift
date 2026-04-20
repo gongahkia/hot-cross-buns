@@ -30,7 +30,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Piggyback on the Share Extension's handoff path so a selection
         // captured via the Services menu flows through the same prefill →
         // QuickAdd pipeline.
-        let item = SharedInboxItem(text: selection, createdAt: Date())
+        let item = SharedInboxItem(
+            text: selection,
+            createdAt: Date(),
+            source: Bundle.main.bundleIdentifier
+        )
         SharedInboxDefaults.append(item)
         Task { @MainActor in
             NSApplication.shared.activate(ignoringOtherApps: true)

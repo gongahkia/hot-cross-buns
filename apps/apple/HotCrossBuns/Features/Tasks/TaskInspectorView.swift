@@ -102,6 +102,7 @@ struct TaskInspectorView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(AppColor.cream.opacity(0.35))
+        .hcbSurface(.inspector) // §6.11 per-surface font override
         .onChange(of: task.id) { _, _ in
             commitPending()
             draft = TaskDraft(task: task)
@@ -160,7 +161,7 @@ struct TaskInspectorView: View {
 
             if strippedNotes.isEmpty == false {
                 readCard("NOTES") {
-                    Text.markdown(strippedNotes)
+                    MarkdownBlock(source: strippedNotes)
                         .hcbFont(.body)
                         .foregroundStyle(AppColor.ink)
                         .textSelection(.enabled)

@@ -36,6 +36,11 @@ struct MonthGridView: View {
     @State private var isGridHovered: Bool = false
     private let scrollThreshold: CGFloat = 45
     private let scrollCooldown: TimeInterval = 0.22
+    // Tracks paging direction so the grid transition slides the right way
+    // regardless of source (scroll gesture, chevron buttons, mini-calendar
+    // tap, keyboard shortcut). 1 = forward in time, -1 = back.
+    @State private var monthDirection: Int = 1
+    @State private var lastAnchorKey: String = ""
 
     private struct DragSelection: Equatable {
         var start: Date
@@ -49,7 +54,18 @@ struct MonthGridView: View {
         VStack(spacing: 0) {
             weekdayHeader
             Divider()
-            grid
+            animatedGrid
+        }
+        .onAppear { lastAnchorKey = monthKey(for: anchorDate) }
+        .onChange(of: anchorDate) { _, newValue in
+            // Infer direction from external updates (chevron buttons, mini
+            // calendar, keyboard) so the transition slides consistently even
+            // when stepMonth(by:) wasn't the caller.
+            let newKey = monthKey(for: newValue)
+            if newKey != lastAnchorKey {
+                monthDirection = compareMonthKeys(lastAnchorKey, newKey)
+                lastAnchorKey = newKey
+            }
         }
         .onHover { hovering in
             isGridHovered = hovering
@@ -60,6 +76,61 @@ struct MonthGridView: View {
             }
         }
         .onDisappear { removeScrollMonitor() }
+    }
+
+    // Wraps `grid` in a clipped container so the slide transition doesn't
+    // bleed into neighbouring chrome. Identity is keyed by year-month so
+    // SwiftUI sees a view replace on month change — required for .transition
+    // to fire. Drag-to-create state re-initialises on month swap, which is
+    // desirable (a drag mid-scroll would be ambiguous anyway).
+    //
+    // §7.02: `filteredEvents` and `eventsByDay` are computed ONCE per body
+    // pass and threaded into `grid`, `weekRow`, and `monthCell` so each
+    // week's `monthBands` call doesn't re-iterate the full events list. On
+    // large calendars this cuts the per-render scan from O(events × weeks)
+    // to O(events).
+    private var animatedGrid: some View {
+        let filtered = filteredEvents
+        let byDay = CalendarGridLayout.eventsByDay(
+            filtered,
+            from: cells.first ?? anchorDate,
+            to: cells.last ?? anchorDate,
+            calendar: calendar
+        )
+        return ZStack {
+            grid(filtered: filtered, byDay: byDay)
+                .id(monthKey(for: anchorDate))
+                .transition(monthTransition)
+        }
+        .clipped()
+    }
+
+    private var monthTransition: AnyTransition {
+        let insertionEdge: Edge = monthDirection >= 0 ? .bottom : .top
+        let removalEdge: Edge = monthDirection >= 0 ? .top : .bottom
+        return .asymmetric(
+            insertion: .move(edge: insertionEdge).combined(with: .opacity),
+            removal: .move(edge: removalEdge).combined(with: .opacity)
+        )
+    }
+
+    private func monthKey(for date: Date) -> String {
+        let comps = calendar.dateComponents([.year, .month], from: date)
+        return "\(comps.year ?? 0)-\(comps.month ?? 0)"
+    }
+
+    // Compares two year-month keys; returns 1 if `new` is after `old`, -1 if
+    // before, 0 on parse failure / equality.
+    private func compareMonthKeys(_ old: String, _ new: String) -> Int {
+        let parse: (String) -> (Int, Int)? = { key in
+            let parts = key.split(separator: "-").compactMap { Int($0) }
+            guard parts.count == 2 else { return nil }
+            return (parts[0], parts[1])
+        }
+        guard let o = parse(old), let n = parse(new) else { return 0 }
+        if n.0 != o.0 { return n.0 > o.0 ? 1 : -1 }
+        if n.1 != o.1 { return n.1 > o.1 ? 1 : -1 }
+        return 0
     }
 
     private var cells: [Date] {
@@ -77,15 +148,6 @@ struct MonthGridView: View {
         }
     }
 
-    private var eventsByDay: [Date: [CalendarEventMirror]] {
-        CalendarGridLayout.eventsByDay(
-            filteredEvents,
-            from: cells.first ?? anchorDate,
-            to: cells.last ?? anchorDate,
-            calendar: calendar
-        )
-    }
-
     private var weekdayHeader: some View {
         HStack(spacing: 0) {
             ForEach(weekdaySymbols, id: \.self) { symbol in
@@ -98,7 +160,7 @@ struct MonthGridView: View {
         .hcbScaledPadding(.vertical, 8)
     }
 
-    private var grid: some View {
+    private func grid(filtered: [CalendarEventMirror], byDay: [Date: [CalendarEventMirror]]) -> some View {
         let groupedCells = stride(from: 0, to: cells.count, by: 7).map { start in
             Array(cells[start..<min(start + 7, cells.count)])
         }
@@ -108,7 +170,7 @@ struct MonthGridView: View {
             ZStack(alignment: .topLeading) {
                 VStack(spacing: 0) {
                     ForEach(Array(groupedCells.enumerated()), id: \.offset) { _, row in
-                        weekRow(row, rowHeight: rowHeight, weekWidth: geo.size.width)
+                        weekRow(row, rowHeight: rowHeight, weekWidth: geo.size.width, filtered: filtered, byDay: byDay)
                     }
                 }
                 // Grid-level drag highlight — spans multiple rows so a
@@ -150,9 +212,15 @@ struct MonthGridView: View {
         }
     }
 
-    private func weekRow(_ days: [Date], rowHeight: CGFloat, weekWidth: CGFloat) -> some View {
+    private func weekRow(
+        _ days: [Date],
+        rowHeight: CGFloat,
+        weekWidth: CGFloat,
+        filtered: [CalendarEventMirror],
+        byDay: [Date: [CalendarEventMirror]]
+    ) -> some View {
         let cellWidth = weekWidth / CGFloat(max(days.count, 1))
-        let bands = CalendarGridLayout.monthBands(for: days, events: filteredEvents, calendar: calendar)
+        let bands = CalendarGridLayout.monthBands(for: days, events: filtered, calendar: calendar)
         let visibleLaneCount = min(maxVisibleLanes, (bands.map(\.lane).max() ?? -1) + 1)
         let bandAreaHeight: CGFloat = visibleLaneCount > 0
             ? CGFloat(visibleLaneCount) * laneHeight + CGFloat(max(visibleLaneCount - 1, 0)) * laneSpacing + 4
@@ -161,7 +229,7 @@ struct MonthGridView: View {
         return ZStack(alignment: .topLeading) {
             HStack(spacing: 0) {
                 ForEach(days, id: \.self) { day in
-                    monthCell(day: day, bandReserve: bandAreaHeight)
+                    monthCell(day: day, bandReserve: bandAreaHeight, byDay: byDay)
                         .frame(maxWidth: .infinity, minHeight: rowHeight, maxHeight: rowHeight, alignment: .top)
                 }
             }
@@ -302,10 +370,10 @@ struct MonthGridView: View {
         }
     }
 
-    private func monthCell(day: Date, bandReserve: CGFloat) -> some View {
+    private func monthCell(day: Date, bandReserve: CGFloat, byDay: [Date: [CalendarEventMirror]]) -> some View {
         let dayStart = calendar.startOfDay(for: day)
         let isCurrentMonth = calendar.component(.month, from: day) == calendar.component(.month, from: anchorDate)
-        let allEventsToday = eventsByDay[dayStart] ?? []
+        let allEventsToday = byDay[dayStart] ?? []
         // Bands render in the overlay; per-cell shows only timed single-day events.
         let events = allEventsToday.filter { CalendarGridLayout.isBandEvent($0, calendar: calendar) == false }
         let tasks = tasksForDay(day)
@@ -358,29 +426,29 @@ struct MonthGridView: View {
                 }
             }
             ForEach(tasks.prefix(taskSlots)) { task in
-                CalendarTaskPreviewButton(task: task) {
-                    HStack(spacing: 3) {
-                        Image(systemName: "circle")
-                            .hcbFontSystem(size: 7)
-                            .foregroundStyle(AppColor.ember)
-                            .accessibilityHidden(true)
+                HStack(spacing: 3) {
+                    CalendarTaskCheckbox(task: task, size: 9)
+                    CalendarTaskPreviewButton(task: task) {
                         Text(task.title)
                             .hcbFont(.caption2)
                             .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
                     }
-                    .hcbScaledPadding(.horizontal, 6)
-                    .hcbScaledPadding(.vertical, 2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(AppColor.ember.opacity(0.15))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .strokeBorder(AppColor.ember.opacity(0.35), lineWidth: 0.6)
-                    )
-                    .foregroundStyle(AppColor.ink)
                 }
+                .hcbScaledPadding(.horizontal, 6)
+                .hcbScaledPadding(.vertical, 2)
+                .background(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(AppColor.ember.opacity(0.15))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .strokeBorder(AppColor.ember.opacity(0.35), lineWidth: 0.6)
+                )
+                .foregroundStyle(AppColor.ink)
+                .strikethrough(task.isCompleted, color: .secondary)
+                .opacity(task.isCompleted ? 0.55 : 1.0)
             }
             let hiddenEvents = max(0, events.count - eventSlots) + hiddenBandEvents
             let hiddenTasks = max(0, tasks.count - taskSlots)
@@ -540,7 +608,12 @@ struct MonthGridView: View {
 
     private func stepMonth(by direction: Int) {
         guard let next = calendar.date(byAdding: .month, value: direction, to: anchorDate) else { return }
-        withAnimation(.easeInOut(duration: 0.18)) {
+        // Set direction BEFORE the withAnimation so the .transition() on the
+        // grid picks up the correct edges during this anim pass. onChange
+        // would otherwise race and sometimes flip the slide direction.
+        monthDirection = direction
+        lastAnchorKey = monthKey(for: next)
+        withAnimation(.easeInOut(duration: 0.24)) {
             anchorDate = next
         }
     }

@@ -4,6 +4,8 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(RouterPath.self) private var router
+    @State private var showLocalNotificationsInfo = false
+    @State private var showOnboardingResetConfirmed = false
 
     var body: some View {
         List {
@@ -53,15 +55,38 @@ struct SettingsView: View {
                     Label("Run setup again", systemImage: "sparkles")
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
-                        .onTapGesture { model.resetOnboarding() }
+                        .onTapGesture {
+                            model.resetOnboarding()
+                            showOnboardingResetConfirmed = true
+                        }
+
+                    Picker("Keep past events", selection: eventRetentionBinding) {
+                        Text("30 days").tag(30)
+                        Text("90 days").tag(90)
+                        Text("180 days").tag(180)
+                        Text("1 year").tag(365)
+                        Text("2 years").tag(730)
+                        Text("Forever").tag(0)
+                    }
+                    .pickerStyle(.menu)
+                    Text("Older events are dropped from the local cache to keep memory + disk tight. Drops never touch Google — a Force Resync refetches everything. Recently-edited events (within the window) are preserved even if they ended earlier.")
+                        .hcbFont(.caption2)
+                        .foregroundStyle(.secondary)
                 }
             }
 
             Section("Notifications") {
                 Toggle("Local reminders", isOn: localNotificationsBinding)
-                Text("Schedules up to 64 pending reminders for due tasks and upcoming events on this device.")
-                    .hcbFont(.footnote)
-                    .foregroundStyle(.secondary)
+            }
+            .alert("Local reminders enabled", isPresented: $showLocalNotificationsInfo) {
+                Button("OK") { showLocalNotificationsInfo = false }
+            } message: {
+                Text("Hot Cross Buns will schedule up to 64 pending reminders on this Mac for the soonest-upcoming due tasks and Calendar events. 64 is an Apple-imposed ceiling for local notifications per app — later items get scheduled automatically as earlier ones fire or complete.")
+            }
+            .alert("Setup will run now", isPresented: $showOnboardingResetConfirmed) {
+                Button("OK") { showOnboardingResetConfirmed = false }
+            } message: {
+                Text("The onboarding flow has been reset. Switch back to the main Hot Cross Buns window to go through setup again.")
             }
 
             AppearanceSection()
@@ -142,7 +167,14 @@ struct SettingsView: View {
     private var localNotificationsBinding: Binding<Bool> {
         Binding(
             get: { model.settings.enableLocalNotifications },
-            set: { model.updateLocalNotificationsEnabled($0) }
+            set: { newValue in
+                let wasOff = model.settings.enableLocalNotifications == false
+                model.updateLocalNotificationsEnabled(newValue)
+                // Only show the explainer on an off→on transition.
+                if wasOff, newValue {
+                    showLocalNotificationsInfo = true
+                }
+            }
         )
     }
 
@@ -178,6 +210,13 @@ struct SettingsView: View {
         Binding(
             get: { model.settings.enableGlobalHotkey },
             set: { model.setEnableGlobalHotkey($0) }
+        )
+    }
+
+    private var eventRetentionBinding: Binding<Int> {
+        Binding(
+            get: { model.settings.eventRetentionDaysBack },
+            set: { model.setEventRetentionDaysBack($0) }
         )
     }
 
@@ -307,6 +346,10 @@ struct SyncSettingsSheet: View {
                 }
             }
         }
+        // macOS sheets don't auto-size to their List content; without an
+        // explicit frame the sheet collapses to toolbar-height and the
+        // sections are hidden.
+        .frame(minWidth: 520, minHeight: 360)
     }
 }
 

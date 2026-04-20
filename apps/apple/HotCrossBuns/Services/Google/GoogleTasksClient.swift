@@ -39,7 +39,15 @@ struct GoogleTasksClient: Sendable {
         )
     }
 
-    func listTasks(taskListID: String, updatedMin: Date?) async throws -> [TaskMirror] {
+    // §14 — Returns fetched tasks plus the `Date` header from the FIRST
+    // response page. Using the first page's server timestamp as the next
+    // watermark is correct: subsequent pages share the same query snapshot,
+    // and any task updated on Google after that first Date will be outside
+    // this page set and therefore picked up by the next incremental sync.
+    // `serverDate == nil` is only expected when the header is missing or
+    // unparseable; SyncScheduler falls back to a local-clock watermark in
+    // that case.
+    func listTasks(taskListID: String, updatedMin: Date?) async throws -> GoogleTasksPage {
         let encodedTaskListID = taskListID.googlePathComponentEncoded
         let baseQueryItems = [
             URLQueryItem(name: "showCompleted", value: "true"),
@@ -49,6 +57,8 @@ struct GoogleTasksClient: Sendable {
         ]
         var pageToken: String?
         var tasks: [TaskMirror] = []
+        var firstPageServerDate: Date?
+        var isFirstPage = true
 
         repeat {
             var queryItems = baseQueryItems
@@ -61,16 +71,21 @@ struct GoogleTasksClient: Sendable {
                 queryItems.append(URLQueryItem(name: "pageToken", value: pageToken))
             }
 
-            let response: GoogleTasksResponse = try await transport.get(
+            let (response, serverDate): (GoogleTasksResponse, Date?) = try await transport.getWithServerDate(
                 path: "/tasks/v1/lists/\(encodedTaskListID)/tasks",
                 queryItems: queryItems
             )
+
+            if isFirstPage {
+                firstPageServerDate = serverDate
+                isFirstPage = false
+            }
 
             tasks.append(contentsOf: response.items.map { $0.mirror(taskListID: taskListID) })
             pageToken = response.nextPageToken
         } while pageToken != nil
 
-        return tasks
+        return GoogleTasksPage(tasks: tasks, serverDate: firstPageServerDate)
     }
 
     func insertTask(
@@ -193,6 +208,14 @@ struct GoogleTasksClient: Sendable {
         )
         return response.mirror(taskListID: taskListID)
     }
+}
+
+// §14 — Paginated Tasks fetch result. `serverDate` carries the Date header
+// from the first page so SyncScheduler can set the next `updatedMin` from
+// Google's clock rather than the local one.
+struct GoogleTasksPage: Sendable {
+    let tasks: [TaskMirror]
+    let serverDate: Date?
 }
 
 private struct GoogleTaskListsResponse: Decodable, Sendable {

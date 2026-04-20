@@ -39,6 +39,16 @@ struct CalendarHomeView: View {
                         switch mode {
                         case .agenda: agendaContent
                         case .day: DayGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
+                        case .multiDay:
+                            VStack(spacing: 0) {
+                                multiDayStepperBar
+                                WeekGridView(
+                                    anchorDate: $selectedDate,
+                                    searchQuery: searchQuery,
+                                    selectedEventIDs: $selectedEventIDs,
+                                    multiDayCount: model.settings.multiDayCount
+                                )
+                            }
                         case .week:
                             HStack(spacing: 10) {
                                 if showTaskDrawer {
@@ -49,6 +59,10 @@ struct CalendarHomeView: View {
                             }
                             .animation(.easeInOut(duration: 0.2), value: showTaskDrawer)
                         case .month: MonthGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
+                        case .year: YearGridView(anchorDate: $selectedDate, onPickDay: { day in
+                            selectedDate = day
+                            mode = .day
+                        })
                         case .timeline: TimelineView(anchorDate: $selectedDate, searchQuery: searchQuery)
                         }
 
@@ -64,6 +78,7 @@ struct CalendarHomeView: View {
                     .animation(.easeInOut(duration: 0.2), value: selectedEventIDs.count >= 2)
                 }
             }
+            .hcbSurface(.calendarGrid) // §6.11 — covers day/week/month/timeline/agenda subtree
         }
         .appBackground()
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
@@ -239,6 +254,11 @@ struct CalendarHomeView: View {
             return selectedDate.formatted(.dateTime.weekday(.wide).month(.wide).day())
         case .day:
             return selectedDate.formatted(.dateTime.weekday(.wide).month(.wide).day().year())
+        case .multiDay:
+            let count = max(2, min(7, model.settings.multiDayCount))
+            let first = calendar.startOfDay(for: selectedDate)
+            let last = calendar.date(byAdding: .day, value: count - 1, to: first) ?? first
+            return "\(first.formatted(.dateTime.month(.abbreviated).day())) – \(last.formatted(.dateTime.month(.abbreviated).day().year()))"
         case .week:
             let days = CalendarGridLayout.weekDays(containing: selectedDate, calendar: calendar)
             let first = days.first ?? selectedDate
@@ -250,11 +270,46 @@ struct CalendarHomeView: View {
             return "\(first.formatted(.dateTime.month(.abbreviated).day())) – \(last.formatted(.dateTime.month(.abbreviated).day().year()))"
         case .month:
             return selectedDate.formatted(.dateTime.month(.wide).year())
+        case .year:
+            return selectedDate.formatted(.dateTime.year())
         case .timeline:
             // Timeline shows whatever range the view picks internally; the
             // toolbar title anchors on the month of the selected date.
             return selectedDate.formatted(.dateTime.month(.wide).year())
         }
+    }
+
+    // §7.01 Phase D2 — ± stepper for Multi-Day view day count.
+    private var multiDayStepperBar: some View {
+        HStack(spacing: 12) {
+            Button {
+                var next = model.settings
+                next.multiDayCount = max(2, next.multiDayCount - 1)
+                model.updateSettings(next)
+            } label: {
+                Image(systemName: "minus.circle")
+            }
+            .buttonStyle(.plain)
+            .disabled(model.settings.multiDayCount <= 2)
+            .help("Fewer days")
+            Text("\(model.settings.multiDayCount) days")
+                .hcbFont(.caption, weight: .semibold)
+                .monospacedDigit()
+                .frame(minWidth: 50)
+            Button {
+                var next = model.settings
+                next.multiDayCount = min(7, next.multiDayCount + 1)
+                model.updateSettings(next)
+            } label: {
+                Image(systemName: "plus.circle")
+            }
+            .buttonStyle(.plain)
+            .disabled(model.settings.multiDayCount >= 7)
+            .help("More days")
+            Spacer(minLength: 8)
+        }
+        .hcbScaledPadding(.horizontal, 12)
+        .hcbScaledPadding(.vertical, 6)
     }
 
     @ViewBuilder
@@ -454,10 +509,15 @@ struct CalendarHomeView: View {
         switch mode {
         case .agenda, .day:
             selectedDate = calendar.date(byAdding: .day, value: direction, to: selectedDate) ?? selectedDate
+        case .multiDay:
+            let step = max(1, model.settings.multiDayCount)
+            selectedDate = calendar.date(byAdding: .day, value: direction * step, to: selectedDate) ?? selectedDate
         case .week:
             selectedDate = calendar.date(byAdding: .weekOfYear, value: direction, to: selectedDate) ?? selectedDate
         case .month, .timeline:
             selectedDate = calendar.date(byAdding: .month, value: direction, to: selectedDate) ?? selectedDate
+        case .year:
+            selectedDate = calendar.date(byAdding: .year, value: direction, to: selectedDate) ?? selectedDate
         }
     }
 
@@ -466,58 +526,151 @@ struct CalendarHomeView: View {
         switch mode {
         case .agenda, .day:
             selectedDate = calendar.date(byAdding: .weekOfYear, value: direction, to: selectedDate) ?? selectedDate
+        case .multiDay:
+            selectedDate = calendar.date(byAdding: .weekOfYear, value: direction, to: selectedDate) ?? selectedDate
         case .week:
             selectedDate = calendar.date(byAdding: .month, value: direction, to: selectedDate) ?? selectedDate
         case .month, .timeline:
             selectedDate = calendar.date(byAdding: .year, value: direction, to: selectedDate) ?? selectedDate
+        case .year:
+            selectedDate = calendar.date(byAdding: .year, value: direction * 5, to: selectedDate) ?? selectedDate
         }
     }
 
+    // §7.01 Phase D4 — TickTick-style flat chronological agenda. Date-header
+    // sections, events (time-sorted) and tasks (due that day) interleaved.
+    // Range: 14 days starting at selectedDate. DatePicker at top scrolls range.
     private var agendaContent: some View {
-        List {
-            Section("Agenda date") {
-                DatePicker("Show events for", selection: $selectedDate, displayedComponents: [.date])
+        let range = agendaDays()
+        let eventsByDay = agendaEventsByDay(for: range)
+        let tasksByDay = agendaTasksByDay(for: range)
+        return List {
+            Section {
+                DatePicker("Agenda starts", selection: $selectedDate, displayedComponents: [.date])
             }
-
-            Section(selectedDate.formatted(.dateTime.weekday(.wide).month(.wide).day())) {
-                let eventsForSelectedDate = events(on: selectedDate)
-                if eventsForSelectedDate.isEmpty {
-                    Text("No events on this date in selected calendars")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(eventsForSelectedDate) { event in
-                        Button {
-                            router.present(.editEvent(event.id))
-                        } label: {
-                            EventListRow(event: event)
+            ForEach(range, id: \.self) { day in
+                let dayEvents = eventsByDay[day] ?? []
+                let dayTasks = tasksByDay[day] ?? []
+                if dayEvents.isEmpty == false || dayTasks.isEmpty == false {
+                    Section {
+                        ForEach(dayEvents) { event in
+                            Button {
+                                router.present(.editEvent(event.id))
+                            } label: {
+                                EventListRow(event: event)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
+                        ForEach(dayTasks) { task in
+                            agendaTaskRow(task)
+                        }
+                    } header: {
+                        agendaDateHeader(day)
                     }
                 }
             }
-
-            Section("Selected calendars") {
-                ForEach(model.calendarSnapshot.selectedCalendars) { calendar in
-                    CalendarBadgeRow(calendar: calendar)
-                }
-            }
-
-            Section("Upcoming events") {
-                if model.calendarSnapshot.upcomingEvents.isEmpty {
-                    Text("No upcoming events in selected calendars")
+            if eventsByDay.values.allSatisfy(\.isEmpty), tasksByDay.values.allSatisfy(\.isEmpty) {
+                Section {
+                    Text("Nothing scheduled in the next \(range.count) days.")
                         .foregroundStyle(.secondary)
-                } else {
-                    ForEach(model.calendarSnapshot.upcomingEvents) { event in
-                        Button {
-                            router.present(.editEvent(event.id))
-                        } label: {
-                            EventListRow(event: event)
-                        }
-                        .buttonStyle(.plain)
-                    }
                 }
             }
         }
+    }
+
+    private func agendaDays(count: Int = 14) -> [Date] {
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: selectedDate)
+        return (0..<count).compactMap { cal.date(byAdding: .day, value: $0, to: start) }
+    }
+
+    private func agendaEventsByDay(for range: [Date]) -> [Date: [CalendarEventMirror]] {
+        guard let first = range.first, let last = range.last else { return [:] }
+        let cal = Calendar.current
+        let endExclusive = cal.date(byAdding: .day, value: 1, to: last) ?? last
+        let selectedIDs = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
+        var bucket: [Date: [CalendarEventMirror]] = [:]
+        for event in model.events {
+            guard event.status != .cancelled, selectedIDs.contains(event.calendarID) else { continue }
+            if event.endDate <= first || event.startDate >= endExclusive { continue }
+            var cursor = max(cal.startOfDay(for: event.startDate), first)
+            let end = min(cal.startOfDay(for: event.endDate), last)
+            while cursor <= end {
+                bucket[cursor, default: []].append(event)
+                guard let next = cal.date(byAdding: .day, value: 1, to: cursor) else { break }
+                cursor = next
+            }
+        }
+        for day in bucket.keys {
+            bucket[day]?.sort { lhs, rhs in
+                if lhs.isAllDay != rhs.isAllDay { return lhs.isAllDay && rhs.isAllDay == false }
+                return lhs.startDate < rhs.startDate
+            }
+        }
+        return bucket
+    }
+
+    private func agendaTasksByDay(for range: [Date]) -> [Date: [TaskMirror]] {
+        let cal = Calendar.current
+        let visibleLists: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
+            ? model.settings.selectedTaskListIDs
+            : Set(model.taskLists.map(\.id))
+        var bucket: [Date: [TaskMirror]] = [:]
+        let rangeSet = Set(range)
+        for task in model.tasks {
+            guard task.isDeleted == false, visibleLists.contains(task.taskListID), let due = task.dueDate else { continue }
+            let day = cal.startOfDay(for: due)
+            guard rangeSet.contains(day) else { continue }
+            bucket[day, default: []].append(task)
+        }
+        for day in bucket.keys {
+            bucket[day]?.sort { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        }
+        return bucket
+    }
+
+    private func agendaDateHeader(_ day: Date) -> some View {
+        let cal = Calendar.current
+        let isToday = cal.isDateInToday(day)
+        return HStack(spacing: 10) {
+            Text(day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
+                .hcbFont(.subheadline, weight: .semibold)
+                .foregroundStyle(isToday ? AppColor.ember : AppColor.ink)
+            if isToday {
+                Text("Today")
+                    .hcbFont(.caption2, weight: .semibold)
+                    .hcbScaledPadding(.horizontal, 6)
+                    .hcbScaledPadding(.vertical, 2)
+                    .background(Capsule().fill(AppColor.ember.opacity(0.18)))
+                    .foregroundStyle(AppColor.ember)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func agendaTaskRow(_ task: TaskMirror) -> some View {
+        HStack(spacing: 8) {
+            CalendarTaskCheckbox(task: task, size: 14)
+            Button {
+                router.present(.editTask(task.id))
+            } label: {
+                HStack(spacing: 8) {
+                    Text(task.title)
+                        .hcbFont(.subheadline)
+                        .strikethrough(task.isCompleted)
+                        .foregroundStyle(AppColor.ink)
+                    if let listTitle = model.taskLists.first(where: { $0.id == task.taskListID })?.title {
+                        Text(listTitle)
+                            .hcbFont(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .opacity(task.isCompleted ? 0.6 : 1.0)
     }
 
     private func events(on date: Date) -> [CalendarEventMirror] {
@@ -642,6 +795,12 @@ struct AddEventSheet: View {
     // Save-as-template state (edit-mode overflow menu).
     @State private var isNamingTemplate = false
     @State private var templateName: String = ""
+    // Delete confirmation state for the view-only toolbar Delete button.
+    // Simple single confirm for one-off events; recurring events go through
+    // a scope picker in the same flow so users can choose occurrence vs
+    // series without re-opening the overflow menu.
+    @State private var isConfirmingDelete = false
+    @State private var pendingRecurringDeleteScope = false
 
     init(prefilledStart: Date? = nil, prefilledIsAllDay: Bool = false, prefilledEnd: Date? = nil) {
         let start = prefilledStart ?? Date()
@@ -716,10 +875,29 @@ struct AddEventSheet: View {
                 // Overflow menu with Delete / Duplicate / Copy as Markdown /
                 // Export .ics / Save as Template only surfaces once the user
                 // actively enters edit mode — the view-only pass keeps the
-                // toolbar minimal.
+                // toolbar minimal apart from the explicit Delete button
+                // added below.
                 if editingEvent != nil, isEditing {
                     ToolbarItem(placement: .primaryAction) {
                         editMoreMenu
+                    }
+                }
+                // View-only pass gets an explicit Delete button alongside
+                // Cancel / Edit so users don't have to enter edit mode just
+                // to remove an event. Routes through the confirmation /
+                // recurring-scope picker below.
+                if editingEvent != nil, isEditing == false {
+                    ToolbarItem(placement: .destructiveAction) {
+                        Button(role: .destructive) {
+                            if isRecurringEvent {
+                                pendingRecurringDeleteScope = true
+                            } else {
+                                isConfirmingDelete = true
+                            }
+                        } label: {
+                            Text("Delete")
+                        }
+                        .disabled(isSaving)
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
@@ -741,6 +919,40 @@ struct AddEventSheet: View {
                         .disabled(canCreate == false || isSaving)
                     }
                 }
+            }
+            .confirmationDialog(
+                "Delete this event?",
+                isPresented: $isConfirmingDelete,
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    guard let existing = editingEvent else { return }
+                    Task { await deleteExistingEvent(existing) }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This deletes the event from Google Calendar. It cannot be undone.")
+            }
+            .confirmationDialog(
+                "Delete which occurrences?",
+                isPresented: $pendingRecurringDeleteScope,
+                titleVisibility: .visible
+            ) {
+                Button("This event only", role: .destructive) {
+                    guard let existing = editingEvent else { return }
+                    Task { await deleteEventWithScope(existing, scope: .thisOccurrence) }
+                }
+                Button("This and following events", role: .destructive) {
+                    guard let existing = editingEvent else { return }
+                    Task { await deleteEventWithScope(existing, scope: .thisAndFollowing) }
+                }
+                Button("Every event in the series (past + future)", role: .destructive) {
+                    guard let existing = editingEvent else { return }
+                    Task { await deleteEventWithScope(existing, scope: .allInSeries) }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This event is part of a recurring series. \"Every event in the series\" deletes past occurrences too — not just upcoming. No guest updates are sent.")
             }
             .confirmationDialog(
                 CalendarEventInstance.isRecurring(editingEvent ?? placeholderEvent)
@@ -861,13 +1073,16 @@ struct AddEventSheet: View {
     }
 
     private func deleteExistingEvent(_ existing: CalendarEventMirror) async {
+        await deleteEventWithScope(existing, scope: .thisOccurrence)
+    }
+
+    // Scope-aware delete for the view-only toolbar Delete button. Recurring
+    // events land here via the scope picker; one-offs always use
+    // .thisOccurrence (scope is a no-op server-side for non-recurring IDs).
+    private func deleteEventWithScope(_ existing: CalendarEventMirror, scope: AppModel.RecurringEventScope) async {
         isSaving = true
         defer { isSaving = false }
-        // Single-occurrence delete by default. Recurring-series delete still
-        // lives on EditEventSheet path (being removed alongside EventDetailView);
-        // users who want all-in-series delete should use the "Every event in
-        // the series" option once it's promoted here. For now single-scope.
-        if await model.deleteEvent(existing, scope: .thisOccurrence) {
+        if await model.deleteEvent(existing, scope: scope) {
             dismiss()
         }
     }

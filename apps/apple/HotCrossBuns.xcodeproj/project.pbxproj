@@ -129,6 +129,7 @@
 		AC3FE199F79468DAA1B9D9EF /* DockBadgeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6366F53ACB2CE1B4D522E41D /* DockBadgeController.swift */; };
 		AC8BEAE2688675504A251128 /* ICSImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDA5E3D3896AF69DD2D510C6 /* ICSImporter.swift */; };
 		AD29132826882A5AB9D4ADCC /* TimelineLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8040416B857E517A45E84B7B /* TimelineLayoutTests.swift */; };
+		AE24A9FE78BD5056937D3B11 /* InsertEventTemplateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 476B863424A5B2F6C4F1BEBF /* InsertEventTemplateSheet.swift */; };
 		AF02EC6FCF69EF4B3DBB5FE2 /* KanbanGroupingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1F9819BB9588096043C4039 /* KanbanGroupingTests.swift */; };
 		AF8378637C1C4CA07244ACE4 /* LayoutSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9742B8184AB071BE000E4235 /* LayoutSection.swift */; };
 		B29B39B1BF859B1A2DA630CC /* ChordHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CE06A1BACD74B523EC1216B /* ChordHUD.swift */; };
@@ -159,6 +160,7 @@
 		CF1E70E970213C9400BBB1AB /* EncryptionSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 923D7E147E63ED13484B24AA /* EncryptionSection.swift */; };
 		D11457A3B187BDE2CD571614 /* TaskHierarchyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAC3322BC3706CFF61AE52DB /* TaskHierarchyTests.swift */; };
 		D280DABA928A2B86751240A5 /* TimelineLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CD37293C5E89DF3E004FD7C /* TimelineLayout.swift */; };
+		D2F091285CF429E7C8CAE0F8 /* YearGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09D39CEECF9AC57283BF8021 /* YearGridView.swift */; };
 		D469641DB76139A358F0A8CB /* TasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 141ADCA673635CA9F5DA0BD1 /* TasksView.swift */; };
 		D569DDF00E3A25CFF189D40F /* HotCrossBunsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE5B824BD3DB57E2FA17ECE2 /* HotCrossBunsApp.swift */; };
 		D59215C2E58499A20F1414E6 /* QuickAddEventView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55AAE7CA5D31D859ABD20A52 /* QuickAddEventView.swift */; };
@@ -220,6 +222,7 @@
 		06F2696FD874FEEBAEB421DC /* HCBSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HCBSurface.swift; sourceTree = "<group>"; };
 		0854A71DD603264D078FB733 /* MonthGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthGridView.swift; sourceTree = "<group>"; };
 		09882AE6212AFABA6285AACF /* GoogleTasksClientTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleTasksClientTransportTests.swift; sourceTree = "<group>"; };
+		09D39CEECF9AC57283BF8021 /* YearGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YearGridView.swift; sourceTree = "<group>"; };
 		09D526E7EC054A5BAA2ED4E3 /* CalendarDropComputer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDropComputer.swift; sourceTree = "<group>"; };
 		0EF85250959558DF48B98023 /* UpdatesSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdatesSection.swift; sourceTree = "<group>"; };
 		0F4517375C8E849B9FBA844C /* CustomFiltersSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomFiltersSection.swift; sourceTree = "<group>"; };
@@ -258,6 +261,7 @@
 		44E4CDC1A1234A242228D7CD /* HCBCacheCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HCBCacheCrypto.swift; sourceTree = "<group>"; };
 		451F7A551BAF39DA361383F4 /* NaturalLanguageTaskParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NaturalLanguageTaskParser.swift; sourceTree = "<group>"; };
 		46640F8301E1D6444BE62A73 /* SyncModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncModels.swift; sourceTree = "<group>"; };
+		476B863424A5B2F6C4F1BEBF /* InsertEventTemplateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsertEventTemplateSheet.swift; sourceTree = "<group>"; };
 		49590AFCCD9974DC7CB5123A /* TaskReminderMarkersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskReminderMarkersTests.swift; sourceTree = "<group>"; };
 		49E10912879943FB239566EB /* QueryDSLTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryDSLTests.swift; sourceTree = "<group>"; };
 		4A0A69B82085B489B5F595CF /* BackoffPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffPolicy.swift; sourceTree = "<group>"; };
@@ -815,6 +819,7 @@
 				6CD37293C5E89DF3E004FD7C /* TimelineLayout.swift */,
 				56CE8FA7DEAFD72A9F069B16 /* TimelineView.swift */,
 				365DC96473F7469BD2250779 /* WeekGridView.swift */,
+				09D39CEECF9AC57283BF8021 /* YearGridView.swift */,
 			);
 			path = Calendar;
 			sourceTree = "<group>";
@@ -884,6 +889,7 @@
 			isa = PBXGroup;
 			children = (
 				2FCE1E9B77CF162DAED39DE5 /* HCBTemplateExpander.swift */,
+				476B863424A5B2F6C4F1BEBF /* InsertEventTemplateSheet.swift */,
 				B3C281076BBBC06FADE80BBB /* InsertTaskTemplateSheet.swift */,
 			);
 			path = Templates;
@@ -1058,6 +1064,7 @@
 				1B7F6F790CF80AF97AB3E65C /* HotCrossBunsIntents.swift in Sources */,
 				AC8BEAE2688675504A251128 /* ICSImporter.swift in Sources */,
 				1D14CFF9E1E31D6FC0995EAA /* ISO8601DateFormatter+Google.swift in Sources */,
+				AE24A9FE78BD5056937D3B11 /* InsertEventTemplateSheet.swift in Sources */,
 				9C9BFE48B53DBF5D2FECD34A /* InsertTaskTemplateSheet.swift in Sources */,
 				E96B683F08F8DF7C7128CADF /* KanbanGrouping.swift in Sources */,
 				BC1B43B0C73F002D0EA83908 /* KanbanView.swift in Sources */,
@@ -1124,6 +1131,7 @@
 				BCDA2BE90E7C719F0569061E /* UpdatesSection.swift in Sources */,
 				9167E1BAB8A8328329A8AE07 /* WeekGridView.swift in Sources */,
 				059AE0B64C498B89F429CAD7 /* WritingTools.swift in Sources */,
+				D2F091285CF429E7C8CAE0F8 /* YearGridView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

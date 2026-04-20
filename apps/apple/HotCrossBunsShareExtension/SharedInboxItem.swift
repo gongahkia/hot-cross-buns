@@ -3,10 +3,13 @@ import Foundation
 // Duplicated from HotCrossBuns/Services/SharedInbox/SharedInboxItem.swift
 // so the Share Extension target can reference the same types without
 // pulling in the entire main-app module. Keep the two files in sync —
-// they must agree on the suite name and key to round-trip.
+// they must agree on the suite name, the key, and the SharedInboxItem
+// schema (including the `source` field) to round-trip. The Share
+// Extension only writes; read-side hardening lives in the main-app copy.
 struct SharedInboxItem: Codable, Hashable, Sendable {
     var text: String
     var createdAt: Date
+    var source: String? // bundle id of the writer; main app rejects items missing this
 }
 
 enum SharedInboxDefaults {

@@ -56,6 +56,7 @@ struct MacSidebarShell: View {
     @State private var isPresentingQuickSwitcher = false
     @State private var isPresentingHelp = false
     @State private var isPresentingInsertTemplate = false
+    @State private var isPresentingInsertEventTemplate = false // §6.13b
     @State private var appCommandActions = AppCommandActions()
     @State private var appShortcutMonitor: Any?
     @State private var deepLinkErrorMessage: String?
@@ -123,6 +124,11 @@ struct MacSidebarShell: View {
                     .environment(model)
                     .withHCBAppearance(model.settings)
             }
+            .sheet(isPresented: $isPresentingInsertEventTemplate) {
+                InsertEventTemplateSheet()
+                    .environment(model)
+                    .withHCBAppearance(model.settings)
+            }
             .sheet(isPresented: $isPresentingHelp) {
                 HelpView()
                     .environment(model)
@@ -152,9 +158,6 @@ struct MacSidebarShell: View {
                 configureCommandActions()
                 configureGlobalHotkey()
                 installAppShortcutMonitor()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .hcbOpenSettingsTab)) { _ in
-                selection = .settings
             }
             .onReceive(NotificationCenter.default.publisher(for: .hcbOpenStoreTab)) { _ in
                 selection = .store
@@ -215,8 +218,13 @@ struct MacSidebarShell: View {
                 handlePendingAppIntentRoute()
             }
             .onChange(of: model.settings.hasCompletedOnboarding) { _, hasCompleted in
+                // Re-present onboarding when the flag is flipped back
+                // (Settings → "Run setup again"); dismiss when the
+                // onboarding flow marks itself completed.
                 if hasCompleted {
                     isPresentingOnboarding = false
+                } else {
+                    isPresentingOnboarding = true
                 }
             }
             .task(id: nearRealtimeLoopID) {
@@ -337,6 +345,7 @@ struct MacSidebarShell: View {
             max: currentSidebarWidth
         )
         .clipped()
+        .hcbSurface(.sidebar) // §6.11 per-surface font override
     }
 
     // Visible collapse toggle removed per user request. ⌘S still toggles via
@@ -752,9 +761,19 @@ struct MacSidebarShell: View {
                 subtitle: "Pre-fill a task from a saved template",
                 symbol: "doc.text",
                 shortcut: "",
-                keywords: ["template", "insert", "snippet", "prefill"]
+                keywords: ["template", "insert", "snippet", "prefill", "task"]
             ) {
                 isPresentingInsertTemplate = true
+            },
+            CommandPaletteCommand(
+                id: "insert-event-template",
+                title: "Insert Event Template…",
+                subtitle: "Pre-fill an event from a saved template",
+                symbol: "calendar",
+                shortcut: "",
+                keywords: ["template", "insert", "event", "meeting", "calendar", "snippet", "prefill"]
+            ) {
+                isPresentingInsertEventTemplate = true
             },
             CommandPaletteCommand(
                 id: "open-quick-switcher",

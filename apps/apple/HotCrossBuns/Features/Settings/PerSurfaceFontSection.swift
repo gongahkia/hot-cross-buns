@@ -1,10 +1,10 @@
 import SwiftUI
 
 // Per-surface font overrides (§6.11). Sits under the main Appearance block.
-// Each surface row: font family menu + size stepper, each with a "(global)"
-// label when the override is empty. Wiring is opt-in per surface — only
-// wired surfaces (currently the markdown editor) visibly change; the rest
-// are stored for future wiring.
+// Each surface row: font family menu + size stepper. Unset fields show
+// "(inherit)" and fall through to the global Appearance values above. All
+// surfaces (editor, sidebar, calendar grid, task list, inspector, menu bar)
+// honour overrides via the .hcbSurface(_:) environment modifier.
 struct PerSurfaceFontSection: View {
     @Environment(AppModel.self) private var model
     @State private var availableFonts: [String] = []
@@ -18,11 +18,6 @@ struct PerSurfaceFontSection: View {
             ForEach(HCBSurface.allCases, id: \.self) { surface in
                 row(for: surface)
             }
-            if wiredOnly == false {
-                Text("Wired surfaces: markdown editor. Other surfaces accept settings now and will honour them in a future pass.")
-                    .hcbFont(.caption2)
-                    .foregroundStyle(.secondary)
-            }
         }
         .task {
             if availableFonts.isEmpty {
@@ -30,10 +25,6 @@ struct PerSurfaceFontSection: View {
             }
         }
     }
-
-    // When we retrofit more surfaces we can flip this to true to suppress
-    // the caveat text — until then the warning documents the gap honestly.
-    private var wiredOnly: Bool { false }
 
     @ViewBuilder
     private func row(for surface: HCBSurface) -> some View {

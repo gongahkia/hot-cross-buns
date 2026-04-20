@@ -55,14 +55,15 @@ final class ShareViewController: NSViewController {
                 }
             }
         }
+        let source = Bundle.main.bundleIdentifier
         if let link = url, let label = title {
-            return SharedInboxItem(text: "\(label) \(link)", createdAt: Date())
+            return SharedInboxItem(text: "\(label) \(link)", createdAt: Date(), source: source)
         }
         if let link = url {
-            return SharedInboxItem(text: link, createdAt: Date())
+            return SharedInboxItem(text: link, createdAt: Date(), source: source)
         }
         if let label = title {
-            return SharedInboxItem(text: label, createdAt: Date())
+            return SharedInboxItem(text: label, createdAt: Date(), source: source)
         }
         return nil
     }

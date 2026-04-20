@@ -5,6 +5,7 @@ enum StoreFilter: Hashable {
     case smart(SmartListFilter)
     case notes
     case lists
+    case timeBuckets // §7.01 Phase B1 — Things-3 Today/Upcoming/Later/Someday grouping
     case custom(CustomFilterDefinition.ID)
 
     var storageKey: String {
@@ -13,6 +14,7 @@ enum StoreFilter: Hashable {
         case .smart(let f): "smart:\(f.rawValue)"
         case .notes: "notes"
         case .lists: "lists"
+        case .timeBuckets: "timeBuckets"
         case .custom(let id): "custom:\(id.uuidString)"
         }
     }
@@ -21,6 +23,7 @@ enum StoreFilter: Hashable {
         if storageKey == "all" { self = .all; return }
         if storageKey == "notes" { self = .notes; return }
         if storageKey == "lists" { self = .lists; return }
+        if storageKey == "timeBuckets" { self = .timeBuckets; return }
         // Legacy: treat old "stale" storageKey as the new lists view.
         if storageKey == "stale" { self = .lists; return }
         if storageKey.hasPrefix("smart:"), let f = SmartListFilter(rawValue: String(storageKey.dropFirst(6))) {
@@ -40,6 +43,7 @@ enum StoreFilter: Hashable {
         case .smart(let f): f.title
         case .notes: "Notes"
         case .lists: "Lists"
+        case .timeBuckets: "Time Buckets"
         case .custom: "Filter"
         }
     }
@@ -50,9 +54,61 @@ enum StoreFilter: Hashable {
         case .smart(let f): f.systemImage
         case .notes: "note.text"
         case .lists: "list.bullet.rectangle"
+        case .timeBuckets: "tray.2"
         case .custom: "line.3.horizontal.decrease.circle"
         }
     }
+}
+
+// §7.01 Phase B1 — Things-3-style time buckets for task grouping.
+enum TimeBucket: String, CaseIterable, Hashable, Sendable {
+    case today
+    case upcoming
+    case later
+    case someday
+
+    var title: String {
+        switch self {
+        case .today: "Today"
+        case .upcoming: "Upcoming"
+        case .later: "Later"
+        case .someday: "Someday"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .today: "sun.max"
+        case .upcoming: "calendar"
+        case .later: "calendar.badge.clock"
+        case .someday: "tray"
+        }
+    }
+
+    var emptyMessage: String {
+        switch self {
+        case .today: "Nothing due today."
+        case .upcoming: "Nothing due this week."
+        case .later: "Nothing due beyond this week."
+        case .someday: "Every task has a due date."
+        }
+    }
+
+    static func bucket(for task: TaskMirror, now: Date = Date(), calendar: Calendar = .current) -> TimeBucket {
+        guard let due = task.dueDate else { return .someday }
+        let startOfToday = calendar.startOfDay(for: now)
+        let startOfDue = calendar.startOfDay(for: due)
+        if startOfDue <= startOfToday { return .today } // includes overdue
+        guard let weekEnd = calendar.date(byAdding: .day, value: 7, to: startOfToday) else { return .upcoming }
+        if startOfDue < weekEnd { return .upcoming }
+        return .later
+    }
+}
+
+struct TimeBucketGroup: Identifiable {
+    var bucket: TimeBucket
+    var tasks: [TaskMirror]
+    var id: String { bucket.rawValue }
 }
 
 struct StoreView: View {
@@ -101,6 +157,7 @@ struct StoreView: View {
 
     var body: some View {
         content
+            .hcbSurface(.taskList) // §6.11 per-surface font override
             .appBackground()
             .toolbar {
                 ToolbarItemGroup {
@@ -475,6 +532,8 @@ struct StoreView: View {
             flatList(filteredTasks: noteTasks, emptyTitle: "No notes", emptyMessage: "Tasks without a due date and with notes show up here. Add notes to a dateless task to use it as a note.", emptyIcon: "note.text")
         case .lists:
             TaskListsManagementView()
+        case .timeBuckets:
+            timeBucketsList
         case .custom(let id):
             if let def = model.settings.customFilters.first(where: { $0.id == id }) {
                 flatList(filteredTasks: customFilterTasks(def), emptyTitle: "Nothing matches", emptyMessage: "Adjust the filter in Settings → Custom Filters.", emptyIcon: def.systemImage)
@@ -513,6 +572,12 @@ struct StoreView: View {
             return noteTasks
         case .lists:
             return [] // forced to list mode by effectiveViewMode
+        case .timeBuckets:
+            // Kanban in bucket-filter mode groups all non-deleted visible
+            // tasks; columns come from the kanban grouping picker, not the
+            // buckets themselves.
+            let base = showCompleted ? visibleTasks : visibleTasks.filter { $0.isCompleted == false }
+            return applySearch(base.filter { $0.isDeleted == false })
         case .custom(let id):
             guard let def = model.settings.customFilters.first(where: { $0.id == id }) else { return [] }
             return customFilterTasks(def)
@@ -522,32 +587,35 @@ struct StoreView: View {
     private var allTasksList: some View {
         List(selection: $selection) {
             ForEach(filteredSections()) { section in
+                let isCollapsed = model.settings.collapsedTaskListIDs.contains(section.taskList.id)
                 Section {
-                    let nodes = TaskHierarchy.build(tasks: section.tasks)
-                    if nodes.isEmpty {
-                        Text(searchQuery.isEmpty ? "No tasks in this list" : "No matches")
-                            .foregroundStyle(.secondary)
-                            .listRowBackground(Color.clear)
-                    } else {
-                        ForEach(nodes) { node in
-                            StoreTaskRow(task: node.parent, indentLevel: 0)
-                                .tag(node.parent.id)
-                                .contentShape(Rectangle())
+                    if isCollapsed == false {
+                        let nodes = TaskHierarchy.build(tasks: section.tasks)
+                        if nodes.isEmpty {
+                            Text(searchQuery.isEmpty ? "No tasks in this list" : "No matches")
+                                .foregroundStyle(.secondary)
                                 .listRowBackground(Color.clear)
-                                .swipeActions(edge: .leading) { completeSwipe(for: node.parent) }
-                                .contextMenu { snoozeMenu(for: node.parent) }
-                            ForEach(node.children) { child in
-                                StoreTaskRow(task: child, indentLevel: 1)
-                                    .tag(child.id)
+                        } else {
+                            ForEach(nodes) { node in
+                                StoreTaskRow(task: node.parent, indentLevel: 0)
+                                    .tag(node.parent.id)
                                     .contentShape(Rectangle())
                                     .listRowBackground(Color.clear)
-                                    .swipeActions(edge: .leading) { completeSwipe(for: child) }
-                                    .contextMenu { snoozeMenu(for: child) }
+                                    .swipeActions(edge: .leading) { completeSwipe(for: node.parent) }
+                                    .contextMenu { snoozeMenu(for: node.parent) }
+                                ForEach(node.children) { child in
+                                    StoreTaskRow(task: child, indentLevel: 1)
+                                        .tag(child.id)
+                                        .contentShape(Rectangle())
+                                        .listRowBackground(Color.clear)
+                                        .swipeActions(edge: .leading) { completeSwipe(for: child) }
+                                        .contextMenu { snoozeMenu(for: child) }
+                                }
                             }
                         }
                     }
                 } header: {
-                    taskListSectionHeader(for: section)
+                    taskListSectionHeader(for: section, isCollapsed: isCollapsed)
                 }
             }
             // Trailing "+ New List" affordance. Lives inside the List so it
@@ -567,6 +635,81 @@ struct StoreView: View {
             }
         }
         .scrollContentBackground(.hidden)
+    }
+
+    // §7.01 Phase B1 — Things-3 buckets. Groups tasks by relative due-date
+    // bucket (Today / Upcoming / Later / Someday). Respects current search,
+    // respects showCompleted toggle, honours per-list visibility selection.
+    private var timeBucketsList: some View {
+        let groups = timeBucketGroups()
+        let allEmpty = groups.allSatisfy { $0.tasks.isEmpty }
+        return Group {
+            if allEmpty {
+                ContentUnavailableView(
+                    searchQuery.isEmpty ? "No tasks" : "No matches",
+                    systemImage: "tray.2",
+                    description: Text(searchQuery.isEmpty ? "Create a task or switch filter." : "Adjust search terms.")
+                )
+            } else {
+                List(selection: $selection) {
+                    ForEach(groups) { group in
+                        Section {
+                            if group.tasks.isEmpty {
+                                Text(group.bucket.emptyMessage)
+                                    .foregroundStyle(.secondary)
+                                    .listRowBackground(Color.clear)
+                            } else {
+                                ForEach(group.tasks) { task in
+                                    StoreSmartRow(task: task, listName: taskListName(for: task))
+                                        .tag(task.id)
+                                        .contentShape(Rectangle())
+                                        .listRowBackground(Color.clear)
+                                        .swipeActions(edge: .leading) { completeSwipe(for: task) }
+                                        .contextMenu { snoozeMenu(for: task) }
+                                }
+                            }
+                        } header: {
+                            HStack(spacing: 8) {
+                                Image(systemName: group.bucket.systemImage)
+                                    .foregroundStyle(AppColor.ember)
+                                Text(group.bucket.title)
+                                    .hcbFont(.subheadline, weight: .semibold)
+                                Spacer(minLength: 8)
+                                if group.tasks.isEmpty == false {
+                                    Text("\(group.tasks.count)")
+                                        .font(.caption.monospacedDigit())
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+                .scrollContentBackground(.hidden)
+            }
+        }
+    }
+
+    private func timeBucketGroups() -> [TimeBucketGroup] {
+        let base = showCompleted ? visibleTasks : visibleTasks.filter { $0.isCompleted == false }
+        let searched = applySearch(base)
+        let now = Date()
+        let cal = Calendar.current
+        var bucketed: [TimeBucket: [TaskMirror]] = [:]
+        for task in searched {
+            let bucket = TimeBucket.bucket(for: task, now: now, calendar: cal)
+            bucketed[bucket, default: []].append(task)
+        }
+        let sortedByDue: (TaskMirror, TaskMirror) -> Bool = { lhs, rhs in
+            switch (lhs.dueDate, rhs.dueDate) {
+            case let (l?, r?): return l < r
+            case (nil, _?): return false
+            case (_?, nil): return true
+            case (nil, nil): return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+            }
+        }
+        return TimeBucket.allCases.map { bucket in
+            TimeBucketGroup(bucket: bucket, tasks: (bucketed[bucket] ?? []).sorted(by: sortedByDue))
+        }
     }
 
     private func flatList(filteredTasks: [TaskMirror], emptyTitle: String, emptyMessage: String, emptyIcon: String) -> some View {
@@ -614,6 +757,7 @@ struct StoreView: View {
                 Button("No Date") { filterKey = StoreFilter.smart(.noDate).storageKey }
             }
             Divider()
+            Button("Time Buckets") { filterKey = StoreFilter.timeBuckets.storageKey }
             Button("Notes") { filterKey = StoreFilter.notes.storageKey }
             Button("Lists") { filterKey = StoreFilter.lists.storageKey }
             if model.settings.customFilters.isEmpty == false {
@@ -745,12 +889,26 @@ struct StoreView: View {
     }
 
     @ViewBuilder
-    private func taskListSectionHeader(for section: TaskListSectionSnapshot) -> some View {
+    private func taskListSectionHeader(for section: TaskListSectionSnapshot, isCollapsed: Bool = false) -> some View {
         let stats = model.taskListCompletionStats[section.taskList.id] ?? TaskListCompletionStats(total: 0, completed: 0)
         let list = section.taskList
         return HStack(spacing: 10) {
-            Text(list.title)
-                .hcbFont(.subheadline, weight: .semibold)
+            Button {
+                toggleSectionCollapsed(list.id)
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.right")
+                        .hcbFont(.caption, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isCollapsed ? 0 : 90))
+                        .animation(.easeInOut(duration: 0.12), value: isCollapsed)
+                    Text(list.title)
+                        .hcbFont(.subheadline, weight: .semibold)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(isCollapsed ? "Expand \(list.title)" : "Collapse \(list.title)")
             Spacer(minLength: 8)
             if stats.total > 0 {
                 Text("\(stats.completed)/\(stats.total)")
@@ -786,9 +944,20 @@ struct StoreView: View {
                     .foregroundStyle(.secondary)
             }
             .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden) // ellipsis glyph already signals "more" — no chevron needed
             .fixedSize()
             .disabled(isDisconnected || isMutatingList)
         }
+    }
+
+    private func toggleSectionCollapsed(_ listID: TaskListMirror.ID) {
+        var next = model.settings
+        if next.collapsedTaskListIDs.contains(listID) {
+            next.collapsedTaskListIDs.remove(listID)
+        } else {
+            next.collapsedTaskListIDs.insert(listID)
+        }
+        model.updateSettings(next)
     }
 
     private func renameCurrentList(_ list: TaskListMirror) async {
@@ -973,6 +1142,7 @@ struct TaskListsManagementView: View {
                     .foregroundStyle(.secondary)
             }
             .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden) // ellipsis glyph already signals "more" — no chevron needed
             .fixedSize()
         }
         .hcbScaledPadding(14)
@@ -1063,23 +1233,73 @@ struct TaskListsManagementView: View {
 
 private struct StoreTaskRow: View {
     @Environment(AppModel.self) private var model
+    @Environment(RouterPath.self) private var router
     let task: TaskMirror
     var indentLevel: Int = 0
     @State private var showPreview = false
     @State private var hoverTask: Task<Void, Never>?
+    @State private var isExpanded = false // §7.01 Phase B2 — inline detail expansion
 
     private var isBlocked: Bool {
         TaskDependencyMarkers.isBlocked(task, allTasks: model.tasks)
     }
 
+    private var displayNotes: String {
+        TaskDependencyMarkers.strippedNotes(
+            from: TaskReminderMarkers.strippedNotes(
+                from: TaskRecurrenceMarkers.strippedNotes(from: task.notes)
+            )
+        )
+    }
+
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
+            headerRow
+            if isExpanded {
+                expandedDetail
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .opacity(isBlocked && task.isCompleted == false ? 0.5 : 1.0)
+        .onHover { hovering in
+            hoverTask?.cancel()
+            if hovering, isExpanded == false {
+                hoverTask = Task {
+                    try? await Task.sleep(nanoseconds: 600_000_000)
+                    guard Task.isCancelled == false else { return }
+                    await MainActor.run { showPreview = true }
+                }
+            } else {
+                showPreview = false
+            }
+        }
+        .popover(isPresented: $showPreview, arrowEdge: .trailing) {
+            TaskHoverPreview(task: task)
+        }
+    }
+
+    private var headerRow: some View {
+        HStack(alignment: .top, spacing: 10) {
             if indentLevel > 0 {
                 Rectangle()
                     .fill(AppColor.cardStroke)
                     .hcbScaledFrame(width: 2)
                     .padding(.leading, CGFloat(indentLevel) * 16)
             }
+            Button {
+                withAnimation(.easeInOut(duration: 0.14)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                Image(systemName: "chevron.right")
+                    .hcbFont(.caption2, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    .frame(width: 14, height: 14)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(isExpanded ? "Collapse detail" : "Expand detail")
             Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                 .foregroundStyle(task.isCompleted ? AppColor.moss : AppColor.ember)
                 .font(indentLevel > 0 ? .body : .title3)
@@ -1118,8 +1338,7 @@ private struct StoreTaskRow: View {
                             .foregroundStyle(AppColor.ember)
                     }
                 }
-                let displayNotes = TaskDependencyMarkers.strippedNotes(from: task.notes)
-                if !displayNotes.isEmpty {
+                if isExpanded == false, displayNotes.isEmpty == false {
                     Text.markdown(displayNotes)
                         .hcbFont(.subheadline)
                         .foregroundStyle(.secondary)
@@ -1135,22 +1354,34 @@ private struct StoreTaskRow: View {
         }
         .padding(.leading, indentLevel > 0 ? 6 : 0)
         .contentShape(Rectangle())
-        .opacity(isBlocked && task.isCompleted == false ? 0.5 : 1.0)
-        .onHover { hovering in
-            hoverTask?.cancel()
-            if hovering {
-                hoverTask = Task {
-                    try? await Task.sleep(nanoseconds: 600_000_000)
-                    guard Task.isCancelled == false else { return }
-                    await MainActor.run { showPreview = true }
+    }
+
+    private var expandedDetail: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if displayNotes.isEmpty == false {
+                MarkdownBlock(source: displayNotes)
+                    .hcbFont(.subheadline)
+                    .foregroundStyle(AppColor.ink)
+                    .textSelection(.enabled)
+            }
+            HStack(spacing: 10) {
+                if let listTitle = model.taskLists.first(where: { $0.id == task.taskListID })?.title {
+                    Label(listTitle, systemImage: "tray")
+                        .hcbFont(.caption, weight: .medium)
+                        .foregroundStyle(.secondary)
                 }
-            } else {
-                showPreview = false
+                Spacer()
+                Button("Open Full…") {
+                    router.present(.editTask(task.id))
+                }
+                .buttonStyle(.borderless)
+                .hcbFont(.caption, weight: .semibold)
+                .foregroundStyle(AppColor.ember)
             }
         }
-        .popover(isPresented: $showPreview, arrowEdge: .trailing) {
-            TaskHoverPreview(task: task)
-        }
+        .hcbScaledPadding(.leading, 42) // align with title, past chevron+checkbox
+        .hcbScaledPadding(.trailing, 8)
+        .hcbScaledPadding(.vertical, 4)
     }
 }
 
