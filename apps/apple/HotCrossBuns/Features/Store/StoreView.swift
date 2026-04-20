@@ -697,9 +697,14 @@ struct NotesView: View {
                     }
                 }
             }
-            .appBackground()
+            // Content area fills the remaining space so the shared
+            // appBackground on the outer VStack shows through uniformly
+            // instead of the default white window chrome peeking around the
+            // ContentUnavailableView card.
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .hcbSurface(.taskList)
+        .appBackground()
         .toolbar {
             ToolbarItemGroup {
                 Button {
