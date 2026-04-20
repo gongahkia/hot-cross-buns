@@ -66,7 +66,7 @@ actor LocalNotificationScheduler {
             .filter { $0.sortDate < windowEnd }
             .sorted { $0.sortDate < $1.sortDate }
         let taskNotifications = tasks
-            .flatMap { taskNotificationRequests(for: $0, referenceDate: referenceDate, calendar: calendar) }
+            .flatMap { taskNotificationRequests(for: $0, settings: settings, referenceDate: referenceDate, calendar: calendar) }
             .filter { $0.sortDate < windowEnd }
             .sorted { $0.sortDate < $1.sortDate }
 
@@ -136,44 +136,42 @@ actor LocalNotificationScheduler {
 
     private func taskNotificationRequests(
         for task: TaskMirror,
+        settings: AppSettings,
         referenceDate: Date,
         calendar: Calendar
     ) -> [ScheduledNotification] {
         guard task.isCompleted == false, task.isDeleted == false, let dueDate = task.dueDate else {
             return []
         }
+        // App-wide threshold: one notification per task at (due - N days),
+        // fired at the user's configured hour:minute. 0 disables entirely.
+        let threshold = settings.taskReminderThresholdDays
+        guard threshold > 0 else { return [] }
+        guard let reminderDay = calendar.date(byAdding: .day, value: -threshold, to: dueDate) else { return [] }
+        var components = calendar.dateComponents([.year, .month, .day], from: reminderDay)
+        components.hour = settings.taskReminderHour
+        components.minute = settings.taskReminderMinute
 
-        let parsed = TaskReminderMarkers.offsetsInDays(from: task.notes)
-        let offsets = parsed.isEmpty ? [0] : parsed
-
-        return offsets.compactMap { offsetDays in
-            guard let reminderDay = calendar.date(byAdding: .day, value: offsetDays, to: dueDate) else { return nil }
-            var components = calendar.dateComponents([.year, .month, .day], from: reminderDay)
-            components.hour = 9
-            components.minute = 0
-
-            guard let notificationDate = calendar.date(from: components), notificationDate > referenceDate else {
-                return nil
-            }
-
-            let content = UNMutableNotificationContent()
-            content.title = titleForOffset(offsetDays: offsetDays)
-            content.body = task.title
-            content.sound = .default
-
-            let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
-            let identifier = Self.notificationPrefix + "task." + task.id + ".d" + String(offsetDays)
-            let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
-            return ScheduledNotification(sortDate: notificationDate, request: request)
+        guard let notificationDate = calendar.date(from: components), notificationDate > referenceDate else {
+            return []
         }
+
+        let content = UNMutableNotificationContent()
+        content.title = titleForThreshold(days: threshold)
+        content.body = task.title
+        content.sound = .default
+
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let identifier = Self.notificationPrefix + "task." + task.id
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        return [ScheduledNotification(sortDate: notificationDate, request: request)]
     }
 
-    private func titleForOffset(offsetDays: Int) -> String {
-        switch offsetDays {
-        case 0: return "Task due today"
-        case -1: return "Task due tomorrow"
-        case ..<(-1): return "Task due in \(-offsetDays) days"
-        default: return "Task reminder"
+    private func titleForThreshold(days: Int) -> String {
+        switch days {
+        case 1: return "Task due tomorrow"
+        case 7: return "Task due in a week"
+        default: return "Task due in \(days) day\(days == 1 ? "" : "s")"
         }
     }
 

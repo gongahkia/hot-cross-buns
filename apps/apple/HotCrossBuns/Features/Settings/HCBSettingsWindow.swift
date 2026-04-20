@@ -227,6 +227,10 @@ private struct AlertsTab: View {
         VStack(alignment: .leading, spacing: 18) {
             SettingsCard("Notifications") {
                 Toggle("Local reminders", isOn: localNotificationsBinding)
+                if model.settings.enableLocalNotifications {
+                    Divider()
+                    taskReminderControls
+                }
             }
             .alert("Local reminders enabled", isPresented: $showLocalNotificationsInfo) {
                 Button("OK") { showLocalNotificationsInfo = false }
@@ -295,6 +299,54 @@ private struct AlertsTab: View {
         Binding(
             get: { model.settings.enableGlobalHotkey },
             set: { model.setEnableGlobalHotkey($0) }
+        )
+    }
+
+    // App-wide task reminder controls. Threshold = how many days before a task's
+    // due date to fire a local notification. Time = hour:minute it fires at.
+    // Per-task reminder offsets are gone: Google Tasks API has no reminder field.
+    @ViewBuilder
+    private var taskReminderControls: some View {
+        Picker("Remind me before due", selection: taskReminderThresholdBinding) {
+            Text("Disabled").tag(0)
+            Text("1 day before").tag(1)
+            Text("3 days before").tag(3)
+            Text("1 week before").tag(7)
+            Text("2 weeks before").tag(14)
+            Text("1 month before").tag(30)
+        }
+        .pickerStyle(.menu)
+        if model.settings.taskReminderThresholdDays > 0 {
+            DatePicker(
+                "Fire at",
+                selection: taskReminderTimeBinding,
+                displayedComponents: [.hourAndMinute]
+            )
+            Text("Every open task with a due date fires a single notification on this Mac at the chosen time, `N` days before. Per-task offsets are not stored anywhere — the rule is app-wide.")
+                .hcbFont(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var taskReminderThresholdBinding: Binding<Int> {
+        Binding(
+            get: { model.settings.taskReminderThresholdDays },
+            set: { model.setTaskReminderThresholdDays($0) }
+        )
+    }
+
+    private var taskReminderTimeBinding: Binding<Date> {
+        Binding(
+            get: {
+                var comps = DateComponents()
+                comps.hour = model.settings.taskReminderHour
+                comps.minute = model.settings.taskReminderMinute
+                return Calendar.current.date(from: comps) ?? Date()
+            },
+            set: { newValue in
+                let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+                model.setTaskReminderTime(hour: comps.hour ?? 9, minute: comps.minute ?? 0)
+            }
         )
     }
 }

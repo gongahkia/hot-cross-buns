@@ -77,6 +77,23 @@ struct SettingsView: View {
 
             Section("Notifications") {
                 Toggle("Local reminders", isOn: localNotificationsBinding)
+                if model.settings.enableLocalNotifications {
+                    Picker("Remind me before due", selection: taskReminderThresholdBinding) {
+                        Text("Disabled").tag(0)
+                        Text("1 day before").tag(1)
+                        Text("3 days before").tag(3)
+                        Text("1 week before").tag(7)
+                        Text("2 weeks before").tag(14)
+                        Text("1 month before").tag(30)
+                    }
+                    .pickerStyle(.menu)
+                    if model.settings.taskReminderThresholdDays > 0 {
+                        DatePicker("Fire at", selection: taskReminderTimeBinding, displayedComponents: [.hourAndMinute])
+                        Text("Every open task with a due date fires a single notification on this Mac at the chosen time, N days before. Per-task offsets are not stored anywhere — the rule is app-wide.")
+                            .hcbFont(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             .alert("Local reminders enabled", isPresented: $showLocalNotificationsInfo) {
                 Button("OK") { showLocalNotificationsInfo = false }
@@ -174,6 +191,28 @@ struct SettingsView: View {
                 if wasOff, newValue {
                     showLocalNotificationsInfo = true
                 }
+            }
+        )
+    }
+
+    private var taskReminderThresholdBinding: Binding<Int> {
+        Binding(
+            get: { model.settings.taskReminderThresholdDays },
+            set: { model.setTaskReminderThresholdDays($0) }
+        )
+    }
+
+    private var taskReminderTimeBinding: Binding<Date> {
+        Binding(
+            get: {
+                var comps = DateComponents()
+                comps.hour = model.settings.taskReminderHour
+                comps.minute = model.settings.taskReminderMinute
+                return Calendar.current.date(from: comps) ?? Date()
+            },
+            set: { newValue in
+                let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+                model.setTaskReminderTime(hour: comps.hour ?? 9, minute: comps.minute ?? 0)
             }
         )
     }

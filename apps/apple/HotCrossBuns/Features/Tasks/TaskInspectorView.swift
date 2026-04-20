@@ -85,7 +85,6 @@ struct TaskInspectorView: View {
                     }
 
                     dueDateSection
-                    remindersSection
                     taskListSection
                     subtasksSection
                     hierarchyControls
@@ -139,8 +138,7 @@ struct TaskInspectorView: View {
     // MARK: - View-only body (renders populated fields only).
 
     private var viewOnlyBody: some View {
-        let strippedNotes = TaskReminderMarkers.strippedNotes(from: task.notes)
-        let reminderOffsets = TaskReminderMarkers.offsetsInDays(from: task.notes)
+        let strippedNotes = task.notes
         let listTitle = model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Unknown list"
         let subtasks = children
 
@@ -169,16 +167,6 @@ struct TaskInspectorView: View {
                 }
             }
 
-            if reminderOffsets.isEmpty == false {
-                readCard("REMINDERS") {
-                    ForEach(reminderOffsets.sorted(), id: \.self) { offset in
-                        Label(reminderLabel(for: offset), systemImage: "bell")
-                            .hcbFont(.subheadline)
-                            .foregroundStyle(AppColor.ink)
-                    }
-                }
-            }
-
             readCard("LIST") {
                 Label(listTitle, systemImage: "list.bullet")
                     .hcbFont(.subheadline)
@@ -201,17 +189,6 @@ struct TaskInspectorView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func reminderLabel(for offset: Int) -> String {
-        switch offset {
-        case 0: "On due date"
-        case -1: "1 day before"
-        case -2: "2 days before"
-        case -7: "1 week before"
-        case let n where n < 0: "\(-n) days before"
-        default: "\(offset) days after"
-        }
     }
 
     @ViewBuilder
@@ -549,56 +526,6 @@ struct TaskInspectorView: View {
     // field, so we no longer write one into notes. Event recurrence still
     // works (native Google Calendar field).
 
-    @ViewBuilder
-    private var remindersSection: some View {
-        let current = TaskReminderMarkers.offsetsInDays(from: task.notes)
-        let presets: [(offset: Int, label: String)] = [
-            (0, "On due date"),
-            (-1, "1 day before"),
-            (-2, "2 days before"),
-            (-7, "1 week before")
-        ]
-        VStack(alignment: .leading, spacing: 8) {
-            sectionLabel("REMINDERS")
-            Text("Local only. Fires at 9:00 AM on the chosen day.")
-                .hcbFont(.caption2)
-                .foregroundStyle(.secondary)
-            ForEach(presets, id: \.offset) { preset in
-                Toggle(isOn: reminderBinding(offset: preset.offset, current: current)) {
-                    Text(preset.label).hcbFont(.subheadline)
-                }
-                .toggleStyle(.switch)
-            }
-        }
-        .hcbScaledPadding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.ultraThinMaterial)
-        )
-    }
-
-    private func reminderBinding(offset: Int, current: [Int]) -> Binding<Bool> {
-        Binding(
-            get: { current.contains(offset) },
-            set: { newValue in
-                var updated = Set(current)
-                if newValue { updated.insert(offset) } else { updated.remove(offset) }
-                let newNotes = TaskReminderMarkers.encode(
-                    notes: task.notes,
-                    offsetsInDays: Array(updated)
-                )
-                Task {
-                    _ = await model.updateTask(
-                        task,
-                        title: task.title,
-                        notes: newNotes,
-                        dueDate: task.dueDate
-                    )
-                }
-            }
-        )
-    }
-
     private func handleSubtaskDrop(draggedID: TaskMirror.ID, targetIndex: Int) async {
         let ordered = children
         guard let draggedTask = ordered.first(where: { $0.id == draggedID }) else { return }
@@ -674,7 +601,7 @@ struct TaskInspectorView: View {
     }
 
     private var notesForPreview: String {
-        TaskReminderMarkers.strippedNotes(from: draft.notes)
+        draft.notes
     }
 
     private func sectionLabel(_ text: String) -> some View {

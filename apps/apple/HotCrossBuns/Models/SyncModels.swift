@@ -126,6 +126,15 @@ struct AppSettings: Hashable, Codable, Sendable {
     var collapsedTaskListIDs: Set<TaskListMirror.ID> // §7.01 — task-list section IDs the user has folded shut in StoreView
     var multiDayCount: Int // §7.01 Phase D2 — day count for Multi-Day view (2-7, default 3)
     var quickCreateExpandedByDefault: Bool // §7.01 follow-up — show all QuickCreate fields up-front instead of behind [+ More]
+    // App-wide task reminder policy. Per-task offsets were removed in F-reminders
+    // because Google Tasks API has no reminder field and writing offsets into
+    // notes violated the "no new schema Google has to read" invariant. Now every
+    // open task with a due date fires a single local notification at
+    // `due - thresholdDays` on this Mac at taskReminderHour:taskReminderMinute.
+    // 0 = disabled. Defaults: 7 days before, 09:00.
+    var taskReminderThresholdDays: Int
+    var taskReminderHour: Int
+    var taskReminderMinute: Int
 
     init(
         syncMode: SyncMode,
@@ -156,7 +165,10 @@ struct AppSettings: Hashable, Codable, Sendable {
         eventRetentionDaysBack: Int = 365,
         collapsedTaskListIDs: Set<TaskListMirror.ID> = [],
         multiDayCount: Int = 3,
-        quickCreateExpandedByDefault: Bool = true
+        quickCreateExpandedByDefault: Bool = true,
+        taskReminderThresholdDays: Int = 7,
+        taskReminderHour: Int = 9,
+        taskReminderMinute: Int = 0
     ) {
         self.syncMode = syncMode
         self.selectedCalendarIDs = selectedCalendarIDs
@@ -187,6 +199,9 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.collapsedTaskListIDs = collapsedTaskListIDs
         self.multiDayCount = max(2, min(7, multiDayCount))
         self.quickCreateExpandedByDefault = quickCreateExpandedByDefault
+        self.taskReminderThresholdDays = max(0, min(365, taskReminderThresholdDays))
+        self.taskReminderHour = max(0, min(23, taskReminderHour))
+        self.taskReminderMinute = max(0, min(59, taskReminderMinute))
     }
 
     enum CodingKeys: String, CodingKey {
@@ -219,6 +234,9 @@ struct AppSettings: Hashable, Codable, Sendable {
         case collapsedTaskListIDs
         case multiDayCount
         case quickCreateExpandedByDefault
+        case taskReminderThresholdDays
+        case taskReminderHour
+        case taskReminderMinute
     }
 
     // Legacy key (0-6 ladder) read via dynamic CodingKey so it stays out of
@@ -280,6 +298,12 @@ struct AppSettings: Hashable, Codable, Sendable {
         let rawMultiDay = try container.decodeIfPresent(Int.self, forKey: .multiDayCount) ?? 3
         multiDayCount = max(2, min(7, rawMultiDay))
         quickCreateExpandedByDefault = try container.decodeIfPresent(Bool.self, forKey: .quickCreateExpandedByDefault) ?? true
+        let rawThreshold = try container.decodeIfPresent(Int.self, forKey: .taskReminderThresholdDays) ?? 7
+        taskReminderThresholdDays = max(0, min(365, rawThreshold))
+        let rawHour = try container.decodeIfPresent(Int.self, forKey: .taskReminderHour) ?? 9
+        taskReminderHour = max(0, min(23, rawHour))
+        let rawMinute = try container.decodeIfPresent(Int.self, forKey: .taskReminderMinute) ?? 0
+        taskReminderMinute = max(0, min(59, rawMinute))
     }
 
     enum MenuBarStyle: String, Codable, Hashable, Sendable, CaseIterable {
