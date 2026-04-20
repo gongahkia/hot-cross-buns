@@ -17,7 +17,6 @@
 		05D2E8C1B772FA0D7DF885CB /* LocalNotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84B5C3ED3789B4EFFAEEB89E /* LocalNotificationScheduler.swift */; };
 		06BEC9D87D21345A636AADB8 /* CalendarMirror.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B56113BE89523BF7D0AE8EA /* CalendarMirror.swift */; };
 		06FE121137213164AD3251BB /* ICSImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAD0C012D8B9B6623C44F25 /* ICSImporterTests.swift */; };
-		0C3DFA7D3E4DCD020EB7F6F2 /* TaskDependencyMarkers.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCE5BDCDF63B0B50B0A3A26C /* TaskDependencyMarkers.swift */; };
 		0C684E4902EA8C1B8C94322E /* CalendarGridLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7CCAAA53D6C1875F338A5B /* CalendarGridLayoutTests.swift */; };
 		0D378235C8E06E9BECC9C81D /* TemplatesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D71121A9391311854DE3FD37 /* TemplatesSection.swift */; };
 		0E508E9852C85C2E60A64756 /* TaskReminderMarkers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC17ECA270BCECA15B26A6D2 /* TaskReminderMarkers.swift */; };
@@ -350,7 +349,6 @@
 		C9947809DE2CC9C0058C3BA2 /* OptimisticWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimisticWriterTests.swift; sourceTree = "<group>"; };
 		CA877143F8C7670474448015 /* EventTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventTemplate.swift; sourceTree = "<group>"; };
 		CC9C2158939F77166D48250B /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
-		CCE5BDCDF63B0B50B0A3A26C /* TaskDependencyMarkers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDependencyMarkers.swift; sourceTree = "<group>"; };
 		CD3E985540BFEBDABB373283 /* GoogleAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAuthService.swift; sourceTree = "<group>"; };
 		CD5F8A89100AE1891AD53FA3 /* DiagnosticBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticBundle.swift; sourceTree = "<group>"; };
 		CDAD0C012D8B9B6623C44F25 /* ICSImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICSImporterTests.swift; sourceTree = "<group>"; };
@@ -741,7 +739,6 @@
 				1622469DA249EE1B10188D98 /* Snapshots.swift */,
 				46640F8301E1D6444BE62A73 /* SyncModels.swift */,
 				E60A02AA0EB32C0C012F2AF0 /* TagExtractor.swift */,
-				CCE5BDCDF63B0B50B0A3A26C /* TaskDependencyMarkers.swift */,
 				BD404C87FD0BC2462B844C8C /* TaskHierarchy.swift */,
 				165DF0F051694E742FB59FB7 /* TaskMirror.swift */,
 				DD2813E1AA5D3C77A5B6B41E /* TaskRecurrenceMarkers.swift */,
@@ -1110,7 +1107,6 @@
 				D9779582C2065E9892747B2B /* SystemCrashReportReader.swift in Sources */,
 				00CCA68431BB2A4FF0CF05C5 /* TagExtractor.swift in Sources */,
 				942FC7B6DBF1A45426C259D1 /* TaskBulkActionBar.swift in Sources */,
-				0C3DFA7D3E4DCD020EB7F6F2 /* TaskDependencyMarkers.swift in Sources */,
 				C3D0742271A897D59B1B7CE6 /* TaskDrawerPanel.swift in Sources */,
 				804FDD2DCFA8CC6E75971B58 /* TaskHierarchy.swift in Sources */,
 				843376C55956307CFD28B153 /* TaskInspectorView.swift in Sources */,

@@ -87,7 +87,6 @@ struct TaskInspectorView: View {
                     dueDateSection
                     recurrenceSection
                     remindersSection
-                    dependenciesSection
                     taskListSection
                     subtasksSection
                     hierarchyControls
@@ -141,15 +140,11 @@ struct TaskInspectorView: View {
     // MARK: - View-only body (renders populated fields only).
 
     private var viewOnlyBody: some View {
-        let strippedNotes = TaskDependencyMarkers.strippedNotes(
-            from: TaskReminderMarkers.strippedNotes(
-                from: TaskRecurrenceMarkers.strippedNotes(from: task.notes)
-            )
+        let strippedNotes = TaskReminderMarkers.strippedNotes(
+            from: TaskRecurrenceMarkers.strippedNotes(from: task.notes)
         )
         let recurrence = TaskRecurrenceMarkers.rule(from: task.notes)
         let reminderOffsets = TaskReminderMarkers.offsetsInDays(from: task.notes)
-        let blockerIDs = TaskDependencyMarkers.blockerIDs(from: task.notes)
-        let blockers = blockerIDs.compactMap { id in model.tasks.first(where: { $0.id == id }) }
         let listTitle = model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Unknown list"
         let subtasks = children
 
@@ -192,21 +187,6 @@ struct TaskInspectorView: View {
                         Label(reminderLabel(for: offset), systemImage: "bell")
                             .hcbFont(.subheadline)
                             .foregroundStyle(AppColor.ink)
-                    }
-                }
-            }
-
-            if blockers.isEmpty == false {
-                readCard("BLOCKED BY") {
-                    ForEach(blockers, id: \.id) { blocker in
-                        HStack(spacing: 8) {
-                            Image(systemName: blocker.isCompleted ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(blocker.isCompleted ? AppColor.moss : AppColor.ember)
-                            Text(blocker.title)
-                                .hcbFont(.subheadline)
-                                .strikethrough(blocker.isCompleted)
-                                .foregroundStyle(AppColor.ink)
-                        }
                     }
                 }
             }
@@ -663,57 +643,6 @@ struct TaskInspectorView: View {
         )
     }
 
-    @ViewBuilder
-    private var dependenciesSection: some View {
-        let blockerIDs = TaskDependencyMarkers.blockerIDs(from: task.notes)
-        let blockers = blockerIDs.compactMap { id in model.tasks.first(where: { $0.id == id }) }
-        VStack(alignment: .leading, spacing: 8) {
-            sectionLabel("BLOCKED BY")
-            if blockers.isEmpty {
-                Text("Not blocked by anything.")
-                    .hcbFont(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(blockers, id: \.id) { blocker in
-                    HStack(spacing: 8) {
-                        Image(systemName: blocker.isCompleted ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(blocker.isCompleted ? AppColor.moss : AppColor.ember)
-                        Text(blocker.title)
-                            .hcbFont(.subheadline)
-                            .strikethrough(blocker.isCompleted)
-                        Spacer(minLength: 0)
-                        Button {
-                            removeBlocker(blocker.id)
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Remove \(blocker.title) from blockers")
-                    }
-                }
-            }
-            Menu("Add blocker…") {
-                let candidates = model.tasks
-                    .filter { $0.id != task.id && $0.isDeleted == false && blockerIDs.contains($0.id) == false }
-                    .prefix(20)
-                if candidates.isEmpty {
-                    Text("No other tasks available")
-                } else {
-                    ForEach(candidates, id: \.id) { candidate in
-                        Button(candidate.title) { addBlocker(candidate.id) }
-                    }
-                }
-            }
-            .hcbFont(.caption)
-        }
-        .hcbScaledPadding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.ultraThinMaterial)
-        )
-    }
-
     private func handleSubtaskDrop(draggedID: TaskMirror.ID, targetIndex: Int) async {
         let ordered = children
         guard let draggedTask = ordered.first(where: { $0.id == draggedID }) else { return }
@@ -734,25 +663,6 @@ struct TaskInspectorView: View {
             return predecessor.id
         }()
         _ = await model.reorderTask(draggedTask, afterSiblingID: adjustedPreviousID)
-    }
-
-    private func addBlocker(_ id: String) {
-        var ids = TaskDependencyMarkers.blockerIDs(from: task.notes)
-        guard ids.contains(id) == false else { return }
-        ids.append(id)
-        let newNotes = TaskDependencyMarkers.encode(notes: task.notes, blockerIDs: ids)
-        Task {
-            _ = await model.updateTask(task, title: task.title, notes: newNotes, dueDate: task.dueDate)
-        }
-    }
-
-    private func removeBlocker(_ id: String) {
-        var ids = TaskDependencyMarkers.blockerIDs(from: task.notes)
-        ids.removeAll { $0 == id }
-        let newNotes = TaskDependencyMarkers.encode(notes: task.notes, blockerIDs: ids)
-        Task {
-            _ = await model.updateTask(task, title: task.title, notes: newNotes, dueDate: task.dueDate)
-        }
     }
 
     @ViewBuilder
@@ -860,15 +770,11 @@ struct TaskInspectorView: View {
         guard draft.differs(from: task) else { return }
         guard draft.hasUsableTitle else { return }
         isSavingNow = true
-        let existingBlockers = TaskDependencyMarkers.blockerIDs(from: task.notes)
         let editedNotes = draft.notes.trimmingCharacters(in: .whitespacesAndNewlines)
-        let notesWithBlockers = existingBlockers.isEmpty
-            ? editedNotes
-            : TaskDependencyMarkers.encode(notes: editedNotes, blockerIDs: existingBlockers)
         let didSave = await model.updateTask(
             task,
             title: draft.title.trimmingCharacters(in: .whitespacesAndNewlines),
-            notes: notesWithBlockers,
+            notes: editedNotes,
             dueDate: draft.resolvedDueDate()
         )
         isSavingNow = false
