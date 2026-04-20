@@ -6,6 +6,7 @@ struct AppStatusBanner: View {
     let mutationError: String?
     var isSyncPaused: Bool = false
     var quarantinedCount: Int = 0
+    var conflictCount: Int = 0
     var openDiagnostics: (() -> Void)? = nil
     let retry: () -> Void
     let dismiss: () -> Void
@@ -52,6 +53,17 @@ struct AppStatusBanner: View {
                 title: "Reconnect Google to keep syncing",
                 message: message,
                 systemImage: "person.crop.circle.badge.exclamationmark",
+                tint: .red,
+                canRetry: false
+            )
+        }
+
+        if conflictCount > 0 {
+            let noun = conflictCount == 1 ? "conflict" : "conflicts"
+            return FailureContext(
+                title: "\(conflictCount) sync \(noun) — whose change wins?",
+                message: "Google rejected these writes because someone edited the same item elsewhere. Open Diagnostics to keep your change or take the server version.",
+                systemImage: "arrow.triangle.branch",
                 tint: .red,
                 canRetry: false
             )

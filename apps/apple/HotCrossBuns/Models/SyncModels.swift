@@ -94,10 +94,15 @@ struct PendingMutation: Identifiable, Hashable, Codable, Sendable {
     var lastAttemptAt: Date? = nil
     var lastErrorSummary: String? = nil
     var quarantinedAt: Date? = nil
+    // Set when the mutation was quarantined specifically because the server
+    // returned 412 Precondition Failed (the canonical "someone else edited
+    // this resource" signal). Drives the conflict-resolution UI — the user
+    // can either force-overwrite (re-issue without etag) or discard.
+    var conflictedAt: Date? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, createdAt, resourceType, resourceID, action, payload
-        case attemptCount, lastAttemptAt, lastErrorSummary, quarantinedAt
+        case attemptCount, lastAttemptAt, lastErrorSummary, quarantinedAt, conflictedAt
     }
 
     init(
@@ -110,7 +115,8 @@ struct PendingMutation: Identifiable, Hashable, Codable, Sendable {
         attemptCount: Int = 0,
         lastAttemptAt: Date? = nil,
         lastErrorSummary: String? = nil,
-        quarantinedAt: Date? = nil
+        quarantinedAt: Date? = nil,
+        conflictedAt: Date? = nil
     ) {
         self.id = id
         self.createdAt = createdAt
@@ -122,6 +128,7 @@ struct PendingMutation: Identifiable, Hashable, Codable, Sendable {
         self.lastAttemptAt = lastAttemptAt
         self.lastErrorSummary = lastErrorSummary
         self.quarantinedAt = quarantinedAt
+        self.conflictedAt = conflictedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -136,9 +143,11 @@ struct PendingMutation: Identifiable, Hashable, Codable, Sendable {
         lastAttemptAt = try c.decodeIfPresent(Date.self, forKey: .lastAttemptAt)
         lastErrorSummary = try c.decodeIfPresent(String.self, forKey: .lastErrorSummary)
         quarantinedAt = try c.decodeIfPresent(Date.self, forKey: .quarantinedAt)
+        conflictedAt = try c.decodeIfPresent(Date.self, forKey: .conflictedAt)
     }
 
     var isQuarantined: Bool { quarantinedAt != nil }
+    var isConflict: Bool { conflictedAt != nil }
 
     // Returns true when the backoff window has elapsed (or no prior attempt).
     // A mutation becomes eligible for retry `policy.delay(forAttempt:)` after
