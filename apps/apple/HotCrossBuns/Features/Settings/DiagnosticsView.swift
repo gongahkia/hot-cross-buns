@@ -82,12 +82,33 @@ struct DiagnosticsView: View {
                         .textSelection(.enabled)
                 }
 
-                if quarantinedMutations.isEmpty == false {
+                if conflictedMutations.isEmpty == false {
+                    Section("Sync conflicts") {
+                        Text("Google rejected these writes with HTTP 412 — someone else edited the same item between the time you made your change and when HCB sent it. Choose whose version wins.")
+                            .hcbFont(.caption)
+                            .foregroundStyle(.secondary)
+                        ForEach(conflictedMutations) { mutation in
+                            ConflictMutationRow(
+                                mutation: mutation,
+                                onKeepMine: {
+                                    Task {
+                                        _ = await model.forceOverwriteConflictedMutation(id: mutation.id)
+                                    }
+                                },
+                                onKeepServer: {
+                                    _ = model.clearPendingMutation(id: mutation.id)
+                                }
+                            )
+                        }
+                    }
+                }
+
+                if retryableQuarantined.isEmpty == false {
                     Section("Quarantined changes") {
                         Text("These writes exceeded the automatic retry ceiling (\(BackoffPolicy.nearRealtime.maxAttempts) attempts). They stay on this Mac until you retry or discard.")
                             .hcbFont(.caption)
                             .foregroundStyle(.secondary)
-                        ForEach(quarantinedMutations) { mutation in
+                        ForEach(retryableQuarantined) { mutation in
                             PendingMutationRow(
                                 mutation: mutation,
                                 onDrop: { _ = model.clearPendingMutation(id: mutation.id) },
@@ -319,8 +340,14 @@ struct DiagnosticsView: View {
         .frame(minWidth: 620, minHeight: 520)
     }
 
-    private var quarantinedMutations: [PendingMutation] {
-        model.pendingMutations.filter(\.isQuarantined)
+    private var conflictedMutations: [PendingMutation] {
+        model.pendingMutations.filter(\.isConflict)
+    }
+
+    // Quarantined but not a conflict — i.e., hit the transient-error ceiling.
+    // Conflicts get their own section with "Keep mine" / "Keep server" copy.
+    private var retryableQuarantined: [PendingMutation] {
+        model.pendingMutations.filter { $0.isQuarantined && $0.isConflict == false }
     }
 
     private var queuedMutations: [PendingMutation] {
@@ -545,6 +572,91 @@ private struct SystemCrashRow: View {
                     )
             }
         }
+    }
+}
+
+// Conflict-specific row: shows a summary of the pending change (decoded from
+// the mutation payload) and two big-intent buttons — "Keep my change" force-
+// overwrites the server state via a fresh update without If-Match, and
+// "Keep server version" simply discards the queued mutation.
+private struct ConflictMutationRow: View {
+    let mutation: PendingMutation
+    let onKeepMine: () -> Void
+    let onKeepServer: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.triangle.branch")
+                    .foregroundStyle(.red)
+                Text(title)
+                    .hcbFont(.subheadline, weight: .semibold)
+                Spacer(minLength: 0)
+            }
+            Text(payloadSummary)
+                .hcbFont(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(4)
+                .textSelection(.enabled)
+            Text("Queued \(mutation.createdAt.formatted(date: .abbreviated, time: .shortened)) · resource \(mutation.resourceID)")
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                Button(action: onKeepMine) {
+                    Label("Keep my change", systemImage: "arrow.up.forward.circle")
+                }
+                .buttonStyle(.borderedProminent)
+                Button(role: .destructive, action: onKeepServer) {
+                    Label("Keep server version", systemImage: "icloud.and.arrow.down")
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .hcbScaledPadding(.vertical, 4)
+    }
+
+    private var title: String {
+        switch (mutation.resourceType, mutation.action) {
+        case (.task, .update): "Task edit conflict"
+        case (.task, .completion): "Task completion conflict"
+        case (.task, .delete): "Task delete conflict"
+        case (.event, .update): "Event edit conflict"
+        case (.event, .delete): "Event delete conflict"
+        default: "\(mutation.resourceType.rawValue) \(mutation.action.rawValue) conflict"
+        }
+    }
+
+    // Decode the payload into a short human-readable summary of the fields
+    // HCB was trying to write. Failures fall back to the mutation id.
+    private var payloadSummary: String {
+        switch (mutation.resourceType, mutation.action) {
+        case (.task, .update):
+            if let p = try? PendingMutationEncoder.decodeTaskUpdate(mutation.payload) {
+                var parts = ["title: \(p.title)"]
+                if p.notes.isEmpty == false { parts.append("notes: \(p.notes.prefix(80))") }
+                if let due = p.dueDate { parts.append("due: \(due.formatted(date: .abbreviated, time: .omitted))") }
+                return parts.joined(separator: " · ")
+            }
+        case (.task, .completion):
+            if let p = try? PendingMutationEncoder.decodeTaskCompletion(mutation.payload) {
+                return p.isCompleted ? "mark complete" : "mark needs action"
+            }
+        case (.task, .delete):
+            return "delete task"
+        case (.event, .update):
+            if let p = try? PendingMutationEncoder.decodeEventUpdate(mutation.payload) {
+                var parts = ["summary: \(p.summary)"]
+                parts.append("start: \(p.startDate.formatted(date: .abbreviated, time: p.isAllDay ? .omitted : .shortened))")
+                parts.append("end: \(p.endDate.formatted(date: .abbreviated, time: p.isAllDay ? .omitted : .shortened))")
+                if p.location.isEmpty == false { parts.append("at \(p.location)") }
+                return parts.joined(separator: " · ")
+            }
+        case (.event, .delete):
+            return "delete event"
+        default:
+            break
+        }
+        return "Mutation id \(mutation.id.uuidString)"
     }
 }
 

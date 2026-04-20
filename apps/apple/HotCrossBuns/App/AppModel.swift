@@ -2092,11 +2092,119 @@ final class AppModel {
         pendingMutations[idx].lastAttemptAt = nil
         pendingMutations[idx].lastErrorSummary = nil
         pendingMutations[idx].quarantinedAt = nil
+        pendingMutations[idx].conflictedAt = nil
         Task {
             await saveCurrentState()
             await replayPendingMutations()
         }
         return true
+    }
+
+    // On a 412 Precondition Failed from the replay path, instead of dropping
+    // the queued write + silently refreshing (which lost the user's edit),
+    // flag the mutation as a conflict. The user resolves it from Diagnostics
+    // via "Keep my change" (forceOverwriteConflictedMutation — re-issues the
+    // write without etag) or "Discard" (clearPendingMutation).
+    private func markMutationConflict(_ mutationID: PendingMutation.ID, error: Error) {
+        guard let idx = pendingMutations.firstIndex(where: { $0.id == mutationID }) else { return }
+        pendingMutations[idx].lastAttemptAt = Date()
+        pendingMutations[idx].lastErrorSummary = "Server changed underneath — choose whose change wins."
+        pendingMutations[idx].quarantinedAt = Date()
+        pendingMutations[idx].conflictedAt = Date()
+        AppLogger.warn("mutation conflict — 412 on replay", category: .replay, metadata: [
+            "id": mutationID.uuidString,
+            "resourceType": pendingMutations[idx].resourceType.rawValue,
+            "action": pendingMutations[idx].action.rawValue,
+            "error": error.localizedDescription
+        ])
+    }
+
+    // Force-reissue a conflicted mutation without If-Match so Google accepts
+    // it as an unconditional overwrite of the current server state. Called
+    // from the Diagnostics "Keep my change" button.
+    @discardableResult
+    func forceOverwriteConflictedMutation(id: PendingMutation.ID) async -> Bool {
+        guard let mutation = pendingMutations.first(where: { $0.id == id }),
+              mutation.isConflict
+        else { return false }
+        do {
+            switch (mutation.resourceType, mutation.action) {
+            case (.task, .update):
+                let payload = try PendingMutationEncoder.decodeTaskUpdate(mutation.payload)
+                let updated = try await tasksClient.updateTask(
+                    taskListID: payload.taskListID,
+                    taskID: payload.taskID,
+                    title: payload.title,
+                    notes: payload.notes,
+                    dueDate: payload.dueDate,
+                    ifMatch: nil
+                )
+                upsert(updated)
+            case (.task, .completion):
+                let payload = try PendingMutationEncoder.decodeTaskCompletion(mutation.payload)
+                let stub = TaskMirror(
+                    id: payload.taskID,
+                    taskListID: payload.taskListID,
+                    parentID: nil,
+                    title: "",
+                    notes: "",
+                    status: payload.isCompleted ? .completed : .needsAction,
+                    dueDate: nil,
+                    completedAt: nil,
+                    isDeleted: false,
+                    isHidden: false,
+                    position: nil,
+                    etag: nil,
+                    updatedAt: nil
+                )
+                let updated = try await tasksClient.setTaskCompleted(payload.isCompleted, task: stub)
+                upsert(updated)
+            case (.task, .delete):
+                let payload = try PendingMutationEncoder.decodeTaskDelete(mutation.payload)
+                try await tasksClient.deleteTask(taskListID: payload.taskListID, taskID: payload.taskID, ifMatch: nil)
+                removeTask(id: payload.taskID)
+            case (.event, .update):
+                let payload = try PendingMutationEncoder.decodeEventUpdate(mutation.payload)
+                let updated = try await calendarClient.updateEvent(
+                    calendarID: payload.calendarID,
+                    eventID: payload.eventID,
+                    summary: payload.summary,
+                    details: payload.details,
+                    startDate: payload.startDate,
+                    endDate: payload.endDate,
+                    isAllDay: payload.isAllDay,
+                    reminderMinutes: payload.reminderMinutes,
+                    location: payload.location,
+                    recurrence: payload.recurrence,
+                    attendeeEmails: payload.attendeeEmails,
+                    sendUpdates: payload.notifyGuests ? "all" : "none",
+                    addGoogleMeet: payload.addGoogleMeet,
+                    colorId: payload.colorId,
+                    hcbTaskID: payload.hcbTaskID,
+                    ifMatch: nil
+                )
+                upsert(updated)
+            case (.event, .delete):
+                let payload = try PendingMutationEncoder.decodeEventDelete(mutation.payload)
+                try await calendarClient.deleteEvent(calendarID: payload.calendarID, eventID: payload.eventID, ifMatch: nil)
+                removeEvent(id: payload.eventID)
+            default:
+                // Create mutations never 412 (no etag). Only updates/deletes
+                // reach this state.
+                return false
+            }
+            pendingMutations.removeAll { $0.id == id }
+            await saveCurrentState()
+            await synchronizeLocalNotifications()
+            return true
+        } catch {
+            lastMutationError = "Overwrite failed: \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    var conflictedMutationCount: Int {
+        pendingMutations.filter(\.isConflict).count
     }
 
     private func replay(_ mutation: PendingMutation) async {
@@ -2172,10 +2280,9 @@ final class AppModel {
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
             await saveCurrentState()
         } catch let error as GoogleAPIError where error == .preconditionFailed {
-            // Queued edit was based on stale state — drop it and refresh so
-            // the user can re-apply against the current server state.
-            pendingMutations.removeAll { $0.id == mutation.id }
-            lastMutationError = "A queued edit was rejected because the item changed elsewhere. Refreshing."
+            // Queued edit raced a server-side change. Don't silently drop —
+            // surface as a conflict the user resolves from Diagnostics.
+            markMutationConflict(mutation.id, error: error)
             await saveCurrentState()
             await refreshNow()
         } catch {
@@ -2215,8 +2322,7 @@ final class AppModel {
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
             await saveCurrentState()
         } catch let error as GoogleAPIError where error == .preconditionFailed {
-            pendingMutations.removeAll { $0.id == mutation.id }
-            lastMutationError = "A queued completion was rejected because the task changed elsewhere. Refreshing."
+            markMutationConflict(mutation.id, error: error)
             await saveCurrentState()
             await refreshNow()
         } catch {
@@ -2243,8 +2349,7 @@ final class AppModel {
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
             await saveCurrentState()
         } catch let error as GoogleAPIError where error == .preconditionFailed {
-            pendingMutations.removeAll { $0.id == mutation.id }
-            lastMutationError = "A queued delete was rejected because the task changed elsewhere. Refreshing."
+            markMutationConflict(mutation.id, error: error)
             await saveCurrentState()
             await refreshNow()
         } catch {
@@ -2284,8 +2389,7 @@ final class AppModel {
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
             await saveCurrentState()
         } catch let error as GoogleAPIError where error == .preconditionFailed {
-            pendingMutations.removeAll { $0.id == mutation.id }
-            lastMutationError = "A queued edit was rejected because the event changed elsewhere. Refreshing."
+            markMutationConflict(mutation.id, error: error)
             await saveCurrentState()
             await refreshNow()
         } catch {
@@ -2312,8 +2416,7 @@ final class AppModel {
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
             await saveCurrentState()
         } catch let error as GoogleAPIError where error == .preconditionFailed {
-            pendingMutations.removeAll { $0.id == mutation.id }
-            lastMutationError = "A queued delete was rejected because the event changed elsewhere. Refreshing."
+            markMutationConflict(mutation.id, error: error)
             await saveCurrentState()
             await refreshNow()
         } catch {

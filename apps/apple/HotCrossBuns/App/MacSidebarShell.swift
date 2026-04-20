@@ -97,6 +97,7 @@ struct MacSidebarShell: View {
                     mutationError: model.lastMutationError,
                     isSyncPaused: model.isSyncPaused,
                     quarantinedCount: model.quarantinedMutationCount,
+                    conflictCount: model.conflictedMutationCount,
                     retry: {
                         model.resumeSync()
                         Task { await model.refreshNow() }
