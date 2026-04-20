@@ -806,8 +806,6 @@ struct MacSidebarShell: View {
         case .store:
             let count = model.openTaskCountForSidebar
             return count > 0 ? "\(count)" : nil
-        case .settings:
-            return nil
         }
     }
 
