@@ -45,12 +45,6 @@ final class CalendarDropComputerTests: XCTestCase {
         XCTAssertEqual(end.timeIntervalSince(start), 60 * 60)
     }
 
-    func testBackLinkDescriptionIncludesTitleAndDeepLink() {
-        let description = CalendarDropComputer.backLinkDescription(for: "Pay rent", taskID: "abc-123")
-        XCTAssertTrue(description.contains("Pay rent"))
-        XCTAssertTrue(description.contains("hcb://task/abc-123"))
-    }
-
     func testHourHeightZeroReturnsDayStart() {
         let start = CalendarDropComputer.snappedStart(for: 200, hourHeight: 0, dayStart: dayStart, calendar: calendar)
         XCTAssertEqual(start, dayStart)

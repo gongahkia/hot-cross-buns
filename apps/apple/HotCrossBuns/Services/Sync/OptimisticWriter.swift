@@ -36,6 +36,69 @@ struct PendingEventCreatePayload: Codable, Sendable, Equatable {
     var notifyGuests: Bool = false
     var addGoogleMeet: Bool = false
     var colorId: String? = nil
+    // HCB-only backlink stored on the event's Google extendedProperties.private
+    // bag (not visible in other Google clients). Nil for plain event creates;
+    // set when the event was spawned by a task → time-block drag.
+    var hcbTaskID: String? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case localID, calendarID, summary, details, startDate, endDate, isAllDay
+        case reminderMinutes, location, recurrence, attendeeEmails, notifyGuests
+        case addGoogleMeet, colorId, hcbTaskID
+    }
+
+    init(
+        localID: String,
+        calendarID: String,
+        summary: String,
+        details: String,
+        startDate: Date,
+        endDate: Date,
+        isAllDay: Bool,
+        reminderMinutes: Int?,
+        location: String = "",
+        recurrence: [String] = [],
+        attendeeEmails: [String] = [],
+        notifyGuests: Bool = false,
+        addGoogleMeet: Bool = false,
+        colorId: String? = nil,
+        hcbTaskID: String? = nil
+    ) {
+        self.localID = localID
+        self.calendarID = calendarID
+        self.summary = summary
+        self.details = details
+        self.startDate = startDate
+        self.endDate = endDate
+        self.isAllDay = isAllDay
+        self.reminderMinutes = reminderMinutes
+        self.location = location
+        self.recurrence = recurrence
+        self.attendeeEmails = attendeeEmails
+        self.notifyGuests = notifyGuests
+        self.addGoogleMeet = addGoogleMeet
+        self.colorId = colorId
+        self.hcbTaskID = hcbTaskID
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        localID = try c.decode(String.self, forKey: .localID)
+        calendarID = try c.decode(String.self, forKey: .calendarID)
+        summary = try c.decode(String.self, forKey: .summary)
+        details = try c.decode(String.self, forKey: .details)
+        startDate = try c.decode(Date.self, forKey: .startDate)
+        endDate = try c.decode(Date.self, forKey: .endDate)
+        isAllDay = try c.decode(Bool.self, forKey: .isAllDay)
+        reminderMinutes = try c.decodeIfPresent(Int.self, forKey: .reminderMinutes)
+        location = try c.decodeIfPresent(String.self, forKey: .location) ?? ""
+        recurrence = try c.decodeIfPresent([String].self, forKey: .recurrence) ?? []
+        attendeeEmails = try c.decodeIfPresent([String].self, forKey: .attendeeEmails) ?? []
+        notifyGuests = try c.decodeIfPresent(Bool.self, forKey: .notifyGuests) ?? false
+        addGoogleMeet = try c.decodeIfPresent(Bool.self, forKey: .addGoogleMeet) ?? false
+        colorId = try c.decodeIfPresent(String.self, forKey: .colorId)
+        hcbTaskID = try c.decodeIfPresent(String.self, forKey: .hcbTaskID)
+    }
 }
 
 struct PendingTaskUpdatePayload: Codable, Sendable, Equatable {
@@ -76,6 +139,69 @@ struct PendingEventUpdatePayload: Codable, Sendable, Equatable {
     var etagSnapshot: String?
     var addGoogleMeet: Bool = false
     var colorId: String? = nil
+    var hcbTaskID: String? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case calendarID, eventID, summary, details, startDate, endDate, isAllDay
+        case reminderMinutes, location, recurrence, attendeeEmails, notifyGuests
+        case etagSnapshot, addGoogleMeet, colorId, hcbTaskID
+    }
+
+    init(
+        calendarID: String,
+        eventID: String,
+        summary: String,
+        details: String,
+        startDate: Date,
+        endDate: Date,
+        isAllDay: Bool,
+        reminderMinutes: Int?,
+        location: String,
+        recurrence: [String],
+        attendeeEmails: [String],
+        notifyGuests: Bool,
+        etagSnapshot: String?,
+        addGoogleMeet: Bool = false,
+        colorId: String? = nil,
+        hcbTaskID: String? = nil
+    ) {
+        self.calendarID = calendarID
+        self.eventID = eventID
+        self.summary = summary
+        self.details = details
+        self.startDate = startDate
+        self.endDate = endDate
+        self.isAllDay = isAllDay
+        self.reminderMinutes = reminderMinutes
+        self.location = location
+        self.recurrence = recurrence
+        self.attendeeEmails = attendeeEmails
+        self.notifyGuests = notifyGuests
+        self.etagSnapshot = etagSnapshot
+        self.addGoogleMeet = addGoogleMeet
+        self.colorId = colorId
+        self.hcbTaskID = hcbTaskID
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        calendarID = try c.decode(String.self, forKey: .calendarID)
+        eventID = try c.decode(String.self, forKey: .eventID)
+        summary = try c.decode(String.self, forKey: .summary)
+        details = try c.decode(String.self, forKey: .details)
+        startDate = try c.decode(Date.self, forKey: .startDate)
+        endDate = try c.decode(Date.self, forKey: .endDate)
+        isAllDay = try c.decode(Bool.self, forKey: .isAllDay)
+        reminderMinutes = try c.decodeIfPresent(Int.self, forKey: .reminderMinutes)
+        location = try c.decode(String.self, forKey: .location)
+        recurrence = try c.decode([String].self, forKey: .recurrence)
+        attendeeEmails = try c.decode([String].self, forKey: .attendeeEmails)
+        notifyGuests = try c.decode(Bool.self, forKey: .notifyGuests)
+        etagSnapshot = try c.decodeIfPresent(String.self, forKey: .etagSnapshot)
+        addGoogleMeet = try c.decodeIfPresent(Bool.self, forKey: .addGoogleMeet) ?? false
+        colorId = try c.decodeIfPresent(String.self, forKey: .colorId)
+        hcbTaskID = try c.decodeIfPresent(String.self, forKey: .hcbTaskID)
+    }
 }
 
 struct PendingEventDeletePayload: Codable, Sendable, Equatable {
