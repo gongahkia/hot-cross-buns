@@ -9,6 +9,7 @@ import SwiftUI
 enum HCBShortcutCommand: String, CaseIterable, Identifiable {
     // App menu / global
     case newTask
+    case newNote
     case newEvent
     case commandPalette
     case quickSwitcher
@@ -52,6 +53,7 @@ enum HCBShortcutCommand: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .newTask: "New Task"
+        case .newNote: "New Note"
         case .newEvent: "New Event"
         case .commandPalette: "Command Palette"
         case .quickSwitcher: "Quick Switcher"
@@ -90,7 +92,7 @@ enum HCBShortcutCommand: String, CaseIterable, Identifiable {
 
     var group: HCBShortcutGroup {
         switch self {
-        case .newTask, .newEvent, .commandPalette, .quickSwitcher, .printToday,
+        case .newTask, .newNote, .newEvent, .commandPalette, .quickSwitcher, .printToday,
              .refresh, .forceResync, .diagnostics, .help:
             .app
         case .goToCalendar, .goToStore, .goToNotes, .goToSettings,
@@ -111,7 +113,8 @@ enum HCBShortcutCommand: String, CaseIterable, Identifiable {
     var defaultBinding: HCBKeyBinding {
         switch self {
         case .newTask: .init(key: .char("n"), modifiers: [.command])
-        case .newEvent: .init(key: .char("n"), modifiers: [.command, .shift])
+        case .newNote: .init(key: .char("n"), modifiers: [.command, .shift])
+        case .newEvent: .init(key: .char("e"), modifiers: [.command, .shift])
         case .commandPalette: .init(key: .char("p"), modifiers: [.command])
         case .quickSwitcher: .init(key: .char("o"), modifiers: [.command])
         case .printToday: .init(key: .char("p"), modifiers: [.command, .shift])

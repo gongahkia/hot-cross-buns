@@ -33,6 +33,11 @@ struct QuickCreatePopover: View {
     let initiallyAllDay: Bool
     let taskOnly: Bool
     let initialTaskListID: TaskListMirror.ID?
+    // Flips the sheet's identity to "New Note" and defaults hasDueDate off.
+    // A note is the same Google Task underneath (TaskMirror with dueDate=nil);
+    // setting a due date later moves it from the Notes tab to the Tasks tab
+    // — no conversion UI needed, it's purely where the task shows up.
+    let noteMode: Bool
 
     @State private var mode: CreateMode = .event
     @State private var summary: String = ""
@@ -85,13 +90,15 @@ struct QuickCreatePopover: View {
         isAllDay: Bool,
         initialEnd: Date? = nil,
         taskOnly: Bool = false,
-        initialTaskListID: TaskListMirror.ID? = nil
+        initialTaskListID: TaskListMirror.ID? = nil,
+        noteMode: Bool = false
     ) {
         self.initialDate = initialDate
         self.initialEnd = initialEnd
         self.initiallyAllDay = isAllDay
         self.taskOnly = taskOnly
         self.initialTaskListID = initialTaskListID
+        self.noteMode = noteMode
     }
 
     var body: some View {
@@ -143,6 +150,11 @@ struct QuickCreatePopover: View {
                 // on so users can pick a date, but flip to .task mode so
                 // the first tap doesn't create an event.
             }
+            if noteMode {
+                // Note-mode flips hasDueDate off by default. Adding a date
+                // later promotes it out of the Notes tab automatically.
+                hasDueDate = false
+            }
             summaryFocused = true
             // Seed the editable date/time fields from the drag-derived
             // bounds so click-only (no drag) gets a 1-hour window and
@@ -176,8 +188,10 @@ struct QuickCreatePopover: View {
             if taskOnly {
                 // Task-only entry (e.g. clicking empty Kanban space) — the
                 // Event/Task switcher is omitted so the popover can't slip
-                // back into event mode from the Tasks tab.
-                Label("New Task", systemImage: "checklist")
+                // back into event mode from the Tasks tab. Note-mode tweaks
+                // the label + icon to make the Notes-tab origin obvious.
+                Label(noteMode ? "New Note" : "New Task",
+                      systemImage: noteMode ? "note.text" : "checklist")
                     .hcbFont(.subheadline, weight: .semibold)
                     .foregroundStyle(AppColor.ink)
             } else {
@@ -198,7 +212,7 @@ struct QuickCreatePopover: View {
     // Title row with inline color swatch (events only)
     private var summaryRow: some View {
         HStack(alignment: .top, spacing: 8) {
-            TextField(mode == .event ? "New Event" : "New Task", text: $summary, axis: .vertical)
+            TextField(noteMode ? "New Note" : (mode == .event ? "New Event" : "New Task"), text: $summary, axis: .vertical)
                 .textFieldStyle(.plain)
                 .hcbFont(.title3, weight: .medium)
                 .lineLimit(1...4)

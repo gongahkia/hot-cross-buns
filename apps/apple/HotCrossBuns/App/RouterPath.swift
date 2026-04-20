@@ -78,6 +78,12 @@ enum SheetDestination: Identifiable, Hashable {
     // Task-only variant — opened from Kanban column empty-space taps. Hides
     // the Event/Task switcher and pre-selects the list for the clicked column.
     case quickCreateTask(listID: TaskListMirror.ID?)
+    // Note variant — opened from the Notes tab "New Note" button and the
+    // global ⌘⇧N shortcut. Same sheet as quickCreateTask but labelled
+    // "New Note" and defaults hasDueDate = false. Adding a due date later
+    // promotes the note into a task (by moving it out of the Notes tab and
+    // into the Tasks tab — both are Google-side the same TaskMirror).
+    case quickCreateNote(listID: TaskListMirror.ID?)
     case syncSettings
     case diagnostics
 
@@ -99,6 +105,8 @@ enum SheetDestination: Identifiable, Hashable {
             "quickCreateRange-\(start.timeIntervalSince1970)-\(end.timeIntervalSince1970)-\(allDay)"
         case .quickCreateTask(let listID):
             "quickCreateTask-\(listID ?? "any")"
+        case .quickCreateNote(let listID):
+            "quickCreateNote-\(listID ?? "any")"
         case .syncSettings: "syncSettings"
         case .diagnostics: "diagnostics"
         }
@@ -162,6 +170,8 @@ private struct SheetDestinationHost: View {
             QuickCreatePopover(initialDate: start, isAllDay: allDay, initialEnd: end)
         case .quickCreateTask(let listID):
             QuickCreatePopover(initialDate: Date(), isAllDay: true, taskOnly: true, initialTaskListID: listID)
+        case .quickCreateNote(let listID):
+            QuickCreatePopover(initialDate: Date(), isAllDay: true, taskOnly: true, initialTaskListID: listID, noteMode: true)
         case .syncSettings:
             SyncSettingsSheet()
         case .diagnostics:

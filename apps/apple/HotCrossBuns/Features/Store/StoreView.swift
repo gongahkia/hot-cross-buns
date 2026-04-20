@@ -703,11 +703,11 @@ struct NotesView: View {
         .toolbar {
             ToolbarItemGroup {
                 Button {
-                    router.present(.quickCreateTask(listID: nil))
+                    router.present(.quickCreateNote(listID: nil))
                 } label: {
                     Label("New Note", systemImage: "plus")
                 }
-                .help("Create a task without a due date")
+                .help("Capture a thought without a due date. Adding a due date later moves it into the Tasks tab.")
                 .disabled(model.account == nil)
             }
         }
