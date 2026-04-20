@@ -308,7 +308,11 @@ Re-verified nothing has crept back in since `4674f8a`:
 Result: `grep -r vim .` on the repo returns only this historical record
 + commit-message references. No live code or copy remains.
 
-## 7. Performance optimisation and RAM / memory usage
+## 7.01 Visual reference
+
+Take visual and UI-specific reference (screenshots and actual behaviour) from contemporaries like Omnifocus 4, Ticktick, Things3, Apple Calendar, Sorted 3, Notion and Todoist
+
+## 7.02. Performance optimisation and RAM / memory usage
 
 Placeholder — scope during pickup. Likely includes: lazy-loading grid cells, image caching for location previews, reducing `AppModel` observable republishing, profiling `CalendarMirror` growth with large event counts.
 
