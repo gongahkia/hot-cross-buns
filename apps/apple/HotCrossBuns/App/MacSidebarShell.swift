@@ -96,6 +96,7 @@ struct MacSidebarShell: View {
                     authState: model.authState,
                     mutationError: model.lastMutationError,
                     isSyncPaused: model.isSyncPaused,
+                    quarantinedCount: model.quarantinedMutationCount,
                     retry: {
                         model.resumeSync()
                         Task { await model.refreshNow() }

@@ -84,6 +84,72 @@ struct PendingMutation: Identifiable, Hashable, Codable, Sendable {
     var resourceID: String
     var action: PendingMutationAction
     var payload: Data
+    // Poison-pill tracking (added in B). attemptCount increments on every
+    // transient failure; lastAttemptAt gates replay until the backoff window
+    // passes; quarantinedAt moves the mutation out of the automatic replay
+    // loop after BackoffPolicy.maxAttempts failures. Codable decodeIfPresent
+    // back-compat: pre-B queued mutations decode with zeroes and are treated
+    // as fresh.
+    var attemptCount: Int = 0
+    var lastAttemptAt: Date? = nil
+    var lastErrorSummary: String? = nil
+    var quarantinedAt: Date? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case id, createdAt, resourceType, resourceID, action, payload
+        case attemptCount, lastAttemptAt, lastErrorSummary, quarantinedAt
+    }
+
+    init(
+        id: UUID,
+        createdAt: Date,
+        resourceType: SyncResourceType,
+        resourceID: String,
+        action: PendingMutationAction,
+        payload: Data,
+        attemptCount: Int = 0,
+        lastAttemptAt: Date? = nil,
+        lastErrorSummary: String? = nil,
+        quarantinedAt: Date? = nil
+    ) {
+        self.id = id
+        self.createdAt = createdAt
+        self.resourceType = resourceType
+        self.resourceID = resourceID
+        self.action = action
+        self.payload = payload
+        self.attemptCount = attemptCount
+        self.lastAttemptAt = lastAttemptAt
+        self.lastErrorSummary = lastErrorSummary
+        self.quarantinedAt = quarantinedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+        resourceType = try c.decode(SyncResourceType.self, forKey: .resourceType)
+        resourceID = try c.decode(String.self, forKey: .resourceID)
+        action = try c.decode(PendingMutationAction.self, forKey: .action)
+        payload = try c.decode(Data.self, forKey: .payload)
+        attemptCount = try c.decodeIfPresent(Int.self, forKey: .attemptCount) ?? 0
+        lastAttemptAt = try c.decodeIfPresent(Date.self, forKey: .lastAttemptAt)
+        lastErrorSummary = try c.decodeIfPresent(String.self, forKey: .lastErrorSummary)
+        quarantinedAt = try c.decodeIfPresent(Date.self, forKey: .quarantinedAt)
+    }
+
+    var isQuarantined: Bool { quarantinedAt != nil }
+
+    // Returns true when the backoff window has elapsed (or no prior attempt).
+    // A mutation becomes eligible for retry `policy.delay(forAttempt:)` after
+    // its `lastAttemptAt`. Quarantined mutations never auto-replay.
+    func isReadyToReplay(now: Date, policy: BackoffPolicy) -> Bool {
+        guard isQuarantined == false else { return false }
+        guard let last = lastAttemptAt else { return true }
+        let delay = policy.delay(forAttempt: max(0, attemptCount - 1))
+        let secs = Double(delay.components.seconds) + Double(delay.components.attoseconds) / 1e18
+        return now.timeIntervalSince(last) >= secs
+    }
 }
 
 enum PendingMutationAction: String, Hashable, Codable, Sendable {

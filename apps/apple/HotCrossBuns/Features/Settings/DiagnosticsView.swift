@@ -82,9 +82,24 @@ struct DiagnosticsView: View {
                         .textSelection(.enabled)
                 }
 
-                if model.pendingMutations.isEmpty == false {
+                if quarantinedMutations.isEmpty == false {
+                    Section("Quarantined changes") {
+                        Text("These writes exceeded the automatic retry ceiling (\(BackoffPolicy.nearRealtime.maxAttempts) attempts). They stay on this Mac until you retry or discard.")
+                            .hcbFont(.caption)
+                            .foregroundStyle(.secondary)
+                        ForEach(quarantinedMutations) { mutation in
+                            PendingMutationRow(
+                                mutation: mutation,
+                                onDrop: { _ = model.clearPendingMutation(id: mutation.id) },
+                                onRetry: { _ = model.requeueQuarantinedMutation(id: mutation.id) }
+                            )
+                        }
+                    }
+                }
+
+                if queuedMutations.isEmpty == false {
                     Section("Pending sync queue") {
-                        ForEach(model.pendingMutations) { mutation in
+                        ForEach(queuedMutations) { mutation in
                             PendingMutationRow(mutation: mutation) {
                                 _ = model.clearPendingMutation(id: mutation.id)
                             }
@@ -302,6 +317,14 @@ struct DiagnosticsView: View {
         // explicit frame the sheet collapses to toolbar-height and the
         // sections are hidden.
         .frame(minWidth: 620, minHeight: 520)
+    }
+
+    private var quarantinedMutations: [PendingMutation] {
+        model.pendingMutations.filter(\.isQuarantined)
+    }
+
+    private var queuedMutations: [PendingMutation] {
+        model.pendingMutations.filter { $0.isQuarantined == false }
     }
 
     private var googleStatus: String {
@@ -528,6 +551,7 @@ private struct SystemCrashRow: View {
 private struct PendingMutationRow: View {
     let mutation: PendingMutation
     let onDrop: () -> Void
+    var onRetry: (() -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -542,8 +566,22 @@ private struct PendingMutationRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
+                if let err = mutation.lastErrorSummary, err.isEmpty == false {
+                    Text(err)
+                        .hcbFont(.caption2)
+                        .foregroundStyle(.red)
+                        .lineLimit(2)
+                }
             }
             Spacer(minLength: 8)
+            if let onRetry {
+                Button(action: onRetry) {
+                    Label("Retry", systemImage: "arrow.clockwise")
+                }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+                .help("Reset retry counter and release this mutation back to the replay queue")
+            }
             Button(role: .destructive, action: onDrop) {
                 Label("Drop", systemImage: "xmark.circle")
             }
@@ -567,7 +605,9 @@ private struct PendingMutationRow: View {
     }
 
     private var subtitle: String {
-        "\(mutation.resourceID) · queued \(mutation.createdAt.formatted(date: .abbreviated, time: .shortened))"
+        let attempts = mutation.attemptCount
+        let suffix = attempts > 0 ? " · \(attempts) attempt\(attempts == 1 ? "" : "s")" : ""
+        return "\(mutation.resourceID) · queued \(mutation.createdAt.formatted(date: .abbreviated, time: .shortened))\(suffix)"
     }
 
     private var symbol: String {
