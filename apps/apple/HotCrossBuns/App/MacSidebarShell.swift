@@ -54,7 +54,6 @@ struct MacSidebarShell: View {
     @State private var tabRouter = TabRouter()
     @State private var isPresentingOnboarding = false
     @State private var isPresentingCommandPalette = false
-    @State private var isPresentingQuickSwitcher = false
     @State private var isPresentingHelp = false
     @State private var isPresentingInsertTemplate = false
     @State private var isPresentingInsertEventTemplate = false // §6.13b
@@ -111,16 +110,15 @@ struct MacSidebarShell: View {
                     .withHCBAppearance(model.settings)
             }
             .sheet(isPresented: $isPresentingCommandPalette) {
-                // Palette is commands-only after the §6.7 split. Entity lookup
-                // lives in the quick switcher presented below.
-                CommandPaletteView(commands: commandPaletteCommands)
-                    .environment(model)
-                    .withHCBAppearance(model.settings)
-            }
-            .sheet(isPresented: $isPresentingQuickSwitcher) {
-                QuickSwitcherView(onSelect: routeQuickSwitcherEntity)
-                    .environment(model)
-                    .withHCBAppearance(model.settings)
+                // Merged palette — actions *and* entity search (tasks, notes,
+                // events, lists, calendars, saved filters). The old ⌘O
+                // switcher was folded in here so there's one surface.
+                CommandPaletteView(
+                    commands: commandPaletteCommands,
+                    onSelectEntity: routeQuickSwitcherEntity
+                )
+                .environment(model)
+                .withHCBAppearance(model.settings)
             }
             .sheet(isPresented: $isPresentingInsertTemplate) {
                 InsertTaskTemplateSheet()
@@ -488,7 +486,6 @@ struct MacSidebarShell: View {
         appCommandActions.openSettingsWindow = { openSettings() }
         appCommandActions.openDiagnostics = { presentSheet(.diagnostics, on: selection) }
         appCommandActions.openCommandPalette = { isPresentingCommandPalette = true }
-        appCommandActions.openQuickSwitcher = { isPresentingQuickSwitcher = true }
         appCommandActions.openHelp = { isPresentingHelp = true }
         appCommandActions.printToday = { TodayPrinter.print(model: model) }
         appCommandActions.exportDayICS = { exportICS(range: .day) }
@@ -793,16 +790,6 @@ struct MacSidebarShell: View {
                 keywords: ["template", "insert", "event", "meeting", "calendar", "snippet", "prefill"]
             ) {
                 isPresentingInsertEventTemplate = true
-            },
-            CommandPaletteCommand(
-                id: "open-quick-switcher",
-                title: "Quick Switcher",
-                subtitle: "Jump to a task, event, list, calendar, or filter",
-                symbol: "arrow.right.circle",
-                shortcut: "Cmd+O",
-                keywords: ["switcher", "jump", "goto", "go to", "find", "search"]
-            ) {
-                isPresentingQuickSwitcher = true
             },
             CommandPaletteCommand(
                 id: "open-help",

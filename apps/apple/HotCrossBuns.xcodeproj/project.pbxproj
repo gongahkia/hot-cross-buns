@@ -49,7 +49,6 @@
 		34DF4A454B9BAB7772BA611F /* SpotlightIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A88DE6FAF6CB6673FAFBC3A /* SpotlightIndexer.swift */; };
 		392B80CF6FEC882EA9AED78C /* HCBTemplateExpanderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B67B046600700AA50D42A500 /* HCBTemplateExpanderTests.swift */; };
 		3B7E0CB45C3A8F28831C31C5 /* ReviewBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2902AF84DDE381956C0D149E /* ReviewBuilderTests.swift */; };
-		3C46C59104156AB21A28EF72 /* QuickSwitcherView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFFAF688032DE70E8A828C30 /* QuickSwitcherView.swift */; };
 		3CD7D2817F178F819CEDA958 /* Snapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1622469DA249EE1B10188D98 /* Snapshots.swift */; };
 		3D213BE8FAC38B7A5EA94EEB /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F51F65CDD611063E476A60A9 /* NetworkMonitor.swift */; };
 		3E796CFC3C8917CD171472AC /* GoogleTaskDueDateFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BFD977211942ADB9C88E1CF /* GoogleTaskDueDateFormatterTests.swift */; };
@@ -337,7 +336,6 @@
 		BD404C87FD0BC2462B844C8C /* TaskHierarchy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskHierarchy.swift; sourceTree = "<group>"; };
 		BF1701AD968AE58FBC7E76F7 /* GuestsSectionEmailTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestsSectionEmailTests.swift; sourceTree = "<group>"; };
 		BFA7DEBBF786934A5D85FE41 /* AppStatusBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStatusBanner.swift; sourceTree = "<group>"; };
-		BFFAF688032DE70E8A828C30 /* QuickSwitcherView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickSwitcherView.swift; sourceTree = "<group>"; };
 		C17A2CA31D4325F3BF696AD8 /* QueryDSL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryDSL.swift; sourceTree = "<group>"; };
 		C23CE545813F082C04B501C8 /* ColorSchemes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorSchemes.swift; sourceTree = "<group>"; };
 		C52D7AE4A4A66334A5044478 /* HCBCacheKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HCBCacheKeychain.swift; sourceTree = "<group>"; };
@@ -598,7 +596,6 @@
 				AE5B824BD3DB57E2FA17ECE2 /* HotCrossBunsApp.swift */,
 				E2BC795AF619D093596D767D /* MacSidebarShell.swift */,
 				9F6D2A903ACFF04A22993160 /* MenuBarExtraScene.swift */,
-				BFFAF688032DE70E8A828C30 /* QuickSwitcherView.swift */,
 				AF08213B82A11D35A48E9669 /* RouterPath.swift */,
 				1002C76B1614FACBF7D37818 /* SidebarItem.swift */,
 			);
@@ -1078,7 +1075,6 @@
 				D59215C2E58499A20F1414E6 /* QuickAddEventView.swift in Sources */,
 				4D00CE67951243CCE90386B4 /* QuickAddView.swift in Sources */,
 				9CB6F05B30F36FB5D60CFC8D /* QuickCreatePopover.swift in Sources */,
-				3C46C59104156AB21A28EF72 /* QuickSwitcherView.swift in Sources */,
 				200CB3413E3917BC9D0CC25F /* RecurrenceEditor.swift in Sources */,
 				2D19FBD327EF4A9C87C0CD02 /* RecurrenceRule.swift in Sources */,
 				B3FD5B5CFC0A25BB3A2D0F19 /* RecurrenceUntilRewriter.swift in Sources */,

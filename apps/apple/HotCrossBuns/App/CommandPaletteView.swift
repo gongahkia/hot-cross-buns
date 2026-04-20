@@ -10,10 +10,111 @@ struct CommandPaletteCommand: Identifiable {
     let action: () -> Void
 }
 
-// Command palette — strictly an action launcher after the §6.7 split. Entity
-// lookup (tasks / events / lists / calendars / saved filters) moved to
-// QuickSwitcherView under ⌘O. Keeping the two surfaces separate means one has
-// one job: palette = "do", switcher = "go".
+// Merged palette — runs commands *and* jumps to tasks / notes / events /
+// lists / calendars / saved filters in a single surface. Previously split
+// into CommandPaletteView (do) and QuickSwitcherView (go) under ⌘P / ⌘O;
+// unified here behind ⌘P so there's one muscle-memory entry point. Free-
+// text matches rank commands and entities together by fuzzy score. Field
+// operators (title:, tag:, list:, kind:, has:, attendee:, calendar:,
+// /regex/) suppress commands — when the user is clearly searching
+// entities, don't clutter the result set with command hits.
+//
+// Notes vs tasks: a note is a TaskMirror with dueDate == nil. Kind labels
+// and icons discriminate in the row, and `kind:note` / `kind:task` in the
+// DSL filters to one or the other.
+
+enum QuickSwitcherEntity: Hashable, Identifiable {
+    case task(TaskMirror)
+    case event(CalendarEventMirror)
+    case taskList(TaskListMirror)
+    case calendar(CalendarListMirror)
+    case customFilter(CustomFilterDefinition)
+
+    var id: String {
+        switch self {
+        case .task(let t): return "task-\(t.id)"
+        case .event(let e): return "event-\(e.id)"
+        case .taskList(let l): return "list-\(l.id)"
+        case .calendar(let c): return "cal-\(c.id)"
+        case .customFilter(let f): return "cf-\(f.id.uuidString)"
+        }
+    }
+
+    fileprivate var label: String {
+        switch self {
+        case .task(let t): return TagExtractor.stripped(from: t.title)
+        case .event(let e): return e.summary
+        case .taskList(let l): return l.title
+        case .calendar(let c): return c.summary
+        case .customFilter(let f): return f.name
+        }
+    }
+
+    fileprivate var keywords: [String] {
+        switch self {
+        case .task(let t):
+            return TagExtractor.tags(in: t.title) + [t.notes]
+        case .event(let e):
+            return [e.details, e.location]
+        case .taskList, .calendar: return []
+        case .customFilter(let f): return f.queryExpression.map { [$0] } ?? []
+        }
+    }
+
+    // Task vs Note is a display-only distinction (both are TaskMirror on
+    // Google's side). Undated tasks read as notes everywhere else in the
+    // product, so the palette follows suit.
+    fileprivate var kindLabel: String {
+        switch self {
+        case .task(let t): return t.dueDate == nil ? "Note" : "Task"
+        case .event: return "Event"
+        case .taskList: return "List"
+        case .calendar: return "Calendar"
+        case .customFilter: return "Filter"
+        }
+    }
+
+    fileprivate var symbol: String {
+        switch self {
+        case .task(let t):
+            if t.dueDate == nil { return "note.text" }
+            return t.isCompleted ? "checkmark.circle.fill" : "circle"
+        case .event: return "calendar"
+        case .taskList: return "checklist"
+        case .calendar: return "calendar.badge.clock"
+        case .customFilter(let f): return f.systemImage
+        }
+    }
+}
+
+// Union type backing the merged ranked list. Commands and entities share
+// a row renderer + numeric-shortcut handling so the UX is uniform.
+fileprivate enum PaletteItem: Identifiable {
+    case command(CommandPaletteCommand)
+    case entity(QuickSwitcherEntity)
+
+    var id: String {
+        switch self {
+        case .command(let c): return "cmd-\(c.id)"
+        case .entity(let e): return "ent-\(e.id)"
+        }
+    }
+
+    var rankLabel: String {
+        switch self {
+        case .command(let c): return c.title
+        case .entity(let e): return e.label
+        }
+    }
+
+    var rankKeywords: [String] {
+        switch self {
+        case .command(let c): return [c.subtitle] + c.keywords
+        case .entity(let e): return e.keywords
+        }
+    }
+}
+
 struct CommandPaletteView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
@@ -21,6 +122,7 @@ struct CommandPaletteView: View {
     @FocusState private var isSearchFocused: Bool
 
     let commands: [CommandPaletteCommand]
+    let onSelectEntity: (QuickSwitcherEntity) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -31,11 +133,11 @@ struct CommandPaletteView: View {
 
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        if filteredCommands.isEmpty {
+                        if rankedItems.isEmpty {
                             emptyState
                         } else {
-                            ForEach(Array(filteredCommands.enumerated()), id: \.element.id) { index, command in
-                                commandButton(command: command, index: index)
+                            ForEach(Array(rankedItems.enumerated()), id: \.element.id) { index, item in
+                                rowButton(item: item, index: index)
                             }
                         }
                     }
@@ -74,35 +176,121 @@ struct CommandPaletteView: View {
         query.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    // FuzzySearcher provides consistent ranking with the quick switcher. We
-    // still fall back to the old substring filter if the fuzzy pass finds
-    // nothing (paranoid default — empty palette is worse than a messy one).
-    private var filteredCommands: [CommandPaletteCommand] {
+    // Collect all entities lazily — palette is opened on ⌘P so this only
+    // runs when the sheet appears + on each keystroke, not on every AppModel
+    // republish.
+    private var allEntities: [QuickSwitcherEntity] {
+        var out: [QuickSwitcherEntity] = []
+        out.reserveCapacity(model.tasks.count + model.events.count + 32)
+        for t in model.tasks where t.isDeleted == false {
+            out.append(.task(t))
+        }
+        for e in model.events where e.status != .cancelled {
+            out.append(.event(e))
+        }
+        for l in model.taskLists { out.append(.taskList(l)) }
+        for c in model.calendars { out.append(.calendar(c)) }
+        for f in model.settings.customFilters { out.append(.customFilter(f)) }
+        return out
+    }
+
+    // Merged ranked list. Behaviour:
+    //   - Regex mode (/…/): entity-only regex filter, no commands.
+    //   - Field-operator query with no free-text: entity-only structured
+    //     filter, alphabetic, no commands. Keeps power-user DSL output stable.
+    //   - Free-text (with or without operators): rank commands + entities
+    //     together by fuzzy score; commands bubble up when the title matches.
+    private var rankedItems: [PaletteItem] {
         let q = trimmedQuery
-        guard q.isEmpty == false else { return commands }
+        guard q.isEmpty == false else { return [] }
+        let parsed = AdvancedSearchParser.parse(q)
+
+        if let pattern = parsed.regex {
+            return allEntities
+                .filter { AdvancedSearchMatcher.regexMatches($0, regexPattern: pattern) }
+                .prefix(30)
+                .map { PaletteItem.entity($0) }
+        }
+
+        let hasStructuredFilters = parsed.isEmpty == false && parsed.freeText.isEmpty == false
+            ? true
+            : parsed != AdvancedSearchQuery.empty && parsed.freeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                ? true
+                : (parsed != AdvancedSearchQuery.empty)
+
+        // If the user is clearly entity-searching (field operators / bare
+        // keywords present), suppress commands so the list stays focused.
+        let includeCommands = hasStructuredFilters ? hasFreeTextOnly(parsed) : true
+
+        let entitiesFiltered = allEntities.filter {
+            AdvancedSearchMatcher.matches(
+                $0,
+                query: parsed,
+                calendars: model.calendars,
+                taskLists: model.taskLists
+            )
+        }
+
+        let freeText = parsed.freeText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if freeText.isEmpty {
+            // Operator-only query — alphabetic by label, entity-only.
+            return entitiesFiltered
+                .sorted { $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending }
+                .prefix(30)
+                .map { PaletteItem.entity($0) }
+        }
+
+        var pool: [PaletteItem] = []
+        pool.reserveCapacity(entitiesFiltered.count + commands.count)
+        pool.append(contentsOf: entitiesFiltered.map(PaletteItem.entity))
+        if includeCommands {
+            pool.append(contentsOf: commands.map(PaletteItem.command))
+        }
+
         let ranked = FuzzySearcher.rank(
-            commands,
-            query: q,
-            labelForItem: { $0.title },
-            keywordsForItem: { [$0.subtitle] + $0.keywords },
+            pool,
+            query: freeText,
+            labelForItem: { $0.rankLabel },
+            keywordsForItem: { $0.rankKeywords },
             limit: 50
         )
-        if ranked.isEmpty == false {
-            return ranked.map(\.item)
-        }
-        // Fallback substring match — should rarely fire given fuzzy is permissive.
-        let lower = q.lowercased()
-        return commands.filter { command in
-            command.title.lowercased().contains(lower)
-                || command.subtitle.lowercased().contains(lower)
-                || command.keywords.contains(where: { $0.lowercased().contains(lower) })
-        }
+        return ranked.map(\.item)
+    }
+
+    // True when the parsed query carries only free text (no field operators
+    // / bare keywords / regex). Drives the "should I include commands?"
+    // decision — entity-filter-heavy queries suppress commands so the list
+    // isn't noisy.
+    private func hasFreeTextOnly(_ q: AdvancedSearchQuery) -> Bool {
+        q.regex == nil
+            && q.titleContains.isEmpty
+            && q.tagsAll.isEmpty
+            && q.listMatch == nil
+            && q.calendarMatch == nil
+            && q.attendeeMatch == nil
+            && q.kind == nil
+            && q.requireNotes == false
+            && q.requireLocation == false
+            && q.requireDue == false
+            && q.requireCompleted == false
+            && q.requireOverdue == false
     }
 
     private func executeFirstMatch() {
-        if let first = filteredCommands.first {
-            dismiss()
-            DispatchQueue.main.async { first.action() }
+        if let first = rankedItems.first {
+            select(first)
+        }
+    }
+
+    private func select(_ item: PaletteItem) {
+        dismiss()
+        // Defer execution so sheet dismissal animation doesn't fight
+        // downstream navigation / sheet presentation.
+        DispatchQueue.main.async {
+            switch item {
+            case .command(let command): command.action()
+            case .entity(let entity): onSelectEntity(entity)
+            }
         }
     }
 
@@ -112,14 +300,14 @@ struct CommandPaletteView: View {
                 .hcbFont(.subheadline, weight: .medium)
                 .foregroundStyle(.secondary)
 
-            TextField("Run a command — New Task, Refresh, Print Today…", text: $query)
+            TextField("Run a command or search — New Task, refresh, tag:deep, kind:note …", text: $query)
                 .textFieldStyle(.plain)
                 .focused($isSearchFocused)
                 .hcbFont(.body)
                 .onSubmit(executeFirstMatch)
 
             if query.isEmpty {
-                Text("⇧⌘P")
+                Text("⌘P")
                     .hcbFont(.caption, weight: .semibold)
                     .foregroundStyle(.secondary)
                     .hcbScaledPadding(.horizontal, 6)
@@ -135,13 +323,13 @@ struct CommandPaletteView: View {
     }
 
     @ViewBuilder
-    private func commandButton(command: CommandPaletteCommand, index: Int) -> some View {
-        let button = Button {
-            dismiss()
-            DispatchQueue.main.async { command.action() }
-        } label: {
+    private func rowButton(item: PaletteItem, index: Int) -> some View {
+        let button = Button { select(item) } label: {
             HStack(spacing: 6) {
-                CommandPaletteRow(command: command)
+                switch item {
+                case .command(let c): CommandPaletteRow(command: c)
+                case .entity(let e): EntityRow(entity: e, subtitle: entitySubtitle(e))
+                }
                 if let label = numericShortcutLabel(for: index) {
                     Text(label)
                         .font(.system(.caption2, design: .monospaced, weight: .medium))
@@ -177,15 +365,39 @@ struct CommandPaletteView: View {
         return "⌘\(digit)"
     }
 
+    private func entitySubtitle(_ entity: QuickSwitcherEntity) -> String {
+        switch entity {
+        case .task(let t):
+            let list = model.taskLists.first(where: { $0.id == t.taskListID })?.title ?? "—"
+            if let due = t.dueDate {
+                return "\(list) · due \(due.formatted(.dateTime.month(.abbreviated).day()))"
+            }
+            return list
+        case .event(let e):
+            let cal = model.calendars.first(where: { $0.id == e.calendarID })?.summary ?? "—"
+            if e.isAllDay {
+                return "\(cal) · \(e.startDate.formatted(.dateTime.month(.abbreviated).day()))"
+            }
+            return "\(cal) · \(e.startDate.formatted(.dateTime.month(.abbreviated).day().hour().minute()))"
+        case .taskList(let l):
+            let count = model.tasks.filter { $0.taskListID == l.id && $0.isDeleted == false && $0.isCompleted == false }.count
+            return "\(count) open"
+        case .calendar(let c):
+            return c.colorHex
+        case .customFilter(let f):
+            return f.isUsingQueryDSL ? "DSL · \(f.queryExpression ?? "")" : f.dueWindow.title
+        }
+    }
+
     private var emptyState: some View {
         VStack(spacing: 10) {
-            Image(systemName: "command")
+            Image(systemName: "magnifyingglass")
                 .hcbFont(.title2, weight: .semibold)
                 .foregroundStyle(.secondary)
-            Text("No command matches \"\(query)\"")
+            Text("Nothing matches \"\(query)\"")
                 .hcbFont(.headline)
                 .foregroundStyle(.secondary)
-            Text("Use ⌘O to search for tasks, events, and lists.")
+            Text("Try a bare word, or `kind:note`, `tag:deep`, `/regex/`.")
                 .hcbFont(.footnote)
                 .foregroundStyle(.secondary)
         }
@@ -213,6 +425,15 @@ private struct CommandPaletteRow: View {
 
             Spacer(minLength: 12)
 
+            Text("Command")
+                .font(.system(.caption2, design: .rounded, weight: .medium))
+                .foregroundStyle(.secondary)
+                .hcbScaledPadding(.horizontal, 6)
+                .hcbScaledPadding(.vertical, 2)
+                .background(
+                    Capsule().fill(.quaternary.opacity(0.4))
+                )
+
             if command.shortcut.isEmpty == false {
                 Text(formattedShortcut)
                     .font(.system(.subheadline, design: .monospaced, weight: .medium))
@@ -229,5 +450,54 @@ private struct CommandPaletteRow: View {
             .replacingOccurrences(of: "Shift+", with: "⇧")
             .replacingOccurrences(of: "Option+", with: "⌥")
             .replacingOccurrences(of: "+", with: "")
+    }
+}
+
+private struct EntityRow: View {
+    let entity: QuickSwitcherEntity
+    let subtitle: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: entity.symbol)
+                .hcbFont(.headline)
+                .foregroundStyle(tint)
+                .hcbScaledFrame(width: 24)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entity.label.isEmpty ? "(untitled)" : entity.label)
+                    .hcbFontSystem(size: 19, weight: .semibold, design: .rounded)
+                    .lineLimit(1)
+                Text(subtitle)
+                    .font(.system(.subheadline, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 12)
+
+            Text(entity.kindLabel)
+                .font(.system(.caption2, design: .rounded, weight: .medium))
+                .foregroundStyle(.secondary)
+                .hcbScaledPadding(.horizontal, 6)
+                .hcbScaledPadding(.vertical, 2)
+                .background(
+                    Capsule().fill(.quaternary.opacity(0.4))
+                )
+        }
+        .contentShape(Rectangle())
+        .hcbScaledPadding(.vertical, 2)
+    }
+
+    private var tint: Color {
+        switch entity {
+        case .task(let t):
+            if t.dueDate == nil { return AppColor.ink }
+            return t.isCompleted ? AppColor.moss : AppColor.ember
+        case .event: return AppColor.blue
+        case .taskList: return AppColor.ink
+        case .calendar: return AppColor.blue
+        case .customFilter: return AppColor.ember
+        }
     }
 }

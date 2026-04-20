@@ -21,6 +21,21 @@ enum AdvancedSearchMatcher {
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> Bool {
+        // kind: prefilter — when set, any entity of a different kind is
+        // rejected outright. Task vs note is dueDate nil/non-nil on the
+        // same TaskMirror case, matching the Tasks/Notes tab split.
+        if let k = query.kind {
+            switch (k, entity) {
+            case (.task, .task(let t)) where t.dueDate != nil: break
+            case (.note, .task(let t)) where t.dueDate == nil: break
+            case (.event, .event): break
+            case (.list, .taskList): break
+            case (.calendar, .calendar): break
+            case (.filter, .customFilter): break
+            default: return false
+            }
+        }
+
         switch entity {
         case .task(let task): return matchesTask(task, query: query, taskLists: taskLists, now: now, calendar: calendar)
         case .event(let event): return matchesEvent(event, query: query, calendars: calendars)
