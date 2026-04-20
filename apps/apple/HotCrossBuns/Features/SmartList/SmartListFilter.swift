@@ -1,5 +1,12 @@
 import Foundation
 
+// TODO: prune — dead after the Calendar/Tasks/Notes sidebar refactor.
+// The Tasks toolbar filter menu (Overdue / Due Today / Next 7 Days /
+// No Date) was removed; Overdue/Today surface as inline card badges in
+// KanbanCardView, Next 7 Days is covered by the byDueBucket grouping,
+// and No Date tasks now live in the Notes tab. Kept only because
+// deletion requires a pbxproj edit — safe to remove.
+
 enum SmartListFilter: String, Hashable, CaseIterable, Sendable {
     case overdue
     case dueToday

@@ -1,15 +1,12 @@
 # Contributing
 
-This repo is in a transition state.
-
-The old Go/PostgreSQL sync server has been removed. The existing Tauri app is deprecated and remains only as reference material while the Apple-native Google Tasks/Calendar app is designed.
+The old Go/PostgreSQL sync server and the Tauri/SvelteKit prototype at `apps/desktop/` have both been removed. The Apple-native Google Tasks/Calendar app is the canonical (and only) implementation.
 
 ## Current Execution Surfaces
 
-- `apps/apple`: primary SwiftUI app for macOS (iOS/iPadOS targets removed).
-- `apps/desktop`: deprecated Tauri/Svelte/Rust desktop app retained for reference.
+- `apps/apple`: SwiftUI app for macOS (iOS/iPadOS targets removed).
 - `docs`: active product and architecture direction.
-- `schema`: historical SQLite schema from the deprecated app.
+- `schema`: historical SQLite schema from the removed local-first prototype.
 
 ## Local Setup
 
@@ -85,32 +82,6 @@ Free Personal Team is enough for local dogfooding. Developer ID + notarization
 is required only for shipping a DMG to other machines — see §3 of
 `URGENT-TODO.md`.
 
-Legacy desktop prerequisites:
-
-- Node.js 20+
-- Rust stable
-
-Legacy desktop setup:
-
-```bash
-cd apps/desktop
-npm ci
-npm run tauri dev
-```
-
-Legacy checks:
-
-```bash
-cd apps/desktop
-npm run check
-npm test
-
-cd src-tauri
-cargo test
-```
-
-Known status: the legacy desktop checks were failing before the Apple-native pivot. Do not spend time stabilizing deprecated Tauri code unless the change directly supports extracting product behavior for the Swift rebuild.
-
 ## Future Apple App Standards
 
 When `apps/apple` is created:
@@ -140,7 +111,6 @@ Examples:
 Recommended scopes:
 
 - `apple`
-- `desktop`
 - `docs`
 - `repo`
 - `sync`

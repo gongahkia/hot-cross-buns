@@ -1,22 +1,28 @@
 import SwiftUI
 
+// Three top-level sidebar tabs. `.store` is the rawValue for the Tasks tab
+// for back-compat with persisted SceneStorage / hiddenSidebarItems values
+// that shipped under the old "Store" name; display string is "Tasks".
 enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
     case calendar
-    case store
+    case store // displays as "Tasks"; raw kept for persistence back-compat
+    case notes
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .calendar: "Calendar"
-        case .store: "Store"
+        case .store: "Tasks"
+        case .notes: "Notes"
         }
     }
 
     var systemImage: String {
         switch self {
         case .calendar: "calendar"
-        case .store: "brain.head.profile" // covers tasks + notes
+        case .store: "checklist"
+        case .notes: "note.text"
         }
     }
 
@@ -24,14 +30,15 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .calendar: "1"
         case .store: "2"
+        case .notes: "3"
         }
     }
 
-    // Both tabs are user-hideable. At least one must remain visible; the
-    // toggle in Layout settings enforces that invariant.
+    // Every tab is user-hideable. The Layout section enforces that at least
+    // one remains visible.
     var isHideable: Bool {
         switch self {
-        case .calendar, .store: true
+        case .calendar, .store, .notes: true
         }
     }
 
@@ -43,14 +50,17 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
             CalendarHomeView()
         case .store:
             StoreView()
+        case .notes:
+            NotesView()
         }
     }
 }
 
 extension Notification.Name {
     // Posted when any part of the app wants to switch the sidebar to the
-    // Store tab. MacSidebarShell observes this and updates selection.
+    // Tasks tab. MacSidebarShell observes this and updates selection.
     static let hcbOpenStoreTab = Notification.Name("hcb.open.store.tab")
+    static let hcbOpenNotesTab = Notification.Name("hcb.open.notes.tab")
     // Posted by the "Settings…" menu command + ⌘,; AppDelegate opens the
     // detached Settings window in response.
     static let hcbOpenSettingsWindow = Notification.Name("hcb.open.settings.window")

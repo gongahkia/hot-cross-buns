@@ -2,7 +2,7 @@
 
 Hot Cross Buns is a macOS-native Google Tasks and Google Calendar client.
 
-The old architecture was a Tauri desktop app plus an optional Go/PostgreSQL sync server. That server has been removed. The remaining Tauri app is legacy reference material, not the target product. iOS/iPadOS targets have also been removed; this product is Mac-only.
+The old architecture was a Tauri desktop app plus an optional Go/PostgreSQL sync server. Both have been removed — the Tauri prototype at `apps/desktop/` was deleted once the SwiftUI app reached feature parity and diverged. iOS/iPadOS targets have also been removed; this product is Mac-only.
 
 ## Target Architecture
 
@@ -106,9 +106,9 @@ True push is not fully serverless:
 
 That relay should be considered notification infrastructure only, not a resurrection of the old data sync server.
 
-## Legacy Tauri App
+## Historical Reference (removed)
 
-`apps/desktop` remains useful as reference for product interactions:
+The Tauri app previously at `apps/desktop/` is no longer in the repo, but the design decisions it informed survive in the Swift app:
 
 - task list layout
 - planning views
@@ -116,4 +116,4 @@ That relay should be considered notification infrastructure only, not a resurrec
 - command palette ideas
 - import/export ideas
 
-Do not preserve its Rust/SQLite schema as the new canonical model. It was designed for local-first Tauri sync, not Google-native data ownership.
+Its Rust/SQLite schema was deliberately not carried forward as the canonical model. That schema was designed for local-first Tauri sync, not Google-native data ownership.

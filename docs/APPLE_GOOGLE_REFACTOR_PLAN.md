@@ -2,7 +2,9 @@
 
 ## Decision
 
-Build the next version as a native SwiftUI app for macOS. Keep the current Tauri app as reference only. Remove the Go sync server and use Google Tasks plus Google Calendar as the sync backend. The iOS/iPadOS targets that existed during early scaffolding have been removed; this product is Mac-only.
+Build the next version as a native SwiftUI app for macOS. Remove the Go sync server and use Google Tasks plus Google Calendar as the sync backend. The iOS/iPadOS targets that existed during early scaffolding have been removed; this product is Mac-only.
+
+> Status update: the Tauri prototype originally retained as reference material at `apps/desktop/` has since been deleted — the SwiftUI app diverged too far for the Tauri codebase to be useful as a comparison. This document preserves the original decision rationale.
 
 ## Current Implementation Status
 
@@ -112,7 +114,7 @@ Use background refresh opportunistically on iOS. Do not promise instant sync on 
 ## Implementation Phases
 
 1. Remove Go server and old server docs. Done.
-2. Mark Tauri desktop as deprecated reference. Done.
+2. Mark Tauri desktop as deprecated reference. Done. (Subsequently deleted entirely once the Swift app outgrew it.)
 3. Scaffold `apps/apple` as a SwiftUI multiplatform app. Done.
 4. Add Google Sign-In and secure token storage.
 5. Build local cache schema and repository layer.

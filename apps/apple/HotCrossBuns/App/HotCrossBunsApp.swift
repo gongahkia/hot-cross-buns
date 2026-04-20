@@ -31,18 +31,25 @@ struct HotCrossBunsApp: App {
         .windowResizability(.contentMinSize)
         .commands {
             AppCommands()
-            CommandGroup(replacing: .appSettings) {
-                Button("Settings…") {
-                    NotificationCenter.default.post(name: .hcbOpenSettingsTab, object: nil)
-                }
-                .keyboardShortcut(",", modifiers: [.command])
-            }
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates…") {
                     updater.checkForUpdates()
                 }
             }
         }
+
+        // Dedicated Settings scene. macOS wires ⌘, automatically; the menu
+        // item lives under the app menu as "Settings…" per the system
+        // convention shown in Apple Calendar and peers. contentSize
+        // keeps the window pinned to the content's own frame so the
+        // user can't stretch it into a 1200pt slab.
+        Settings {
+            HCBSettingsWindow()
+                .environment(appModel)
+                .environment(updater)
+                .environment(networkMonitor)
+        }
+        .windowResizability(.contentSize)
 
         MenuBarExtra(isInserted: menuBarInsertedBinding) {
             MenuBarExtraContent()

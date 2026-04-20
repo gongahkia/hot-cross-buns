@@ -1,5 +1,13 @@
 import SwiftUI
 
+// TODO: prune — dead after the Calendar/Tasks/Notes sidebar refactor.
+// The Tasks toolbar filter menu that surfaced saved custom filters was
+// removed. This section still edits AppSettings.customFilters and the
+// MenuBarExtra still pins them, but there's no in-app way to view the
+// result of a filter. Either drop the section + AppSettings.customFilters
+// + CustomFilterDefinition + the MenuBar integration, or reroute filters
+// into a new Tasks-tab surface before deleting.
+
 struct CustomFiltersSection: View {
     @Environment(AppModel.self) private var model
     @State private var editor: CustomFilterDefinition?

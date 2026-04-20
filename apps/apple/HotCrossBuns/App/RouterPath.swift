@@ -75,6 +75,9 @@ enum SheetDestination: Identifiable, Hashable {
     // with the drag range pre-populated. Kept separate from .quickCreate so
     // single-point callers don't have to construct a trailing argument.
     case quickCreateRange(Date, Date, allDay: Bool)
+    // Task-only variant — opened from Kanban column empty-space taps. Hides
+    // the Event/Task switcher and pre-selects the list for the clicked column.
+    case quickCreateTask(listID: TaskListMirror.ID?)
     case syncSettings
     case diagnostics
 
@@ -94,6 +97,8 @@ enum SheetDestination: Identifiable, Hashable {
             "quickCreate-\(date.timeIntervalSince1970)-\(allDay)"
         case .quickCreateRange(let start, let end, let allDay):
             "quickCreateRange-\(start.timeIntervalSince1970)-\(end.timeIntervalSince1970)-\(allDay)"
+        case .quickCreateTask(let listID):
+            "quickCreateTask-\(listID ?? "any")"
         case .syncSettings: "syncSettings"
         case .diagnostics: "diagnostics"
         }
@@ -155,6 +160,8 @@ private struct SheetDestinationHost: View {
             QuickCreatePopover(initialDate: date, isAllDay: allDay)
         case .quickCreateRange(let start, let end, let allDay):
             QuickCreatePopover(initialDate: start, isAllDay: allDay, initialEnd: end)
+        case .quickCreateTask(let listID):
+            QuickCreatePopover(initialDate: Date(), isAllDay: true, taskOnly: true, initialTaskListID: listID)
         case .syncSettings:
             SyncSettingsSheet()
         case .diagnostics:

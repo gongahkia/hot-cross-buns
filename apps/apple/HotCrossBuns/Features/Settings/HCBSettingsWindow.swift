@@ -1,0 +1,406 @@
+import GoogleSignInSwift
+import SwiftUI
+
+// Top-level detached Settings window. Opened via the Settings scene in
+// HotCrossBunsApp.swift (⌘, auto-wired by macOS). Layout matches Apple
+// Calendar / Mail — a top tab bar with four categories, content below.
+// Each tab hosts a scrollable Form of the section views HCB already
+// ships. The main app sidebar no longer carries a Settings tab; all
+// preferences live here.
+struct HCBSettingsWindow: View {
+    @Environment(AppModel.self) private var model
+    private enum Tab: String, CaseIterable, Identifiable {
+        case general, appearance, alerts, advanced
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .general: "General"
+            case .appearance: "Appearance"
+            case .alerts: "Alerts"
+            case .advanced: "Advanced"
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .general: "gearshape"
+            case .appearance: "paintbrush"
+            case .alerts: "bell"
+            case .advanced: "gearshape.2"
+            }
+        }
+    }
+
+    @State private var tab: Tab = .general
+    // Sub-sheets hosted locally (the detached window has no RouterPath).
+    @State private var isSyncDetailsPresented = false
+    @State private var isDiagnosticsPresented = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            tabBar
+            Divider()
+            ScrollView {
+                Group {
+                    switch tab {
+                    case .general: GeneralTab(
+                        isSyncDetailsPresented: $isSyncDetailsPresented,
+                        isDiagnosticsPresented: $isDiagnosticsPresented
+                    )
+                    case .appearance: AppearanceTab()
+                    case .alerts: AlertsTab()
+                    case .advanced: AdvancedTab()
+                    }
+                }
+                .hcbScaledPadding(16)
+                .frame(maxWidth: .infinity, alignment: .top)
+            }
+        }
+        // Apple Calendar's settings window sits around 540pt wide and
+        // resists horizontal resize. Matching that: narrow fixed-ish
+        // width, reasonable height that users can still grow.
+        .frame(width: 540, height: 560)
+        // The Settings scene is a separate SwiftUI Scene, so the
+        // appearance environment applied in MacSidebarShell doesn't
+        // carry through — re-apply here so the color scheme, dark/light
+        // mode, scaled fonts, and background match the main window.
+        .id(model.settings.colorSchemeID)
+        .withHCBAppearance(model.settings)
+        .environment(\.hcbShortcutOverrides, model.settings.shortcutOverrides)
+        .preferredColorScheme(HCBColorScheme.scheme(id: model.settings.colorSchemeID)?.isDark == true ? .dark : .light)
+        .appBackground()
+        .navigationTitle(tab.title)
+        .sheet(isPresented: $isSyncDetailsPresented) {
+            SyncSettingsSheet()
+                .environment(model)
+                .withHCBAppearance(model.settings)
+                .preferredColorScheme(HCBColorScheme.scheme(id: model.settings.colorSchemeID)?.isDark == true ? .dark : .light)
+        }
+        .sheet(isPresented: $isDiagnosticsPresented) {
+            DiagnosticsView()
+                .environment(model)
+                .withHCBAppearance(model.settings)
+                .preferredColorScheme(HCBColorScheme.scheme(id: model.settings.colorSchemeID)?.isDark == true ? .dark : .light)
+        }
+    }
+
+    private var tabBar: some View {
+        HStack(spacing: 0) {
+            ForEach(Tab.allCases) { entry in
+                tabButton(entry)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .hcbScaledPadding(.vertical, 10)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private func tabButton(_ entry: Tab) -> some View {
+        let isSelected = tab == entry
+        return Button {
+            tab = entry
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: entry.systemImage)
+                    .hcbFontSystem(size: 18, weight: isSelected ? .semibold : .regular)
+                Text(entry.title)
+                    .hcbFont(.caption, weight: isSelected ? .semibold : .regular)
+            }
+            .foregroundStyle(isSelected ? AppColor.ember : AppColor.ink.opacity(0.75))
+            .frame(maxWidth: .infinity)
+            .hcbScaledPadding(.vertical, 4)
+            .hcbScaledPadding(.horizontal, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(isSelected ? AppColor.ember.opacity(0.12) : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - General tab
+
+private struct GeneralTab: View {
+    @Environment(AppModel.self) private var model
+    @Binding var isSyncDetailsPresented: Bool
+    @Binding var isDiagnosticsPresented: Bool
+    @State private var showOnboardingResetConfirmed = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            SettingsCard("Google account") {
+                AccountStatusView(
+                    authState: model.authState,
+                    account: model.account,
+                    connect: { Task { await model.connectGoogleAccount() } },
+                    disconnect: { Task { await model.disconnectGoogleAccount() } }
+                )
+            }
+
+            if model.account != nil {
+                SettingsCard("Sync") {
+                    Picker("Mode", selection: syncModeBinding) {
+                        ForEach(SyncMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    Text(model.settings.syncMode.detail)
+                        .hcbFont(.footnote)
+                        .foregroundStyle(.secondary)
+                    Divider()
+                    Picker("Keep past events", selection: eventRetentionBinding) {
+                        Text("30 days").tag(30)
+                        Text("90 days").tag(90)
+                        Text("180 days").tag(180)
+                        Text("1 year").tag(365)
+                        Text("2 years").tag(730)
+                        Text("Forever").tag(0)
+                    }
+                    .pickerStyle(.menu)
+                    Text("Older events are dropped from the local cache to keep memory + disk tight. Drops never touch Google — a Force Resync refetches everything.")
+                        .hcbFont(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                SettingsCard("Setup") {
+                    Button {
+                        model.resetOnboarding()
+                        showOnboardingResetConfirmed = true
+                    } label: {
+                        Label("Run setup again", systemImage: "sparkles")
+                    }
+                    .buttonStyle(.borderless)
+                }
+                .alert("Setup will run now", isPresented: $showOnboardingResetConfirmed) {
+                    Button("OK") { showOnboardingResetConfirmed = false }
+                } message: {
+                    Text("The onboarding flow has been reset. Switch back to the main Hot Cross Buns window to go through setup again.")
+                }
+            }
+        }
+    }
+
+    private var syncModeBinding: Binding<SyncMode> {
+        Binding(
+            get: { model.settings.syncMode },
+            set: { model.updateSyncMode($0) }
+        )
+    }
+
+    private var eventRetentionBinding: Binding<Int> {
+        Binding(
+            get: { model.settings.eventRetentionDaysBack },
+            set: { model.setEventRetentionDaysBack($0) }
+        )
+    }
+}
+
+// MARK: - Appearance tab
+
+private struct AppearanceTab: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            // Existing section structs use SwiftUI `Section` blocks;
+            // wrap in Form so macOS picks the right grouped style.
+            Form {
+                AppearanceSection()
+                PerSurfaceFontSection()
+                LayoutSection()
+            }
+            .formStyle(.grouped)
+            .scrollDisabled(true)
+        }
+    }
+}
+
+// MARK: - Alerts tab
+
+private struct AlertsTab: View {
+    @Environment(AppModel.self) private var model
+    @State private var showLocalNotificationsInfo = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            SettingsCard("Notifications") {
+                Toggle("Local reminders", isOn: localNotificationsBinding)
+            }
+            .alert("Local reminders enabled", isPresented: $showLocalNotificationsInfo) {
+                Button("OK") { showLocalNotificationsInfo = false }
+            } message: {
+                Text("Hot Cross Buns will schedule up to 64 pending reminders on this Mac for the soonest-upcoming due tasks and Calendar events. 64 is an Apple-imposed ceiling for local notifications per app — later items get scheduled automatically as earlier ones fire or complete.")
+            }
+
+            SettingsCard("Menu bar") {
+                Toggle("Menu bar extra", isOn: menuBarExtraBinding)
+                Picker("Menu bar panel", selection: menuBarStyleBinding) {
+                    ForEach(AppSettings.MenuBarStyle.allCases, id: \.self) { style in
+                        Text(style.title).tag(style)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+
+            SettingsCard("Dock") {
+                Toggle("Dock badge for overdue tasks", isOn: dockBadgeBinding)
+            }
+
+            SettingsCard("Global hotkey") {
+                Toggle("Global quick-add hotkey (Cmd+Shift+Space)", isOn: globalHotkeyBinding)
+                Text("Capture a task from any app. The Hot Cross Buns quick-add sheet opens immediately, pre-focused.")
+                    .hcbFont(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var localNotificationsBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.enableLocalNotifications },
+            set: { newValue in
+                let wasOff = model.settings.enableLocalNotifications == false
+                model.updateLocalNotificationsEnabled(newValue)
+                if wasOff, newValue {
+                    showLocalNotificationsInfo = true
+                }
+            }
+        )
+    }
+
+    private var menuBarExtraBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.showMenuBarExtra },
+            set: { model.setShowMenuBarExtra($0) }
+        )
+    }
+
+    private var menuBarStyleBinding: Binding<AppSettings.MenuBarStyle> {
+        Binding(
+            get: { model.settings.menuBarStyle },
+            set: { model.setMenuBarStyle($0) }
+        )
+    }
+
+    private var dockBadgeBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.showDockBadge },
+            set: { model.setShowDockBadge($0) }
+        )
+    }
+
+    private var globalHotkeyBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.enableGlobalHotkey },
+            set: { model.setEnableGlobalHotkey($0) }
+        )
+    }
+}
+
+// MARK: - Advanced tab
+
+private struct AdvancedTab: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            SettingsCard("Calendars") {
+                if model.calendars.isEmpty {
+                    Text("Refresh after connecting Google to load calendars.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(model.calendars) { calendar in
+                        Toggle(isOn: calendarBinding(calendar.id)) {
+                            HStack(spacing: 10) {
+                                Circle()
+                                    .fill(Color(hex: calendar.colorHex))
+                                    .hcbScaledFrame(width: 10, height: 10)
+                                Text(calendar.summary)
+                            }
+                        }
+                    }
+                }
+            }
+
+            SettingsCard("Task lists") {
+                if model.taskLists.isEmpty {
+                    Text("Refresh after connecting Google to load task lists.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(model.taskLists) { taskList in
+                        Toggle(isOn: taskListBinding(taskList.id)) {
+                            Label(taskList.title, systemImage: "checklist")
+                        }
+                    }
+                }
+            }
+
+            Form {
+                KeybindingsSection()
+                EncryptionSection()
+                CustomFiltersSection()
+                TemplatesSection()
+                UpdatesSection()
+            }
+            .formStyle(.grouped)
+            .scrollDisabled(true)
+        }
+    }
+
+    private func calendarBinding(_ id: CalendarListMirror.ID) -> Binding<Bool> {
+        Binding(
+            get: { model.calendars.first(where: { $0.id == id })?.isSelected ?? false },
+            set: { _ in model.toggleCalendar(id) }
+        )
+    }
+
+    private func taskListBinding(_ id: TaskListMirror.ID) -> Binding<Bool> {
+        Binding(
+            get: { model.isTaskListSelected(id) },
+            set: { _ in model.toggleTaskList(id) }
+        )
+    }
+}
+
+// MARK: - Section card primitive
+
+// Lightweight "card" container so each tab lays out as a stack of
+// rounded panels — avoids nested List/Form rendering quirks on macOS
+// and matches the Apple-Calendar visual rhythm.
+private struct SettingsCard<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: () -> Content
+
+    init(_ title: String, @ViewBuilder content: @escaping () -> Content) {
+        self.title = title
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title.uppercased())
+                .hcbFont(.caption, weight: .semibold)
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 10) {
+                content()
+            }
+            .hcbScaledPadding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(AppColor.cream.opacity(0.35))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(AppColor.cardStroke, lineWidth: 0.5)
+            )
+        }
+    }
+}
+
+#Preview {
+    HCBSettingsWindow()
+        .environment(AppModel.preview)
+}

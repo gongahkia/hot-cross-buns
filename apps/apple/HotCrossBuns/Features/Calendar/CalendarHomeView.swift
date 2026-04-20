@@ -8,9 +8,7 @@ struct CalendarHomeView: View {
     @Environment(NetworkMonitor.self) private var networkMonitor
     @State private var selectedDate = Date()
     @SceneStorage("calendarGridMode") private var storedMode: String = CalendarGridMode.month.rawValue
-    @SceneStorage("calendarShowDrawer") private var storedShowDrawer: Bool = false
     @State private var mode: CalendarGridMode = .month
-    @State private var showTaskDrawer: Bool = false
     @State private var searchQuery: String = ""
     @State private var pendingCrossCalendarMove: CrossCalendarMoveRequest?
     @State private var importResultMessage: String?
@@ -50,14 +48,7 @@ struct CalendarHomeView: View {
                                 )
                             }
                         case .week:
-                            HStack(spacing: 10) {
-                                if showTaskDrawer {
-                                    TaskDrawerPanel()
-                                        .transition(.move(edge: .leading).combined(with: .opacity))
-                                }
-                                WeekGridView(anchorDate: $selectedDate, searchQuery: searchQuery, selectedEventIDs: $selectedEventIDs)
-                            }
-                            .animation(.easeInOut(duration: 0.2), value: showTaskDrawer)
+                            WeekGridView(anchorDate: $selectedDate, searchQuery: searchQuery, selectedEventIDs: $selectedEventIDs)
                         case .month: MonthGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
                         case .year: YearGridView(anchorDate: $selectedDate, onPickDay: { day in
                             selectedDate = day
@@ -116,24 +107,9 @@ struct CalendarHomeView: View {
         } message: { request in
             Text("\"\(request.eventSummary)\" is part of a recurring series. \"Every event in the series\" moves past occurrences too — not just upcoming ones. This is destructive and can't be undone.")
         }
-        .toolbar {
-            ToolbarItemGroup {
-                if mode == .week {
-                    Button {
-                        showTaskDrawer.toggle()
-                    } label: {
-                        Label("Tasks Drawer", systemImage: showTaskDrawer ? "sidebar.left" : "sidebar.squares.left")
-                    }
-                    .hcbKeyboardShortcut(.calendarTasksDrawer)
-                    .help("Toggle task drawer (Cmd+J)")
-                    .disabled(model.account == nil)
-                }
-            }
-        }
         .onAppear {
             let restored = CalendarGridMode(rawValue: storedMode) ?? .month
             mode = visibleCalendarModes.contains(restored) ? restored : (visibleCalendarModes.first ?? .month)
-            showTaskDrawer = storedShowDrawer
         }
         .onChange(of: mode) { _, newValue in
             storedMode = newValue.rawValue
@@ -145,9 +121,6 @@ struct CalendarHomeView: View {
             if visibleCalendarModes.contains(mode) == false, let first = visibleCalendarModes.first {
                 mode = first
             }
-        }
-        .onChange(of: showTaskDrawer) { _, newValue in
-            storedShowDrawer = newValue
         }
     }
 
@@ -320,7 +293,7 @@ struct CalendarHomeView: View {
             Text("Connect your Google account to see your calendars here.")
         } actions: {
             Button("Open Settings") {
-                NotificationCenter.default.post(name: .hcbOpenSettingsTab, object: nil)
+                NotificationCenter.default.post(name: .hcbOpenSettingsWindow, object: nil)
             }
             .buttonStyle(.borderedProminent)
             .tint(AppColor.ember)
@@ -351,7 +324,7 @@ struct CalendarHomeView: View {
                 .tint(AppColor.ember)
             } else {
                 Button("Open Settings") {
-                    NotificationCenter.default.post(name: .hcbOpenSettingsTab, object: nil)
+                    NotificationCenter.default.post(name: .hcbOpenSettingsWindow, object: nil)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(AppColor.ember)

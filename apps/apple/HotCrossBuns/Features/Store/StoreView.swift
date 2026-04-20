@@ -1,155 +1,40 @@
 import SwiftUI
 
-enum StoreFilter: Hashable {
-    case all
-    case smart(SmartListFilter)
-    case notes
-    case lists
-    case timeBuckets // §7.01 Phase B1 — Things-3 Today/Upcoming/Later/Someday grouping
-    case custom(CustomFilterDefinition.ID)
-
-    var storageKey: String {
-        switch self {
-        case .all: "all"
-        case .smart(let f): "smart:\(f.rawValue)"
-        case .notes: "notes"
-        case .lists: "lists"
-        case .timeBuckets: "timeBuckets"
-        case .custom(let id): "custom:\(id.uuidString)"
-        }
-    }
-
-    init(storageKey: String) {
-        if storageKey == "all" { self = .all; return }
-        if storageKey == "notes" { self = .notes; return }
-        if storageKey == "lists" { self = .lists; return }
-        if storageKey == "timeBuckets" { self = .timeBuckets; return }
-        // Legacy: treat old "stale" storageKey as the new lists view.
-        if storageKey == "stale" { self = .lists; return }
-        if storageKey.hasPrefix("smart:"), let f = SmartListFilter(rawValue: String(storageKey.dropFirst(6))) {
-            self = .smart(f)
-            return
-        }
-        if storageKey.hasPrefix("custom:"), let uuid = UUID(uuidString: String(storageKey.dropFirst(7))) {
-            self = .custom(uuid)
-            return
-        }
-        self = .all
-    }
-
-    var title: String {
-        switch self {
-        case .all: "All Tasks"
-        case .smart(let f): f.title
-        case .notes: "Notes"
-        case .lists: "Lists"
-        case .timeBuckets: "Time Buckets"
-        case .custom: "Filter"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .all: "checklist"
-        case .smart(let f): f.systemImage
-        case .notes: "note.text"
-        case .lists: "list.bullet.rectangle"
-        case .timeBuckets: "tray.2"
-        case .custom: "line.3.horizontal.decrease.circle"
-        }
-    }
-}
-
-// §7.01 Phase B1 — Things-3-style time buckets for task grouping.
-enum TimeBucket: String, CaseIterable, Hashable, Sendable {
-    case today
-    case upcoming
-    case later
-    case someday
-
-    var title: String {
-        switch self {
-        case .today: "Today"
-        case .upcoming: "Upcoming"
-        case .later: "Later"
-        case .someday: "Someday"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .today: "sun.max"
-        case .upcoming: "calendar"
-        case .later: "calendar.badge.clock"
-        case .someday: "tray"
-        }
-    }
-
-    var emptyMessage: String {
-        switch self {
-        case .today: "Nothing due today."
-        case .upcoming: "Nothing due this week."
-        case .later: "Nothing due beyond this week."
-        case .someday: "Every task has a due date."
-        }
-    }
-
-    static func bucket(for task: TaskMirror, now: Date = Date(), calendar: Calendar = .current) -> TimeBucket {
-        guard let due = task.dueDate else { return .someday }
-        let startOfToday = calendar.startOfDay(for: now)
-        let startOfDue = calendar.startOfDay(for: due)
-        if startOfDue <= startOfToday { return .today } // includes overdue
-        guard let weekEnd = calendar.date(byAdding: .day, value: 7, to: startOfToday) else { return .upcoming }
-        if startOfDue < weekEnd { return .upcoming }
-        return .later
-    }
-}
-
-struct TimeBucketGroup: Identifiable {
-    var bucket: TimeBucket
-    var tasks: [TaskMirror]
-    var id: String { bucket.rawValue }
-}
-
+// Tasks tab, post-sidebar-refactor. Kanban is the one and only view — the
+// list view, view-mode picker, smart-filter menu, and Store-filter routing
+// all retired with the Calendar / Tasks / Notes split.
+//
+// What still lives here:
+//  - Kanban board (group-by picker retained; click empty space to add a task
+//    to that column's list).
+//  - Inspector (Cmd+I) for the selected task.
+//  - Clear-completed bulk helper.
+//  - List rename / delete / create — reused by both the Kanban column menu
+//    and the "New List" toolbar button.
+//  - BulkResult toast + bulk-action bar on multi-select.
+//
+// What moved:
+//  - Undated tasks now show in the Notes tab (NotesView).
+//  - "Lists" management view is reachable via the Kanban column menu; the
+//    standalone filter entry was dropped with the filter menu.
 struct StoreView: View {
     @Environment(AppModel.self) private var model
     @Environment(RouterPath.self) private var router
 
     @State private var selection: Set<TaskMirror.ID> = []
     @State private var isInspectorPresented = true
-    @State private var searchQuery: String = ""
     @State private var isBulkMoveSheetPresented = false
     @State private var snoozeCustomTask: TaskMirror?
     @State private var bulkResultMessage: String?
     @State private var bulkResultIsWarning: Bool = false
-    // Inline list-management state — the per-section ellipsis menu and
-    // "+ New List" row drive these; sheets / confirmation dialog render
-    // off the body modifiers below. Kept on StoreView (not on a sub-view)
-    // so both the All Tasks section headers and the trailing footer row
-    // share the same editing surfaces.
     @State private var renamingList: TaskListMirror?
     @State private var renameDraft: String = ""
     @State private var pendingListDeletion: TaskListMirror?
     @State private var isCreatingList: Bool = false
     @State private var newListTitle: String = ""
     @State private var isMutatingList: Bool = false
-    @SceneStorage("storeFilter") private var filterKey: String = "all"
-    @SceneStorage("storeShowCompleted") private var showCompleted: Bool = true
-    @SceneStorage("storeViewMode") private var viewModeKey: String = StoreViewMode.list.rawValue
     @SceneStorage("storeKanbanColumnMode") private var kanbanColumnModeKey: String = KanbanColumnMode.byList.rawValue
     @State private var kanbanColumnMode: KanbanColumnMode = .byList
-    @State private var viewMode: StoreViewMode = .list
-
-    private var filter: StoreFilter {
-        StoreFilter(storageKey: filterKey)
-    }
-
-    // The inspector tracks the "focused" single task. Multi-select replaces
-    // the detail view with a bulk-action summary so the user always knows
-    // how many items a follow-up action will affect.
-    private var primarySelection: TaskMirror.ID? {
-        selection.count == 1 ? selection.first : nil
-    }
 
     private var isDisconnected: Bool {
         model.account == nil
@@ -157,7 +42,7 @@ struct StoreView: View {
 
     var body: some View {
         content
-            .hcbSurface(.taskList) // §6.11 per-surface font override
+            .hcbSurface(.taskList)
             .appBackground()
             .toolbar {
                 ToolbarItemGroup {
@@ -167,19 +52,18 @@ struct StoreView: View {
                     if model.pendingMutations.count > 0 {
                         PendingSyncPill(count: model.pendingMutations.count)
                     }
-                    if visibleStoreViewModes.count > 1 {
-                        viewModePicker
-                            .disabled(isDisconnected)
+                    Button {
+                        newListTitle = ""
+                        isCreatingList = true
+                    } label: {
+                        Label("New List", systemImage: "plus.rectangle.on.rectangle")
                     }
-                    filterMenu
-                        .disabled(isDisconnected)
+                    .help("Create a new Google Tasks list")
+                    .disabled(isDisconnected || isMutatingList)
                     clearCompletedMenu
                         .disabled(isDisconnected)
                 }
             }
-            // Hidden Cmd+I shortcut — the visible Toggle Inspector button was
-            // removed per user request, but the key binding still toggles the
-            // inspector pane for muscle memory.
             .background(
                 Button("Toggle Inspector") {
                     isInspectorPresented.toggle()
@@ -207,9 +91,7 @@ struct StoreView: View {
             }
             .sheet(isPresented: $isBulkMoveSheetPresented) {
                 BulkMoveSheet(taskIDs: Array(selection)) { movedCount in
-                    if movedCount > 0 {
-                        selection = []
-                    }
+                    if movedCount > 0 { selection = [] }
                 }
             }
             .sheet(item: $snoozeCustomTask) { task in
@@ -257,61 +139,16 @@ struct StoreView: View {
             .onChange(of: selection) { _, newValue in
                 if newValue.isEmpty == false { isInspectorPresented = true }
             }
-            .onChange(of: filterKey) { _, _ in
-                selection = []
-            }
             .onAppear {
-                consumePendingStoreFilter()
-                // Restore persisted modes. Falls back to list + byList when
-                // the stored keys are unrecognised (e.g., after a rename).
-                viewMode = StoreViewMode(rawValue: viewModeKey) ?? .list
                 kanbanColumnMode = KanbanColumnMode(rawValue: kanbanColumnModeKey) ?? .byList
-            }
-            .onChange(of: model.pendingStoreFilterKey) { _, _ in
-                consumePendingStoreFilter()
-            }
-            .onChange(of: viewMode) { _, newValue in
-                viewModeKey = newValue.rawValue
             }
             .onChange(of: kanbanColumnMode) { _, newValue in
                 kanbanColumnModeKey = newValue.rawValue
             }
-            .onChange(of: model.settings.hiddenStoreViewModes) { _, _ in
-                // If the currently-selected view mode just got hidden, fall
-                // back to the first still-visible mode.
-                if visibleStoreViewModes.contains(viewMode) == false,
-                   let first = visibleStoreViewModes.first {
-                    viewMode = first
-                }
-            }
-    }
-
-    private var viewModePicker: some View {
-        Picker("View", selection: $viewMode) {
-            ForEach(visibleStoreViewModes, id: \.self) { mode in
-                Label(mode.title, systemImage: mode.systemImage).tag(mode)
-            }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .fixedSize()
-        .help("Switch between List and Kanban")
-    }
-
-    // Quick switcher (and future deep-link / intent paths) stage a filterKey
-    // on AppModel; consume it here so navigation actually lands the user on
-    // the requested surface. Cleared once applied so tab re-entries don't
-    // reapply a stale value.
-    private func consumePendingStoreFilter() {
-        guard let key = model.pendingStoreFilterKey else { return }
-        filterKey = key
-        model.pendingStoreFilterKey = nil
     }
 
     @ViewBuilder
     private var bulkActionButtons: some View {
-        // Toolbar displays only the count + clear. Actual actions live in the
-        // floating TaskBulkActionBar so the toolbar doesn't balloon with menus.
         Text("\(selection.count) selected")
             .hcbFont(.caption, weight: .semibold)
             .foregroundStyle(.secondary)
@@ -336,42 +173,16 @@ struct StoreView: View {
         }
     }
 
-    @ViewBuilder
-    private func snoozeMenu(for task: TaskMirror) -> some View {
-        Menu("Snooze") {
-            Button("Tomorrow") { Task { await snooze(task, to: snoozeDate(daysFromNow: 1)) } }
-            Button("In 2 days") { Task { await snooze(task, to: snoozeDate(daysFromNow: 2)) } }
-            Button("Next week") { Task { await snooze(task, to: snoozeDate(daysFromNow: 7)) } }
-            Button("Next weekend") { Task { await snooze(task, to: nextWeekendDate()) } }
-            Divider()
-            Button("Pick a date…") { snoozeCustomTask = task }
-            if task.dueDate != nil {
-                Divider()
-                Button("Clear due date", role: .destructive) { Task { await snooze(task, to: nil) } }
-            }
-        }
-    }
-
     private func snoozeDate(daysFromNow days: Int) -> Date {
         let cal = Calendar.current
         let startOfToday = cal.startOfDay(for: Date())
         return cal.date(byAdding: .day, value: days, to: startOfToday) ?? startOfToday
     }
 
-    private func nextWeekendDate() -> Date {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
-        let weekday = cal.component(.weekday, from: today)
-        let daysUntilSaturday = (7 - weekday) % 7 == 0 ? 7 : (7 - weekday)
-        return cal.date(byAdding: .day, value: daysUntilSaturday, to: today) ?? today
-    }
-
     private func snooze(_ task: TaskMirror, to newDate: Date?) async {
         _ = await model.updateTask(task, title: task.title, notes: task.notes, dueDate: newDate)
     }
 
-    // Completed-task counts per list drive the "Clear completed" menu so a
-    // list with nothing completed is shown but disabled rather than hidden.
     private func completedCount(in listID: TaskListMirror.ID) -> Int {
         model.tasks.filter { $0.taskListID == listID && $0.isCompleted && $0.isDeleted == false }.count
     }
@@ -412,7 +223,27 @@ struct StoreView: View {
                 } else if model.taskLists.isEmpty {
                     noTaskListsPrompt
                 } else {
-                    scopedContent
+                    KanbanView(
+                        tasks: datedTasks,
+                        columnMode: $kanbanColumnMode,
+                        selection: $selection,
+                        onResult: handleBulkResult,
+                        onRenameList: { list in
+                            renameDraft = list.title
+                            renamingList = list
+                        },
+                        onDeleteList: { list in pendingListDeletion = list },
+                        onClearCompleted: { list in
+                            Task { _ = await model.clearCompletedTasks(in: list.id) }
+                        },
+                        onNewList: {
+                            newListTitle = ""
+                            isCreatingList = true
+                        },
+                        onCreateTaskInList: { listID in
+                            router.present(.quickCreateTask(listID: listID))
+                        }
+                    )
                 }
             }
             if selection.count >= 2 {
@@ -429,10 +260,17 @@ struct StoreView: View {
         .animation(.easeInOut(duration: 0.2), value: selection.count >= 2)
     }
 
+    // Tasks shown on the Tasks tab = dated, non-deleted, respecting the
+    // user's per-list visibility pick. Undated tasks auto-route to Notes.
+    private var datedTasks: [TaskMirror] {
+        model.tasks.filter { task in
+            task.isDeleted == false
+                && task.dueDate != nil
+                && visibleTaskListIDs.contains(task.taskListID)
+        }
+    }
+
     private var selectedTasksFromModel: [TaskMirror] {
-        // Resolve to live mirror rows so the bar's enable/disable state (e.g.,
-        // "Star" vs "Unstar") reflects up-to-date task state, including any
-        // optimistic changes from an in-flight bulk batch.
         selection.compactMap { model.task(id: $0) }
     }
 
@@ -467,10 +305,10 @@ struct StoreView: View {
         ContentUnavailableView {
             Label("Not connected to Google", systemImage: "person.crop.circle.badge.plus")
         } description: {
-            Text("Connect your Google account in Settings to see your tasks and notes here.")
+            Text("Connect your Google account in Settings to see your tasks here.")
         } actions: {
             Button("Open Settings") {
-                NotificationCenter.default.post(name: .hcbOpenSettingsTab, object: nil)
+                NotificationCenter.default.post(name: .hcbOpenSettingsWindow, object: nil)
             }
             .buttonStyle(.borderedProminent)
             .tint(AppColor.ember)
@@ -485,7 +323,7 @@ struct StoreView: View {
             if case .syncing = model.syncState {
                 Text("Loading your Google Tasks lists…")
             } else {
-                Text("We haven't seen any task lists. Hit Refresh, or open the Lists filter to create one.")
+                Text("We haven't seen any task lists. Hit Refresh, or create one from the toolbar.")
             }
         } actions: {
             Button("Refresh") {
@@ -496,302 +334,8 @@ struct StoreView: View {
         }
     }
 
-    // StoreViewMode.allCases filtered by user-hidden set from §6.1 Layout.
-    // Guarantees at least one visible by virtue of setStoreViewModeHidden's
-    // invariant — but defensive fallback: if somehow empty, return [.list].
-    private var visibleStoreViewModes: [StoreViewMode] {
-        let filtered = StoreViewMode.allCases.filter {
-            model.settings.hiddenStoreViewModes.contains($0.rawValue) == false
-        }
-        return filtered.isEmpty ? [.list] : filtered
-    }
-
-    // When filter == .lists the task-lists-management surface has no kanban
-    // analogue, so we always force list mode there regardless of user choice.
-    private var effectiveViewMode: StoreViewMode {
-        if case .lists = filter { return .list }
-        return visibleStoreViewModes.contains(viewMode) ? viewMode : (visibleStoreViewModes.first ?? .list)
-    }
-
-    @ViewBuilder
-    private var scopedContent: some View {
-        switch effectiveViewMode {
-        case .list: listScopedContent
-        case .kanban: kanbanScopedContent
-        }
-    }
-
-    @ViewBuilder
-    private var listScopedContent: some View {
-        switch filter {
-        case .all:
-            allTasksList
-        case .smart(let smart):
-            flatList(filteredTasks: smartTasks(smart), emptyTitle: smart.emptyStateTitle, emptyMessage: smart.emptyStateMessage, emptyIcon: smart.systemImage)
-        case .notes:
-            flatList(filteredTasks: noteTasks, emptyTitle: "No notes", emptyMessage: "Tasks without a due date and with notes show up here. Add notes to a dateless task to use it as a note.", emptyIcon: "note.text")
-        case .lists:
-            TaskListsManagementView()
-        case .timeBuckets:
-            timeBucketsList
-        case .custom(let id):
-            if let def = model.settings.customFilters.first(where: { $0.id == id }) {
-                flatList(filteredTasks: customFilterTasks(def), emptyTitle: "Nothing matches", emptyMessage: "Adjust the filter in Settings → Custom Filters.", emptyIcon: def.systemImage)
-            } else {
-                ContentUnavailableView(
-                    "Filter was removed",
-                    systemImage: "line.3.horizontal.decrease.circle",
-                    description: Text("Open Settings → Custom Filters to manage filters.")
-                )
-            }
-        }
-    }
-
-    // Kanban mode reuses the same filter pipeline the list modes use, then
-    // hands the result to KanbanView for grouping + drag-and-drop. Selection
-    // state is shared so picking a card in kanban and picking a row in list
-    // feel the same.
-    @ViewBuilder
-    private var kanbanScopedContent: some View {
-        let tasks = kanbanTasksForCurrentFilter()
-        KanbanView(
-            tasks: tasks,
-            columnMode: $kanbanColumnMode,
-            selection: $selection,
-            onResult: handleBulkResult
-        )
-    }
-
-    private func kanbanTasksForCurrentFilter() -> [TaskMirror] {
-        switch filter {
-        case .all:
-            return applySearch(visibleTasks.filter { $0.isDeleted == false })
-        case .smart(let smart):
-            return smartTasks(smart)
-        case .notes:
-            return noteTasks
-        case .lists:
-            return [] // forced to list mode by effectiveViewMode
-        case .timeBuckets:
-            // Kanban in bucket-filter mode groups all non-deleted visible
-            // tasks; columns come from the kanban grouping picker, not the
-            // buckets themselves.
-            let base = showCompleted ? visibleTasks : visibleTasks.filter { $0.isCompleted == false }
-            return applySearch(base.filter { $0.isDeleted == false })
-        case .custom(let id):
-            guard let def = model.settings.customFilters.first(where: { $0.id == id }) else { return [] }
-            return customFilterTasks(def)
-        }
-    }
-
-    private var allTasksList: some View {
-        List(selection: $selection) {
-            ForEach(filteredSections()) { section in
-                let isCollapsed = model.settings.collapsedTaskListIDs.contains(section.taskList.id)
-                Section {
-                    if isCollapsed == false {
-                        let nodes = TaskHierarchy.build(tasks: section.tasks)
-                        if nodes.isEmpty {
-                            Text(searchQuery.isEmpty ? "No tasks in this list" : "No matches")
-                                .foregroundStyle(.secondary)
-                                .listRowBackground(Color.clear)
-                        } else {
-                            ForEach(nodes) { node in
-                                StoreTaskRow(task: node.parent, indentLevel: 0)
-                                    .tag(node.parent.id)
-                                    .contentShape(Rectangle())
-                                    .listRowBackground(Color.clear)
-                                    .swipeActions(edge: .leading) { completeSwipe(for: node.parent) }
-                                    .contextMenu { snoozeMenu(for: node.parent) }
-                                ForEach(node.children) { child in
-                                    StoreTaskRow(task: child, indentLevel: 1)
-                                        .tag(child.id)
-                                        .contentShape(Rectangle())
-                                        .listRowBackground(Color.clear)
-                                        .swipeActions(edge: .leading) { completeSwipe(for: child) }
-                                        .contextMenu { snoozeMenu(for: child) }
-                                }
-                            }
-                        }
-                    }
-                } header: {
-                    taskListSectionHeader(for: section, isCollapsed: isCollapsed)
-                }
-            }
-            // Trailing "+ New List" affordance. Lives inside the List so it
-            // stays visually grouped with the task-list sections above it.
-            Section {
-                Button {
-                    newListTitle = ""
-                    isCreatingList = true
-                } label: {
-                    Label("New List…", systemImage: "plus.circle")
-                        .hcbFont(.subheadline, weight: .medium)
-                        .foregroundStyle(AppColor.ember)
-                }
-                .buttonStyle(.plain)
-                .disabled(isDisconnected || isMutatingList)
-                .listRowBackground(Color.clear)
-            }
-        }
-        .scrollContentBackground(.hidden)
-    }
-
-    // §7.01 Phase B1 — Things-3 buckets. Groups tasks by relative due-date
-    // bucket (Today / Upcoming / Later / Someday). Respects current search,
-    // respects showCompleted toggle, honours per-list visibility selection.
-    private var timeBucketsList: some View {
-        let groups = timeBucketGroups()
-        let allEmpty = groups.allSatisfy { $0.tasks.isEmpty }
-        return Group {
-            if allEmpty {
-                ContentUnavailableView(
-                    searchQuery.isEmpty ? "No tasks" : "No matches",
-                    systemImage: "tray.2",
-                    description: Text(searchQuery.isEmpty ? "Create a task or switch filter." : "Adjust search terms.")
-                )
-            } else {
-                List(selection: $selection) {
-                    ForEach(groups) { group in
-                        Section {
-                            if group.tasks.isEmpty {
-                                Text(group.bucket.emptyMessage)
-                                    .foregroundStyle(.secondary)
-                                    .listRowBackground(Color.clear)
-                            } else {
-                                ForEach(group.tasks) { task in
-                                    StoreSmartRow(task: task, listName: taskListName(for: task))
-                                        .tag(task.id)
-                                        .contentShape(Rectangle())
-                                        .listRowBackground(Color.clear)
-                                        .swipeActions(edge: .leading) { completeSwipe(for: task) }
-                                        .contextMenu { snoozeMenu(for: task) }
-                                }
-                            }
-                        } header: {
-                            HStack(spacing: 8) {
-                                Image(systemName: group.bucket.systemImage)
-                                    .foregroundStyle(AppColor.ember)
-                                Text(group.bucket.title)
-                                    .hcbFont(.subheadline, weight: .semibold)
-                                Spacer(minLength: 8)
-                                if group.tasks.isEmpty == false {
-                                    Text("\(group.tasks.count)")
-                                        .font(.caption.monospacedDigit())
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-                }
-                .scrollContentBackground(.hidden)
-            }
-        }
-    }
-
-    private func timeBucketGroups() -> [TimeBucketGroup] {
-        let base = showCompleted ? visibleTasks : visibleTasks.filter { $0.isCompleted == false }
-        let searched = applySearch(base)
-        let now = Date()
-        let cal = Calendar.current
-        var bucketed: [TimeBucket: [TaskMirror]] = [:]
-        for task in searched {
-            let bucket = TimeBucket.bucket(for: task, now: now, calendar: cal)
-            bucketed[bucket, default: []].append(task)
-        }
-        let sortedByDue: (TaskMirror, TaskMirror) -> Bool = { lhs, rhs in
-            switch (lhs.dueDate, rhs.dueDate) {
-            case let (l?, r?): return l < r
-            case (nil, _?): return false
-            case (_?, nil): return true
-            case (nil, nil): return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
-            }
-        }
-        return TimeBucket.allCases.map { bucket in
-            TimeBucketGroup(bucket: bucket, tasks: (bucketed[bucket] ?? []).sorted(by: sortedByDue))
-        }
-    }
-
-    private func flatList(filteredTasks: [TaskMirror], emptyTitle: String, emptyMessage: String, emptyIcon: String) -> some View {
-        Group {
-            if filteredTasks.isEmpty {
-                ContentUnavailableView(
-                    emptyTitle,
-                    systemImage: emptyIcon,
-                    description: Text(emptyMessage)
-                )
-            } else {
-                List(selection: $selection) {
-                    Section {
-                        ForEach(filteredTasks) { task in
-                            StoreSmartRow(task: task, listName: taskListName(for: task))
-                                .tag(task.id)
-                                .contentShape(Rectangle())
-                                .listRowBackground(Color.clear)
-                                .swipeActions(edge: .leading) { completeSwipe(for: task) }
-                                .contextMenu { snoozeMenu(for: task) }
-                        }
-                    } header: {
-                        HStack(spacing: 8) {
-                            Image(systemName: emptyIcon)
-                                .foregroundStyle(AppColor.ember)
-                            Text("\(filteredTasks.count) \(filteredTasks.count == 1 ? "task" : "tasks")")
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(AppColor.ink)
-                        }
-                    }
-                }
-                .scrollContentBackground(.hidden)
-            }
-        }
-    }
-
-    private var filterMenu: some View {
-        Menu {
-            Button("All Tasks") { filterKey = StoreFilter.all.storageKey }
-            Divider()
-            Section("Smart") {
-                Button("Overdue") { filterKey = StoreFilter.smart(.overdue).storageKey }
-                Button("Due Today") { filterKey = StoreFilter.smart(.dueToday).storageKey }
-                Button("Next 7 Days") { filterKey = StoreFilter.smart(.next7Days).storageKey }
-                Button("No Date") { filterKey = StoreFilter.smart(.noDate).storageKey }
-            }
-            Divider()
-            Button("Time Buckets") { filterKey = StoreFilter.timeBuckets.storageKey }
-            Button("Notes") { filterKey = StoreFilter.notes.storageKey }
-            Button("Lists") { filterKey = StoreFilter.lists.storageKey }
-            if model.settings.customFilters.isEmpty == false {
-                Divider()
-                Section("Custom") {
-                    ForEach(model.settings.customFilters) { def in
-                        Button {
-                            filterKey = StoreFilter.custom(def.id).storageKey
-                        } label: {
-                            Label(def.name, systemImage: def.systemImage)
-                        }
-                    }
-                }
-            }
-        } label: {
-            Label(currentFilterLabel, systemImage: filter.systemImage)
-        }
-        .help("Change filter")
-    }
-
-    private var currentFilterLabel: String {
-        switch filter {
-        case .custom(let id):
-            model.settings.customFilters.first(where: { $0.id == id })?.name ?? "Filter"
-        default:
-            filter.title
-        }
-    }
-
     private var inspectorBinding: Binding<Bool> {
         Binding(
-            // Hide the inspector pane while there's nothing to inspect —
-            // no account, or no tasks yet. As soon as tasks exist the pane
-            // becomes available again and honours the user's toggle.
             get: { isInspectorPresented && hasInspectableContent },
             set: { isInspectorPresented = $0 }
         )
@@ -805,7 +349,7 @@ struct StoreView: View {
     private var inspectorContent: some View {
         if selection.count > 1 {
             BulkSelectionInspector(count: selection.count)
-        } else if let id = primarySelection, let task = model.task(id: id) {
+        } else if selection.count == 1, let id = selection.first, let task = model.task(id: id) {
             TaskInspectorView(task: task, close: {
                 selection = []
                 isInspectorPresented = false
@@ -820,144 +364,6 @@ struct StoreView: View {
             return model.settings.selectedTaskListIDs
         }
         return Set(model.taskLists.map(\.id))
-    }
-
-    private var visibleTasks: [TaskMirror] {
-        model.tasks.filter { visibleTaskListIDs.contains($0.taskListID) }
-    }
-
-    private func smartTasks(_ f: SmartListFilter) -> [TaskMirror] {
-        let base = f.apply(to: visibleTasks)
-        return applySearch(base)
-    }
-
-    private var noteTasks: [TaskMirror] {
-        let base = visibleTasks
-            .filter { $0.isDeleted == false && $0.isCompleted == false }
-            .filter { $0.dueDate == nil && $0.notes.isEmpty == false }
-            .sorted { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }
-        return applySearch(base)
-    }
-
-    private func customFilterTasks(_ def: CustomFilterDefinition) -> [TaskMirror] {
-        // def.filter(_:) compiles any DSL expression once, then evaluates across
-        // all tasks. On compile failure it yields [] — an empty list, never a
-        // list wider than the user's intent — so a malformed query fails loud
-        // (via the red inline error in CustomFiltersSection) rather than quiet.
-        let base = def.filter(
-            model.tasks,
-            now: Date(),
-            calendar: .current,
-            taskLists: model.taskLists
-        )
-        return applySearch(base)
-    }
-
-    private func applySearch(_ tasks: [TaskMirror]) -> [TaskMirror] {
-        let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard q.isEmpty == false else { return tasks }
-        return tasks.filter {
-            $0.title.localizedCaseInsensitiveContains(q) || $0.notes.localizedCaseInsensitiveContains(q)
-        }
-    }
-
-    private func filteredSections() -> [TaskListSectionSnapshot] {
-        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let sections: [TaskListSectionSnapshot]
-        if showCompleted {
-            sections = model.taskSections
-        } else {
-            sections = model.taskSections.map { section in
-                TaskListSectionSnapshot(
-                    taskList: section.taskList,
-                    tasks: section.tasks.filter { $0.isCompleted == false }
-                )
-            }
-        }
-        guard query.isEmpty == false else { return sections }
-        return sections.compactMap { section in
-            let tasks = section.tasks.filter { matches(task: $0, query: query) }
-            guard tasks.isEmpty == false else { return nil }
-            return TaskListSectionSnapshot(taskList: section.taskList, tasks: tasks)
-        }
-    }
-
-    private func matches(task: TaskMirror, query: String) -> Bool {
-        if task.title.localizedCaseInsensitiveContains(query) { return true }
-        if task.notes.localizedCaseInsensitiveContains(query) { return true }
-        return false
-    }
-
-    @ViewBuilder
-    private func taskListSectionHeader(for section: TaskListSectionSnapshot, isCollapsed: Bool = false) -> some View {
-        let stats = model.taskListCompletionStats[section.taskList.id] ?? TaskListCompletionStats(total: 0, completed: 0)
-        let list = section.taskList
-        return HStack(spacing: 10) {
-            Button {
-                toggleSectionCollapsed(list.id)
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "chevron.right")
-                        .hcbFont(.caption, weight: .semibold)
-                        .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(isCollapsed ? 0 : 90))
-                        .animation(.easeInOut(duration: 0.12), value: isCollapsed)
-                    Text(list.title)
-                        .hcbFont(.subheadline, weight: .semibold)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help(isCollapsed ? "Expand \(list.title)" : "Collapse \(list.title)")
-            Spacer(minLength: 8)
-            if stats.total > 0 {
-                Text("\(stats.completed)/\(stats.total)")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                ProgressView(value: stats.fraction)
-                    .progressViewStyle(.linear)
-                    .tint(AppColor.moss)
-                    .hcbScaledFrame(width: 60)
-            }
-            Menu {
-                Button {
-                    renameDraft = list.title
-                    renamingList = list
-                } label: {
-                    Label("Rename", systemImage: "pencil")
-                }
-                Button {
-                    Task { _ = await model.clearCompletedTasks(in: list.id) }
-                } label: {
-                    Label("Clear Completed", systemImage: "eraser")
-                }
-                .disabled(completedCount(in: list.id) == 0)
-                Divider()
-                Button(role: .destructive) {
-                    pendingListDeletion = list
-                } label: {
-                    Label("Delete List", systemImage: "trash")
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .hcbFont(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden) // ellipsis glyph already signals "more" — no chevron needed
-            .fixedSize()
-            .disabled(isDisconnected || isMutatingList)
-        }
-    }
-
-    private func toggleSectionCollapsed(_ listID: TaskListMirror.ID) {
-        var next = model.settings
-        if next.collapsedTaskListIDs.contains(listID) {
-            next.collapsedTaskListIDs.remove(listID)
-        } else {
-            next.collapsedTaskListIDs.insert(listID)
-        }
-        model.updateSettings(next)
     }
 
     private func renameCurrentList(_ list: TaskListMirror) async {
@@ -987,477 +393,9 @@ struct StoreView: View {
         }
         _ = await model.deleteTaskList(list)
     }
-
-    @ViewBuilder
-    private func completeSwipe(for task: TaskMirror) -> some View {
-        Button {
-            Task { await model.setTaskCompleted(!task.isCompleted, task: task) }
-        } label: {
-            Label(task.isCompleted ? "Reopen" : "Complete", systemImage: task.isCompleted ? "arrow.uturn.backward.circle" : "checkmark.circle")
-        }
-        .tint(task.isCompleted ? AppColor.blue : AppColor.moss)
-    }
-
-    private func taskListName(for task: TaskMirror) -> String {
-        model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Unknown list"
-    }
 }
 
-struct TaskListsManagementView: View {
-    @Environment(AppModel.self) private var model
-    @Environment(RouterPath.self) private var router
-    @State private var filter: String = ""
-    @State private var renamingList: TaskListMirror?
-    @State private var renameDraft: String = ""
-    @State private var pendingDeletion: TaskListMirror?
-    @State private var isCreating: Bool = false
-    @State private var newListTitle: String = ""
-    @State private var isMutating: Bool = false
-
-    private var filteredLists: [TaskListMirror] {
-        let q = filter.trimmingCharacters(in: .whitespaces)
-        guard q.isEmpty == false else { return model.taskLists }
-        return model.taskLists.filter { $0.title.localizedCaseInsensitiveContains(q) }
-    }
-
-    private func taskCount(for listID: TaskListMirror.ID) -> Int {
-        model.tasks.filter { $0.taskListID == listID && $0.isDeleted == false }.count
-    }
-
-    private func completedCount(for listID: TaskListMirror.ID) -> Int {
-        model.tasks.filter { $0.taskListID == listID && $0.isCompleted && $0.isDeleted == false }.count
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-            Divider()
-            if filteredLists.isEmpty {
-                ContentUnavailableView(
-                    filter.isEmpty ? "No task lists" : "No matches",
-                    systemImage: "list.bullet.rectangle",
-                    description: Text(filter.isEmpty ? "Create a list to get started." : "Adjust the filter to see other lists.")
-                )
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 10) {
-                        ForEach(filteredLists) { list in
-                            listCard(list)
-                        }
-                    }
-                    .hcbScaledPadding(16)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .sheet(item: $renamingList) { list in
-            renameSheet(list)
-        }
-        .sheet(isPresented: $isCreating) {
-            createSheet
-        }
-        .confirmationDialog(
-            "Delete task list?",
-            isPresented: Binding(
-                get: { pendingDeletion != nil },
-                set: { if $0 == false { pendingDeletion = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            if let list = pendingDeletion {
-                Button("Delete \(list.title)", role: .destructive) {
-                    Task { await deleteList(list) }
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            if let list = pendingDeletion {
-                Text("This deletes \"\(list.title)\" and all tasks in it from Google Tasks.")
-            }
-        }
-    }
-
-    private var header: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            TextField("Filter lists", text: $filter)
-                .textFieldStyle(.plain)
-            Spacer(minLength: 8)
-            Button {
-                newListTitle = ""
-                isCreating = true
-            } label: {
-                Label("New List", systemImage: "plus")
-            }
-            .disabled(model.account == nil || isMutating)
-        }
-        .hcbScaledPadding(.horizontal, 16)
-        .hcbScaledPadding(.vertical, 10)
-    }
-
-    private func listCard(_ list: TaskListMirror) -> some View {
-        let total = taskCount(for: list.id)
-        let done = completedCount(for: list.id)
-        return HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "list.bullet.rectangle")
-                .hcbFont(.title3)
-                .foregroundStyle(AppColor.ember)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(list.title)
-                    .hcbFont(.headline)
-                    .foregroundStyle(AppColor.ink)
-                HStack(spacing: 10) {
-                    Label("\(total) total", systemImage: "number")
-                        .hcbFont(.caption)
-                        .foregroundStyle(.secondary)
-                    Label("\(done) done", systemImage: "checkmark")
-                        .hcbFont(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Spacer(minLength: 0)
-            Menu {
-                Button {
-                    renameDraft = list.title
-                    renamingList = list
-                } label: {
-                    Label("Rename", systemImage: "pencil")
-                }
-                Button {
-                    Task { _ = await model.clearCompletedTasks(in: list.id) }
-                } label: {
-                    Label("Clear Completed", systemImage: "eraser")
-                }
-                .disabled(done == 0)
-                Divider()
-                Button(role: .destructive) {
-                    pendingDeletion = list
-                } label: {
-                    Label("Delete List", systemImage: "trash")
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .hcbFont(.title3)
-                    .foregroundStyle(.secondary)
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden) // ellipsis glyph already signals "more" — no chevron needed
-            .fixedSize()
-        }
-        .hcbScaledPadding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(AppColor.cream.opacity(0.5))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(AppColor.cardStroke, lineWidth: 0.6)
-        )
-    }
-
-    private func renameSheet(_ list: TaskListMirror) -> some View {
-        NavigationStack {
-            Form {
-                Section("Rename list") {
-                    TextField("Title", text: $renameDraft)
-                }
-            }
-            .navigationTitle("Rename")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { renamingList = nil }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        Task { await rename(list) }
-                    }
-                    .disabled(renameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-        }
-        .hcbScaledFrame(minWidth: 380, minHeight: 180)
-    }
-
-    private var createSheet: some View {
-        NavigationStack {
-            Form {
-                Section("New list") {
-                    TextField("Title", text: $newListTitle)
-                }
-            }
-            .navigationTitle("New Task List")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { isCreating = false }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
-                        Task { await createList() }
-                    }
-                    .disabled(newListTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-        }
-        .hcbScaledFrame(minWidth: 380, minHeight: 180)
-    }
-
-    private func rename(_ list: TaskListMirror) async {
-        let trimmed = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.isEmpty == false else { return }
-        isMutating = true
-        defer { isMutating = false }
-        _ = await model.updateTaskList(list, title: trimmed)
-        renamingList = nil
-    }
-
-    private func createList() async {
-        let trimmed = newListTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.isEmpty == false else { return }
-        isMutating = true
-        defer { isMutating = false }
-        _ = await model.createTaskList(title: trimmed)
-        isCreating = false
-    }
-
-    private func deleteList(_ list: TaskListMirror) async {
-        isMutating = true
-        defer {
-            isMutating = false
-            pendingDeletion = nil
-        }
-        _ = await model.deleteTaskList(list)
-    }
-}
-
-private struct StoreTaskRow: View {
-    @Environment(AppModel.self) private var model
-    @Environment(RouterPath.self) private var router
-    let task: TaskMirror
-    var indentLevel: Int = 0
-    @State private var showPreview = false
-    @State private var hoverTask: Task<Void, Never>?
-    @State private var isExpanded = false // §7.01 Phase B2 — inline detail expansion
-
-    private var isBlocked: Bool {
-        TaskDependencyMarkers.isBlocked(task, allTasks: model.tasks)
-    }
-
-    private var displayNotes: String {
-        TaskDependencyMarkers.strippedNotes(
-            from: TaskReminderMarkers.strippedNotes(
-                from: TaskRecurrenceMarkers.strippedNotes(from: task.notes)
-            )
-        )
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            headerRow
-            if isExpanded {
-                expandedDetail
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .opacity(isBlocked && task.isCompleted == false ? 0.5 : 1.0)
-        .onHover { hovering in
-            hoverTask?.cancel()
-            if hovering, isExpanded == false {
-                hoverTask = Task {
-                    try? await Task.sleep(nanoseconds: 600_000_000)
-                    guard Task.isCancelled == false else { return }
-                    await MainActor.run { showPreview = true }
-                }
-            } else {
-                showPreview = false
-            }
-        }
-        .popover(isPresented: $showPreview, arrowEdge: .trailing) {
-            TaskHoverPreview(task: task)
-        }
-    }
-
-    private var headerRow: some View {
-        HStack(alignment: .top, spacing: 10) {
-            if indentLevel > 0 {
-                Rectangle()
-                    .fill(AppColor.cardStroke)
-                    .hcbScaledFrame(width: 2)
-                    .padding(.leading, CGFloat(indentLevel) * 16)
-            }
-            Button {
-                withAnimation(.easeInOut(duration: 0.14)) {
-                    isExpanded.toggle()
-                }
-            } label: {
-                Image(systemName: "chevron.right")
-                    .hcbFont(.caption2, weight: .semibold)
-                    .foregroundStyle(.secondary)
-                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                    .frame(width: 14, height: 14)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help(isExpanded ? "Collapse detail" : "Expand detail")
-            Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(task.isCompleted ? AppColor.moss : AppColor.ember)
-                .font(indentLevel > 0 ? .body : .title3)
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 6) {
-                    if TaskStarring.isStarred(task) {
-                        Image(systemName: "star.fill")
-                            .hcbFont(.caption)
-                            .foregroundStyle(.yellow)
-                    }
-                    Text(TagExtractor.stripped(from: TaskStarring.displayTitle(for: task)))
-                        .font(indentLevel > 0 ? .subheadline.weight(.medium) : .headline)
-                        .foregroundStyle(AppColor.ink)
-                    ForEach(TagExtractor.tags(in: task.title), id: \.self) { tag in
-                        Text("#\(tag)")
-                            .hcbFont(.caption, weight: .medium)
-                            .hcbScaledPadding(.horizontal, 6)
-                            .hcbScaledPadding(.vertical, 2)
-                            .background(
-                                Capsule().fill(AppColor.blue.opacity(0.15))
-                            )
-                            .foregroundStyle(AppColor.blue)
-                    }
-                    if OptimisticID.isPending(task.id) {
-                        Image(systemName: "icloud.slash")
-                            .hcbFont(.caption2)
-                            .foregroundStyle(.secondary)
-                            .help("Pending sync with Google")
-                    }
-                    if isBlocked {
-                        Label("Blocked", systemImage: "lock.fill")
-                            .hcbFont(.caption2, weight: .medium)
-                            .hcbScaledPadding(.horizontal, 5)
-                            .hcbScaledPadding(.vertical, 1)
-                            .background(Capsule().fill(AppColor.ember.opacity(0.18)))
-                            .foregroundStyle(AppColor.ember)
-                    }
-                }
-                if isExpanded == false, displayNotes.isEmpty == false {
-                    Text.markdown(displayNotes)
-                        .hcbFont(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-                if let dueDate = task.dueDate {
-                    Label(dueDate.formatted(.dateTime.month(.abbreviated).day()), systemImage: "calendar")
-                        .hcbFont(.caption, weight: .medium)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.leading, indentLevel > 0 ? 6 : 0)
-        .contentShape(Rectangle())
-    }
-
-    private var expandedDetail: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if displayNotes.isEmpty == false {
-                MarkdownBlock(source: displayNotes)
-                    .hcbFont(.subheadline)
-                    .foregroundStyle(AppColor.ink)
-                    .textSelection(.enabled)
-            }
-            HStack(spacing: 10) {
-                if let listTitle = model.taskLists.first(where: { $0.id == task.taskListID })?.title {
-                    Label(listTitle, systemImage: "tray")
-                        .hcbFont(.caption, weight: .medium)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button("Open Full…") {
-                    router.present(.editTask(task.id))
-                }
-                .buttonStyle(.borderless)
-                .hcbFont(.caption, weight: .semibold)
-                .foregroundStyle(AppColor.ember)
-            }
-        }
-        .hcbScaledPadding(.leading, 42) // align with title, past chevron+checkbox
-        .hcbScaledPadding(.trailing, 8)
-        .hcbScaledPadding(.vertical, 4)
-    }
-}
-
-private struct StoreSmartRow: View {
-    let task: TaskMirror
-    let listName: String
-    @State private var showPreview = false
-    @State private var hoverTask: Task<Void, Never>?
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(task.isCompleted ? AppColor.moss : AppColor.ember)
-                .hcbFont(.title3)
-            VStack(alignment: .leading, spacing: 5) {
-                Text(TagExtractor.stripped(from: TaskStarring.displayTitle(for: task)))
-                    .hcbFont(.headline)
-                    .foregroundStyle(AppColor.ink)
-                HStack(spacing: 8) {
-                    Label(listName, systemImage: "list.bullet")
-                        .hcbFont(.caption, weight: .medium)
-                        .foregroundStyle(.secondary)
-                    if let due = task.dueDate {
-                        Label(relativeDueDateLabel(due), systemImage: "calendar")
-                            .hcbFont(.caption, weight: .medium)
-                            .foregroundStyle(dueDateColor(due))
-                    }
-                }
-                if !task.notes.isEmpty {
-                    Text.markdown(task.notes)
-                        .hcbFont(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-            }
-            Spacer(minLength: 0)
-        }
-        .contentShape(Rectangle())
-        .onHover { hovering in
-            hoverTask?.cancel()
-            if hovering {
-                hoverTask = Task {
-                    try? await Task.sleep(nanoseconds: 600_000_000)
-                    guard Task.isCancelled == false else { return }
-                    await MainActor.run { showPreview = true }
-                }
-            } else {
-                showPreview = false
-            }
-        }
-        .popover(isPresented: $showPreview, arrowEdge: .trailing) {
-            TaskHoverPreview(task: task)
-        }
-    }
-
-    private func relativeDueDateLabel(_ due: Date) -> String {
-        let calendar = Calendar.current
-        let startOfToday = calendar.startOfDay(for: Date())
-        let startOfDue = calendar.startOfDay(for: due)
-        let days = calendar.dateComponents([.day], from: startOfToday, to: startOfDue).day ?? 0
-        if days < 0 { return "Overdue \(-days)d" }
-        if days == 0 { return "Today" }
-        if days == 1 { return "Tomorrow" }
-        if days < 7 { return due.formatted(.dateTime.weekday(.wide)) }
-        return due.formatted(.dateTime.month(.abbreviated).day())
-    }
-
-    private func dueDateColor(_ due: Date) -> Color {
-        let calendar = Calendar.current
-        let startOfToday = calendar.startOfDay(for: Date())
-        let startOfDue = calendar.startOfDay(for: due)
-        if startOfDue < startOfToday { return AppColor.ember }
-        if startOfDue == startOfToday { return AppColor.moss }
-        return .secondary
-    }
-}
+// MARK: - Bulk / rename / create / snooze helpers
 
 private struct BulkSelectionInspector: View {
     let count: Int
@@ -1636,7 +574,7 @@ struct TaskHoverPreview: View {
     }
 }
 
-private struct ListRenameSheet: View {
+struct ListRenameSheet: View {
     let list: TaskListMirror
     @Binding var draft: String
     let onCancel: () -> Void
@@ -1664,7 +602,7 @@ private struct ListRenameSheet: View {
     }
 }
 
-private struct ListCreateSheet: View {
+struct ListCreateSheet: View {
     @Binding var title: String
     let onCancel: () -> Void
     let onCreate: () -> Void
@@ -1688,5 +626,229 @@ private struct ListCreateSheet: View {
             }
         }
         .hcbScaledFrame(minWidth: 380, minHeight: 180)
+    }
+}
+
+// MARK: - NotesView
+//
+// Derived view of tasks with `dueDate == nil`. The classification is
+// automatic — there's no local "is-a-note" flag. Adding a date to a Note
+// moves it to the Tasks tab on the next render; clearing a date on a
+// Tasks-tab task moves it here. This keeps two-way Google sync intact —
+// Google Tasks sees only `due` changing, not a custom field.
+//
+// Layout is a Trello-style card grid. Cards are draggable (via `DraggedTask`)
+// so they can be re-sorted within the grid (local order) or dropped onto
+// the Tasks Kanban's date-bucket columns in the future. Click-to-create
+// opens QuickCreatePopover in task-only mode with no pre-selected list.
+struct NotesView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(RouterPath.self) private var router
+
+    @State private var searchQuery: String = ""
+    // Local-order store — drag-to-reorder is view-local. We persist nothing
+    // back to Google because Google Tasks position fields are already used
+    // for intra-list ordering under the Tasks tab; overloading them for a
+    // cross-list Notes order would fight server reconciliation. Rebuilt on
+    // tasks change to pick up new undated items at the head.
+    @State private var localOrder: [TaskMirror.ID] = []
+    @State private var draggingID: TaskMirror.ID?
+
+    private let columns: [GridItem] = [
+        GridItem(.adaptive(minimum: 220, maximum: 280), spacing: 12, alignment: .top)
+    ]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            Divider()
+            Group {
+                if model.account == nil {
+                    ContentUnavailableView(
+                        "Not connected to Google",
+                        systemImage: "person.crop.circle.badge.plus",
+                        description: Text("Sign in to see undated tasks here.")
+                    )
+                } else if undatedTasks.isEmpty {
+                    ContentUnavailableView(
+                        searchQuery.isEmpty ? "No notes" : "No matches",
+                        systemImage: "note.text",
+                        description: Text(searchQuery.isEmpty
+                                          ? "Tasks without a due date show up here. Use the + button to capture a quick thought."
+                                          : "Adjust the search to see more notes.")
+                    )
+                } else {
+                    ScrollView {
+                        LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+                            ForEach(orderedTasks) { task in
+                                NoteCard(task: task, isDragging: draggingID == task.id) {
+                                    router.present(.editTask(task.id))
+                                }
+                                .draggable(DraggedTask(taskID: task.id, taskListID: task.taskListID, title: task.title)) {
+                                    NoteDragPreview(title: task.title)
+                                        .onAppear { draggingID = task.id }
+                                }
+                                .dropDestination(for: DraggedTask.self) { items, _ in
+                                    guard let dropped = items.first else { return false }
+                                    reorder(movingID: dropped.taskID, insertBefore: task.id)
+                                    draggingID = nil
+                                    return true
+                                } isTargeted: { _ in }
+                            }
+                        }
+                        .hcbScaledPadding(16)
+                    }
+                }
+            }
+            .appBackground()
+        }
+        .hcbSurface(.taskList)
+        .toolbar {
+            ToolbarItemGroup {
+                Button {
+                    router.present(.quickCreateTask(listID: nil))
+                } label: {
+                    Label("New Note", systemImage: "plus")
+                }
+                .help("Create a task without a due date")
+                .disabled(model.account == nil)
+            }
+        }
+        .onAppear { rebuildOrder() }
+        .onChange(of: model.tasks) { _, _ in rebuildOrder() }
+    }
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("Search notes", text: $searchQuery)
+                .textFieldStyle(.plain)
+            Spacer(minLength: 8)
+            Text("\(undatedTasks.count) note\(undatedTasks.count == 1 ? "" : "s")")
+                .hcbFont(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .hcbScaledPadding(.horizontal, 16)
+        .hcbScaledPadding(.vertical, 10)
+    }
+
+    private var undatedTasks: [TaskMirror] {
+        let visible: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
+            ? model.settings.selectedTaskListIDs
+            : Set(model.taskLists.map(\.id))
+        let base = model.tasks.filter {
+            $0.isDeleted == false
+                && $0.isCompleted == false
+                && $0.dueDate == nil
+                && visible.contains($0.taskListID)
+        }
+        let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard q.isEmpty == false else { return base }
+        return base.filter {
+            $0.title.localizedCaseInsensitiveContains(q) || $0.notes.localizedCaseInsensitiveContains(q)
+        }
+    }
+
+    private var orderedTasks: [TaskMirror] {
+        let pool = Dictionary(uniqueKeysWithValues: undatedTasks.map { ($0.id, $0) })
+        let ordered = localOrder.compactMap { pool[$0] }
+        let missing = undatedTasks.filter { pool[$0.id] != nil && localOrder.contains($0.id) == false }
+        return ordered + missing
+    }
+
+    private func rebuildOrder() {
+        let currentIDs = undatedTasks.map(\.id)
+        let preserved = localOrder.filter(currentIDs.contains)
+        let fresh = currentIDs.filter { preserved.contains($0) == false }
+        localOrder = preserved + fresh
+    }
+
+    private func reorder(movingID: TaskMirror.ID, insertBefore targetID: TaskMirror.ID) {
+        guard movingID != targetID else { return }
+        var next = localOrder
+        next.removeAll { $0 == movingID }
+        if let idx = next.firstIndex(of: targetID) {
+            next.insert(movingID, at: idx)
+        } else {
+            next.append(movingID)
+        }
+        localOrder = next
+    }
+}
+
+private struct NoteCard: View {
+    @Environment(AppModel.self) private var model
+    let task: TaskMirror
+    let isDragging: Bool
+    let onOpen: () -> Void
+
+    var body: some View {
+        Button(action: onOpen) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    if TaskStarring.isStarred(task) {
+                        Image(systemName: "star.fill")
+                            .hcbFont(.caption)
+                            .foregroundStyle(.yellow)
+                    }
+                    Text(TagExtractor.stripped(from: TaskStarring.displayTitle(for: task)))
+                        .hcbFont(.subheadline, weight: .semibold)
+                        .foregroundStyle(AppColor.ink)
+                        .lineLimit(3)
+                        .multilineTextAlignment(.leading)
+                    Spacer(minLength: 0)
+                }
+                let trimmed = TaskDependencyMarkers.strippedNotes(from:
+                    TaskReminderMarkers.strippedNotes(from:
+                        TaskRecurrenceMarkers.strippedNotes(from: task.notes)))
+                if trimmed.isEmpty == false {
+                    Text.markdown(trimmed)
+                        .hcbFont(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(6)
+                        .multilineTextAlignment(.leading)
+                }
+                HStack(spacing: 6) {
+                    Label(listName, systemImage: "list.bullet")
+                        .hcbFont(.caption2)
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                }
+            }
+            .hcbScaledPadding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.white.opacity(0.92))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(AppColor.cardStroke, lineWidth: 0.6)
+            )
+            .shadow(color: Color.black.opacity(isDragging ? 0.08 : 0.0), radius: 6, y: 2)
+            .scaleEffect(isDragging ? 0.98 : 1.0)
+            .animation(.easeOut(duration: 0.12), value: isDragging)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var listName: String {
+        model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Unknown list"
+    }
+}
+
+private struct NoteDragPreview: View {
+    let title: String
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "note.text")
+            Text(title)
+                .lineLimit(1)
+        }
+        .hcbFont(.caption, weight: .semibold)
+        .hcbScaledPadding(.horizontal, 10)
+        .hcbScaledPadding(.vertical, 6)
+        .background(Capsule().fill(AppColor.ember.opacity(0.25)))
     }
 }

@@ -4,9 +4,9 @@ Hot Cross Buns is a macOS SwiftUI personal planner backed by Google Tasks and Go
 
 ## Current Status
 
+- The primary (and only) app is `apps/apple`, a SwiftUI app for macOS. The iOS/iPadOS targets have been removed; this product is Mac-only.
 - The Go/PostgreSQL self-hosted sync server has been removed.
-- The Tauri desktop app in `apps/desktop` is deprecated and kept only as a legacy reference.
-- The primary app is `apps/apple`, a SwiftUI app for macOS. The iOS/iPadOS targets have been removed; this product is Mac-only.
+- A Tauri/SvelteKit prototype previously lived at `apps/desktop/` and has since been deleted; the Swift app is the canonical implementation.
 - Google Drive is intentionally out of scope.
 
 ## Target Product Direction
@@ -25,10 +25,9 @@ See [APPLE_GOOGLE_REFACTOR_PLAN.md](./docs/APPLE_GOOGLE_REFACTOR_PLAN.md) for th
 
 ```text
 hot-cross-buns/
-  apps/apple/     Primary SwiftUI app for macOS
-  apps/desktop/   Deprecated Tauri desktop app retained as reference material
-  docs/           Current architecture, refactor plan, design, and contribution notes
-  schema/         Historical SQLite schema from the deprecated local-first app
+  apps/apple/     SwiftUI app for macOS
+  docs/           Architecture, refactor plan, design, and contribution notes
+  schema/         Historical SQLite schema from the removed local-first prototype
 ```
 
 ## Apple App
@@ -79,29 +78,6 @@ APP_SPECIFIC_PASSWORD="xxxx-xxxx-xxxx-xxxx" \
 scripts/package-macos-dmg.sh
 ```
 
-## Legacy Desktop App
-
-The existing desktop app can still be inspected or run while it remains in the repo, but it is not the target architecture.
-
-```bash
-cd apps/desktop
-npm ci
-npm run tauri dev
-```
-
-Useful legacy verification commands:
-
-```bash
-cd apps/desktop
-npm run check
-npm test
-
-cd src-tauri
-cargo test
-```
-
-Known status: the legacy desktop checks were already failing before this pivot and should not block the Apple-native rebuild.
-
 ## Future Mac App Work
 
 1. Offline mutation queue + etag-based conflict handling for writes.
@@ -115,4 +91,4 @@ Known status: the legacy desktop checks were already failing before this pivot a
 - [ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 - [APPLE_GOOGLE_REFACTOR_PLAN.md](./docs/APPLE_GOOGLE_REFACTOR_PLAN.md)
 - [CONTRIBUTING.md](./docs/CONTRIBUTING.md)
-- [apps/desktop/README.md](./apps/desktop/README.md)
+</content>

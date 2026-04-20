@@ -7,6 +7,7 @@ struct MacSidebarShell: View {
     @Environment(AppModel.self) private var model
     @Environment(NetworkMonitor.self) private var networkMonitor
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openSettings) private var openSettings
     @SceneStorage("sidebarSelection") private var storedSelection: String = SidebarItem.calendar.rawValue
     @SceneStorage("sidebarCollapsed") private var isSidebarCollapsed = false
 
@@ -152,15 +153,15 @@ struct MacSidebarShell: View {
             }
             .animation(.easeInOut(duration: 0.12), value: chordKeys)
             .focusedSceneValue(\.appCommandActions, appCommandActions)
-            .onAppear {
-                selection = SidebarItem(rawValue: storedSelection) ?? .calendar
-                HCBColorSchemeStore.current = HCBColorScheme.scheme(id: model.settings.colorSchemeID) ?? .notion
-                configureCommandActions()
-                configureGlobalHotkey()
-                installAppShortcutMonitor()
-            }
+            .onAppear(perform: handleShellAppear)
             .onReceive(NotificationCenter.default.publisher(for: .hcbOpenStoreTab)) { _ in
                 selection = .store
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .hcbOpenNotesTab)) { _ in
+                selection = .notes
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .hcbOpenSettingsWindow)) { _ in
+                openSettings()
             }
             .onDisappear {
                 uninstallAppShortcutMonitor()
@@ -192,31 +193,8 @@ struct MacSidebarShell: View {
                     sidebarVisibility = .all
                 }
             }
-            .onReceive(NotificationCenter.default.publisher(for: .hcbZoomIn)) { _ in
-                performZoomIn()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .hcbZoomOut)) { _ in
-                performZoomOut()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .hcbZoomReset)) { _ in
-                performZoomReset()
-            }
-            .task {
-                await model.loadInitialState()
-                isPresentingOnboarding = model.settings.hasCompletedOnboarding == false
-                await model.restoreGoogleSession()
-                // Only auto-refresh when the session restore actually
-                // succeeded. If restoreGoogleSession surfaced a .failed
-                // authState (Keychain timing after wake-from-sleep, token
-                // expiry, scope revocation), kicking off a refresh would
-                // hit 401 and render a misleading "Sync needs attention"
-                // banner on every launch even though the user just needs
-                // to reconnect.
-                if case .signedIn = model.authState {
-                    await model.refreshForCurrentSyncMode()
-                }
-                handlePendingAppIntentRoute()
-            }
+            .modifier(ShellZoomObservers(zoomIn: performZoomIn, zoomOut: performZoomOut, zoomReset: performZoomReset))
+            .task { await performInitialLoad() }
             .onChange(of: model.settings.hasCompletedOnboarding) { _, hasCompleted in
                 // Re-present onboarding when the flag is flipped back
                 // (Settings → "Run setup again"); dismiss when the
@@ -460,6 +438,33 @@ struct MacSidebarShell: View {
         ].joined(separator: ":")
     }
 
+    private func performInitialLoad() async {
+        await model.loadInitialState()
+        isPresentingOnboarding = model.settings.hasCompletedOnboarding == false
+        await model.restoreGoogleSession()
+        if case .signedIn = model.authState {
+            await model.refreshForCurrentSyncMode()
+        }
+        handlePendingAppIntentRoute()
+    }
+
+    private func handleShellAppear() {
+        selection = SidebarItem(rawValue: storedSelection) ?? .calendar
+        HCBColorSchemeStore.current = HCBColorScheme.scheme(id: model.settings.colorSchemeID) ?? .notion
+        // Pre-refactor builds persisted `hiddenSidebarItems` with a single
+        // "store" entry meaning "Store (tasks+notes)". The split maps that
+        // to the new paired set so a user who explicitly hid the old tab
+        // doesn't get it re-shown as "Tasks" plus "Notes".
+        if model.settings.hiddenSidebarItems == ["store"] {
+            var next = model.settings
+            next.hiddenSidebarItems = ["store", "notes"]
+            model.updateSettings(next)
+        }
+        configureCommandActions()
+        configureGlobalHotkey()
+        installAppShortcutMonitor()
+    }
+
     private func configureGlobalHotkey() {
         guard let delegate = NSApp.delegate as? AppDelegate else { return }
         delegate.setGlobalHotkeyEnabled(model.settings.enableGlobalHotkey)
@@ -477,6 +482,7 @@ struct MacSidebarShell: View {
                 || model.settings.hiddenSidebarItems.contains(item.rawValue) == false else { return }
             selection = item
         }
+        appCommandActions.openSettingsWindow = { openSettings() }
         appCommandActions.openDiagnostics = { presentSheet(.diagnostics, on: selection) }
         appCommandActions.openCommandPalette = { isPresentingCommandPalette = true }
         appCommandActions.openQuickSwitcher = { isPresentingQuickSwitcher = true }
@@ -737,13 +743,23 @@ struct MacSidebarShell: View {
             },
             CommandPaletteCommand(
                 id: "go-store",
-                title: "Go to Store",
-                subtitle: "Tasks, notes, smart lists, and saved filters",
-                symbol: "brain.head.profile",
+                title: "Go to Tasks",
+                subtitle: "Kanban board of dated tasks across every list",
+                symbol: "checklist",
                 shortcut: "Cmd+2",
-                keywords: ["store", "tasks", "notes", "lists", "review"]
+                keywords: ["tasks", "kanban", "lists", "store"]
             ) {
                 selection = .store
+            },
+            CommandPaletteCommand(
+                id: "go-notes",
+                title: "Go to Notes",
+                subtitle: "Quick-capture cards — tasks without a due date",
+                symbol: "note.text",
+                shortcut: "Cmd+3",
+                keywords: ["notes", "capture", "undated", "someday"]
+            ) {
+                selection = .notes
             },
             CommandPaletteCommand(
                 id: "open-settings",
@@ -804,7 +820,13 @@ struct MacSidebarShell: View {
             let count = model.todaySnapshot.scheduledEvents.count
             return count > 0 ? "\(count)" : nil
         case .store:
-            let count = model.openTaskCountForSidebar
+            // Tasks tab badge counts only tasks that actually belong to the
+            // Tasks surface — dated, open. Undated ones live in Notes and
+            // carry their own count to avoid double-badging the sidebar.
+            let count = model.datedOpenTaskCount
+            return count > 0 ? "\(count)" : nil
+        case .notes:
+            let count = model.undatedOpenTaskCount
             return count > 0 ? "\(count)" : nil
         }
     }
@@ -909,6 +931,22 @@ struct MacSidebarShell: View {
                 selection = .calendar
             }
         }
+    }
+}
+
+// Small helper ViewModifier to keep MacSidebarShell.body within the
+// SwiftUI type-checker's budget. Each onReceive inflates ModifiedContent
+// generics quickly; bundling three of them halves the chain depth.
+private struct ShellZoomObservers: ViewModifier {
+    let zoomIn: () -> Void
+    let zoomOut: () -> Void
+    let zoomReset: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: .hcbZoomIn)) { _ in zoomIn() }
+            .onReceive(NotificationCenter.default.publisher(for: .hcbZoomOut)) { _ in zoomOut() }
+            .onReceive(NotificationCenter.default.publisher(for: .hcbZoomReset)) { _ in zoomReset() }
     }
 }
 

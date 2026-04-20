@@ -42,9 +42,6 @@ struct TimelineView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            Text("Zoom")
-                .hcbFont(.caption, weight: .semibold)
-                .foregroundStyle(.secondary)
             Picker("Zoom", selection: $zoom) {
                 ForEach(TimelineZoom.allCases, id: \.self) { z in
                     Text(z.title).tag(z)

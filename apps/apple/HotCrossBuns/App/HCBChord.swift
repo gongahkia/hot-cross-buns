@@ -33,7 +33,8 @@ enum HCBChordRegistry {
     static let defaults: [HCBChordBinding] = [
         HCBChordBinding(sequence: ["n", "t"], command: .newTask, hint: "New Task"),
         HCBChordBinding(sequence: ["n", "e"], command: .newEvent, hint: "New Event"),
-        HCBChordBinding(sequence: ["g", "s"], command: .goToStore, hint: "Go to Store"),
+        HCBChordBinding(sequence: ["g", "t"], command: .goToStore, hint: "Go to Tasks"),
+        HCBChordBinding(sequence: ["g", "n"], command: .goToNotes, hint: "Go to Notes"),
         HCBChordBinding(sequence: ["g", "c"], command: .goToCalendar, hint: "Go to Calendar"),
         HCBChordBinding(sequence: ["g", "x"], command: .goToSettings, hint: "Go to Settings"),
         HCBChordBinding(sequence: ["p"], command: .commandPalette, hint: "Command Palette"),

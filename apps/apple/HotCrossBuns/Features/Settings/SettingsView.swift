@@ -241,7 +241,7 @@ extension View {
     }
 }
 
-private struct AccountStatusView: View {
+struct AccountStatusView: View {
     let authState: AuthState
     let account: GoogleAccount?
     let connect: () -> Void
