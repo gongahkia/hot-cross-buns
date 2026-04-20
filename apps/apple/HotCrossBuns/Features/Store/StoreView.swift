@@ -539,10 +539,7 @@ struct TaskHoverPreview: View {
             HStack(spacing: 6) {
                 Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(task.isCompleted ? AppColor.moss : AppColor.ember)
-                if TaskStarring.isStarred(task) {
-                    Image(systemName: "star.fill").foregroundStyle(.yellow)
-                }
-                Text(TagExtractor.stripped(from: TaskStarring.displayTitle(for: task)))
+                Text(TagExtractor.stripped(from: task.title))
                     .hcbFont(.headline)
                     .lineLimit(2)
             }
@@ -787,12 +784,7 @@ private struct NoteCard: View {
         Button(action: onOpen) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
-                    if TaskStarring.isStarred(task) {
-                        Image(systemName: "star.fill")
-                            .hcbFont(.caption)
-                            .foregroundStyle(.yellow)
-                    }
-                    Text(TagExtractor.stripped(from: TaskStarring.displayTitle(for: task)))
+                    Text(TagExtractor.stripped(from: task.title))
                         .hcbFont(.subheadline, weight: .semibold)
                         .foregroundStyle(AppColor.ink)
                         .lineLimit(3)

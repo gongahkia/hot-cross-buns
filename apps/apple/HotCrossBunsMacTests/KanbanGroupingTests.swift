@@ -100,23 +100,6 @@ final class KanbanGroupingTests: XCTestCase {
         }
     }
 
-    // MARK: - by starred
-
-    func testByStarredTwoColumns() {
-        let starred = task(id: "a", title: "⭐ Important")
-        let plain = task(id: "b", title: "Hello")
-        let cols = group([starred, plain], mode: .byStarred)
-        XCTAssertEqual(cols.count, 2)
-        XCTAssertEqual(cols[0].title, "Starred"); XCTAssertEqual(cols[0].tasks.map(\.id), ["a"])
-        XCTAssertEqual(cols[1].title, "Not starred"); XCTAssertEqual(cols[1].tasks.map(\.id), ["b"])
-    }
-
-    func testByStarredDropIntents() {
-        let cols = group([], mode: .byStarred)
-        if case .setStarred(let s) = cols[0].dropIntent! { XCTAssertTrue(s) } else { XCTFail() }
-        if case .setStarred(let s) = cols[1].dropIntent! { XCTAssertFalse(s) } else { XCTFail() }
-    }
-
     // MARK: - by tag
 
     func testByTagCreatesColumnPerTag() {
@@ -151,10 +134,6 @@ final class KanbanGroupingTests: XCTestCase {
         XCTAssertEqual(op, .setDue(taskId: "t1", dueDate: day(3)))
     }
 
-    func testDropIntentToOperationSetStarred() {
-        XCTAssertEqual(KanbanDropIntent.setStarred(starred: true).operation(for: "t"), .setStarred(taskId: "t", starred: true))
-    }
-
     func testDropIntentToOperationAddRemoveTag() {
         XCTAssertEqual(KanbanDropIntent.setTag(add: "work", remove: nil).operation(for: "t"),
                        .addTag(taskId: "t", tag: "work"))
@@ -168,7 +147,7 @@ final class KanbanGroupingTests: XCTestCase {
         let live = task(id: "a")
         var deleted = task(id: "b")
         deleted.isDeleted = true
-        let cols = group([live, deleted], mode: .byStarred)
+        let cols = group([live, deleted], mode: .byTag)
         let total = cols.reduce(0) { $0 + $1.tasks.count }
         XCTAssertEqual(total, 1)
     }

@@ -266,7 +266,6 @@ struct TaskInspectorView: View {
             Text(statusLabel)
                 .hcbFont(.caption, weight: .semibold)
                 .foregroundStyle(.secondary)
-            starButton
             Spacer(minLength: 0)
             if isEditing, isSavingNow {
                 ProgressView().controlSize(.small)
@@ -304,18 +303,6 @@ struct TaskInspectorView: View {
         Circle()
             .fill(task.isCompleted ? AppColor.moss : AppColor.ember)
             .hcbScaledFrame(width: 10, height: 10)
-    }
-
-    private var starButton: some View {
-        Button {
-            Task { _ = await model.toggleTaskStar(task) }
-        } label: {
-            Image(systemName: TaskStarring.isStarred(task) ? "star.fill" : "star")
-                .foregroundStyle(TaskStarring.isStarred(task) ? .yellow : .secondary)
-        }
-        .buttonStyle(.plain)
-        .help(TaskStarring.isStarred(task) ? "Remove star" : "Star as important")
-        .accessibilityLabel(TaskStarring.isStarred(task) ? "Unstar task" : "Star task")
     }
 
     private var statusLabel: String {

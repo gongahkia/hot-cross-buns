@@ -11,9 +11,9 @@ import Foundation
 //   Primary    := '(' OrExpr ')' | Predicate
 //   Predicate  := Field Comparator Value
 //               | Field ':' Value
-//               | BooleanShorthand                // star / starred / completed / done / overdue
+//               | BooleanShorthand                // completed / done / overdue
 //               | Value                           // bare string → title substring
-//   Field      := title | notes | list | tag | star | starred | completed | done | due | has | overdue
+//   Field      := title | notes | list | tag | completed | done | due | has | overdue
 //   Comparator := '<' | '<=' | '>' | '>=' | '=' | ':'
 //   Value      := QuotedString | Identifier | Number | DateLiteral | RelativeDate
 //   DateLiteral:= YYYY-MM-DD
@@ -95,7 +95,6 @@ enum Predicate: Equatable, Sendable {
     case notesContains(String)
     case listMatches(String)
     case tag(String)
-    case starred
     case completed
     case overdue
     case hasNotes
@@ -414,7 +413,6 @@ struct QueryParser {
 
     private func booleanShorthand(name: String) -> QueryNode? {
         switch name.lowercased() {
-        case "star", "starred": return .predicate(.starred)
         case "completed", "done": return .predicate(.completed)
         case "overdue": return .predicate(.overdue)
         default: return nil
@@ -436,10 +434,6 @@ struct QueryParser {
         case "tag":
             try requireEq(cmp: cmp, field: lower, tok: fieldToken)
             return .predicate(.tag(try readStringValue(field: lower)))
-        case "star", "starred":
-            try requireEq(cmp: cmp, field: lower, tok: fieldToken)
-            let b = try readBoolValue(field: lower)
-            return b ? .predicate(.starred) : .not(.predicate(.starred))
         case "completed", "done":
             try requireEq(cmp: cmp, field: lower, tok: fieldToken)
             let b = try readBoolValue(field: lower)
@@ -571,8 +565,6 @@ enum QueryEvaluator {
         case .tag(let s):
             let tags = TagExtractor.tags(in: task.title).map { $0.lowercased() }
             return tags.contains(s.lowercased())
-        case .starred:
-            return TaskStarring.isStarred(task)
         case .completed:
             return task.isCompleted
         case .overdue:

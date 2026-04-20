@@ -5,7 +5,7 @@ import Foundation
 // boolean-tree structured). This one:
 //  - Works across tasks, events, lists, calendars, custom filters.
 //  - Accepts field prefixes (title:, tag:, list:, calendar:, attendee:,
-//    has:notes|location|due) and bare keywords (overdue, starred, completed).
+//    has:notes|location|due) and bare keywords (overdue, completed).
 //  - Supports regex mode via leading + trailing slashes: /pattern/
 //  - Falls back to free-text fuzzy matching on any residue.
 //
@@ -21,7 +21,6 @@ struct AdvancedSearchQuery: Equatable {
     var requireNotes: Bool
     var requireLocation: Bool
     var requireDue: Bool
-    var requireStarred: Bool
     var requireCompleted: Bool
     var requireOverdue: Bool
     var freeText: String // residue → handed to FuzzySearcher for ranking
@@ -36,7 +35,6 @@ struct AdvancedSearchQuery: Equatable {
         requireNotes: false,
         requireLocation: false,
         requireDue: false,
-        requireStarred: false,
         requireCompleted: false,
         requireOverdue: false,
         freeText: ""
@@ -69,7 +67,6 @@ enum AdvancedSearchParser {
                     requireNotes: false,
                     requireLocation: false,
                     requireDue: false,
-                    requireStarred: false,
                     requireCompleted: false,
                     requireOverdue: false,
                     freeText: ""
@@ -120,7 +117,6 @@ enum AdvancedSearchParser {
         // Bare keywords
         switch lower {
         case "overdue": query.requireOverdue = true; return true
-        case "starred": query.requireStarred = true; return true
         case "completed", "done": query.requireCompleted = true; return true
         default: break
         }

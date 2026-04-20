@@ -23,7 +23,6 @@ struct CustomFilterDefinition: Codable, Hashable, Identifiable, Sendable {
     var name: String
     var systemImage: String
     var dueWindow: DueWindow
-    var starredOnly: Bool
     var includeCompleted: Bool
     var taskListIDs: Set<String>
     var tagsAny: [String]
@@ -39,7 +38,6 @@ struct CustomFilterDefinition: Codable, Hashable, Identifiable, Sendable {
         name: String,
         systemImage: String = "line.3.horizontal.decrease.circle",
         dueWindow: DueWindow = .any,
-        starredOnly: Bool = false,
         includeCompleted: Bool = false,
         taskListIDs: Set<String> = [],
         tagsAny: [String] = [],
@@ -50,7 +48,6 @@ struct CustomFilterDefinition: Codable, Hashable, Identifiable, Sendable {
         self.name = name
         self.systemImage = systemImage
         self.dueWindow = dueWindow
-        self.starredOnly = starredOnly
         self.includeCompleted = includeCompleted
         self.taskListIDs = taskListIDs
         self.tagsAny = tagsAny
@@ -59,7 +56,7 @@ struct CustomFilterDefinition: Codable, Hashable, Identifiable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, systemImage, dueWindow, starredOnly, includeCompleted, taskListIDs, tagsAny, queryExpression, pinnedToMenuBar
+        case id, name, systemImage, dueWindow, includeCompleted, taskListIDs, tagsAny, queryExpression, pinnedToMenuBar
     }
 
     init(from decoder: Decoder) throws {
@@ -68,7 +65,6 @@ struct CustomFilterDefinition: Codable, Hashable, Identifiable, Sendable {
         name = try c.decode(String.self, forKey: .name)
         systemImage = try c.decodeIfPresent(String.self, forKey: .systemImage) ?? "line.3.horizontal.decrease.circle"
         dueWindow = try c.decodeIfPresent(DueWindow.self, forKey: .dueWindow) ?? .any
-        starredOnly = try c.decodeIfPresent(Bool.self, forKey: .starredOnly) ?? false
         includeCompleted = try c.decodeIfPresent(Bool.self, forKey: .includeCompleted) ?? false
         taskListIDs = try c.decodeIfPresent(Set<String>.self, forKey: .taskListIDs) ?? []
         tagsAny = try c.decodeIfPresent([String].self, forKey: .tagsAny) ?? []
@@ -138,8 +134,6 @@ struct CustomFilterDefinition: Codable, Hashable, Identifiable, Sendable {
         if taskListIDs.isEmpty == false, taskListIDs.contains(task.taskListID) == false {
             return false
         }
-
-        if starredOnly, TaskStarring.isStarred(task) == false { return false }
 
         if tagsAny.isEmpty == false {
             let taskTags = Set(TagExtractor.tags(in: task.title).map { $0.lowercased() })

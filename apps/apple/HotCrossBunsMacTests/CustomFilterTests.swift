@@ -52,12 +52,6 @@ final class CustomFilterTests: XCTestCase {
         XCTAssertFalse(filter.matches(task(id: "c", due: nil), now: now, calendar: calendar))
     }
 
-    func testStarredOnly() {
-        let filter = CustomFilterDefinition(name: "s", starredOnly: true)
-        XCTAssertTrue(filter.matches(task(id: "a", title: "⭐ Important"), now: now, calendar: calendar))
-        XCTAssertFalse(filter.matches(task(id: "b", title: "Ordinary"), now: now, calendar: calendar))
-    }
-
     func testCompletedExcludedByDefault() {
         let filter = CustomFilterDefinition(name: "x")
         XCTAssertFalse(filter.matches(task(id: "a", completed: true), now: now, calendar: calendar))

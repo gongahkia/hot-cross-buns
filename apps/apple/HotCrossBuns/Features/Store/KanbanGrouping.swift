@@ -3,21 +3,19 @@ import Foundation
 // Pure grouping logic for the Kanban board. Testable without SwiftUI.
 //
 // Column-mode picks a dimension to split tasks by. Every mode is either a
-// native Google Tasks attribute (list, star) or derived from already-present
+// native Google Tasks attribute (list) or derived from already-present
 // state (due date, tag tokens in title). No hidden local-only fields — the
 // kanban is a lens over the mirror, never a separate data store.
 
 enum KanbanColumnMode: String, CaseIterable, Hashable, Sendable {
     case byList
     case byDueBucket
-    case byStarred
     case byTag
 
     var title: String {
         switch self {
         case .byList: "List"
         case .byDueBucket: "Due date"
-        case .byStarred: "Starred"
         case .byTag: "Tag"
         }
     }
@@ -26,7 +24,6 @@ enum KanbanColumnMode: String, CaseIterable, Hashable, Sendable {
         switch self {
         case .byList: "checklist"
         case .byDueBucket: "calendar.badge.clock"
-        case .byStarred: "star"
         case .byTag: "number"
         }
     }
@@ -47,7 +44,6 @@ struct KanbanColumn: Identifiable, Equatable {
 enum KanbanDropIntent: Equatable {
     case moveToList(listId: String)
     case setDue(date: Date?)
-    case setStarred(starred: Bool)
     case setTag(add: String?, remove: String?)
 
     // Converts the drop intent + a dragged task into a concrete operation
@@ -58,8 +54,6 @@ enum KanbanDropIntent: Equatable {
             return .moveToList(taskId: taskId, targetListId: listId)
         case .setDue(let date):
             return .setDue(taskId: taskId, dueDate: date)
-        case .setStarred(let starred):
-            return .setStarred(taskId: taskId, starred: starred)
         case .setTag(let add, let remove):
             if let add { return .addTag(taskId: taskId, tag: add) }
             if let remove { return .removeTag(taskId: taskId, tag: remove) }
@@ -87,8 +81,6 @@ enum KanbanGrouping {
             return byList(tasks: visible, taskLists: taskLists)
         case .byDueBucket:
             return byDueBucket(tasks: visible, now: now, calendar: calendar)
-        case .byStarred:
-            return byStarred(tasks: visible)
         case .byTag:
             return byTag(tasks: visible)
         }
@@ -165,28 +157,6 @@ enum KanbanGrouping {
         }
     }
 
-    // MARK: - by starred
-
-    private static func byStarred(tasks: [TaskMirror]) -> [KanbanColumn] {
-        let (starred, notStarred) = tasks.partitioned { TaskStarring.isStarred($0) }
-        return [
-            KanbanColumn(
-                id: "star-yes",
-                title: "Starred",
-                subtitle: "\(starred.count) task\(starred.count == 1 ? "" : "s")",
-                tasks: starred.sorted(by: sortKey),
-                dropIntent: .setStarred(starred: true)
-            ),
-            KanbanColumn(
-                id: "star-no",
-                title: "Not starred",
-                subtitle: "\(notStarred.count) task\(notStarred.count == 1 ? "" : "s")",
-                tasks: notStarred.sorted(by: sortKey),
-                dropIntent: .setStarred(starred: false)
-            )
-        ]
-    }
-
     // MARK: - by tag
 
     // Groups tasks by their #tag tokens. A task appears in every column
@@ -245,17 +215,5 @@ enum KanbanGrouping {
         case (nil, nil): break
         }
         return a.title.localizedCaseInsensitiveCompare(b.title) == .orderedAscending
-    }
-}
-
-private extension Array {
-    // Returns (matches, nonMatches) in a single pass.
-    func partitioned(_ predicate: (Element) -> Bool) -> ([Element], [Element]) {
-        var yes: [Element] = []
-        var no: [Element] = []
-        for item in self {
-            if predicate(item) { yes.append(item) } else { no.append(item) }
-        }
-        return (yes, no)
     }
 }

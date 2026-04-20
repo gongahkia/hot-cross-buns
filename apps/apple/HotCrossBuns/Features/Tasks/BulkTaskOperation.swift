@@ -3,7 +3,7 @@ import Foundation
 // Typed operations the bulk-action surface can queue. The optimizer normalises
 // a user-issued batch into a minimal set of Google Tasks API calls; the AppModel
 // executor then dispatches each through the existing optimistic-write paths
-// (setTaskCompleted, updateTask, deleteTask, moveTaskToList, toggleTaskStar).
+// (setTaskCompleted, updateTask, deleteTask, moveTaskToList).
 //
 // Why a typed intermediate representation rather than ad-hoc loops:
 //  - Dedup: `addTag("foo")` + `removeTag("foo")` on the same task nets to zero.
@@ -17,14 +17,13 @@ enum BulkTaskOperation: Equatable, Hashable, Sendable {
     case delete(taskId: String)
     case setDue(taskId: String, dueDate: Date?) // nil = clear due date
     case moveToList(taskId: String, targetListId: String)
-    case setStarred(taskId: String, starred: Bool)
     case addTag(taskId: String, tag: String)
     case removeTag(taskId: String, tag: String)
 
     var taskId: String {
         switch self {
         case .complete(let id), .reopen(let id), .delete(let id): return id
-        case .setDue(let id, _), .moveToList(let id, _), .setStarred(let id, _): return id
+        case .setDue(let id, _), .moveToList(let id, _): return id
         case .addTag(let id, _), .removeTag(let id, _): return id
         }
     }
@@ -37,7 +36,6 @@ enum BulkTaskOperation: Equatable, Hashable, Sendable {
         case .delete: return "delete"
         case .setDue(_, let d): return d == nil ? "clear due" : "set due"
         case .moveToList: return "move list"
-        case .setStarred(_, let s): return s ? "star" : "unstar"
         case .addTag(_, let t): return "+#\(t)"
         case .removeTag(_, let t): return "−#\(t)"
         }
@@ -58,12 +56,12 @@ enum BulkTaskOptimizer {
     // Invariants:
     //  - For the same task, `.delete` dominates (everything else for that task
     //    is dropped; `.delete` moves to the head of that task's subsequence).
-    //  - Per scalar dimension (completion, due, list, star), last-wins.
+    //  - Per scalar dimension (completion, due, list), last-wins.
     //  - Tag add+remove of the same tag net to zero; repeated add/remove
     //    collapse to last-wins.
     //  - No-op against current state is dropped: completing an already-completed
-    //    task, setting due to the same day, starring an already-starred task,
-    //    adding a tag that already exists, removing a tag that doesn't.
+    //    task, setting due to the same day, adding a tag that already exists,
+    //    removing a tag that doesn't.
     //  - Ops whose taskId is missing from `currentTasks` are dropped — no
     //    phantom API calls against deleted / unmirrored tasks.
     //  - Output order is deterministic (by taskId, then op kind) so tests and
@@ -120,7 +118,6 @@ enum BulkTaskOptimizer {
         var finalCompleted: Bool?
         var finalDue: (set: Bool, date: Date?) = (false, nil)
         var finalMoveList: String?
-        var finalStarred: Bool?
         var tagIntents: [String: Bool] = [:] // tag (lowercased) → true=add, false=remove; last wins
 
         for op in ops {
@@ -130,7 +127,6 @@ enum BulkTaskOptimizer {
             case .delete: break // handled by caller
             case .setDue(_, let d): finalDue = (true, d)
             case .moveToList(_, let target): finalMoveList = target
-            case .setStarred(_, let s): finalStarred = s
             case .addTag(_, let t): tagIntents[t.lowercased()] = true
             case .removeTag(_, let t): tagIntents[t.lowercased()] = false
             }
@@ -163,13 +159,6 @@ enum BulkTaskOptimizer {
                 kept.append(.moveToList(taskId: current.id, targetListId: target))
             }
         }
-        if let s = finalStarred {
-            if TaskStarring.isStarred(current) == s {
-                // no-op — drop
-            } else {
-                kept.append(.setStarred(taskId: current.id, starred: s))
-            }
-        }
 
         let currentTags = Set(TagExtractor.tags(in: current.title).map { $0.lowercased() })
         for (tag, wantAdd) in tagIntents {
@@ -190,9 +179,8 @@ enum BulkTaskOptimizer {
         case .moveToList: rank = 1
         case .complete, .reopen: rank = 2
         case .setDue: rank = 3
-        case .setStarred: rank = 4
-        case .addTag: rank = 5
-        case .removeTag: rank = 6
+        case .addTag: rank = 4
+        case .removeTag: rank = 5
         }
         // Pad rank to preserve numeric ordering as string sort.
         return "\(op.taskId)_\(String(format: "%02d", rank))"

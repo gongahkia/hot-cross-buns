@@ -1113,7 +1113,7 @@ private struct MenuBarPinnedFilters: View {
                             Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                                 .hcbFont(.caption)
                                 .foregroundStyle(task.isCompleted ? AppColor.moss : AppColor.ember)
-                            Text(TagExtractor.stripped(from: TaskStarring.displayTitle(for: task)))
+                            Text(TagExtractor.stripped(from: task.title))
                                 .hcbFont(.caption)
                                 .lineLimit(1)
                             Spacer()

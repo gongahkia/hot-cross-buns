@@ -35,7 +35,6 @@ struct TaskBulkActionBar: View {
             completionMenu
             rescheduleMenu
             moveMenu
-            starButton
             tagMenu
             Divider().hcbScaledFrame(height: 20)
             Button(role: .destructive) {
@@ -145,22 +144,6 @@ struct TaskBulkActionBar: View {
             Label("Move", systemImage: "arrow.right.circle")
         }
         .disabled(isMutating || model.taskLists.isEmpty)
-    }
-
-    private var starButton: some View {
-        Menu {
-            Button("Star") {
-                Task { await runBulk(tasks.map { .setStarred(taskId: $0.id, starred: true) }) }
-            }
-            .disabled(tasks.allSatisfy { TaskStarring.isStarred($0) })
-            Button("Unstar") {
-                Task { await runBulk(tasks.map { .setStarred(taskId: $0.id, starred: false) }) }
-            }
-            .disabled(tasks.allSatisfy { TaskStarring.isStarred($0) == false })
-        } label: {
-            Label("Star", systemImage: "star")
-        }
-        .disabled(isMutating)
     }
 
     private var tagMenu: some View {

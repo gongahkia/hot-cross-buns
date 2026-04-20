@@ -8,9 +8,8 @@ final class AdvancedSearchParserTests: XCTestCase {
     }
 
     func testBareKeywords() {
-        let q = AdvancedSearchParser.parse("overdue starred completed")
+        let q = AdvancedSearchParser.parse("overdue completed")
         XCTAssertTrue(q.requireOverdue)
-        XCTAssertTrue(q.requireStarred)
         XCTAssertTrue(q.requireCompleted)
         XCTAssertTrue(q.freeText.isEmpty)
     }
@@ -134,13 +133,6 @@ final class AdvancedSearchMatcherTests: XCTestCase {
         XCTAssertFalse(matches(.task(notOverdue), "overdue"))
     }
 
-    func testStarredFilter() {
-        let starred = task(id: "a", title: "⭐ important")
-        let notStarred = task(id: "b", title: "plain")
-        XCTAssertTrue(matches(.task(starred), "starred"))
-        XCTAssertFalse(matches(.task(notStarred), "starred"))
-    }
-
     func testListByTitle() {
         let t = task(id: "a", list: "L1")
         XCTAssertTrue(matches(.task(t), "list:Work"))
@@ -192,7 +184,7 @@ final class AdvancedSearchMatcherTests: XCTestCase {
     func testEventsDontMatchTaskOnlyFilters() {
         let e = event(id: "a")
         XCTAssertFalse(matches(.event(e), "overdue"))
-        XCTAssertFalse(matches(.event(e), "starred"))
+        XCTAssertFalse(matches(.event(e), "completed"))
         XCTAssertFalse(matches(.event(e), "list:Work"))
         XCTAssertFalse(matches(.event(e), "tag:deep"))
     }

@@ -159,27 +159,6 @@ final class BulkTaskOptimizerTests: XCTestCase {
         XCTAssertEqual(result.droppedCount, 1)
     }
 
-    // MARK: - starred
-
-    func testStarAlreadyStarredDropped() {
-        let t = task(id: "a", title: "⭐ Hi")
-        let result = BulkTaskOptimizer.optimize([.setStarred(taskId: "a", starred: true)], currentTasks: [t], calendar: calendar)
-        XCTAssertTrue(result.operations.isEmpty)
-        XCTAssertEqual(result.droppedCount, 1)
-    }
-
-    func testStarUnstarLastWins() {
-        let t = task(id: "a", title: "Hi")
-        let ops: [BulkTaskOperation] = [
-            .setStarred(taskId: "a", starred: true),
-            .setStarred(taskId: "a", starred: false)
-        ]
-        let result = BulkTaskOptimizer.optimize(ops, currentTasks: [t], calendar: calendar)
-        // Last-wins unstar; current is already unstarred → no-op → drop.
-        XCTAssertTrue(result.operations.isEmpty)
-        XCTAssertEqual(result.droppedCount, 2)
-    }
-
     // MARK: - tags
 
     func testAddRemoveSameTagNetsZeroWhenAbsent() {
@@ -265,8 +244,7 @@ final class BulkTaskOptimizerTests: XCTestCase {
             .setDue(taskId: "a", dueDate: day(5)),
             .addTag(taskId: "a", tag: "x"),
             .removeTag(taskId: "a", tag: "x"),
-            .moveToList(taskId: "a", targetListId: "L1"),
-            .setStarred(taskId: "a", starred: false)
+            .moveToList(taskId: "a", targetListId: "L1")
         ]
         let result = BulkTaskOptimizer.optimize(ops, currentTasks: [t], calendar: calendar)
         XCTAssertEqual(result.operations.count + result.droppedCount, ops.count)

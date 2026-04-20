@@ -97,7 +97,7 @@ enum TimelineLayout {
             out.append(TimelineItem(
                 id: "task-\(task.id)",
                 kind: .task(task),
-                title: TaskStarring.displayTitle(for: task),
+                title: task.title,
                 startDate: startOfDay,
                 endDate: endExclusive,
                 isAllDay: true

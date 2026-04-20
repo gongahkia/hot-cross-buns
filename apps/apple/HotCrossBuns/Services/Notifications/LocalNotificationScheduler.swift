@@ -158,7 +158,7 @@ actor LocalNotificationScheduler {
 
             let content = UNMutableNotificationContent()
             content.title = titleForOffset(offsetDays: offsetDays)
-            content.body = TaskStarring.displayTitle(for: task)
+            content.body = task.title
             content.sound = .default
 
             let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)

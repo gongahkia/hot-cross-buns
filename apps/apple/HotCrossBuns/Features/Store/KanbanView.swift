@@ -5,7 +5,7 @@ import SwiftUI
 // via the column's KanbanDropIntent.
 //
 // Post-refactor responsibilities:
-//  - Group-by picker (byList | byDueBucket | byStarred | byTag)
+//  - Group-by picker (byList | byDueBucket | byTag)
 //  - Column header dot + ⋯ menu (rename / delete / clear-completed), only
 //    shown in `byList` mode where a header maps 1:1 to a Google task list.
 //  - Empty-space tap inside a column → QuickCreatePopover in task-only mode
@@ -287,12 +287,7 @@ private struct KanbanCardView: View {
                         .hcbFont(.subheadline)
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 4) {
-                            if TaskStarring.isStarred(task) {
-                                Image(systemName: "star.fill")
-                                    .hcbFont(.caption2)
-                                    .foregroundStyle(.yellow)
-                            }
-                            Text(TagExtractor.stripped(from: TaskStarring.displayTitle(for: task)))
+                            Text(TagExtractor.stripped(from: task.title))
                                 .hcbFont(.subheadline, weight: .medium)
                                 .foregroundStyle(AppColor.ink)
                                 .lineLimit(2)

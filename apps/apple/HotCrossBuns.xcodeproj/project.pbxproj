@@ -70,14 +70,12 @@
 		523A574D6D48B12B4587E086 /* CalendarHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2263C896865029DCEC3A53B /* CalendarHomeView.swift */; };
 		532307C515FAB37584D4B968 /* ExporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A247BD19F3FCC74244C279E /* ExporterTests.swift */; };
 		53E6931013FCFB5C1A0858EE /* UndoAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22EC7CE0BFC4074C6B02F03B /* UndoAction.swift */; };
-		565F287CFA9B4102EE96A9DB /* TaskStarring.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0EF302AF854336F06AFD4BE /* TaskStarring.swift */; };
 		5BBDE6D66EBF10AFEFFA71F9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B80F522C53466505A421ECE /* AppDelegate.swift */; };
 		5C9E280691B2F3198FF32835 /* SmartListFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18883C2377F57F108328C03 /* SmartListFilter.swift */; };
 		61E276C2555F3F36F976E697 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CDBE097FFF4A48F2BCDE315 /* DiagnosticsView.swift */; };
 		63F95290D2E706E05C1A9029 /* LocationFullView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADEF77C927632A04783BF515 /* LocationFullView.swift */; };
 		64E4A1BA0CF04097F8D1C9CB /* GoToDateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9EE90AE73008CDCBB548450 /* GoToDateSheet.swift */; };
 		6781A77091B43C2BBAAEC36A /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 8630D5999C10C8D0FF9DB5A1 /* GoogleSignInSwift */; };
-		69F1DEC55EB9E9C72799607D /* TaskStarringTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DE3C9162F20EE6482E67FCB /* TaskStarringTests.swift */; };
 		6BDBD1855A8378E737D6EE21 /* MenuBarExtraScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F6D2A903ACFF04A22993160 /* MenuBarExtraScene.swift */; };
 		6C767E7BC697FE433BF5AAA2 /* HCBDeepLinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 203E4B8B99B16857BB9E1C19 /* HCBDeepLinkRouter.swift */; };
 		6CC0289227C39CE602E5B1F3 /* HCBCacheKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = C52D7AE4A4A66334A5044478 /* HCBCacheKeychain.swift */; };
@@ -272,7 +270,6 @@
 		4D029E6660BF1FF8C9C2E34E /* MarkdownHTML.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownHTML.swift; sourceTree = "<group>"; };
 		4D35E61D1B3B91A6E21DCC27 /* LocalCacheStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCacheStore.swift; sourceTree = "<group>"; };
 		4D768DB4E22AFC1D29F84EB1 /* BackoffPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffPolicyTests.swift; sourceTree = "<group>"; };
-		4DE3C9162F20EE6482E67FCB /* TaskStarringTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskStarringTests.swift; sourceTree = "<group>"; };
 		515AE22366D9FEE4138091FF /* GoogleCalendarClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleCalendarClient.swift; sourceTree = "<group>"; };
 		5219CCB9C481FFD04A218A66 /* DayGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayGridView.swift; sourceTree = "<group>"; };
 		52C304D2E832B788B8FAF20E /* RecurrenceRule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceRule.swift; sourceTree = "<group>"; };
@@ -380,7 +377,6 @@
 		EDB9F19FB93CB9C7FEC4EF32 /* LocationMapPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationMapPreview.swift; sourceTree = "<group>"; };
 		EF455BE4BA241A0C46869EF5 /* RecurrenceRuleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceRuleTests.swift; sourceTree = "<group>"; };
 		F03D73411CAA330A1556C797 /* TagExtractorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagExtractorTests.swift; sourceTree = "<group>"; };
-		F0EF302AF854336F06AFD4BE /* TaskStarring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskStarring.swift; sourceTree = "<group>"; };
 		F18883C2377F57F108328C03 /* SmartListFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartListFilter.swift; sourceTree = "<group>"; };
 		F2263C896865029DCEC3A53B /* CalendarHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarHomeView.swift; sourceTree = "<group>"; };
 		F2DAF9EC4D904A84E8BC06FC /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
@@ -693,7 +689,6 @@
 				AB94773FE862AC2922886257 /* TaskDraftTests.swift */,
 				DAC3322BC3706CFF61AE52DB /* TaskHierarchyTests.swift */,
 				49590AFCCD9974DC7CB5123A /* TaskReminderMarkersTests.swift */,
-				4DE3C9162F20EE6482E67FCB /* TaskStarringTests.swift */,
 				8040416B857E517A45E84B7B /* TimelineLayoutTests.swift */,
 				6D0BEF93C5D0178B8379322A /* Support */,
 			);
@@ -751,7 +746,6 @@
 				165DF0F051694E742FB59FB7 /* TaskMirror.swift */,
 				DD2813E1AA5D3C77A5B6B41E /* TaskRecurrenceMarkers.swift */,
 				BC17ECA270BCECA15B26A6D2 /* TaskReminderMarkers.swift */,
-				F0EF302AF854336F06AFD4BE /* TaskStarring.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -1123,7 +1117,6 @@
 				8EE90A74A634E8BAC7DC5C44 /* TaskMirror.swift in Sources */,
 				B642E9E46E226784A49868B4 /* TaskRecurrenceMarkers.swift in Sources */,
 				0E508E9852C85C2E60A64756 /* TaskReminderMarkers.swift in Sources */,
-				565F287CFA9B4102EE96A9DB /* TaskStarring.swift in Sources */,
 				D469641DB76139A358F0A8CB /* TasksView.swift in Sources */,
 				0D378235C8E06E9BECC9C81D /* TemplatesSection.swift in Sources */,
 				D280DABA928A2B86751240A5 /* TimelineLayout.swift in Sources */,
@@ -1182,7 +1175,6 @@
 				93306BD12C07C443CE082AFB /* TaskDraftTests.swift in Sources */,
 				D11457A3B187BDE2CD571614 /* TaskHierarchyTests.swift in Sources */,
 				A81AD01F6BC5BAF8F7C15526 /* TaskReminderMarkersTests.swift in Sources */,
-				69F1DEC55EB9E9C72799607D /* TaskStarringTests.swift in Sources */,
 				AD29132826882A5AB9D4ADCC /* TimelineLayoutTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

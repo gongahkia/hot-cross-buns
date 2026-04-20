@@ -668,11 +668,6 @@ final class AppModel {
         }
     }
 
-    func toggleTaskStar(_ task: TaskMirror) async -> Bool {
-        let newTitle = TaskStarring.toggledTitle(for: task)
-        return await updateTask(task, title: newTitle, notes: task.notes, dueDate: task.dueDate)
-    }
-
     func setTaskCompleted(_ isCompleted: Bool, task: TaskMirror) async -> Bool {
         guard requireAccount(mutationDescription: "updating tasks") else {
             return false
@@ -1901,9 +1896,6 @@ final class AppModel {
         case .delete: return await deleteTask(task)
         case .setDue(_, let dueDate): return await updateTask(task, title: task.title, notes: task.notes, dueDate: dueDate)
         case .moveToList(_, let targetListId): return await moveTaskToList(task, toTaskListID: targetListId)
-        case .setStarred(_, let starred):
-            if TaskStarring.isStarred(task) == starred { return true }
-            return await toggleTaskStar(task)
         case .addTag(_, let tag): return await addTag(tag, to: task)
         case .removeTag(_, let tag): return await removeTag(tag, from: task)
         }
