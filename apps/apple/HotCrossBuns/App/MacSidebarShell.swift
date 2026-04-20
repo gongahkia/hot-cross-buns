@@ -474,6 +474,7 @@ struct MacSidebarShell: View {
 
     private func configureCommandActions() {
         appCommandActions.newTask = { presentSheet(.quickAddTask, on: .store) }
+        appCommandActions.newNote = { presentSheet(.quickCreateNote(listID: nil), on: .notes) }
         appCommandActions.newEvent = { presentSheet(.addEvent, on: .calendar) }
         appCommandActions.refresh = { Task { await model.refreshNow() } }
         appCommandActions.forceResync = { Task { await model.forceFullResync() } }

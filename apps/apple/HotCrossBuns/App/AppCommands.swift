@@ -9,6 +9,7 @@ extension Notification.Name {
 @MainActor
 final class AppCommandActions {
     var newTask: () -> Void = {}
+    var newNote: () -> Void = {}
     var newEvent: () -> Void = {}
     var refresh: () -> Void = {}
     var forceResync: () -> Void = {}
@@ -34,6 +35,7 @@ final class AppCommandActions {
     func execute(_ command: HCBShortcutCommand) {
         switch command {
         case .newTask: newTask()
+        case .newNote: newNote()
         case .newEvent: newEvent()
         case .commandPalette: openCommandPalette()
         case .quickSwitcher: openQuickSwitcher()
@@ -85,6 +87,10 @@ struct AppCommands: Commands {
             let newTask = binding(.newTask)
             Button("New Task") { actions?.newTask() }
                 .keyboardShortcut(newTask.key.keyEquivalent, modifiers: newTask.modifiers.eventModifiers)
+                .disabled(actions == nil)
+            let newNote = binding(.newNote)
+            Button("New Note") { actions?.newNote() }
+                .keyboardShortcut(newNote.key.keyEquivalent, modifiers: newNote.modifiers.eventModifiers)
                 .disabled(actions == nil)
             let newEvent = binding(.newEvent)
             Button("New Event") { actions?.newEvent() }
