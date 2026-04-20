@@ -626,28 +626,60 @@ struct QuickCreatePopover: View {
     // MARK: - Bottom bar
 
     private var bottomBar: some View {
-        HStack(spacing: 10) {
-            if model.settings.quickCreateExpandedByDefault == false {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.14)) { showOptionalFields.toggle() }
-                } label: {
-                    Label(showOptionalFields ? "Less" : "More", systemImage: showOptionalFields ? "chevron.up" : "plus")
+        VStack(spacing: 0) {
+            // In note-mode, flipping the date toggle on demotes this from a
+            // "note" (undated TaskMirror, shows on the Notes tab) to a "task"
+            // (dated TaskMirror, shows on the Tasks tab). The two tabs are a
+            // client-side lens over the same Google data, so there's no
+            // conversion happening — but the sheet label won't match what
+            // the user ends up with. Make that explicit.
+            if noteMode && hasDueDate {
+                HStack(spacing: 8) {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(AppColor.blue)
+                    Text("This will be created as a task — with a due date it'll show up in the Tasks tab, not Notes.")
                         .hcbFont(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
                 }
-                .buttonStyle(.borderless)
-                .help("Compact mode — toggle the setting in Preferences to default to detailed")
+                .hcbScaledPadding(.horizontal, 12)
+                .hcbScaledPadding(.vertical, 8)
+                .background(AppColor.blue.opacity(0.08))
             }
-            Spacer(minLength: 8)
-            Button("Cancel") { dismiss() }
-                .keyboardShortcut(.cancelAction)
-            Button("Create") { Task { await save() } }
-                .buttonStyle(.borderedProminent)
-                .tint(AppColor.ember)
-                .keyboardShortcut(.defaultAction)
-                .disabled(canCreate == false)
+            HStack(spacing: 10) {
+                if model.settings.quickCreateExpandedByDefault == false {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.14)) { showOptionalFields.toggle() }
+                    } label: {
+                        Label(showOptionalFields ? "Less" : "More", systemImage: showOptionalFields ? "chevron.up" : "plus")
+                            .hcbFont(.caption)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Compact mode — toggle the setting in Preferences to default to detailed")
+                }
+                Spacer(minLength: 8)
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button(primaryActionLabel) { Task { await save() } }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AppColor.ember)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(canCreate == false)
+            }
+            .hcbScaledPadding(.horizontal, 12)
+            .hcbScaledPadding(.vertical, 10)
         }
-        .hcbScaledPadding(.horizontal, 12)
-        .hcbScaledPadding(.vertical, 10)
+    }
+
+    // Primary-button label tracks the actual outcome. In note mode we flip
+    // between "Create Note" (undated) and "Create Task" (dated) so the user
+    // isn't surprised by where the thing lands.
+    private var primaryActionLabel: String {
+        if noteMode {
+            return hasDueDate ? "Create Task" : "Create Note"
+        }
+        return "Create"
     }
 
     @ViewBuilder

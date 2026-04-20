@@ -72,6 +72,24 @@ struct CalendarHomeView: View {
             .hcbSurface(.calendarGrid) // §6.11 — covers day/week/month/timeline/agenda subtree
         }
         .appBackground()
+        // Adding a .toolbar here serves two jobs: (a) provides the + button
+        // for event/task quick-create parity with the Tasks and Notes tabs,
+        // (b) gets SwiftUI to render the native macOS titlebar so the
+        // traffic-light cluster integrates with the sidebar top the same way
+        // Tasks/Notes do — CalendarHomeView previously had no .toolbar, so
+        // the window used a borderless titlebar and the sidebar appeared to
+        // start below the lights on Calendar but above them on Tasks/Notes.
+        .toolbar {
+            ToolbarItemGroup {
+                Button {
+                    router.present(.quickCreate(Date(), allDay: true))
+                } label: {
+                    Label("New Event or Task", systemImage: "plus")
+                }
+                .help("Open the quick-create popover to add an event or task")
+                .disabled(model.account == nil)
+            }
+        }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             handleICSDrop(providers)
         }
