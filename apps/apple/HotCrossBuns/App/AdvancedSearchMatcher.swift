@@ -10,7 +10,7 @@ import Foundation
 // inapplicable entities. Example: `attendee:alice` is an event-only filter,
 // so a task is skipped — it doesn't match, but the filter doesn't
 // incorrectly fail against it. Inspect-ability: power users can still mix
-// "starred list:home" and get tasks back, because event-only fields only
+// "list:home completed" and get tasks back, because event-only fields only
 // prune events.
 enum AdvancedSearchMatcher {
     static func matches(
@@ -44,11 +44,10 @@ enum AdvancedSearchMatcher {
         if query.attendeeMatch != nil { return false }
         if query.requireLocation { return false }
 
-        // title:X — substring over display title (strip tags for fairness).
+        // title:X — substring over title.
         if query.titleContains.isEmpty == false {
-            let display = TaskStarring.displayTitle(for: task)
             for needle in query.titleContains {
-                if display.localizedCaseInsensitiveContains(needle) == false { return false }
+                if task.title.localizedCaseInsensitiveContains(needle) == false { return false }
             }
         }
 
@@ -74,7 +73,6 @@ enum AdvancedSearchMatcher {
 
         if query.requireNotes, task.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return false }
         if query.requireDue, task.dueDate == nil { return false }
-        if query.requireStarred, TaskStarring.isStarred(task) == false { return false }
         if query.requireCompleted, task.isCompleted == false { return false }
         if query.requireOverdue {
             guard let due = task.dueDate else { return false }
@@ -95,7 +93,6 @@ enum AdvancedSearchMatcher {
         // Task-only filters — if any is set, events don't qualify.
         if query.listMatch != nil { return false }
         if query.requireOverdue { return false }
-        if query.requireStarred { return false }
         if query.requireCompleted { return false }
         if query.requireDue { return false }
 
@@ -146,7 +143,7 @@ enum AdvancedSearchMatcher {
         if query.calendarMatch != nil { return false }
         if query.attendeeMatch != nil { return false }
         if query.requireNotes || query.requireLocation || query.requireDue
-            || query.requireStarred || query.requireCompleted || query.requireOverdue { return false }
+            || query.requireCompleted || query.requireOverdue { return false }
 
         if query.titleContains.isEmpty == false {
             for needle in query.titleContains
@@ -163,7 +160,7 @@ enum AdvancedSearchMatcher {
         if query.calendarMatch != nil { return false }
         if query.attendeeMatch != nil { return false }
         if query.requireNotes || query.requireLocation || query.requireDue
-            || query.requireStarred || query.requireCompleted || query.requireOverdue { return false }
+            || query.requireCompleted || query.requireOverdue { return false }
 
         if query.titleContains.isEmpty == false {
             for needle in query.titleContains
@@ -180,7 +177,7 @@ enum AdvancedSearchMatcher {
         if query.calendarMatch != nil { return false }
         if query.attendeeMatch != nil { return false }
         if query.requireNotes || query.requireLocation || query.requireDue
-            || query.requireStarred || query.requireCompleted || query.requireOverdue { return false }
+            || query.requireCompleted || query.requireOverdue { return false }
 
         if query.titleContains.isEmpty == false {
             for needle in query.titleContains

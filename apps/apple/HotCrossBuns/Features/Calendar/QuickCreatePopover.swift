@@ -64,7 +64,6 @@ struct QuickCreatePopover: View {
     @State private var taskDueDate: Date = Date()
     @State private var hasDueDate: Bool = true
     @State private var taskRecurrenceRule: RecurrenceRule?
-    @State private var isStarred: Bool = false
     // Per-section expansion for the task popover (Apple Reminders style).
     // Tapping a card expands it; tapping anywhere outside the card in the
     // popover body collapses it.
@@ -240,16 +239,6 @@ struct QuickCreatePopover: View {
                 .menuStyle(.borderlessButton)
                 .fixedSize()
                 .help("Event color")
-            } else {
-                Button {
-                    isStarred.toggle()
-                } label: {
-                    Image(systemName: isStarred ? "star.fill" : "star")
-                        .hcbFont(.title3)
-                        .foregroundStyle(isStarred ? Color.yellow : .secondary)
-                }
-                .buttonStyle(.plain)
-                .help(isStarred ? "Unstar" : "Star")
             }
         }
     }
@@ -812,11 +801,8 @@ struct QuickCreatePopover: View {
             let notesWithRecurrence = taskRecurrenceRule.map {
                 TaskRecurrenceMarkers.encode(notes: notes, rule: $0)
             } ?? notes
-            // Star convention: emoji prefix on the title, stripped on read
-            // via TaskStarring.displayTitle.
-            let titleWithStar = isStarred ? "⭐ \(trimmed)" : trimmed
             let didCreate = await model.createTask(
-                title: titleWithStar,
+                title: trimmed,
                 notes: notesWithRecurrence,
                 dueDate: hasDueDate ? Calendar.current.startOfDay(for: taskDueDate) : nil,
                 taskListID: listID

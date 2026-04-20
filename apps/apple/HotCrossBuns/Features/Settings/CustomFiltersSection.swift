@@ -79,7 +79,6 @@ struct CustomFiltersSection: View {
             return "DSL"
         }
         var parts: [String] = [filter.dueWindow.title]
-        if filter.starredOnly { parts.append("starred") }
         if filter.includeCompleted { parts.append("+ completed") }
         if filter.taskListIDs.isEmpty == false { parts.append("\(filter.taskListIDs.count) lists") }
         if filter.tagsAny.isEmpty == false { parts.append(filter.tagsAny.map { "#\($0)" }.joined(separator: " ")) }
@@ -134,7 +133,6 @@ private struct CustomFilterEditor: View {
                             cheat("list:Work",         "task belongs to list matching 'Work' (by title or id)")
                             cheat("tag:deep",          "task has #deep tag")
                             cheat("#deep",             "same as tag:deep")
-                            cheat("starred",           "task is starred (bare identifier)")
                             cheat("completed",         "task is completed")
                             cheat("overdue",           "due date is before today")
                             cheat("has:notes",         "notes field non-empty")
@@ -143,12 +141,10 @@ private struct CustomFilterEditor: View {
                             cheat("due:today",         "due today")
                             cheat("due<+7d",           "due within the next 7 days")
                             cheat("due>=2026-01-01",   "due on or after an absolute date")
-                            cheat("-starred",          "NOT starred (unary minus)")
                             cheat("not completed",     "NOT completed")
                             cheat("A AND B",           "both; whitespace also implies AND")
                             cheat("A OR B",            "either")
                             cheat("(A OR B) AND C",    "parentheses group precedence")
-                            cheat("starred:false",     "same as -starred")
                         }
                         .hcbFont(.caption)
                         .foregroundStyle(.secondary)
@@ -171,7 +167,6 @@ private struct CustomFilterEditor: View {
                     Text("Due")
                 }
                 Section {
-                    Toggle("Only starred", isOn: $draft.starredOnly)
                     Toggle("Include completed", isOn: $draft.includeCompleted)
                 } header: {
                     Text("Qualifiers")

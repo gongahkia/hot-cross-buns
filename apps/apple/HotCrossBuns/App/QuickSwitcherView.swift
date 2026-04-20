@@ -28,7 +28,7 @@ enum QuickSwitcherEntity: Hashable, Identifiable {
 
     fileprivate var label: String {
         switch self {
-        case .task(let t): return TagExtractor.stripped(from: TaskStarring.displayTitle(for: t))
+        case .task(let t): return TagExtractor.stripped(from: t.title)
         case .event(let e): return e.summary
         case .taskList(let l): return l.title
         case .calendar(let c): return c.summary

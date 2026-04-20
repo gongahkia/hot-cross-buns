@@ -155,13 +155,13 @@ final class QueryDSLTests: XCTestCase {
     }
 
     func testParseImplicitAnd() {
-        let q = compile("tag:work starred")
-        XCTAssertEqual(q.ast, .and([.predicate(.tag("work")), .predicate(.starred)]))
+        let q = compile("tag:work completed")
+        XCTAssertEqual(q.ast, .and([.predicate(.tag("work")), .predicate(.completed)]))
     }
 
     func testParseExplicitAnd() {
-        let q = compile("tag:work AND starred")
-        XCTAssertEqual(q.ast, .and([.predicate(.tag("work")), .predicate(.starred)]))
+        let q = compile("tag:work AND completed")
+        XCTAssertEqual(q.ast, .and([.predicate(.tag("work")), .predicate(.completed)]))
     }
 
     func testParseOr() {
@@ -186,8 +186,8 @@ final class QueryDSLTests: XCTestCase {
     }
 
     func testUnaryMinusNegates() {
-        let q = compile("-starred")
-        XCTAssertEqual(q.ast, .not(.predicate(.starred)))
+        let q = compile("-completed")
+        XCTAssertEqual(q.ast, .not(.predicate(.completed)))
     }
 
     func testNotKeyword() {
@@ -196,12 +196,12 @@ final class QueryDSLTests: XCTestCase {
     }
 
     func testBooleanValueFalseEquivalentToNegation() {
-        let q = compile("starred:false")
-        XCTAssertEqual(q.ast, .not(.predicate(.starred)))
+        let q = compile("completed:false")
+        XCTAssertEqual(q.ast, .not(.predicate(.completed)))
     }
 
     func testBooleanValueTrueEquivalentToBare() {
-        XCTAssertEqual(compile("starred:true").ast, compile("starred").ast)
+        XCTAssertEqual(compile("completed:true").ast, compile("completed").ast)
     }
 
     func testHasNotesDueTag() {
@@ -310,12 +310,6 @@ final class QueryDSLTests: XCTestCase {
         XCTAssertFalse(q.matches(task(id: "c", title: "focus"), context: ctx()))
     }
 
-    func testStarredPredicate() {
-        let q = compile("starred")
-        XCTAssertTrue(q.matches(task(id: "a", title: "⭐ Important"), context: ctx()))
-        XCTAssertFalse(q.matches(task(id: "b", title: "Ordinary"), context: ctx()))
-    }
-
     func testCompletedPredicate() {
         let q = compile("completed")
         XCTAssertTrue(q.matches(task(id: "a", completed: true), context: ctx()))
@@ -394,36 +388,36 @@ final class QueryDSLTests: XCTestCase {
     }
 
     func testAndRequiresAll() {
-        let q = compile("tag:work AND starred")
-        XCTAssertTrue(q.matches(task(id: "a", title: "⭐ x #work"), context: ctx()))
-        XCTAssertFalse(q.matches(task(id: "b", title: "x #work"), context: ctx())) // not starred
-        XCTAssertFalse(q.matches(task(id: "c", title: "⭐ x"), context: ctx()))     // no tag
+        let q = compile("tag:work AND completed")
+        XCTAssertTrue(q.matches(task(id: "a", title: "x #work", completed: true), context: ctx()))
+        XCTAssertFalse(q.matches(task(id: "b", title: "x #work"), context: ctx())) // not completed
+        XCTAssertFalse(q.matches(task(id: "c", completed: true), context: ctx()))  // no tag
     }
 
     func testOrShortCircuit() {
-        let q = compile("starred OR completed")
-        XCTAssertTrue(q.matches(task(id: "a", title: "⭐ x"), context: ctx()))
+        let q = compile("overdue OR completed")
+        XCTAssertTrue(q.matches(task(id: "a", due: day(-1)), context: ctx()))
         XCTAssertTrue(q.matches(task(id: "b", completed: true), context: ctx()))
         XCTAssertFalse(q.matches(task(id: "c"), context: ctx()))
     }
 
     func testParenGroupsAffectEvaluation() {
-        let q = compile("(starred OR completed) AND tag:work")
-        XCTAssertTrue(q.matches(task(id: "a", title: "⭐ x #work"), context: ctx()))
+        let q = compile("(overdue OR completed) AND tag:work")
+        XCTAssertTrue(q.matches(task(id: "a", title: "x #work", due: day(-1)), context: ctx()))
         XCTAssertTrue(q.matches(task(id: "b", title: "x #work", completed: true), context: ctx()))
         XCTAssertFalse(q.matches(task(id: "c", title: "x #work"), context: ctx()))
-        XCTAssertFalse(q.matches(task(id: "d", title: "⭐ x"), context: ctx())) // no tag
+        XCTAssertFalse(q.matches(task(id: "d", due: day(-1)), context: ctx())) // no tag
     }
 
     func testRealisticQueryFromTodoSpec() {
         let lists = [TaskListMirror(id: "L1", title: "Home")]
-        let q = compile("list:\"Home\" AND (tag:deep OR tag:focus) AND due<+7d AND -starred AND -completed")
-        // Match: list Home, tagged deep, due in 5 days, not starred, not completed
+        let q = compile("list:\"Home\" AND (tag:deep OR tag:focus) AND due<+7d AND -completed")
+        // Match: list Home, tagged deep, due in 5 days, not completed
         let m = task(id: "a", title: "x #deep", list: "L1", due: day(5))
         XCTAssertTrue(q.matches(m, context: ctx(taskLists: lists)))
 
-        // Fail: starred
-        let f1 = task(id: "b", title: "⭐ x #deep", list: "L1", due: day(5))
+        // Fail: completed
+        let f1 = task(id: "b", title: "x #deep", list: "L1", due: day(5), completed: true)
         XCTAssertFalse(q.matches(f1, context: ctx(taskLists: lists)))
 
         // Fail: due too far
@@ -454,7 +448,7 @@ final class QueryDSLTests: XCTestCase {
     func testCustomFilterMalformedDSLYieldsEmpty() {
         let def = CustomFilterDefinition(name: "q", queryExpression: "weight:5")
         let t1 = task(id: "a")
-        let t2 = task(id: "b", title: "⭐ x")
+        let t2 = task(id: "b", title: "x")
         // Safety invariant: malformed DSL matches NOTHING, never everything.
         let results = def.filter([t1, t2], now: now, calendar: calendar)
         XCTAssertEqual(results, [])
@@ -462,10 +456,10 @@ final class QueryDSLTests: XCTestCase {
     }
 
     func testCustomFilterFallsBackToStructuredWhenNoDSL() {
-        // starredOnly: true — only starred tasks should match.
-        let def = CustomFilterDefinition(name: "s", starredOnly: true)
-        XCTAssertTrue(def.matches(task(id: "a", title: "⭐ Hi"), now: now, calendar: calendar))
-        XCTAssertFalse(def.matches(task(id: "b", title: "hi"), now: now, calendar: calendar))
+        // dueWindow: today — only tasks due today should match.
+        let def = CustomFilterDefinition(name: "t", dueWindow: .today)
+        XCTAssertTrue(def.matches(task(id: "a", due: day(0)), now: now, calendar: calendar))
+        XCTAssertFalse(def.matches(task(id: "b", due: day(1)), now: now, calendar: calendar))
     }
 
     func testDeletedAlwaysExcluded() {
