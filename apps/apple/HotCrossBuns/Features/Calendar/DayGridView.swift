@@ -32,24 +32,21 @@ struct DayGridView: View {
     private var dayStart: Date { calendar.startOfDay(for: anchorDate) }
     private var dayEnd: Date { calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart }
 
+    // Looks up model.eventsByDay (pre-bucketed in rebuildSnapshots) rather
+    // than scanning model.events. Each lookup is O(bucket size) instead of
+    // O(full corpus). Search + past-event filtering apply afterward.
     private var visibleEvents: [CalendarEventMirror] {
-        // Reads model.eventsByCalendar (built once in rebuildSnapshots) and
-        // applies the day-window + past-event hide + search predicates only
-        // on the per-calendar buckets, not the full corpus. Cancelled
-        // events are already excluded at index-build time.
         let now = Date()
-        var base: [CalendarEventMirror] = []
-        for cal in model.calendarSnapshot.selectedCalendars {
-            guard let bucket = model.eventsByCalendar[cal.id] else { continue }
-            for event in bucket {
-                guard event.endDate > dayStart, event.startDate < dayEnd else { continue }
-                if model.settings.shouldHidePastEvent(event, now: now) { continue }
-                base.append(event)
-            }
+        let key = dayStart.timeIntervalSinceReferenceDate
+        let selectedIDs = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
+        let bucket = model.eventsByDay[key] ?? []
+        let filtered = bucket.filter { event in
+            selectedIDs.contains(event.calendarID)
+                && model.settings.shouldHidePastEvent(event, now: now) == false
         }
         let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard q.isEmpty == false else { return base }
-        return base.filter { event in
+        guard q.isEmpty == false else { return filtered }
+        return filtered.filter { event in
             event.summary.localizedCaseInsensitiveContains(q)
                 || event.details.localizedCaseInsensitiveContains(q)
                 || event.location.localizedCaseInsensitiveContains(q)
@@ -64,18 +61,20 @@ struct DayGridView: View {
         visibleEvents.filter { $0.isAllDay == false }.sorted { $0.startDate < $1.startDate }
     }
 
+    // Reads model.tasksByDueDate (pre-bucketed in rebuildSnapshots). The
+    // pre-built index already excludes completed + deleted tasks, so we
+    // only need to intersect with the user's list selection and apply the
+    // overdue-hide setting.
     private var dayTasks: [TaskMirror] {
         let visibleLists: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
             ? model.settings.selectedTaskListIDs
             : Set(model.taskLists.map(\.id))
         let now = Date()
-        return model.tasks.filter { task in
-            guard let due = task.dueDate else { return false }
-            if model.settings.shouldHideCompletedTask(task) { return false }
+        let key = dayStart.timeIntervalSinceReferenceDate
+        let bucket = model.tasksByDueDate[key] ?? []
+        return bucket.filter { task in
             if model.settings.shouldHideOverdueTask(task, now: now, calendar: calendar) { return false }
-            return task.isDeleted == false
-                && visibleLists.contains(task.taskListID)
-                && calendar.isDate(due, inSameDayAs: dayStart)
+            return visibleLists.contains(task.taskListID)
         }
         .sorted { lhs, rhs in
             if lhs.isCompleted != rhs.isCompleted { return lhs.isCompleted == false }
