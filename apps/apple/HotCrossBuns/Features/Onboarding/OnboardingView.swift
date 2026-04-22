@@ -109,7 +109,7 @@ private struct IntroWelcomeView: View {
                 }
             }
             .hcbScaledPadding(28)
-            .cardSurface(cornerRadius: 32)
+            .cardSurface(cornerRadius: 16)
             .hcbScaledPadding(20)
         }
     }
@@ -165,7 +165,7 @@ private struct IntroDetailsView: View {
                 }
             }
             .hcbScaledPadding(28)
-            .cardSurface(cornerRadius: 32)
+            .cardSurface(cornerRadius: 16)
             .hcbScaledPadding(20)
         }
     }
@@ -198,7 +198,7 @@ private struct OnboardingHero: View {
             Text("This setup connects Google, chooses sync behavior, scopes the lists/calendars you care about, and optionally schedules local reminders.")
                 .foregroundStyle(.secondary)
         }
-        .cardSurface(cornerRadius: 32)
+        .cardSurface(cornerRadius: 16)
     }
 }
 
@@ -231,7 +231,7 @@ private struct ConnectGoogleCard: View {
                 scopeFootnote
             }
         }
-        .cardSurface(cornerRadius: 26)
+        .cardSurface(cornerRadius: 14)
     }
 
     private var connectButton: some View {
@@ -272,7 +272,7 @@ private struct SyncPreferenceCard: View {
                 .hcbFont(.footnote)
                 .foregroundStyle(.secondary)
         }
-        .cardSurface(cornerRadius: 26)
+        .cardSurface(cornerRadius: 14)
     }
 
     private var syncModeBinding: Binding<SyncMode> {
@@ -348,7 +348,7 @@ private struct SourceSelectionCard: View {
                 }
             }
         }
-        .cardSurface(cornerRadius: 26)
+        .cardSurface(cornerRadius: 14)
     }
 
     private func taskListBinding(_ id: TaskListMirror.ID) -> Binding<Bool> {
@@ -377,7 +377,7 @@ private struct ReminderPreferenceCard: View {
                 .hcbFont(.footnote)
                 .foregroundStyle(.secondary)
         }
-        .cardSurface(cornerRadius: 26)
+        .cardSurface(cornerRadius: 14)
     }
 
     private var remindersBinding: Binding<Bool> {
@@ -408,7 +408,7 @@ private struct FinishOnboardingCard: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .cardSurface(cornerRadius: 26)
+        .cardSurface(cornerRadius: 14)
     }
 }
 
