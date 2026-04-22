@@ -185,23 +185,6 @@ private struct IntroDetailsView: View {
     }
 }
 
-private struct OnboardingHero: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Google-native planning")
-                .hcbFont(.callout, weight: .semibold)
-                .foregroundStyle(AppColor.moss)
-            Text("Make Tasks and Calendar usable from the Apple devices you already use.")
-                .font(.system(.largeTitle, design: .serif, weight: .bold))
-                .foregroundStyle(AppColor.ink)
-                .fixedSize(horizontal: false, vertical: true)
-            Text("This setup connects Google, chooses sync behavior, scopes the lists/calendars you care about, and optionally schedules local reminders.")
-                .foregroundStyle(.secondary)
-        }
-        .cardSurface(cornerRadius: 16)
-    }
-}
-
 private struct ConnectGoogleCard: View {
     @Environment(AppModel.self) private var model
 
