@@ -778,9 +778,14 @@ struct TaskInspectorView: View {
     }
 
     private func delete() async {
+        // Close the inspector IMMEDIATELY. model.deleteTask strips the task
+        // from the mirror optimistically; while the Google API call is in
+        // flight (can be 5-15s) the inspector's `model.task(id:)` lookup
+        // returns nil and falls to TaskInspectorEmptyState — a momentary
+        // "Select a task" flash. Same pattern as event delete.
         saveTask?.cancel()
-        let didDelete = await model.deleteTask(task)
-        if didDelete { close() }
+        close()
+        _ = await model.deleteTask(task)
     }
 }
 
