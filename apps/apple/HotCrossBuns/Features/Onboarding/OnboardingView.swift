@@ -185,7 +185,12 @@ private struct ConnectGoogleCard: View {
                     .hcbFont(.footnote)
                     .foregroundStyle(.secondary)
             case .authenticating:
-                ProgressView("Opening Google Sign-In")
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Opening Google Sign-In…")
+                        .hcbFont(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             case .failed(let message):
                 Text(message)
                     .hcbFont(.footnote)
