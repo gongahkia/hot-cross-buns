@@ -44,6 +44,10 @@ struct TaskInspectorView: View {
     @Environment(\.routerPath) private var router
     let task: TaskMirror
     let close: () -> Void
+    // Optional. When non-nil, the duplicate banner's "Jump to sibling" menu
+    // reassigns selection via this callback. Tabs that don't want the jump
+    // affordance can pass nil; the banner falls back to a disabled menu item.
+    var jumpToTask: ((TaskMirror.ID) -> Void)? = nil
 
     @State private var draft: TaskDraft
     @State private var saveTask: Task<Void, Never>?
@@ -60,9 +64,14 @@ struct TaskInspectorView: View {
 
     private enum Field: Hashable { case title, notes }
 
-    init(task: TaskMirror, close: @escaping () -> Void) {
+    init(
+        task: TaskMirror,
+        close: @escaping () -> Void,
+        jumpToTask: ((TaskMirror.ID) -> Void)? = nil
+    ) {
         self.task = task
         self.close = close
+        self.jumpToTask = jumpToTask
         _draft = State(initialValue: TaskDraft(task: task))
     }
 
@@ -70,6 +79,7 @@ struct TaskInspectorView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 header
+                duplicateBanner
 
                 if isEditing {
                     TextField("Task title", text: $draft.title, axis: .vertical)
@@ -204,6 +214,73 @@ struct TaskInspectorView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(.ultraThinMaterial)
         )
+    }
+
+    @ViewBuilder
+    private var duplicateBanner: some View {
+        if let groupKey = model.duplicateIndex.groupKey(for: task.id) {
+            let siblingIDs = model.duplicateIndex.siblings(of: task.id)
+            let siblings: [TaskMirror] = siblingIDs.compactMap { model.task(id: $0) }
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.2")
+                        .foregroundStyle(AppColor.ember)
+                    Text(siblings.count == 1
+                        ? "Possible duplicate of 1 other item"
+                        : "Possible duplicate of \(siblings.count) other items")
+                        .hcbFont(.subheadline, weight: .semibold)
+                    Spacer(minLength: 0)
+                }
+                Text("Matched by exact title and notes. Jump to a sibling to compare, delete this one, or dismiss if it's a false positive.")
+                    .hcbFont(.caption)
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    Menu {
+                        if siblings.isEmpty {
+                            Button("No siblings") {}.disabled(true)
+                        } else if jumpToTask == nil {
+                            Button("Jump not available here") {}.disabled(true)
+                        } else {
+                            ForEach(siblings, id: \.id) { sibling in
+                                Button(sibling.title.isEmpty ? "Untitled" : sibling.title) {
+                                    jumpToTask?(sibling.id)
+                                }
+                            }
+                        }
+                    } label: {
+                        Label("Jump to sibling", systemImage: "arrow.turn.up.right")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .buttonStyle(.bordered)
+
+                    Button(role: .destructive) {
+                        isConfirmingDelete = true
+                    } label: {
+                        Label("Delete this", systemImage: "trash")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button {
+                        model.dismissDuplicateGroup(groupKey)
+                    } label: {
+                        Label("Dismiss", systemImage: "checkmark.shield")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+            .hcbScaledPadding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(AppColor.ember.opacity(0.08))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(AppColor.ember.opacity(0.35), lineWidth: 0.8)
+            )
+        }
     }
 
     private var header: some View {

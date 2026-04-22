@@ -371,10 +371,17 @@ struct StoreView: View {
         if selection.count > 1 {
             BulkSelectionInspector(count: selection.count)
         } else if selection.count == 1, let id = selection.first, let task = model.task(id: id) {
-            TaskInspectorView(task: task, close: {
-                selection = []
-                isInspectorPresented = false
-            })
+            TaskInspectorView(
+                task: task,
+                close: {
+                    selection = []
+                    isInspectorPresented = false
+                },
+                jumpToTask: { targetID in
+                    selection = [targetID]
+                    isInspectorPresented = true
+                }
+            )
             .id(task.id) // forces view teardown on task switch so draft @State and its auto-save commit are bound to the correct task. Without this, .onChange(of: task.id) fires AFTER self.task is already the new task, and commitPending writes the outgoing draft onto the incoming task.
         } else {
             TaskInspectorEmptyState()
@@ -819,10 +826,17 @@ struct NotesView: View {
     @ViewBuilder
     private var noteInspectorContent: some View {
         if let id = selectedNoteID, let task = model.task(id: id) {
-            TaskInspectorView(task: task, close: {
-                selectedNoteID = nil
-                isNoteInspectorPresented = false
-            })
+            TaskInspectorView(
+                task: task,
+                close: {
+                    selectedNoteID = nil
+                    isNoteInspectorPresented = false
+                },
+                jumpToTask: { targetID in
+                    selectedNoteID = targetID
+                    isNoteInspectorPresented = true
+                }
+            )
             .id(task.id) // see StoreView.inspectorContent: same cross-task state-bleed fix applies here since Notes reuses TaskInspectorView.
         } else {
             TaskInspectorEmptyState()
