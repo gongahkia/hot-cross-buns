@@ -40,16 +40,16 @@ struct HotCrossBunsApp: App {
 
         // Dedicated Settings scene. macOS wires ⌘, automatically; the menu
         // item lives under the app menu as "Settings…" per the system
-        // convention shown in Apple Calendar and peers. contentSize
-        // keeps the window pinned to the content's own frame so the
-        // user can't stretch it into a 1200pt slab.
+        // convention shown in Apple Calendar and peers. contentMinSize lets
+        // the user resize the window while enforcing the minimum defined
+        // on HCBSettingsWindow's frame.
         Settings {
             HCBSettingsWindow()
                 .environment(appModel)
                 .environment(updater)
                 .environment(networkMonitor)
         }
-        .windowResizability(.contentSize)
+        .windowResizability(.contentMinSize)
 
         MenuBarExtra(isInserted: menuBarInsertedBinding) {
             MenuBarExtraContent()
