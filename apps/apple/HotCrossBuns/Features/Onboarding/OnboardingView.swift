@@ -159,16 +159,15 @@ private struct IntroDetailsView: View {
     }
 
     private func introPoint(icon: String, title: String, body: String) -> some View {
-        HStack(alignment: .top, spacing: 14) {
-            Image(systemName: icon)
-                .hcbFont(.title3)
-                .foregroundStyle(AppColor.ember)
-                .hcbScaledFrame(width: 28, height: 28)
-                .background(Circle().fill(AppColor.ember.opacity(0.15)))
+        Label {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title).hcbFont(.headline)
                 Text(body).hcbFont(.subheadline).foregroundStyle(.secondary)
             }
+        } icon: {
+            Image(systemName: icon)
+                .hcbFont(.title3)
+                .foregroundStyle(.secondary)
         }
     }
 }
