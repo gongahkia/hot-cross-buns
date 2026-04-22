@@ -1024,10 +1024,15 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					045A02CEF69A5B42D8D9ED33 = {
+						DevelopmentTeam = Q2J4QWZLR7;
+					};
 					219B609558AEF0B469CEC407 = {
+						DevelopmentTeam = Q2J4QWZLR7;
 						ProvisioningStyle = Automatic;
 					};
 					58224F0E9BC6A32F6D50A414 = {
+						DevelopmentTeam = Q2J4QWZLR7;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -1283,7 +1288,6 @@
 				CODE_SIGN_ENTITLEMENTS = HotCrossBuns/Support/HotCrossBuns.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				INFOPLIST_FILE = "HotCrossBuns/Support/Info-macOS.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1364,7 +1368,6 @@
 				CODE_SIGN_ENTITLEMENTS = HotCrossBunsShareExtension/HotCrossBunsShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				INFOPLIST_FILE = HotCrossBunsShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Hot Cross Buns";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1382,7 +1385,6 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -1400,7 +1402,6 @@
 				CODE_SIGN_ENTITLEMENTS = HotCrossBunsShareExtension/HotCrossBunsShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				INFOPLIST_FILE = HotCrossBunsShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Hot Cross Buns";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1489,7 +1490,6 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -1508,7 +1508,6 @@
 				CODE_SIGN_ENTITLEMENTS = HotCrossBuns/Support/HotCrossBuns.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				INFOPLIST_FILE = "HotCrossBuns/Support/Info-macOS.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
