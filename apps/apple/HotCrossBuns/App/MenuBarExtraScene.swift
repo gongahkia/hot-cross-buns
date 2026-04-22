@@ -10,7 +10,6 @@ struct MenuBarExtraContent: View {
             case .detailed: DetailedMenuBarPanel()
             case .weekly: WeeklyMenuBarPanel()
             case .focusStrip: FocusStripMenuBarPanel()
-            case .minimalBadge: MinimalBadgeMenuBarPanel()
             case .compact: CompactMenuBarPanel()
             }
         }
@@ -86,6 +85,8 @@ private struct DetailedMenuBarPanel: View {
             DatePicker("", selection: $selectedDay, displayedComponents: [.date])
                 .datePickerStyle(.graphical)
                 .labelsHidden()
+            Divider()
+            selectedDayHeader
             agenda
             MenuBarQuickAddRow()
             Divider()
@@ -95,116 +96,105 @@ private struct DetailedMenuBarPanel: View {
         .hcbScaledFrame(width: 320)
     }
 
+    private var selectedDayHeader: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(selectedDay.formatted(.dateTime.weekday(.wide).month().day()))
+                .hcbFont(.subheadline, weight: .semibold)
+            Spacer()
+            let eventCount = eventsForSelectedDay.count
+            let taskCount = tasksForSelectedDay.count
+            Text("\(eventCount) event\(eventCount == 1 ? "" : "s") · \(taskCount) task\(taskCount == 1 ? "" : "s")")
+                .hcbFont(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    // Renders a focused list for just the selected day instead of a 14-day
+    // horizon. The previous horizon-based agenda was silently empty in
+    // practice because the ScrollView collapsed between DatePicker and
+    // QuickAddRow — this tight per-day list fills predictably.
     private var agenda: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 8) {
-                if agendaSections.isEmpty {
-                    Text("No tasks or events for the next two weeks.")
-                        .hcbFont(.footnote)
-                        .foregroundStyle(.secondary)
-                        .hcbScaledPadding(.vertical, 8)
-                } else {
-                    ForEach(agendaSections) { section in
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text(section.title)
-                                    .hcbFont(.subheadline, weight: .semibold)
-                                Spacer()
-                                Text(section.date.formatted(.dateTime.month().day()))
-                                    .hcbFont(.subheadline, weight: .semibold)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            ForEach(section.items) { item in
-                                HStack(alignment: .top, spacing: 8) {
-                                    Circle()
-                                        .fill(item.color)
-                                        .hcbScaledFrame(width: 7, height: 7)
-                                        .hcbScaledPadding(.top, 5)
-                                    VStack(alignment: .leading, spacing: 1) {
-                                        Text(item.title)
-                                            .hcbFont(.subheadline)
-                                            .lineLimit(1)
-                                        if item.subtitle.isEmpty == false {
-                                            Text(item.subtitle)
-                                                .hcbFont(.caption)
-                                                .foregroundStyle(.secondary)
-                                                .lineLimit(1)
-                                        }
-                                    }
-                                }
-                            }
+        let events = eventsForSelectedDay
+        let tasks = tasksForSelectedDay
+        return Group {
+            if events.isEmpty && tasks.isEmpty {
+                Text("Nothing scheduled for this day.")
+                    .hcbFont(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .hcbScaledPadding(.vertical, 6)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 6) {
+                        ForEach(events, id: \.id) { event in
+                            dayItemRow(
+                                title: event.summary,
+                                subtitle: event.isAllDay
+                                    ? "All day"
+                                    : event.startDate.formatted(.dateTime.hour().minute()),
+                                symbol: "calendar"
+                            )
                         }
-
-                        Divider()
+                        ForEach(tasks, id: \.id) { task in
+                            dayItemRow(
+                                title: task.title,
+                                subtitle: model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Tasks",
+                                symbol: "checkmark.circle"
+                            )
+                        }
                     }
+                    .hcbScaledPadding(.top, 2)
                 }
+                .hcbScaledFrame(maxHeight: 200)
             }
-            .hcbScaledPadding(.top, 2)
-        }
-        .hcbScaledFrame(maxHeight: 190)
-    }
-
-    private var agendaSections: [MenuAgendaSection] {
-        let horizon = 14
-        let calendar = Calendar.current
-        let start = calendar.startOfDay(for: selectedDay)
-        let calendarTitles = Dictionary(uniqueKeysWithValues: model.calendars.map { ($0.id, $0.summary) })
-
-        return (0..<horizon).compactMap { offset in
-            let day = calendar.date(byAdding: .day, value: offset, to: start) ?? start
-            let dayEnd = calendar.date(byAdding: .day, value: 1, to: day) ?? day
-
-            let eventItems: [MenuAgendaItem] = model.events
-                .filter { $0.status != .cancelled && $0.endDate > day && $0.startDate < dayEnd }
-                .sorted { $0.startDate < $1.startDate }
-                .map { event in
-                    let subtitle: String
-                    if event.isAllDay {
-                        subtitle = "All day · \(calendarTitles[event.calendarID] ?? "Calendar")"
-                    } else {
-                        subtitle = "\(event.startDate.formatted(date: .omitted, time: .shortened))–\(event.endDate.formatted(date: .omitted, time: .shortened)) · \(calendarTitles[event.calendarID] ?? "Calendar")"
-                    }
-                    return MenuAgendaItem(
-                        title: event.summary,
-                        subtitle: subtitle,
-                        color: Color(hex: model.calendars.first(where: { $0.id == event.calendarID })?.colorHex ?? "#4A90E2")
-                    )
-                }
-
-            let taskItems: [MenuAgendaItem] = model.tasks
-                .filter { task in
-                    guard task.isDeleted == false, task.isCompleted == false, let dueDate = task.dueDate else { return false }
-                    return calendar.isDate(dueDate, inSameDayAs: day)
-                }
-                .sorted { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }
-                .map { task in
-                    let taskListTitle = model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Tasks"
-                    return MenuAgendaItem(
-                        title: task.title,
-                        subtitle: taskListTitle,
-                        color: AppColor.ember
-                    )
-                }
-
-            let items = eventItems + taskItems
-            guard items.isEmpty == false else { return nil }
-
-            return MenuAgendaSection(
-                date: day,
-                title: dayHeading(for: day),
-                items: items
-            )
         }
     }
 
-    private func dayHeading(for day: Date) -> String {
-        let calendar = Calendar.current
-        if calendar.isDateInToday(day) || calendar.isDateInTomorrow(day) {
-            return day.formatted(.relative(presentation: .named, unitsStyle: .wide))
+    private func dayItemRow(title: String, subtitle: String, symbol: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: symbol)
+                .hcbFont(.caption)
+                .foregroundStyle(.secondary)
+                .hcbScaledFrame(width: 16)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .hcbFont(.subheadline)
+                    .lineLimit(1)
+                Text(subtitle)
+                    .hcbFont(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
         }
-        return day.formatted(.dateTime.weekday(.wide))
     }
+
+    private var eventsForSelectedDay: [CalendarEventMirror] {
+        let cal = Calendar.current
+        let selected = model.menuBarSelectedCalendarIDs
+        return model.events
+            .filter { event in
+                selected.contains(event.calendarID)
+                    && event.status != .cancelled
+                    && cal.isDate(event.startDate, inSameDayAs: selectedDay)
+            }
+            .sorted { $0.startDate < $1.startDate }
+    }
+
+    private var tasksForSelectedDay: [TaskMirror] {
+        let cal = Calendar.current
+        let visible = model.menuBarVisibleTaskListIDs
+        return model.tasks
+            .filter { task in
+                guard let due = task.dueDate else { return false }
+                return task.isDeleted == false
+                    && task.isCompleted == false
+                    && visible.contains(task.taskListID)
+                    && cal.isDate(due, inSameDayAs: selectedDay)
+            }
+            .sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
+    }
+
 }
 
 private struct FocusStripMenuBarPanel: View {
@@ -223,6 +213,17 @@ private struct FocusStripMenuBarPanel: View {
             case .now: "Now"
             case .next: "Next"
             case .later: "Later"
+            }
+        }
+
+        // SF Symbol rendered in place of the NOW/NEXT/LATER text labels.
+        // Reads faster + matches native macOS menu bar apps that prefer
+        // glyphs for tight vertical columns.
+        var laneSymbol: String {
+            switch self {
+            case .now: "bolt.fill"
+            case .next: "arrow.forward"
+            case .later: "clock"
             }
         }
 
@@ -288,9 +289,12 @@ private struct FocusStripMenuBarPanel: View {
     @ViewBuilder
     private func laneRow(for row: LaneRow) -> some View {
         HStack(spacing: 8) {
-            Text(row.lane.title.uppercased())
-                .hcbFont(.caption2, weight: .bold)
-                .hcbScaledFrame(width: 40, alignment: .leading)
+            Image(systemName: row.lane.laneSymbol)
+                .hcbFont(.subheadline, weight: .semibold)
+                .foregroundStyle(.secondary)
+                .hcbScaledFrame(width: 24, alignment: .center)
+                .accessibilityLabel(row.lane.title)
+                .help(row.lane.title)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(row.title)
@@ -450,82 +454,6 @@ private struct FocusStripMenuBarPanel: View {
             _ = await MainActor.run {
                 completingTaskIDs.remove(task.id)
             }
-        }
-    }
-}
-
-
-private struct MinimalBadgeMenuBarPanel: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Hot Cross Buns")
-                    .hcbFont(.headline)
-                Spacer()
-                Text(model.syncState.title)
-                    .hcbFont(.caption, weight: .medium)
-                    .foregroundStyle(.secondary)
-            }
-
-            VStack(spacing: 4) {
-                LabeledContent("Due", value: "\(model.todaySnapshot.dueTasks.count)")
-                LabeledContent("Overdue", value: "\(model.todaySnapshot.overdueCount)")
-                LabeledContent("Events", value: "\(model.todaySnapshot.scheduledEvents.count)")
-            }
-            .hcbFont(.subheadline)
-
-            if let lastSync = model.lastSuccessfulSyncAt {
-                Text("Last sync \(lastSync.formatted(date: .omitted, time: .shortened))")
-                    .hcbFont(.caption2)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text("Last sync never")
-                    .hcbFont(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-
-            MenuBarQuickAddRow()
-
-            HStack(spacing: 6) {
-                Button {
-                    bringAppToFront()
-                } label: {
-                    Label("Open", systemImage: "arrow.up.right.square")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-
-                Button {
-                    Task { await model.refreshNow() }
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(model.account == nil)
-
-                Button {
-                    NSApp.terminate(nil)
-                } label: {
-                    Label("Quit", systemImage: "power")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-        }
-        .hcbScaledPadding(12)
-        .hcbScaledFrame(width: 320)
-    }
-
-    private func bringAppToFront() {
-        NSApp.activate(ignoringOtherApps: true)
-        if let window = NSApp.windows.first(where: { $0.canBecomeMain }) {
-            window.makeKeyAndOrderFront(nil)
         }
     }
 }
@@ -751,21 +679,6 @@ private struct MenuBarQuickActions: View {
     }
 }
 
-private struct MenuAgendaSection: Identifiable {
-    let date: Date
-    let title: String
-    let items: [MenuAgendaItem]
-
-    var id: Date { date }
-}
-
-private struct MenuAgendaItem: Identifiable {
-    let id = UUID()
-    let title: String
-    let subtitle: String
-    let color: Color
-}
-
 private struct StatusLine: View {
     let label: String
     let value: String
@@ -843,20 +756,23 @@ private struct WeeklyMenuBarPanel: View {
         let tasks = tasksOn(day)
         let cal = Calendar.current
         let isToday = cal.isDateInToday(day)
+        // Monochrome: weekday + day number use .primary / .secondary only.
+        // Today is signalled via a bolder day-number weight, not color — in
+        // line with native macOS menu bar apps.
         return HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 0) {
                 Text(day.formatted(.dateTime.weekday(.abbreviated)))
                     .hcbFont(.caption2, weight: .semibold)
-                    .foregroundStyle(isToday ? AppColor.ember : .secondary)
+                    .foregroundStyle(.secondary)
                 Text("\(cal.component(.day, from: day))")
                     .font(.headline.monospacedDigit())
-                    .foregroundStyle(isToday ? AppColor.ember : AppColor.ink)
+                    .foregroundStyle(isToday ? .primary : .secondary)
             }
             .hcbScaledFrame(width: 38)
             Divider().hcbScaledFrame(height: 28)
             HStack(spacing: 6) {
-                countChip(symbol: "calendar", count: events.count, color: AppColor.blue)
-                countChip(symbol: "checkmark.circle", count: tasks.count, color: AppColor.ember)
+                countChip(symbol: "calendar", count: events.count)
+                countChip(symbol: "checkmark.circle", count: tasks.count)
             }
             Spacer(minLength: 0)
             if let first = events.first {
@@ -867,16 +783,17 @@ private struct WeeklyMenuBarPanel: View {
         }
         .hcbScaledPadding(.vertical, 4)
         .hcbScaledPadding(.horizontal, 6)
-        .background(isToday ? Color.accentColor.opacity(0.12) : Color.clear)
+        // Subtle today highlight with system's neutral emphasis tint.
+        .background(isToday ? Color.secondary.opacity(0.10) : Color.clear)
     }
 
-    private func countChip(symbol: String, count: Int, color: Color) -> some View {
+    private func countChip(symbol: String, count: Int) -> some View {
         HStack(spacing: 3) {
             Image(systemName: symbol)
                 .hcbFont(.caption2)
             Text("\(count)")
                 .font(.caption2.monospacedDigit())
         }
-        .foregroundStyle(count == 0 ? .secondary : color)
+        .foregroundStyle(count == 0 ? .tertiary : .secondary)
     }
 }
