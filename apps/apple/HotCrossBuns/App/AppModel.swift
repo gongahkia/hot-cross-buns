@@ -842,14 +842,16 @@ final class AppModel {
     // MARK: Generic undo
 
     private func recordUndo(_ action: UndoableAction) {
+        let (kind, resourceID, summary, metadata) = Self.auditTuple(for: action)
+        let priorJSON = Self.priorSnapshotJSON(for: action)
+        let postJSON = Self.postSnapshotJSON(for: action)
         // Informational-only actions (sync diffs, bulk summaries) should not
         // hijack the 6-second undo toast — their performUndo is a no-op, so
         // users would see a dead "Undo" button after every 30s poll tick.
         // Write them straight to the audit log instead.
         switch action {
         case .syncPulled, .bulkAction, .clipboardOp:
-            let (kind, resourceID, summary, metadata) = Self.auditTuple(for: action)
-            Task { await MutationAuditLog.shared.record(kind: kind, resourceID: resourceID, summary: summary, metadata: metadata) }
+            Task { await MutationAuditLog.shared.record(kind: kind, resourceID: resourceID, summary: summary, metadata: metadata, priorSnapshotJSON: priorJSON, postSnapshotJSON: postJSON) }
             return
         default:
             break
@@ -860,8 +862,50 @@ final class AppModel {
         // is short (~6s) but the audit log is a forever record of what
         // the user did, useful when reconstructing "when did I mark
         // that task done?" months later.
-        let (kind, resourceID, summary, metadata) = Self.auditTuple(for: action)
-        Task { await MutationAuditLog.shared.record(kind: kind, resourceID: resourceID, summary: summary, metadata: metadata) }
+        Task { await MutationAuditLog.shared.record(kind: kind, resourceID: resourceID, summary: summary, metadata: metadata, priorSnapshotJSON: priorJSON, postSnapshotJSON: postJSON) }
+    }
+
+    // JSON-encode the pre-state so the history window can offer "Copy
+    // snapshot" on ops that Google's API cannot truly reverse (a hard
+    // delete past the undo-stack TTL, a move that reassigned IDs, etc.).
+    // Returns nil when there's no meaningful prior state (creates).
+    private static func priorSnapshotJSON(for action: UndoableAction) -> String? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        switch action {
+        case .taskDelete(let snap), .taskEdit(let snap), .taskRestore(let snap):
+            return Self.encode(snap, using: encoder)
+        case .eventDelete(let snap), .eventEdit(let snap), .eventRestore(let snap):
+            return Self.encode(snap, using: encoder)
+        default:
+            return nil
+        }
+    }
+
+    // JSON-encode the post-state for ops where the "new" resource is the
+    // interesting thing to keep (creates, duplicates). Other cases are
+    // either unchanged-from-prior (edits reuse prior) or reversible without
+    // a snapshot (completions).
+    private static func postSnapshotJSON(for action: UndoableAction) -> String? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        switch action {
+        case .taskCreate(let snap):
+            return Self.encode(snap, using: encoder)
+        case .taskDuplicate(let snap, _):
+            return Self.encode(snap, using: encoder)
+        case .eventCreate(let snap):
+            return Self.encode(snap, using: encoder)
+        default:
+            return nil
+        }
+    }
+
+    private static func encode<T: Encodable>(_ value: T, using encoder: JSONEncoder) -> String? {
+        guard let data = try? encoder.encode(value) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     private static func auditTuple(for action: UndoableAction) -> (String, String, String, [String: String]) {
