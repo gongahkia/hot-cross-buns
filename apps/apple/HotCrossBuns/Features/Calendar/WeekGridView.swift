@@ -652,20 +652,6 @@ struct WeekGridView: View {
                     capturedRouter?.present(.quickCreate(start, allDay: false))
                 }
             )
-            // Momentary tint at the tapped hour slot so users see their
-            // click register before the popover paints.
-            if let flash = flashTimedSlot, flash >= startOfDay && flash < endOfDay {
-                let minutesIntoDay = flash.timeIntervalSince(startOfDay) / 60.0
-                let startHourOffset = Double(hourStart) * 60.0
-                let y = CGFloat(max(0, minutesIntoDay - startHourOffset)) / 60.0 * hourHeight
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(AppColor.ember.opacity(0.22))
-                    .frame(height: hourHeight * 0.5)
-                    .offset(x: 4, y: y)
-                    .padding(.trailing, 8)
-                    .allowsHitTesting(false)
-                    .transition(.opacity)
-            }
             .dropDestination(for: DraggedTask.self) { items, location in
                 guard let dropped = items.first else { return false }
                 Task {
@@ -683,9 +669,25 @@ struct WeekGridView: View {
             ForEach(Array(laid.enumerated()), id: \.offset) { _, placed in
                 eventTile(placed: placed, dayStart: startOfDay, dayEnd: endOfDay, columnWidth: width)
             }
+            // Momentary tint at the tapped hour slot so users see their
+            // click register before the popover paints. Drawn above event
+            // tiles so it's visible even over a crowded column.
+            if let flash = flashTimedSlot, flash >= startOfDay && flash < endOfDay {
+                let minutesIntoDay = flash.timeIntervalSince(startOfDay) / 60.0
+                let startHourOffset = Double(hourStart) * 60.0
+                let y = CGFloat(max(0, minutesIntoDay - startHourOffset)) / 60.0 * hourHeight
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(AppColor.ember.opacity(0.22))
+                    .frame(height: hourHeight * 0.5)
+                    .offset(x: 4, y: y)
+                    .padding(.trailing, 8)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+            }
         }
         .frame(width: width)
         .offset(x: xOffset)
+        .animation(.easeOut(duration: 0.18), value: flashTimedSlot)
     }
 
     // Tap-only hit-test layer for each day column. Multi-day drag is now
