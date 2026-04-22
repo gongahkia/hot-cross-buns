@@ -17,7 +17,7 @@ struct UndoToast: View {
                     }
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: model.undoActionToken)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: model.undoActionToken)
         .allowsHitTesting(model.undoable != nil)
     }
 

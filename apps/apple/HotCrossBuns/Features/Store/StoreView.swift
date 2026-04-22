@@ -922,7 +922,7 @@ private struct NoteCellWrapper: View {
                         .transition(.opacity)
                 }
             }
-            .animation(.easeInOut(duration: 0.12), value: isTargeted)
+            .animation(.spring(response: 0.25, dampingFraction: 0.85), value: isTargeted)
             .draggable(DraggedTask(taskID: task.id, taskListID: task.taskListID, title: task.title)) {
                 NoteDragPreview(title: task.title)
                     .onAppear { onDragStart() }
