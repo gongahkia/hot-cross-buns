@@ -375,6 +375,7 @@ struct StoreView: View {
                 selection = []
                 isInspectorPresented = false
             })
+            .id(task.id) // forces view teardown on task switch so draft @State and its auto-save commit are bound to the correct task. Without this, .onChange(of: task.id) fires AFTER self.task is already the new task, and commitPending writes the outgoing draft onto the incoming task.
         } else {
             TaskInspectorEmptyState()
         }
@@ -822,6 +823,7 @@ struct NotesView: View {
                 selectedNoteID = nil
                 isNoteInspectorPresented = false
             })
+            .id(task.id) // see StoreView.inspectorContent: same cross-task state-bleed fix applies here since Notes reuses TaskInspectorView.
         } else {
             TaskInspectorEmptyState()
         }
