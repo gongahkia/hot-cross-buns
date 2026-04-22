@@ -50,6 +50,7 @@ final class AppCommandActions {
         case .zoomOut: zoomOut()
         case .zoomReset: zoomReset()
         case .printToday: printToday()
+        case .openHistory: openHistory()
         default: break
         }
     }
@@ -127,8 +128,9 @@ struct AppCommands: Commands {
             Button("Diagnostics and Recovery…") { actions?.openDiagnostics() }
                 .keyboardShortcut(diag.key.keyEquivalent, modifiers: diag.modifiers.eventModifiers)
                 .disabled(actions == nil)
+            let hist = binding(.openHistory)
             Button("History…") { actions?.openHistory() }
-                .keyboardShortcut("y", modifiers: [.command, .option])
+                .keyboardShortcut(hist.key.keyEquivalent, modifiers: hist.modifiers.eventModifiers)
                 .disabled(actions == nil)
         }
 
