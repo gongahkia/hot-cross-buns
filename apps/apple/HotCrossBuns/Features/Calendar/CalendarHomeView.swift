@@ -164,9 +164,20 @@ struct CalendarHomeView: View {
             .hcbKeyboardShortcut(.calendarNext)
             .accessibilityLabel("Next \(mode.title.lowercased())")
 
-            Text(periodTitle)
-                .hcbFont(.title3, weight: .semibold)
-                .foregroundStyle(AppColor.ink)
+            Button {
+                isGoToDateShown.toggle()
+            } label: {
+                Text(periodTitle)
+                    .hcbFont(.title3, weight: .semibold)
+                    .foregroundStyle(AppColor.ink)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Jump to date")
+            .popover(isPresented: $isGoToDateShown, arrowEdge: .bottom) {
+                GoToDateSheet(initialDate: selectedDate) { newDate in
+                    selectedDate = newDate
+                }
+            }
 
             Spacer(minLength: 0)
 
@@ -204,11 +215,6 @@ struct CalendarHomeView: View {
             .allowsHitTesting(false)
             .accessibilityHidden(true)
         )
-        .sheet(isPresented: $isGoToDateShown) {
-            GoToDateSheet(initialDate: selectedDate) { newDate in
-                selectedDate = newDate
-            }
-        }
     }
 
     private var selectedEvents: [CalendarEventMirror] {
