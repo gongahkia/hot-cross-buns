@@ -1068,3 +1068,19 @@ private struct NoteDragPreview: View {
         .background(Capsule().fill(AppColor.ember.opacity(0.25)))
     }
 }
+
+// Shared placeholder used while authState == .authenticating and we don't
+// yet know whether the user has a cached/restored Google session. Shows
+// a native spinner + subtitle instead of the scary "Not connected" copy.
+struct RestoringSessionPlaceholder: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .controlSize(.large)
+            Text("Connecting to Google…")
+                .hcbFont(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
