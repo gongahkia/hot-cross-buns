@@ -495,6 +495,14 @@ struct MonthGridView: View {
         .onTapGesture {
             router?.present(.quickCreate(dayStart, allDay: true))
         }
+        .contextMenu {
+            Button("New event…") {
+                router?.present(.quickCreate(dayStart, allDay: false))
+            }
+            Button("New all-day event…") {
+                router?.present(.quickCreate(dayStart, allDay: true))
+            }
+        }
         .dropDestination(for: DraggedEvent.self) { items, _ in
             guard let dropped = items.first else { return false }
             Task {
