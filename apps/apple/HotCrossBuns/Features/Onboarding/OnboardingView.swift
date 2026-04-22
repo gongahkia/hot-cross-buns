@@ -35,16 +35,14 @@ struct OnboardingView: View {
     }
 
     private var setupBody: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                ConnectGoogleCard()
-                SyncPreferenceCard()
-                SourceSelectionCard()
-                ReminderPreferenceCard()
-                FinishOnboardingCard(finish: finish)
-            }
-            .hcbScaledPadding(20)
+        Form {
+            Section { ConnectGoogleCard() }
+            Section { SyncPreferenceCard() }
+            Section { SourceSelectionCard() }
+            Section { ReminderPreferenceCard() }
+            Section { FinishOnboardingCard(finish: finish) }
         }
+        .formStyle(.grouped)
     }
 
     private func finish() {
