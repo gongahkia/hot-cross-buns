@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct HelpView: View {
-    @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
     // single source of truth: read live overrides so doc reflects user binds
     @AppStorage(HCBShortcutStorage.userDefaultsKey) private var overridesJSON: String = "{}"
@@ -12,8 +11,7 @@ struct HelpView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
+        ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     header
 
@@ -84,15 +82,8 @@ struct HelpView: View {
                 .hcbScaledPadding(24)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .appBackground()
-            .navigationTitle("Help")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                        .keyboardShortcut(.defaultAction)
-                }
-            }
-        }
+        .appBackground()
+        .navigationTitle("Help")
         .hcbScaledFrame(minWidth: 640, idealWidth: 720, minHeight: 520, idealHeight: 620)
     }
 
