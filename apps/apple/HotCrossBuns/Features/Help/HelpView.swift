@@ -120,13 +120,10 @@ struct HelpView: View {
     }
 
     private func bullet(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text("•").foregroundStyle(.secondary)
-            Text(.init(text))
-                .hcbFont(.callout)
-                .foregroundStyle(AppColor.ink)
-            Spacer(minLength: 0)
-        }
+        Text(.init("• \(text)"))
+            .hcbFont(.callout)
+            .foregroundStyle(AppColor.ink)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func keyRow(_ keys: String, _ description: String) -> some View {
