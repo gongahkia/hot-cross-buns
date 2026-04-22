@@ -380,15 +380,8 @@ private struct OnboardingStepHeader: View {
     let systemImage: String
 
     var body: some View {
-        HStack(spacing: 10) {
-            Text("\(number)")
-                .hcbFont(.caption, weight: .bold)
-                .foregroundStyle(.white)
-                .hcbScaledFrame(width: 26, height: 26)
-                .background(AppColor.ink, in: Circle())
-            Label(title, systemImage: systemImage)
-                .hcbFont(.headline)
-        }
+        Label("\(number). \(title)", systemImage: systemImage)
+            .hcbFont(.headline)
     }
 }
 
