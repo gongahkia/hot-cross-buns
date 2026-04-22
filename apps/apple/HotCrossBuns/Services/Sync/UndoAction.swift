@@ -18,6 +18,29 @@ enum UndoableAction: Sendable, Equatable {
     // Edit that changed summary / details / time / etc. — undo writes the
     // snapshot back through updateEvent.
     case eventEdit(priorSnapshot: CalendarEventMirror)
+    // Net-new task creation — undo deletes the created task.
+    case taskCreate(snapshot: TaskMirror)
+    // Duplicate — creates a second task from an existing one. Undo deletes
+    // the new copy. sourceTitle retained for history summary readability.
+    case taskDuplicate(newSnapshot: TaskMirror, sourceTitle: String)
+    // Moving a task between lists (Google rebuilds as a new task in target;
+    // old ID is gone). Undo is a second move back. fromList/toList titles
+    // captured for history readability when the list may later be renamed.
+    case taskMove(taskID: TaskMirror.ID, fromListID: TaskListMirror.ID, toListID: TaskListMirror.ID, title: String, fromListTitle: String, toListTitle: String)
+    // Net-new event creation — undo deletes.
+    case eventCreate(snapshot: CalendarEventMirror)
+    // Copy / paste / cut clipboard operations. kind = "copy" | "paste" | "cut".
+    // Not reversible server-side; recorded purely for history.
+    case clipboardOp(kind: String, resourceID: String, title: String)
+    // Restore after undo or after a remote re-sync brought a deleted item back.
+    case taskRestore(snapshot: TaskMirror)
+    case eventRestore(snapshot: CalendarEventMirror)
+    // Bulk mutation (multi-select delete/move/complete). One entry per user
+    // action; firstTitle shown + "(+N more)" in history.
+    case bulkAction(kind: String, count: Int, firstTitle: String)
+    // Remote sync pulled a real diff from Google (delta > 0). Off by default
+    // in history filter because chatty otherwise, but still persisted.
+    case syncPulled(kind: String, count: Int)
 
     var summary: String {
         switch self {
@@ -31,6 +54,25 @@ enum UndoableAction: Sendable, Equatable {
             return "Deleted event \"\(snap.summary)\""
         case .eventEdit(let snap):
             return "Edited event \"\(snap.summary)\""
+        case .taskCreate(let snap):
+            return "Created \"\(snap.title)\""
+        case .taskDuplicate(let snap, _):
+            return "Duplicated \"\(snap.title)\""
+        case .taskMove(_, _, _, let title, let fromTitle, let toTitle):
+            return "Moved \"\(title)\" from \(fromTitle) to \(toTitle)"
+        case .eventCreate(let snap):
+            return "Created event \"\(snap.summary)\""
+        case .clipboardOp(let kind, _, let title):
+            let verb = kind.capitalized
+            return "\(verb) \"\(title)\""
+        case .taskRestore(let snap):
+            return "Restored \"\(snap.title)\""
+        case .eventRestore(let snap):
+            return "Restored event \"\(snap.summary)\""
+        case .bulkAction(let kind, let count, let firstTitle):
+            return count > 1 ? "\(kind.capitalized) \"\(firstTitle)\" (+\(count - 1) more)" : "\(kind.capitalized) \"\(firstTitle)\""
+        case .syncPulled(let kind, let count):
+            return "Sync pulled \(count) \(kind) change\(count == 1 ? "" : "s")"
         }
     }
 
@@ -39,6 +81,13 @@ enum UndoableAction: Sendable, Equatable {
         case .taskCompletion(_, let prior, _): prior ? "arrow.uturn.backward.circle" : "checkmark.circle.fill"
         case .taskDelete, .eventDelete: "trash"
         case .taskEdit, .eventEdit: "square.and.pencil"
+        case .taskCreate, .eventCreate: "plus.circle"
+        case .taskDuplicate: "plus.square.on.square"
+        case .taskMove: "arrow.right.square"
+        case .clipboardOp: "doc.on.clipboard"
+        case .taskRestore, .eventRestore: "arrow.uturn.backward.circle"
+        case .bulkAction: "square.grid.2x2"
+        case .syncPulled: "arrow.triangle.2.circlepath"
         }
     }
 }
