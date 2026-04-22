@@ -107,6 +107,24 @@ struct QuickCreatePopover: View {
         self.taskOnly = taskOnly
         self.initialTaskListID = initialTaskListID
         self.noteMode = noteMode
+        // seed @State from args so first frame matches target (no flash). model-dependent seeds (list/calendar/settings) still run in .task below.
+        let cal = Calendar.current
+        _mode = State(initialValue: taskOnly ? .task : .event)
+        _hasDueDate = State(initialValue: noteMode ? false : true)
+        _isAllDay = State(initialValue: isAllDay)
+        if isAllDay {
+            let s = cal.startOfDay(for: initialDate)
+            _startDate = State(initialValue: s)
+            if let e = initialEnd {
+                _endDate = State(initialValue: cal.date(byAdding: .day, value: -1, to: e) ?? s)
+            } else {
+                _endDate = State(initialValue: s)
+            }
+        } else {
+            _startDate = State(initialValue: initialDate)
+            _endDate = State(initialValue: initialEnd ?? initialDate.addingTimeInterval(3600))
+        }
+        _taskDueDate = State(initialValue: cal.startOfDay(for: initialDate))
     }
 
     var body: some View {
