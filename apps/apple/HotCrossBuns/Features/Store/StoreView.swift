@@ -52,33 +52,41 @@ struct StoreView: View {
                     if model.pendingMutations.count > 0 {
                         PendingSyncPill(count: model.pendingMutations.count)
                     }
-                    Button {
-                        newListTitle = ""
-                        isCreatingList = true
-                    } label: {
-                        Label("New List", systemImage: "plus.rectangle.on.rectangle")
-                    }
-                    .help("Create a new Google Tasks list")
-                    .disabled(isDisconnected || isMutatingList)
-                    .popover(isPresented: $isCreatingList, arrowEdge: .bottom) {
-                        ListCreateSheet(
-                            title: $newListTitle,
-                            onCancel: {
-                                isCreatingList = false
-                                newListTitle = ""
-                            },
-                            onCreate: { Task { await createNewList() } }
-                        )
-                    }
-                    clearCompletedMenu
+                    // When a single task is open in the inspector, suppress
+                    // the creation toolbar — the inspector's own close button
+                    // is the path back, and these actions reading as hovering
+                    // over the task pane looked visually confused.
+                    if isInspectorPresented && selection.count == 1 {
+                        EmptyView()
+                    } else {
+                        Button {
+                            newListTitle = ""
+                            isCreatingList = true
+                        } label: {
+                            Label("New List", systemImage: "plus.rectangle.on.rectangle")
+                        }
+                        .help("Create a new Google Tasks list")
+                        .disabled(isDisconnected || isMutatingList)
+                        .popover(isPresented: $isCreatingList, arrowEdge: .bottom) {
+                            ListCreateSheet(
+                                title: $newListTitle,
+                                onCancel: {
+                                    isCreatingList = false
+                                    newListTitle = ""
+                                },
+                                onCreate: { Task { await createNewList() } }
+                            )
+                        }
+                        clearCompletedMenu
+                            .disabled(isDisconnected)
+                        Button {
+                            router?.present(.quickCreateTask(listID: nil))
+                        } label: {
+                            Label("New Task", systemImage: "plus")
+                        }
+                        .help("Create a new task")
                         .disabled(isDisconnected)
-                    Button {
-                        router?.present(.quickCreateTask(listID: nil))
-                    } label: {
-                        Label("New Task", systemImage: "plus")
                     }
-                    .help("Create a new task")
-                    .disabled(isDisconnected)
                 }
             }
             .background(
@@ -720,33 +728,40 @@ struct NotesView: View {
         }
         .toolbar {
             ToolbarItemGroup {
-                Button {
-                    newListTitle = ""
-                    isCreatingList = true
-                } label: {
-                    Label("New List", systemImage: "plus.rectangle.on.rectangle")
-                }
-                .help("Create a new Google Tasks list")
-                .disabled(model.account == nil || isMutatingList)
-                .popover(isPresented: $isCreatingList, arrowEdge: .bottom) {
-                    ListCreateSheet(
-                        title: $newListTitle,
-                        onCancel: {
-                            isCreatingList = false
-                            newListTitle = ""
-                        },
-                        onCreate: { Task { await createNewListFromNotes() } }
-                    )
-                }
-                notesClearCompletedMenu
+                // Mirror StoreView: suppress the create toolbar while a note
+                // is open in the inspector so toolbar controls don't hover
+                // above the task pane the user is editing.
+                if isNoteInspectorPresented && selectedNoteID != nil {
+                    EmptyView()
+                } else {
+                    Button {
+                        newListTitle = ""
+                        isCreatingList = true
+                    } label: {
+                        Label("New List", systemImage: "plus.rectangle.on.rectangle")
+                    }
+                    .help("Create a new Google Tasks list")
+                    .disabled(model.account == nil || isMutatingList)
+                    .popover(isPresented: $isCreatingList, arrowEdge: .bottom) {
+                        ListCreateSheet(
+                            title: $newListTitle,
+                            onCancel: {
+                                isCreatingList = false
+                                newListTitle = ""
+                            },
+                            onCreate: { Task { await createNewListFromNotes() } }
+                        )
+                    }
+                    notesClearCompletedMenu
+                        .disabled(model.account == nil)
+                    Button {
+                        router?.present(.quickCreateNote(listID: nil))
+                    } label: {
+                        Label("New Note", systemImage: "plus")
+                    }
+                    .help("Capture a thought without a due date. Adding a due date later moves it into the Tasks tab.")
                     .disabled(model.account == nil)
-                Button {
-                    router?.present(.quickCreateNote(listID: nil))
-                } label: {
-                    Label("New Note", systemImage: "plus")
                 }
-                .help("Capture a thought without a due date. Adding a due date later moves it into the Tasks tab.")
-                .disabled(model.account == nil)
             }
         }
         .onAppear { rebuildOrder() }
@@ -827,6 +842,10 @@ struct NotesView: View {
             availableColumnModes: notesKanbanModes,
             onCreateTaskInList: { listID in
                 router?.present(.quickCreateNote(listID: listID))
+            },
+            onCardTap: { task in
+                selectedNoteID = task.id
+                isNoteInspectorPresented = true
             }
         )
     }
