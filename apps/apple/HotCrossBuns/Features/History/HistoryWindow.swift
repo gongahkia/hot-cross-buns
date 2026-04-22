@@ -25,26 +25,6 @@ struct HistoryWindow: View {
     @ViewBuilder
     private var contentBody: some View {
         VStack(spacing: 0) {
-            HistoryFilterChips(
-                enabled: Binding(
-                    get: { model.settings.historyCategoryFilters },
-                    set: { new in
-                        let all: Set<String> = ["create", "edit", "delete", "complete", "duplicate", "move", "clipboard", "restore", "bulk", "sync", "other"]
-                        for cat in all {
-                            let shouldBeEnabled = new.contains(cat)
-                            let isEnabled = model.settings.historyCategoryFilters.contains(cat)
-                            if shouldBeEnabled != isEnabled {
-                                model.setHistoryCategoryEnabled(cat, enabled: shouldBeEnabled)
-                            }
-                        }
-                    }
-                )
-            )
-            .hcbScaledPadding(.horizontal, 14)
-            .hcbScaledPadding(.vertical, 10)
-
-            Divider()
-
             if isLoading {
                 VStack { ProgressView().controlSize(.regular) }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -112,6 +92,25 @@ struct HistoryWindow: View {
         .preferredColorScheme(HCBColorScheme.scheme(id: model.settings.colorSchemeID)?.isDark == true ? .dark : .light)
         .appBackground()
         .navigationTitle("History")
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                // Single native Filter menu in the title bar — replaces the
+                // inline chip row. Matches Mail / Messages / Finder toolbar
+                // conventions: toolbar surfaces filters via a dropdown, the
+                // content area stays clean for its primary data.
+                Menu {
+                    ForEach(Self.filterCategories, id: \.0) { (key, title) in
+                        Toggle(title, isOn: Binding(
+                            get: { model.settings.historyCategoryFilters.contains(key) },
+                            set: { model.setHistoryCategoryEnabled(key, enabled: $0) }
+                        ))
+                    }
+                } label: {
+                    Label("Filter", systemImage: activeFilterCount < Self.filterCategories.count ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                }
+                .help("Choose which history entry types to show")
+            }
+        }
         .navigationDestination(for: MutationAuditEntry.self) { entry in
             HistoryEntryDetailView(entry: entry)
         }
@@ -147,6 +146,26 @@ struct HistoryWindow: View {
         let all = await MutationAuditLog.shared.allEntries()
         entries = all
         isLoading = false
+    }
+
+    // Source of truth for the filter menu. Order defines the menu order.
+    static let filterCategories: [(String, String)] = [
+        ("create",    "Created"),
+        ("edit",      "Edited"),
+        ("delete",    "Deleted"),
+        ("complete",  "Completed"),
+        ("duplicate", "Duplicated"),
+        ("move",      "Moved"),
+        ("clipboard", "Clipboard"),
+        ("restore",   "Restored"),
+        ("bulk",      "Bulk"),
+        ("sync",      "Sync"),
+        ("other",     "Other"),
+    ]
+
+    private var activeFilterCount: Int {
+        let all = Set(Self.filterCategories.map(\.0))
+        return model.settings.historyCategoryFilters.intersection(all).count
     }
 
     // maps audit-entry kind strings to the filter category bucket.
