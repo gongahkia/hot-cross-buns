@@ -52,7 +52,7 @@ struct HistoryEntryRow: View {
         if k.hasSuffix(".create") { return "plus.circle" }
         if k.hasSuffix(".edit") { return "square.and.pencil" }
         if k.hasSuffix(".delete") { return "trash" }
-        if k == "task.complete" { return "checkmark.circle.fill" }
+        if k == "task.complete" || k == "event.dismiss" { return "checkmark.circle.fill" }
         if k == "task.reopen" { return "arrow.uturn.backward.circle" }
         if k.hasPrefix("task.duplicate") { return "plus.square.on.square" }
         if k.hasPrefix("task.move") { return "arrow.right.square" }
@@ -66,7 +66,7 @@ struct HistoryEntryRow: View {
     private var iconTint: Color {
         let k = entry.kind
         if k.hasSuffix(".delete") { return AppColor.ember }
-        if k == "task.complete" { return AppColor.moss }
+        if k == "task.complete" || k == "event.dismiss" { return AppColor.moss }
         if k.hasPrefix("sync.") { return AppColor.blue }
         if k.hasPrefix("bulk.") { return AppColor.blue }
         if k.hasPrefix("task.move") { return AppColor.blue }
