@@ -60,6 +60,16 @@ struct StoreView: View {
                     }
                     .help("Create a new Google Tasks list")
                     .disabled(isDisconnected || isMutatingList)
+                    .popover(isPresented: $isCreatingList, arrowEdge: .bottom) {
+                        ListCreateSheet(
+                            title: $newListTitle,
+                            onCancel: {
+                                isCreatingList = false
+                                newListTitle = ""
+                            },
+                            onCreate: { Task { await createNewList() } }
+                        )
+                    }
                     clearCompletedMenu
                         .disabled(isDisconnected)
                     Button {
@@ -113,16 +123,6 @@ struct StoreView: View {
                     draft: $renameDraft,
                     onCancel: { renamingList = nil },
                     onSave: { Task { await renameCurrentList(list) } }
-                )
-            }
-            .sheet(isPresented: $isCreatingList) {
-                ListCreateSheet(
-                    title: $newListTitle,
-                    onCancel: {
-                        isCreatingList = false
-                        newListTitle = ""
-                    },
-                    onCreate: { Task { await createNewList() } }
                 )
             }
             .confirmationDialog(
@@ -728,6 +728,16 @@ struct NotesView: View {
                 }
                 .help("Create a new Google Tasks list")
                 .disabled(model.account == nil || isMutatingList)
+                .popover(isPresented: $isCreatingList, arrowEdge: .bottom) {
+                    ListCreateSheet(
+                        title: $newListTitle,
+                        onCancel: {
+                            isCreatingList = false
+                            newListTitle = ""
+                        },
+                        onCreate: { Task { await createNewListFromNotes() } }
+                    )
+                }
                 notesClearCompletedMenu
                     .disabled(model.account == nil)
                 Button {
@@ -738,16 +748,6 @@ struct NotesView: View {
                 .help("Capture a thought without a due date. Adding a due date later moves it into the Tasks tab.")
                 .disabled(model.account == nil)
             }
-        }
-        .sheet(isPresented: $isCreatingList) {
-            ListCreateSheet(
-                title: $newListTitle,
-                onCancel: {
-                    isCreatingList = false
-                    newListTitle = ""
-                },
-                onCreate: { Task { await createNewListFromNotes() } }
-            )
         }
         .onAppear { rebuildOrder() }
         .onChange(of: model.tasks) { _, _ in rebuildOrder() }
