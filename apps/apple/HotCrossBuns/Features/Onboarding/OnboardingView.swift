@@ -97,14 +97,9 @@ private struct IntroWelcomeView: View {
                     Button("Later", action: onLater)
                         .buttonStyle(.borderless)
                     Spacer()
-                    Button {
-                        onContinue()
-                    } label: {
-                        Label("Continue", systemImage: "arrow.right")
-                            .hcbScaledFrame(minWidth: 120)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.defaultAction)
+                    Button("Continue", action: onContinue)
+                        .buttonStyle(.borderedProminent)
+                        .keyboardShortcut(.defaultAction)
                 }
             }
             .hcbScaledPadding(28)
@@ -152,14 +147,9 @@ private struct IntroDetailsView: View {
                     Button("Later", action: onLater)
                         .buttonStyle(.borderless)
                     Spacer()
-                    Button {
-                        onContinue()
-                    } label: {
-                        Label("Continue", systemImage: "arrow.right")
-                            .hcbScaledFrame(minWidth: 120)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.defaultAction)
+                    Button("Continue", action: onContinue)
+                        .buttonStyle(.borderedProminent)
+                        .keyboardShortcut(.defaultAction)
                 }
             }
             .hcbScaledPadding(28)
