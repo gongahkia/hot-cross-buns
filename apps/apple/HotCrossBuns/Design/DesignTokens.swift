@@ -13,6 +13,7 @@ enum AppColor {
     static var ink: Color { HCBColorSchemeStore.current.ink.swiftColor }
     static var cream: Color { HCBColorSchemeStore.current.cream.swiftColor }
     static var cardStroke: Color { HCBColorSchemeStore.current.cardStroke.swiftColor }
+    static var cardSurface: Color { HCBColorSchemeStore.current.cardSurface.swiftColor }
 }
 
 struct AppBackground: ViewModifier {
