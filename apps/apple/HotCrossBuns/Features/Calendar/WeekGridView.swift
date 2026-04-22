@@ -32,6 +32,13 @@ struct WeekGridView: View {
 
     @State private var allDayDrag: WeekDaySelection?
     @State private var timedDrag: TimedWeekDrag?
+    // Grid-content cache. Rebuilt only when inputs change — not on every
+    // body eval. Drag-create gestures fire at ~60Hz; without this cache each
+    // tick re-ran bucketTimedEventsByDay over ~3k visible events, producing
+    // selection-lag on large calendars.
+    @State private var cachedTimedByDay: [Date: [CalendarEventMirror]] = [:]
+    @State private var cachedAllDaySpans: [AllDaySpan] = []
+    @State private var cachedWeekKey: String = ""
 
     private struct WeekDaySelection: Equatable {
         var startCol: Int
@@ -62,6 +69,25 @@ struct WeekGridView: View {
                 timeGrid
             }
         }
+        .onAppear { rebuildWeekCacheIfNeeded() }
+        .onChange(of: currentWeekCacheKey) { _, _ in rebuildWeekCacheIfNeeded() }
+    }
+
+    // Fingerprints the inputs that make cachedTimedByDay valid. Cheap to
+    // compute and triggers a real rebuild only when the user changes
+    // calendars, search, week, or when sync lands new events.
+    private var currentWeekCacheKey: String {
+        let selectedIds = model.calendarSnapshot.selectedCalendars.map(\.id).sorted().joined(separator: ",")
+        let start = weekDays.first.map { "\($0.timeIntervalSinceReferenceDate)" } ?? ""
+        return "\(selectedIds)|\(searchQuery)|\(start)|\(model.events.count)"
+    }
+
+    private func rebuildWeekCacheIfNeeded() {
+        let key = currentWeekCacheKey
+        guard key != cachedWeekKey else { return }
+        cachedWeekKey = key
+        cachedTimedByDay = bucketTimedEventsByDay()
+        cachedAllDaySpans = layoutAllDaySpans()
     }
 
     private var weekDays: [Date] {
@@ -219,7 +245,7 @@ struct WeekGridView: View {
     }
 
     private var allDayStrip: some View {
-        let spans = layoutAllDaySpans()
+        let spans = cachedAllDaySpans
         let laneCount = (spans.map(\.laneIndex).max() ?? -1) + 1
         let stripHeight = max(CGFloat(min(laneCount, 3)) * 22, 22)
         // Captured outside GeometryReader so DragGesture closures see a
@@ -421,11 +447,10 @@ struct WeekGridView: View {
         // Captured outside GeometryReader so DragGesture closures see a
         // reliable router reference (see allDayStrip for rationale).
         let capturedRouter = router
-        // Pre-bucket visible timed events by day ONCE per body pass. Without
-        // this, each dayColumn ran a filter over the entire visibleEvents
-        // array — 7× per render — producing 21k+ comparisons per scroll at
-        // 3k visible events.
-        let timedByDay = bucketTimedEventsByDay()
+        // cachedTimedByDay is rebuilt only when underlying inputs change,
+        // not on every body eval — critical for DragGesture responsiveness
+        // during drag-to-create where body fires at ~60Hz.
+        let timedByDay = cachedTimedByDay
         return HStack(alignment: .top, spacing: 0) {
             hoursColumn
             GeometryReader { geo in

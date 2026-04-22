@@ -24,6 +24,15 @@ struct MonthGridView: View {
     private let maxVisibleLanes: Int = 3
 
     @State private var dragSelection: DragSelection?
+    // Grid-content cache. Rebuilt only when the underlying inputs (calendar
+    // selection, search query, month anchor, event corpus count) change —
+    // NOT on every body eval. Critical for drag-create responsiveness: the
+    // DragGesture .onChanged fires at ~60Hz, and without this cache every
+    // drag tick ran the filteredEvents + eventsByDay pipelines over 17k+
+    // events, producing ~50ms stalls per pixel moved.
+    @State private var cachedFiltered: [CalendarEventMirror] = []
+    @State private var cachedByDay: [Date: [CalendarEventMirror]] = [:]
+    @State private var cachedGridKey: String = ""
     // Scroll-to-navigate-months state (§6.14). An NSEvent scrollWheel monitor
     // runs while the cursor hovers the grid; accumulated deltaY is stepped
     // into month shifts once it crosses `scrollThreshold`. Direction maps:
@@ -90,19 +99,36 @@ struct MonthGridView: View {
     // large calendars this cuts the per-render scan from O(events × weeks)
     // to O(events).
     private var animatedGrid: some View {
+        ZStack {
+            grid(filtered: cachedFiltered, byDay: cachedByDay)
+                .id(monthKey(for: anchorDate))
+                .transition(monthTransition)
+        }
+        .clipped()
+        .onAppear { rebuildGridCacheIfNeeded() }
+        .onChange(of: currentGridCacheKey) { _, _ in rebuildGridCacheIfNeeded() }
+    }
+
+    // Fingerprints every input the grid cache depends on. Cheap to compute —
+    // O(selectedCalendars) — and triggers a rebuild only on real changes,
+    // skipping every drag-induced body re-eval.
+    private var currentGridCacheKey: String {
+        let selectedIds = model.calendarSnapshot.selectedCalendars.map(\.id).sorted().joined(separator: ",")
+        return "\(selectedIds)|\(searchQuery)|\(monthKey(for: anchorDate))|\(model.events.count)"
+    }
+
+    private func rebuildGridCacheIfNeeded() {
+        let key = currentGridCacheKey
+        guard key != cachedGridKey else { return }
+        cachedGridKey = key
         let filtered = filteredEvents
-        let byDay = CalendarGridLayout.eventsByDay(
+        cachedFiltered = filtered
+        cachedByDay = CalendarGridLayout.eventsByDay(
             filtered,
             from: cells.first ?? anchorDate,
             to: cells.last ?? anchorDate,
             calendar: calendar
         )
-        return ZStack {
-            grid(filtered: filtered, byDay: byDay)
-                .id(monthKey(for: anchorDate))
-                .transition(monthTransition)
-        }
-        .clipped()
     }
 
     private var monthTransition: AnyTransition {
