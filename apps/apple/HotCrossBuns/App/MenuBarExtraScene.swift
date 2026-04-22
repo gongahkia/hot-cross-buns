@@ -329,12 +329,8 @@ private struct FocusStripMenuBarPanel: View {
                 .disabled(completingTaskIDs.contains(task.id))
             }
         }
-        .hcbScaledPadding(.horizontal, 8)
-        .hcbScaledPadding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(Color.secondary.opacity(row.isPlaceholder ? 0.10 : 0.14))
-        )
+        .hcbScaledPadding(.horizontal, 4)
+        .hcbScaledPadding(.vertical, 4)
     }
 
     private var actionable: [ActionableItem] {
