@@ -2,7 +2,7 @@ import SwiftUI
 
 struct DayGridView: View {
     @Environment(AppModel.self) private var model
-    @Environment(RouterPath.self) private var router
+    @Environment(\.routerPath) private var router
     @Binding var anchorDate: Date
     var searchQuery: String = ""
 
@@ -34,11 +34,15 @@ struct DayGridView: View {
 
     private var visibleEvents: [CalendarEventMirror] {
         let selected = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
+        let now = Date()
         let base = model.events.filter { event in
-            selected.contains(event.calendarID)
-                && event.status != .cancelled
-                && event.endDate > dayStart
-                && event.startDate < dayEnd
+            guard selected.contains(event.calendarID),
+                  event.status != .cancelled,
+                  event.endDate > dayStart,
+                  event.startDate < dayEnd
+            else { return false }
+            if model.settings.shouldHidePastEvent(event, now: now) { return false }
+            return true
         }
         let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard q.isEmpty == false else { return base }
@@ -61,8 +65,11 @@ struct DayGridView: View {
         let visibleLists: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
             ? model.settings.selectedTaskListIDs
             : Set(model.taskLists.map(\.id))
+        let now = Date()
         return model.tasks.filter { task in
             guard let due = task.dueDate else { return false }
+            if model.settings.shouldHideCompletedTask(task) { return false }
+            if model.settings.shouldHideOverdueTask(task, now: now, calendar: calendar) { return false }
             return task.isDeleted == false
                 && visibleLists.contains(task.taskListID)
                 && calendar.isDate(due, inSameDayAs: dayStart)
@@ -73,9 +80,13 @@ struct DayGridView: View {
         }
     }
 
-    @ViewBuilder
     private var eventsColumn: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        // Capture router locally so the DragGesture / SpatialTapGesture
+        // closures inside ScrollView reference a stable reference (custom
+        // EnvironmentKey reads inside ScrollView/GeometryReader gesture
+        // closures have shown propagation gaps).
+        let capturedRouter = router
+        return VStack(alignment: .leading, spacing: 8) {
             if allDayEvents.isEmpty == false {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("ALL-DAY")
@@ -86,6 +97,7 @@ struct DayGridView: View {
                             Text(event.summary)
                                 .hcbFont(.caption, weight: .medium)
                                 .lineLimit(1)
+                                .opacity(model.settings.opacityForPastEvent(event, now: Date()))
                                 .hcbScaledPadding(.horizontal, 8)
                                 .hcbScaledPadding(.vertical, 4)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -142,7 +154,7 @@ struct DayGridView: View {
                                     )
                                     timedDrag = nil
                                     let adjustedEnd = end <= start ? start.addingTimeInterval(1800) : end
-                                    router.present(.quickCreateRange(start, adjustedEnd, allDay: false))
+                                    capturedRouter?.present(.quickCreateRange(start, adjustedEnd, allDay: false))
                                 }
                         )
                         .simultaneousGesture(
@@ -155,12 +167,13 @@ struct DayGridView: View {
                                         dayStart: dayStart,
                                         calendar: calendar
                                     )
-                                    router.present(.quickCreate(start, allDay: false))
+                                    capturedRouter?.present(.quickCreate(start, allDay: false))
                                 }
                         )
                     GeometryReader { geo in
                         ForEach(timedEvents, id: \.id) { event in
                             eventTile(event, columnWidth: geo.size.width - 56)
+                                .opacity(model.settings.opacityForPastEvent(event, now: Date()))
                         }
                     }
                     .frame(height: CGFloat(hourEnd - hourStart) * hourHeight)

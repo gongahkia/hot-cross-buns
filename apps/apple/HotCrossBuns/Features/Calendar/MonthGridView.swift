@@ -3,7 +3,7 @@ import AppKit
 
 struct MonthGridView: View {
     @Environment(AppModel.self) private var model
-    @Environment(RouterPath.self) private var router
+    @Environment(\.routerPath) private var router
     @Binding var anchorDate: Date
     var searchQuery: String = ""
 
@@ -164,6 +164,12 @@ struct MonthGridView: View {
         let groupedCells = stride(from: 0, to: cells.count, by: 7).map { start in
             Array(cells[start..<min(start + 7, cells.count)])
         }
+        // router is captured into a local before the GeometryReader closure
+        // so the DragGesture handlers reference the captured value rather
+        // than self.router. SwiftUI custom-EnvironmentKey reads inside
+        // GeometryReader closures + gesture .onEnded blocks have been
+        // unreliable — the captured local sidesteps that propagation gap.
+        let capturedRouter = router
         return GeometryReader { geo in
             let rowHeight = geo.size.height / CGFloat(groupedCells.count)
             let cellWidth = geo.size.width / 7
@@ -173,18 +179,12 @@ struct MonthGridView: View {
                         weekRow(row, rowHeight: rowHeight, weekWidth: geo.size.width, filtered: filtered, byDay: byDay)
                     }
                 }
-                // Grid-level drag highlight — spans multiple rows so a
-                // diagonal drag (e.g. 20 → 29) correctly shades every row
-                // it touches, not just the row the drag started on.
                 gridDragHighlight(
                     groupedCells: groupedCells,
                     cellWidth: cellWidth,
                     rowHeight: rowHeight
                 )
             }
-            // Drag-to-create at grid level so x/y both track the cursor.
-            // minimumDistance: 6 keeps simple taps routed to the cell's
-            // onTapGesture (single-day quick create popover).
             .simultaneousGesture(
                 DragGesture(minimumDistance: 6)
                     .onChanged { value in
@@ -206,7 +206,7 @@ struct MonthGridView: View {
                         dragSelection = nil
                         let (from, to) = sel.normalized
                         let endExclusive = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: to)) ?? to
-                        router.present(.quickCreateRange(calendar.startOfDay(for: from), endExclusive, allDay: true))
+                        capturedRouter?.present(.quickCreateRange(calendar.startOfDay(for: from), endExclusive, allDay: true))
                     }
             )
         }
@@ -228,8 +228,14 @@ struct MonthGridView: View {
 
         return ZStack(alignment: .topLeading) {
             HStack(spacing: 0) {
-                ForEach(days, id: \.self) { day in
-                    monthCell(day: day, bandReserve: bandAreaHeight, byDay: byDay)
+                ForEach(Array(days.enumerated()), id: \.element) { col, day in
+                    // Per-cell band reservation: cells with NO band events
+                    // crossing them get 0 reservation so timed-event tiles
+                    // can slide to the top. Cells crossed by ≥1 band keep
+                    // the uniform week-level reservation so they line up
+                    // under the band overlay rather than colliding with it.
+                    let cellHasBand = bands.contains { col >= $0.startColumn && col <= $0.endColumn && $0.lane < maxVisibleLanes }
+                    monthCell(day: day, bandReserve: cellHasBand ? bandAreaHeight : 0, byDay: byDay)
                         .frame(maxWidth: .infinity, minHeight: rowHeight, maxHeight: rowHeight, alignment: .top)
                 }
             }
@@ -453,14 +459,22 @@ struct MonthGridView: View {
             let hiddenEvents = max(0, events.count - eventSlots) + hiddenBandEvents
             let hiddenTasks = max(0, tasks.count - taskSlots)
             if hiddenEvents + hiddenTasks > 0 {
-                Text("+\(hiddenEvents + hiddenTasks) more")
-                    .hcbFont(.caption2)
-                    .foregroundStyle(.secondary)
-                    .hcbScaledPadding(.leading, 6)
+                MonthMoreButton(
+                    count: hiddenEvents + hiddenTasks,
+                    day: dayStart,
+                    events: allEventsToday,
+                    tasks: tasks,
+                    calendarColor: calendarColor(for:)
+                )
             }
             Spacer(minLength: 0)
         }
-        .hcbScaledPadding(6)
+        // Horizontal cell padding matches the bandOverlay's 2pt offset so
+        // timed-event tiles line up cell-edge to cell-edge with multi-day
+        // bands. Vertical padding kept at 4pt for breathing room around
+        // the day number and stack of tiles.
+        .hcbScaledPadding(.horizontal, 2)
+        .hcbScaledPadding(.vertical, 4)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(
             Rectangle()
@@ -472,7 +486,7 @@ struct MonthGridView: View {
         )
         .contentShape(Rectangle())
         .onTapGesture {
-            router.present(.quickCreate(dayStart, allDay: true))
+            router?.present(.quickCreate(dayStart, allDay: true))
         }
         .dropDestination(for: DraggedEvent.self) { items, _ in
             guard let dropped = items.first else { return false }

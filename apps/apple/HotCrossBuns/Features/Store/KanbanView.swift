@@ -20,6 +20,7 @@ struct KanbanView: View {
     let tasks: [TaskMirror]
     @Binding var columnMode: KanbanColumnMode
     @Binding var selection: Set<TaskMirror.ID>
+    var availableColumnModes: [KanbanColumnMode] = KanbanColumnMode.allCases
     var onResult: (BulkTaskExecutionResult) -> Void = { _ in }
     var onRenameList: (TaskListMirror) -> Void = { _ in }
     var onDeleteList: (TaskListMirror) -> Void = { _ in }
@@ -86,7 +87,7 @@ struct KanbanView: View {
                 .hcbFont(.caption, weight: .semibold)
                 .foregroundStyle(.secondary)
             Picker("Group", selection: $columnMode) {
-                ForEach(KanbanColumnMode.allCases, id: \.self) { m in
+                ForEach(availableColumnModes, id: \.self) { m in
                     Label(m.title, systemImage: m.systemImage).tag(m)
                 }
             }

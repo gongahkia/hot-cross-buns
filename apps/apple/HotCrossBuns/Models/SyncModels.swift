@@ -211,6 +211,37 @@ struct AppSettings: Hashable, Codable, Sendable {
     var taskReminderHour: Int
     var taskReminderMinute: Int
 
+    // Per-tab list visibility overrides. When `hasConfigured…` is true the
+    // corresponding set replaces the global selectedTaskListIDs for that
+    // tab only. Purely local — Google never sees this.
+    var tasksTabSelectedListIDs: Set<TaskListMirror.ID>
+    var hasConfiguredTasksTabSelection: Bool
+    var notesTabSelectedListIDs: Set<TaskListMirror.ID>
+    var hasConfiguredNotesTabSelection: Bool
+
+    // Notes tab layout. Persisted so the choice survives relaunch.
+    var notesViewMode: NotesViewMode
+    var notesKanbanColumnMode: KanbanColumnMode
+
+    // Color-tag auto-apply (events only). bindings = colorId ("1".."11") → tag spelling.
+    var colorTagAutoApplyEnabled: Bool
+    var colorTagBindings: [String: String]
+    var colorTagMatchPolicy: ColorTagMatchPolicy
+
+    // Past-cleanup behaviors. Every mode defaults to showAll so the
+    // feature is opt-in on every axis. Deletion modes require the user
+    // to acknowledge the blast-radius modal; the ack flags reset when
+    // they flip the mode off, so toggling back on re-prompts.
+    var pastEventBehavior: PastEventBehavior
+    var pastEventDeleteThresholdDays: Int
+    var allowDeletingAttendeeEvents: Bool
+    var overdueTaskBehavior: OverdueTaskBehavior
+    var completedTaskBehavior: CompletedTaskBehavior
+    var completedTaskDeleteThresholdDays: Int
+    var hasAckedEventDeletion: Bool
+    var hasAckedAttendeeDeletion: Bool
+    var hasAckedTaskDeletion: Bool
+
     init(
         syncMode: SyncMode,
         selectedCalendarIDs: Set<CalendarListMirror.ID>,
@@ -243,7 +274,25 @@ struct AppSettings: Hashable, Codable, Sendable {
         quickCreateExpandedByDefault: Bool = true,
         taskReminderThresholdDays: Int = 7,
         taskReminderHour: Int = 9,
-        taskReminderMinute: Int = 0
+        taskReminderMinute: Int = 0,
+        tasksTabSelectedListIDs: Set<TaskListMirror.ID> = [],
+        hasConfiguredTasksTabSelection: Bool = false,
+        notesTabSelectedListIDs: Set<TaskListMirror.ID> = [],
+        hasConfiguredNotesTabSelection: Bool = false,
+        notesViewMode: NotesViewMode = .grid,
+        notesKanbanColumnMode: KanbanColumnMode = .byList,
+        colorTagAutoApplyEnabled: Bool = false,
+        colorTagBindings: [String: String] = [:],
+        colorTagMatchPolicy: ColorTagMatchPolicy = .firstMatch,
+        pastEventBehavior: PastEventBehavior = .showAll,
+        pastEventDeleteThresholdDays: Int = 30,
+        allowDeletingAttendeeEvents: Bool = false,
+        overdueTaskBehavior: OverdueTaskBehavior = .showAll,
+        completedTaskBehavior: CompletedTaskBehavior = .showAll,
+        completedTaskDeleteThresholdDays: Int = 30,
+        hasAckedEventDeletion: Bool = false,
+        hasAckedAttendeeDeletion: Bool = false,
+        hasAckedTaskDeletion: Bool = false
     ) {
         self.syncMode = syncMode
         self.selectedCalendarIDs = selectedCalendarIDs
@@ -277,6 +326,24 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.taskReminderThresholdDays = max(0, min(365, taskReminderThresholdDays))
         self.taskReminderHour = max(0, min(23, taskReminderHour))
         self.taskReminderMinute = max(0, min(59, taskReminderMinute))
+        self.tasksTabSelectedListIDs = tasksTabSelectedListIDs
+        self.hasConfiguredTasksTabSelection = hasConfiguredTasksTabSelection
+        self.notesTabSelectedListIDs = notesTabSelectedListIDs
+        self.hasConfiguredNotesTabSelection = hasConfiguredNotesTabSelection
+        self.notesViewMode = notesViewMode
+        self.notesKanbanColumnMode = notesKanbanColumnMode
+        self.colorTagAutoApplyEnabled = colorTagAutoApplyEnabled
+        self.colorTagBindings = colorTagBindings
+        self.colorTagMatchPolicy = colorTagMatchPolicy
+        self.pastEventBehavior = pastEventBehavior
+        self.pastEventDeleteThresholdDays = max(1, min(365, pastEventDeleteThresholdDays))
+        self.allowDeletingAttendeeEvents = allowDeletingAttendeeEvents
+        self.overdueTaskBehavior = overdueTaskBehavior
+        self.completedTaskBehavior = completedTaskBehavior
+        self.completedTaskDeleteThresholdDays = max(1, min(365, completedTaskDeleteThresholdDays))
+        self.hasAckedEventDeletion = hasAckedEventDeletion
+        self.hasAckedAttendeeDeletion = hasAckedAttendeeDeletion
+        self.hasAckedTaskDeletion = hasAckedTaskDeletion
     }
 
     enum CodingKeys: String, CodingKey {
@@ -312,6 +379,24 @@ struct AppSettings: Hashable, Codable, Sendable {
         case taskReminderThresholdDays
         case taskReminderHour
         case taskReminderMinute
+        case tasksTabSelectedListIDs
+        case hasConfiguredTasksTabSelection
+        case notesTabSelectedListIDs
+        case hasConfiguredNotesTabSelection
+        case notesViewMode
+        case notesKanbanColumnMode
+        case colorTagAutoApplyEnabled
+        case colorTagBindings
+        case colorTagMatchPolicy
+        case pastEventBehavior
+        case pastEventDeleteThresholdDays
+        case allowDeletingAttendeeEvents
+        case overdueTaskBehavior
+        case completedTaskBehavior
+        case completedTaskDeleteThresholdDays
+        case hasAckedEventDeletion
+        case hasAckedAttendeeDeletion
+        case hasAckedTaskDeletion
     }
 
     // Legacy key (0-6 ladder) read via dynamic CodingKey so it stays out of
@@ -379,6 +464,26 @@ struct AppSettings: Hashable, Codable, Sendable {
         taskReminderHour = max(0, min(23, rawHour))
         let rawMinute = try container.decodeIfPresent(Int.self, forKey: .taskReminderMinute) ?? 0
         taskReminderMinute = max(0, min(59, rawMinute))
+        tasksTabSelectedListIDs = try container.decodeIfPresent(Set<TaskListMirror.ID>.self, forKey: .tasksTabSelectedListIDs) ?? []
+        hasConfiguredTasksTabSelection = try container.decodeIfPresent(Bool.self, forKey: .hasConfiguredTasksTabSelection) ?? false
+        notesTabSelectedListIDs = try container.decodeIfPresent(Set<TaskListMirror.ID>.self, forKey: .notesTabSelectedListIDs) ?? []
+        hasConfiguredNotesTabSelection = try container.decodeIfPresent(Bool.self, forKey: .hasConfiguredNotesTabSelection) ?? false
+        notesViewMode = try container.decodeIfPresent(NotesViewMode.self, forKey: .notesViewMode) ?? .grid
+        notesKanbanColumnMode = try container.decodeIfPresent(KanbanColumnMode.self, forKey: .notesKanbanColumnMode) ?? .byList
+        colorTagAutoApplyEnabled = try container.decodeIfPresent(Bool.self, forKey: .colorTagAutoApplyEnabled) ?? false
+        colorTagBindings = try container.decodeIfPresent([String: String].self, forKey: .colorTagBindings) ?? [:]
+        colorTagMatchPolicy = try container.decodeIfPresent(ColorTagMatchPolicy.self, forKey: .colorTagMatchPolicy) ?? .firstMatch
+        pastEventBehavior = try container.decodeIfPresent(PastEventBehavior.self, forKey: .pastEventBehavior) ?? .showAll
+        let rawEventThreshold = try container.decodeIfPresent(Int.self, forKey: .pastEventDeleteThresholdDays) ?? 30
+        pastEventDeleteThresholdDays = max(1, min(365, rawEventThreshold))
+        allowDeletingAttendeeEvents = try container.decodeIfPresent(Bool.self, forKey: .allowDeletingAttendeeEvents) ?? false
+        overdueTaskBehavior = try container.decodeIfPresent(OverdueTaskBehavior.self, forKey: .overdueTaskBehavior) ?? .showAll
+        completedTaskBehavior = try container.decodeIfPresent(CompletedTaskBehavior.self, forKey: .completedTaskBehavior) ?? .showAll
+        let rawTaskThreshold = try container.decodeIfPresent(Int.self, forKey: .completedTaskDeleteThresholdDays) ?? 30
+        completedTaskDeleteThresholdDays = max(1, min(365, rawTaskThreshold))
+        hasAckedEventDeletion = try container.decodeIfPresent(Bool.self, forKey: .hasAckedEventDeletion) ?? false
+        hasAckedAttendeeDeletion = try container.decodeIfPresent(Bool.self, forKey: .hasAckedAttendeeDeletion) ?? false
+        hasAckedTaskDeletion = try container.decodeIfPresent(Bool.self, forKey: .hasAckedTaskDeletion) ?? false
     }
 
     enum MenuBarStyle: String, Codable, Hashable, Sendable, CaseIterable {

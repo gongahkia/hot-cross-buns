@@ -17,292 +17,63 @@ struct DiagnosticsView: View {
     @State private var auditEntries: [MutationAuditEntry] = []
     @State private var expandedSystemReportID: String?
     @State private var systemReportPreview: String = ""
+    @State private var tab: Tab = .overview
+
+    private enum Tab: String, CaseIterable, Identifiable {
+        case overview, sync, logs, history, support
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .overview: "Overview"
+            case .sync: "Sync"
+            case .logs: "Logs"
+            case .history: "History"
+            case .support: "Support"
+            }
+        }
+        var systemImage: String {
+            switch self {
+            case .overview: "gauge.medium"
+            case .sync: "arrow.triangle.2.circlepath"
+            case .logs: "doc.text"
+            case .history: "clock.arrow.circlepath"
+            case .support: "lifepreserver"
+            }
+        }
+    }
 
     var body: some View {
         NavigationStack {
-            List {
-                Section("Status") {
-                    DiagnosticRow(label: "Google", value: googleStatus)
-                    DiagnosticRow(label: "Sync", value: model.syncState.title)
-                    DiagnosticRow(label: "Mode", value: model.settings.syncMode.title)
-                    DiagnosticRow(label: "Last sync", value: lastSyncText)
-                    DiagnosticRow(label: "Keychain", value: model.keychainHealth.displayTitle)
-                    if model.keychainHealth == .denied {
-                        Text("macOS denied access to the Keychain. Unlock it (Applications → Utilities → Keychain Access → log in) then Reconnect Google.")
-                            .hcbFont(.caption)
-                            .foregroundStyle(AppColor.ember)
+            VStack(spacing: 0) {
+                tabBar
+                Divider()
+                List {
+                    switch tab {
+                    case .overview:
+                        statusSection
+                        localDataSection
+                        selectionsSection
+                        if notificationSummary != nil { reminderScheduleSection }
+                        cacheSection
+                    case .sync:
+                        if conflictedMutations.isEmpty == false { syncConflictsSection }
+                        if retryableQuarantined.isEmpty == false { quarantinedSection }
+                        if queuedMutations.isEmpty == false { pendingQueueSection }
+                        recoverySection
+                    case .logs:
+                        logsSection
+                    case .history:
+                        if systemCrashReports.isEmpty == false { systemCrashReportsSection }
+                        if lastCrash != nil { previousCrashSection }
+                        if auditEntries.isEmpty == false { mutationHistorySection }
+                    case .support:
+                        supportSection
                     }
-                }
-
-                Section("Local data") {
-                    DiagnosticRow(label: "Task lists", value: model.taskLists.count.formatted())
-                    DiagnosticRow(label: "Tasks", value: model.tasks.count.formatted())
-                    DiagnosticRow(label: "Calendars", value: model.calendars.count.formatted())
-                    DiagnosticRow(label: "Events", value: model.events.count.formatted())
-                    DiagnosticRow(label: "Sync checkpoints", value: model.syncCheckpoints.count.formatted())
-                    DiagnosticRow(label: "Pending writes", value: model.pendingMutations.count.formatted())
-                }
-
-                Section("Selections") {
-                    DiagnosticRow(label: "Selected task lists", value: selectedTaskListText)
-                    DiagnosticRow(label: "Selected calendars", value: selectedCalendarText)
-                    DiagnosticRow(label: "Local reminders", value: model.settings.enableLocalNotifications ? "Enabled" : "Disabled")
-                    DiagnosticRow(label: "Onboarding", value: model.settings.hasCompletedOnboarding ? "Completed" : "Not completed")
-                }
-
-                if let summary = notificationSummary {
-                    Section("Reminder schedule") {
-                        DiagnosticRow(label: "Scheduled events", value: summary.scheduledEvents.formatted())
-                        DiagnosticRow(label: "Scheduled tasks", value: summary.scheduledTasks.formatted())
-                        if summary.hasFailures {
-                            DiagnosticRow(label: "Failed events", value: summary.failedEvents.formatted())
-                            DiagnosticRow(label: "Failed tasks", value: summary.failedTasks.formatted())
-                            Text("macOS rejected \(summary.totalFailed) reminder\(summary.totalFailed == 1 ? "" : "s"). Check System Settings → Notifications → Hot Cross Buns, or the app logs for the underlying error.")
-                                .hcbFont(.caption)
-                                .foregroundStyle(.red)
-                        }
-                        if summary.hasDeferred {
-                            DiagnosticRow(label: "Deferred events", value: summary.deferredEvents.formatted())
-                            DiagnosticRow(label: "Deferred tasks", value: summary.deferredTasks.formatted())
-                            Text("More reminders exist in the next \(summary.windowDays) days than macOS allows the app to schedule at once. They will be scheduled as earlier ones fire or are cancelled.")
-                                .hcbFont(.caption)
-                                .foregroundStyle(AppColor.ember)
-                        } else if summary.hasFailures == false {
-                            Text("All reminders within the next \(summary.windowDays) days are scheduled.")
-                                .hcbFont(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-
-                Section("Cache") {
-                    Text(cachePath)
-                        .font(.footnote.monospaced())
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
-
-                if conflictedMutations.isEmpty == false {
-                    Section("Sync conflicts") {
-                        Text("Google rejected these writes with HTTP 412 — someone else edited the same item between the time you made your change and when HCB sent it. Choose whose version wins.")
-                            .hcbFont(.caption)
-                            .foregroundStyle(.secondary)
-                        ForEach(conflictedMutations) { mutation in
-                            ConflictMutationRow(
-                                mutation: mutation,
-                                onKeepMine: {
-                                    Task {
-                                        _ = await model.forceOverwriteConflictedMutation(id: mutation.id)
-                                    }
-                                },
-                                onKeepServer: {
-                                    _ = model.clearPendingMutation(id: mutation.id)
-                                }
-                            )
-                        }
-                    }
-                }
-
-                if retryableQuarantined.isEmpty == false {
-                    Section("Quarantined changes") {
-                        Text("These writes exceeded the automatic retry ceiling (\(BackoffPolicy.nearRealtime.maxAttempts) attempts). They stay on this Mac until you retry or discard.")
-                            .hcbFont(.caption)
-                            .foregroundStyle(.secondary)
-                        ForEach(retryableQuarantined) { mutation in
-                            PendingMutationRow(
-                                mutation: mutation,
-                                onDrop: { _ = model.clearPendingMutation(id: mutation.id) },
-                                onRetry: { _ = model.requeueQuarantinedMutation(id: mutation.id) }
-                            )
-                        }
-                    }
-                }
-
-                if queuedMutations.isEmpty == false {
-                    Section("Pending sync queue") {
-                        ForEach(queuedMutations) { mutation in
-                            PendingMutationRow(mutation: mutation) {
-                                _ = model.clearPendingMutation(id: mutation.id)
-                            }
-                        }
-                        Button(role: .destructive) {
-                            model.clearAllPendingMutations()
-                        } label: {
-                            Label("Clear entire queue", systemImage: "trash")
-                        }
-                    }
-                }
-
-                Section("Recovery") {
-                    Button {
-                        runRecoveryAction {
-                            await model.refreshNow()
-                        }
-                    } label: {
-                        Label("Refresh now", systemImage: "arrow.clockwise")
-                    }
-                    .disabled(isWorking || model.account == nil)
-
-                    Button {
-                        confirmation = .fullResync
-                    } label: {
-                        Label("Force full resync", systemImage: "arrow.triangle.2.circlepath.circle")
-                    }
-                    .disabled(isWorking || model.account == nil)
-
-                    Button(role: .destructive) {
-                        confirmation = .clearCache
-                    } label: {
-                        Label("Clear cached Google data", systemImage: "externaldrive.badge.xmark")
-                    }
-                    .disabled(isWorking)
-                }
-
-                if systemCrashReports.isEmpty == false {
-                    Section("System crash reports") {
-                        Text("macOS writes a symbolicated report each time the app crashes. Use these to see the exact Swift stack.")
-                            .hcbFont(.caption)
-                            .foregroundStyle(.secondary)
-                        ForEach(systemCrashReports) { report in
-                            SystemCrashRow(
-                                report: report,
-                                isExpanded: expandedSystemReportID == report.id,
-                                preview: expandedSystemReportID == report.id ? systemReportPreview : nil,
-                                onToggle: {
-                                    if expandedSystemReportID == report.id {
-                                        expandedSystemReportID = nil
-                                        systemReportPreview = ""
-                                    } else {
-                                        expandedSystemReportID = report.id
-                                        systemReportPreview = SystemCrashReportReader.readContents(of: report) ?? "Could not read report file."
-                                    }
-                                },
-                                onCopy: {
-                                    if let contents = SystemCrashReportReader.readContents(of: report) {
-                                        Clipboard.copy(contents)
-                                    }
-                                },
-                                onReveal: {
-                                    NSWorkspace.shared.activateFileViewerSelecting([report.url])
-                                }
-                            )
-                        }
-                        if let dir = SystemCrashReportReader.directoryURL() {
-                            Button {
-                                NSWorkspace.shared.open(dir)
-                            } label: {
-                                Label("Open folder in Finder", systemImage: "folder")
-                            }
-                        }
-                    }
-                }
-
-                if let crash = lastCrash {
-                    Section("Previous crash") {
-                        Text(crash)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
-                            .lineLimit(12)
-                        HStack {
-                            Button {
-                                Clipboard.copy(crash)
-                            } label: {
-                                Label("Copy crash log", systemImage: "doc.on.doc")
-                            }
-                            Button(role: .destructive) {
-                                CrashReporter.clearLastCrash()
-                                lastCrash = nil
-                            } label: {
-                                Label("Clear", systemImage: "trash")
-                            }
-                        }
-                    }
-                }
-
-                if auditEntries.isEmpty == false {
-                    Section("Mutation history") {
-                        Text("Last \(auditEntries.count) user mutations. Useful for reconstructing \"when did I do that?\" after the undo window has closed.")
-                            .hcbFont(.caption)
-                            .foregroundStyle(.secondary)
-                        ScrollView {
-                            LazyVStack(alignment: .leading, spacing: 3) {
-                                ForEach(auditEntries) { entry in
-                                    AuditEntryRow(entry: entry)
-                                }
-                            }
-                        }
-                        .hcbScaledFrame(maxHeight: 220)
-                    }
-                }
-
-                Section("Logs") {
-                    HStack {
-                        Picker("Level", selection: $logLevelFilter) {
-                            ForEach(LogLevel.allCases, id: \.self) { level in
-                                Text(level.rawValue.capitalized).tag(level)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .onChange(of: logLevelFilter) { _, _ in refreshLogs() }
-                        Spacer()
-                        Button {
-                            refreshLogs()
-                        } label: {
-                            Label("Refresh", systemImage: "arrow.clockwise")
-                        }
-                    }
-                    if logEntries.isEmpty {
-                        Text("No log entries at this level yet.")
-                            .hcbFont(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ScrollView {
-                            LazyVStack(alignment: .leading, spacing: 2) {
-                                ForEach(logEntries) { entry in
-                                    LogEntryRow(entry: entry)
-                                }
-                            }
-                        }
-                        .hcbScaledFrame(maxHeight: 220)
-                    }
-                    HStack {
-                        Button {
-                            let full = AppLogger.shared.loadPersistedLog()
-                            Clipboard.copy(full.isEmpty ? logEntries.map { $0.formattedLine() }.joined(separator: "\n") : full)
-                            logCopiedAt = Date()
-                        } label: {
-                            Label(logCopiedAt == nil ? "Copy full log" : "Copied", systemImage: logCopiedAt == nil ? "doc.on.doc" : "checkmark")
-                        }
-                        if let url = AppLogger.shared.currentLogFileURL() {
-                            Button {
-                                NSWorkspace.shared.activateFileViewerSelecting([url])
-                            } label: {
-                                Label("Reveal log file", systemImage: "folder")
-                            }
-                        }
-                    }
-                }
-
-                Section("Support") {
-                    Button {
-                        copyDiagnostics()
-                    } label: {
-                        Label(copiedAt == nil ? "Copy diagnostic summary" : "Copied diagnostic summary", systemImage: copiedAt == nil ? "doc.on.doc" : "checkmark")
-                    }
-                    Button {
-                        Task { await exportDiagnosticBundle() }
-                    } label: {
-                        Label("Export diagnostic bundle…", systemImage: "square.and.arrow.up")
-                    }
-                    .help("Save a text file with logs, pending mutations, and state for bug reports. Emails and tokens are redacted.")
                 }
             }
-            .navigationTitle("Diagnostics")
+            .navigationTitle(tab.title)
             .toolbar {
-                Button("Close") {
-                    dismiss()
-                }
+                Button("Close") { dismiss() }
             }
             .overlay {
                 if isWorking {
@@ -334,10 +105,353 @@ struct DiagnosticsView: View {
                 Text(confirmation?.message ?? "")
             }
         }
-        // macOS sheets don't auto-size to their List content; without an
-        // explicit frame the sheet collapses to toolbar-height and the
-        // sections are hidden.
         .frame(minWidth: 620, minHeight: 520)
+    }
+
+    private var tabBar: some View {
+        HStack(spacing: 0) {
+            ForEach(Tab.allCases) { entry in
+                tabButton(entry)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .hcbScaledPadding(.vertical, 10)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private func tabButton(_ entry: Tab) -> some View {
+        let isSelected = tab == entry
+        return Button {
+            tab = entry
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: entry.systemImage)
+                    .hcbFontSystem(size: 18, weight: isSelected ? .semibold : .regular)
+                Text(entry.title)
+                    .hcbFont(.caption, weight: isSelected ? .semibold : .regular)
+            }
+            .foregroundStyle(isSelected ? AppColor.ember : AppColor.ink.opacity(0.75))
+            .frame(maxWidth: .infinity)
+            .hcbScaledPadding(.vertical, 4)
+            .hcbScaledPadding(.horizontal, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(isSelected ? AppColor.ember.opacity(0.12) : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Sections
+
+    @ViewBuilder
+    private var statusSection: some View {
+        Section("Status") {
+            DiagnosticRow(label: "Google", value: googleStatus)
+            DiagnosticRow(label: "Sync", value: model.syncState.title)
+            DiagnosticRow(label: "Mode", value: model.settings.syncMode.title)
+            DiagnosticRow(label: "Last sync", value: lastSyncText)
+            DiagnosticRow(label: "Keychain", value: model.keychainHealth.displayTitle)
+            if model.keychainHealth == .denied {
+                Text("macOS denied access to the Keychain. Unlock it (Applications → Utilities → Keychain Access → log in) then Reconnect Google.")
+                    .hcbFont(.caption)
+                    .foregroundStyle(AppColor.ember)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var localDataSection: some View {
+        Section("Local data") {
+            DiagnosticRow(label: "Task lists", value: model.taskLists.count.formatted())
+            DiagnosticRow(label: "Tasks", value: model.tasks.count.formatted())
+            DiagnosticRow(label: "Calendars", value: model.calendars.count.formatted())
+            DiagnosticRow(label: "Events", value: model.events.count.formatted())
+            DiagnosticRow(label: "Sync checkpoints", value: model.syncCheckpoints.count.formatted())
+            DiagnosticRow(label: "Pending writes", value: model.pendingMutations.count.formatted())
+        }
+    }
+
+    @ViewBuilder
+    private var selectionsSection: some View {
+        Section("Selections") {
+            DiagnosticRow(label: "Selected task lists", value: selectedTaskListText)
+            DiagnosticRow(label: "Selected calendars", value: selectedCalendarText)
+            DiagnosticRow(label: "Local reminders", value: model.settings.enableLocalNotifications ? "Enabled" : "Disabled")
+            DiagnosticRow(label: "Onboarding", value: model.settings.hasCompletedOnboarding ? "Completed" : "Not completed")
+        }
+    }
+
+    @ViewBuilder
+    private var reminderScheduleSection: some View {
+        if let summary = notificationSummary {
+            Section("Reminder schedule") {
+                DiagnosticRow(label: "Scheduled events", value: summary.scheduledEvents.formatted())
+                DiagnosticRow(label: "Scheduled tasks", value: summary.scheduledTasks.formatted())
+                if summary.hasFailures {
+                    DiagnosticRow(label: "Failed events", value: summary.failedEvents.formatted())
+                    DiagnosticRow(label: "Failed tasks", value: summary.failedTasks.formatted())
+                    Text("macOS rejected \(summary.totalFailed) reminder\(summary.totalFailed == 1 ? "" : "s"). Check System Settings → Notifications → Hot Cross Buns, or the app logs for the underlying error.")
+                        .hcbFont(.caption)
+                        .foregroundStyle(.red)
+                }
+                if summary.hasDeferred {
+                    DiagnosticRow(label: "Deferred events", value: summary.deferredEvents.formatted())
+                    DiagnosticRow(label: "Deferred tasks", value: summary.deferredTasks.formatted())
+                    Text("More reminders exist in the next \(summary.windowDays) days than macOS allows the app to schedule at once. They will be scheduled as earlier ones fire or are cancelled.")
+                        .hcbFont(.caption)
+                        .foregroundStyle(AppColor.ember)
+                } else if summary.hasFailures == false {
+                    Text("All reminders within the next \(summary.windowDays) days are scheduled.")
+                        .hcbFont(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var cacheSection: some View {
+        Section("Cache") {
+            Text(cachePath)
+                .font(.footnote.monospaced())
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+        }
+    }
+
+    @ViewBuilder
+    private var syncConflictsSection: some View {
+        Section("Sync conflicts") {
+            Text("Google rejected these writes with HTTP 412 — someone else edited the same item between the time you made your change and when HCB sent it. Choose whose version wins.")
+                .hcbFont(.caption)
+                .foregroundStyle(.secondary)
+            ForEach(conflictedMutations) { mutation in
+                ConflictMutationRow(
+                    mutation: mutation,
+                    onKeepMine: {
+                        Task {
+                            _ = await model.forceOverwriteConflictedMutation(id: mutation.id)
+                        }
+                    },
+                    onKeepServer: {
+                        _ = model.clearPendingMutation(id: mutation.id)
+                    }
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var quarantinedSection: some View {
+        Section("Quarantined changes") {
+            Text("These writes exceeded the automatic retry ceiling (\(BackoffPolicy.nearRealtime.maxAttempts) attempts). They stay on this Mac until you retry or discard.")
+                .hcbFont(.caption)
+                .foregroundStyle(.secondary)
+            ForEach(retryableQuarantined) { mutation in
+                PendingMutationRow(
+                    mutation: mutation,
+                    onDrop: { _ = model.clearPendingMutation(id: mutation.id) },
+                    onRetry: { _ = model.requeueQuarantinedMutation(id: mutation.id) }
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var pendingQueueSection: some View {
+        Section("Pending sync queue") {
+            ForEach(queuedMutations) { mutation in
+                PendingMutationRow(mutation: mutation) {
+                    _ = model.clearPendingMutation(id: mutation.id)
+                }
+            }
+            Button(role: .destructive) {
+                model.clearAllPendingMutations()
+            } label: {
+                Label("Clear entire queue", systemImage: "trash")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var recoverySection: some View {
+        Section("Recovery") {
+            Button {
+                runRecoveryAction {
+                    await model.refreshNow()
+                }
+            } label: {
+                Label("Refresh now", systemImage: "arrow.clockwise")
+            }
+            .disabled(isWorking || model.account == nil)
+
+            Button {
+                confirmation = .fullResync
+            } label: {
+                Label("Force full resync", systemImage: "arrow.triangle.2.circlepath.circle")
+            }
+            .disabled(isWorking || model.account == nil)
+
+            Button(role: .destructive) {
+                confirmation = .clearCache
+            } label: {
+                Label("Clear cached Google data", systemImage: "externaldrive.badge.xmark")
+            }
+            .disabled(isWorking)
+        }
+    }
+
+    @ViewBuilder
+    private var systemCrashReportsSection: some View {
+        Section("System crash reports") {
+            Text("macOS writes a symbolicated report each time the app crashes. Use these to see the exact Swift stack.")
+                .hcbFont(.caption)
+                .foregroundStyle(.secondary)
+            ForEach(systemCrashReports) { report in
+                SystemCrashRow(
+                    report: report,
+                    isExpanded: expandedSystemReportID == report.id,
+                    preview: expandedSystemReportID == report.id ? systemReportPreview : nil,
+                    onToggle: {
+                        if expandedSystemReportID == report.id {
+                            expandedSystemReportID = nil
+                            systemReportPreview = ""
+                        } else {
+                            expandedSystemReportID = report.id
+                            systemReportPreview = SystemCrashReportReader.readContents(of: report) ?? "Could not read report file."
+                        }
+                    },
+                    onCopy: {
+                        if let contents = SystemCrashReportReader.readContents(of: report) {
+                            Clipboard.copy(contents)
+                        }
+                    },
+                    onReveal: {
+                        NSWorkspace.shared.activateFileViewerSelecting([report.url])
+                    }
+                )
+            }
+            if let dir = SystemCrashReportReader.directoryURL() {
+                Button {
+                    NSWorkspace.shared.open(dir)
+                } label: {
+                    Label("Open folder in Finder", systemImage: "folder")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var previousCrashSection: some View {
+        if let crash = lastCrash {
+            Section("Previous crash") {
+                Text(crash)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .lineLimit(12)
+                HStack {
+                    Button {
+                        Clipboard.copy(crash)
+                    } label: {
+                        Label("Copy crash log", systemImage: "doc.on.doc")
+                    }
+                    Button(role: .destructive) {
+                        CrashReporter.clearLastCrash()
+                        lastCrash = nil
+                    } label: {
+                        Label("Clear", systemImage: "trash")
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var mutationHistorySection: some View {
+        Section("Mutation history") {
+            Text("Last \(auditEntries.count) user mutations. Useful for reconstructing \"when did I do that?\" after the undo window has closed.")
+                .hcbFont(.caption)
+                .foregroundStyle(.secondary)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 3) {
+                    ForEach(auditEntries) { entry in
+                        AuditEntryRow(entry: entry)
+                    }
+                }
+            }
+            .hcbScaledFrame(maxHeight: 220)
+        }
+    }
+
+    @ViewBuilder
+    private var logsSection: some View {
+        Section("Logs") {
+            HStack {
+                Picker("Level", selection: $logLevelFilter) {
+                    ForEach(LogLevel.allCases, id: \.self) { level in
+                        Text(level.rawValue.capitalized).tag(level)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: logLevelFilter) { _, _ in refreshLogs() }
+                Spacer()
+                Button {
+                    refreshLogs()
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+            }
+            if logEntries.isEmpty {
+                Text("No log entries at this level yet.")
+                    .hcbFont(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 2) {
+                        ForEach(logEntries) { entry in
+                            LogEntryRow(entry: entry)
+                        }
+                    }
+                }
+                .hcbScaledFrame(maxHeight: 220)
+            }
+            HStack {
+                Button {
+                    let full = AppLogger.shared.loadPersistedLog()
+                    Clipboard.copy(full.isEmpty ? logEntries.map { $0.formattedLine() }.joined(separator: "\n") : full)
+                    logCopiedAt = Date()
+                } label: {
+                    Label(logCopiedAt == nil ? "Copy full log" : "Copied", systemImage: logCopiedAt == nil ? "doc.on.doc" : "checkmark")
+                }
+                if let url = AppLogger.shared.currentLogFileURL() {
+                    Button {
+                        NSWorkspace.shared.activateFileViewerSelecting([url])
+                    } label: {
+                        Label("Reveal log file", systemImage: "folder")
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var supportSection: some View {
+        Section("Support") {
+            Button {
+                copyDiagnostics()
+            } label: {
+                Label(copiedAt == nil ? "Copy diagnostic summary" : "Copied diagnostic summary", systemImage: copiedAt == nil ? "doc.on.doc" : "checkmark")
+            }
+            Button {
+                Task { await exportDiagnosticBundle() }
+            } label: {
+                Label("Export diagnostic bundle…", systemImage: "square.and.arrow.up")
+            }
+            .help("Save a text file with logs, pending mutations, and state for bug reports. Emails and tokens are redacted.")
+        }
     }
 
     private var conflictedMutations: [PendingMutation] {

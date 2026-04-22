@@ -5,6 +5,12 @@ struct QuickAddView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
 
+    // Note mode reuses the task parser end-to-end — notes are undated
+    // tasks, so any date the parser extracts auto-promotes the note into
+    // a task on submit. We surface a warning chip so the semantic change
+    // is visible before the user commits.
+    var noteMode: Bool = false
+
     @State private var input: String = ""
     @State private var parsed: ParsedQuickAddTask = ParsedQuickAddTask(title: "", dueDate: nil, taskListHint: nil, matchedTokens: [])
     @State private var selectedTaskListID: TaskListMirror.ID?
@@ -16,7 +22,7 @@ struct QuickAddView: View {
         VStack(alignment: .leading, spacing: 14) {
             header
 
-            TextField("Add a task — try \"email rent receipt tmr #personal\"", text: $input, axis: .vertical)
+            TextField(placeholderText, text: $input, axis: .vertical)
                 .textFieldStyle(.plain)
                 .font(.system(.title3, design: .rounded, weight: .medium))
                 .lineLimit(1...4)
@@ -54,7 +60,7 @@ struct QuickAddView: View {
                     if isSubmitting {
                         ProgressView().controlSize(.small)
                     } else {
-                        Text("Add Task")
+                        Text(submitButtonTitle)
                     }
                 }
                 .buttonStyle(.borderedProminent)
@@ -103,15 +109,28 @@ struct QuickAddView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            Image(systemName: "sparkles")
+            Image(systemName: noteMode ? "note.text.badge.plus" : "sparkles")
                 .foregroundStyle(AppColor.ember)
-            Text("Quick Add")
+            Text(noteMode ? "Smart Add Note" : "Smart Add Task")
                 .hcbFont(.headline)
             Spacer(minLength: 0)
             Text("Return to add, Esc to cancel")
                 .hcbFont(.caption2)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private var placeholderText: String {
+        noteMode
+            ? "Capture a thought — try \"followup on pricing #ideas\""
+            : "Add a task — try \"email rent receipt tmr #personal\""
+    }
+
+    private var submitButtonTitle: String {
+        if noteMode {
+            return parsed.dueDate == nil ? "Add Note" : "Add as Task"
+        }
+        return "Add Task"
     }
 
     private var previewStrip: some View {
@@ -128,6 +147,9 @@ struct QuickAddView: View {
             }
             if parsed.taskListHint != nil {
                 chip(icon: "number", text: resolvedListName, tint: AppColor.blue)
+            }
+            if noteMode, parsed.dueDate != nil {
+                chip(icon: "exclamationmark.triangle.fill", text: "Will become a task", tint: AppColor.ember)
             }
             Spacer(minLength: 0)
         }

@@ -7,7 +7,7 @@ import Foundation
 // state (due date, tag tokens in title). No hidden local-only fields — the
 // kanban is a lens over the mirror, never a separate data store.
 
-enum KanbanColumnMode: String, CaseIterable, Hashable, Sendable {
+enum KanbanColumnMode: String, CaseIterable, Hashable, Codable, Sendable {
     case byList
     case byDueBucket
     case byTag

@@ -3,7 +3,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
-    @Environment(RouterPath.self) private var router
+    @Environment(\.routerPath) private var router
     @State private var showLocalNotificationsInfo = false
     @State private var showOnboardingResetConfirmed = false
 
@@ -45,12 +45,12 @@ struct SettingsView: View {
                     Label("Sync details", systemImage: "arrow.triangle.2.circlepath")
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
-                        .onTapGesture { router.present(.syncSettings) }
+                        .onTapGesture { router?.present(.syncSettings) }
 
                     Label("Diagnostics and recovery", systemImage: "stethoscope")
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
-                        .onTapGesture { router.present(.diagnostics) }
+                        .onTapGesture { router?.present(.diagnostics) }
 
                     Label("Run setup again", systemImage: "sparkles")
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -60,7 +60,7 @@ struct SettingsView: View {
                             showOnboardingResetConfirmed = true
                         }
 
-                    Picker("Keep past events", selection: eventRetentionBinding) {
+                    Picker("Local cache retention (Google untouched)", selection: eventRetentionBinding) {
                         Text("30 days").tag(30)
                         Text("90 days").tag(90)
                         Text("180 days").tag(180)
@@ -69,7 +69,7 @@ struct SettingsView: View {
                         Text("Forever").tag(0)
                     }
                     .pickerStyle(.menu)
-                    Text("Older events are dropped from the local cache to keep memory + disk tight. Drops never touch Google — a Force Resync refetches everything. Recently-edited events (within the window) are preserved even if they ended earlier.")
+                    Text("Older events are dropped from the local cache to keep memory + disk tight. Drops never touch Google — a Force Resync refetches everything. Recently-edited events (within the window) are preserved even if they ended earlier. Past-event cleanup on Google is a separate setting under \"Past cleanup\".")
                         .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -170,6 +170,12 @@ struct SettingsView: View {
                     }
                 }
             }
+
+            PerTabListFilterSection()
+
+            ColorTagBindingsSection()
+
+            PastCleanupSection()
         }
         .appBackground()
     }
@@ -396,6 +402,6 @@ struct SyncSettingsSheet: View {
     NavigationStack {
         SettingsView()
             .environment(AppModel.preview)
-            .environment(RouterPath())
+            .environment(\.routerPath, RouterPath())
     }
 }

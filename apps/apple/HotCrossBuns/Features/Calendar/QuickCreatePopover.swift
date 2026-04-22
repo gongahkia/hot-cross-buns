@@ -58,6 +58,14 @@ struct QuickCreatePopover: View {
     @State private var startDate: Date = Date()
     @State private var endDate: Date = Date()
     @State private var eventColor: CalendarEventColor = .defaultColor
+    // Color-tag auto-apply bookkeeping. `autoAppliedTag` remembers the
+    // exact tag spelling that drove the current `eventColor` so we can
+    // strip it from the title on submit. `userManuallyPickedColor` latches
+    // once the user touches the color menu — from that point the auto
+    // pass won't overwrite the user's choice for the rest of this popover
+    // session.
+    @State private var autoAppliedTag: String? = nil
+    @State private var userManuallyPickedColor: Bool = false
     @State private var location: String = ""
     @State private var addGoogleMeet: Bool = false
     @State private var recurrenceRule: RecurrenceRule?
@@ -83,7 +91,7 @@ struct QuickCreatePopover: View {
 
     private enum RecurrenceEndKind: Hashable { case never, after, onDate }
 
-    enum CreateMode: String, Hashable { case event, task }
+    enum CreateMode: String, Hashable { case event, task, birthday }
 
     init(
         initialDate: Date,
@@ -113,6 +121,7 @@ struct QuickCreatePopover: View {
                             switch mode {
                             case .event: eventFields
                             case .task: taskFields
+                            case .birthday: birthdayFields
                             }
                         }
                     }
@@ -175,6 +184,34 @@ struct QuickCreatePopover: View {
             taskDueDate = cal.startOfDay(for: initialDate)
             showOptionalFields = model.settings.quickCreateExpandedByDefault
         }
+        .onChange(of: summary) { _, newValue in
+            applyColorTagAutoColor(title: newValue)
+        }
+    }
+
+    // Event-only color-tag auto-apply. Scans the title for a #tag that
+    // matches a user-configured binding and mirrors the bound color into
+    // eventColor. Skipped entirely once the user has made a manual pick
+    // so we never overwrite their choice for the rest of the session.
+    private func applyColorTagAutoColor(title: String) {
+        guard mode == .event,
+              model.settings.colorTagAutoApplyEnabled,
+              userManuallyPickedColor == false
+        else { return }
+        if let resolution = ColorTagResolver.resolve(
+            title: title,
+            bindings: model.settings.colorTagBindings,
+            policy: model.settings.colorTagMatchPolicy
+        ) {
+            let newColor = CalendarEventColor.from(colorId: resolution.colorId)
+            if newColor != eventColor { eventColor = newColor }
+            autoAppliedTag = resolution.matchedTag
+        } else if autoAppliedTag != nil {
+            // User removed the tag from the title — release the color back
+            // to calendar default so the picker doesn't lie about source.
+            eventColor = .defaultColor
+            autoAppliedTag = nil
+        }
     }
 
     private var effectiveExpanded: Bool {
@@ -198,6 +235,7 @@ struct QuickCreatePopover: View {
                 Picker("", selection: $mode) {
                     Text("Event").tag(CreateMode.event)
                     Text("Task").tag(CreateMode.task)
+                    Text("Birthday").tag(CreateMode.birthday)
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
@@ -212,7 +250,7 @@ struct QuickCreatePopover: View {
     // Title row with inline color swatch (events only)
     private var summaryRow: some View {
         HStack(alignment: .top, spacing: 8) {
-            TextField(noteMode ? "New Note" : (mode == .event ? "New Event" : "New Task"), text: $summary, axis: .vertical)
+            TextField(summaryPlaceholder, text: $summary, axis: .vertical)
                 .textFieldStyle(.plain)
                 .hcbFont(.title3, weight: .medium)
                 .lineLimit(1...4)
@@ -223,6 +261,8 @@ struct QuickCreatePopover: View {
                     ForEach(CalendarEventColor.allCases) { color in
                         Button {
                             eventColor = color
+                            userManuallyPickedColor = true
+                            autoAppliedTag = nil
                         } label: {
                             // SF-Symbol dot renders reliably in macOS Menu
                             // items (custom Circle views get dropped). We
@@ -491,16 +531,12 @@ struct QuickCreatePopover: View {
     }
 
     private var notesRow: some View {
-        HStack(alignment: .top) {
-            TextField("Add Notes or URL", text: $notes, axis: .vertical)
-                .textFieldStyle(.plain)
-                .lineLimit(1...6)
-                .hcbFont(.body)
-        }
-        .hcbScaledPadding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(AppColor.cream.opacity(0.35))
+        MarkdownEditor(
+            text: $notes,
+            placeholder: "Add Notes or URL",
+            minHeight: 90,
+            maxHeight: 180,
+            showInlinePreview: false
         )
     }
 
@@ -525,15 +561,13 @@ struct QuickCreatePopover: View {
     }
 
     private var taskNotesCard: some View {
-        TextField("Notes", text: $notes, axis: .vertical)
-            .textFieldStyle(.plain)
-            .lineLimit(1...6)
-            .hcbFont(.body)
-            .hcbScaledPadding(10)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(AppColor.cream.opacity(0.35))
-            )
+        MarkdownEditor(
+            text: $notes,
+            placeholder: "Notes",
+            minHeight: 90,
+            maxHeight: 180,
+            showInlinePreview: false
+        )
     }
 
     // Date card — collapsed shows Date label + toggle + subtitle; tap
@@ -623,6 +657,47 @@ struct QuickCreatePopover: View {
         )
     }
 
+    // MARK: - Birthday fields
+
+    // A birthday is a yearly all-day event under the hood (which is exactly
+    // how Google's auto-generated birthday events are represented). The UI
+    // hides time / location / Meet / attendees / recurrence — those are
+    // implied. User picks a single date and an optional destination
+    // calendar via the existing destinationMenu.
+    @ViewBuilder
+    private var birthdayFields: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "gift")
+                .hcbFont(.body)
+                .foregroundStyle(AppColor.ember)
+                .hcbScaledFrame(width: 22)
+            Text("Date")
+                .hcbFont(.body)
+                .foregroundStyle(AppColor.ink)
+            Spacer(minLength: 8)
+            DatePicker("", selection: $startDate, displayedComponents: [.date])
+                .labelsHidden()
+                .datePickerStyle(.stepperField)
+        }
+        .hcbScaledPadding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(AppColor.cream.opacity(0.35))
+        )
+        Text("Repeats yearly. Saved as an all-day event on the selected calendar.")
+            .hcbFont(.caption2)
+            .foregroundStyle(.secondary)
+    }
+
+    private var summaryPlaceholder: String {
+        if noteMode { return "New Note" }
+        switch mode {
+        case .event: return "New Event"
+        case .task: return "New Task"
+        case .birthday: return "Whose birthday?"
+        }
+    }
+
     // MARK: - Bottom bar
 
     private var bottomBar: some View {
@@ -685,7 +760,7 @@ struct QuickCreatePopover: View {
     @ViewBuilder
     private var destinationMenu: some View {
         switch mode {
-        case .event:
+        case .event, .birthday:
             Menu {
                 ForEach(model.calendars) { cal in
                     Button(cal.summary) { selectedCalendarID = cal.id }
@@ -760,7 +835,7 @@ struct QuickCreatePopover: View {
         let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.isEmpty == false, isSaving == false else { return false }
         switch mode {
-        case .event: return selectedCalendarID != nil
+        case .event, .birthday: return selectedCalendarID != nil
         case .task: return selectedListID != nil
         }
     }
@@ -769,7 +844,15 @@ struct QuickCreatePopover: View {
 
     @MainActor
     private func save() async {
-        let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawTrimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard rawTrimmed.isEmpty == false else { return }
+        // Strip the color-binding tag that won — and only that one — so
+        // Google sees a clean title with colorId carrying the intent.
+        // Losing tags and unmatched tags stay in the title.
+        let trimmed: String = {
+            guard mode == .event, let tag = autoAppliedTag else { return rawTrimmed }
+            return ColorTagResolver.stripTag(tag, from: rawTrimmed)
+        }()
         guard trimmed.isEmpty == false else { return }
         isSaving = true
         defer { isSaving = false }
@@ -804,6 +887,30 @@ struct QuickCreatePopover: View {
                 notes: notes,
                 dueDate: hasDueDate ? Calendar.current.startOfDay(for: taskDueDate) : nil,
                 taskListID: listID
+            )
+            if didCreate { dismiss() }
+        case .birthday:
+            guard let calID = selectedCalendarID else { return }
+            // All-day, single-day, yearly recurring. start == end is a valid
+            // all-day Google Event when isAllDay = true (Google interprets
+            // it as a 1-day span). RRULE:FREQ=YEARLY produces the annual
+            // birthday repeat that mirrors what the Google Calendar mobile
+            // app creates for native birthday entries.
+            let day = Calendar.current.startOfDay(for: startDate)
+            let didCreate = await model.createEvent(
+                summary: trimmed,
+                details: notes,
+                startDate: day,
+                endDate: day,
+                isAllDay: true,
+                reminderMinutes: nil,
+                calendarID: calID,
+                location: "",
+                recurrence: ["RRULE:FREQ=YEARLY"],
+                attendeeEmails: [],
+                notifyGuests: false,
+                addGoogleMeet: false,
+                colorId: nil
             )
             if didCreate { dismiss() }
         }

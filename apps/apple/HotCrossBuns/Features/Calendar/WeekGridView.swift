@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 struct WeekGridView: View {
     @Environment(AppModel.self) private var model
-    @Environment(RouterPath.self) private var router
+    @Environment(\.routerPath) private var router
     @Binding var anchorDate: Date
     var searchQuery: String = ""
     @Binding var selectedEventIDs: Set<String>
@@ -193,6 +193,10 @@ struct WeekGridView: View {
         let spans = layoutAllDaySpans()
         let laneCount = (spans.map(\.laneIndex).max() ?? -1) + 1
         let stripHeight = max(CGFloat(min(laneCount, 3)) * 22, 22)
+        // Captured outside GeometryReader so DragGesture closures see a
+        // reliable router reference (custom-EnvironmentKey reads inside
+        // GeometryReader closures have shown propagation gaps).
+        let capturedRouter = router
         return HStack(spacing: 0) {
             Text("All-day")
                 .hcbFont(.caption2, weight: .semibold)
@@ -239,7 +243,7 @@ struct WeekGridView: View {
                             guard weekDays.indices.contains(a), weekDays.indices.contains(b) else { return }
                             let start = calendar.startOfDay(for: weekDays[a])
                             let endExclusive = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: weekDays[b])) ?? weekDays[b]
-                            router.present(.quickCreateRange(start, endExclusive, allDay: true))
+                            capturedRouter?.present(.quickCreateRange(start, endExclusive, allDay: true))
                         }
                 )
             }
@@ -385,7 +389,10 @@ struct WeekGridView: View {
     }
 
     private var timeGrid: some View {
-        HStack(alignment: .top, spacing: 0) {
+        // Captured outside GeometryReader so DragGesture closures see a
+        // reliable router reference (see allDayStrip for rationale).
+        let capturedRouter = router
+        return HStack(alignment: .top, spacing: 0) {
             hoursColumn
             GeometryReader { geo in
                 let columnWidth = geo.size.width / CGFloat(max(weekDays.count, 1))
@@ -423,7 +430,7 @@ struct WeekGridView: View {
                             guard let drag = timedDrag else { return }
                             timedDrag = nil
                             guard let (start, end) = resolveTimedDrag(drag) else { return }
-                            router.present(.quickCreateRange(start, end, allDay: false))
+                            capturedRouter?.present(.quickCreateRange(start, end, allDay: false))
                         }
                 )
             }
@@ -550,6 +557,7 @@ struct WeekGridView: View {
             event.isAllDay == false && event.startDate < endOfDay && event.endDate > startOfDay
         }
         let laid = CalendarGridLayout.layout(eventsInDay: eventsForDay, calendar: calendar)
+        let capturedRouter = router
 
         return ZStack(alignment: .topLeading) {
             TapToCreateLayer(
@@ -557,7 +565,7 @@ struct WeekGridView: View {
                 dayStart: startOfDay,
                 calendar: calendar,
                 onTap: { start in
-                    router.present(.quickCreate(start, allDay: false))
+                    capturedRouter?.present(.quickCreate(start, allDay: false))
                 }
             )
             .dropDestination(for: DraggedTask.self) { items, location in

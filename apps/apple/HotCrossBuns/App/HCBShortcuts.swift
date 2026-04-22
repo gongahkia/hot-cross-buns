@@ -117,7 +117,7 @@ enum HCBShortcutCommand: String, CaseIterable, Identifiable {
         case .printToday: .init(key: .char("p"), modifiers: [.command, .shift])
         case .refresh: .init(key: .char("r"), modifiers: [.command])
         case .forceResync: .init(key: .char("r"), modifiers: [.command, .shift])
-        case .diagnostics: .init(key: .char("d"), modifiers: [.command, .option])
+        case .diagnostics: .init(key: .char("d"), modifiers: [.command, .control]) // ⌃⌘D — ⌥⌘D is reserved by macOS for Dock auto-hide and never reaches the app
         case .help: .init(key: .char("?"), modifiers: [.command])
         case .goToCalendar: .init(key: .char("1"), modifiers: [.command])
         case .goToStore: .init(key: .char("2"), modifiers: [.command])

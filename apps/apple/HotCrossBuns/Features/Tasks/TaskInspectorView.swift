@@ -41,6 +41,7 @@ struct TaskDraft: Equatable {
 
 struct TaskInspectorView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.routerPath) private var router
     let task: TaskMirror
     let close: () -> Void
 
@@ -384,6 +385,32 @@ struct TaskInspectorView: View {
             }
             .buttonStyle(.bordered)
             .hcbKeyboardShortcut(.taskDuplicate)
+
+            Menu {
+                Button {
+                    router?.present(.convertTaskToEvent(task.id))
+                } label: {
+                    Label("Convert to Event…", systemImage: "calendar.badge.plus")
+                }
+                if task.dueDate == nil {
+                    Button {
+                        router?.present(.convertNoteToTask(task.id))
+                    } label: {
+                        Label("Convert to Task (set due date)…", systemImage: "calendar")
+                    }
+                } else {
+                    Button {
+                        router?.present(.convertTaskToNote(task.id))
+                    } label: {
+                        Label("Convert to Note (clear due date)", systemImage: "note.text")
+                    }
+                }
+            } label: {
+                Label("Convert…", systemImage: "arrow.triangle.swap")
+                    .frame(maxWidth: .infinity)
+            }
+            .menuStyle(.borderlessButton)
+            .buttonStyle(.bordered)
 
             Button {
                 copyAsMarkdown()

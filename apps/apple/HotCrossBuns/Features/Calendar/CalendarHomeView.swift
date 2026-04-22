@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 struct CalendarHomeView: View {
     @Environment(AppModel.self) private var model
-    @Environment(RouterPath.self) private var router
+    @Environment(\.routerPath) private var router
     @Environment(NetworkMonitor.self) private var networkMonitor
     @State private var selectedDate = Date()
     @SceneStorage("calendarGridMode") private var storedMode: String = CalendarGridMode.month.rawValue
@@ -82,7 +82,7 @@ struct CalendarHomeView: View {
         .toolbar {
             ToolbarItemGroup {
                 Button {
-                    router.present(.quickCreate(Date(), allDay: true))
+                    router?.present(.quickCreate(Date(), allDay: true))
                 } label: {
                     Label("New Event or Task", systemImage: "plus")
                 }
@@ -546,7 +546,7 @@ struct CalendarHomeView: View {
                     Section {
                         ForEach(dayEvents) { event in
                             Button {
-                                router.present(.editEvent(event.id))
+                                router?.present(.editEvent(event.id))
                             } label: {
                                 EventListRow(event: event)
                             }
@@ -643,7 +643,7 @@ struct CalendarHomeView: View {
         HStack(spacing: 8) {
             CalendarTaskCheckbox(task: task, size: 14)
             Button {
-                router.present(.editTask(task.id))
+                router?.present(.editTask(task.id))
             } label: {
                 HStack(spacing: 8) {
                     Text(task.title)
@@ -753,6 +753,7 @@ private struct CalendarBadgeRow: View {
 struct AddEventSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
+    @Environment(\.routerPath) private var router
     @State private var selectedCalendarID: CalendarListMirror.ID?
     @State private var summary = ""
     @State private var details = ""
@@ -1017,6 +1018,23 @@ struct AddEventSheet: View {
                 Task { await deleteExistingEvent(existing) }
             } label: {
                 Label("Delete Event", systemImage: "trash")
+            }
+            Divider()
+            Menu {
+                Button {
+                    guard let existing = editingEvent else { return }
+                    router?.present(.convertEventToTask(existing.id))
+                } label: {
+                    Label("Convert to Task…", systemImage: "checklist")
+                }
+                Button {
+                    guard let existing = editingEvent else { return }
+                    router?.present(.convertEventToNote(existing.id))
+                } label: {
+                    Label("Convert to Note…", systemImage: "note.text")
+                }
+            } label: {
+                Label("Convert", systemImage: "arrow.triangle.swap")
             }
             Divider()
             Menu("Duplicate") {
@@ -2047,6 +2065,6 @@ private struct StatusPill: View {
     NavigationStack {
         CalendarHomeView()
             .environment(AppModel.preview)
-            .environment(RouterPath())
+            .environment(\.routerPath, RouterPath())
     }
 }

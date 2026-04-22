@@ -6,7 +6,7 @@ import SwiftUI
 // inspector. Drag-to-reschedule deferred (URGENT-TODO §6.6) — read-only v1.
 struct TimelineView: View {
     @Environment(AppModel.self) private var model
-    @Environment(RouterPath.self) private var router
+    @Environment(\.routerPath) private var router
     @Binding var anchorDate: Date
     let searchQuery: String
 
@@ -190,9 +190,9 @@ struct TimelineView: View {
     private func openItem(_ item: TimelineItem) {
         switch item.kind {
         case .task(let task):
-            router.present(.editTask(task.id))
+            router?.present(.editTask(task.id))
         case .event(let event):
-            router.present(.editEvent(event.id))
+            router?.present(.editEvent(event.id))
         }
     }
 
