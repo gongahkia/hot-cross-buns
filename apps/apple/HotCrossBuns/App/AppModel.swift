@@ -65,6 +65,17 @@ final class AppModel {
     // calendar selections, and lookup is O(1) per calendar). Cancelled
     // events are omitted to match the existing visibleEvents semantics.
     private(set) var eventsByCalendar: [CalendarListMirror.ID: [CalendarEventMirror]] = [:]
+    // Pre-bucketed events keyed on startOfDay. Multi-day events appear in
+    // every day they overlap. Cancelled events excluded. Grid views look up
+    // O(1) per cell rather than re-filtering the full event corpus each
+    // render. Stored as [TimeInterval] keys so Dictionary hashing stays
+    // fast — comparing Date instances allocates formatter strings in some
+    // Swift runtimes. Callers round to startOfDay before lookup.
+    private(set) var eventsByDay: [TimeInterval: [CalendarEventMirror]] = [:]
+    // Pre-bucketed tasks keyed on startOfDay(dueDate). Open, non-deleted
+    // tasks only. Mirrors eventsByDay so grids skip the tasks.filter per
+    // cell render.
+    private(set) var tasksByDueDate: [TimeInterval: [TaskMirror]] = [:]
     private(set) var taskSections: [TaskListSectionSnapshot] = []
     private(set) var todaySnapshot: TodaySnapshot = .empty
     private(set) var calendarSnapshot: CalendarSnapshot = .empty
@@ -3019,6 +3030,39 @@ final class AppModel {
             byCalendar[event.calendarID, default: []].append(event)
         }
         eventsByCalendar = byCalendar
+
+        // Bucket events by day (startOfDay key). Multi-day events appear in
+        // every day they overlap. Cap the span at 366 to guard against
+        // malformed long-running events from Google (birthdays with bad
+        // recurrence expansions etc). TimeInterval key avoids Date hashing
+        // overhead at scale.
+        let cal = Calendar.current
+        var byDay: [TimeInterval: [CalendarEventMirror]] = [:]
+        byDay.reserveCapacity(events.count)
+        for event in events where event.status != .cancelled {
+            let startDay = cal.startOfDay(for: event.startDate)
+            let endDay = cal.startOfDay(for: event.endDate)
+            var day = startDay
+            var steps = 0
+            while day <= endDay && steps < 366 {
+                byDay[day.timeIntervalSinceReferenceDate, default: []].append(event)
+                guard let next = cal.date(byAdding: .day, value: 1, to: day) else { break }
+                day = next
+                steps += 1
+            }
+        }
+        eventsByDay = byDay
+
+        // Bucket open, non-deleted tasks by due date (startOfDay). Mirrors
+        // eventsByDay so the grid + agenda views can skip filtering
+        // `model.tasks` on every cell render.
+        var tByDay: [TimeInterval: [TaskMirror]] = [:]
+        for task in tasks where task.isDeleted == false && task.isCompleted == false {
+            guard let due = task.dueDate else { continue }
+            let key = cal.startOfDay(for: due).timeIntervalSinceReferenceDate
+            tByDay[key, default: []].append(task)
+        }
+        tasksByDueDate = tByDay
 
         // Precompute the sidebar open-task count so the badge doesn't have
         // to re-filter every render.
