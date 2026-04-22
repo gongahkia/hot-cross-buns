@@ -9,7 +9,6 @@ struct MacSidebarShell: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openSettings) private var openSettings
     @SceneStorage("sidebarSelection") private var storedSelection: String = SidebarItem.calendar.rawValue
-    @SceneStorage("sidebarCollapsed") private var isSidebarCollapsed = false
 
     private let layoutScaleMin: Double = 0.80
     private let layoutScaleMax: Double = 1.50
@@ -26,28 +25,12 @@ struct MacSidebarShell: View {
     // Sized to fit the longest sidebar label ("Calendar") + icon + badge
     // without leaving acres of whitespace. Bumped narrower from 240pt.
     private let expandedSidebarWidthBase: CGFloat = 172
-    private let collapsedSidebarWidthBase: CGFloat = 64
-    private let collapsedIconColumnBase: CGFloat = 40
-    private let collapsedIconHeightBase: CGFloat = 36
-    private let collapsedIconCornerRadiusBase: CGFloat = 8
-    private let collapsedRowMinHeightBase: CGFloat = 42
-    private let collapsedRowSpacingBase: CGFloat = 4
     // Top inset reserved so the traffic-light buttons don't overlap the
     // first sidebar row when the window chrome sits over the sidebar.
     private let trafficLightInsetBase: CGFloat = 28
 
     private var expandedSidebarWidth: CGFloat { expandedSidebarWidthBase * layoutZoomScale }
-    private var collapsedSidebarWidth: CGFloat { collapsedSidebarWidthBase * layoutZoomScale }
-    private var collapsedIconColumn: CGFloat { collapsedIconColumnBase * layoutZoomScale }
-    private var collapsedIconHeight: CGFloat { collapsedIconHeightBase * layoutZoomScale }
-    private var collapsedIconCornerRadius: CGFloat { collapsedIconCornerRadiusBase * layoutZoomScale }
-    private var collapsedRowMinHeight: CGFloat { collapsedRowMinHeightBase * layoutZoomScale }
-    private var collapsedRowSpacing: CGFloat { collapsedRowSpacingBase * layoutZoomScale }
     private var trafficLightInset: CGFloat { trafficLightInsetBase * layoutZoomScale }
-
-    private var currentSidebarWidth: CGFloat {
-        isSidebarCollapsed ? collapsedSidebarWidth : expandedSidebarWidth
-    }
 
     @State private var selection: SidebarItem = .calendar
     @State private var sidebarVisibility: NavigationSplitViewVisibility = .all
@@ -66,10 +49,6 @@ struct MacSidebarShell: View {
     // typing forever.
     @State private var chordKeys: [String]?
     @State private var chordTimeoutTask: Task<Void, Never>?
-
-    private enum CollapsedSidebarDestination: Equatable {
-        case item(SidebarItem)
-    }
 
     private var shellCore: some View {
         NavigationSplitView(columnVisibility: $sidebarVisibility) {
@@ -315,10 +294,6 @@ struct MacSidebarShell: View {
     }
 
     private var sidebar: some View {
-        // Sidebar is always expanded — the collapse-toggle behavior was
-        // removed per user request. The collapsedSidebar / toggle plumbing
-        // below is unreferenced dead code retained only because it was
-        // out of scope to delete in this change.
         expandedSidebar
             .frame(width: expandedSidebarWidth, alignment: .topLeading)
             .navigationSplitViewColumnWidth(
@@ -330,36 +305,6 @@ struct MacSidebarShell: View {
             .hcbSurface(.sidebar) // §6.11 per-surface font override
     }
 
-    // Visible collapse toggle removed per user request. ⌘S still toggles via
-    // handleAppShortcut in the NSEvent monitor below. Method stays so the
-    // shortcut has a mutating entry point.
-    private func toggleSidebarCollapsed() {
-        isSidebarCollapsed.toggle()
-    }
-
-    private var collapsedSidebar: some View {
-        VStack(spacing: 0) {
-            Color.clear
-                .frame(height: trafficLightInset)
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: collapsedRowSpacing) {
-                    Color.clear
-                        .hcbScaledFrame(height: 6)
-                    ForEach(visibleSidebarItems) { item in
-                        collapsedItemButton(item)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.clear)
-            /* keep collapsed rows fully custom to avoid List(.sidebar) insets */
-        }
-        .frame(width: collapsedSidebarWidth)
-        .toolbar(removing: .sidebarToggle)
-    }
-
     // SidebarItem.allCases filtered by user-hidden set. Settings is never
     // hidable (see SidebarItem.isHideable), so it always appears here.
     private var visibleSidebarItems: [SidebarItem] {
@@ -368,35 +313,10 @@ struct MacSidebarShell: View {
         }
     }
 
-    private func collapsedItemButton(_ item: SidebarItem) -> some View {
-        let isSelected = selection == item
-        return Button {
-            selection = item
-        } label: {
-            collapsedSidebarIcon(systemImage: item.systemImage, isSelected: isSelected)
-                .frame(maxWidth: .infinity, minHeight: collapsedRowMinHeight, alignment: .center)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(item.title)
-    }
-
-    private func collapsedSidebarIcon(systemImage: String, isSelected: Bool) -> some View {
-        Image(systemName: systemImage)
-            .hcbFontSystem(size: 20, weight: .medium)
-            .frame(width: collapsedIconColumn, height: collapsedIconHeight)
-            .background(
-                RoundedRectangle(cornerRadius: collapsedIconCornerRadius, style: .continuous)
-                    .fill(isSelected ? AppColor.ember.opacity(0.2) : Color.clear)
-            )
-            .foregroundStyle(isSelected ? AppColor.ember : AppColor.ink)
-    }
-
     private var expandedSidebar: some View {
         VStack(spacing: 0) {
             // Reserved gap so the traffic-light window buttons don't overlap
-            // the first row. The visible collapse-toggle button was removed
-            // per user request — ⌘S still collapses via handleAppShortcut.
+            // the first row.
             Color.clear
                 .frame(height: trafficLightInset)
             List(selection: sidebarSelectionBinding) {
