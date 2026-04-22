@@ -7,7 +7,7 @@ import SwiftUI
 enum HCBSurface: String, CaseIterable, Hashable, Codable, Sendable {
     case editor      // markdown editor (task notes, event details)
     case sidebar     // MacSidebarShell list rows
-    case calendarGrid // week/day/month/timeline body text
+    case calendarGrid // week/day/month/year/agenda body text
     case taskList    // Store list rows
     case inspector   // task / event detail panes
     case menuBar     // menu-bar extra popover
