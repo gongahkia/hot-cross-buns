@@ -53,10 +53,8 @@ private struct CompactMenuBarPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
-            Divider()
             overview
             MenuBarPinnedFilters()
-            Divider()
             MenuBarQuickAddRow()
             Divider()
             MenuBarQuickActions()
@@ -88,9 +86,7 @@ private struct DetailedMenuBarPanel: View {
             DatePicker("", selection: $selectedDay, displayedComponents: [.date])
                 .datePickerStyle(.graphical)
                 .labelsHidden()
-            Divider()
             agenda
-            Divider()
             MenuBarQuickAddRow()
             Divider()
             MenuBarQuickActions()
@@ -284,7 +280,6 @@ private struct FocusStripMenuBarPanel: View {
                 }
             }
 
-            Divider()
             MenuBarQuickAddRow()
             Divider()
             MenuBarQuickActions()
@@ -824,13 +819,11 @@ private struct WeeklyMenuBarPanel: View {
                     .hcbFont(.caption, weight: .medium)
                     .foregroundStyle(.secondary)
             }
-            Divider()
             VStack(spacing: 6) {
                 ForEach(days, id: \.self) { day in
                     dayRow(day)
                 }
             }
-            Divider()
             MenuBarQuickAddRow()
             Divider()
             MenuBarQuickActions()
