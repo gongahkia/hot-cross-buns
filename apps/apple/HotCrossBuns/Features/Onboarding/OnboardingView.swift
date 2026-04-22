@@ -74,7 +74,7 @@ private struct IntroWelcomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 Text("Welcome to Hot Cross Buns")
-                    .font(.system(.largeTitle, design: .serif, weight: .bold))
+                    .font(.system(.largeTitle, weight: .bold))
                     .foregroundStyle(AppColor.ink)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -124,7 +124,7 @@ private struct IntroDetailsView: View {
             VStack(alignment: .leading, spacing: 28) {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Hot Cross Buns")
-                        .font(.system(.largeTitle, design: .serif, weight: .bold))
+                        .font(.system(.largeTitle, weight: .bold))
                         .foregroundStyle(AppColor.ink)
                     Text("A Mac-native client for Google Tasks and Google Calendar.")
                         .hcbFont(.title3)
