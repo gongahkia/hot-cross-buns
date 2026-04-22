@@ -81,10 +81,7 @@ private struct CompactMenuBarPanel: View {
 
 private struct DetailedMenuBarPanel: View {
     @Environment(AppModel.self) private var model
-    @State private var displayedMonth = Calendar.current.startOfMonth(for: Date())
     @State private var selectedDay = Calendar.current.startOfDay(for: Date())
-
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -100,67 +97,6 @@ private struct DetailedMenuBarPanel: View {
         }
         .hcbScaledPadding(12)
         .hcbScaledFrame(width: 352)
-    }
-
-    private var header: some View {
-        HStack(spacing: 8) {
-            Text(displayedMonth.formatted(.dateTime.month(.abbreviated).year()))
-                .hcbFont(.headline, weight: .semibold)
-            Spacer(minLength: 0)
-            Button {
-                displayedMonth = Calendar.current.date(byAdding: .month, value: -1, to: displayedMonth) ?? displayedMonth
-            } label: {
-                Image(systemName: "chevron.left")
-            }
-            .buttonStyle(.borderless)
-
-            Button("Today") {
-                displayedMonth = Calendar.current.startOfMonth(for: Date())
-                selectedDay = Calendar.current.startOfDay(for: Date())
-            }
-            .buttonStyle(.borderless)
-            .controlSize(.small)
-
-            Button {
-                displayedMonth = Calendar.current.date(byAdding: .month, value: 1, to: displayedMonth) ?? displayedMonth
-            } label: {
-                Image(systemName: "chevron.right")
-            }
-            .buttonStyle(.borderless)
-        }
-    }
-
-    private var weekdayHeader: some View {
-        let symbols = Calendar.current.shortStandaloneWeekdaySymbolsAlignedToFirstWeekday
-        return HStack(spacing: 0) {
-            ForEach(symbols, id: \.self) { symbol in
-                Text(symbol.uppercased())
-                    .hcbFont(.caption2, weight: .semibold)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-            }
-        }
-    }
-
-    private var dayGrid: some View {
-        LazyVGrid(columns: columns, spacing: 6) {
-            ForEach(Calendar.current.menuBarMonthGrid(for: displayedMonth)) { day in
-                Button {
-                    selectedDay = day.date
-                } label: {
-                    VStack(spacing: 2) {
-                        Text("\(Calendar.current.component(.day, from: day.date))")
-                            .font(.system(size: 12, weight: day.isToday ? .bold : .regular))
-                            .foregroundStyle(dayTextColor(for: day))
-                            .frame(maxWidth: .infinity)
-                        markerDots(for: day.date)
-                    }
-                    .hcbScaledPadding(.vertical, 4)
-                    .background(dayBackground(for: day))
-                }
-                .buttonStyle(.plain)
-            }
-        }
     }
 
     private var agenda: some View {
@@ -211,30 +147,6 @@ private struct DetailedMenuBarPanel: View {
             .hcbScaledPadding(.top, 2)
         }
         .hcbScaledFrame(maxHeight: 190)
-    }
-
-    private func dayTextColor(for day: MenuBarGridDay) -> Color {
-        if day.isInDisplayedMonth == false {
-            return .secondary.opacity(0.55)
-        }
-        if Calendar.current.isDate(selectedDay, inSameDayAs: day.date) {
-            return .white
-        }
-        return .primary
-    }
-
-    @ViewBuilder
-    private func dayBackground(for day: MenuBarGridDay) -> some View {
-        if Calendar.current.isDate(selectedDay, inSameDayAs: day.date) {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(Color.accentColor.opacity(0.9))
-        } else if day.isToday {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .stroke(Color.accentColor.opacity(0.8), lineWidth: 1.4)
-        } else {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(Color.clear)
-        }
     }
 
     private func markerDots(for date: Date) -> some View {
@@ -918,14 +830,6 @@ private struct MenuBarQuickActions: View {
     }
 }
 
-private struct MenuBarGridDay: Identifiable {
-    let date: Date
-    let isInDisplayedMonth: Bool
-    let isToday: Bool
-
-    var id: Date { date }
-}
-
 private struct MenuAgendaSection: Identifiable {
     let date: Date
     let title: String
@@ -954,36 +858,6 @@ private struct StatusLine: View {
                 .font(.body.monospacedDigit())
         }
         .hcbFont(.callout)
-    }
-}
-
-private extension Calendar {
-    func startOfMonth(for date: Date) -> Date {
-        let components = dateComponents([.year, .month], from: date)
-        return self.date(from: components) ?? date
-    }
-
-    var shortStandaloneWeekdaySymbolsAlignedToFirstWeekday: [String] {
-        let base = shortStandaloneWeekdaySymbols
-        guard base.count == 7 else { return base }
-        let shift = max(0, min(6, firstWeekday - 1))
-        return Array(base[shift...] + base[..<shift])
-    }
-
-    func menuBarMonthGrid(for monthStartDate: Date) -> [MenuBarGridDay] {
-        let monthStart = startOfMonth(for: monthStartDate)
-        let startWeekday = component(.weekday, from: monthStart)
-        let leadingCount = (startWeekday - firstWeekday + 7) % 7
-        let gridStart = date(byAdding: .day, value: -leadingCount, to: monthStart) ?? monthStart
-
-        return (0..<42).compactMap { dayOffset in
-            guard let date = date(byAdding: .day, value: dayOffset, to: gridStart) else { return nil }
-            return MenuBarGridDay(
-                date: startOfDay(for: date),
-                isInDisplayedMonth: isDate(date, equalTo: monthStart, toGranularity: .month),
-                isToday: isDateInToday(date)
-            )
-        }
     }
 }
 
