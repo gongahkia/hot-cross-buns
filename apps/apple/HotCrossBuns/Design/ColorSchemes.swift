@@ -16,6 +16,25 @@ struct HCBColorScheme: Identifiable, Hashable, Sendable {
     let cream: RGB // background
     let cardStroke: RGB // card border / divider
 
+    // Card surface one step elevated from the cream background. Dark schemes
+    // lighten cream so cards stand out against the backdrop; light schemes
+    // darken it slightly for the same effect. Derived rather than stored so
+    // every palette — including user-added ones in the future — gets a
+    // readable kanban/inspector card without hand-authoring a 3rd color.
+    var cardSurface: RGB {
+        let delta: Double = isDark ? 0.08 : -0.04
+        return RGB(
+            red: clamp(cream.red + delta),
+            green: clamp(cream.green + delta),
+            blue: clamp(cream.blue + delta),
+            alpha: 1.0
+        )
+    }
+
+    private func clamp(_ v: Double) -> Double {
+        min(1.0, max(0.0, v))
+    }
+
     struct RGB: Hashable, Sendable {
         let red: Double
         let green: Double

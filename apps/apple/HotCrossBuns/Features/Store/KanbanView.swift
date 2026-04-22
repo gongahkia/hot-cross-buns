@@ -211,7 +211,7 @@ private struct KanbanColumnView: View {
         .hcbScaledPadding(10)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(AppColor.cream.opacity(isDropTargeted ? 0.75 : 0.45))
+                .fill(AppColor.cardSurface.opacity(isDropTargeted ? 0.9 : 0.55))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -315,7 +315,7 @@ private struct KanbanCardView: View {
             .hcbScaledPadding(10)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.white.opacity(0.85))
+                    .fill(AppColor.cardSurface)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
