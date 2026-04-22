@@ -7,7 +7,6 @@ enum CalendarGridMode: String, CaseIterable, Hashable, Sendable {
     case week
     case month
     case year // §7.01 Phase D3 — 4x3 mini-months overview
-    case timeline
 
     var title: String {
         switch self {
@@ -17,7 +16,6 @@ enum CalendarGridMode: String, CaseIterable, Hashable, Sendable {
         case .week: "Week"
         case .month: "Month"
         case .year: "Year"
-        case .timeline: "Timeline"
         }
     }
 
@@ -29,7 +27,6 @@ enum CalendarGridMode: String, CaseIterable, Hashable, Sendable {
         case .week: "calendar.day.timeline.left"
         case .month: "calendar"
         case .year: "square.grid.3x3"
-        case .timeline: "chart.bar.doc.horizontal"
         }
     }
 }
