@@ -27,6 +27,10 @@ struct KanbanView: View {
     var onClearCompleted: (TaskListMirror) -> Void = { _ in }
     var onNewList: () -> Void = {}
     var onCreateTaskInList: (TaskListMirror.ID?) -> Void = { _ in }
+    // Callers can override what happens when a card is tapped. Default is
+    // to set `selection` to just that task id. Notes tab overrides this to
+    // open its side inspector instead.
+    var onCardTap: ((TaskMirror) -> Void)? = nil
 
     @State private var dropHighlightColumnID: String?
 
@@ -47,7 +51,13 @@ struct KanbanView: View {
                                 dropHighlightColumnID = isTargeted ? column.id : nil
                             },
                             selection: $selection,
-                            onCardTap: { selection = [$0.id] },
+                            onCardTap: { task in
+                                if let onCardTap {
+                                    onCardTap(task)
+                                } else {
+                                    selection = [task.id]
+                                }
+                            },
                             onRenameList: onRenameList,
                             onDeleteList: onDeleteList,
                             onClearCompleted: onClearCompleted,
