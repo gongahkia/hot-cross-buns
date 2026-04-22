@@ -168,38 +168,10 @@ struct QuickCreatePopover: View {
         .hcbScaledFrame(width: 440)
         .background(.regularMaterial)
         .task {
+            // mode/hasDueDate/isAllDay/startDate/endDate/taskDueDate are seeded in init() to avoid a first-frame flash. Only model-dependent seeds run here.
             selectedListID = initialTaskListID ?? model.taskLists.first?.id
             selectedCalendarID = model.calendarSnapshot.selectedCalendars.first?.id ?? model.calendars.first?.id
-            if taskOnly {
-                mode = .task
-                // Task-only callers originate from the Notes/Tasks surface
-                // where "undated" is the common default — leave hasDueDate
-                // on so users can pick a date, but flip to .task mode so
-                // the first tap doesn't create an event.
-            }
-            if noteMode {
-                // Note-mode flips hasDueDate off by default. Adding a date
-                // later promotes it out of the Notes tab automatically.
-                hasDueDate = false
-            }
             summaryFocused = true
-            // Seed the editable date/time fields from the drag-derived
-            // bounds so click-only (no drag) gets a 1-hour window and
-            // drags carry their exact range in.
-            isAllDay = initiallyAllDay
-            let cal = Calendar.current
-            if initiallyAllDay {
-                startDate = cal.startOfDay(for: initialDate)
-                if let e = initialEnd {
-                    endDate = cal.date(byAdding: .day, value: -1, to: e) ?? startDate
-                } else {
-                    endDate = startDate
-                }
-            } else {
-                startDate = initialDate
-                endDate = initialEnd ?? initialDate.addingTimeInterval(3600)
-            }
-            taskDueDate = cal.startOfDay(for: initialDate)
             showOptionalFields = model.settings.quickCreateExpandedByDefault
         }
         .onChange(of: summary) { _, newValue in

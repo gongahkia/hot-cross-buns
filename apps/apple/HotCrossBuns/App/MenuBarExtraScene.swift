@@ -721,14 +721,14 @@ private struct MenuBarQuickActions: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: 2) {
             Button {
                 bringAppToFront()
             } label: {
                 Label("Open Hot Cross Buns", systemImage: "arrow.up.right.square")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.borderless)
 
             Button {
                 Task { await model.refreshNow() }
@@ -736,7 +736,7 @@ private struct MenuBarQuickActions: View {
                 Label("Refresh", systemImage: "arrow.clockwise")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.borderless)
             .disabled(model.account == nil)
 
             Button {
@@ -745,7 +745,7 @@ private struct MenuBarQuickActions: View {
                 Label("Quit", systemImage: "power")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.borderless)
         }
     }
 
