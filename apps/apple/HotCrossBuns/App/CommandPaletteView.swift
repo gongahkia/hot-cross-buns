@@ -194,10 +194,10 @@ struct CommandPaletteView: View {
             idealHeight: trimmedQuery.isEmpty ? 54 : 420
         )
         .background {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(.ultraThinMaterial) // Alfred-style translucent vibrancy
         }
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .presentationBackground(.clear)
         .hcbScaledPadding(14)
     }
