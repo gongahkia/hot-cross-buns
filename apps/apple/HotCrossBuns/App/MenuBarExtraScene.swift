@@ -481,11 +481,12 @@ private struct MinimalBadgeMenuBarPanel: View {
                     .foregroundStyle(.secondary)
             }
 
-            HStack(spacing: 6) {
-                MetricChip(label: "Due", count: model.todaySnapshot.dueTasks.count, color: AppColor.ember)
-                MetricChip(label: "Overdue", count: model.todaySnapshot.overdueCount, color: AppColor.ember)
-                MetricChip(label: "Events", count: model.todaySnapshot.scheduledEvents.count, color: AppColor.blue)
+            VStack(spacing: 4) {
+                LabeledContent("Due", value: "\(model.todaySnapshot.dueTasks.count)")
+                LabeledContent("Overdue", value: "\(model.todaySnapshot.overdueCount)")
+                LabeledContent("Events", value: "\(model.todaySnapshot.scheduledEvents.count)")
             }
+            .hcbFont(.subheadline)
 
             if let lastSync = model.lastSuccessfulSyncAt {
                 Text("Last sync \(lastSync.formatted(date: .omitted, time: .shortened))")
@@ -538,32 +539,6 @@ private struct MinimalBadgeMenuBarPanel: View {
         if let window = NSApp.windows.first(where: { $0.canBecomeMain }) {
             window.makeKeyAndOrderFront(nil)
         }
-    }
-}
-
-private struct MetricChip: View {
-    let label: String
-    let count: Int
-    let color: Color
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Text(label)
-                .hcbFont(.caption2, weight: .semibold)
-            Text("\(count)")
-                .font(.caption2.monospacedDigit().weight(.semibold))
-        }
-        .hcbScaledPadding(.horizontal, 7)
-        .hcbScaledPadding(.vertical, 4)
-        .foregroundStyle(count == 0 ? .secondary : color)
-        .background(
-            Capsule(style: .continuous)
-                .fill(
-                    count == 0
-                        ? AnyShapeStyle(Color.secondary.opacity(0.16))
-                        : AnyShapeStyle(color.opacity(0.14))
-                )
-        )
     }
 }
 
