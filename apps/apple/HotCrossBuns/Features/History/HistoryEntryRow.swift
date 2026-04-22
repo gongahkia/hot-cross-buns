@@ -8,37 +8,30 @@ struct HistoryEntryRow: View {
     let onSnapshotCopied: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .center, spacing: 12) {
+            // Native macOS log rows (Mail activity, Messages receipts, Finder
+            // inspector history) use plain SF Symbols without a circular
+            // backdrop. Color conveys kind-at-a-glance; no extra geometry.
             Image(systemName: sfSymbol)
                 .foregroundStyle(iconTint)
-                .hcbFont(.subheadline, weight: .semibold)
-                .hcbScaledFrame(width: 22, height: 22)
-                .background(Circle().fill(iconTint.opacity(0.12)))
-            VStack(alignment: .leading, spacing: 2) {
+                .hcbFont(.title3)
+                .hcbScaledFrame(width: 22, alignment: .center)
+            VStack(alignment: .leading, spacing: 1) {
                 Text(entry.summary)
-                    .hcbFont(.subheadline, weight: .medium)
-                    .foregroundStyle(AppColor.ink)
+                    .hcbFont(.body)
                     .lineLimit(2)
                 HStack(spacing: 6) {
                     Text(entry.timestamp.formatted(.relative(presentation: .numeric)))
-                        .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
                     if let listTitle = entry.metadata["toListTitle"] ?? entry.metadata["list"] {
                         Text("·")
-                            .hcbFont(.caption2)
                             .foregroundStyle(.secondary)
                         Text(listTitle)
-                            .hcbFont(.caption2)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
-                    Text("·")
-                        .hcbFont(.caption2)
-                        .foregroundStyle(.secondary)
-                    Text(entry.kind)
-                        .font(.caption2.monospaced())
-                        .foregroundStyle(.tertiary)
                 }
+                .hcbFont(.caption)
             }
             Spacer(minLength: 0)
             if entry.priorSnapshotJSON != nil || entry.postSnapshotJSON != nil {
@@ -52,7 +45,6 @@ struct HistoryEntryRow: View {
                 .help("Copies the recorded state as JSON so you can recreate it manually if needed.")
             }
         }
-        .hcbScaledPadding(.vertical, 4)
     }
 
     private var sfSymbol: String {
