@@ -151,20 +151,11 @@ struct CalendarHomeView: View {
             .hcbKeyboardShortcut(.calendarPrevious)
             .accessibilityLabel("Previous \(mode.title.lowercased())")
 
-            Button {
-                selectedDate = Date()
-            } label: {
-                Text("Today")
-                    .hcbFont(.subheadline, weight: .semibold)
-                    .hcbScaledPadding(.horizontal, 10)
-                    .hcbScaledPadding(.vertical, 4)
-                    .background(
-                        Capsule().fill(AppColor.cream.opacity(0.7))
-                    )
-            }
-            .buttonStyle(.plain)
-            .hcbKeyboardShortcut(.calendarToday)
-            .accessibilityLabel("Jump to today")
+            Button("Today") { selectedDate = Date() }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .hcbKeyboardShortcut(.calendarToday)
+                .accessibilityLabel("Jump to today")
 
             Button { shift(by: 1) } label: {
                 Image(systemName: "chevron.right").hcbFont(.body, weight: .semibold)
