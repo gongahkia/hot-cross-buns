@@ -89,6 +89,16 @@ struct HistoryWindow: View {
         }
         .hcbSurface(.inspector)
         .frame(minWidth: 600, minHeight: 420)
+        // The History window is a detached Scene — environment set in
+        // MacSidebarShell doesn't reach here. Re-apply the appearance chain
+        // (id + withHCBAppearance + preferredColorScheme + appBackground)
+        // so the window follows the user's color scheme instead of the
+        // default system light theme. Mirrors HCBSettingsWindow.
+        .id(model.settings.colorSchemeID)
+        .withHCBAppearance(model.settings)
+        .environment(\.hcbShortcutOverrides, model.settings.shortcutOverrides)
+        .preferredColorScheme(HCBColorScheme.scheme(id: model.settings.colorSchemeID)?.isDark == true ? .dark : .light)
+        .appBackground()
         .navigationTitle("History")
         .task(id: refreshTrigger) { await reload() }
         .confirmationDialog(
