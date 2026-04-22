@@ -104,7 +104,6 @@ private struct IntroWelcomeView: View {
                             .hcbScaledFrame(minWidth: 120)
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(AppColor.ember)
                     .keyboardShortcut(.defaultAction)
                 }
             }
@@ -160,7 +159,6 @@ private struct IntroDetailsView: View {
                             .hcbScaledFrame(minWidth: 120)
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(AppColor.ember)
                     .keyboardShortcut(.defaultAction)
                 }
             }
