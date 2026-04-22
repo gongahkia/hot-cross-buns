@@ -320,7 +320,7 @@ private struct FocusStripMenuBarPanel: View {
                             .foregroundStyle(.tint)
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
                 .disabled(completingTaskIDs.contains(task.id))
             }
         }
