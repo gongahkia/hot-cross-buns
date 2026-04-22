@@ -497,7 +497,7 @@ struct CalendarHomeView: View {
             selectedDate = calendar.date(byAdding: .day, value: direction * step, to: selectedDate) ?? selectedDate
         case .week:
             selectedDate = calendar.date(byAdding: .weekOfYear, value: direction, to: selectedDate) ?? selectedDate
-        case .month, .timeline:
+        case .month:
             selectedDate = calendar.date(byAdding: .month, value: direction, to: selectedDate) ?? selectedDate
         case .year:
             selectedDate = calendar.date(byAdding: .year, value: direction, to: selectedDate) ?? selectedDate
@@ -513,7 +513,7 @@ struct CalendarHomeView: View {
             selectedDate = calendar.date(byAdding: .weekOfYear, value: direction, to: selectedDate) ?? selectedDate
         case .week:
             selectedDate = calendar.date(byAdding: .month, value: direction, to: selectedDate) ?? selectedDate
-        case .month, .timeline:
+        case .month:
             selectedDate = calendar.date(byAdding: .year, value: direction, to: selectedDate) ?? selectedDate
         case .year:
             selectedDate = calendar.date(byAdding: .year, value: direction * 5, to: selectedDate) ?? selectedDate
