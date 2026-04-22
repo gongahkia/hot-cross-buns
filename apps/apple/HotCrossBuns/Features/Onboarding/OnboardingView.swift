@@ -202,7 +202,6 @@ private struct ConnectGoogleCard: View {
                 scopeFootnote
             }
         }
-        .cardSurface(cornerRadius: 14)
     }
 
     private var connectButton: some View {
@@ -243,7 +242,6 @@ private struct SyncPreferenceCard: View {
                 .hcbFont(.footnote)
                 .foregroundStyle(.secondary)
         }
-        .cardSurface(cornerRadius: 14)
     }
 
     private var syncModeBinding: Binding<SyncMode> {
@@ -315,7 +313,6 @@ private struct SourceSelectionCard: View {
                 }
             }
         }
-        .cardSurface(cornerRadius: 14)
     }
 
     private func taskListBinding(_ id: TaskListMirror.ID) -> Binding<Bool> {
@@ -344,7 +341,6 @@ private struct ReminderPreferenceCard: View {
                 .hcbFont(.footnote)
                 .foregroundStyle(.secondary)
         }
-        .cardSurface(cornerRadius: 14)
     }
 
     private var remindersBinding: Binding<Bool> {
@@ -375,7 +371,6 @@ private struct FinishOnboardingCard: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .cardSurface(cornerRadius: 14)
     }
 }
 
