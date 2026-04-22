@@ -95,7 +95,7 @@ private struct IntroWelcomeView: View {
 
                 HStack {
                     Button("Later", action: onLater)
-                        .buttonStyle(.borderless)
+                        .buttonStyle(.bordered)
                     Spacer()
                     Button("Continue", action: onContinue)
                         .buttonStyle(.borderedProminent)
@@ -145,7 +145,7 @@ private struct IntroDetailsView: View {
 
                 HStack {
                     Button("Later", action: onLater)
-                        .buttonStyle(.borderless)
+                        .buttonStyle(.bordered)
                     Spacer()
                     Button("Continue", action: onContinue)
                         .buttonStyle(.borderedProminent)
