@@ -21,10 +21,19 @@ enum MarkdownHTML {
         guard html.isEmpty == false else { return "" }
         var working = html
         working = working.replacingOccurrences(of: "\r\n", with: "\n")
-        working = decodeBasicEntities(working)
         working = replaceLists(in: working)
-        working = replaceBreaks(in: working)
         working = replaceInline(in: working)
+        working = replaceParagraphsAndDivs(in: working)
+        working = replaceBreaks(in: working)
+        // Google often wraps bare URLs in <a>URL</a> (no href); strip the
+        // empty anchor but keep the inner text. Runs AFTER replaceInline so
+        // proper <a href="x">y</a> links have already been rewritten.
+        working = stripEmptyAnchors(in: working)
+        working = decodeBasicEntities(working)
+        // Collapse 3+ consecutive blank lines (can happen when every <p> has
+        // its own paragraph break next to a <br>) down to the standard double
+        // newline Markdown paragraph separator.
+        working = working.replacingMatches(of: #"\n{3,}"#) { _ in "\n\n" }
         return working.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
@@ -125,13 +134,48 @@ enum MarkdownHTML {
         value
             .replacingOccurrences(of: "&nbsp;", with: " ")
             .replacingOccurrences(of: "&quot;", with: "\"")
-            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&#39;", with: "'")
+            .replacingOccurrences(of: "&apos;", with: "'")
+            .replacingOccurrences(of: "&#34;", with: "\"")
             .replacingOccurrences(of: "&lt;", with: "<")
             .replacingOccurrences(of: "&gt;", with: ">")
+            // &amp; last so we don't re-decode previously-decoded entities.
+            .replacingOccurrences(of: "&amp;", with: "&")
     }
 
     private static func replaceBreaks(in value: String) -> String {
-        value.replacingMatches(of: #"<br\s*/?>"#) { _ in "\n" }
+        value.replacingMatches(of: #"<br\s*/?>"#, options: [.caseInsensitive]) { _ in "\n" }
+    }
+
+    // Google Calendar wraps paragraphs in <p>...</p> and sometimes uses
+    // <div> for line groupings. Convert both to a trailing double newline so
+    // the rendered markdown reads as proper paragraphs. Empty <p></p> / <div></div>
+    // collapse to a single newline so rows of whitespace aren't ballooned out.
+    private static func replaceParagraphsAndDivs(in value: String) -> String {
+        var working = value
+        working = working.replacingMatches(of: #"<p[^>]*>\s*</p>"#, options: [.caseInsensitive]) { _ in "\n" }
+        working = working.replacingMatches(of: #"<p[^>]*>(.*?)</p>"#, options: [.caseInsensitive, .dotMatchesLineSeparators]) { groups in
+            guard groups.count == 2 else { return nil }
+            return groups[1] + "\n\n"
+        }
+        working = working.replacingMatches(of: #"<div[^>]*>\s*</div>"#, options: [.caseInsensitive]) { _ in "\n" }
+        working = working.replacingMatches(of: #"<div[^>]*>(.*?)</div>"#, options: [.caseInsensitive, .dotMatchesLineSeparators]) { groups in
+            guard groups.count == 2 else { return nil }
+            return groups[1] + "\n"
+        }
+        return working
+    }
+
+    // Google's Calendar web UI emits <a>https://...</a> (no href) for bare
+    // URLs in pasted text. The main replaceInline regex requires href="…"
+    // so these were passing through with the literal tags. Strip the
+    // attribute-less anchor wrapper here — the URL inside becomes plain text
+    // that the OS's link-detection can still render live.
+    private static func stripEmptyAnchors(in value: String) -> String {
+        value.replacingMatches(of: #"<a[^>]*>([^<]*)</a>"#, options: [.caseInsensitive, .dotMatchesLineSeparators]) { groups in
+            guard groups.count == 2 else { return nil }
+            return groups[1]
+        }
     }
 
     private static func replaceInline(in value: String) -> String {
