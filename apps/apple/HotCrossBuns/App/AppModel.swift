@@ -97,6 +97,8 @@ final class AppModel {
     private var undoActionID = UUID()
     var undoActionToken: UUID { undoActionID }
     var settings: AppSettings
+    // Rebuilt by rebuildDuplicateIndex whenever tasks or dismissedDuplicateGroups change. Cards and the task inspector read .isMember / .siblings to show the !! badge and duplicate banner.
+    private(set) var duplicateIndex: DuplicateIndex = .empty
 
     // Past-cleanup coordinator. Assigned at the tail of init — @Observable
     // blocks lazy storage, so this is IUO wired up in the initializer once
@@ -1484,6 +1486,36 @@ final class AppModel {
         guard settings.historyCategoryFilters != set else { return }
         settings.historyCategoryFilters = set
         scheduleCacheSave()
+    }
+
+    func dismissDuplicateGroup(_ groupKey: String) {
+        var set = settings.dismissedDuplicateGroups
+        set.insert(groupKey)
+        guard settings.dismissedDuplicateGroups != set else { return }
+        settings.dismissedDuplicateGroups = set
+        scheduleCacheSave()
+        rebuildDuplicateIndex()
+    }
+
+    func dismissDuplicateGroupContaining(_ taskID: TaskMirror.ID) {
+        guard let key = duplicateIndex.groupKey(for: taskID) else { return }
+        dismissDuplicateGroup(key)
+    }
+
+    func restoreDuplicateGroup(_ groupKey: String) {
+        var set = settings.dismissedDuplicateGroups
+        set.remove(groupKey)
+        guard settings.dismissedDuplicateGroups != set else { return }
+        settings.dismissedDuplicateGroups = set
+        scheduleCacheSave()
+        rebuildDuplicateIndex()
+    }
+
+    func clearAllDuplicateDismissals() {
+        guard settings.dismissedDuplicateGroups.isEmpty == false else { return }
+        settings.dismissedDuplicateGroups = []
+        scheduleCacheSave()
+        rebuildDuplicateIndex()
     }
 
     // §7.02 — event retention window. Clamped to a sane [0, 3650] range so a
@@ -3232,6 +3264,12 @@ final class AppModel {
         }
         taskListCompletionStats = stats
 
+        // rebuild duplicate groups last (reads final tasks + dismissedGroupKeys)
+        duplicateIndex = DuplicateIndex.build(
+            tasks: tasks,
+            dismissedGroupKeys: settings.dismissedDuplicateGroups
+        )
+
         let elapsed = started.duration(to: .now)
         let micros = (elapsed.components.seconds * 1_000_000)
             + (elapsed.components.attoseconds / 1_000_000_000_000)
@@ -3241,6 +3279,14 @@ final class AppModel {
             "events": String(events.count),
             "visible_tasks": String(visibleTasks.count)
         ])
+    }
+
+    // Public re-index helper for call sites that change dismissedDuplicateGroups but don't otherwise mutate tasks (avoids paying the full rebuildSnapshots cost).
+    func rebuildDuplicateIndex() {
+        duplicateIndex = DuplicateIndex.build(
+            tasks: tasks,
+            dismissedGroupKeys: settings.dismissedDuplicateGroups
+        )
     }
 }
 
