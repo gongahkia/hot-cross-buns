@@ -491,7 +491,6 @@ struct AppSettings: Hashable, Codable, Sendable {
         case detailed
         case weekly
         case focusStrip
-        case dayTimeline
         case minimalBadge
 
         var title: String {
@@ -500,7 +499,6 @@ struct AppSettings: Hashable, Codable, Sendable {
             case .detailed: "Calendar"
             case .weekly: "Week-at-a-glance"
             case .focusStrip: "Focus strip"
-            case .dayTimeline: "Day timeline"
             case .minimalBadge: "Minimal badges"
             }
         }
