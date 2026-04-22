@@ -21,22 +21,28 @@ struct YearGridView: View {
         }
     }
 
+    // Reads the pre-bucketed model.eventsByDay (built once per sync in
+    // rebuildSnapshots) rather than re-walking the full event corpus + its
+    // multi-day spans on every scroll tick. The index already excludes
+    // cancelled events and inserts multi-day events into each day they
+    // cover, so we only need to project counts for days within this year
+    // and filter by selected calendars.
     private var eventsByDay: [Date: Int] {
         let selected = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
         guard let yearStart = calendar.date(from: DateComponents(year: year, month: 1, day: 1)),
               let yearEnd = calendar.date(from: DateComponents(year: year + 1, month: 1, day: 1)) else {
             return [:]
         }
+        let yearStartKey = yearStart.timeIntervalSinceReferenceDate
+        let yearEndKey = yearEnd.timeIntervalSinceReferenceDate
         var counts: [Date: Int] = [:]
-        for event in model.events {
-            guard event.status != .cancelled, selected.contains(event.calendarID) else { continue }
-            if event.endDate < yearStart || event.startDate >= yearEnd { continue }
-            var cursor = max(calendar.startOfDay(for: event.startDate), yearStart)
-            let end = min(calendar.startOfDay(for: event.endDate), calendar.date(byAdding: .day, value: -1, to: yearEnd) ?? yearEnd)
-            while cursor <= end {
-                counts[cursor, default: 0] += 1
-                guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
-                cursor = next
+        for (key, events) in model.eventsByDay {
+            guard key >= yearStartKey && key < yearEndKey else { continue }
+            let count = events.reduce(into: 0) { acc, event in
+                if selected.contains(event.calendarID) { acc += 1 }
+            }
+            if count > 0 {
+                counts[Date(timeIntervalSinceReferenceDate: key)] = count
             }
         }
         return counts
