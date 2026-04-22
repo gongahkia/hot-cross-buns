@@ -334,8 +334,26 @@ private struct KanbanCardView: View {
                         lineWidth: isSelected ? 1.4 : 0.6
                     )
             )
+            .overlay(alignment: .topTrailing) {
+                if model.duplicateIndex.isMember(task.id) {
+                    duplicateBadge
+                        .hcbScaledPadding(6)
+                }
+            }
         }
         .buttonStyle(.plain)
+    }
+
+    private var duplicateBadge: some View {
+        // small ember-tinted pill: Apple Reminders + Calendar use similar SF Symbols for emphasis. Click lands on the card (button wraps everything) which opens inspector where the user can dismiss or delete.
+        Image(systemName: "exclamationmark.2")
+            .hcbFontSystem(size: 10, weight: .bold)
+            .foregroundStyle(.white)
+            .hcbScaledFrame(width: 18, height: 18)
+            .background(Circle().fill(AppColor.ember))
+            .overlay(Circle().strokeBorder(.white.opacity(0.6), lineWidth: 0.6))
+            .help("Possible duplicate. Open to review.")
+            .accessibilityLabel("Possible duplicate")
     }
 
     private var tags: [String] {
