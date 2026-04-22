@@ -793,6 +793,13 @@ struct AddEventSheet: View {
     // series without re-opening the overflow menu.
     @State private var isConfirmingDelete = false
     @State private var pendingRecurringDeleteScope = false
+    // Birthday mode mirrors QuickCreatePopover's third creation type. When
+    // true: hide attendees / location / Meet / reminder / recurrence /
+    // color blocks, force isAllDay + single-day + RRULE:FREQ=YEARLY on
+    // save. Only togglable in create mode (editing keeps the sheet's
+    // shape so users editing existing birthday events still see all
+    // fields if they need to change calendar/notes).
+    @State private var isBirthdayMode: Bool = false
 
     init(prefilledStart: Date? = nil, prefilledIsAllDay: Bool = false, prefilledEnd: Date? = nil) {
         let start = prefilledStart ?? Date()
@@ -992,7 +999,9 @@ struct AddEventSheet: View {
     // Sheet title flips through three states: create (New Event), view-only
     // on an existing event (Event), and active edit (Edit Event).
     private var navTitle: String {
-        guard editingEvent != nil else { return "New Event" }
+        guard editingEvent != nil else {
+            return isBirthdayMode ? "New Birthday" : "New Event"
+        }
         return isEditing ? "Edit Event" : "Event"
     }
 
@@ -1112,11 +1121,31 @@ struct AddEventSheet: View {
     }
 
     private var twoColumnBody: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            // Mode picker matches QuickCreatePopover so the detailed sheet
+            // exposes the same Event/Birthday split. Hidden in edit mode —
+            // changing mode mid-edit would scramble the field set.
+            if editingEvent == nil {
+                Picker("", selection: $isBirthdayMode) {
+                    Text("Event").tag(false)
+                    Text("Birthday").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: 320)
+            }
+            if isBirthdayMode {
+                birthdayBody
+            } else {
+                eventTwoColumnBody
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var eventTwoColumnBody: some View {
         HStack(alignment: .top, spacing: 18) {
             VStack(alignment: .leading, spacing: 14) {
-                // Quick Create parses natural language to fill every field,
-                // so it only makes sense when creating — editing already has
-                // concrete values.
                 if editingEvent == nil {
                     quickCreateBlock
                 }
@@ -1138,6 +1167,30 @@ struct AddEventSheet: View {
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
+    }
+
+    // Birthday body: only the fields that apply. Save path forces all-day
+    // single-day + RRULE:FREQ=YEARLY (handled in createEvent).
+    @ViewBuilder
+    private var birthdayBody: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            sectionCard("Birthday") {
+                TextField("Whose birthday?", text: $summary)
+                    .textFieldStyle(.roundedBorder)
+            }
+            sectionCard("Date") {
+                DatePicker("Date", selection: $startDate, displayedComponents: [.date])
+                    .labelsHidden()
+                Text("Repeats yearly. Saved as an all-day event on the selected calendar.")
+                    .hcbFont(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            calendarBlock
+            sectionCard("Notes") {
+                MarkdownEditor(text: $details, placeholder: "Optional notes (markdown supported)", minHeight: 90, maxHeight: 200)
+            }
+        }
+        .frame(maxWidth: 560, alignment: .topLeading)
     }
 
     @ViewBuilder
@@ -1529,7 +1582,7 @@ struct AddEventSheet: View {
     private var canCreate: Bool {
         summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             && selectedCalendarID != nil
-            && isValidDateRange
+            && (isBirthdayMode || isValidDateRange)
             && model.account != nil
     }
 
@@ -1590,21 +1643,46 @@ struct AddEventSheet: View {
         isSaving = true
         defer { isSaving = false }
 
-        let didCreate = await model.createEvent(
-            summary: summary,
-            details: details,
-            startDate: normalizedStartDate,
-            endDate: normalizedEndDate,
-            isAllDay: isAllDay,
-            reminderMinutes: reminderOption.minutes,
-            calendarID: selectedCalendarID,
-            location: location,
-            recurrence: recurrenceRule.map { [$0.rruleString()] } ?? [],
-            attendeeEmails: attendees,
-            notifyGuests: notifyGuests,
-            addGoogleMeet: addGoogleMeet,
-            colorId: eventColor.wireValue
-        )
+        let didCreate: Bool
+        if isBirthdayMode {
+            // Force the birthday shape regardless of what the user touched
+            // in the (hidden) event-only fields. Same payload shape as
+            // QuickCreatePopover's birthday branch — keeps the two surfaces
+            // bit-identical so users get the same Google representation
+            // either way.
+            let day = Calendar.current.startOfDay(for: startDate)
+            didCreate = await model.createEvent(
+                summary: summary,
+                details: details,
+                startDate: day,
+                endDate: day,
+                isAllDay: true,
+                reminderMinutes: nil,
+                calendarID: selectedCalendarID,
+                location: "",
+                recurrence: ["RRULE:FREQ=YEARLY"],
+                attendeeEmails: [],
+                notifyGuests: false,
+                addGoogleMeet: false,
+                colorId: nil
+            )
+        } else {
+            didCreate = await model.createEvent(
+                summary: summary,
+                details: details,
+                startDate: normalizedStartDate,
+                endDate: normalizedEndDate,
+                isAllDay: isAllDay,
+                reminderMinutes: reminderOption.minutes,
+                calendarID: selectedCalendarID,
+                location: location,
+                recurrence: recurrenceRule.map { [$0.rruleString()] } ?? [],
+                attendeeEmails: attendees,
+                notifyGuests: notifyGuests,
+                addGoogleMeet: addGoogleMeet,
+                colorId: eventColor.wireValue
+            )
+        }
 
         if didCreate {
             dismiss()
