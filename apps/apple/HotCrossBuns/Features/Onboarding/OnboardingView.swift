@@ -34,6 +34,7 @@ struct OnboardingView: View {
             .navigationTitle(stage == .setup ? "Set Up" : "Welcome")
         }
         .interactiveDismissDisabled(model.settings.hasCompletedOnboarding == false)
+        .hcbScaledFrame(minWidth: 560, idealWidth: 600, minHeight: 560, idealHeight: 640)
     }
 
     private var setupBody: some View {
