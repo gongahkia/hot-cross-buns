@@ -426,26 +426,37 @@ private struct NewTaskListInlineSheet: View {
     @Binding var title: String
     let onCancel: () -> Void
     let onCreate: () -> Void
+    @FocusState private var focused: Bool
+
+    private var trimmed: String {
+        title.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Task list") {
-                    TextField("Title", text: $title)
+        // Compact popover body — matches ListCreateSheet. Apple Reminders /
+        // Finder rename-tag idiom, no nested NavigationStack inside a popover.
+        VStack(alignment: .leading, spacing: 12) {
+            Text("New Task List")
+                .font(.headline)
+            TextField("Name", text: $title)
+                .textFieldStyle(.roundedBorder)
+                .focused($focused)
+                .onSubmit {
+                    if trimmed.isEmpty == false { onCreate() }
                 }
-            }
-            .navigationTitle("New Task List")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: onCancel)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Create", action: onCreate)
-                        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
+            HStack(spacing: 8) {
+                Spacer(minLength: 0)
+                Button("Cancel", action: onCancel)
+                    .keyboardShortcut(.cancelAction)
+                Button("Create", action: onCreate)
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(trimmed.isEmpty)
             }
         }
-        .hcbScaledFrame(minWidth: 360, minHeight: 180)
+        .padding(16)
+        .frame(width: 280)
+        .onAppear { focused = true }
     }
 }
 
