@@ -7,6 +7,10 @@ struct AppStatusBanner: View {
     var isSyncPaused: Bool = false
     var quarantinedCount: Int = 0
     var conflictCount: Int = 0
+    // Days elapsed since the previous launch. Nil on first launch / same-day
+    // relaunch. Used to render an "N days since last open — fetching" row
+    // during .syncing so a long-absence cold launch isn't a silent freeze.
+    var daysSinceLastLaunch: Int? = nil
     var openDiagnostics: (() -> Void)? = nil
     let retry: () -> Void
     let dismiss: () -> Void
@@ -44,7 +48,33 @@ struct AppStatusBanner: View {
             )
             .hcbScaledPadding(.horizontal, 14)
             .hcbScaledPadding(.top, 8)
+        } else if let info = infoContext {
+            HStack(alignment: .center, spacing: 12) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(info.title)
+                    .hcbFont(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                Button(action: dismiss) {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss status message")
+            }
+            .hcbScaledPadding(.vertical, 10)
+            .hcbScaledPadding(.horizontal, 14)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .hcbScaledPadding(.horizontal, 14)
+            .hcbScaledPadding(.top, 8)
         }
+    }
+
+    private var infoContext: InfoContext? {
+        guard case .syncing = syncState else { return nil }
+        guard let days = daysSinceLastLaunch, days >= 1 else { return nil }
+        let suffix = days == 1 ? "day" : "days"
+        return InfoContext(title: "\(days) \(suffix) since last open — fetching from Google…")
     }
 
     private var failureContext: FailureContext? {
@@ -120,6 +150,10 @@ private struct FailureContext {
     var systemImage: String
     var tint: Color
     var canRetry: Bool
+}
+
+private struct InfoContext {
+    var title: String
 }
 
 #Preview {
