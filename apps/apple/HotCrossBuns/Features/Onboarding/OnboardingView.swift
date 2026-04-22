@@ -259,15 +259,11 @@ private struct SourceSelectionCard: View {
             HStack(alignment: .top) {
                 OnboardingStepHeader(number: 3, title: "Choose Sources", systemImage: "line.3.horizontal.decrease.circle")
                 Spacer()
-                Button {
-                    Task {
-                        await model.refreshNow()
-                    }
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                        .labelStyle(.iconOnly)
+                Button("Refresh") {
+                    Task { await model.refreshNow() }
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.link)
+                .controlSize(.small)
                 .accessibilityLabel("Refresh Google lists and calendars")
             }
 
