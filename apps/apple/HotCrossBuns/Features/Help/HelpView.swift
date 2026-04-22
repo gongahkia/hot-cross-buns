@@ -90,20 +90,13 @@ struct HelpView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Image(systemName: "checkmark.circle")
-                .hcbFontSystem(size: 40)
-                .foregroundStyle(AppColor.ember)
-                .hcbScaledFrame(width: 60, height: 60)
-                .background(Circle().fill(AppColor.ember.opacity(0.12)))
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Hot Cross Buns")
-                    .font(.system(.largeTitle, weight: .bold))
-                    .foregroundStyle(AppColor.ink)
-                Text("A Mac-native planner on top of Google Tasks and Google Calendar.")
-                    .hcbFont(.title3)
-                    .foregroundStyle(.secondary)
-            }
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Hot Cross Buns")
+                .font(.system(.largeTitle, weight: .bold))
+                .foregroundStyle(AppColor.ink)
+            Text("A Mac-native planner on top of Google Tasks and Google Calendar.")
+                .hcbFont(.title3)
+                .foregroundStyle(.secondary)
         }
     }
 
