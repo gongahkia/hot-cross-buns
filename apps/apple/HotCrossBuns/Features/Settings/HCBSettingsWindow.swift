@@ -74,10 +74,10 @@ struct HCBSettingsWindow: View {
             .tabItem { Label("Advanced", systemImage: "gearshape.2") }
             .tag(Tab.advanced)
         }
-        // Apple Calendar's settings window sits around 540pt wide and
-        // resists horizontal resize. Matching that: narrow fixed-ish
-        // width, reasonable height that users can still grow.
-        .frame(width: 540, height: 560)
+        // Apple Calendar's settings window sits around 540pt wide. Give
+        // the window a sensible default but allow the user to grow both
+        // dimensions via .contentMinSize in the scene.
+        .frame(minWidth: 540, idealWidth: 540, minHeight: 560, idealHeight: 560)
         // The Settings scene is a separate SwiftUI Scene, so the
         // appearance environment applied in MacSidebarShell doesn't
         // carry through — re-apply here so the color scheme, dark/light
