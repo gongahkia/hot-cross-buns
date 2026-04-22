@@ -112,23 +112,21 @@ private struct DetailedMenuBarPanel: View {
             } label: {
                 Image(systemName: "chevron.left")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderless)
 
-            Button {
+            Button("Today") {
                 displayedMonth = Calendar.current.startOfMonth(for: Date())
                 selectedDay = Calendar.current.startOfDay(for: Date())
-            } label: {
-                Text("Today")
-                    .hcbFont(.caption, weight: .medium)
             }
             .buttonStyle(.borderless)
+            .controlSize(.small)
 
             Button {
                 displayedMonth = Calendar.current.date(byAdding: .month, value: 1, to: displayedMonth) ?? displayedMonth
             } label: {
                 Image(systemName: "chevron.right")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderless)
         }
     }
 
