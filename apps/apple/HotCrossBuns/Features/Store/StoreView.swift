@@ -717,7 +717,9 @@ struct NotesView: View {
     var body: some View {
         VStack(spacing: 0) {
             Group {
-                if model.account == nil {
+                if model.account == nil && model.authState == .authenticating {
+                    RestoringSessionPlaceholder()
+                } else if model.account == nil {
                     ContentUnavailableView(
                         "Not connected to Google",
                         systemImage: "person.crop.circle.badge.plus",
