@@ -119,6 +119,21 @@ struct CommandPaletteView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
     @State private var query = ""
+    // Debounced view of `query`. Rebuilt 150ms after the user stops typing
+    // so a typing burst doesn't run the rank pipeline on every keystroke.
+    @State private var debouncedQuery = ""
+    // Snapshot of the entity universe, built once and refreshed only when
+    // model.tasks / events / taskLists / calendars / customFilters counts
+    // change. Avoids re-allocating ~17k QuickSwitcherEntity values on every
+    // render. The cheap snapshotKey check makes the refresh free in the
+    // common (no-data-change) case.
+    @State private var cachedEntities: [QuickSwitcherEntity] = []
+    // Parallel lowercased label cache for the cheap substring pre-filter.
+    // Same indices as cachedEntities. Lowercasing 17k strings once on
+    // build is cheap; doing it per-keystroke for every match was the
+    // hottest cost after entity rebuild.
+    @State private var cachedLowercaseLabels: [String] = []
+    @State private var entitiesSnapshotKey: String = ""
     @FocusState private var isSearchFocused: Bool
 
     let commands: [CommandPaletteCommand]
@@ -151,9 +166,24 @@ struct CommandPaletteView: View {
             // after consuming so a subsequent manual open starts blank.
             if let staged = model.pendingPaletteQuery, staged.isEmpty == false {
                 query = staged
+                debouncedQuery = staged
                 model.pendingPaletteQuery = nil
             }
             isSearchFocused = true
+            rebuildCachedEntitiesIfNeeded()
+        }
+        .onChange(of: snapshotKey) { _, _ in
+            rebuildCachedEntitiesIfNeeded()
+        }
+        // 150ms debounce: each keystroke restarts this task; only the final
+        // sleep that completes uncancelled writes through to debouncedQuery.
+        .task(id: query) {
+            do {
+                try await Task.sleep(for: .milliseconds(150))
+                debouncedQuery = query
+            } catch {
+                // task cancelled by next keystroke — drop, the next one runs.
+            }
         }
         .onSubmit(of: .text, executeFirstMatch)
         .hcbScaledFrame(
@@ -176,22 +206,31 @@ struct CommandPaletteView: View {
         query.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    // Collect all entities lazily — palette is opened on ⌘P so this only
-    // runs when the sheet appears + on each keystroke, not on every AppModel
-    // republish.
-    private var allEntities: [QuickSwitcherEntity] {
+    private var debouncedTrimmedQuery: String {
+        debouncedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    // Cheap fingerprint for the entity universe. Concat of the counts that
+    // determine cachedEntities. When this changes (e.g., a sync brings in
+    // new events), the cache is rebuilt; otherwise the cache stays warm
+    // across body re-evaluations and keystrokes.
+    private var snapshotKey: String {
+        "\(model.tasks.count)|\(model.events.count)|\(model.taskLists.count)|\(model.calendars.count)|\(model.settings.customFilters.count)"
+    }
+
+    private func rebuildCachedEntitiesIfNeeded() {
+        let key = snapshotKey
+        guard key != entitiesSnapshotKey else { return }
+        entitiesSnapshotKey = key
         var out: [QuickSwitcherEntity] = []
         out.reserveCapacity(model.tasks.count + model.events.count + 32)
-        for t in model.tasks where t.isDeleted == false {
-            out.append(.task(t))
-        }
-        for e in model.events where e.status != .cancelled {
-            out.append(.event(e))
-        }
+        for t in model.tasks where t.isDeleted == false { out.append(.task(t)) }
+        for e in model.events where e.status != .cancelled { out.append(.event(e)) }
         for l in model.taskLists { out.append(.taskList(l)) }
         for c in model.calendars { out.append(.calendar(c)) }
         for f in model.settings.customFilters { out.append(.customFilter(f)) }
-        return out
+        cachedEntities = out
+        cachedLowercaseLabels = out.map { $0.label.lowercased() }
     }
 
     // Merged ranked list. Behaviour:
@@ -201,37 +240,82 @@ struct CommandPaletteView: View {
     //   - Free-text (with or without operators): rank commands + entities
     //     together by fuzzy score; commands bubble up when the title matches.
     private var rankedItems: [PaletteItem] {
-        let q = trimmedQuery
+        rank(forQuery: debouncedTrimmedQuery)
+    }
+
+    // Pure rank pipeline. The computed `rankedItems` reads it with
+    // debouncedTrimmedQuery; executeFirstMatch reads it with trimmedQuery
+    // so Enter-immediately-after-typing doesn't pick a stale top match
+    // from the previous debounce window.
+    private func rank(forQuery q: String) -> [PaletteItem] {
         guard q.isEmpty == false else { return [] }
         let parsed = AdvancedSearchParser.parse(q)
 
         if let pattern = parsed.regex {
-            return allEntities
+            return cachedEntities
                 .filter { AdvancedSearchMatcher.regexMatches($0, regexPattern: pattern) }
                 .prefix(30)
                 .map { PaletteItem.entity($0) }
         }
 
-        let hasStructuredFilters = parsed.isEmpty == false && parsed.freeText.isEmpty == false
-            ? true
-            : parsed != AdvancedSearchQuery.empty && parsed.freeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-                ? true
-                : (parsed != AdvancedSearchQuery.empty)
+        let freeText = parsed.freeText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasStructuredFilters = parsed != .empty && (
+            parsed.regex != nil
+            || parsed.titleContains.isEmpty == false
+            || parsed.tagsAll.isEmpty == false
+            || parsed.listMatch != nil
+            || parsed.calendarMatch != nil
+            || parsed.attendeeMatch != nil
+            || parsed.kind != nil
+            || parsed.requireNotes
+            || parsed.requireLocation
+            || parsed.requireDue
+            || parsed.requireCompleted
+            || parsed.requireOverdue
+        )
 
         // If the user is clearly entity-searching (field operators / bare
         // keywords present), suppress commands so the list stays focused.
-        let includeCommands = hasStructuredFilters ? hasFreeTextOnly(parsed) : true
+        let includeCommands = hasStructuredFilters == false || hasFreeTextOnly(parsed)
 
-        let entitiesFiltered = allEntities.filter {
-            AdvancedSearchMatcher.matches(
-                $0,
-                query: parsed,
-                calendars: model.calendars,
-                taskLists: model.taskLists
-            )
+        // Pre-filter pool. The hot path here is free-text without structured
+        // filters: walk cachedLowercaseLabels (one .contains per item) to
+        // shrink the pool from ~17k to typically <500 BEFORE the heavier
+        // AdvancedSearchMatcher / FuzzySearcher passes. Structured filters
+        // skip this fast path and use the full matcher (correctness first).
+        let entitiesFiltered: [QuickSwitcherEntity]
+        if hasStructuredFilters {
+            entitiesFiltered = cachedEntities.filter {
+                AdvancedSearchMatcher.matches(
+                    $0,
+                    query: parsed,
+                    calendars: model.calendars,
+                    taskLists: model.taskLists
+                )
+            }
+        } else if freeText.count >= 2 {
+            let lowered = freeText.lowercased()
+            var hits: [QuickSwitcherEntity] = []
+            hits.reserveCapacity(min(cachedEntities.count, 500))
+            for (idx, lowerLabel) in cachedLowercaseLabels.enumerated() {
+                if lowerLabel.contains(lowered) {
+                    hits.append(cachedEntities[idx])
+                    if hits.count >= 500 { break }
+                }
+            }
+            entitiesFiltered = hits
+        } else {
+            // Single-char query — substring matching across 17k entities is
+            // too noisy. Restrict to the small, stable surface (lists,
+            // calendars, custom filters) so the palette stays useful.
+            entitiesFiltered = cachedEntities.filter {
+                switch $0 {
+                case .taskList, .calendar, .customFilter: return true
+                case .task, .event: return false
+                }
+            }
         }
 
-        let freeText = parsed.freeText.trimmingCharacters(in: .whitespacesAndNewlines)
         if freeText.isEmpty {
             // Operator-only query — alphabetic by label, entity-only.
             return entitiesFiltered
@@ -277,7 +361,10 @@ struct CommandPaletteView: View {
     }
 
     private func executeFirstMatch() {
-        if let first = rankedItems.first {
+        // Bypass the debounced view — Enter is an explicit confirm and
+        // should act on what the user just typed, not what was visible
+        // 150ms ago.
+        if let first = rank(forQuery: trimmedQuery).first {
             select(first)
         }
     }
