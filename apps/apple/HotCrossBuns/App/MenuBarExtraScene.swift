@@ -577,19 +577,13 @@ private struct MenuBarQuickAddRow: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 TextField("Add a task — tmr 9am #work", text: $input)
-                    .textFieldStyle(.plain)
+                    .textFieldStyle(.roundedBorder)
                     .hcbFont(.subheadline)
                     .onSubmit { Task { await submit() } }
                 if isSubmitting {
                     ProgressView().controlSize(.small)
                 }
             }
-            .hcbScaledPadding(.horizontal, 8)
-            .hcbScaledPadding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(.quaternary.opacity(0.5))
-            )
             if let errorMessage {
                 Text(errorMessage)
                     .hcbFont(.caption2)
