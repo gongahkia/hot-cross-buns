@@ -780,6 +780,23 @@ final class AppModel {
         optimistic.status = isCompleted ? .completed : .needsAction
         optimistic.completedAt = isCompleted ? Date() : nil
         upsert(optimistic)
+        // Record the undoable toast NOW, not after the API + notification-sync
+        // round-trip. Previously users saw a 15-20s delay between clicking
+        // Complete and the toast appearing because recordUndo sat after
+        // `await synchronizeLocalNotifications()`. The snapshot (originalTask)
+        // is captured pre-await so rollback on terminal failure still works;
+        // a stale undo entry from a reverted failure is harmless (the undo
+        // path idempotently re-sets the status).
+        if isCompleted {
+            recentlyCompletedTaskID = optimistic.id
+        } else if recentlyCompletedTaskID == optimistic.id {
+            recentlyCompletedTaskID = nil
+        }
+        recordUndo(.taskCompletion(
+            taskID: optimistic.id,
+            priorCompleted: originalTask.isCompleted,
+            title: optimistic.title
+        ))
 
         beginMutation()
         do {
@@ -788,16 +805,6 @@ final class AppModel {
             endMutation(error: nil)
             scheduleCacheSave()
             await synchronizeLocalNotifications()
-            if isCompleted {
-                recentlyCompletedTaskID = updatedTask.id
-            } else if recentlyCompletedTaskID == updatedTask.id {
-                recentlyCompletedTaskID = nil
-            }
-            recordUndo(.taskCompletion(
-                taskID: updatedTask.id,
-                priorCompleted: originalTask.isCompleted,
-                title: updatedTask.title
-            ))
             return true
         } catch let error as GoogleAPIError where error.isTransient {
             // Network blip / rate limit / server error — keep the optimistic
