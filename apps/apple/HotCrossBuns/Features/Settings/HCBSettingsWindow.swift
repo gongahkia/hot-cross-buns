@@ -128,6 +128,27 @@ private struct GeneralTab: View {
     @Binding var isSyncDetailsPresented: Bool
     @Binding var isDiagnosticsPresented: Bool
     @State private var showOnboardingResetConfirmed = false
+    @State private var customRetentionAmount: Int = 60
+    @State private var customRetentionUnit: RetentionUnit = .days
+
+    enum RetentionUnit: String, CaseIterable, Identifiable {
+        case days, weeks, years
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .days: "Days"
+            case .weeks: "Weeks"
+            case .years: "Years"
+            }
+        }
+        func toDays(_ amount: Int) -> Int {
+            switch self {
+            case .days: amount
+            case .weeks: amount * 7
+            case .years: amount * 365
+            }
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -161,6 +182,28 @@ private struct GeneralTab: View {
                         Text("Forever").tag(0)
                     }
                     .pickerStyle(.menu)
+                    Divider()
+                    HStack(spacing: 8) {
+                        Text("Custom")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        TextField("Amount", value: $customRetentionAmount, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 70)
+                            .multilineTextAlignment(.trailing)
+                        Picker("Unit", selection: $customRetentionUnit) {
+                            ForEach(RetentionUnit.allCases) { unit in
+                                Text(unit.title).tag(unit)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .frame(width: 90)
+                        Button("Apply") {
+                            let days = customRetentionUnit.toDays(max(0, customRetentionAmount))
+                            model.setEventRetentionDaysBack(days)
+                        }
+                        .disabled(customRetentionAmount <= 0)
+                    }
                     Text("Older events are dropped from the local cache to keep memory + disk tight. Drops never touch Google — a Force Resync refetches everything.")
                         .hcbFont(.caption2)
                         .foregroundStyle(.secondary)

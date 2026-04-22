@@ -307,23 +307,20 @@ struct MacSidebarShell: View {
         }
     }
 
-    @ViewBuilder
     private var sidebar: some View {
-        Group {
-            if isSidebarCollapsed {
-                collapsedSidebar
-            } else {
-                expandedSidebar
-            }
-        }
-        .frame(width: currentSidebarWidth, alignment: .topLeading)
-        .navigationSplitViewColumnWidth(
-            min: currentSidebarWidth,
-            ideal: currentSidebarWidth,
-            max: currentSidebarWidth
-        )
-        .clipped()
-        .hcbSurface(.sidebar) // §6.11 per-surface font override
+        // Sidebar is always expanded — the collapse-toggle behavior was
+        // removed per user request. The collapsedSidebar / toggle plumbing
+        // below is unreferenced dead code retained only because it was
+        // out of scope to delete in this change.
+        expandedSidebar
+            .frame(width: expandedSidebarWidth, alignment: .topLeading)
+            .navigationSplitViewColumnWidth(
+                min: expandedSidebarWidth,
+                ideal: expandedSidebarWidth,
+                max: expandedSidebarWidth
+            )
+            .clipped()
+            .hcbSurface(.sidebar) // §6.11 per-surface font override
     }
 
     // Visible collapse toggle removed per user request. ⌘S still toggles via
@@ -412,11 +409,15 @@ struct MacSidebarShell: View {
         let routerKey = sidebarItemKey(selection)
         let router = tabRouter.router(for: routerKey)
         NavigationStack(path: tabRouter.binding(for: routerKey)) {
-            selection.makeContentView()
+            // makeContentView injects router internally on a Group wrapping
+            // the concrete tab view — this is the load-bearing injection.
+            // The outer .environment calls below are belt-and-braces for
+            // sheets/inspectors hoisted out of the NavigationStack.
+            selection.makeContentView(router: router)
                 .withAppDestinations()
         }
-        .environment(router)
-        .withSheetDestinations(sheet: tabRouter.sheetBinding(for: routerKey))
+        .environment(\.routerPath, router)
+        .withSheetDestinations(router: router)
     }
 
     private var sidebarSelectionBinding: Binding<SidebarItem?> {
@@ -472,8 +473,8 @@ struct MacSidebarShell: View {
 
     private func configureCommandActions() {
         appCommandActions.newTask = { presentSheet(.quickAddTask, on: .store) }
-        appCommandActions.newNote = { presentSheet(.quickCreateNote(listID: nil), on: .notes) }
-        appCommandActions.newEvent = { presentSheet(.addEvent, on: .calendar) }
+        appCommandActions.newNote = { presentSheet(.quickAddNote, on: .notes) }
+        appCommandActions.newEvent = { presentSheet(.quickAddEvent, on: .calendar) }
         appCommandActions.refresh = { Task { await model.refreshNow() } }
         appCommandActions.forceResync = { Task { await model.forceFullResync() } }
         appCommandActions.switchTo = { item in
@@ -604,9 +605,6 @@ struct MacSidebarShell: View {
         }
 
         switch (rawKey, plainKey) {
-        case (_, "s") where modifiers == [.command]:
-            toggleSidebarCollapsed()
-            return true
         case ("+", _), (_, "="):
             performZoomIn()
             return true
@@ -673,13 +671,33 @@ struct MacSidebarShell: View {
         [
             CommandPaletteCommand(
                 id: "new-task",
-                title: "New Task",
+                title: "Smart Add Task",
                 subtitle: "Natural-language quick add",
                 symbol: "sparkles",
                 shortcut: "Cmd+N",
-                keywords: ["task", "create", "new", "quick", "add"]
+                keywords: ["task", "create", "new", "quick", "add", "smart"]
             ) {
                 presentSheet(.quickAddTask, on: .store)
+            },
+            CommandPaletteCommand(
+                id: "new-note",
+                title: "Smart Add Note",
+                subtitle: "Natural-language note capture",
+                symbol: "note.text.badge.plus",
+                shortcut: "",
+                keywords: ["note", "create", "new", "quick", "add", "smart"]
+            ) {
+                presentSheet(.quickAddNote, on: .notes)
+            },
+            CommandPaletteCommand(
+                id: "new-event",
+                title: "Smart Add Event",
+                subtitle: "Natural-language event capture",
+                symbol: "calendar.badge.plus",
+                shortcut: "Cmd+Shift+N",
+                keywords: ["event", "calendar", "create", "new", "smart"]
+            ) {
+                presentSheet(.quickAddEvent, on: .calendar)
             },
             CommandPaletteCommand(
                 id: "new-task-detailed",
@@ -692,12 +710,12 @@ struct MacSidebarShell: View {
                 presentSheet(.addTask, on: .store)
             },
             CommandPaletteCommand(
-                id: "new-event",
-                title: "New Event",
-                subtitle: "Create a Google Calendar event",
-                symbol: "calendar.badge.plus",
-                shortcut: "Cmd+Shift+N",
-                keywords: ["event", "calendar", "create", "new"]
+                id: "new-event-detailed",
+                title: "New Event (Detailed)",
+                subtitle: "Fill out the full event form",
+                symbol: "calendar",
+                shortcut: "",
+                keywords: ["event", "calendar", "detailed", "form"]
             ) {
                 presentSheet(.addEvent, on: .calendar)
             },

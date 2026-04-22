@@ -1,33 +1,64 @@
+import AppKit
 import SwiftUI
 
+// Edit surface for task notes and event descriptions. The underlying text
+// view is MarkdownLiveEditor, which renders markdown formatting live while
+// keeping syntax visible but dimmed (Obsidian-style live preview). The
+// toolbar on top still inserts raw markdown — the live render does the
+// rest.
 struct MarkdownEditor: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.colorScheme) private var colorScheme
     @Binding var text: String
     var placeholder: String = ""
     var minHeight: CGFloat = 120
     var maxHeight: CGFloat = 240
+    // Kept for backwards compatibility with existing call sites; the live
+    // editor makes the below-editor preview redundant.
     var showInlinePreview: Bool = true
 
-    @FocusState private var isFocused: Bool
+    @State private var isFocused: Bool = false
 
-    // Per-surface font (§6.11). Falls back to the global Appearance font
-    // when no editor-specific override is set.
-    private var editorFont: Font {
+    private var editorFontSize: CGFloat {
         let base = CGFloat(HCBTextSize.clamp(model.settings.uiTextSizePoints))
-        return model.settings.resolvedFont(for: .editor, baseSize: base)
+        let override = model.settings.perSurfaceFontOverrides[HCBSurface.editor.rawValue] ?? .empty
+        if let pt = override.pointSize {
+            return CGFloat(HCBTextSize.clamp(pt))
+        }
+        return base
+    }
+
+    private var editorFontName: String? {
+        let override = model.settings.perSurfaceFontOverrides[HCBSurface.editor.rawValue] ?? .empty
+        if let name = override.fontName, name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            return name
+        }
+        if let global = model.settings.uiFontName, global.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            return global
+        }
+        return nil
+    }
+
+    private var baseNSFont: NSFont {
+        if let name = editorFontName, let f = NSFont(name: name, size: editorFontSize) {
+            return f
+        }
+        return NSFont.systemFont(ofSize: editorFontSize)
+    }
+
+    private var theme: MarkdownHighlightTheme {
+        .current(baseFont: baseNSFont)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             toolbar
             editor
-            if showInlinePreview, isFocused == false, trimmed.isEmpty == false {
-                Text.markdown(trimmed)
-                    .hcbFont(.callout)
-                    .foregroundStyle(.secondary)
-                    .hcbScaledPadding(.horizontal, 2)
-            }
         }
+        // colorScheme is read so the view re-renders when the user flips
+        // light/dark or swaps palette — NSTextView colors are pulled from
+        // the scheme store on each update.
+        .id(colorScheme)
     }
 
     private var trimmed: String {
@@ -37,15 +68,15 @@ struct MarkdownEditor: View {
     private var toolbar: some View {
         HStack(spacing: 4) {
             toolbarButton(title: "B", systemImage: "bold", help: "Bold (**text**)") {
-                wrapSelection(prefix: "**", suffix: "**", placeholder: "bold")
+                wrapAtEnd(prefix: "**", suffix: "**", placeholder: "bold")
             }
             .hcbFont(.caption, weight: .bold)
             toolbarButton(title: "I", systemImage: "italic", help: "Italic (*text*)") {
-                wrapSelection(prefix: "*", suffix: "*", placeholder: "italic")
+                wrapAtEnd(prefix: "*", suffix: "*", placeholder: "italic")
             }
             .font(.caption.italic())
             toolbarButton(title: "U", systemImage: "underline", help: "Underline (__text__, Calendar only)") {
-                wrapSelection(prefix: "__", suffix: "__", placeholder: "underline")
+                wrapAtEnd(prefix: "__", suffix: "__", placeholder: "underline")
             }
             .hcbFont(.caption, weight: .semibold)
             toolbarButton(title: "•", systemImage: "list.bullet", help: "Bulleted list") {
@@ -78,38 +109,32 @@ struct MarkdownEditor: View {
     }
 
     private var editor: some View {
-        ZStack(alignment: .topLeading) {
-            if text.isEmpty, placeholder.isEmpty == false {
-                Text(placeholder)
-                    .foregroundStyle(.secondary)
-                    .hcbScaledPadding(.horizontal, 14)
-                    .hcbScaledPadding(.top, 14)
-                    .allowsHitTesting(false)
-            }
-            TextEditor(text: $text)
-                .font(editorFont)
-                .foregroundColor(AppColor.ink)
-                .tint(AppColor.ember)
-                .scrollContentBackground(.hidden)
-                .enableWritingTools()
-                .frame(minHeight: minHeight, maxHeight: maxHeight)
-                .hcbScaledPadding(10)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(AppColor.cream.opacity(0.6))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(AppColor.cardStroke, lineWidth: 0.8)
-                )
-                .focused($isFocused)
-        }
+        MarkdownLiveEditor(
+            text: $text,
+            placeholder: placeholder,
+            minHeight: minHeight,
+            maxHeight: maxHeight,
+            baseFont: baseNSFont,
+            theme: theme,
+            onFocusChange: { focused in isFocused = focused }
+        )
+        .frame(minHeight: minHeight, maxHeight: maxHeight)
+        .hcbScaledPadding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(AppColor.cream.opacity(0.6))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(AppColor.cardStroke, lineWidth: 0.8)
+        )
     }
 
-    private func wrapSelection(prefix: String, suffix: String, placeholder: String) {
-        // TextEditor doesn't expose selection; append the wrapped placeholder.
-        let addition = "\(prefix)\(placeholder)\(suffix)"
-        appendAddition(addition)
+    // Toolbar still appends since NSTextView's selection isn't round-tripped
+    // through the SwiftUI binding. Wrapping at cursor remains a possible
+    // follow-up if callers ask.
+    private func wrapAtEnd(prefix: String, suffix: String, placeholder: String) {
+        appendAddition("\(prefix)\(placeholder)\(suffix)")
     }
 
     private func insertLinePrefix(_ prefix: String) {

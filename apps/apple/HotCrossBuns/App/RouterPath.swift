@@ -1,16 +1,22 @@
 import SwiftUI
-import Observation
+import Combine
 
 // Tab-scoped navigation state. Paths are intentionally empty-by-design now
 // that the legacy full-screen TaskDetailView / EventDetailView have been
 // replaced by edit sheets — every task/event surface is sheet-based. The
 // path[] / navigate() vestiges are kept so future detail routes (e.g. a
 // per-task attachment viewer) can slot in without reshuffling SheetDestination.
+//
+// Uses legacy ObservableObject (not @Observable) because the new Observation
+// framework's .environment(value) propagation was failing for RouterPath
+// across NavigationStack content boundaries — descendants (MonthGridView,
+// etc.) got "No Observable object of type RouterPath found" even with the
+// modifier present. Switching to @EnvironmentObject + .environmentObject
+// goes through the older, battle-tested env-object machinery.
 @MainActor
-@Observable
-final class RouterPath {
-    var path: [AppRoute] = []
-    var presentedSheet: SheetDestination?
+final class RouterPath: ObservableObject {
+    @Published var path: [AppRoute] = []
+    @Published var presentedSheet: SheetDestination?
 
     func navigate(to route: AppRoute) {
         path.append(route)
@@ -65,6 +71,7 @@ enum SheetDestination: Identifiable, Hashable {
     case addTask
     case editTask(TaskMirror.ID)
     case quickAddTask
+    case quickAddNote
     case quickAddEvent
     case addEvent
     case editEvent(CalendarEventMirror.ID)
@@ -84,6 +91,12 @@ enum SheetDestination: Identifiable, Hashable {
     // promotes the note into a task (by moving it out of the Notes tab and
     // into the Tasks tab — both are Google-side the same TaskMirror).
     case quickCreateNote(listID: TaskListMirror.ID?)
+    case convertEventToTask(CalendarEventMirror.ID)
+    case convertEventToNote(CalendarEventMirror.ID)
+    case convertTaskToEvent(TaskMirror.ID)
+    case convertTaskToNote(TaskMirror.ID)
+    case convertNoteToTask(TaskMirror.ID)
+    case convertNoteToEvent(TaskMirror.ID)
     case syncSettings
     case diagnostics
 
@@ -92,6 +105,7 @@ enum SheetDestination: Identifiable, Hashable {
         case .addTask: "addTask"
         case .editTask(let id): "editTask-\(id)"
         case .quickAddTask: "quickAddTask"
+        case .quickAddNote: "quickAddNote"
         case .quickAddEvent: "quickAddEvent"
         case .addEvent: "addEvent"
         case .editEvent(let id): "editEvent-\(id)"
@@ -107,6 +121,12 @@ enum SheetDestination: Identifiable, Hashable {
             "quickCreateTask-\(listID ?? "any")"
         case .quickCreateNote(let listID):
             "quickCreateNote-\(listID ?? "any")"
+        case .convertEventToTask(let id): "convertEventToTask-\(id)"
+        case .convertEventToNote(let id): "convertEventToNote-\(id)"
+        case .convertTaskToEvent(let id): "convertTaskToEvent-\(id)"
+        case .convertTaskToNote(let id): "convertTaskToNote-\(id)"
+        case .convertNoteToTask(let id): "convertNoteToTask-\(id)"
+        case .convertNoteToEvent(let id): "convertNoteToEvent-\(id)"
         case .syncSettings: "syncSettings"
         case .diagnostics: "diagnostics"
         }
@@ -119,19 +139,38 @@ extension View {
     // deleted entirely once callers are pruned.
     func withAppDestinations() -> some View { self }
 
-    func withSheetDestinations(sheet: Binding<SheetDestination?>) -> some View {
-        self.sheet(item: sheet) { destination in
-            SheetDestinationHost(destination: destination)
-        }
+    // SheetHost wraps content in a view that observes router via @ObservedObject
+    // so SwiftUI re-renders the .sheet host when router.presentedSheet changes —
+    // without this, calling router.present(...) updates the @Published property
+    // but no view in the .sheet's host chain observes router, so the binding
+    // never gets re-checked and the sheet only appears after some unrelated
+    // re-render (e.g. tab switch).
+    func withSheetDestinations(router: RouterPath) -> some View {
+        SheetHost(router: router) { self }
+    }
+}
+
+private struct SheetHost<Content: View>: View {
+    @ObservedObject var router: RouterPath
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content()
+            .sheet(item: $router.presentedSheet) { destination in
+                SheetDestinationHost(destination: destination, router: router)
+                    .environment(\.routerPath, router)
+            }
     }
 }
 
 private struct SheetDestinationHost: View {
     @Environment(AppModel.self) private var model
     let destination: SheetDestination
+    let router: RouterPath
 
     var body: some View {
         sheetBody
+            .environment(\.routerPath, router)
             .withHCBAppearance(model.settings)
     }
 
@@ -149,6 +188,8 @@ private struct SheetDestinationHost: View {
             }
         case .quickAddTask:
             QuickAddView()
+        case .quickAddNote:
+            QuickAddView(noteMode: true)
         case .quickAddEvent:
             QuickAddEventView()
         case .addEvent:
@@ -172,10 +213,49 @@ private struct SheetDestinationHost: View {
             QuickCreatePopover(initialDate: Date(), isAllDay: true, taskOnly: true, initialTaskListID: listID)
         case .quickCreateNote(let listID):
             QuickCreatePopover(initialDate: Date(), isAllDay: true, taskOnly: true, initialTaskListID: listID, noteMode: true)
+        case .convertEventToTask(let id):
+            conversionSheet(intent: model.event(id: id).map(ConversionIntent.eventToTask))
+        case .convertEventToNote(let id):
+            conversionSheet(intent: model.event(id: id).map(ConversionIntent.eventToNote))
+        case .convertTaskToEvent(let id):
+            conversionSheet(intent: model.task(id: id).map(ConversionIntent.taskToEvent))
+        case .convertTaskToNote(let id):
+            conversionSheet(intent: model.task(id: id).map(ConversionIntent.taskToNote))
+        case .convertNoteToTask(let id):
+            conversionSheet(intent: model.task(id: id).map(ConversionIntent.noteToTask))
+        case .convertNoteToEvent(let id):
+            conversionSheet(intent: model.task(id: id).map(ConversionIntent.noteToEvent))
         case .syncSettings:
             SyncSettingsSheet()
         case .diagnostics:
             DiagnosticsView()
         }
+    }
+
+    @ViewBuilder
+    private func conversionSheet(intent: ConversionIntent?) -> some View {
+        if let intent {
+            ConversionSheet(intent: intent)
+        } else {
+            ContentUnavailableView("Source not found", systemImage: "arrow.triangle.swap",
+                                   description: Text("The item you're converting may have been deleted on Google."))
+        }
+    }
+}
+
+// Non-observing env-key for RouterPath. Most consumers only need to call
+// router.present(...) or router.navigate(...) — they never *display* router
+// state, so they shouldn't subscribe to its publishes (which would re-render
+// every grid cell on every router mutation, causing severe lag). Reads via
+// @Environment(\.routerPath) get a plain reference; only views that need to
+// react to router state changes (e.g. SheetHost) use @ObservedObject.
+private struct RouterPathKey: EnvironmentKey {
+    static let defaultValue: RouterPath? = nil
+}
+
+extension EnvironmentValues {
+    var routerPath: RouterPath? {
+        get { self[RouterPathKey.self] }
+        set { self[RouterPathKey.self] = newValue }
     }
 }

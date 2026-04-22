@@ -67,7 +67,7 @@ struct EventHoverPreview: View {
 // "Open" button to escalate to the full detail view. Agenda view keeps its
 // existing row-tap-navigates behavior.
 struct CalendarEventPreviewButton<Label: View>: View {
-    @Environment(RouterPath.self) private var router
+    @Environment(\.routerPath) private var router
     let event: CalendarEventMirror
     @ViewBuilder let label: () -> Label
     @State private var isPresented = false
@@ -86,7 +86,7 @@ struct CalendarEventPreviewButton<Label: View>: View {
                     Spacer(minLength: 0)
                     Button("Open") {
                         isPresented = false
-                        router.present(.editEvent(event.id))
+                        router?.present(.editEvent(event.id))
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(AppColor.ember)
@@ -99,7 +99,7 @@ struct CalendarEventPreviewButton<Label: View>: View {
 }
 
 struct CalendarTaskPreviewButton<Label: View>: View {
-    @Environment(RouterPath.self) private var router
+    @Environment(\.routerPath) private var router
     @Environment(AppModel.self) private var model
     let task: TaskMirror
     @ViewBuilder let label: () -> Label
@@ -123,7 +123,7 @@ struct CalendarTaskPreviewButton<Label: View>: View {
                     Spacer(minLength: 0)
                     Button("Open") {
                         isPresented = false
-                        router.present(.editTask(task.id))
+                        router?.present(.editTask(task.id))
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(AppColor.ember)

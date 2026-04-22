@@ -44,14 +44,18 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
 
     @MainActor
     @ViewBuilder
-    func makeContentView() -> some View {
+    func makeContentView(router: RouterPath) -> some View {
+        // router injected via custom EnvironmentKey (non-observing). Consumers
+        // call router.present(...) but never display router state, so they
+        // shouldn't subscribe to its publishes. See RouterPath.swift for the
+        // RouterPathKey rationale.
         switch self {
         case .calendar:
-            CalendarHomeView()
+            CalendarHomeView().environment(\.routerPath, router)
         case .store:
-            StoreView()
+            StoreView().environment(\.routerPath, router)
         case .notes:
-            NotesView()
+            NotesView().environment(\.routerPath, router)
         }
     }
 }

@@ -19,7 +19,7 @@ import SwiftUI
 //    standalone filter entry was dropped with the filter menu.
 struct StoreView: View {
     @Environment(AppModel.self) private var model
-    @Environment(RouterPath.self) private var router
+    @Environment(\.routerPath) private var router
 
     @State private var selection: Set<TaskMirror.ID> = []
     @State private var isInspectorPresented = true
@@ -63,7 +63,7 @@ struct StoreView: View {
                     clearCompletedMenu
                         .disabled(isDisconnected)
                     Button {
-                        router.present(.quickCreateTask(listID: nil))
+                        router?.present(.quickCreateTask(listID: nil))
                     } label: {
                         Label("New Task", systemImage: "plus")
                     }
@@ -93,6 +93,7 @@ struct StoreView: View {
             )
             .inspector(isPresented: inspectorBinding) {
                 inspectorContent
+                    .environment(\.routerPath, router) // inspector pane is hoisted out of NavigationStack env scope; re-inject so TaskInspectorView's @Environment(\.routerPath) resolves
                     .appBackground()
                     .inspectorColumnWidth(min: 340, ideal: 380, max: 520)
             }
@@ -248,7 +249,7 @@ struct StoreView: View {
                             isCreatingList = true
                         },
                         onCreateTaskInList: { listID in
-                            router.present(.quickCreateTask(listID: listID))
+                            router?.present(.quickCreateTask(listID: listID))
                         }
                     )
                 }
@@ -269,11 +270,18 @@ struct StoreView: View {
 
     // Tasks shown on the Tasks tab = dated, non-deleted, respecting the
     // user's per-list visibility pick. Undated tasks auto-route to Notes.
+    // Past-cleanup hide-modes for overdue + completed tasks are enforced
+    // here so every downstream Kanban/snapshot sees the filtered pool.
     private var datedTasks: [TaskMirror] {
-        model.tasks.filter { task in
-            task.isDeleted == false
-                && task.dueDate != nil
-                && visibleTaskListIDs.contains(task.taskListID)
+        let now = Date()
+        return model.tasks.filter { task in
+            guard task.isDeleted == false,
+                  task.dueDate != nil,
+                  visibleTaskListIDs.contains(task.taskListID)
+            else { return false }
+            if model.settings.shouldHideCompletedTask(task) { return false }
+            if model.settings.shouldHideOverdueTask(task, now: now) { return false }
+            return true
         }
     }
 
@@ -367,6 +375,11 @@ struct StoreView: View {
     }
 
     private var visibleTaskListIDs: Set<TaskListMirror.ID> {
+        // Tasks-tab override wins; falls through to global list visibility
+        // if the user hasn't configured a per-tab filter.
+        if model.settings.hasConfiguredTasksTabSelection {
+            return model.settings.tasksTabSelectedListIDs
+        }
         if model.settings.hasConfiguredTaskListSelection {
             return model.settings.selectedTaskListIDs
         }
@@ -647,7 +660,7 @@ struct ListCreateSheet: View {
 // opens QuickCreatePopover in task-only mode with no pre-selected list.
 struct NotesView: View {
     @Environment(AppModel.self) private var model
-    @Environment(RouterPath.self) private var router
+    @Environment(\.routerPath) private var router
 
     // Local-order store — drag-to-reorder is view-local. We persist nothing
     // back to Google because Google Tasks position fields are already used
@@ -656,10 +669,21 @@ struct NotesView: View {
     // tasks change to pick up new undated items at the head.
     @State private var localOrder: [TaskMirror.ID] = []
     @State private var draggingID: TaskMirror.ID?
+    @State private var kanbanSelection: Set<TaskMirror.ID> = []
+    // Selected note opens in the side inspector (mirrors StoreView's pattern).
+    // Tapping a NoteCard sets selectedNoteID; the .inspector modifier reveals
+    // a TaskInspectorView for that note. Cleared when the user taps Close.
+    @State private var selectedNoteID: TaskMirror.ID?
+    @State private var isNoteInspectorPresented: Bool = true
+    // List management state — mirrors StoreView's New-List flow so the Notes
+    // toolbar can offer the same affordances (create new Google Tasks list,
+    // clear completed tasks within a list).
+    @State private var isCreatingList: Bool = false
+    @State private var newListTitle: String = ""
+    @State private var isMutatingList: Bool = false
 
-    private let columns: [GridItem] = [
-        GridItem(.adaptive(minimum: 220, maximum: 280), spacing: 12, alignment: .top)
-    ]
+    // Notes never bucket by due-date. Leave list + tag only.
+    private let notesKanbanModes: [KanbanColumnMode] = [.byList, .byTag]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -677,26 +701,7 @@ struct NotesView: View {
                         description: Text("Tasks without a due date show up here. Use the + button to capture a quick thought.")
                     )
                 } else {
-                    ScrollView {
-                        LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
-                            ForEach(orderedTasks) { task in
-                                NoteCard(task: task, isDragging: draggingID == task.id) {
-                                    router.present(.editTask(task.id))
-                                }
-                                .draggable(DraggedTask(taskID: task.id, taskListID: task.taskListID, title: task.title)) {
-                                    NoteDragPreview(title: task.title)
-                                        .onAppear { draggingID = task.id }
-                                }
-                                .dropDestination(for: DraggedTask.self) { items, _ in
-                                    guard let dropped = items.first else { return false }
-                                    reorder(movingID: dropped.taskID, insertBefore: task.id)
-                                    draggingID = nil
-                                    return true
-                                } isTargeted: { _ in }
-                            }
-                        }
-                        .hcbScaledPadding(16)
-                    }
+                    kanbanContent
                 }
             }
             // Content area fills the remaining space so the shared
@@ -707,10 +712,26 @@ struct NotesView: View {
         }
         .hcbSurface(.taskList)
         .appBackground()
+        .inspector(isPresented: noteInspectorBinding) {
+            noteInspectorContent
+                .environment(\.routerPath, router)
+                .appBackground()
+                .inspectorColumnWidth(min: 340, ideal: 380, max: 520)
+        }
         .toolbar {
             ToolbarItemGroup {
                 Button {
-                    router.present(.quickCreateNote(listID: nil))
+                    newListTitle = ""
+                    isCreatingList = true
+                } label: {
+                    Label("New List", systemImage: "plus.rectangle.on.rectangle")
+                }
+                .help("Create a new Google Tasks list")
+                .disabled(model.account == nil || isMutatingList)
+                notesClearCompletedMenu
+                    .disabled(model.account == nil)
+                Button {
+                    router?.present(.quickCreateNote(listID: nil))
                 } label: {
                     Label("New Note", systemImage: "plus")
                 }
@@ -718,14 +739,134 @@ struct NotesView: View {
                 .disabled(model.account == nil)
             }
         }
+        .sheet(isPresented: $isCreatingList) {
+            ListCreateSheet(
+                title: $newListTitle,
+                onCancel: {
+                    isCreatingList = false
+                    newListTitle = ""
+                },
+                onCreate: { Task { await createNewListFromNotes() } }
+            )
+        }
         .onAppear { rebuildOrder() }
         .onChange(of: model.tasks) { _, _ in rebuildOrder() }
     }
 
+    @ViewBuilder
+    private var notesClearCompletedMenu: some View {
+        Menu {
+            let lists = visibleNoteLists
+            if lists.isEmpty {
+                Button("No task lists") {}.disabled(true)
+            } else {
+                ForEach(lists) { list in
+                    let n = completedCount(in: list.id)
+                    Button {
+                        Task { _ = await model.clearCompletedTasks(in: list.id) }
+                    } label: {
+                        Text("\(list.title) (\(n))")
+                    }
+                    .disabled(n == 0)
+                }
+            }
+        } label: {
+            Label("Clear Completed", systemImage: "eraser")
+        }
+        .help("Hide completed tasks from a list (uses Google's batch clear)")
+    }
+
+    private var visibleNoteLists: [TaskListMirror] {
+        let visible = visibleListIDs
+        return model.taskLists.filter { visible.contains($0.id) }
+    }
+
+    private func completedCount(in listID: TaskListMirror.ID) -> Int {
+        model.tasks.filter { $0.taskListID == listID && $0.isCompleted && $0.isDeleted == false }.count
+    }
+
+    private func createNewListFromNotes() async {
+        let trimmed = newListTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return }
+        isMutatingList = true
+        defer { isMutatingList = false }
+        _ = await model.createTaskList(title: trimmed)
+        isCreatingList = false
+        newListTitle = ""
+    }
+
+    private var noteInspectorBinding: Binding<Bool> {
+        Binding(
+            get: { isNoteInspectorPresented && selectedNoteID != nil },
+            set: { isNoteInspectorPresented = $0 }
+        )
+    }
+
+    @ViewBuilder
+    private var noteInspectorContent: some View {
+        if let id = selectedNoteID, let task = model.task(id: id) {
+            TaskInspectorView(task: task, close: {
+                selectedNoteID = nil
+                isNoteInspectorPresented = false
+            })
+        } else {
+            TaskInspectorEmptyState()
+        }
+    }
+
+    // MARK: - Kanban
+
+    private var kanbanContent: some View {
+        KanbanView(
+            tasks: orderedTasks,
+            columnMode: Binding(
+                get: { model.settings.notesKanbanColumnMode },
+                set: { model.setNotesKanbanColumnMode($0) }
+            ),
+            selection: $kanbanSelection,
+            availableColumnModes: notesKanbanModes,
+            onCreateTaskInList: { listID in
+                router?.present(.quickCreateNote(listID: listID))
+            }
+        )
+    }
+
+    // MARK: - Shared cell
+
+    @ViewBuilder
+    private func noteCell(_ task: TaskMirror) -> some View {
+        NoteCard(task: task, isDragging: draggingID == task.id) {
+            selectedNoteID = task.id
+            isNoteInspectorPresented = true
+        }
+        .draggable(DraggedTask(taskID: task.id, taskListID: task.taskListID, title: task.title)) {
+            NoteDragPreview(title: task.title)
+                .onAppear { draggingID = task.id }
+        }
+        .dropDestination(for: DraggedTask.self) { items, _ in
+            guard let dropped = items.first else { return false }
+            reorder(movingID: dropped.taskID, insertBefore: task.id)
+            draggingID = nil
+            return true
+        } isTargeted: { _ in }
+    }
+
+    // MARK: - Filter resolution
+
+    // Per-tab filter takes precedence over the global list selection; if
+    // neither is configured, everything is visible.
+    private var visibleListIDs: Set<TaskListMirror.ID> {
+        if model.settings.hasConfiguredNotesTabSelection {
+            return model.settings.notesTabSelectedListIDs
+        }
+        if model.settings.hasConfiguredTaskListSelection {
+            return model.settings.selectedTaskListIDs
+        }
+        return Set(model.taskLists.map(\.id))
+    }
+
     private var undatedTasks: [TaskMirror] {
-        let visible: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
-            ? model.settings.selectedTaskListIDs
-            : Set(model.taskLists.map(\.id))
+        let visible = visibleListIDs
         return model.tasks.filter {
             $0.isDeleted == false
                 && $0.isCompleted == false
@@ -763,6 +904,7 @@ struct NotesView: View {
 
 private struct NoteCard: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.routerPath) private var router
     let task: TaskMirror
     let isDragging: Bool
     let onOpen: () -> Void
@@ -808,6 +950,18 @@ private struct NoteCard: View {
             .animation(.easeOut(duration: 0.12), value: isDragging)
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button {
+                router?.present(.convertNoteToTask(task.id))
+            } label: {
+                Label("Convert to Task…", systemImage: "checklist")
+            }
+            Button {
+                router?.present(.convertNoteToEvent(task.id))
+            } label: {
+                Label("Convert to Event…", systemImage: "calendar.badge.plus")
+            }
+        }
     }
 
     private var listName: String {

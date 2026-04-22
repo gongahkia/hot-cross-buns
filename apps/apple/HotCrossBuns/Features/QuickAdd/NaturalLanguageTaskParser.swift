@@ -80,45 +80,94 @@ struct NaturalLanguageTaskParser: Sendable {
     private func extractDueDate(in text: String) -> (Date, String, String)? {
         let lower = text.lowercased()
 
+        // Ordered by specificity — ISO YYYY-MM-DD comes before numeric
+        // M-D so "2026-04-25" doesn't get picked up as year=20, month=26.
         let patterns: [(pattern: String, resolver: (NSTextCheckingResult, String) -> (Date, String)?)] = [
-            ("\\b(today|tonight)\\b", { _, _ in
+            // End-of-X shortcuts.
+            ("\\beod\\b", { _, _ in self.resolveRelativeDay(offsetDays: 0, display: "End of day") }),
+            ("\\beow\\b", { _, _ in self.resolveEndOfWeek() }),
+            ("\\beom\\b", { _, _ in self.resolveEndOfMonth() }),
+            ("\\beoy\\b", { _, _ in self.resolveEndOfYear() }),
+            // today / tonight + abbreviations.
+            ("\\b(today|tdy|tnt|tonight|td)\\b", { _, _ in
                 self.resolveRelativeDay(offsetDays: 0, display: "Today")
             }),
-            ("\\b(tomorrow|tmr|tmrw)\\b", { _, _ in
+            // tomorrow + many spellings.
+            ("\\b(tomorrow|tmrw|tmr|tmw|tomo|2mrw|2moro|2mro)\\b", { _, _ in
                 self.resolveRelativeDay(offsetDays: 1, display: "Tomorrow")
             }),
-            ("\\bin\\s+(\\d{1,3})\\s+(day|days|week|weeks)\\b", { match, text in
-                guard let numberRange = Range(match.range(at: 1), in: text),
+            // yesterday — kept for completeness (logging past-dated tasks).
+            ("\\b(yesterday|ytd|yday)\\b", { _, _ in
+                self.resolveRelativeDay(offsetDays: -1, display: "Yesterday")
+            }),
+            // Day after tomorrow.
+            ("\\b(day\\s+after\\s+tomorrow|dat)\\b", { _, _ in
+                self.resolveRelativeDay(offsetDays: 2, display: "Day after tomorrow")
+            }),
+            // "in N hours|days|weeks|months".
+            ("\\bin\\s+(\\d{1,3})\\s+(hour|hours|hr|hrs|day|days|d|week|weeks|wk|wks|month|months|mo)\\b", { match, text in
+                guard let nRange = Range(match.range(at: 1), in: text),
                       let unitRange = Range(match.range(at: 2), in: text),
-                      let n = Int(text[numberRange]) else { return nil }
+                      let n = Int(text[nRange]) else { return nil }
                 let unit = text[unitRange].lowercased()
-                let multiplier = (unit == "week" || unit == "weeks") ? 7 : 1
-                let days = n * multiplier
-                let display = "In \(n) \(unit.capitalized)"
+                let (days, display): (Int, String) = {
+                    if ["hour", "hours", "hr", "hrs"].contains(unit) {
+                        // Tasks are date-only — coerce hours to "today".
+                        return (0, "Today")
+                    }
+                    if ["week", "weeks", "wk", "wks"].contains(unit) {
+                        return (n * 7, "In \(n) week\(n == 1 ? "" : "s")")
+                    }
+                    if ["month", "months", "mo"].contains(unit) {
+                        return (n * 30, "In \(n) month\(n == 1 ? "" : "s")")
+                    }
+                    return (n, "In \(n) day\(n == 1 ? "" : "s")")
+                }()
                 return self.resolveRelativeDay(offsetDays: days, display: display)
             }),
-            ("\\bnext\\s+(week)\\b", { _, _ in
+            // next week / month / year + abbreviations.
+            ("\\b(next\\s+week|nw)\\b", { _, _ in
                 self.resolveRelativeDay(offsetDays: 7, display: "Next week")
             }),
-            ("\\b(next\\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)\\b", { match, text in
+            ("\\b(next\\s+month|nm)\\b", { _, _ in self.resolveNextMonth() }),
+            ("\\b(next\\s+year|ny)\\b", { _, _ in self.resolveNextYear() }),
+            // this weekend — upcoming Saturday.
+            ("\\b(this\\s+)?weekend\\b", { _, _ in
+                self.resolveWeekday(weekdayText: "sat", forceNext: false)
+            }),
+            // Weekdays full + 3-letter + 2-letter.
+            ("\\b(next\\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun|mo|tu|we|th|fr|sa|su)\\b", { match, text in
                 guard let weekdayRange = Range(match.range(at: 2), in: text) else { return nil }
                 let weekdayText = String(text[weekdayRange]).lowercased()
                 let forceNext = match.range(at: 1).location != NSNotFound
                 return self.resolveWeekday(weekdayText: weekdayText, forceNext: forceNext)
             }),
+            // Text month + day.
             ("\\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b", { match, text in
                 guard let monthRange = Range(match.range(at: 1), in: text),
                       let dayRange = Range(match.range(at: 2), in: text),
                       let day = Int(text[dayRange]) else { return nil }
                 return self.resolveMonthDay(monthText: String(text[monthRange]), day: day)
             }),
-            ("\\b(\\d{1,2})\\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)\\b", { match, text in
+            // Day + text month.
+            ("\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)\\b", { match, text in
                 guard let dayRange = Range(match.range(at: 1), in: text),
                       let monthRange = Range(match.range(at: 2), in: text),
                       let day = Int(text[dayRange]) else { return nil }
                 return self.resolveMonthDay(monthText: String(text[monthRange]), day: day)
             }),
-            ("\\b(\\d{1,2})[/-](\\d{1,2})\\b", { match, text in
+            // ISO 2026-04-25.
+            ("\\b(\\d{4})-(\\d{1,2})-(\\d{1,2})\\b", { match, text in
+                guard let yRange = Range(match.range(at: 1), in: text),
+                      let mRange = Range(match.range(at: 2), in: text),
+                      let dRange = Range(match.range(at: 3), in: text),
+                      let year = Int(text[yRange]),
+                      let month = Int(text[mRange]),
+                      let day = Int(text[dRange]) else { return nil }
+                return self.resolveISODate(year: year, month: month, day: day)
+            }),
+            // Numeric M/D, M-D, M.D.
+            ("\\b(\\d{1,2})[/.\\-](\\d{1,2})\\b", { match, text in
                 guard let mRange = Range(match.range(at: 1), in: text),
                       let dRange = Range(match.range(at: 2), in: text),
                       let monthNumber = Int(text[mRange]),
@@ -143,6 +192,50 @@ struct NaturalLanguageTaskParser: Sendable {
         return nil
     }
 
+    private func resolveEndOfWeek() -> (Date, String)? {
+        let today = calendar.startOfDay(for: now)
+        let weekday = calendar.component(.weekday, from: today)
+        let rawDelta = 7 - weekday // Sunday=1..Saturday=7 → Saturday
+        let delta = rawDelta == 0 ? 7 : rawDelta
+        return calendar.date(byAdding: .day, value: delta, to: today).map { ($0, "End of week") }
+    }
+
+    private func resolveEndOfMonth() -> (Date, String)? {
+        let today = calendar.startOfDay(for: now)
+        var comps = calendar.dateComponents([.year, .month], from: today)
+        comps.month = (comps.month ?? 1) + 1
+        comps.day = 0 // last day of previous month = last day of current month
+        return calendar.date(from: comps).map { ($0, "End of month") }
+    }
+
+    private func resolveEndOfYear() -> (Date, String)? {
+        var comps = calendar.dateComponents([.year], from: calendar.startOfDay(for: now))
+        comps.month = 12
+        comps.day = 31
+        return calendar.date(from: comps).map { ($0, "End of year") }
+    }
+
+    private func resolveNextMonth() -> (Date, String)? {
+        let today = calendar.startOfDay(for: now)
+        return calendar.date(byAdding: .month, value: 1, to: today).map { ($0, "Next month") }
+    }
+
+    private func resolveNextYear() -> (Date, String)? {
+        let today = calendar.startOfDay(for: now)
+        return calendar.date(byAdding: .year, value: 1, to: today).map { ($0, "Next year") }
+    }
+
+    private func resolveISODate(year: Int, month: Int, day: Int) -> (Date, String)? {
+        guard (1...12).contains(month), (1...31).contains(day), year >= 1970 else { return nil }
+        var comps = DateComponents(year: year, month: month, day: day)
+        comps.hour = 0; comps.minute = 0; comps.second = 0
+        guard let date = calendar.date(from: comps) else { return nil }
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.dateFormat = "MMM d, yyyy"
+        return (date, formatter.string(from: date))
+    }
+
     private func resolveRelativeDay(offsetDays: Int, display: String) -> (Date, String)? {
         let today = calendar.startOfDay(for: now)
         guard let date = calendar.date(byAdding: .day, value: offsetDays, to: today) else { return nil }
@@ -152,20 +245,13 @@ struct NaturalLanguageTaskParser: Sendable {
     private func resolveWeekday(weekdayText: String, forceNext: Bool) -> (Date, String)? {
         let weekdayIndex: Int = {
             switch weekdayText {
-            case "sun": return 1
-            case "mon": return 2
-            case "tue", "tues": return 3
-            case "wed": return 4
-            case "thu", "thur", "thurs": return 5
-            case "fri": return 6
-            case "sat": return 7
-            case "sunday": return 1
-            case "monday": return 2
-            case "tuesday": return 3
-            case "wednesday": return 4
-            case "thursday": return 5
-            case "friday": return 6
-            case "saturday": return 7
+            case "sun", "sunday", "su": return 1
+            case "mon", "monday", "mo": return 2
+            case "tue", "tues", "tuesday", "tu": return 3
+            case "wed", "wednesday", "we": return 4
+            case "thu", "thur", "thurs", "thursday", "th": return 5
+            case "fri", "friday", "fr": return 6
+            case "sat", "saturday", "sa": return 7
             default: return 0
             }
         }()
@@ -175,7 +261,9 @@ struct NaturalLanguageTaskParser: Sendable {
         let todayWeekday = calendar.component(.weekday, from: today)
         var delta = weekdayIndex - todayWeekday
         if delta <= 0 { delta += 7 }
-        if forceNext && delta < 7 { delta += 0 }
+        // "next <weekday>" means the instance in the following week —
+        // bump by 7 when today-to-target is still inside the current week.
+        if forceNext, delta < 7 { delta += 7 }
         guard let target = calendar.date(byAdding: .day, value: delta, to: today) else { return nil }
         let formatter = DateFormatter()
         formatter.calendar = calendar

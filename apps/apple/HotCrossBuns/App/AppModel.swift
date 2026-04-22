@@ -74,6 +74,11 @@ final class AppModel {
     var undoActionToken: UUID { undoActionID }
     var settings: AppSettings
 
+    // Past-cleanup coordinator. Assigned at the tail of init — @Observable
+    // blocks lazy storage, so this is IUO wired up in the initializer once
+    // `self` is complete enough to unown safely.
+    private(set) var pastCleanupCoordinator: PastCleanupCoordinator!
+
     var lastSuccessfulSyncAt: Date? {
         syncCheckpoints.compactMap(\.lastSuccessfulSyncAt).max()
     }
@@ -96,6 +101,7 @@ final class AppModel {
         self.notificationScheduler = notificationScheduler
         self.spotlightIndexer = spotlightIndexer
         self.settings = settings
+        self.pastCleanupCoordinator = PastCleanupCoordinator(model: self)
     }
 
     static func bootstrap() -> AppModel {
@@ -146,6 +152,10 @@ final class AppModel {
             lastMutationError = warning
         }
         await synchronizeLocalNotifications()
+        // Arm the daily midnight tick for past-cleanup. No-op until the
+        // user has enabled a deletion behavior AND acknowledged the
+        // blast-radius modal; the coordinator filters on read.
+        pastCleanupCoordinator.scheduleDailyTick()
     }
 
     func restoreGoogleSession() async {
@@ -221,7 +231,11 @@ final class AppModel {
 
         guard account != nil else {
             AppLogger.warn("refresh skipped: no account", category: .sync)
-            syncState = .failed(message: "Connect Google before syncing.")
+            // Don't surface this as a sync .failed state — on cold launch
+            // refreshNow runs before auth restore completes, which would
+            // flash a "Couldn't reach Google" banner even when the user
+            // is correctly signed in. authState .signedOut already surfaces
+            // the legitimate "not connected" case via AppStatusBanner.
             return .skipped
         }
 
@@ -246,6 +260,10 @@ final class AppModel {
                 "tasks": String(tasks.count),
                 "events": String(events.count)
             ])
+            // Past-cleanup runs silently after each successful sync once
+            // the user has acknowledged the blast-radius modal. Fires
+            // delete calls serially so quota + audit log stay orderly.
+            _ = await pastCleanupCoordinator.runSilentSweepIfAcknowledged()
             return .succeeded
         } catch {
             var httpStatus: String? = nil
@@ -1581,6 +1599,134 @@ final class AppModel {
         Task { await saveCurrentState() }
     }
 
+    // Per-tab list filters. Nil = inherit the global selectedTaskListIDs.
+    func setTasksTabListFilter(_ ids: Set<TaskListMirror.ID>?) {
+        if let ids {
+            settings.tasksTabSelectedListIDs = ids
+            settings.hasConfiguredTasksTabSelection = true
+        } else {
+            settings.tasksTabSelectedListIDs = []
+            settings.hasConfiguredTasksTabSelection = false
+        }
+        Task { await saveCurrentState() }
+    }
+
+    func setNotesTabListFilter(_ ids: Set<TaskListMirror.ID>?) {
+        if let ids {
+            settings.notesTabSelectedListIDs = ids
+            settings.hasConfiguredNotesTabSelection = true
+        } else {
+            settings.notesTabSelectedListIDs = []
+            settings.hasConfiguredNotesTabSelection = false
+        }
+        Task { await saveCurrentState() }
+    }
+
+    func setNotesViewMode(_ mode: NotesViewMode) {
+        guard settings.notesViewMode != mode else { return }
+        settings.notesViewMode = mode
+        Task { await saveCurrentState() }
+    }
+
+    func setNotesKanbanColumnMode(_ mode: KanbanColumnMode) {
+        guard settings.notesKanbanColumnMode != mode else { return }
+        settings.notesKanbanColumnMode = mode
+        Task { await saveCurrentState() }
+    }
+
+    func setColorTagAutoApplyEnabled(_ enabled: Bool) {
+        guard settings.colorTagAutoApplyEnabled != enabled else { return }
+        settings.colorTagAutoApplyEnabled = enabled
+        Task { await saveCurrentState() }
+    }
+
+    func setColorTagBinding(colorId: String, tag: String?) {
+        let normalized = tag?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let normalized, normalized.isEmpty == false {
+            settings.colorTagBindings[colorId] = normalized
+        } else {
+            settings.colorTagBindings.removeValue(forKey: colorId)
+        }
+        Task { await saveCurrentState() }
+    }
+
+    func setColorTagMatchPolicy(_ policy: ColorTagMatchPolicy) {
+        guard settings.colorTagMatchPolicy != policy else { return }
+        settings.colorTagMatchPolicy = policy
+        Task { await saveCurrentState() }
+    }
+
+    // MARK: - Past cleanup setters
+
+    // Switching into/out of .delete resets the ack flag so the user
+    // re-consents if they flip it back on after disabling.
+    func setPastEventBehavior(_ behavior: PastEventBehavior) {
+        guard settings.pastEventBehavior != behavior else { return }
+        let wasDeletion = settings.pastEventBehavior.isDeletion
+        settings.pastEventBehavior = behavior
+        if wasDeletion, behavior.isDeletion == false {
+            settings.hasAckedEventDeletion = false
+        }
+        Task { await saveCurrentState() }
+    }
+
+    func setPastEventDeleteThresholdDays(_ days: Int) {
+        let clamped = max(1, min(365, days))
+        guard settings.pastEventDeleteThresholdDays != clamped else { return }
+        settings.pastEventDeleteThresholdDays = clamped
+        Task { await saveCurrentState() }
+    }
+
+    func setAllowDeletingAttendeeEvents(_ allowed: Bool) {
+        guard settings.allowDeletingAttendeeEvents != allowed else { return }
+        settings.allowDeletingAttendeeEvents = allowed
+        if allowed == false {
+            settings.hasAckedAttendeeDeletion = false
+        }
+        Task { await saveCurrentState() }
+    }
+
+    func setOverdueTaskBehavior(_ behavior: OverdueTaskBehavior) {
+        guard settings.overdueTaskBehavior != behavior else { return }
+        settings.overdueTaskBehavior = behavior
+        Task { await saveCurrentState() }
+    }
+
+    func setCompletedTaskBehavior(_ behavior: CompletedTaskBehavior) {
+        guard settings.completedTaskBehavior != behavior else { return }
+        let wasDeletion = settings.completedTaskBehavior.isDeletion
+        settings.completedTaskBehavior = behavior
+        if wasDeletion, behavior.isDeletion == false {
+            settings.hasAckedTaskDeletion = false
+        }
+        Task { await saveCurrentState() }
+    }
+
+    func setCompletedTaskDeleteThresholdDays(_ days: Int) {
+        let clamped = max(1, min(365, days))
+        guard settings.completedTaskDeleteThresholdDays != clamped else { return }
+        settings.completedTaskDeleteThresholdDays = clamped
+        Task { await saveCurrentState() }
+    }
+
+    func acknowledgeEventDeletion() {
+        guard settings.hasAckedEventDeletion == false else { return }
+        settings.hasAckedEventDeletion = true
+        Task { await saveCurrentState() }
+    }
+
+    func acknowledgeAttendeeDeletion() {
+        guard settings.hasAckedAttendeeDeletion == false else { return }
+        settings.hasAckedAttendeeDeletion = true
+        Task { await saveCurrentState() }
+    }
+
+    func acknowledgeTaskDeletion() {
+        guard settings.hasAckedTaskDeletion == false else { return }
+        settings.hasAckedTaskDeletion = true
+        Task { await saveCurrentState() }
+    }
+
     func setUILayoutScale(_ scale: Double) {
         guard settings.uiLayoutScale != scale else { return }
         settings.uiLayoutScale = scale
@@ -2616,7 +2762,44 @@ final class AppModel {
         pendingMutations = state.pendingMutations
         HCBColorSchemeStore.current = HCBColorScheme.scheme(id: settings.colorSchemeID) ?? .notion
         HCBShortcutStorage.persist(settings.shortcutOverrides)
+        autoIncludeNewTaskLists()
         rebuildSnapshots()
+    }
+
+    // When sync brings a new TaskListMirror that the user hasn't seen yet,
+    // append its id to any *configured* per-tab/global selection sets so
+    // the new list is visible by default. Without this, a newly-created
+    // Google Tasks list silently disappears from HCB the next time the
+    // user opens it because the configured-selection check filters it out.
+    // Unconfigured selections (hasConfigured == false) already show every
+    // list; nothing to do for those.
+    private func autoIncludeNewTaskLists() {
+        let allIDs = Set(taskLists.map(\.id))
+        var changed = false
+        if settings.hasConfiguredTaskListSelection {
+            let missing = allIDs.subtracting(settings.selectedTaskListIDs)
+            if missing.isEmpty == false {
+                settings.selectedTaskListIDs.formUnion(missing)
+                changed = true
+            }
+        }
+        if settings.hasConfiguredTasksTabSelection {
+            let missing = allIDs.subtracting(settings.tasksTabSelectedListIDs)
+            if missing.isEmpty == false {
+                settings.tasksTabSelectedListIDs.formUnion(missing)
+                changed = true
+            }
+        }
+        if settings.hasConfiguredNotesTabSelection {
+            let missing = allIDs.subtracting(settings.notesTabSelectedListIDs)
+            if missing.isEmpty == false {
+                settings.notesTabSelectedListIDs.formUnion(missing)
+                changed = true
+            }
+        }
+        if changed {
+            AppLogger.info("auto-included new task lists in selection", category: .sync)
+        }
     }
 
     private func installPreviewData() {
