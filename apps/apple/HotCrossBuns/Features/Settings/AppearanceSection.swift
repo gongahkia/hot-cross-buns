@@ -79,35 +79,26 @@ struct AppearanceSection: View {
     }
 
     private var textSizeRow: some View {
-        HStack {
-            Text("Text size")
-            Spacer()
-            TextField(
-                "pt",
-                value: Binding(
-                    get: { model.settings.uiTextSizePoints },
-                    set: { model.setUITextSizePoints(HCBTextSize.clamp($0)) }
-                ),
-                format: .number.precision(.fractionLength(0))
-            )
-            .frame(width: 52)
-            .multilineTextAlignment(.trailing)
-            .textFieldStyle(.roundedBorder)
-            Text("pt").foregroundStyle(.secondary)
-            Stepper(
-                "",
-                value: Binding(
-                    get: { model.settings.uiTextSizePoints },
-                    set: { model.setUITextSizePoints($0) }
-                ),
-                in: HCBTextSize.minPoints...HCBTextSize.maxPoints,
-                step: HCBTextSize.stepPoints
-            )
-            .labelsHidden()
-            Button("Reset") { model.setUITextSizePoints(HCBTextSize.defaultPoints) }
-                .buttonStyle(.borderless)
-                .hcbFont(.caption)
-                .disabled(model.settings.uiTextSizePoints == HCBTextSize.defaultPoints)
+        Stepper(
+            value: Binding(
+                get: { model.settings.uiTextSizePoints },
+                set: { model.setUITextSizePoints($0) }
+            ),
+            in: HCBTextSize.minPoints...HCBTextSize.maxPoints,
+            step: HCBTextSize.stepPoints
+        ) {
+            HStack {
+                Text("Text size")
+                Spacer()
+                Text("\(Int(model.settings.uiTextSizePoints)) pt")
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                if model.settings.uiTextSizePoints != HCBTextSize.defaultPoints {
+                    Button("Reset") { model.setUITextSizePoints(HCBTextSize.defaultPoints) }
+                        .buttonStyle(.borderless)
+                        .hcbFont(.caption)
+                }
+            }
         }
     }
 
