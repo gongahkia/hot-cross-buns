@@ -696,10 +696,7 @@ private struct MenuBarPinnedFilters: View {
             .hcbScaledPadding(.vertical, 4)
             .hcbScaledPadding(.horizontal, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(AppColor.cream.opacity(0.35))
-            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
