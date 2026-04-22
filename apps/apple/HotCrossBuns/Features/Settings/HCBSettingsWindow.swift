@@ -38,24 +38,41 @@ struct HCBSettingsWindow: View {
     @State private var isDiagnosticsPresented = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            tabBar
-            Divider()
+        TabView(selection: $tab) {
             ScrollView {
-                Group {
-                    switch tab {
-                    case .general: GeneralTab(
-                        isSyncDetailsPresented: $isSyncDetailsPresented,
-                        isDiagnosticsPresented: $isDiagnosticsPresented
-                    )
-                    case .appearance: AppearanceTab()
-                    case .alerts: AlertsTab()
-                    case .advanced: AdvancedTab()
-                    }
-                }
+                GeneralTab(
+                    isSyncDetailsPresented: $isSyncDetailsPresented,
+                    isDiagnosticsPresented: $isDiagnosticsPresented
+                )
                 .hcbScaledPadding(16)
                 .frame(maxWidth: .infinity, alignment: .top)
             }
+            .tabItem { Label("General", systemImage: "gearshape") }
+            .tag(Tab.general)
+
+            ScrollView {
+                AppearanceTab()
+                    .hcbScaledPadding(16)
+                    .frame(maxWidth: .infinity, alignment: .top)
+            }
+            .tabItem { Label("Appearance", systemImage: "paintbrush") }
+            .tag(Tab.appearance)
+
+            ScrollView {
+                AlertsTab()
+                    .hcbScaledPadding(16)
+                    .frame(maxWidth: .infinity, alignment: .top)
+            }
+            .tabItem { Label("Alerts", systemImage: "bell") }
+            .tag(Tab.alerts)
+
+            ScrollView {
+                AdvancedTab()
+                    .hcbScaledPadding(16)
+                    .frame(maxWidth: .infinity, alignment: .top)
+            }
+            .tabItem { Label("Advanced", systemImage: "gearshape.2") }
+            .tag(Tab.advanced)
         }
         // Apple Calendar's settings window sits around 540pt wide and
         // resists horizontal resize. Matching that: narrow fixed-ish
@@ -85,40 +102,6 @@ struct HCBSettingsWindow: View {
         }
     }
 
-    private var tabBar: some View {
-        HStack(spacing: 0) {
-            ForEach(Tab.allCases) { entry in
-                tabButton(entry)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .hcbScaledPadding(.vertical, 10)
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
-
-    private func tabButton(_ entry: Tab) -> some View {
-        let isSelected = tab == entry
-        return Button {
-            tab = entry
-        } label: {
-            VStack(spacing: 4) {
-                Image(systemName: entry.systemImage)
-                    .hcbFontSystem(size: 18, weight: isSelected ? .semibold : .regular)
-                Text(entry.title)
-                    .hcbFont(.caption, weight: isSelected ? .semibold : .regular)
-            }
-            .foregroundStyle(isSelected ? AppColor.ember : AppColor.ink.opacity(0.75))
-            .frame(maxWidth: .infinity)
-            .hcbScaledPadding(.vertical, 4)
-            .hcbScaledPadding(.horizontal, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isSelected ? AppColor.ember.opacity(0.12) : Color.clear)
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
 }
 
 // MARK: - General tab
