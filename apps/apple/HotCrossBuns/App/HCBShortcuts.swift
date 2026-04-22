@@ -17,6 +17,7 @@ enum HCBShortcutCommand: String, CaseIterable, Identifiable {
     case forceResync
     case diagnostics
     case help
+    case openHistory
     // Navigation
     case goToCalendar
     case goToStore
@@ -85,13 +86,14 @@ enum HCBShortcutCommand: String, CaseIterable, Identifiable {
         case .taskQuickSave: "Save Task"
         case .taskDelete: "Delete Task"
         case .taskDuplicate: "Duplicate Task"
+        case .openHistory: "Open History"
         }
     }
 
     var group: HCBShortcutGroup {
         switch self {
         case .newTask, .newNote, .newEvent, .commandPalette, .printToday,
-             .refresh, .forceResync, .diagnostics, .help:
+             .refresh, .forceResync, .diagnostics, .help, .openHistory:
             .app
         case .goToCalendar, .goToStore, .goToNotes, .goToSettings,
              .zoomIn, .zoomOut, .zoomReset:
@@ -144,6 +146,7 @@ enum HCBShortcutCommand: String, CaseIterable, Identifiable {
         case .taskQuickSave: .init(key: .returnKey, modifiers: [.command])
         case .taskDelete: .init(key: .delete, modifiers: [.command])
         case .taskDuplicate: .init(key: .char("d"), modifiers: [.command])
+        case .openHistory: .init(key: .char("y"), modifiers: [.command, .option])
         }
     }
 }
