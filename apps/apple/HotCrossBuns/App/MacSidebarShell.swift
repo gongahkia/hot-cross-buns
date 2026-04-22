@@ -8,6 +8,7 @@ struct MacSidebarShell: View {
     @Environment(NetworkMonitor.self) private var networkMonitor
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
     @SceneStorage("sidebarSelection") private var storedSelection: String = SidebarItem.calendar.rawValue
 
     private let layoutScaleMin: Double = 0.80
@@ -37,7 +38,6 @@ struct MacSidebarShell: View {
     @State private var tabRouter = TabRouter()
     @State private var isPresentingOnboarding = false
     @State private var isPresentingCommandPalette = false
-    @State private var isPresentingHelp = false
     @State private var isPresentingInsertTemplate = false
     @State private var isPresentingInsertEventTemplate = false // §6.13b
     @State private var appCommandActions = AppCommandActions()
@@ -107,11 +107,6 @@ struct MacSidebarShell: View {
             }
             .sheet(isPresented: $isPresentingInsertEventTemplate) {
                 InsertEventTemplateSheet()
-                    .environment(model)
-                    .withHCBAppearance(model.settings)
-            }
-            .sheet(isPresented: $isPresentingHelp) {
-                HelpView()
                     .environment(model)
                     .withHCBAppearance(model.settings)
             }
@@ -414,7 +409,7 @@ struct MacSidebarShell: View {
         appCommandActions.openSettingsWindow = { openSettings() }
         appCommandActions.openDiagnostics = { presentSheet(.diagnostics, on: selection) }
         appCommandActions.openCommandPalette = { isPresentingCommandPalette = true }
-        appCommandActions.openHelp = { isPresentingHelp = true }
+        appCommandActions.openHelp = { openWindow(id: "help") }
         appCommandActions.printToday = { TodayPrinter.print(model: model) }
         appCommandActions.exportDayICS = { exportICS(range: .day) }
         appCommandActions.exportWeekICS = { exportICS(range: .week) }
@@ -744,7 +739,7 @@ struct MacSidebarShell: View {
                 shortcut: "Cmd+?",
                 keywords: ["help", "docs", "shortcuts", "keys", "guide"]
             ) {
-                isPresentingHelp = true
+                openWindow(id: "help")
             }
         ]
     }

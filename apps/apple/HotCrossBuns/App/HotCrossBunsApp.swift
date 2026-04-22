@@ -51,6 +51,13 @@ struct HotCrossBunsApp: App {
         }
         .windowResizability(.contentMinSize)
 
+        Window("Hot Cross Buns Help", id: "help") {
+            HelpView()
+                .environment(appModel)
+        }
+        .defaultSize(width: 720, height: 620)
+        .windowResizability(.contentMinSize)
+
         MenuBarExtra(isInserted: menuBarInsertedBinding) {
             MenuBarExtraContent()
                 .environment(appModel)
