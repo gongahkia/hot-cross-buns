@@ -103,6 +103,7 @@
 		82A686E7646A807876A3FBF4 /* SyncScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 049F4CDAC1343692B257156B /* SyncScheduler.swift */; };
 		843376C55956307CFD28B153 /* TaskInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA7AA6D7D06BBC2852BAFCDF /* TaskInspectorView.swift */; };
 		84DA071F41D735D2217D9544 /* ReviewBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88FB5A6B5626CA82F91766D0 /* ReviewBuilder.swift */; };
+		85D400AA31662C3A2DC612BE /* HistoryEntryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB208A0AFED1009104B3001F /* HistoryEntryDetailView.swift */; };
 		870B6E741963A990B14961F4 /* ForecastBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2316DAFF7860DC61BD91AF52 /* ForecastBuilderTests.swift */; };
 		8794B1B9554FAEC8B6C4D07E /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB5F4EB983E593C181231248 /* AppLogger.swift */; };
 		880402797CE64EBB95F67CBE /* SharedInboxItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = E082142928EB9001E39C6CA1 /* SharedInboxItem.swift */; };
@@ -413,6 +414,7 @@
 		F8744975197402E661FA13A2 /* CustomFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomFilterTests.swift; sourceTree = "<group>"; };
 		FA27E7B048E0458EA4A20B22 /* PastCleanupFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastCleanupFilter.swift; sourceTree = "<group>"; };
 		FA8602D7CD53CF7D59CEA4DB /* HotCrossBunsMacTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HotCrossBunsMacTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		FB208A0AFED1009104B3001F /* HistoryEntryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryEntryDetailView.swift; sourceTree = "<group>"; };
 		FB9745E7FFF1CDB75E4D4820 /* ModelPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPersistenceTests.swift; sourceTree = "<group>"; };
 		FC17D333E0AC22B77270A396 /* GoogleAccount.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAccount.swift; sourceTree = "<group>"; };
 		FC5DE71D8B13AA02B81D24CD /* ColorTagBindingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorTagBindingsSection.swift; sourceTree = "<group>"; };
@@ -930,6 +932,7 @@
 		F0A2E03AF6A6E2995FB6E2E7 /* History */ = {
 			isa = PBXGroup;
 			children = (
+				FB208A0AFED1009104B3001F /* HistoryEntryDetailView.swift */,
 				B73877CFD2F56A8ABE37036B /* HistoryEntryRow.swift */,
 				FE1CDCEDF5474FC3F8F00482 /* HistoryFilterChips.swift */,
 				A2E722E12E1EF9A6B8C14338 /* HistoryWindow.swift */,
@@ -1055,10 +1058,15 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					045A02CEF69A5B42D8D9ED33 = {
+						DevelopmentTeam = Q2J4QWZLR7;
+					};
 					219B609558AEF0B469CEC407 = {
+						DevelopmentTeam = Q2J4QWZLR7;
 						ProvisioningStyle = Automatic;
 					};
 					58224F0E9BC6A32F6D50A414 = {
+						DevelopmentTeam = Q2J4QWZLR7;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -1158,6 +1166,7 @@
 				B9D9962B30CA73EFBD0719AD /* HCBSurface.swift in Sources */,
 				2C07F4E827E1C0F708F9C9F8 /* HCBTemplateExpander.swift in Sources */,
 				71EA6FF162806AFA0CADB908 /* HelpView.swift in Sources */,
+				85D400AA31662C3A2DC612BE /* HistoryEntryDetailView.swift in Sources */,
 				6CE0FA0BAA2C73E9FB792410 /* HistoryEntryRow.swift in Sources */,
 				B79C964007DC7CB217704586 /* HistoryFilterChips.swift in Sources */,
 				0642DCD3C33C5E1D95500B07 /* HistorySection.swift in Sources */,
@@ -1319,7 +1328,6 @@
 				CODE_SIGN_ENTITLEMENTS = HotCrossBuns/Support/HotCrossBuns.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				INFOPLIST_FILE = "HotCrossBuns/Support/Info-macOS.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1400,7 +1408,6 @@
 				CODE_SIGN_ENTITLEMENTS = HotCrossBunsShareExtension/HotCrossBunsShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				INFOPLIST_FILE = HotCrossBunsShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Hot Cross Buns";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1418,7 +1425,6 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -1436,7 +1442,6 @@
 				CODE_SIGN_ENTITLEMENTS = HotCrossBunsShareExtension/HotCrossBunsShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				INFOPLIST_FILE = HotCrossBunsShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Hot Cross Buns";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1525,7 +1530,6 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -1544,7 +1548,6 @@
 				CODE_SIGN_ENTITLEMENTS = HotCrossBuns/Support/HotCrossBuns.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				INFOPLIST_FILE = "HotCrossBuns/Support/Info-macOS.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

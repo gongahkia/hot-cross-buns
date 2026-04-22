@@ -17,6 +17,13 @@ struct HistoryWindow: View {
     @State private var isConfirmingClear = false
 
     var body: some View {
+        NavigationStack {
+            contentBody
+        }
+    }
+
+    @ViewBuilder
+    private var contentBody: some View {
         VStack(spacing: 0) {
             HistoryFilterChips(
                 enabled: Binding(
@@ -53,13 +60,18 @@ struct HistoryWindow: View {
             } else {
                 List {
                     ForEach(filteredEntries, id: \.id) { entry in
-                        HistoryEntryRow(entry: entry, onSnapshotCopied: {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(entry.priorSnapshotJSON ?? entry.postSnapshotJSON ?? "", forType: .string)
-                        })
+                        // NavigationLink wraps the row so click → push to
+                        // HistoryEntryDetailView. The default disclosure chevron
+                        // is the native macOS affordance for "this row drills in".
+                        NavigationLink(value: entry) {
+                            HistoryEntryRow(entry: entry, onSnapshotCopied: {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(entry.priorSnapshotJSON ?? entry.postSnapshotJSON ?? "", forType: .string)
+                            })
+                        }
                     }
                 }
-                .listStyle(.inset) // native macOS grouped-inset, hover affordance, system row separators
+                .listStyle(.inset)
             }
 
             Divider()
@@ -100,6 +112,9 @@ struct HistoryWindow: View {
         .preferredColorScheme(HCBColorScheme.scheme(id: model.settings.colorSchemeID)?.isDark == true ? .dark : .light)
         .appBackground()
         .navigationTitle("History")
+        .navigationDestination(for: MutationAuditEntry.self) { entry in
+            HistoryEntryDetailView(entry: entry)
+        }
         .task(id: refreshTrigger) { await reload() }
         .confirmationDialog(
             "Clear all history?",
