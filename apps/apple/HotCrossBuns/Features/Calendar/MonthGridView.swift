@@ -24,6 +24,11 @@ struct MonthGridView: View {
     private let maxVisibleLanes: Int = 3
 
     @State private var dragSelection: DragSelection?
+    // Cell feedback pulse. Set to the tapped dayStart on quickCreate and
+    // cleared after ~220ms. The monthCell reads this to paint a brief tint
+    // so users get confirmation their click landed — otherwise there's a
+    // ~100ms gap before the popover appears where nothing on screen moves.
+    @State private var flashDay: Date?
     // Grid-content cache. Rebuilt only when the underlying inputs (calendar
     // selection, search query, month anchor, event corpus count) change —
     // NOT on every body eval. Critical for drag-create responsiveness: the
@@ -115,6 +120,18 @@ struct MonthGridView: View {
     private var currentGridCacheKey: String {
         let selectedIds = model.calendarSnapshot.selectedCalendars.map(\.id).sorted().joined(separator: ",")
         return "\(selectedIds)|\(searchQuery)|\(monthKey(for: anchorDate))|\(model.events.count)"
+    }
+
+    // Flash the tapped cell for ~220ms. Used on monthCell click-to-create
+    // so the user sees a visual acknowledgement before the popover paints.
+    private func flashCell(_ day: Date) {
+        flashDay = day
+        Task {
+            try? await Task.sleep(for: .milliseconds(220))
+            await MainActor.run {
+                if flashDay == day { flashDay = nil }
+            }
+        }
     }
 
     private func rebuildGridCacheIfNeeded() {
@@ -525,10 +542,16 @@ struct MonthGridView: View {
         )
         .overlay(
             Rectangle()
+                .fill(AppColor.ember.opacity(flashDay == dayStart ? 0.22 : 0))
+                .animation(.easeOut(duration: 0.18), value: flashDay)
+        )
+        .overlay(
+            Rectangle()
                 .strokeBorder(AppColor.cardStroke, lineWidth: 0.5)
         )
         .contentShape(Rectangle())
         .onTapGesture {
+            flashCell(dayStart)
             router?.present(.quickCreate(dayStart, allDay: true))
         }
         .contextMenu {
