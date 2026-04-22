@@ -98,7 +98,7 @@ struct HelpView: View {
                 .background(Circle().fill(AppColor.ember.opacity(0.12)))
             VStack(alignment: .leading, spacing: 4) {
                 Text("Hot Cross Buns")
-                    .font(.system(.largeTitle, design: .serif, weight: .bold))
+                    .font(.system(.largeTitle, weight: .bold))
                     .foregroundStyle(AppColor.ink)
                 Text("A Mac-native planner on top of Google Tasks and Google Calendar.")
                     .hcbFont(.title3)
