@@ -15,10 +15,17 @@ struct TaskDraft: Equatable {
     }
 
     func differs(from task: TaskMirror) -> Bool {
-        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedTitle != task.title { return true }
-        if trimmedNotes != task.notes { return true }
+        // Trim BOTH sides. Asymmetric trim (draft trimmed, task raw) incorrectly
+        // flagged any task whose Google-stored title/notes has incidental leading
+        // or trailing whitespace as "dirty" on mount — causing ghost "Edited X"
+        // toasts to fire on inspector close or on any subsequent sync refresh
+        // even when the user never typed a character.
+        let trimmedDraftTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedDraftNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedTaskTitle = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedTaskNotes = task.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedDraftTitle != trimmedTaskTitle { return true }
+        if trimmedDraftNotes != trimmedTaskNotes { return true }
         let currentDue = task.dueDate
         if hasDueDate == false && currentDue != nil { return true }
         if hasDueDate && currentDue == nil { return true }
