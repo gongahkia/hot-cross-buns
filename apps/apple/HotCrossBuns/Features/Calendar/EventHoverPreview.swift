@@ -38,7 +38,8 @@ struct EventHoverPreview: View {
             }
         }
         .hcbScaledPadding(12)
-        .hcbScaledFrame(width: 300, alignment: .leading)
+        .hcbScaledFrame(minWidth: 260, idealWidth: 300, maxWidth: 420, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var accent: Color {
