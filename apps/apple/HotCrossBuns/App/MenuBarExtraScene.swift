@@ -62,7 +62,7 @@ private struct CompactMenuBarPanel: View {
             MenuBarQuickActions()
         }
         .hcbScaledPadding(14)
-        .hcbScaledFrame(width: 316)
+        .hcbScaledFrame(width: 320)
     }
 
     private var overview: some View {
@@ -96,7 +96,7 @@ private struct DetailedMenuBarPanel: View {
             MenuBarQuickActions()
         }
         .hcbScaledPadding(12)
-        .hcbScaledFrame(width: 352)
+        .hcbScaledFrame(width: 320)
     }
 
     private var agenda: some View {
@@ -290,7 +290,7 @@ private struct FocusStripMenuBarPanel: View {
             MenuBarQuickActions()
         }
         .hcbScaledPadding(14)
-        .hcbScaledFrame(width: 336)
+        .hcbScaledFrame(width: 320)
     }
 
     @ViewBuilder
@@ -527,7 +527,7 @@ private struct MinimalBadgeMenuBarPanel: View {
             }
         }
         .hcbScaledPadding(12)
-        .hcbScaledFrame(width: 276)
+        .hcbScaledFrame(width: 320)
     }
 
     private func bringAppToFront() {
