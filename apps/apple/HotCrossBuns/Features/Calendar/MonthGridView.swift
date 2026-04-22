@@ -347,12 +347,15 @@ struct MonthGridView: View {
                         // under the band overlay rather than colliding with it.
                         let cellHasBand = bands.contains { col >= $0.startColumn && col <= $0.endColumn && $0.lane < maxVisibleLanes }
                         monthCell(day: day, bandReserve: cellHasBand ? bandAreaHeight : 0, byDay: byDay)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                            .frame(maxWidth: .infinity, minHeight: fixedRowHeight, maxHeight: fixedRowHeight, alignment: .top)
+                            .clipped() // stop per-cell VStack overflow (day number + bandReserve + 2 events + 2 tasks + "+N more" can exceed fixedRowHeight) from bleeding into the next week row
                     }
                 }
                 bandOverlay(bands: bands, cellWidth: cellWidth)
             }
         }
+        .frame(height: fixedRowHeight)
+        .clipped() // defense-in-depth: also clip the row itself so band overlays can't leak out
     }
 
     // Resolves a gesture point — given in the "monthGridContent" named
