@@ -28,7 +28,9 @@ struct CalendarHomeView: View {
             navigationBar
             Divider()
             Group {
-                if model.account == nil {
+                if model.account == nil && model.authState == .authenticating {
+                    restoringPrompt
+                } else if model.account == nil {
                     connectPrompt
                 } else if model.calendarSnapshot.selectedCalendars.isEmpty {
                     calendarsEmptyPrompt
@@ -307,6 +309,21 @@ struct CalendarHomeView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(AppColor.ember)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private var restoringPrompt: some View {
+        // Shown during the brief pre-load window where we haven't yet decided
+        // if the user is signed in. Replaces the alarming "Not connected"
+        // message that used to flash during cold launch.
+        VStack(spacing: 12) {
+            ProgressView()
+                .controlSize(.large)
+            Text("Connecting to Google…")
+                .hcbFont(.subheadline)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
