@@ -173,7 +173,7 @@ struct HistoryWindow: View {
         if kind.hasPrefix("task.create") || kind.hasPrefix("event.create") { return "create" }
         if kind.hasPrefix("task.edit") || kind.hasPrefix("event.edit") { return "edit" }
         if kind.hasPrefix("task.delete") || kind.hasPrefix("event.delete") { return "delete" }
-        if kind == "task.complete" || kind == "task.reopen" { return "complete" }
+        if kind == "task.complete" || kind == "task.reopen" || kind == "event.dismiss" { return "complete" }
         if kind.hasPrefix("task.duplicate") { return "duplicate" }
         if kind.hasPrefix("task.move") { return "move" }
         if kind.hasPrefix("clipboard.") { return "clipboard" }

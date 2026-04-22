@@ -84,6 +84,7 @@ struct HistoryEntryDetailView: View {
         case "event.create": "Created an event"
         case "event.edit": "Edited an event"
         case "event.delete": "Deleted an event"
+        case "event.dismiss": "Marked an event done"
         case "event.restore": "Restored an event"
         default:
             if entry.kind.hasPrefix("bulk.") { "Bulk action" }

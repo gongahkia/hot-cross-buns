@@ -29,6 +29,12 @@ enum UndoableAction: Sendable, Equatable {
     case taskMove(taskID: TaskMirror.ID, fromListID: TaskListMirror.ID, toListID: TaskListMirror.ID, title: String, fromListTitle: String, toListTitle: String)
     // Net-new event creation — undo deletes.
     case eventCreate(snapshot: CalendarEventMirror)
+    // User marked an event "done" via the checkmark affordance on a calendar
+    // tile. Google Calendar has no completion concept, so this is a delete
+    // under the hood — but the history log treats it as a completion so the
+    // user can distinguish "I finished this meeting" from "I deleted this
+    // by accident". Undo recreates via createEvent exactly like eventDelete.
+    case eventDismissed(snapshot: CalendarEventMirror)
     // Copy / paste / cut clipboard operations. kind = "copy" | "paste" | "cut".
     // Not reversible server-side; recorded purely for history.
     case clipboardOp(kind: String, resourceID: String, title: String)
@@ -62,6 +68,8 @@ enum UndoableAction: Sendable, Equatable {
             return "Moved \"\(title)\" from \(fromTitle) to \(toTitle)"
         case .eventCreate(let snap):
             return "Created event \"\(snap.summary)\""
+        case .eventDismissed(let snap):
+            return "Marked \"\(snap.summary)\" as done"
         case .clipboardOp(let kind, _, let title):
             let verb = kind.capitalized
             return "\(verb) \"\(title)\""
@@ -82,6 +90,7 @@ enum UndoableAction: Sendable, Equatable {
         case .taskDelete, .eventDelete: "trash"
         case .taskEdit, .eventEdit: "square.and.pencil"
         case .taskCreate, .eventCreate: "plus.circle"
+        case .eventDismissed: "checkmark.circle"
         case .taskDuplicate: "plus.square.on.square"
         case .taskMove: "arrow.right.square"
         case .clipboardOp: "doc.on.clipboard"

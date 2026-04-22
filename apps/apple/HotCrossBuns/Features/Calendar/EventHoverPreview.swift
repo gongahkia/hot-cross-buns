@@ -83,11 +83,11 @@ struct CalendarEventPreviewButton<Label: View>: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
-            // Right-click menu parity with the Tasks/Notes Kanban cards.
-            // Open / Duplicate / Convert / Delete — the usual macOS secondary
-            // affordance. Left-click still opens the preview popover.
             Button("Open…") {
                 router?.present(.editEvent(event.id))
+            }
+            Button("Mark as Done") {
+                Task { _ = await model.dismissEvent(event) }
             }
             Button("Duplicate") {
                 Task { _ = await model.duplicateEvent(event) }
@@ -124,7 +124,10 @@ struct CalendarEventPreviewButton<Label: View>: View {
         .popover(isPresented: $isPresented, arrowEdge: .trailing) {
             VStack(alignment: .leading, spacing: 10) {
                 EventHoverPreview(event: event)
-                HStack {
+                HStack(spacing: 8) {
+                    // Left-aligned circle button mirrors the task completion
+                    // affordance. Hidden on read-only calendars.
+                    CalendarEventDismissButton(event: event, size: 16)
                     Spacer(minLength: 0)
                     Button("Open") {
                         isPresented = false
@@ -219,6 +222,39 @@ struct CalendarTaskPreviewButton<Label: View>: View {
                 .hcbScaledPadding(.horizontal, 12)
                 .hcbScaledPadding(.bottom, 10)
             }
+        }
+    }
+}
+
+// Clickable circle-checkmark on calendar event tiles. Google Calendar has
+// no completion concept, so clicking this deletes the event on Google —
+// but the history log + undo toast record it as .eventDismissed so the
+// user sees "Marked 'X' as done" rather than a delete, and Undo recreates
+// the event from the snapshot. Hidden when the event's calendar is not
+// writeable by the user (reader / freeBusyReader access role).
+struct CalendarEventDismissButton: View {
+    @Environment(AppModel.self) private var model
+    let event: CalendarEventMirror
+    var size: CGFloat = 10
+
+    private var canWrite: Bool {
+        guard let calendar = model.calendars.first(where: { $0.id == event.calendarID }) else { return false }
+        return calendar.accessRole == "owner" || calendar.accessRole == "writer"
+    }
+
+    var body: some View {
+        if canWrite {
+            Button {
+                Task { _ = await model.dismissEvent(event) }
+            } label: {
+                Image(systemName: "circle")
+                    .hcbFontSystem(size: size)
+                    .foregroundStyle(AppColor.blue)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Mark event as done (⌘K)")
+            .keyboardShortcut("k", modifiers: [.command])
         }
     }
 }

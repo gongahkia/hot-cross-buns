@@ -883,7 +883,7 @@ final class AppModel {
         switch action {
         case .taskDelete(let snap), .taskEdit(let snap), .taskRestore(let snap):
             return Self.encode(snap, using: encoder)
-        case .eventDelete(let snap), .eventEdit(let snap), .eventRestore(let snap):
+        case .eventDelete(let snap), .eventEdit(let snap), .eventRestore(let snap), .eventDismissed(let snap):
             return Self.encode(snap, using: encoder)
         default:
             return nil
@@ -945,6 +945,8 @@ final class AppModel {
             ])
         case .eventCreate(let snap):
             return ("event.create", snap.id, snap.summary, ["calendar": snap.calendarID])
+        case .eventDismissed(let snap):
+            return ("event.dismiss", snap.id, snap.summary, ["calendar": snap.calendarID])
         case .clipboardOp(let kind, let resourceID, let title):
             return ("clipboard.\(kind)", resourceID, title, [:])
         case .taskRestore(let snap):
@@ -1080,6 +1082,24 @@ final class AppModel {
         case .eventCreate(let snap):
             guard let event = event(id: snap.id) else { return }
             _ = await deleteEvent(event)
+        case .eventDismissed(let snap):
+            // same inverse as eventDelete — Google has no "uncomplete" so the
+            // event is recreated from the snapshot.
+            _ = await createEvent(
+                summary: snap.summary,
+                details: snap.details,
+                startDate: snap.startDate,
+                endDate: snap.endDate,
+                isAllDay: snap.isAllDay,
+                reminderMinutes: snap.reminderMinutes.first,
+                calendarID: snap.calendarID,
+                location: snap.location,
+                recurrence: snap.recurrence,
+                attendeeEmails: snap.attendeeEmails,
+                notifyGuests: false,
+                addGoogleMeet: false,
+                colorId: snap.colorId
+            )
         case .clipboardOp, .bulkAction, .syncPulled, .taskRestore, .eventRestore:
             // not invertible from the short-TTL undo toast; history window handles these via snapshot copy
             return
@@ -1391,6 +1411,68 @@ final class AppModel {
             if let apiError = error as? GoogleAPIError, apiError == .preconditionFailed {
                 await refreshNow()
             }
+            endMutation(error: error)
+            return false
+        }
+    }
+
+    // Deletes the event from Google (since Calendar has no completion state)
+    // but records the undoable as .eventDismissed so the user can distinguish
+    // "marked done" from "deleted" in the history log + undo toast. Always
+    // .thisOccurrence scope — dismissing a recurring master doesn't make
+    // sense (you finish individual occurrences, not the whole series).
+    func dismissEvent(_ event: CalendarEventMirror) async -> Bool {
+        guard requireAccount(mutationDescription: "marking events done") else {
+            return false
+        }
+        // Pending creates still in the outbox — retract locally, no Google call.
+        if OptimisticID.isPending(event.id) {
+            pendingMutations.removeAll { mutation in
+                mutation.resourceType == .event
+                    && mutation.action == .create
+                    && mutation.resourceID == event.id
+            }
+            removeEvent(id: event.id)
+            lastMutationError = nil
+            scheduleCacheSave()
+            await synchronizeLocalNotifications()
+            recordUndo(.eventDismissed(snapshot: event))
+            return true
+        }
+
+        let originalEvent = event
+        removeEvent(id: event.id)
+        // Record the undoable immediately (optimistic) so the toast fires
+        // without waiting on Google's 200.
+        recordUndo(.eventDismissed(snapshot: originalEvent))
+        beginMutation()
+        do {
+            let targetID = event.id
+            try await calendarClient.deleteEvent(calendarID: event.calendarID, eventID: targetID, ifMatch: event.etag)
+            endMutation(error: nil)
+            scheduleCacheSave()
+            await synchronizeLocalNotifications()
+            return true
+        } catch let error as GoogleAPIError where error.isTransient {
+            // Queue for retry — same pattern as deleteEvent.
+            let payload = PendingEventDeletePayload(
+                calendarID: event.calendarID,
+                eventID: event.id,
+                etagSnapshot: event.etag
+            )
+            if let mutation = try? PendingMutation.eventDelete(payload: payload) {
+                pendingMutations.append(mutation)
+                scheduleCacheSave()
+                await synchronizeLocalNotifications()
+                endMutation(error: nil)
+                Task { await replayPendingMutations() }
+                return true
+            }
+            upsert(originalEvent)
+            endMutation(error: error)
+            return false
+        } catch {
+            upsert(originalEvent)
             endMutation(error: error)
             return false
         }
