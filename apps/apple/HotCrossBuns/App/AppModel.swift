@@ -52,6 +52,12 @@ final class AppModel {
     private(set) var tasks: [TaskMirror] = []
     private(set) var calendars: [CalendarListMirror] = []
     private(set) var events: [CalendarEventMirror] = []
+    // Pre-bucketed events by calendar id. Recomputed in rebuildSnapshots so
+    // each grid view can avoid the per-render `model.events.filter` over the
+    // full event corpus (~17k+ at scale → ~3k once bucketed by typical
+    // calendar selections, and lookup is O(1) per calendar). Cancelled
+    // events are omitted to match the existing visibleEvents semantics.
+    private(set) var eventsByCalendar: [CalendarListMirror.ID: [CalendarEventMirror]] = [:]
     private(set) var taskSections: [TaskListSectionSnapshot] = []
     private(set) var todaySnapshot: TodaySnapshot = .empty
     private(set) var calendarSnapshot: CalendarSnapshot = .empty
@@ -180,6 +186,7 @@ final class AppModel {
             self.account = account
             authState = .signedIn(account)
             syncState = .idle
+            // Force-flush: account state must hit disk before any sync run.
             await saveCurrentState()
         } catch {
             authState = .failed(error.localizedDescription)
@@ -252,6 +259,10 @@ final class AppModel {
             authState = syncedState.account.map(AuthState.signedIn) ?? .signedOut
             syncState = .synced(at: Date())
             isSyncPaused = false
+            // Force-flush: completed sync state must hit disk so a crash
+            // before the next mutation doesn't lose the freshly-fetched
+            // events. (replayPendingMutations runs again next launch
+            // anyway but unnecessary refetch is wasteful.)
             await saveCurrentState()
             await synchronizeLocalNotifications()
             let duration = Int(Date().timeIntervalSince(started) * 1000)
@@ -327,7 +338,7 @@ final class AppModel {
             )
             let mutation = try PendingMutation.taskCreate(payload: payload)
             pendingMutations.append(mutation)
-            await saveCurrentState()
+            scheduleCacheSave()
         } catch {
             removeTask(id: localID)
             lastMutationError = "Could not queue task for sync: \(error.localizedDescription)"
@@ -404,7 +415,7 @@ final class AppModel {
             removeTask(id: task.id)
             upsert(finalTask)
             endMutation(error: nil)
-            await saveCurrentState()
+            scheduleCacheSave()
             await synchronizeLocalNotifications()
             return true
         } catch {
@@ -452,7 +463,7 @@ final class AppModel {
             )
             upsert(moved)
             endMutation(error: nil)
-            await saveCurrentState()
+            scheduleCacheSave()
             return true
         } catch {
             endMutation(error: error)
@@ -478,7 +489,7 @@ final class AppModel {
             )
             upsert(moved)
             endMutation(error: nil)
-            await saveCurrentState()
+            scheduleCacheSave()
             return true
         } catch {
             endMutation(error: error)
@@ -504,7 +515,7 @@ final class AppModel {
             )
             upsert(moved)
             endMutation(error: nil)
-            await saveCurrentState()
+            scheduleCacheSave()
             return true
         } catch {
             endMutation(error: error)
@@ -533,7 +544,7 @@ final class AppModel {
             }
 
             endMutation(error: nil)
-            await saveCurrentState()
+            scheduleCacheSave()
             return true
         } catch {
             endMutation(error: error)
@@ -560,7 +571,7 @@ final class AppModel {
             )
             upsert(updatedTaskList)
             endMutation(error: nil)
-            await saveCurrentState()
+            scheduleCacheSave()
             return true
         } catch {
             endMutation(error: error)
@@ -587,7 +598,7 @@ final class AppModel {
                 removeTask(id: task.id)
             }
             endMutation(error: nil)
-            await saveCurrentState()
+            scheduleCacheSave()
             await synchronizeLocalNotifications()
             return affected.count
         } catch {
@@ -606,7 +617,7 @@ final class AppModel {
             try await tasksClient.deleteTaskList(taskListID: taskList.id)
             removeTaskList(id: taskList.id)
             endMutation(error: nil)
-            await saveCurrentState()
+            scheduleCacheSave()
             await synchronizeLocalNotifications()
             return true
         } catch {
@@ -652,7 +663,7 @@ final class AppModel {
             )
             upsert(updatedTask)
             endMutation(error: nil)
-            await saveCurrentState()
+            scheduleCacheSave()
             await synchronizeLocalNotifications()
             recordUndo(.taskEdit(priorSnapshot: originalTask))
             return true
@@ -667,7 +678,7 @@ final class AppModel {
             )
             if let mutation = try? PendingMutation.taskUpdate(payload: payload) {
                 pendingMutations.append(mutation)
-                await saveCurrentState()
+                scheduleCacheSave()
                 await synchronizeLocalNotifications()
                 endMutation(error: nil)
                 Task { await replayPendingMutations() }
@@ -705,7 +716,7 @@ final class AppModel {
             let updatedTask = try await tasksClient.setTaskCompleted(isCompleted, task: task)
             upsert(updatedTask)
             endMutation(error: nil)
-            await saveCurrentState()
+            scheduleCacheSave()
             await synchronizeLocalNotifications()
             if isCompleted {
                 recentlyCompletedTaskID = updatedTask.id
@@ -729,7 +740,7 @@ final class AppModel {
             )
             if let mutation = try? PendingMutation.taskCompletion(payload: payload) {
                 pendingMutations.append(mutation)
-                await saveCurrentState()
+                scheduleCacheSave()
                 await synchronizeLocalNotifications()
                 endMutation(error: nil)
                 Task { await replayPendingMutations() }
@@ -824,14 +835,14 @@ final class AppModel {
     func clearPendingMutation(id: PendingMutation.ID) -> Bool {
         guard pendingMutations.contains(where: { $0.id == id }) else { return false }
         pendingMutations.removeAll { $0.id == id }
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
         return true
     }
 
     func clearAllPendingMutations() {
         guard pendingMutations.isEmpty == false else { return }
         pendingMutations = []
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func performUndo() async {
@@ -911,7 +922,7 @@ final class AppModel {
             }
             removeTask(id: task.id)
             lastMutationError = nil
-            await saveCurrentState()
+            scheduleCacheSave()
             await synchronizeLocalNotifications()
             return true
         }
@@ -923,7 +934,7 @@ final class AppModel {
         do {
             try await tasksClient.deleteTask(taskListID: task.taskListID, taskID: task.id, ifMatch: task.etag)
             endMutation(error: nil)
-            await saveCurrentState()
+            scheduleCacheSave()
             await synchronizeLocalNotifications()
             recordUndo(.taskDelete(snapshot: originalTask))
             return true
@@ -935,7 +946,7 @@ final class AppModel {
             )
             if let mutation = try? PendingMutation.taskDelete(payload: payload) {
                 pendingMutations.append(mutation)
-                await saveCurrentState()
+                scheduleCacheSave()
                 await synchronizeLocalNotifications()
                 endMutation(error: nil)
                 Task { await replayPendingMutations() }
@@ -1030,7 +1041,7 @@ final class AppModel {
             )
             let mutation = try PendingMutation.eventCreate(payload: payload)
             pendingMutations.append(mutation)
-            await saveCurrentState()
+            scheduleCacheSave()
         } catch {
             removeEvent(id: localID)
             lastMutationError = "Could not queue event for sync: \(error.localizedDescription)"
@@ -1162,7 +1173,7 @@ final class AppModel {
             }
             upsert(updatedEvent)
             endMutation(error: nil)
-            await saveCurrentState()
+            scheduleCacheSave()
             await synchronizeLocalNotifications()
             if canQueue { recordUndo(.eventEdit(priorSnapshot: originalEvent)) }
             return true
@@ -1187,7 +1198,7 @@ final class AppModel {
             )
             if let mutation = try? PendingMutation.eventUpdate(payload: payload) {
                 pendingMutations.append(mutation)
-                await saveCurrentState()
+                scheduleCacheSave()
                 await synchronizeLocalNotifications()
                 endMutation(error: nil)
                 Task { await replayPendingMutations() }
@@ -1219,7 +1230,7 @@ final class AppModel {
             }
             removeEvent(id: event.id)
             lastMutationError = nil
-            await saveCurrentState()
+            scheduleCacheSave()
             await synchronizeLocalNotifications()
             return true
         }
@@ -1257,9 +1268,9 @@ final class AppModel {
                     guard CalendarEventInstance.seriesID(from: existing.id) == dropID else { return false }
                     return existing.startDate >= event.startDate
                 }
-                rebuildSnapshots()
+                scheduleRebuildSnapshots()
                 endMutation(error: nil)
-                await saveCurrentState()
+                scheduleCacheSave()
                 await synchronizeLocalNotifications()
                 recordUndo(.eventDelete(snapshot: originalEvent))
                 return true
@@ -1276,10 +1287,10 @@ final class AppModel {
             if scope == .allInSeries {
                 let seriesID = CalendarEventInstance.seriesID(from: event.id)
                 events.removeAll { CalendarEventInstance.seriesID(from: $0.id) == seriesID }
-                rebuildSnapshots()
+                scheduleRebuildSnapshots()
             }
             endMutation(error: nil)
-            await saveCurrentState()
+            scheduleCacheSave()
             await synchronizeLocalNotifications()
             if canQueue { recordUndo(.eventDelete(snapshot: originalEvent)) }
             return true
@@ -1291,7 +1302,7 @@ final class AppModel {
             )
             if let mutation = try? PendingMutation.eventDelete(payload: payload) {
                 pendingMutations.append(mutation)
-                await saveCurrentState()
+                scheduleCacheSave()
                 await synchronizeLocalNotifications()
                 endMutation(error: nil)
                 Task { await replayPendingMutations() }
@@ -1313,7 +1324,7 @@ final class AppModel {
     func updateSyncMode(_ mode: SyncMode) {
         settings.syncMode = mode
         Task {
-            await saveCurrentState()
+            scheduleCacheSave()
         }
     }
 
@@ -1322,7 +1333,7 @@ final class AppModel {
             return
         }
         settings.showMenuBarExtra = isEnabled
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func setShowDockBadge(_ isEnabled: Bool) {
@@ -1330,13 +1341,13 @@ final class AppModel {
             return
         }
         settings.showDockBadge = isEnabled
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func setEnableGlobalHotkey(_ isEnabled: Bool) {
         guard settings.enableGlobalHotkey != isEnabled else { return }
         settings.enableGlobalHotkey = isEnabled
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     // §7.02 — event retention window. Clamped to a sane [0, 3650] range so a
@@ -1359,7 +1370,7 @@ final class AppModel {
                 }
             }
         }
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func setSidebarItemHidden(_ item: SidebarItem, hidden: Bool) {
@@ -1372,7 +1383,7 @@ final class AppModel {
         }
         guard next != settings.hiddenSidebarItems else { return }
         settings.hiddenSidebarItems = next
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func setCalendarViewModeHidden(_ mode: CalendarGridMode, hidden: Bool) {
@@ -1389,7 +1400,7 @@ final class AppModel {
         }
         guard next != settings.hiddenCalendarViewModes else { return }
         settings.hiddenCalendarViewModes = next
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     // §6.13 — Task templates. Stored locally only; never written to Google.
@@ -1399,12 +1410,12 @@ final class AppModel {
         } else {
             settings.taskTemplates.append(template)
         }
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func deleteTaskTemplate(_ id: UUID) {
         settings.taskTemplates.removeAll { $0.id == id }
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     // Instantiates a task template: expands every field with the given
@@ -1473,7 +1484,7 @@ final class AppModel {
             try HCBCacheKeychain.save(key)
             await cacheStore.setEncryptionKey(key)
             settings.cacheEncryptionEnabled = true
-            await saveCurrentState() // triggers a save that will now encrypt
+            scheduleCacheSave() // triggers a save that will now encrypt
             return true
         } catch {
             lastMutationError = "Could not enable encryption: \(error)"
@@ -1550,7 +1561,7 @@ final class AppModel {
             }
             try HCBCacheKeychain.save(newKey)
             await cacheStore.setEncryptionKey(newKey)
-            await saveCurrentState() // re-encrypt with the new key
+            scheduleCacheSave() // re-encrypt with the new key
             return true
         } catch {
             lastMutationError = "Could not change passphrase: \(error)"
@@ -1569,7 +1580,7 @@ final class AppModel {
         }
         guard next != settings.perSurfaceFontOverrides else { return }
         settings.perSurfaceFontOverrides = next
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     // TODO: prune — dead after the Calendar/Tasks/Notes sidebar refactor.
@@ -1590,13 +1601,13 @@ final class AppModel {
         }
         guard next != settings.hiddenStoreViewModes else { return }
         settings.hiddenStoreViewModes = next
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func updateSettings(_ next: AppSettings) {
         guard settings != next else { return }
         settings = next
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     // Per-tab list filters. Nil = inherit the global selectedTaskListIDs.
@@ -1608,7 +1619,7 @@ final class AppModel {
             settings.tasksTabSelectedListIDs = []
             settings.hasConfiguredTasksTabSelection = false
         }
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func setNotesTabListFilter(_ ids: Set<TaskListMirror.ID>?) {
@@ -1619,25 +1630,25 @@ final class AppModel {
             settings.notesTabSelectedListIDs = []
             settings.hasConfiguredNotesTabSelection = false
         }
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func setNotesViewMode(_ mode: NotesViewMode) {
         guard settings.notesViewMode != mode else { return }
         settings.notesViewMode = mode
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func setNotesKanbanColumnMode(_ mode: KanbanColumnMode) {
         guard settings.notesKanbanColumnMode != mode else { return }
         settings.notesKanbanColumnMode = mode
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func setColorTagAutoApplyEnabled(_ enabled: Bool) {
         guard settings.colorTagAutoApplyEnabled != enabled else { return }
         settings.colorTagAutoApplyEnabled = enabled
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func setColorTagBinding(colorId: String, tag: String?) {
@@ -1647,13 +1658,13 @@ final class AppModel {
         } else {
             settings.colorTagBindings.removeValue(forKey: colorId)
         }
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func setColorTagMatchPolicy(_ policy: ColorTagMatchPolicy) {
         guard settings.colorTagMatchPolicy != policy else { return }
         settings.colorTagMatchPolicy = policy
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     // MARK: - Past cleanup setters
@@ -1667,14 +1678,14 @@ final class AppModel {
         if wasDeletion, behavior.isDeletion == false {
             settings.hasAckedEventDeletion = false
         }
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func setPastEventDeleteThresholdDays(_ days: Int) {
         let clamped = max(1, min(365, days))
         guard settings.pastEventDeleteThresholdDays != clamped else { return }
         settings.pastEventDeleteThresholdDays = clamped
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func setAllowDeletingAttendeeEvents(_ allowed: Bool) {
@@ -1683,13 +1694,13 @@ final class AppModel {
         if allowed == false {
             settings.hasAckedAttendeeDeletion = false
         }
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func setOverdueTaskBehavior(_ behavior: OverdueTaskBehavior) {
         guard settings.overdueTaskBehavior != behavior else { return }
         settings.overdueTaskBehavior = behavior
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func setCompletedTaskBehavior(_ behavior: CompletedTaskBehavior) {
@@ -1699,45 +1710,45 @@ final class AppModel {
         if wasDeletion, behavior.isDeletion == false {
             settings.hasAckedTaskDeletion = false
         }
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func setCompletedTaskDeleteThresholdDays(_ days: Int) {
         let clamped = max(1, min(365, days))
         guard settings.completedTaskDeleteThresholdDays != clamped else { return }
         settings.completedTaskDeleteThresholdDays = clamped
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func acknowledgeEventDeletion() {
         guard settings.hasAckedEventDeletion == false else { return }
         settings.hasAckedEventDeletion = true
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func acknowledgeAttendeeDeletion() {
         guard settings.hasAckedAttendeeDeletion == false else { return }
         settings.hasAckedAttendeeDeletion = true
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func acknowledgeTaskDeletion() {
         guard settings.hasAckedTaskDeletion == false else { return }
         settings.hasAckedTaskDeletion = true
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func setUILayoutScale(_ scale: Double) {
         guard settings.uiLayoutScale != scale else { return }
         settings.uiLayoutScale = scale
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func setUITextSizePoints(_ points: Double) {
         let clamped = HCBTextSize.clamp(points)
         guard settings.uiTextSizePoints != clamped else { return }
         settings.uiTextSizePoints = clamped
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func setUIFontName(_ name: String?) {
@@ -1745,14 +1756,14 @@ final class AppModel {
         let resolved = (normalized?.isEmpty ?? true) ? nil : normalized
         guard settings.uiFontName != resolved else { return }
         settings.uiFontName = resolved
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func setColorSchemeID(_ id: String) {
         guard settings.colorSchemeID != id else { return }
         guard HCBColorScheme.scheme(id: id) != nil else { return }
         settings.colorSchemeID = id
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func setShortcutBinding(_ command: HCBShortcutCommand, binding: HCBKeyBinding?) {
@@ -1762,14 +1773,14 @@ final class AppModel {
             settings.shortcutOverrides.removeValue(forKey: command.rawValue)
         }
         HCBShortcutStorage.persist(settings.shortcutOverrides)
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func resetAllShortcutBindings() {
         guard settings.shortcutOverrides.isEmpty == false else { return }
         settings.shortcutOverrides.removeAll()
         HCBShortcutStorage.persist(settings.shortcutOverrides)
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func upsertCustomFilter(_ filter: CustomFilterDefinition) {
@@ -1778,12 +1789,12 @@ final class AppModel {
         } else {
             settings.customFilters.append(filter)
         }
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func deleteCustomFilter(_ id: CustomFilterDefinition.ID) {
         settings.customFilters.removeAll { $0.id == id }
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func upsertEventTemplate(_ template: EventTemplate) {
@@ -1792,12 +1803,12 @@ final class AppModel {
         } else {
             settings.eventTemplates.append(template)
         }
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func deleteEventTemplate(_ id: EventTemplate.ID) {
         settings.eventTemplates.removeAll { $0.id == id }
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     // §6.13b — Instantiates an event template: expands every templated field
@@ -2092,7 +2103,7 @@ final class AppModel {
             return
         }
         settings.showDetailedMenuBar = isEnabled
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func setMenuBarStyle(_ style: AppSettings.MenuBarStyle) {
@@ -2100,13 +2111,13 @@ final class AppModel {
         settings.menuBarStyle = style
         // Keep legacy bool in sync so older reads don't misreport
         settings.showDetailedMenuBar = (style == .detailed)
-        Task { await saveCurrentState() }
+        scheduleCacheSave()
     }
 
     func updateLocalNotificationsEnabled(_ isEnabled: Bool) {
         settings.enableLocalNotifications = isEnabled
         Task {
-            await saveCurrentState()
+            scheduleCacheSave()
             await synchronizeLocalNotifications(requestAuthorization: isEnabled)
         }
     }
@@ -2116,7 +2127,7 @@ final class AppModel {
         guard settings.taskReminderThresholdDays != clamped else { return }
         settings.taskReminderThresholdDays = clamped
         Task {
-            await saveCurrentState()
+            scheduleCacheSave()
             await synchronizeLocalNotifications()
         }
     }
@@ -2128,7 +2139,7 @@ final class AppModel {
         settings.taskReminderHour = h
         settings.taskReminderMinute = m
         Task {
-            await saveCurrentState()
+            scheduleCacheSave()
             await synchronizeLocalNotifications()
         }
     }
@@ -2136,14 +2147,14 @@ final class AppModel {
     func completeOnboarding() {
         settings.hasCompletedOnboarding = true
         Task {
-            await saveCurrentState()
+            scheduleCacheSave()
         }
     }
 
     func resetOnboarding() {
         settings.hasCompletedOnboarding = false
         Task {
-            await saveCurrentState()
+            scheduleCacheSave()
         }
     }
 
@@ -2240,7 +2251,7 @@ final class AppModel {
         pendingMutations[idx].quarantinedAt = nil
         pendingMutations[idx].conflictedAt = nil
         Task {
-            await saveCurrentState()
+            scheduleCacheSave()
             await replayPendingMutations()
         }
         return true
@@ -2340,7 +2351,7 @@ final class AppModel {
                 return false
             }
             pendingMutations.removeAll { $0.id == id }
-            await saveCurrentState()
+            scheduleCacheSave()
             await synchronizeLocalNotifications()
             return true
         } catch {
@@ -2390,19 +2401,19 @@ final class AppModel {
             removeTask(id: payload.localID)
             upsert(created)
             pendingMutations.removeAll { $0.id == mutation.id }
-            await saveCurrentState()
+            scheduleCacheSave()
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
             markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
-            await saveCurrentState()
+            scheduleCacheSave()
         } catch {
             if let payload = try? PendingMutationEncoder.decodeTaskCreate(mutation.payload) {
                 removeTask(id: payload.localID)
             }
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "Task couldn't be created: \(error.localizedDescription)"
-            await saveCurrentState()
+            scheduleCacheSave()
         }
     }
 
@@ -2419,22 +2430,22 @@ final class AppModel {
             )
             upsert(updated)
             pendingMutations.removeAll { $0.id == mutation.id }
-            await saveCurrentState()
+            scheduleCacheSave()
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
             markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
-            await saveCurrentState()
+            scheduleCacheSave()
         } catch let error as GoogleAPIError where error == .preconditionFailed {
             // Queued edit raced a server-side change. Don't silently drop —
             // surface as a conflict the user resolves from Diagnostics.
             markMutationConflict(mutation.id, error: error)
-            await saveCurrentState()
+            scheduleCacheSave()
             await refreshNow()
         } catch {
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "Queued task update failed: \(error.localizedDescription)"
-            await saveCurrentState()
+            scheduleCacheSave()
         }
     }
 
@@ -2461,20 +2472,20 @@ final class AppModel {
             let updated = try await tasksClient.setTaskCompleted(payload.isCompleted, task: stub)
             upsert(updated)
             pendingMutations.removeAll { $0.id == mutation.id }
-            await saveCurrentState()
+            scheduleCacheSave()
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
             markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
-            await saveCurrentState()
+            scheduleCacheSave()
         } catch let error as GoogleAPIError where error == .preconditionFailed {
             markMutationConflict(mutation.id, error: error)
-            await saveCurrentState()
+            scheduleCacheSave()
             await refreshNow()
         } catch {
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "Queued completion failed: \(error.localizedDescription)"
-            await saveCurrentState()
+            scheduleCacheSave()
         }
     }
 
@@ -2488,20 +2499,20 @@ final class AppModel {
             )
             removeTask(id: payload.taskID)
             pendingMutations.removeAll { $0.id == mutation.id }
-            await saveCurrentState()
+            scheduleCacheSave()
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
             markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
-            await saveCurrentState()
+            scheduleCacheSave()
         } catch let error as GoogleAPIError where error == .preconditionFailed {
             markMutationConflict(mutation.id, error: error)
-            await saveCurrentState()
+            scheduleCacheSave()
             await refreshNow()
         } catch {
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "Queued delete failed: \(error.localizedDescription)"
-            await saveCurrentState()
+            scheduleCacheSave()
         }
     }
 
@@ -2528,20 +2539,20 @@ final class AppModel {
             )
             upsert(updated)
             pendingMutations.removeAll { $0.id == mutation.id }
-            await saveCurrentState()
+            scheduleCacheSave()
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
             markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
-            await saveCurrentState()
+            scheduleCacheSave()
         } catch let error as GoogleAPIError where error == .preconditionFailed {
             markMutationConflict(mutation.id, error: error)
-            await saveCurrentState()
+            scheduleCacheSave()
             await refreshNow()
         } catch {
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "Queued event update failed: \(error.localizedDescription)"
-            await saveCurrentState()
+            scheduleCacheSave()
         }
     }
 
@@ -2555,20 +2566,20 @@ final class AppModel {
             )
             removeEvent(id: payload.eventID)
             pendingMutations.removeAll { $0.id == mutation.id }
-            await saveCurrentState()
+            scheduleCacheSave()
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
             markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
-            await saveCurrentState()
+            scheduleCacheSave()
         } catch let error as GoogleAPIError where error == .preconditionFailed {
             markMutationConflict(mutation.id, error: error)
-            await saveCurrentState()
+            scheduleCacheSave()
             await refreshNow()
         } catch {
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "Queued event delete failed: \(error.localizedDescription)"
-            await saveCurrentState()
+            scheduleCacheSave()
         }
     }
 
@@ -2594,19 +2605,19 @@ final class AppModel {
             removeEvent(id: payload.localID)
             upsert(created)
             pendingMutations.removeAll { $0.id == mutation.id }
-            await saveCurrentState()
+            scheduleCacheSave()
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
             markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
-            await saveCurrentState()
+            scheduleCacheSave()
         } catch {
             if let payload = try? PendingMutationEncoder.decodeEventCreate(mutation.payload) {
                 removeEvent(id: payload.localID)
             }
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "Event couldn't be created: \(error.localizedDescription)"
-            await saveCurrentState()
+            scheduleCacheSave()
         }
     }
 
@@ -2657,7 +2668,7 @@ final class AppModel {
         events = []
         syncCheckpoints = []
         pendingMutations = []
-        rebuildSnapshots()
+        scheduleRebuildSnapshots()
         syncState = .idle
         await saveCurrentState()
         await spotlightIndexer.removeAll()
@@ -2706,10 +2717,8 @@ final class AppModel {
         calendars[index].isSelected.toggle()
         settings.hasConfiguredCalendarSelection = true
         settings.selectedCalendarIDs = Set(calendars.filter(\.isSelected).map(\.id))
-        rebuildSnapshots()
-        Task {
-            await saveCurrentState()
-        }
+        scheduleRebuildSnapshots()
+        scheduleCacheSave()
     }
 
     func isTaskListSelected(_ taskListID: TaskListMirror.ID) -> Bool {
@@ -2737,10 +2746,8 @@ final class AppModel {
 
         settings.hasConfiguredTaskListSelection = true
         settings.selectedTaskListIDs = selectedIDs
-        rebuildSnapshots()
-        Task {
-            await saveCurrentState()
-        }
+        scheduleRebuildSnapshots()
+        scheduleCacheSave()
     }
 
     func task(id: TaskMirror.ID) -> TaskMirror? {
@@ -2814,7 +2821,7 @@ final class AppModel {
         } else {
             tasks.append(task)
         }
-        rebuildSnapshots()
+        scheduleRebuildSnapshots()
     }
 
     private func upsert(_ taskList: TaskListMirror) {
@@ -2823,7 +2830,7 @@ final class AppModel {
         } else {
             taskLists.append(taskList)
         }
-        rebuildSnapshots()
+        scheduleRebuildSnapshots()
     }
 
     private func removeTaskList(id: TaskListMirror.ID) {
@@ -2833,12 +2840,12 @@ final class AppModel {
         syncCheckpoints.removeAll { checkpoint in
             checkpoint.resourceType == .taskList && checkpoint.resourceID == id
         }
-        rebuildSnapshots()
+        scheduleRebuildSnapshots()
     }
 
     private func removeTask(id: TaskMirror.ID) {
         tasks.removeAll { $0.id == id }
-        rebuildSnapshots()
+        scheduleRebuildSnapshots()
     }
 
     private func upsert(_ event: CalendarEventMirror) {
@@ -2860,12 +2867,12 @@ final class AppModel {
         } else {
             events.append(resolved)
         }
-        rebuildSnapshots()
+        scheduleRebuildSnapshots()
     }
 
     private func removeEvent(id: CalendarEventMirror.ID) {
         events.removeAll { $0.id == id }
-        rebuildSnapshots()
+        scheduleRebuildSnapshots()
     }
 
     private func currentCachedState() -> CachedAppState {
@@ -2881,7 +2888,46 @@ final class AppModel {
         )
     }
 
+    // Synchronous flush. Use only from explicit-flush sites (logout,
+    // scenePhase background, tests). Routine mutations should call
+    // scheduleCacheSave() so dozens of rapid writes during a sync flush
+    // coalesce into a single disk hit.
     private func saveCurrentState() async {
+        pendingSaveTask?.cancel()
+        pendingSaveTask = nil
+        await cacheStore.save(currentCachedState())
+    }
+
+    // Debounced save. Multiple calls within a 500ms window collapse into
+    // one cacheStore.save invocation. Snapshots the current state at
+    // schedule time so the actual write reflects the last call's state
+    // even if more mutations land before the timer fires. The 500ms
+    // window is long enough to absorb a sync flush burst (dozens of
+    // upserts in <100ms) yet short enough that user-perceived latency
+    // for "did my edit persist?" stays imperceptible.
+    private var pendingSaveTask: Task<Void, Never>?
+
+    func scheduleCacheSave() {
+        pendingSaveTask?.cancel()
+        let store = cacheStore
+        pendingSaveTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            if Task.isCancelled { return }
+            guard let self else { return }
+            // Re-snapshot at fire time, not at schedule time, so any mutations
+            // between schedule and fire are also persisted.
+            let snapshot = self.currentCachedState()
+            await store.save(snapshot)
+        }
+    }
+
+    // Force-flush any pending debounced save. Bind to scenePhase
+    // .background and to logout/disconnect flows so a backgrounded app
+    // can't lose the last 500ms of mutations.
+    func flushPendingCacheSave() async {
+        guard let task = pendingSaveTask else { return }
+        pendingSaveTask = nil
+        task.cancel()
         await cacheStore.save(currentCachedState())
     }
 
@@ -2907,12 +2953,28 @@ final class AppModel {
         await spotlightIndexer.update(tasks: tasks, events: events)
     }
 
+    // Schedules a coalesced rebuild on the next runloop tick. Multiple
+    // calls within the same tick collapse to one. Used by mutation paths
+    // (createTask, updateEvent, etc.) so a sync flush of dozens of upserts
+    // produces a single snapshot rebuild instead of one per upsert.
+    private var snapshotRebuildPending = false
+
+    private func scheduleRebuildSnapshots() {
+        if snapshotRebuildPending { return }
+        snapshotRebuildPending = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.snapshotRebuildPending = false
+            self.rebuildSnapshots()
+        }
+    }
+
     private func rebuildSnapshots(referenceDate: Date = Date()) {
-        // D-lite instrumentation: every snapshot rebuild passes a timing
-        // measurement into the logger so we can later see how often
-        // rebuildSnapshots runs and how long it takes on real corpora. If
-        // this shows cost scaling with (tasks + events), that's the signal
-        // to split AppModel into finer-grained @Observable stores.
+        // Synchronous-flush variant. Prefer scheduleRebuildSnapshots() for
+        // mutation hot paths so multiple rapid mutations coalesce. Use
+        // this only when a downstream caller needs snapshots populated
+        // before its next line (apply() after sync, init bootstrap).
+        snapshotRebuildPending = false
         let started = ContinuousClock.now
         let visibleTaskListIDs = settings.hasConfiguredTaskListSelection
             ? settings.selectedTaskListIDs
@@ -2923,6 +2985,16 @@ final class AppModel {
         taskSections = TaskListSectionSnapshot.build(taskLists: visibleTaskLists, tasks: visibleTasks)
         todaySnapshot = TodaySnapshot.build(tasks: visibleTasks, events: events, referenceDate: referenceDate)
         calendarSnapshot = CalendarSnapshot.build(calendars: calendars, events: events, referenceDate: referenceDate)
+
+        // Bucket events by calendar id so grid views can skip the
+        // per-render full-events filter. Done once here, read O(1) per
+        // calendar by callers.
+        var byCalendar: [CalendarListMirror.ID: [CalendarEventMirror]] = [:]
+        byCalendar.reserveCapacity(calendars.count)
+        for event in events where event.status != .cancelled {
+            byCalendar[event.calendarID, default: []].append(event)
+        }
+        eventsByCalendar = byCalendar
 
         // Precompute the sidebar open-task count so the badge doesn't have
         // to re-filter every render.

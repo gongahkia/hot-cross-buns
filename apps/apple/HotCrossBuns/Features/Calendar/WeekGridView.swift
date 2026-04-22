@@ -73,8 +73,16 @@ struct WeekGridView: View {
     }
 
     private var visibleEvents: [CalendarEventMirror] {
-        let selected = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
-        let base = model.events.filter { selected.contains($0.calendarID) && $0.status != .cancelled }
+        // Reads model.eventsByCalendar (built once in rebuildSnapshots) so
+        // we walk only the events for the user's selected calendars rather
+        // than filtering the full event corpus per body eval. Cancelled
+        // events are already excluded at index-build time.
+        var base: [CalendarEventMirror] = []
+        for cal in model.calendarSnapshot.selectedCalendars {
+            if let bucket = model.eventsByCalendar[cal.id] {
+                base.append(contentsOf: bucket)
+            }
+        }
         let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard q.isEmpty == false else { return base }
         return base.filter { event in

@@ -33,16 +33,19 @@ struct DayGridView: View {
     private var dayEnd: Date { calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart }
 
     private var visibleEvents: [CalendarEventMirror] {
-        let selected = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
+        // Reads model.eventsByCalendar (built once in rebuildSnapshots) and
+        // applies the day-window + past-event hide + search predicates only
+        // on the per-calendar buckets, not the full corpus. Cancelled
+        // events are already excluded at index-build time.
         let now = Date()
-        let base = model.events.filter { event in
-            guard selected.contains(event.calendarID),
-                  event.status != .cancelled,
-                  event.endDate > dayStart,
-                  event.startDate < dayEnd
-            else { return false }
-            if model.settings.shouldHidePastEvent(event, now: now) { return false }
-            return true
+        var base: [CalendarEventMirror] = []
+        for cal in model.calendarSnapshot.selectedCalendars {
+            guard let bucket = model.eventsByCalendar[cal.id] else { continue }
+            for event in bucket {
+                guard event.endDate > dayStart, event.startDate < dayEnd else { continue }
+                if model.settings.shouldHidePastEvent(event, now: now) { continue }
+                base.append(event)
+            }
         }
         let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard q.isEmpty == false else { return base }
