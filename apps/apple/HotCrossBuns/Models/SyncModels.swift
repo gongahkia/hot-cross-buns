@@ -242,6 +242,16 @@ struct AppSettings: Hashable, Codable, Sendable {
     var hasAckedAttendeeDeletion: Bool
     var hasAckedTaskDeletion: Bool
 
+    // Duplicate-detection dismissals. Key = stable hash of the sorted member
+    // IDs in a duplicate group. Group composition changes (edits, deletes)
+    // invalidate the dismissal automatically because the hash no longer matches.
+    var dismissedDuplicateGroups: Set<String>
+
+    // History-log (audit log surfacing) preferences.
+    var historyVisibleLimit: Int           // N most recent entries shown in window (default 50)
+    var historyStorageCap: Int             // total entries retained on disk (default 5000, ceiling 50000)
+    var historyCategoryFilters: Set<String> // "create"|"edit"|"delete"|"complete"|"duplicate"|"move"|"clipboard"|"restore"|"bulk"|"sync"|"other"
+
     init(
         syncMode: SyncMode,
         selectedCalendarIDs: Set<CalendarListMirror.ID>,
@@ -292,7 +302,11 @@ struct AppSettings: Hashable, Codable, Sendable {
         completedTaskDeleteThresholdDays: Int = 30,
         hasAckedEventDeletion: Bool = false,
         hasAckedAttendeeDeletion: Bool = false,
-        hasAckedTaskDeletion: Bool = false
+        hasAckedTaskDeletion: Bool = false,
+        dismissedDuplicateGroups: Set<String> = [],
+        historyVisibleLimit: Int = 50,
+        historyStorageCap: Int = 5000,
+        historyCategoryFilters: Set<String> = ["create", "edit", "delete", "complete", "duplicate", "move", "clipboard", "restore", "bulk", "other"]
     ) {
         self.syncMode = syncMode
         self.selectedCalendarIDs = selectedCalendarIDs
@@ -344,6 +358,10 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.hasAckedEventDeletion = hasAckedEventDeletion
         self.hasAckedAttendeeDeletion = hasAckedAttendeeDeletion
         self.hasAckedTaskDeletion = hasAckedTaskDeletion
+        self.dismissedDuplicateGroups = dismissedDuplicateGroups
+        self.historyVisibleLimit = max(1, min(MutationAuditLog.absoluteCeiling, historyVisibleLimit))
+        self.historyStorageCap = max(1, min(MutationAuditLog.absoluteCeiling, historyStorageCap))
+        self.historyCategoryFilters = historyCategoryFilters
     }
 
     enum CodingKeys: String, CodingKey {
@@ -397,6 +415,10 @@ struct AppSettings: Hashable, Codable, Sendable {
         case hasAckedEventDeletion
         case hasAckedAttendeeDeletion
         case hasAckedTaskDeletion
+        case dismissedDuplicateGroups
+        case historyVisibleLimit
+        case historyStorageCap
+        case historyCategoryFilters
     }
 
     // Legacy key (0-6 ladder) read via dynamic CodingKey so it stays out of
@@ -484,6 +506,13 @@ struct AppSettings: Hashable, Codable, Sendable {
         hasAckedEventDeletion = try container.decodeIfPresent(Bool.self, forKey: .hasAckedEventDeletion) ?? false
         hasAckedAttendeeDeletion = try container.decodeIfPresent(Bool.self, forKey: .hasAckedAttendeeDeletion) ?? false
         hasAckedTaskDeletion = try container.decodeIfPresent(Bool.self, forKey: .hasAckedTaskDeletion) ?? false
+        dismissedDuplicateGroups = try container.decodeIfPresent(Set<String>.self, forKey: .dismissedDuplicateGroups) ?? []
+        let rawVisible = try container.decodeIfPresent(Int.self, forKey: .historyVisibleLimit) ?? 50
+        historyVisibleLimit = max(1, min(MutationAuditLog.absoluteCeiling, rawVisible))
+        let rawCap = try container.decodeIfPresent(Int.self, forKey: .historyStorageCap) ?? 5000
+        historyStorageCap = max(1, min(MutationAuditLog.absoluteCeiling, rawCap))
+        historyCategoryFilters = try container.decodeIfPresent(Set<String>.self, forKey: .historyCategoryFilters)
+            ?? ["create", "edit", "delete", "complete", "duplicate", "move", "clipboard", "restore", "bulk", "other"]
     }
 
     enum MenuBarStyle: String, Codable, Hashable, Sendable, CaseIterable {
