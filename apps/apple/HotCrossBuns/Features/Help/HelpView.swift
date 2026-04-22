@@ -127,14 +127,14 @@ struct HelpView: View {
     }
 
     private func keyRow(_ keys: String, _ description: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+        LabeledContent {
             Text(keys)
                 .font(.system(.callout, design: .monospaced, weight: .semibold))
-                .hcbScaledFrame(width: 96, alignment: .leading)
+                .foregroundStyle(.secondary)
+        } label: {
             Text(description)
                 .hcbFont(.callout)
                 .foregroundStyle(AppColor.ink)
-            Spacer(minLength: 0)
         }
     }
 }
