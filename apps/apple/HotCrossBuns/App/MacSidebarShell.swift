@@ -410,6 +410,7 @@ struct MacSidebarShell: View {
         appCommandActions.openDiagnostics = { presentSheet(.diagnostics, on: selection) }
         appCommandActions.openCommandPalette = { isPresentingCommandPalette = true }
         appCommandActions.openHelp = { openWindow(id: "help") }
+        appCommandActions.openHistory = { openWindow(id: "history") }
         appCommandActions.printToday = { TodayPrinter.print(model: model) }
         appCommandActions.exportDayICS = { exportICS(range: .day) }
         appCommandActions.exportWeekICS = { exportICS(range: .week) }

@@ -58,6 +58,14 @@ struct HotCrossBunsApp: App {
         .defaultSize(width: 720, height: 620)
         .windowResizability(.contentMinSize)
 
+        // Floating ledger — opened via View menu (⌘⌥Y), Settings "Open history…" button, or the MenuBar.
+        Window("History", id: "history") {
+            HistoryWindow()
+                .environment(appModel)
+        }
+        .defaultSize(width: 760, height: 560)
+        .windowResizability(.contentMinSize)
+
         MenuBarExtra(isInserted: menuBarInsertedBinding) {
             MenuBarExtraContent()
                 .environment(appModel)
