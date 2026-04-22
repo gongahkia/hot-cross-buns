@@ -227,7 +227,17 @@ struct MonthGridView: View {
         byDay: [Date: [CalendarEventMirror]]
     ) -> some View {
         let cellWidth = weekWidth / CGFloat(max(days.count, 1))
-        let bands = CalendarGridLayout.monthBands(for: days, events: filtered, calendar: calendar)
+        // Pre-narrow to events that actually cross this week before calling
+        // monthBands. At 17k events filtered, monthBands internally sorts +
+        // runs O(n × lanes) per call — without this guard the per-scroll
+        // cost scales with the full month corpus even though each week only
+        // contains ~0.5-2% of events.
+        let weekStart = days.first ?? anchorDate
+        let weekEnd = calendar.date(byAdding: .day, value: 1, to: days.last ?? anchorDate) ?? weekStart
+        let weekEvents = filtered.filter { event in
+            event.startDate < weekEnd && event.endDate > weekStart
+        }
+        let bands = CalendarGridLayout.monthBands(for: days, events: weekEvents, calendar: calendar)
         let visibleLaneCount = min(maxVisibleLanes, (bands.map(\.lane).max() ?? -1) + 1)
         let bandAreaHeight: CGFloat = visibleLaneCount > 0
             ? CGFloat(visibleLaneCount) * laneHeight + CGFloat(max(visibleLaneCount - 1, 0)) * laneSpacing + 4
