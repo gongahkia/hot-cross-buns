@@ -22,6 +22,24 @@ struct MonthGridView: View {
     private let laneHeight: CGFloat = 18
     private let laneSpacing: CGFloat = 2
     private let maxVisibleLanes: Int = 3
+    // Continuous-scroll rewrite: fixed row height lets us resolve drag points
+    // to (weekIndex, dayColumn) via simple division, and guarantees uniform
+    // layout across weeks regardless of band-event count. Matches the legacy
+    // paged-month cell height (geo.height ÷ 6 for a 660pt region ≈ 110).
+    private let fixedRowHeight: CGFloat = 110
+    // 104 weeks = ±1 year window around the user's initial anchor. Large
+    // enough that typical navigation stays inside it; a chevron jump outside
+    // the window triggers recentering via buildWindow().
+    private let weeksInWindow: Int = 104
+    // Named coordinate space the drag gesture and the highlight overlay both
+    // resolve into. Needs to wrap the LazyVStack so both gesture points and
+    // overlay positioning share the same frame.
+    private let gridCoordinateSpace = "monthGridContent"
+    // Separate named space for the outer ScrollView — the inner
+    // GeometryReader reports its frame within this space to derive scroll
+    // offset. Kept distinct from gridCoordinateSpace because the gesture
+    // resolution wants content-local coords, not scroll-view-local.
+    private let scrollCoordinateSpace = "monthGridScroll"
 
     @State private var dragSelection: DragSelection?
     // Cell feedback pulse. Set to the tapped dayStart on quickCreate and
@@ -30,7 +48,7 @@ struct MonthGridView: View {
     // ~100ms gap before the popover appears where nothing on screen moves.
     @State private var flashDay: Date?
     // Grid-content cache. Rebuilt only when the underlying inputs (calendar
-    // selection, search query, month anchor, event corpus count) change —
+    // selection, search query, window anchor, event corpus count) change —
     // NOT on every body eval. Critical for drag-create responsiveness: the
     // DragGesture .onChanged fires at ~60Hz, and without this cache every
     // drag tick ran the filteredEvents + eventsByDay pipelines over 17k+
@@ -38,23 +56,15 @@ struct MonthGridView: View {
     @State private var cachedFiltered: [CalendarEventMirror] = []
     @State private var cachedByDay: [Date: [CalendarEventMirror]] = [:]
     @State private var cachedGridKey: String = ""
-    // Scroll-to-navigate-months state (§6.14). An NSEvent scrollWheel monitor
-    // runs while the cursor hovers the grid; accumulated deltaY is stepped
-    // into month shifts once it crosses `scrollThreshold`. Direction maps:
-    // scroll DOWN (deltaY negative on macOS) → next month (forward in time);
-    // scroll UP → previous month. Cooldown keeps a single long swipe from
-    // paging through half a year.
-    @State private var scrollMonitor: Any?
-    @State private var scrollAccumulator: CGFloat = 0
-    @State private var scrollLastStepAt: Date = .distantPast
-    @State private var isGridHovered: Bool = false
-    private let scrollThreshold: CGFloat = 45
-    private let scrollCooldown: TimeInterval = 0.22
-    // Tracks paging direction so the grid transition slides the right way
-    // regardless of source (scroll gesture, chevron buttons, mini-calendar
-    // tap, keyboard shortcut). 1 = forward in time, -1 = back.
-    @State private var monthDirection: Int = 1
-    @State private var lastAnchorKey: String = ""
+    // Rolling window of week-start dates rendered by the ScrollView. Rebuilt
+    // by buildWindow() when the anchor lands outside the current window.
+    @State private var weekStarts: [Date] = []
+    @State private var windowStart: Date = Date()
+    // Guard against a feedback loop: when we update anchorDate from a scroll
+    // event, onChange(of: anchorDate) would otherwise programmatically scroll
+    // (and potentially fight with the user's momentum). This flag short-
+    // circuits one onChange pass.
+    @State private var skipNextScrollSync: Bool = false
 
     private struct DragSelection: Equatable {
         var start: Date
@@ -68,50 +78,102 @@ struct MonthGridView: View {
         VStack(spacing: 0) {
             weekdayHeader
             Divider()
-            animatedGrid
+            continuousGrid
         }
-        .onAppear { lastAnchorKey = monthKey(for: anchorDate) }
-        .onChange(of: anchorDate) { _, newValue in
-            // Infer direction from external updates (chevron buttons, mini
-            // calendar, keyboard) so the transition slides consistently even
-            // when stepMonth(by:) wasn't the caller.
-            let newKey = monthKey(for: newValue)
-            if newKey != lastAnchorKey {
-                monthDirection = compareMonthKeys(lastAnchorKey, newKey)
-                lastAnchorKey = newKey
+        .onAppear {
+            if weekStarts.isEmpty {
+                buildWindow(centeredOn: anchorDate)
             }
+            rebuildGridCacheIfNeeded()
         }
-        .onHover { hovering in
-            isGridHovered = hovering
-            if hovering {
-                installScrollMonitor()
-            } else {
-                removeScrollMonitor()
-            }
-        }
-        .onDisappear { removeScrollMonitor() }
     }
 
-    // Wraps `grid` in a clipped container so the slide transition doesn't
-    // bleed into neighbouring chrome. Identity is keyed by year-month so
-    // SwiftUI sees a view replace on month change — required for .transition
-    // to fire. Drag-to-create state re-initialises on month swap, which is
-    // desirable (a drag mid-scroll would be ambiguous anyway).
+    // Replaces the paged month grid. A LazyVStack of week rows inside a
+    // ScrollView — natural continuous vertical scrolling, partial months
+    // visible at any scroll position. ScrollViewReader lets external anchor
+    // updates (chevron / today / mini-calendar) programmatically scroll; the
+    // onScrollGeometryChange reverse-binds the visible-center week back into
+    // anchorDate so the nav bar's month title follows live scrolling.
     //
-    // §7.02: `filteredEvents` and `eventsByDay` are computed ONCE per body
-    // pass and threaded into `grid`, `weekRow`, and `monthCell` so each
-    // week's `monthBands` call doesn't re-iterate the full events list. On
-    // large calendars this cuts the per-render scan from O(events × weeks)
-    // to O(events).
-    private var animatedGrid: some View {
-        ZStack {
-            grid(filtered: cachedFiltered, byDay: cachedByDay)
-                .id(monthKey(for: anchorDate))
-                .transition(monthTransition)
+    // §7.02 cache: `filteredEvents` + windowed `eventsByDay` are computed
+    // ONCE per window/search/events change and threaded into every weekRow
+    // so `monthBands` doesn't re-iterate the full events list per week on
+    // each scroll tick.
+    private var continuousGrid: some View {
+        GeometryReader { outerGeo in
+            ScrollViewReader { proxy in
+                ScrollView(.vertical) {
+                    LazyVStack(spacing: 0) {
+                        ForEach(weekStarts, id: \.self) { weekStart in
+                            weekRow(
+                                for: weekStart,
+                                filtered: cachedFiltered,
+                                byDay: cachedByDay
+                            )
+                            .frame(height: fixedRowHeight)
+                            .id(weekStart)
+                        }
+                    }
+                    // Named coordinate space wraps the content so (a) the
+                    // drag gesture can resolve points in absolute content
+                    // coords and (b) the drag highlight overlay positions
+                    // rectangles against the same frame — gesture and paint
+                    // agree on pixel origin.
+                    .coordinateSpace(name: gridCoordinateSpace)
+                    // Background GeometryReader captures the content width
+                    // and reports the current scroll offset via a
+                    // PreferenceKey. Both dateAtContentPoint and the
+                    // highlight overlay read visibleGridWidth; the scroll
+                    // offset drives the anchor-from-scroll binding.
+                    .background(
+                        GeometryReader { innerGeo in
+                            Color.clear
+                                .onAppear { visibleGridWidth = innerGeo.size.width }
+                                .onChange(of: innerGeo.size.width) { _, new in visibleGridWidth = new }
+                                .preference(
+                                    key: ScrollOffsetKey.self,
+                                    value: -innerGeo.frame(in: .named(scrollCoordinateSpace)).minY
+                                )
+                        }
+                    )
+                    .overlay(alignment: .topLeading) { dragHighlightOverlay }
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 6, coordinateSpace: .named(gridCoordinateSpace))
+                            .onChanged { value in
+                                guard let start = dateAtContentPoint(value.startLocation),
+                                      let curr = dateAtContentPoint(value.location) else { return }
+                                dragSelection = DragSelection(start: start, end: curr)
+                            }
+                            .onEnded { _ in
+                                guard let sel = dragSelection else { return }
+                                dragSelection = nil
+                                let (from, to) = sel.normalized
+                                let endExclusive = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: to)) ?? to
+                                router?.present(.quickCreateRange(calendar.startOfDay(for: from), endExclusive, allDay: true))
+                            }
+                    )
+                }
+                .coordinateSpace(name: scrollCoordinateSpace)
+                .onAppear { scrollToAnchor(proxy: proxy, animated: false) }
+                .onChange(of: anchorDate) { _, newValue in
+                    if skipNextScrollSync {
+                        skipNextScrollSync = false
+                        return
+                    }
+                    // If the new anchor left the window, rebuild centered on it.
+                    if isDateInWindow(newValue) == false {
+                        buildWindow(centeredOn: newValue)
+                        rebuildGridCacheIfNeeded()
+                    }
+                    scrollToAnchor(proxy: proxy, animated: true)
+                }
+                .onChange(of: currentGridCacheKey) { _, _ in rebuildGridCacheIfNeeded() }
+                .onPreferenceChange(ScrollOffsetKey.self) { offset in
+                    let centerY = offset + outerGeo.size.height / 2
+                    updateAnchorFromScroll(centerY: centerY)
+                }
+            }
         }
-        .clipped()
-        .onAppear { rebuildGridCacheIfNeeded() }
-        .onChange(of: currentGridCacheKey) { _, _ in rebuildGridCacheIfNeeded() }
     }
 
     // Fingerprints every input the grid cache depends on. Cheap to compute —
@@ -119,7 +181,12 @@ struct MonthGridView: View {
     // skipping every drag-induced body re-eval.
     private var currentGridCacheKey: String {
         let selectedIds = model.calendarSnapshot.selectedCalendars.map(\.id).sorted().joined(separator: ",")
-        return "\(selectedIds)|\(searchQuery)|\(monthKey(for: anchorDate))|\(model.events.count)"
+        return "\(selectedIds)|\(searchQuery)|\(windowKey)|\(model.events.count)"
+    }
+
+    private var windowKey: String {
+        guard let first = weekStarts.first else { return "empty" }
+        return "\(Int(first.timeIntervalSince1970))-\(weekStarts.count)"
     }
 
     // Flash the tapped cell for ~220ms. Used on monthCell click-to-create
@@ -140,20 +207,13 @@ struct MonthGridView: View {
         cachedGridKey = key
         let filtered = filteredEvents
         cachedFiltered = filtered
+        let first = weekStarts.first ?? anchorDate
+        let last = weekStarts.last.flatMap { calendar.date(byAdding: .day, value: 6, to: $0) } ?? first
         cachedByDay = CalendarGridLayout.eventsByDay(
             filtered,
-            from: cells.first ?? anchorDate,
-            to: cells.last ?? anchorDate,
+            from: first,
+            to: last,
             calendar: calendar
-        )
-    }
-
-    private var monthTransition: AnyTransition {
-        let insertionEdge: Edge = monthDirection >= 0 ? .bottom : .top
-        let removalEdge: Edge = monthDirection >= 0 ? .top : .bottom
-        return .asymmetric(
-            insertion: .move(edge: insertionEdge).combined(with: .opacity),
-            removal: .move(edge: removalEdge).combined(with: .opacity)
         )
     }
 
@@ -162,22 +222,66 @@ struct MonthGridView: View {
         return "\(comps.year ?? 0)-\(comps.month ?? 0)"
     }
 
-    // Compares two year-month keys; returns 1 if `new` is after `old`, -1 if
-    // before, 0 on parse failure / equality.
-    private func compareMonthKeys(_ old: String, _ new: String) -> Int {
-        let parse: (String) -> (Int, Int)? = { key in
-            let parts = key.split(separator: "-").compactMap { Int($0) }
-            guard parts.count == 2 else { return nil }
-            return (parts[0], parts[1])
-        }
-        guard let o = parse(old), let n = parse(new) else { return 0 }
-        if n.0 != o.0 { return n.0 > o.0 ? 1 : -1 }
-        if n.1 != o.1 { return n.1 > o.1 ? 1 : -1 }
-        return 0
+    // MARK: - Window / scroll plumbing
+
+    // Returns the start-of-week (locale-aware) for a given date.
+    private func startOfWeek(for date: Date) -> Date {
+        calendar.dateInterval(of: .weekOfYear, for: date)?.start
+            ?? calendar.startOfDay(for: date)
     }
 
-    private var cells: [Date] {
-        CalendarGridLayout.monthCells(for: anchorDate, calendar: calendar)
+    // Rebuilds the rolling window of week-start dates centered on the given
+    // date. Called on first appear and whenever an external anchor jumps
+    // outside the current window.
+    private func buildWindow(centeredOn date: Date) {
+        let anchorWeek = startOfWeek(for: date)
+        let lead = weeksInWindow / 2
+        let start = calendar.date(byAdding: .day, value: -lead * 7, to: anchorWeek) ?? anchorWeek
+        windowStart = start
+        weekStarts = (0..<weeksInWindow).compactMap {
+            calendar.date(byAdding: .day, value: $0 * 7, to: start)
+        }
+    }
+
+    private func isDateInWindow(_ date: Date) -> Bool {
+        guard let first = weekStarts.first, let last = weekStarts.last else { return false }
+        let endExclusive = calendar.date(byAdding: .day, value: 7, to: last) ?? last
+        return date >= first && date < endExclusive
+    }
+
+    // Programmatic scroll to the week containing `anchorDate`. Used by Today
+    // / chevrons / mini-calendar — anything that updates the binding from
+    // outside. Anchoring the target week at .top gives a predictable landing
+    // position at the top of the visible area.
+    private func scrollToAnchor(proxy: ScrollViewProxy, animated: Bool) {
+        let target = startOfWeek(for: anchorDate)
+        guard weekStarts.contains(target) else { return }
+        if animated {
+            withAnimation(.easeInOut(duration: 0.24)) {
+                proxy.scrollTo(target, anchor: .top)
+            }
+        } else {
+            proxy.scrollTo(target, anchor: .top)
+        }
+    }
+
+    // Reverse-sync: as the user scrolls, figure out which week sits at the
+    // visible-center and push its month into anchorDate. skipNextScrollSync
+    // short-circuits the resulting onChange(of: anchorDate) so programmatic
+    // scroll doesn't fight live scrolling.
+    private func updateAnchorFromScroll(centerY: CGFloat) {
+        guard fixedRowHeight > 0 else { return }
+        let index = Int((centerY / fixedRowHeight).rounded(.down))
+        guard weekStarts.indices.contains(index) else { return }
+        let weekStart = weekStarts[index]
+        // Use Thursday (offset 3) as the "representative" day — ISO week
+        // numbering treats the Thursday as the canonical week, which matches
+        // how users intuitively assign a week to a month.
+        let midDay = calendar.date(byAdding: .day, value: 3, to: weekStart) ?? weekStart
+        if monthKey(for: midDay) != monthKey(for: anchorDate) {
+            skipNextScrollSync = true
+            anchorDate = midDay
+        }
     }
 
     private var filteredEvents: [CalendarEventMirror] {
@@ -210,73 +314,18 @@ struct MonthGridView: View {
         .hcbScaledPadding(.vertical, 8)
     }
 
-    private func grid(filtered: [CalendarEventMirror], byDay: [Date: [CalendarEventMirror]]) -> some View {
-        let groupedCells = stride(from: 0, to: cells.count, by: 7).map { start in
-            Array(cells[start..<min(start + 7, cells.count)])
-        }
-        // router is captured into a local before the GeometryReader closure
-        // so the DragGesture handlers reference the captured value rather
-        // than self.router. SwiftUI custom-EnvironmentKey reads inside
-        // GeometryReader closures + gesture .onEnded blocks have been
-        // unreliable — the captured local sidesteps that propagation gap.
-        let capturedRouter = router
-        return GeometryReader { geo in
-            let rowHeight = geo.size.height / CGFloat(groupedCells.count)
-            let cellWidth = geo.size.width / 7
-            ZStack(alignment: .topLeading) {
-                VStack(spacing: 0) {
-                    ForEach(Array(groupedCells.enumerated()), id: \.offset) { _, row in
-                        weekRow(row, rowHeight: rowHeight, weekWidth: geo.size.width, filtered: filtered, byDay: byDay)
-                    }
-                }
-                gridDragHighlight(
-                    groupedCells: groupedCells,
-                    cellWidth: cellWidth,
-                    rowHeight: rowHeight
-                )
-            }
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 6)
-                    .onChanged { value in
-                        guard let start = date(
-                            at: value.startLocation,
-                            groupedCells: groupedCells,
-                            cellWidth: cellWidth,
-                            rowHeight: rowHeight
-                        ), let curr = date(
-                            at: value.location,
-                            groupedCells: groupedCells,
-                            cellWidth: cellWidth,
-                            rowHeight: rowHeight
-                        ) else { return }
-                        dragSelection = DragSelection(start: start, end: curr)
-                    }
-                    .onEnded { _ in
-                        guard let sel = dragSelection else { return }
-                        dragSelection = nil
-                        let (from, to) = sel.normalized
-                        let endExclusive = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: to)) ?? to
-                        capturedRouter?.present(.quickCreateRange(calendar.startOfDay(for: from), endExclusive, allDay: true))
-                    }
-            )
-        }
-    }
-
     private func weekRow(
-        _ days: [Date],
-        rowHeight: CGFloat,
-        weekWidth: CGFloat,
+        for weekStart: Date,
         filtered: [CalendarEventMirror],
         byDay: [Date: [CalendarEventMirror]]
     ) -> some View {
-        let cellWidth = weekWidth / CGFloat(max(days.count, 1))
+        let days = (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: weekStart) }
         // Pre-narrow to events that actually cross this week before calling
         // monthBands. At 17k events filtered, monthBands internally sorts +
         // runs O(n × lanes) per call — without this guard the per-scroll
         // cost scales with the full month corpus even though each week only
         // contains ~0.5-2% of events.
-        let weekStart = days.first ?? anchorDate
-        let weekEnd = calendar.date(byAdding: .day, value: 1, to: days.last ?? anchorDate) ?? weekStart
+        let weekEnd = calendar.date(byAdding: .day, value: 7, to: weekStart) ?? weekStart
         let weekEvents = filtered.filter { event in
             event.startDate < weekEnd && event.endDate > weekStart
         }
@@ -286,72 +335,78 @@ struct MonthGridView: View {
             ? CGFloat(visibleLaneCount) * laneHeight + CGFloat(max(visibleLaneCount - 1, 0)) * laneSpacing + 4
             : 0
 
-        return ZStack(alignment: .topLeading) {
-            HStack(spacing: 0) {
-                ForEach(Array(days.enumerated()), id: \.element) { col, day in
-                    // Per-cell band reservation: cells with NO band events
-                    // crossing them get 0 reservation so timed-event tiles
-                    // can slide to the top. Cells crossed by ≥1 band keep
-                    // the uniform week-level reservation so they line up
-                    // under the band overlay rather than colliding with it.
-                    let cellHasBand = bands.contains { col >= $0.startColumn && col <= $0.endColumn && $0.lane < maxVisibleLanes }
-                    monthCell(day: day, bandReserve: cellHasBand ? bandAreaHeight : 0, byDay: byDay)
-                        .frame(maxWidth: .infinity, minHeight: rowHeight, maxHeight: rowHeight, alignment: .top)
+        return GeometryReader { geo in
+            let cellWidth = geo.size.width / CGFloat(max(days.count, 1))
+            ZStack(alignment: .topLeading) {
+                HStack(spacing: 0) {
+                    ForEach(Array(days.enumerated()), id: \.element) { col, day in
+                        // Per-cell band reservation: cells with NO band events
+                        // crossing them get 0 reservation so timed-event tiles
+                        // can slide to the top. Cells crossed by ≥1 band keep
+                        // the uniform week-level reservation so they line up
+                        // under the band overlay rather than colliding with it.
+                        let cellHasBand = bands.contains { col >= $0.startColumn && col <= $0.endColumn && $0.lane < maxVisibleLanes }
+                        monthCell(day: day, bandReserve: cellHasBand ? bandAreaHeight : 0, byDay: byDay)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    }
                 }
+                bandOverlay(bands: bands, cellWidth: cellWidth)
             }
-            bandOverlay(bands: bands, cellWidth: cellWidth)
         }
     }
 
-    private func cellIndex(for x: CGFloat, cellWidth: CGFloat, count: Int) -> Int {
-        guard cellWidth > 0, count > 0 else { return 0 }
-        return max(0, min(count - 1, Int(x / cellWidth)))
-    }
-
-    // Resolves a hit point inside the grid to the date under the cursor.
-    // Clamps row/col to the grid bounds so drags that leave the view don't
-    // return nil mid-gesture (nicer UX than the selection disappearing).
-    private func date(
-        at point: CGPoint,
-        groupedCells: [[Date]],
-        cellWidth: CGFloat,
-        rowHeight: CGFloat
-    ) -> Date? {
-        guard rowHeight > 0, cellWidth > 0, groupedCells.isEmpty == false else { return nil }
-        let row = max(0, min(groupedCells.count - 1, Int(point.y / rowHeight)))
+    // Resolves a gesture point — given in the "monthGridContent" named
+    // coordinate space, i.e. relative to the LazyVStack's top-leading — into
+    // a concrete date. Row derives from y / fixedRowHeight; column from
+    // x / (contentWidth / 7). Clamped so a drag that overshoots the grid
+    // doesn't cause the selection to disappear mid-gesture.
+    private func dateAtContentPoint(_ point: CGPoint) -> Date? {
+        guard fixedRowHeight > 0, weekStarts.isEmpty == false else { return nil }
+        let rowIndex = max(0, min(weekStarts.count - 1, Int(point.y / fixedRowHeight)))
+        let cellWidth = visibleGridWidth / 7
+        guard cellWidth > 0 else { return nil }
         let col = max(0, min(6, Int(point.x / cellWidth)))
-        let rowDays = groupedCells[row]
-        guard rowDays.indices.contains(col) else { return nil }
-        return rowDays[col]
+        return calendar.date(byAdding: .day, value: col, to: weekStarts[rowIndex])
     }
 
+    // Drag highlight overlay, drawn over the LazyVStack in the same named
+    // coordinate space as the gesture. Each week that intersects the
+    // selection contributes one highlight rectangle at its correct row offset
+    // — enables the multi-week drag-create UX across partial-month bounds.
     @ViewBuilder
-    private func gridDragHighlight(
-        groupedCells: [[Date]],
-        cellWidth: CGFloat,
-        rowHeight: CGFloat
-    ) -> some View {
-        if let sel = dragSelection {
+    private var dragHighlightOverlay: some View {
+        if let sel = dragSelection, visibleGridWidth > 0 {
+            let cellWidth = visibleGridWidth / 7
             let (from, to) = sel.normalized
             let fromStart = calendar.startOfDay(for: from)
             let toStart = calendar.startOfDay(for: to)
-            ForEach(Array(groupedCells.enumerated()), id: \.offset) { rowIdx, row in
-                if let (colStart, colEnd) = rowRange(row, fromStart: fromStart, toStart: toStart) {
-                    let left = CGFloat(colStart) * cellWidth
-                    let width = CGFloat(colEnd - colStart + 1) * cellWidth
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(AppColor.ember.opacity(0.2))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .strokeBorder(AppColor.ember.opacity(0.6), lineWidth: 1.2)
-                        )
-                        .frame(width: max(width - 4, 4), height: rowHeight - 4)
-                        .offset(x: left + 2, y: CGFloat(rowIdx) * rowHeight + 2)
-                        .allowsHitTesting(false)
+            ZStack(alignment: .topLeading) {
+                ForEach(Array(weekStarts.enumerated()), id: \.element) { index, weekStart in
+                    let weekDays = (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: weekStart) }
+                    if let (colStart, colEnd) = rowRange(weekDays, fromStart: fromStart, toStart: toStart) {
+                        let left = CGFloat(colStart) * cellWidth
+                        let width = CGFloat(colEnd - colStart + 1) * cellWidth
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(AppColor.ember.opacity(0.2))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .strokeBorder(AppColor.ember.opacity(0.6), lineWidth: 1.2)
+                            )
+                            .frame(width: max(width - 4, 4), height: fixedRowHeight - 4)
+                            .offset(x: left + 2, y: CGFloat(index) * fixedRowHeight + 2)
+                            .allowsHitTesting(false)
+                    }
                 }
             }
         }
     }
+
+    // Backing visible-width cache for dateAtContentPoint, written by the
+    // overlay GeometryReader. Using @State here avoids forcing a full
+    // GeometryReader around the gesture — the DragGesture already receives
+    // absolute content coords via the named coordinate space, we only need
+    // to know the row width to resolve the column.
+    @State private var visibleGridWidth: CGFloat = 0
 
     // Intersects a row's days with the inclusive [fromStart, toStart] range
     // and returns the contiguous column span, or nil when the row is fully
@@ -652,57 +707,14 @@ struct MonthGridView: View {
         guard let cal = model.calendars.first(where: { $0.id == event.calendarID }) else { return AppColor.blue }
         return Color(hex: cal.colorHex)
     }
+}
 
-    // MARK: - scroll-to-paginate-months (§6.14)
-
-    private func installScrollMonitor() {
-        guard scrollMonitor == nil else { return }
-        scrollAccumulator = 0
-        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
-            // Hover flag gates so scrolls in other windows / panels don't
-            // shift the month. The returned event still flows to other
-            // consumers — we only swallow once we actually step, so subtle
-            // scrolls below the threshold don't hijack anything.
-            guard isGridHovered else { return event }
-            scrollAccumulator += event.scrollingDeltaY
-            let now = Date()
-            guard now.timeIntervalSince(scrollLastStepAt) >= scrollCooldown else {
-                // Still in cooldown — eat the accumulator so a long swipe
-                // doesn't carry over into the next step burst.
-                scrollAccumulator = 0
-                return nil
-            }
-            if abs(scrollAccumulator) >= scrollThreshold {
-                // scrollingDeltaY < 0 on a "scroll down" gesture → next month.
-                let direction = scrollAccumulator < 0 ? 1 : -1
-                stepMonth(by: direction)
-                scrollAccumulator = 0
-                scrollLastStepAt = now
-                return nil // swallow the step event so the app doesn't double-process
-            }
-            // Below threshold — don't fire, don't swallow; let other views
-            // (none in practice here) see the event in case that changes.
-            return event
-        }
-    }
-
-    private func removeScrollMonitor() {
-        if let monitor = scrollMonitor {
-            NSEvent.removeMonitor(monitor)
-            scrollMonitor = nil
-        }
-        scrollAccumulator = 0
-    }
-
-    private func stepMonth(by direction: Int) {
-        guard let next = calendar.date(byAdding: .month, value: direction, to: anchorDate) else { return }
-        // Set direction BEFORE the withAnimation so the .transition() on the
-        // grid picks up the correct edges during this anim pass. onChange
-        // would otherwise race and sometimes flip the slide direction.
-        monthDirection = direction
-        lastAnchorKey = monthKey(for: next)
-        withAnimation(.easeInOut(duration: 0.24)) {
-            anchorDate = next
-        }
+// PreferenceKey carrying the current scroll-offset (in points, measured
+// downward from the top of the content). Used by the continuous-scroll
+// month grid to reverse-sync the visible center week into anchorDate.
+private struct ScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
