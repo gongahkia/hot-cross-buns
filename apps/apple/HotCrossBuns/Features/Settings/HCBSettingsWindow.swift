@@ -413,6 +413,7 @@ private struct AdvancedTab: View {
 
             KeybindingsSection()
             EncryptionSection()
+            HistorySection()
             CustomFiltersSection()
             TemplatesSection()
             UpdatesSection()
