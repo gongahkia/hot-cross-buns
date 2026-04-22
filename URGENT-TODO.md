@@ -6,12 +6,77 @@ Core invariant: Google Tasks + Google Calendar are the source of truth. Every fe
 
 Ranking principle:
 
-1. **§1–§5** — setup + QA that block a shippable build. Cannot ship without these.
-2. **§7–§8** — visual polish / perf / battery passes.
-3. **§9** — deprioritized extended-interop work.
-4. **§10** — cybersecurity hardening.
-5. **§11** — least-priority: daily local backup (implement last).
-6. **§12–§14** — carve-outs / deferred roadmap / known residual risks. Reference only.
+1. **§0** — immediate next task: full macOS-native design audit.
+2. **§1–§5** — setup + QA that block a shippable build. Cannot ship without these.
+3. **§7–§8** — visual polish / perf / battery passes.
+4. **§9** — deprioritized extended-interop work.
+5. **§10** — cybersecurity hardening.
+6. **§11** — least-priority: daily local backup (implement last).
+7. **§12–§14** — carve-outs / deferred roadmap / known residual risks. Reference only.
+
+## 0. [Next task] macOS-native design audit + refactor
+
+**Do this immediately, before any other §-numbered work below.**
+
+Sequence is strict:
+
+1. **Git commit the current HEAD state first.** The audit will touch many files; a clean snapshot lets us revert any individual finding's fix without losing others. Single commit, message: `chore: checkpoint before macOS-native design audit`. No code changes in this commit — just stage + commit whatever is currently uncommitted.
+
+2. **Hand the audit off to Codex.** Do NOT run this audit with Claude Code. Give Codex explicit latitude to take as much time as it needs. The prompt below is the contract — copy it verbatim into the Codex task.
+
+### Codex prompt (verbatim)
+
+> You are auditing `Hot Cross Buns` — a native macOS SwiftUI app at `apps/apple/HotCrossBuns/` — for adherence to macOS-native design conventions. Do NOT rush. Take as long as you need.
+>
+> **Phase 1 — Research (read-only, no code changes).**
+>
+> Before examining any of this repo's code, research and internalize what "a native macOS app" looks like. Read Apple's Human Interface Guidelines for macOS (<https://developer.apple.com/design/human-interface-guidelines/>), SwiftUI on macOS specifics, AppKit-to-SwiftUI bridging idioms, and examine the visual + interaction patterns used by Apple Calendar, Reminders, Mail, Notes, Messages, System Settings, Finder, Console, Shortcuts, and the stock Settings-app chrome. Catalog:
+>
+> - Window chrome conventions (toolbar placement, title bar buttons, toolbar item grouping, `.windowStyle`, `.windowToolbarStyle`).
+> - Sidebar / NavigationSplitView conventions, row heights, sidebar item styling, source-list vs unified.
+> - Control metrics: `.controlSize` defaults, `.bordered` vs `.borderedProminent` vs `.plain` button usage, `.toggleStyle(.button)` vs `.switch`, Picker styles.
+> - Form conventions: `.formStyle(.grouped)`, `Section` with footers, `LabeledContent`, native-looking row rhythm.
+> - List conventions: `.listStyle(.inset)` vs `.plain` vs `.sidebar`, row separators, hover affordances, disclosure chevrons, context menus.
+> - Typography: system font weights per hierarchy, `.monospacedDigit()` placement, `.font(.title3.weight(.semibold))` conventions.
+> - Color: system accent color usage, `.secondary` / `.tertiary` semantic tints, avoiding app-specific brand colors for structural chrome (reserve them for genuinely branded elements).
+> - Dark-mode behavior, `.preferredColorScheme` propagation, materials (`.regularMaterial`, `.thinMaterial`), vibrancy.
+> - Popovers + sheets: when each is appropriate, arrowEdge conventions, sizing norms, Form-inside-popover vs bare VStack.
+> - Keyboard: `.keyboardShortcut`, `.defaultAction` / `.cancelAction` on alert buttons, Esc/Return routing, tab traversal, focus rings.
+> - Animation: subtlety bar — native macOS animations are shorter and less bouncy than iOS.
+> - Accessibility: `.accessibilityLabel`, Voice Over rotor support, keyboard-only navigation.
+> - Context menus: `.contextMenu` on every surface users can interact with, standard menu items (Open, Duplicate, Delete, Convert, Copy as Markdown, Show in Finder equivalents).
+> - Drag & drop: `.draggable` / `.dropDestination` conventions, drag preview styling.
+> - Menu bar extra apps: monochromatic status-bar icons, compact dropdown panels, system-consistent spacing.
+> - Native idioms that HCB might be reinventing with custom chrome.
+>
+> Document what you learned in `docs/MACOS_DESIGN_REFERENCE.md` (new file, in the repo). This is the reference you'll audit against.
+>
+> **Phase 2 — Audit (read-only, produce a report).**
+>
+> With the reference document in hand, walk every view under `apps/apple/HotCrossBuns/Features/` and `apps/apple/HotCrossBuns/Design/` and `apps/apple/HotCrossBuns/App/`. For each view, note every place HCB deviates from the macOS idiom. Categorize findings:
+>
+> - **Critical** — the app looks or behaves unlike a native macOS app in a way a user will immediately notice (e.g., non-native chrome, iOS-flavored components, custom-drawn controls instead of system ones, wrong typography scale, custom accent colors replacing system accent where system accent is the convention).
+> - **High** — deviations that a discerning Mac user would flag (e.g., custom capsule toggles instead of `.toggleStyle(.button)`, non-standard row heights, missing hover affordances on clickable rows, non-standard sheet/popover sizing).
+> - **Medium** — polish items (micro-inconsistencies in padding, font weight mismatches, color token misuse in non-chrome surfaces, missing context menus where platform expectation is to have one).
+> - **Low** — style nits that don't measurably affect perceived nativeness.
+>
+> For each finding: cite the specific file path + line number range, describe the deviation, state the native convention, and propose a concrete fix (which SwiftUI modifier / API / restructuring). Write the report as `docs/MACOS_DESIGN_AUDIT.md`.
+>
+> **Phase 3 — Refactor (code changes).**
+>
+> Work through the findings Critical → High → Medium. For each finding, apply the proposed fix as its own git commit so every change can be reverted independently. Commit message format: `fix(ui/macos-audit): <short description of the finding>`. Keep the `hcbFont` / `hcbScaledPadding` / `hcbScaledFrame` / `AppColor` design-token system intact where it already matches native conventions; replace only the tokens that deviate. Do not touch Low findings unless Critical/High are all resolved.
+>
+> Build after every commit (`xcodebuild` via the repo's Makefile) so the branch never has a broken intermediate state. If a finding can't be fixed without a larger restructure, record it in `docs/MACOS_DESIGN_AUDIT.md` under a "Deferred" section with the reason.
+>
+> **Constraints.**
+>
+> - Preserve all existing functionality. This is a pure-chrome pass — no behavioral changes.
+> - Preserve the existing `HCBColorScheme` / per-surface font override system; those are intentional user-facing customizations, not deviations.
+> - Preserve the existing `.withHCBAppearance` propagation pattern for detached Window scenes; that's correct.
+> - Stay faithful to the user's custom color schemes (`notion`, etc. in `ColorSchemes.swift`) — don't replace them with system-only colors. The deviation to flag is when *structural* chrome (toolbar backgrounds, sidebar backgrounds, selection highlights) uses a brand color where the system accent or a material would be more native. Content-level accents (task dots, calendar colors, duplicate badges) are legitimate brand uses.
+> - Keep the deployment target at macOS 14.0; don't use macOS 15+ APIs without a `@available` guard.
+>
+> Report back when done with: (a) the total number of findings per category, (b) the number addressed vs deferred, (c) the commit range.
 
 ## 1. Google OAuth wiring
 
