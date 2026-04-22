@@ -14,7 +14,11 @@ final class AppModel {
     private let spotlightIndexer: SpotlightIndexer
 
     private(set) var account: GoogleAccount?
-    private(set) var authState: AuthState = .signedOut
+    // Default to .authenticating (not .signedOut) so the pre-loadInitialState
+    // window shows a "connecting" state instead of a false-positive
+    // "reconnect Google" banner. loadInitialState flips this to the real
+    // state once the cached account + Keychain restore have run.
+    private(set) var authState: AuthState = .authenticating
     private(set) var syncState: SyncState = .idle
     // Reference-counted so overlapping mutations (e.g. TaskInspectorView's
     // detached commit-on-close race with a simultaneous completion toggle
@@ -174,7 +178,13 @@ final class AppModel {
         }
         let cachedState = await cacheStore.loadCachedState()
         apply(cachedState)
-        authState = cachedState.account.map(AuthState.signedIn) ?? .signedOut
+        // If we have a cached account, optimistically show signed-in while
+        // restoreGoogleSession runs. If not, stay in .authenticating — don't
+        // flip to .signedOut prematurely; restoreGoogleSession will do that
+        // only if the Keychain actually has no prior session.
+        if let account = cachedState.account {
+            authState = .signedIn(account)
+        }
         if let warning = await cacheStore.lastLoadWarning {
             lastMutationError = warning
         }

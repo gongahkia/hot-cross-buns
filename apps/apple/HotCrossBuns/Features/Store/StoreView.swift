@@ -235,7 +235,9 @@ struct StoreView: View {
     private var content: some View {
         ZStack(alignment: .bottom) {
             Group {
-                if model.account == nil {
+                if model.account == nil && model.authState == .authenticating {
+                    RestoringSessionPlaceholder()
+                } else if model.account == nil {
                     signedOutPrompt
                 } else if model.taskLists.isEmpty {
                     noTaskListsPrompt
