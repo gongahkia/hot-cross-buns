@@ -54,7 +54,6 @@ struct CalendarHomeView: View {
                             selectedDate = day
                             mode = .day
                         })
-                        case .timeline: TimelineView(anchorDate: $selectedDate, searchQuery: searchQuery)
                         }
 
                         if selectedEventIDs.count >= 2 {
@@ -69,7 +68,7 @@ struct CalendarHomeView: View {
                     .animation(.easeInOut(duration: 0.2), value: selectedEventIDs.count >= 2)
                 }
             }
-            .hcbSurface(.calendarGrid) // §6.11 — covers day/week/month/timeline/agenda subtree
+            .hcbSurface(.calendarGrid) // §6.11 — covers day/week/month/year/agenda subtree
         }
         .appBackground()
         // Adding a .toolbar here serves two jobs: (a) provides the + button
@@ -260,10 +259,6 @@ struct CalendarHomeView: View {
             return selectedDate.formatted(.dateTime.month(.wide).year())
         case .year:
             return selectedDate.formatted(.dateTime.year())
-        case .timeline:
-            // Timeline shows whatever range the view picks internally; the
-            // toolbar title anchors on the month of the selected date.
-            return selectedDate.formatted(.dateTime.month(.wide).year())
         }
     }
 
