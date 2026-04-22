@@ -337,6 +337,25 @@ final class AppModel {
         taskListID: TaskListMirror.ID,
         parentID: TaskMirror.ID? = nil
     ) async -> Bool {
+        await createTaskInternal(
+            title: title,
+            notes: notes,
+            dueDate: dueDate,
+            taskListID: taskListID,
+            parentID: parentID,
+            recordAs: nil // default to .taskCreate below
+        )
+    }
+
+    @discardableResult
+    private func createTaskInternal(
+        title: String,
+        notes: String,
+        dueDate: Date?,
+        taskListID: TaskListMirror.ID,
+        parentID: TaskMirror.ID?,
+        recordAs override: ((TaskMirror) -> UndoableAction)?
+    ) async -> Bool {
         guard requireAccount(mutationDescription: "creating tasks") else {
             return false
         }
@@ -380,17 +399,21 @@ final class AppModel {
             return false
         }
 
+        let undoAction = override?(optimisticTask) ?? .taskCreate(snapshot: optimisticTask)
+        recordUndo(undoAction)
         Task { await replayPendingMutations() }
         return true
     }
 
     func duplicateTask(_ task: TaskMirror) async -> Bool {
-        await createTask(
+        let sourceTitle = task.title
+        return await createTaskInternal(
             title: task.title,
             notes: task.notes,
             dueDate: task.dueDate,
             taskListID: task.taskListID,
-            parentID: task.parentID
+            parentID: task.parentID,
+            recordAs: { optimistic in .taskDuplicate(newSnapshot: optimistic, sourceTitle: sourceTitle) }
         )
     }
 
@@ -449,6 +472,16 @@ final class AppModel {
             )
             removeTask(id: task.id)
             upsert(finalTask)
+            let fromListTitle = taskLists.first(where: { $0.id == task.taskListID })?.title ?? task.taskListID
+            let toListTitle = taskLists.first(where: { $0.id == toTaskListID })?.title ?? toTaskListID
+            recordUndo(.taskMove(
+                taskID: finalTask.id,
+                fromListID: task.taskListID,
+                toListID: toTaskListID,
+                title: task.title,
+                fromListTitle: fromListTitle,
+                toListTitle: toListTitle
+            ))
             endMutation(error: nil)
             scheduleCacheSave()
             await synchronizeLocalNotifications()
@@ -1125,6 +1158,7 @@ final class AppModel {
             return false
         }
 
+        recordUndo(.eventCreate(snapshot: optimisticEvent))
         Task { await replayPendingMutations() }
         return true
     }
@@ -1424,6 +1458,31 @@ final class AppModel {
     func setEnableGlobalHotkey(_ isEnabled: Bool) {
         guard settings.enableGlobalHotkey != isEnabled else { return }
         settings.enableGlobalHotkey = isEnabled
+        scheduleCacheSave()
+    }
+
+    // History-log + duplicate-detection setters. Kept clustered for discoverability.
+
+    func setHistoryVisibleLimit(_ limit: Int) {
+        let clamped = max(1, min(MutationAuditLog.absoluteCeiling, limit))
+        guard settings.historyVisibleLimit != clamped else { return }
+        settings.historyVisibleLimit = clamped
+        scheduleCacheSave()
+    }
+
+    func setHistoryStorageCap(_ cap: Int) {
+        let clamped = max(1, min(MutationAuditLog.absoluteCeiling, cap))
+        guard settings.historyStorageCap != clamped else { return }
+        settings.historyStorageCap = clamped
+        scheduleCacheSave()
+        Task { await MutationAuditLog.shared.setRetentionLimit(clamped) }
+    }
+
+    func setHistoryCategoryEnabled(_ category: String, enabled: Bool) {
+        var set = settings.historyCategoryFilters
+        if enabled { set.insert(category) } else { set.remove(category) }
+        guard settings.historyCategoryFilters != set else { return }
+        settings.historyCategoryFilters = set
         scheduleCacheSave()
     }
 
@@ -2011,11 +2070,16 @@ final class AppModel {
     }
 
     func bulkDeleteEvents(_ events: [CalendarEventMirror]) async -> Int {
+        let firstTitle = events.first?.summary ?? ""
         var deleted = 0
         for event in events {
             if await deleteEvent(event, scope: .thisOccurrence) {
                 deleted += 1
             }
+        }
+        if deleted > 1 {
+            // suppress N individual eventDelete undo entries behind one bulk summary. individual entries were already recorded in deleteEvent so this is additive for history; performUndo on .bulkAction is a no-op.
+            recordUndo(.bulkAction(kind: "delete", count: deleted, firstTitle: firstTitle))
         }
         return deleted
     }
@@ -2848,6 +2912,9 @@ final class AppModel {
         HCBShortcutStorage.persist(settings.shortcutOverrides)
         autoIncludeNewTaskLists()
         rebuildSnapshots()
+        // apply user's configured retention cap to the audit log actor on boot / after any apply (settings could have been sync-pulled remotely too).
+        let cap = settings.historyStorageCap
+        Task { await MutationAuditLog.shared.setRetentionLimit(cap) }
     }
 
     // When sync brings a new TaskListMirror that the user hasn't seen yet,
