@@ -18,6 +18,7 @@ final class AppCommandActions {
     var openDiagnostics: () -> Void = {}
     var openCommandPalette: () -> Void = {}
     var openHelp: () -> Void = {}
+    var openHistory: () -> Void = {}
     var printToday: () -> Void = {}
     var exportDayICS: () -> Void = {}
     var exportWeekICS: () -> Void = {}
@@ -125,6 +126,9 @@ struct AppCommands: Commands {
             let diag = binding(.diagnostics)
             Button("Diagnostics and Recovery…") { actions?.openDiagnostics() }
                 .keyboardShortcut(diag.key.keyEquivalent, modifiers: diag.modifiers.eventModifiers)
+                .disabled(actions == nil)
+            Button("History…") { actions?.openHistory() }
+                .keyboardShortcut("y", modifiers: [.command, .option])
                 .disabled(actions == nil)
         }
 

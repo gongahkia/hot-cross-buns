@@ -704,6 +704,7 @@ private struct MenuBarPinnedFilters: View {
 
 private struct MenuBarQuickActions: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -723,6 +724,14 @@ private struct MenuBarQuickActions: View {
             }
             .buttonStyle(.borderless)
             .disabled(model.account == nil)
+
+            Button {
+                openWindow(id: "history")
+            } label: {
+                Label("History…", systemImage: "clock.arrow.circlepath")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.borderless)
 
             Button {
                 NSApp.terminate(nil)
