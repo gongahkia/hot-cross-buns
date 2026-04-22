@@ -132,7 +132,7 @@
 		AC3FE199F79468DAA1B9D9EF /* DockBadgeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6366F53ACB2CE1B4D522E41D /* DockBadgeController.swift */; };
 		AC8BEAE2688675504A251128 /* ICSImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDA5E3D3896AF69DD2D510C6 /* ICSImporter.swift */; };
 		ACCC7BDB814D873A2EE5DFC7 /* DayAgendaPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7927086C6D7ED52806C839E /* DayAgendaPopover.swift */; };
-		AD29132826882A5AB9D4ADCC /* TimelineLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8040416B857E517A45E84B7B /* TimelineLayoutTests.swift */; };
+		AD47FC7F5C4B1BC3D7CDAADA /* AppModelEventsByCalendarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5B1547C4C575DC04A139FD0 /* AppModelEventsByCalendarTests.swift */; };
 		AE24A9FE78BD5056937D3B11 /* InsertEventTemplateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 476B863424A5B2F6C4F1BEBF /* InsertEventTemplateSheet.swift */; };
 		AF02EC6FCF69EF4B3DBB5FE2 /* KanbanGroupingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1F9819BB9588096043C4039 /* KanbanGroupingTests.swift */; };
 		AF8378637C1C4CA07244ACE4 /* LayoutSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9742B8184AB071BE000E4235 /* LayoutSection.swift */; };
@@ -164,7 +164,6 @@
 		CDE181FCDB04EB34924DF98B /* SyncSchedulerTombstonePurgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A15AB7A557A7163BEA80ECC /* SyncSchedulerTombstonePurgeTests.swift */; };
 		CF1E70E970213C9400BBB1AB /* EncryptionSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 923D7E147E63ED13484B24AA /* EncryptionSection.swift */; };
 		D11457A3B187BDE2CD571614 /* TaskHierarchyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAC3322BC3706CFF61AE52DB /* TaskHierarchyTests.swift */; };
-		D280DABA928A2B86751240A5 /* TimelineLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CD37293C5E89DF3E004FD7C /* TimelineLayout.swift */; };
 		D2F091285CF429E7C8CAE0F8 /* YearGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09D39CEECF9AC57283BF8021 /* YearGridView.swift */; };
 		D469641DB76139A358F0A8CB /* TasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 141ADCA673635CA9F5DA0BD1 /* TasksView.swift */; };
 		D553CCEF7C978404187F1049 /* HCBSettingsWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 322421AFC97A807AACB1057B /* HCBSettingsWindow.swift */; };
@@ -177,7 +176,6 @@
 		DB349B0AB6AD7E665A85B0BB /* GoogleAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD3E985540BFEBDABB373283 /* GoogleAuthService.swift */; };
 		DCFA92E8A9C921F1A8CEFAB5 /* PerTabListFilterSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DE5E9D4244D8F56D1FC3227 /* PerTabListFilterSection.swift */; };
 		DE7B01F05C5329EB42F6C188 /* RecurrenceRuleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF455BE4BA241A0C46869EF5 /* RecurrenceRuleTests.swift */; };
-		DE83356E5AA419C51A01C8EC /* TimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56CE8FA7DEAFD72A9F069B16 /* TimelineView.swift */; };
 		DECD71E149F07A0AFAB64AB9 /* ColorTagResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = F208F2F11C1BCF5C5B9317FA /* ColorTagResolver.swift */; };
 		DFB5D891060B9F47A148B872 /* MutationAuditLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C08F7D58524C666E5C34AED /* MutationAuditLog.swift */; };
 		E219DD1B1AD052112F17BD50 /* AppStatusBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFA7DEBBF786934A5D85FE41 /* AppStatusBanner.swift */; };
@@ -289,7 +287,6 @@
 		52C304D2E832B788B8FAF20E /* RecurrenceRule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceRule.swift; sourceTree = "<group>"; };
 		53DBA75E42BFCFB6D9F02C47 /* CalendarEventInstance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventInstance.swift; sourceTree = "<group>"; };
 		55AAE7CA5D31D859ABD20A52 /* QuickAddEventView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddEventView.swift; sourceTree = "<group>"; };
-		56CE8FA7DEAFD72A9F069B16 /* TimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineView.swift; sourceTree = "<group>"; };
 		5810826FCEA91EE340801C40 /* UndoToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoToast.swift; sourceTree = "<group>"; };
 		5958F04B434E20A3436A5CC0 /* SpotlightIdentifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightIdentifierTests.swift; sourceTree = "<group>"; };
 		5959B85AC017728D7F460355 /* MockURLProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockURLProtocol.swift; sourceTree = "<group>"; };
@@ -302,7 +299,6 @@
 		679D4851E75DBE60257686A7 /* GoogleMapsConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleMapsConfig.swift; sourceTree = "<group>"; };
 		681B9DB65E8B12860BF51B3D /* QuickCreatePopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickCreatePopover.swift; sourceTree = "<group>"; };
 		6A88DE6FAF6CB6673FAFBC3A /* SpotlightIndexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightIndexer.swift; sourceTree = "<group>"; };
-		6CD37293C5E89DF3E004FD7C /* TimelineLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineLayout.swift; sourceTree = "<group>"; };
 		6EC332C6DC51DB8C6B72B7A7 /* GoogleAPITransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAPITransport.swift; sourceTree = "<group>"; };
 		7469A7E227891C69E6A7BCC1 /* AdvancedSearchQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedSearchQuery.swift; sourceTree = "<group>"; };
 		789C6E4688F23FCD6DA9A6D0 /* RecurrenceUntilRewriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceUntilRewriter.swift; sourceTree = "<group>"; };
@@ -312,7 +308,6 @@
 		7D90185BBE4A34A691347F9E /* AdvancedSearchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedSearchTests.swift; sourceTree = "<group>"; };
 		7FC293FBF1818802ED9D013A /* StoreViewMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreViewMode.swift; sourceTree = "<group>"; };
 		7FC2AADAC806017C13510FCB /* HelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
-		8040416B857E517A45E84B7B /* TimelineLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineLayoutTests.swift; sourceTree = "<group>"; };
 		81B6DCD044EB92F7793567B7 /* NaturalLanguageEventParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NaturalLanguageEventParser.swift; sourceTree = "<group>"; };
 		835C22A6F8FF88C02CDD31B6 /* SystemCrashReportReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemCrashReportReader.swift; sourceTree = "<group>"; };
 		838CDC9397AEB8B081E732EE /* AppCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCommands.swift; sourceTree = "<group>"; };
@@ -403,6 +398,7 @@
 		F2DAF9EC4D904A84E8BC06FC /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		F2EDEC1CEE956716394335F3 /* DraggedTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DraggedTask.swift; sourceTree = "<group>"; };
 		F51F65CDD611063E476A60A9 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
+		F5B1547C4C575DC04A139FD0 /* AppModelEventsByCalendarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModelEventsByCalendarTests.swift; sourceTree = "<group>"; };
 		F5BB15E1D51900AFA2203B2D /* GlobalHotkey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotkey.swift; sourceTree = "<group>"; };
 		F6CBAD7A36EB78B310108D52 /* PastCleanupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastCleanupService.swift; sourceTree = "<group>"; };
 		F8744975197402E661FA13A2 /* CustomFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomFilterTests.swift; sourceTree = "<group>"; };
@@ -698,6 +694,7 @@
 			isa = PBXGroup;
 			children = (
 				7D90185BBE4A34A691347F9E /* AdvancedSearchTests.swift */,
+				F5B1547C4C575DC04A139FD0 /* AppModelEventsByCalendarTests.swift */,
 				FE4353BBFBCECA1F1E1EDF1B /* AppSettingsMacSurfacesTests.swift */,
 				4D768DB4E22AFC1D29F84EB1 /* BackoffPolicyTests.swift */,
 				7D7F5D64BA26CB5795667D64 /* BulkTaskOptimizerTests.swift */,
@@ -737,7 +734,6 @@
 				F03D73411CAA330A1556C797 /* TagExtractorTests.swift */,
 				AB94773FE862AC2922886257 /* TaskDraftTests.swift */,
 				DAC3322BC3706CFF61AE52DB /* TaskHierarchyTests.swift */,
-				8040416B857E517A45E84B7B /* TimelineLayoutTests.swift */,
 				6D0BEF93C5D0178B8379322A /* Support */,
 			);
 			path = HotCrossBunsMacTests;
@@ -868,8 +864,6 @@
 				81B6DCD044EB92F7793567B7 /* NaturalLanguageEventParser.swift */,
 				681B9DB65E8B12860BF51B3D /* QuickCreatePopover.swift */,
 				1B0DFDCF8E31CE997881CE68 /* TaskDrawerPanel.swift */,
-				6CD37293C5E89DF3E004FD7C /* TimelineLayout.swift */,
-				56CE8FA7DEAFD72A9F069B16 /* TimelineView.swift */,
 				365DC96473F7469BD2250779 /* WeekGridView.swift */,
 				09D39CEECF9AC57283BF8021 /* YearGridView.swift */,
 			);
@@ -1030,10 +1024,15 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					045A02CEF69A5B42D8D9ED33 = {
+						DevelopmentTeam = Q2J4QWZLR7;
+					};
 					219B609558AEF0B469CEC407 = {
+						DevelopmentTeam = Q2J4QWZLR7;
 						ProvisioningStyle = Automatic;
 					};
 					58224F0E9BC6A32F6D50A414 = {
+						DevelopmentTeam = Q2J4QWZLR7;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -1197,8 +1196,6 @@
 				8EE90A74A634E8BAC7DC5C44 /* TaskMirror.swift in Sources */,
 				D469641DB76139A358F0A8CB /* TasksView.swift in Sources */,
 				0D378235C8E06E9BECC9C81D /* TemplatesSection.swift in Sources */,
-				D280DABA928A2B86751240A5 /* TimelineLayout.swift in Sources */,
-				DE83356E5AA419C51A01C8EC /* TimelineView.swift in Sources */,
 				4E8052E74A055E77BC2698D9 /* TodayPrintView.swift in Sources */,
 				53E6931013FCFB5C1A0858EE /* UndoAction.swift in Sources */,
 				1D5AAB0DDD1DA8BD51016E71 /* UndoToast.swift in Sources */,
@@ -1215,6 +1212,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				90666ED447ED16E7273D7649 /* AdvancedSearchTests.swift in Sources */,
+				AD47FC7F5C4B1BC3D7CDAADA /* AppModelEventsByCalendarTests.swift in Sources */,
 				9EBF3A8E77C96C14106AB758 /* AppSettingsMacSurfacesTests.swift in Sources */,
 				7A31F091EF2A8AE7B9F1742B /* BackoffPolicyTests.swift in Sources */,
 				BD7094EFAF5478E7C36FB2F6 /* BulkTaskOptimizerTests.swift in Sources */,
@@ -1255,7 +1253,6 @@
 				13640CDC60E0A19C38BDFE38 /* TagExtractorTests.swift in Sources */,
 				93306BD12C07C443CE082AFB /* TaskDraftTests.swift in Sources */,
 				D11457A3B187BDE2CD571614 /* TaskHierarchyTests.swift in Sources */,
-				AD29132826882A5AB9D4ADCC /* TimelineLayoutTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1291,7 +1288,6 @@
 				CODE_SIGN_ENTITLEMENTS = HotCrossBuns/Support/HotCrossBuns.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				INFOPLIST_FILE = "HotCrossBuns/Support/Info-macOS.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1372,7 +1368,6 @@
 				CODE_SIGN_ENTITLEMENTS = HotCrossBunsShareExtension/HotCrossBunsShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				INFOPLIST_FILE = HotCrossBunsShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Hot Cross Buns";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1390,7 +1385,6 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -1408,7 +1402,6 @@
 				CODE_SIGN_ENTITLEMENTS = HotCrossBunsShareExtension/HotCrossBunsShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				INFOPLIST_FILE = HotCrossBunsShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Hot Cross Buns";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1497,7 +1490,6 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -1516,7 +1508,6 @@
 				CODE_SIGN_ENTITLEMENTS = HotCrossBuns/Support/HotCrossBuns.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = XVDC5469H8;
 				INFOPLIST_FILE = "HotCrossBuns/Support/Info-macOS.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
