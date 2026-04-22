@@ -162,6 +162,18 @@ private struct KanbanColumnView: View {
                             onTap: { onCardTap(task) }
                         )
                         .draggable(DraggedTask(taskID: task.id, taskListID: task.taskListID, title: task.title))
+                        .contextMenu {
+                            Button(task.isCompleted ? "Mark as open" : "Mark complete") {
+                                Task { _ = await model.setTaskCompleted(!task.isCompleted, task: task) }
+                            }
+                            Divider()
+                            Button("Duplicate") {
+                                Task { _ = await model.duplicateTask(task) }
+                            }
+                            Button("Delete", role: .destructive) {
+                                Task { _ = await model.deleteTask(task) }
+                            }
+                        }
                     }
                     // Inline add-task affordance — clicking anywhere in this
                     // zone opens QuickCreatePopover pre-filled with the
