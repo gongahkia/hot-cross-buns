@@ -14,14 +14,9 @@ struct HistoryEntryDetailView: View {
 
     var body: some View {
         Form {
-            Section("Summary") {
-                LabeledContent("Action", value: entry.summary)
+            Section {
+                LabeledContent("Action", value: friendlyAction)
                 LabeledContent("When", value: entry.timestamp.formatted(date: .complete, time: .standard))
-                LabeledContent("Kind") {
-                    Text(entry.kind)
-                        .font(.body.monospaced())
-                        .foregroundStyle(.secondary)
-                }
                 if entry.resourceID.isEmpty == false {
                     LabeledContent("Resource ID") {
                         HStack(spacing: 6) {
@@ -29,6 +24,8 @@ struct HistoryEntryDetailView: View {
                                 .font(.body.monospaced())
                                 .foregroundStyle(.secondary)
                                 .textSelection(.enabled)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
                             Button {
                                 copy(entry.resourceID)
                             } label: {
@@ -39,12 +36,21 @@ struct HistoryEntryDetailView: View {
                         }
                     }
                 }
+            } header: {
+                Text(entry.summary)
+                    .font(.title3.weight(.semibold))
+                    .textCase(nil) // SwiftUI Section headers uppercase by default; keep the human summary as-is
+                    .textSelection(.enabled)
+            } footer: {
+                if entry.priorSnapshotJSON == nil && entry.postSnapshotJSON == nil {
+                    Text("No snapshot was recorded for this action. Reconstruct manually from the fields above, or from the Google Tasks / Calendar web UI.")
+                }
             }
 
             if entry.metadata.isEmpty == false {
-                Section("Metadata") {
+                Section("Details") {
                     ForEach(entry.metadata.keys.sorted(), id: \.self) { key in
-                        LabeledContent(metadataLabel(key), value: entry.metadata[key] ?? "")
+                        LabeledContent(metadataLabel(key), value: friendlyMetadataValue(key: key, raw: entry.metadata[key] ?? ""))
                     }
                 }
             }
@@ -56,17 +62,45 @@ struct HistoryEntryDetailView: View {
             if let json = entry.postSnapshotJSON {
                 snapshotSection(title: "After this action", json: json)
             }
-
-            if entry.priorSnapshotJSON == nil && entry.postSnapshotJSON == nil {
-                Section {
-                    Text("No snapshot was recorded for this action. Reconstruct manually from the summary and metadata above, or from the Google Tasks / Calendar web UI.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-            }
         }
         .formStyle(.grouped)
-        .navigationTitle("Entry detail")
+        .navigationTitle(friendlyAction)
+        .navigationSubtitle(entry.timestamp.formatted(.relative(presentation: .numeric)))
+    }
+
+    // User-facing label for the raw `kind` string (e.g. "task.complete" →
+    // "Completed a task"). Falls back to the summary so unknown kinds still
+    // show something meaningful.
+    private var friendlyAction: String {
+        switch entry.kind {
+        case "task.create": "Created a task"
+        case "task.edit": "Edited a task"
+        case "task.delete": "Deleted a task"
+        case "task.complete": "Completed a task"
+        case "task.reopen": "Reopened a task"
+        case "task.duplicate": "Duplicated a task"
+        case "task.move": "Moved a task"
+        case "task.restore": "Restored a task"
+        case "event.create": "Created an event"
+        case "event.edit": "Edited an event"
+        case "event.delete": "Deleted an event"
+        case "event.restore": "Restored an event"
+        default:
+            if entry.kind.hasPrefix("bulk.") { "Bulk action" }
+            else if entry.kind.hasPrefix("sync.") { "Sync pulled changes" }
+            else if entry.kind.hasPrefix("clipboard.") { "Clipboard action" }
+            else { entry.summary }
+        }
+    }
+
+    // Boolean / count strings rendered as native English rather than raw
+    // "true" / "false" the JSON encoder produced.
+    private func friendlyMetadataValue(key: String, raw: String) -> String {
+        switch raw {
+        case "true": return "Yes"
+        case "false": return "No"
+        default: return raw
+        }
     }
 
     // Renders a snapshot. Tries to decode into TaskMirror / CalendarEventMirror
