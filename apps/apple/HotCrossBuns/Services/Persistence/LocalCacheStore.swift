@@ -14,6 +14,19 @@ actor LocalCacheStore {
     // file in case the key is recoverable later.
     private var encryptionKey: SymmetricKey?
 
+    // B2 — events live in a sidecar file (`cache-events.json`) so the main
+    // cache file stays small (~tens of KB) and most saves don't have to
+    // touch the multi-MB events blob. lastEventsHash gates writes: if the
+    // new state's events array hashes to the same value as the last
+    // written one, the events file write is skipped entirely. Set to nil
+    // on load so the first save after launch writes events unconditionally
+    // (handles legacy-monolithic → split migration).
+    private var lastEventsHash: Int?
+
+    private var eventsFileURL: URL? {
+        fileURL?.deletingLastPathComponent().appending(path: "cache-events.json")
+    }
+
     // Sidecar: stores the salt used to derive the current encryption key.
     // Salts are not secret — we keep it next to the cache so re-deriving the
     // key after a Keychain wipe only requires the passphrase.
@@ -95,14 +108,18 @@ actor LocalCacheStore {
                     return fallbackState
                 }
                 let plaintext = try HCBCacheCrypto.decrypt(envelope.encryptedV1, key: key)
-                let state = try JSONDecoder.cachedAppState.decode(CachedAppState.self, from: plaintext)
+                var state = try JSONDecoder.cachedAppState.decode(CachedAppState.self, from: plaintext)
+                state.events = mergeEventsFromSidecar(into: state.events)
                 lastLoadWarning = nil
                 cachedState = state
+                lastEventsHash = nil
                 return state
             }
-            let state = try JSONDecoder.cachedAppState.decode(CachedAppState.self, from: data)
+            var state = try JSONDecoder.cachedAppState.decode(CachedAppState.self, from: data)
+            state.events = mergeEventsFromSidecar(into: state.events)
             lastLoadWarning = nil
             cachedState = state
+            lastEventsHash = nil
             return state
         } catch {
             // Full decode failed — likely a schema drift in a future release.
@@ -202,26 +219,96 @@ actor LocalCacheStore {
             return
         }
 
+        // B2 — split the events array into a sidecar file. Main file
+        // (without events) stays small (~tens of KB); events file is only
+        // rewritten when the events hash changes. For a typical mutation
+        // (e.g., toggling a setting, completing a task), the multi-MB
+        // events file is left untouched.
+        let newEventsHash = LocalCacheStore.hashEvents(state.events)
+        let writeEvents = lastEventsHash != newEventsHash
+        var mainState = state
+        mainState.events = []
+
         do {
             try FileManager.default.createDirectory(
                 at: fileURL.deletingLastPathComponent(),
                 withIntermediateDirectories: true
             )
             rotateSnapshotsBeforeWrite(fileURL: fileURL)
-            let plaintext = try JSONEncoder.cachedAppState.encode(state)
-            let dataToWrite: Data
-            if let key = encryptionKey {
-                let salt = ensureSalt()
-                let blob = try HCBCacheCrypto.encrypt(plaintext, key: key, salt: salt)
-                dataToWrite = try JSONEncoder.cachedAppState.encode(EncryptedEnvelope(encryptedV1: blob))
-            } else {
-                dataToWrite = plaintext
+            try writeEncryptedOrPlaintext(
+                payload: try JSONEncoder.cachedAppState.encode(mainState),
+                to: fileURL
+            )
+            if writeEvents, let eventsURL = eventsFileURL {
+                try writeEncryptedOrPlaintext(
+                    payload: try JSONEncoder.cachedAppState.encode(state.events),
+                    to: eventsURL
+                )
+                lastEventsHash = newEventsHash
             }
-            try dataToWrite.write(to: fileURL, options: [.atomic])
         } catch {
             // Keep the in-memory cache usable even when the filesystem write fails.
             AppLogger.warn("cache write failed", category: .cache, metadata: ["error": String(describing: error)])
         }
+    }
+
+    // Wraps payload bytes with the same envelope rules as the legacy save:
+    // encrypt + envelope when a key is set; plaintext otherwise. Atomic
+    // file write so a crash mid-write can't corrupt the previous content.
+    private func writeEncryptedOrPlaintext(payload: Data, to url: URL) throws {
+        let dataToWrite: Data
+        if let key = encryptionKey {
+            let salt = ensureSalt()
+            let blob = try HCBCacheCrypto.encrypt(payload, key: key, salt: salt)
+            dataToWrite = try JSONEncoder.cachedAppState.encode(EncryptedEnvelope(encryptedV1: blob))
+        } else {
+            dataToWrite = payload
+        }
+        try dataToWrite.write(to: url, options: [.atomic])
+    }
+
+    // If the events sidecar exists, decode it (decrypting if needed) and
+    // return its events. Falls back to the events embedded in the main
+    // file (legacy monolithic format) when the sidecar is missing.
+    private func mergeEventsFromSidecar(into legacyEvents: [CalendarEventMirror]) -> [CalendarEventMirror] {
+        guard let eventsURL = eventsFileURL,
+              FileManager.default.fileExists(atPath: eventsURL.path) else {
+            return legacyEvents
+        }
+        do {
+            let raw = try Data(contentsOf: eventsURL)
+            if let envelope = try? JSONDecoder.cachedAppState.decode(EncryptedEnvelope.self, from: raw) {
+                guard let key = encryptionKey else {
+                    // Sidecar is encrypted and we can't unlock — keep legacy
+                    // payload to avoid silently dropping events.
+                    return legacyEvents
+                }
+                let plaintext = try HCBCacheCrypto.decrypt(envelope.encryptedV1, key: key)
+                return try JSONDecoder.cachedAppState.decode([CalendarEventMirror].self, from: plaintext)
+            }
+            return try JSONDecoder.cachedAppState.decode([CalendarEventMirror].self, from: raw)
+        } catch {
+            AppLogger.warn("events sidecar decode failed", category: .cache, metadata: [
+                "error": String(describing: error)
+            ])
+            return legacyEvents
+        }
+    }
+
+    // Cheap order-sensitive fingerprint of the events array. Hashes (id,
+    // etag, updatedAt) per event — same set of events in the same order
+    // produces the same hash. With 17k events this runs in ~1ms.
+    // Internal (not fileprivate) so tests can verify the exact bust /
+    // skip semantics independently of the actor's save path.
+    static func hashEvents(_ events: [CalendarEventMirror]) -> Int {
+        var hasher = Hasher()
+        hasher.combine(events.count)
+        for event in events {
+            hasher.combine(event.id)
+            hasher.combine(event.etag)
+            hasher.combine(event.updatedAt)
+        }
+        return hasher.finalize()
     }
 
     func cacheFilePath() -> String? {

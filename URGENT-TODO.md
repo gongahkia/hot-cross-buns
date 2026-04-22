@@ -122,8 +122,46 @@ All four phases of the frontend refactor landed. See `COMPLETED.md` § "§7.01 V
 
 First pass landed: CalendarMirror retention window (Settings → Sync → "Keep past events", clamped to [0, 3650] days, default 365; 0 = keep-forever) + MonthGridView per-pass hoist of `filteredEvents` / `eventsByDay` so week bands don't re-iterate the whole events list per row. Pruning in `SyncScheduler.mergeEvents` preserves pending optimistic writes and recently-updated events so a user opening a past meeting to edit notes doesn't see it vanish.
 
-Still to do:
-- Profile `AppModel` observable republishing — @Observable bottom-up invalidation may be republishing every consumer on any field change.
+Second pass shipped (Phase A + B per perf-investigation notes, 2026-04-22):
+- A1: `AppModel.scheduleCacheSave()` debounces cache writes to 500ms; sync-flush bursts coalesce into a single disk hit. `flushPendingCacheSave()` is bound to scenePhase background to guarantee no in-flight write is lost on suspend.
+- A2: `AppModel.eventsByCalendar` index built once per `rebuildSnapshots()`, consumed by Month/Week/Day grid `visibleEvents` / `filteredEvents` so per-render filters operate on already-bucketed events instead of the full corpus (~17k+ → ~3k typical).
+- A3: `AppModel.scheduleRebuildSnapshots()` coalesces upsert/remove-driven rebuilds via `DispatchQueue.main.async` — multiple rapid mutations (e.g. a sync flush of dozens of upserts) collapse to one rebuild per runloop tick.
+- B2: `LocalCacheStore` splits events into `cache-events.json` sidecar; main `cache-state.json` no longer carries events. `lastEventsHash` gates sidecar writes so settings/task-only mutations never touch the multi-MB blob. Legacy monolithic-format cache files migrate transparently on first save. Encrypted setups encrypt main + sidecar independently. Tests in `LocalCacheStoreSplitTests` cover split, merge, hash skip, etag-bust, legacy migration, encrypted roundtrip, and corrupt-sidecar fallback.
+
+Still to do (Phase C — deprioritized, do only if perceived perf is still sluggish after A+B):
+
+### Phase C — Split AppModel into per-resource @Observable stores
+
+`AppModel` is currently one `@Observable` class holding all state (~20 published properties: tasks, events, calendars, settings, syncState, etc.). Any change to any property invalidates every view that observes AppModel via `@Environment(AppModel.self)`. So a sync writing events causes Tasks/Notes/Settings views to re-evaluate even though they don't read events.
+
+Goal: split AppModel along resource boundaries so each view subscribes only to what it actually reads.
+
+Proposed shape:
+- `EventStore: @Observable` — events, eventsByCalendar, calendarSnapshot, calendars selection.
+- `TaskStore: @Observable` — tasks, taskLists, taskSections, taskListCompletionStats, todaySnapshot.
+- `SettingsStore: @Observable` — AppSettings + per-tab list filters + view modes.
+- `SyncStore: @Observable` — syncState, authState, pendingMutations, syncCheckpoints, lastMutationError, isSyncPaused.
+- `AppModel` remains as a coordinator that holds references to all stores and provides the public API (createEvent, updateTask, etc.). Mutations flow through AppModel which dispatches to the right store(s).
+
+Why deprioritized:
+- Phase A+B already cuts the worst-case work per render by ~95% via pre-bucketing + coalesced rebuilds + cache split. If user-perceived launch / scroll perf is acceptable after A+B (especially after a cold-launch with the 15 MB cache), Phase C may not be worth the diff.
+- Estimated diff is ~30 file touches. Every view that reads `model.X` needs to be reconnected to the right store via a new `@Environment` key.
+- Some logic that crosses resource boundaries (e.g., `rebuildSnapshots` populates both task and event snapshots) needs careful extraction so the stores don't end up tightly coupled again.
+
+Trigger criteria — start Phase C only when one of these holds:
+- Cold launch from a >50k event cache exceeds 4s to interactive.
+- Calendar scroll drops below 30fps during an active sync flush.
+- Profiling shows an `@Observable` republish chain longer than ~6 hops on any single mutation.
+
+Phase C plan once triggered:
+1. Extract `EventStore` first (largest and most isolated). Move `events`, `eventsByCalendar`, `calendarSnapshot`, `calendars`. Wire grid views to `@Environment(EventStore.self)`. AppModel keeps a reference and proxies mutation API.
+2. Extract `TaskStore` next. Move tasks/taskLists/taskSections/snapshots. Wire Tasks/Notes views.
+3. Extract `SettingsStore` last. Move `settings` and `setX` setters. Pure config — least likely to thrash.
+4. `SyncStore` if needed — `syncState` already invalidates AppStatusBanner only, may not justify its own store.
+
+Audit after each extraction: `git grep "@Environment(AppModel.self)"` should shrink as views migrate.
+
+Other still-to-do items unrelated to Phase C:
 - Image caching for `LocationMapPreview` / map snapshots.
 - Lazy-loading for large Store task lists (verify `List` is lazy; confirm Kanban / Timeline columns don't instantiate every card up-front).
 - Measure first-paint and scroll jank on a real account before optimising blindly.

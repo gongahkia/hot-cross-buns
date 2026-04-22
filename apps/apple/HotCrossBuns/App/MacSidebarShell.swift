@@ -209,6 +209,12 @@ struct MacSidebarShell: View {
                 await runNearRealtimeSyncLoop()
             }
             .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .background || newPhase == .inactive {
+                    // Force any in-flight debounced cache write to disk before
+                    // the OS may suspend or terminate us.
+                    Task { await model.flushPendingCacheSave() }
+                    return
+                }
                 guard newPhase == .active else { return }
                 // Coming back to the foreground is an implicit "try again."
                 // Clear any persistent-failure pause so the near-realtime
