@@ -131,7 +131,7 @@ struct MacSidebarShell: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .animation(.easeInOut(duration: 0.12), value: chordKeys)
+            .animation(.spring(response: 0.28, dampingFraction: 0.82), value: chordKeys)
             .focusedSceneValue(\.appCommandActions, appCommandActions)
             .onAppear(perform: handleShellAppear)
             .onReceive(NotificationCenter.default.publisher(for: .hcbOpenStoreTab)) { _ in
