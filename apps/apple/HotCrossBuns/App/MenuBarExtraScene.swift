@@ -858,10 +858,7 @@ private struct WeeklyMenuBarPanel: View {
         }
         .hcbScaledPadding(.vertical, 4)
         .hcbScaledPadding(.horizontal, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(isToday ? AppColor.ember.opacity(0.08) : Color.clear)
-        )
+        .background(isToday ? Color.accentColor.opacity(0.12) : Color.clear)
     }
 
     private func countChip(symbol: String, count: Int, color: Color) -> some View {
