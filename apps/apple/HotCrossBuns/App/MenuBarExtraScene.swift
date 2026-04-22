@@ -317,7 +317,7 @@ private struct FocusStripMenuBarPanel: View {
                             .controlSize(.small)
                     } else {
                         Image(systemName: "checkmark.circle")
-                            .foregroundStyle(AppColor.ember)
+                            .foregroundStyle(.tint)
                     }
                 }
                 .buttonStyle(.plain)
