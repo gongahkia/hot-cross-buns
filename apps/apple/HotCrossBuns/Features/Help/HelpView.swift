@@ -82,7 +82,6 @@ struct HelpView: View {
                 .hcbScaledPadding(24)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-        .appBackground()
         .navigationTitle("Help")
         .hcbScaledFrame(minWidth: 640, idealWidth: 720, minHeight: 520, idealHeight: 620)
     }
