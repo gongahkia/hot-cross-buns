@@ -134,8 +134,8 @@ private struct GeneralTab: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            SettingsCard("Google account") {
+        Form {
+            Section("Google account") {
                 AccountStatusView(
                     authState: model.authState,
                     account: model.account,
@@ -145,17 +145,15 @@ private struct GeneralTab: View {
             }
 
             if model.account != nil {
-                SettingsCard("Sync") {
+                Section("Sync") {
                     Picker("Mode", selection: syncModeBinding) {
                         ForEach(SyncMode.allCases) { mode in
                             Text(mode.title).tag(mode)
                         }
                     }
-                    .pickerStyle(.menu)
                     Text(model.settings.syncMode.detail)
                         .hcbFont(.footnote)
                         .foregroundStyle(.secondary)
-                    Divider()
                     Picker("Keep past events", selection: eventRetentionBinding) {
                         Text("30 days").tag(30)
                         Text("90 days").tag(90)
@@ -164,8 +162,6 @@ private struct GeneralTab: View {
                         Text("2 years").tag(730)
                         Text("Forever").tag(0)
                     }
-                    .pickerStyle(.menu)
-                    Divider()
                     HStack(spacing: 8) {
                         Text("Custom")
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -178,7 +174,6 @@ private struct GeneralTab: View {
                                 Text(unit.title).tag(unit)
                             }
                         }
-                        .pickerStyle(.menu)
                         .labelsHidden()
                         .frame(width: 90)
                         Button("Apply") {
@@ -192,14 +187,13 @@ private struct GeneralTab: View {
                         .foregroundStyle(.secondary)
                 }
 
-                SettingsCard("Setup") {
+                Section("Setup") {
                     Button {
                         model.resetOnboarding()
                         showOnboardingResetConfirmed = true
                     } label: {
                         Label("Run setup again", systemImage: "sparkles")
                     }
-                    .buttonStyle(.borderless)
                 }
                 .alert("Setup will run now", isPresented: $showOnboardingResetConfirmed) {
                     Button("OK") { showOnboardingResetConfirmed = false }
@@ -208,6 +202,8 @@ private struct GeneralTab: View {
                 }
             }
         }
+        .formStyle(.grouped)
+        .scrollDisabled(true)
     }
 
     private var syncModeBinding: Binding<SyncMode> {
@@ -250,40 +246,40 @@ private struct AlertsTab: View {
     @State private var showLocalNotificationsInfo = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            SettingsCard("Notifications") {
+        Form {
+            Section("Notifications") {
                 Toggle("Local reminders", isOn: localNotificationsBinding)
                 if model.settings.enableLocalNotifications {
-                    Divider()
                     taskReminderControls
                 }
             }
-            .alert("Local reminders enabled", isPresented: $showLocalNotificationsInfo) {
-                Button("OK") { showLocalNotificationsInfo = false }
-            } message: {
-                Text("Hot Cross Buns will schedule up to 64 pending reminders on this Mac for the soonest-upcoming due tasks and Calendar events. 64 is an Apple-imposed ceiling for local notifications per app — later items get scheduled automatically as earlier ones fire or complete.")
-            }
 
-            SettingsCard("Menu bar") {
+            Section("Menu bar") {
                 Toggle("Menu bar extra", isOn: menuBarExtraBinding)
                 Picker("Menu bar panel", selection: menuBarStyleBinding) {
                     ForEach(AppSettings.MenuBarStyle.allCases, id: \.self) { style in
                         Text(style.title).tag(style)
                     }
                 }
-                .pickerStyle(.menu)
             }
 
-            SettingsCard("Dock") {
+            Section("Dock") {
                 Toggle("Dock badge for overdue tasks", isOn: dockBadgeBinding)
             }
 
-            SettingsCard("Global hotkey") {
+            Section("Global hotkey") {
                 Toggle("Global quick-add hotkey (Cmd+Shift+Space)", isOn: globalHotkeyBinding)
                 Text("Capture a task from any app. The Hot Cross Buns quick-add sheet opens immediately, pre-focused.")
                     .hcbFont(.footnote)
                     .foregroundStyle(.secondary)
             }
+        }
+        .formStyle(.grouped)
+        .scrollDisabled(true)
+        .alert("Local reminders enabled", isPresented: $showLocalNotificationsInfo) {
+            Button("OK") { showLocalNotificationsInfo = false }
+        } message: {
+            Text("Hot Cross Buns will schedule up to 64 pending reminders on this Mac for the soonest-upcoming due tasks and Calendar events. 64 is an Apple-imposed ceiling for local notifications per app — later items get scheduled automatically as earlier ones fire or complete.")
         }
     }
 
@@ -383,8 +379,8 @@ private struct AdvancedTab: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            SettingsCard("Calendars") {
+        Form {
+            Section("Calendars") {
                 if model.calendars.isEmpty {
                     Text("Refresh after connecting Google to load calendars.")
                         .foregroundStyle(.secondary)
@@ -402,7 +398,7 @@ private struct AdvancedTab: View {
                 }
             }
 
-            SettingsCard("Task lists") {
+            Section("Task lists") {
                 if model.taskLists.isEmpty {
                     Text("Refresh after connecting Google to load task lists.")
                         .foregroundStyle(.secondary)
@@ -415,16 +411,14 @@ private struct AdvancedTab: View {
                 }
             }
 
-            Form {
-                KeybindingsSection()
-                EncryptionSection()
-                CustomFiltersSection()
-                TemplatesSection()
-                UpdatesSection()
-            }
-            .formStyle(.grouped)
-            .scrollDisabled(true)
+            KeybindingsSection()
+            EncryptionSection()
+            CustomFiltersSection()
+            TemplatesSection()
+            UpdatesSection()
         }
+        .formStyle(.grouped)
+        .scrollDisabled(true)
     }
 
     private func calendarBinding(_ id: CalendarListMirror.ID) -> Binding<Bool> {
@@ -439,42 +433,6 @@ private struct AdvancedTab: View {
             get: { model.isTaskListSelected(id) },
             set: { _ in model.toggleTaskList(id) }
         )
-    }
-}
-
-// MARK: - Section card primitive
-
-// Lightweight "card" container so each tab lays out as a stack of
-// rounded panels — avoids nested List/Form rendering quirks on macOS
-// and matches the Apple-Calendar visual rhythm.
-private struct SettingsCard<Content: View>: View {
-    let title: String
-    @ViewBuilder let content: () -> Content
-
-    init(_ title: String, @ViewBuilder content: @escaping () -> Content) {
-        self.title = title
-        self.content = content
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title.uppercased())
-                .hcbFont(.caption, weight: .semibold)
-                .foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 10) {
-                content()
-            }
-            .hcbScaledPadding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(AppColor.cream.opacity(0.35))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(AppColor.cardStroke, lineWidth: 0.5)
-            )
-        }
     }
 }
 
