@@ -145,6 +145,7 @@ struct KanbanView: View {
 
 private struct KanbanColumnView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.routerPath) private var router
     let column: KanbanColumn
     let mode: KanbanColumnMode
     let taskList: TaskListMirror?
@@ -180,6 +181,22 @@ private struct KanbanColumnView: View {
                             Button("Duplicate") {
                                 Task { _ = await model.duplicateTask(task) }
                             }
+                            // parity with the Calendar tab's event / task right-click menus. The conversion sub-menu routes through the existing RouterPath intents so both Tasks tab (dated tasks) and Notes tab (undated tasks) get the right pair of options based on task.dueDate.
+                            Menu("Convert…") {
+                                Button("Convert to Event") {
+                                    router?.present(.convertTaskToEvent(task.id))
+                                }
+                                if task.dueDate == nil {
+                                    Button("Convert to Task (set due date)") {
+                                        router?.present(.convertNoteToTask(task.id))
+                                    }
+                                } else {
+                                    Button("Convert to Note (clear due date)") {
+                                        router?.present(.convertTaskToNote(task.id))
+                                    }
+                                }
+                            }
+                            Divider()
                             Button("Delete", role: .destructive) {
                                 Task { _ = await model.deleteTask(task) }
                             }
