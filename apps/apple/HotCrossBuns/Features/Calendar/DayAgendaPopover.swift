@@ -107,41 +107,47 @@ struct DayAgendaPopover: View {
 
     @ViewBuilder
     private func eventRow(_ event: CalendarEventMirror) -> some View {
-        Button {
-            isPresented_dismiss()
-            router?.present(.editEvent(event.id))
-        } label: {
-            HStack(alignment: .top, spacing: 8) {
-                Circle()
-                    .fill(calendarColor(event))
-                    .frame(width: 8, height: 8)
-                    .padding(.top, 5)
-                if event.isAllDay {
-                    Text(event.summary)
-                        .hcbFont(.caption)
-                        .foregroundStyle(AppColor.ink)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                } else {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(timeLabel(event))
-                            .hcbFont(.caption2)
-                            .foregroundStyle(.secondary)
+        HStack(alignment: .top, spacing: 6) {
+            // Dismiss affordance mirrors the task-checkbox layout in the
+            // neighboring taskRow. Hidden for read-only calendars.
+            CalendarEventDismissButton(event: event, size: 12)
+                .padding(.top, 3)
+            Button {
+                isPresented_dismiss()
+                router?.present(.editEvent(event.id))
+            } label: {
+                HStack(alignment: .top, spacing: 8) {
+                    Circle()
+                        .fill(calendarColor(event))
+                        .frame(width: 8, height: 8)
+                        .padding(.top, 5)
+                    if event.isAllDay {
                         Text(event.summary)
                             .hcbFont(.caption)
                             .foregroundStyle(AppColor.ink)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
+                    } else {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(timeLabel(event))
+                                .hcbFont(.caption2)
+                                .foregroundStyle(.secondary)
+                            Text(event.summary)
+                                .hcbFont(.caption)
+                                .foregroundStyle(AppColor.ink)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                        }
                     }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .padding(.vertical, 4)
+                .padding(.horizontal, 6)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-            .padding(.vertical, 4)
-            .padding(.horizontal, 6)
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
     }
 
     @ViewBuilder
