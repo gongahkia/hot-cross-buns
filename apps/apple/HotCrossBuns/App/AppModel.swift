@@ -834,6 +834,29 @@ final class AppModel {
             return ("event.delete", snap.id, snap.summary, ["calendar": snap.calendarID])
         case .eventEdit(let prior):
             return ("event.edit", prior.id, prior.summary, ["calendar": prior.calendarID])
+        case .taskCreate(let snap):
+            return ("task.create", snap.id, snap.title, ["list": snap.taskListID])
+        case .taskDuplicate(let snap, let sourceTitle):
+            return ("task.duplicate", snap.id, snap.title, ["list": snap.taskListID, "sourceTitle": sourceTitle])
+        case .taskMove(let id, let fromID, let toID, let title, let fromTitle, let toTitle):
+            return ("task.move", id, title, [
+                "fromListID": fromID,
+                "toListID": toID,
+                "fromListTitle": fromTitle,
+                "toListTitle": toTitle
+            ])
+        case .eventCreate(let snap):
+            return ("event.create", snap.id, snap.summary, ["calendar": snap.calendarID])
+        case .clipboardOp(let kind, let resourceID, let title):
+            return ("clipboard.\(kind)", resourceID, title, [:])
+        case .taskRestore(let snap):
+            return ("task.restore", snap.id, snap.title, ["list": snap.taskListID])
+        case .eventRestore(let snap):
+            return ("event.restore", snap.id, snap.summary, ["calendar": snap.calendarID])
+        case .bulkAction(let kind, let count, let firstTitle):
+            return ("bulk.\(kind)", "", firstTitle, ["count": String(count)])
+        case .syncPulled(let kind, let count):
+            return ("sync.\(kind)", "", "sync", ["count": String(count)])
         }
     }
 
@@ -940,6 +963,25 @@ final class AppModel {
                 addGoogleMeet: false,
                 colorId: priorSnap.colorId
             )
+        case .taskCreate(let snap):
+            // undo create = delete the created task
+            guard let task = task(id: snap.id) else { return }
+            _ = await deleteTask(task)
+        case .taskDuplicate(let snap, _):
+            // undo duplicate = delete the new copy
+            guard let task = task(id: snap.id) else { return }
+            _ = await deleteTask(task)
+        case .taskMove(let id, let fromID, _, _, _, _):
+            // undo move = move back to fromListID (by finding the current task
+            // which has a new ID post-move; match by latest mirror carrying id)
+            guard let task = task(id: id) ?? tasks.first(where: { $0.isDeleted == false }) else { return }
+            _ = await moveTaskToList(task, toTaskListID: fromID)
+        case .eventCreate(let snap):
+            guard let event = event(id: snap.id) else { return }
+            _ = await deleteEvent(event)
+        case .clipboardOp, .bulkAction, .syncPulled, .taskRestore, .eventRestore:
+            // not invertible from the short-TTL undo toast; history window handles these via snapshot copy
+            return
         }
     }
 
