@@ -32,6 +32,11 @@ struct WeekGridView: View {
 
     @State private var allDayDrag: WeekDaySelection?
     @State private var timedDrag: TimedWeekDrag?
+    // Click-to-create feedback. flashTimedSlot is the tapped start-date for
+    // a timed slot; clears after ~220ms so the user sees an acknowledgement
+    // before the quick-create popover paints. Independent from timedDrag so
+    // drag previews still behave.
+    @State private var flashTimedSlot: Date?
     // Grid-content cache. Rebuilt only when inputs change — not on every
     // body eval. Drag-create gestures fire at ~60Hz; without this cache each
     // tick re-ran bucketTimedEventsByDay over ~3k visible events, producing
@@ -509,6 +514,18 @@ struct WeekGridView: View {
     // gets handed to the QuickCreatePopover. Single-day drags snap the
     // end up to a minimum 30-minute block; cross-day drags honour the
     // full span so the create sheet lands with the right Date values.
+    // Flash the tapped timed slot for ~220ms so click-to-create has a
+    // visible acknowledgement before the popover paints.
+    private func flashTimedStart(_ start: Date) {
+        flashTimedSlot = start
+        Task {
+            try? await Task.sleep(for: .milliseconds(220))
+            await MainActor.run {
+                if flashTimedSlot == start { flashTimedSlot = nil }
+            }
+        }
+    }
+
     private func resolveTimedDrag(_ drag: TimedWeekDrag) -> (Date, Date)? {
         let startCol = min(drag.startColumn, drag.endColumn)
         let endCol = max(drag.startColumn, drag.endColumn)
@@ -631,9 +648,24 @@ struct WeekGridView: View {
                 dayStart: startOfDay,
                 calendar: calendar,
                 onTap: { start in
+                    flashTimedStart(start)
                     capturedRouter?.present(.quickCreate(start, allDay: false))
                 }
             )
+            // Momentary tint at the tapped hour slot so users see their
+            // click register before the popover paints.
+            if let flash = flashTimedSlot, flash >= startOfDay && flash < endOfDay {
+                let minutesIntoDay = flash.timeIntervalSince(startOfDay) / 60.0
+                let startHourOffset = Double(hourStart) * 60.0
+                let y = CGFloat(max(0, minutesIntoDay - startHourOffset)) / 60.0 * hourHeight
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(AppColor.ember.opacity(0.22))
+                    .frame(height: hourHeight * 0.5)
+                    .offset(x: 4, y: y)
+                    .padding(.trailing, 8)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+            }
             .dropDestination(for: DraggedTask.self) { items, location in
                 guard let dropped = items.first else { return false }
                 Task {

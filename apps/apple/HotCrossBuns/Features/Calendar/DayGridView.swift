@@ -12,6 +12,9 @@ struct DayGridView: View {
     private let calendar = Calendar.current
 
     @State private var timedDrag: TimedDrag?
+    // Click-to-create feedback. Flashes a brief tint at the tapped hour
+    // slot so users see their click register before the popover paints.
+    @State private var flashTimedSlot: Date?
 
     private struct TimedDrag: Equatable {
         var startY: CGFloat
@@ -169,9 +172,27 @@ struct DayGridView: View {
                                         dayStart: dayStart,
                                         calendar: calendar
                                     )
+                                    flashTimedStart(start)
                                     capturedRouter?.present(.quickCreate(start, allDay: false))
                                 }
                         )
+                        .overlay(alignment: .topLeading) {
+                            // Momentary tint over the tapped hour slot so the
+                            // click lands visibly before the popover paints.
+                            if let flash = flashTimedSlot {
+                                let minutesIntoDay = flash.timeIntervalSince(dayStart) / 60.0
+                                let startHourOffset = Double(hourStart) * 60.0
+                                let y = CGFloat(max(0, minutesIntoDay - startHourOffset)) / 60.0 * hourHeight
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(AppColor.ember.opacity(0.22))
+                                    .frame(height: hourHeight * 0.5)
+                                    .offset(x: 56, y: y)
+                                    .padding(.trailing, 8)
+                                    .allowsHitTesting(false)
+                                    .transition(.opacity)
+                            }
+                        }
+                        .animation(.easeOut(duration: 0.18), value: flashTimedSlot)
                     GeometryReader { geo in
                         ForEach(timedEvents, id: \.id) { event in
                             eventTile(event, columnWidth: geo.size.width - 56)
@@ -206,6 +227,17 @@ struct DayGridView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .frame(height: hourHeight, alignment: .top)
+            }
+        }
+    }
+
+    // Flash the tapped timed slot for ~220ms.
+    private func flashTimedStart(_ start: Date) {
+        flashTimedSlot = start
+        Task {
+            try? await Task.sleep(for: .milliseconds(220))
+            await MainActor.run {
+                if flashTimedSlot == start { flashTimedSlot = nil }
             }
         }
     }
