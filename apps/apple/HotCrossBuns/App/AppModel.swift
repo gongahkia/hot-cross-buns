@@ -47,6 +47,13 @@ final class AppModel {
     var pendingStoreFilterKey: String?
     // Populated on first launch-time check; DiagnosticsView surfaces.
     private(set) var keychainHealth: KeychainHealth = .unknown
+    // Days between this launch and the previous launch's wall-clock,
+    // computed once in loadInitialState. Surfaced in AppStatusBanner
+    // alongside the .syncing state so users see "5 days since last
+    // open — fetching from Google" rather than a silent freeze on
+    // first launch after a gap. Nil on the very first launch (no
+    // prior timestamp on disk).
+    private(set) var daysSinceLastLaunch: Int?
     private(set) var lastMutationError: String?
     private(set) var taskLists: [TaskListMirror] = []
     private(set) var tasks: [TaskMirror] = []
@@ -139,6 +146,7 @@ final class AppModel {
     }
 
     func loadInitialState() async {
+        recordLaunchAndComputeDaysSinceLast()
         // Probe Keychain before anything that would touch GIDSignIn. If
         // the Keychain is locked/denied the restore will fail generically;
         // the probe lets us surface a specific reason in Diagnostics.
@@ -162,6 +170,22 @@ final class AppModel {
         // user has enabled a deletion behavior AND acknowledged the
         // blast-radius modal; the coordinator filters on read.
         pastCleanupCoordinator.scheduleDailyTick()
+    }
+
+    // Reads the prior wall-clock launch time from UserDefaults, computes the
+    // gap in whole days, and stamps "now". Nil result on first launch (no
+    // prior timestamp). Surfaced by AppStatusBanner alongside .syncing so a
+    // long-absence cold launch reads as "5 days since last open — fetching"
+    // rather than a silent multi-second freeze.
+    private func recordLaunchAndComputeDaysSinceLast() {
+        let key = "hcb.lastSeenAt"
+        let defaults = UserDefaults.standard
+        let now = Date()
+        if let stored = defaults.object(forKey: key) as? Date {
+            let days = Calendar.current.dateComponents([.day], from: stored, to: now).day ?? 0
+            daysSinceLastLaunch = max(0, days)
+        }
+        defaults.set(now, forKey: key)
     }
 
     func restoreGoogleSession() async {
