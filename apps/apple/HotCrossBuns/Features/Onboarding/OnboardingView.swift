@@ -38,7 +38,7 @@ struct OnboardingView: View {
         Form {
             Section { ConnectGoogleCard() }
             Section { SyncPreferenceCard() }
-            Section { SourceSelectionCard() }
+            SourceSelectionCard()
             Section { ReminderPreferenceCard() }
             Section { FinishOnboardingCard(finish: finish) }
         }
@@ -256,38 +256,38 @@ private struct SourceSelectionCard: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top) {
-                OnboardingStepHeader(number: 3, title: "Choose Sources", systemImage: "line.3.horizontal.decrease.circle")
-                Spacer()
-                Button("Refresh") {
-                    Task { await model.refreshNow() }
+        Group {
+            Section {
+                if model.account == nil {
+                    Text("Finish step 1 first — your task lists and calendars will appear here once Google is connected.")
+                        .hcbFont(.footnote)
+                        .foregroundStyle(.secondary)
+                } else if model.taskLists.isEmpty && model.calendars.isEmpty {
+                    if case .syncing = model.syncState {
+                        Label("Loading from Google…", systemImage: "arrow.triangle.2.circlepath")
+                            .hcbFont(.footnote)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("No lists or calendars yet. Tap Refresh above, or create a list in Google Tasks and try again.")
+                            .hcbFont(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                .buttonStyle(.link)
-                .controlSize(.small)
-                .accessibilityLabel("Refresh Google lists and calendars")
-            }
-
-            if model.account == nil {
-                Text("Finish step 1 first — your task lists and calendars will appear here once Google is connected.")
-                    .hcbFont(.footnote)
-                    .foregroundStyle(.secondary)
-            } else if model.taskLists.isEmpty && model.calendars.isEmpty {
-                if case .syncing = model.syncState {
-                    Label("Loading from Google…", systemImage: "arrow.triangle.2.circlepath")
-                        .hcbFont(.footnote)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("No lists or calendars yet. Tap Refresh above, or create a list in Google Tasks and try again.")
-                        .hcbFont(.footnote)
-                        .foregroundStyle(.secondary)
+            } header: {
+                HStack {
+                    OnboardingStepHeader(number: 3, title: "Choose Sources", systemImage: "line.3.horizontal.decrease.circle")
+                    Spacer()
+                    Button("Refresh") {
+                        Task { await model.refreshNow() }
+                    }
+                    .buttonStyle(.link)
+                    .controlSize(.small)
+                    .accessibilityLabel("Refresh Google lists and calendars")
                 }
             }
 
             if model.taskLists.isEmpty == false {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Task lists")
-                        .hcbFont(.headline)
+                Section("Task lists") {
                     ForEach(model.taskLists) { taskList in
                         Toggle(isOn: taskListBinding(taskList.id)) {
                             Text(taskList.title)
@@ -297,9 +297,7 @@ private struct SourceSelectionCard: View {
             }
 
             if model.calendars.isEmpty == false {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Calendars")
-                        .hcbFont(.headline)
+                Section("Calendars") {
                     ForEach(model.calendars) { calendar in
                         Toggle(isOn: calendarBinding(calendar.id)) {
                             HStack(spacing: 10) {
