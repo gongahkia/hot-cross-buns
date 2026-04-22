@@ -1090,11 +1090,14 @@ struct AddEventSheet: View {
     // events land here via the scope picker; one-offs always use
     // .thisOccurrence (scope is a no-op server-side for non-recurring IDs).
     private func deleteEventWithScope(_ existing: CalendarEventMirror, scope: AppModel.RecurringEventScope) async {
-        isSaving = true
-        defer { isSaving = false }
-        if await model.deleteEvent(existing, scope: scope) {
-            dismiss()
-        }
+        // Close the sheet IMMEDIATELY. model.deleteEvent optimistically strips
+        // the event from the mirror before awaiting the Google API; while the
+        // await is in flight the router's .editEvent route re-evaluates
+        // model.event(id:), sees nil, and swaps the sheet content to
+        // "Event not found" — a 5-15s phantom dialog the user can't dismiss.
+        // Closing first lets the delete + undo toast land cleanly.
+        dismiss()
+        _ = await model.deleteEvent(existing, scope: scope)
     }
 
     private func exportEventAsICS(_ existing: CalendarEventMirror) {
