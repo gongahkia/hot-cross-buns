@@ -19,19 +19,24 @@ struct HistorySection: View {
 
             LabeledContent("Visible entries") {
                 HStack(spacing: 8) {
+                    // Ceiling matches historyStorageCap's maximum so users who
+                    // raise storage to the hard ceiling can actually display
+                    // every entry at once. Step is 10 for the common range,
+                    // accepting coarser snapping at the high end as the trade-
+                    // off for a single-slider UI.
                     Slider(
                         value: Binding(
                             get: { Double(model.settings.historyVisibleLimit) },
                             set: { model.setHistoryVisibleLimit(Int($0)) }
                         ),
-                        in: 10...1000,
+                        in: 10...Double(MutationAuditLog.absoluteCeiling),
                         step: 10
                     )
                     Text("\(model.settings.historyVisibleLimit)")
                         .hcbFont(.caption, weight: .medium)
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
-                        .frame(minWidth: 36, alignment: .trailing)
+                        .frame(minWidth: 48, alignment: .trailing)
                 }
             }
 
