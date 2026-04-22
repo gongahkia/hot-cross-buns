@@ -842,6 +842,18 @@ final class AppModel {
     // MARK: Generic undo
 
     private func recordUndo(_ action: UndoableAction) {
+        // Informational-only actions (sync diffs, bulk summaries) should not
+        // hijack the 6-second undo toast — their performUndo is a no-op, so
+        // users would see a dead "Undo" button after every 30s poll tick.
+        // Write them straight to the audit log instead.
+        switch action {
+        case .syncPulled, .bulkAction, .clipboardOp:
+            let (kind, resourceID, summary, metadata) = Self.auditTuple(for: action)
+            Task { await MutationAuditLog.shared.record(kind: kind, resourceID: resourceID, summary: summary, metadata: metadata) }
+            return
+        default:
+            break
+        }
         undoable = action
         undoActionID = UUID()
         // Record a permanent audit entry in parallel — the undo window
