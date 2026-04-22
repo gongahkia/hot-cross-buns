@@ -110,9 +110,8 @@ struct HelpView: View {
     @ViewBuilder
     private func section<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title.uppercased())
-                .hcbFont(.caption, weight: .bold)
-                .foregroundStyle(.secondary)
+            Text(title)
+                .hcbFont(.headline)
             content()
         }
         .hcbScaledPadding(16)
