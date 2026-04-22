@@ -112,7 +112,7 @@ struct HistoryWindow: View {
         let limit = model.settings.historyVisibleLimit
         let enabled = model.settings.historyCategoryFilters
         return entries
-            .filter { enabled.contains(category(for: $0.kind)) }
+            .filter { enabled.contains(Self.category(for: $0.kind)) }
             .prefix(limit)
             .map { $0 }
     }
@@ -137,9 +137,5 @@ struct HistoryWindow: View {
         if kind.hasPrefix("bulk.") { return "bulk" }
         if kind.hasPrefix("sync.") { return "sync" }
         return "other"
-    }
-
-    private func category(for kind: String) -> String {
-        HistoryWindow.category(for: kind)
     }
 }
