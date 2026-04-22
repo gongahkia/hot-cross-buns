@@ -102,21 +102,12 @@ struct HelpView: View {
 
     @ViewBuilder
     private func section<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .hcbFont(.headline)
-            content()
+        GroupBox(title) {
+            VStack(alignment: .leading, spacing: 10) {
+                content()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .hcbScaledPadding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.ultraThinMaterial)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(AppColor.cardStroke, lineWidth: 0.6)
-        )
     }
 
     private func bullet(_ text: String) -> some View {
