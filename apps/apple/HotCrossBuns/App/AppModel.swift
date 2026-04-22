@@ -1019,9 +1019,12 @@ final class AppModel {
             guard let task = task(id: snap.id) else { return }
             _ = await deleteTask(task)
         case .taskMove(let id, let fromID, _, _, _, _):
-            // undo move = move back to fromListID (by finding the current task
-            // which has a new ID post-move; match by latest mirror carrying id)
-            guard let task = task(id: id) ?? tasks.first(where: { $0.isDeleted == false }) else { return }
+            // undo move = move back to fromListID. id is the finalTask.id from
+            // moveTaskToList (the new Google-assigned ID on the destination
+            // list). If the mirror no longer contains it (user deleted it,
+            // sync dropped it), silently bail — better a no-op than moving
+            // an unrelated task.
+            guard let task = task(id: id) else { return }
             _ = await moveTaskToList(task, toTaskListID: fromID)
         case .eventCreate(let snap):
             guard let event = event(id: snap.id) else { return }
