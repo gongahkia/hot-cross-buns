@@ -106,12 +106,33 @@ struct WeekGridView: View {
 
     private func tasksForDay(_ day: Date) -> [TaskMirror] {
         let dayStart = calendar.startOfDay(for: day)
-        return visibleTasks
-            .filter { task in
-                guard let due = task.dueDate else { return false }
-                return calendar.isDate(due, inSameDayAs: dayStart)
-            }
+        let key = dayStart.timeIntervalSinceReferenceDate
+        // model.tasksByDueDate is prebuilt in rebuildSnapshots across ALL
+        // lists — intersect with the user's visible list selection here.
+        let visibleLists = model.settings.hasConfiguredTaskListSelection
+            ? model.settings.selectedTaskListIDs
+            : Set(model.taskLists.map(\.id))
+        let bucket = model.tasksByDueDate[key] ?? []
+        return bucket
+            .filter { visibleLists.contains($0.taskListID) }
             .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    }
+
+    // Per body-pass bucketing of timed (non-all-day) events by startOfDay.
+    // Mirrors MonthGridView's byDay pattern but includes only timed events
+    // so the timed-event lane layout in dayColumn gets exactly the set it
+    // needs. Cancelled events are already excluded from visibleEvents.
+    private func bucketTimedEventsByDay() -> [Date: [CalendarEventMirror]] {
+        guard let first = weekDays.first, let last = weekDays.last else { return [:] }
+        let weekStart = calendar.startOfDay(for: first)
+        let weekEnd = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: last)) ?? weekStart
+        var buckets: [Date: [CalendarEventMirror]] = [:]
+        for event in visibleEvents where event.isAllDay == false
+            && event.startDate < weekEnd && event.endDate > weekStart {
+            let key = calendar.startOfDay(for: event.startDate)
+            buckets[key, default: []].append(event)
+        }
+        return buckets
     }
 
     private var weekHeader: some View {
@@ -400,6 +421,11 @@ struct WeekGridView: View {
         // Captured outside GeometryReader so DragGesture closures see a
         // reliable router reference (see allDayStrip for rationale).
         let capturedRouter = router
+        // Pre-bucket visible timed events by day ONCE per body pass. Without
+        // this, each dayColumn ran a filter over the entire visibleEvents
+        // array — 7× per render — producing 21k+ comparisons per scroll at
+        // 3k visible events.
+        let timedByDay = bucketTimedEventsByDay()
         return HStack(alignment: .top, spacing: 0) {
             hoursColumn
             GeometryReader { geo in
@@ -408,7 +434,12 @@ struct WeekGridView: View {
                 ZStack(alignment: .topLeading) {
                     gridLines
                     ForEach(Array(weekDays.enumerated()), id: \.offset) { idx, day in
-                        dayColumn(day: day, xOffset: CGFloat(idx) * columnWidth, width: columnWidth)
+                        dayColumn(
+                            day: day,
+                            xOffset: CGFloat(idx) * columnWidth,
+                            width: columnWidth,
+                            eventsForDay: timedByDay[calendar.startOfDay(for: day)] ?? []
+                        )
                     }
                     if let nowOffset = currentTimeOffset() {
                         nowIndicator(offset: nowOffset)
@@ -558,12 +589,14 @@ struct WeekGridView: View {
         }
     }
 
-    private func dayColumn(day: Date, xOffset: CGFloat, width: CGFloat) -> some View {
+    private func dayColumn(
+        day: Date,
+        xOffset: CGFloat,
+        width: CGFloat,
+        eventsForDay: [CalendarEventMirror]
+    ) -> some View {
         let startOfDay = calendar.startOfDay(for: day)
         let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay
-        let eventsForDay = visibleEvents.filter { event in
-            event.isAllDay == false && event.startDate < endOfDay && event.endDate > startOfDay
-        }
         let laid = CalendarGridLayout.layout(eventsInDay: eventsForDay, calendar: calendar)
         let capturedRouter = router
 
