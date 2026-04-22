@@ -69,9 +69,11 @@ struct EventHoverPreview: View {
 // existing row-tap-navigates behavior.
 struct CalendarEventPreviewButton<Label: View>: View {
     @Environment(\.routerPath) private var router
+    @Environment(AppModel.self) private var model
     let event: CalendarEventMirror
     @ViewBuilder let label: () -> Label
     @State private var isPresented = false
+    @State private var isConfirmingDelete = false
 
     var body: some View {
         Button {
@@ -80,6 +82,45 @@ struct CalendarEventPreviewButton<Label: View>: View {
             label()
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            // Right-click menu parity with the Tasks/Notes Kanban cards.
+            // Open / Duplicate / Convert / Delete — the usual macOS secondary
+            // affordance. Left-click still opens the preview popover.
+            Button("Open…") {
+                router?.present(.editEvent(event.id))
+            }
+            Button("Duplicate") {
+                Task { _ = await model.duplicateEvent(event) }
+            }
+            Divider()
+            Menu("Convert…") {
+                Button("Convert to Task") {
+                    router?.present(.convertEventToTask(event.id))
+                }
+                Button("Convert to Note") {
+                    router?.present(.convertEventToNote(event.id))
+                }
+            }
+            Button("Copy as Markdown") {
+                let md = EventICSExporter.ics(for: event)
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(md, forType: .string)
+            }
+            Divider()
+            Button("Delete", role: .destructive) {
+                isConfirmingDelete = true
+            }
+        }
+        .confirmationDialog(
+            "Delete \"\(event.summary)\"?",
+            isPresented: $isConfirmingDelete,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                Task { _ = await model.deleteEvent(event) }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
         .popover(isPresented: $isPresented, arrowEdge: .trailing) {
             VStack(alignment: .leading, spacing: 10) {
                 EventHoverPreview(event: event)
@@ -105,6 +146,7 @@ struct CalendarTaskPreviewButton<Label: View>: View {
     let task: TaskMirror
     @ViewBuilder let label: () -> Label
     @State private var isPresented = false
+    @State private var isConfirmingDelete = false
 
     private var listName: String {
         model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Unknown list"
@@ -117,6 +159,51 @@ struct CalendarTaskPreviewButton<Label: View>: View {
             label()
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button("Open…") {
+                router?.present(.editTask(task.id))
+            }
+            Button(task.isCompleted ? "Mark as Needs Action" : "Mark Complete") {
+                Task { _ = await model.setTaskCompleted(!task.isCompleted, task: task) }
+            }
+            Button("Duplicate") {
+                Task { _ = await model.duplicateTask(task) }
+            }
+            Divider()
+            Menu("Convert…") {
+                Button("Convert to Event") {
+                    router?.present(.convertTaskToEvent(task.id))
+                }
+                if task.dueDate == nil {
+                    Button("Set Due Date…") {
+                        router?.present(.convertNoteToTask(task.id))
+                    }
+                } else {
+                    Button("Clear Due Date") {
+                        router?.present(.convertTaskToNote(task.id))
+                    }
+                }
+            }
+            Button("Copy as Markdown") {
+                let md = TaskMarkdownExporter.markdown(for: task, taskListTitle: listName)
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(md, forType: .string)
+            }
+            Divider()
+            Button("Delete", role: .destructive) {
+                isConfirmingDelete = true
+            }
+        }
+        .confirmationDialog(
+            "Delete \"\(task.title)\"?",
+            isPresented: $isConfirmingDelete,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                Task { _ = await model.deleteTask(task) }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
         .popover(isPresented: $isPresented, arrowEdge: .trailing) {
             VStack(alignment: .leading, spacing: 10) {
                 TaskHoverPreview(task: task)
