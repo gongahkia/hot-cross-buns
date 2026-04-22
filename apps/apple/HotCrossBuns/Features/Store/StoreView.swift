@@ -835,20 +835,19 @@ struct NotesView: View {
 
     @ViewBuilder
     private func noteCell(_ task: TaskMirror) -> some View {
-        NoteCard(task: task, isDragging: draggingID == task.id) {
-            selectedNoteID = task.id
-            isNoteInspectorPresented = true
-        }
-        .draggable(DraggedTask(taskID: task.id, taskListID: task.taskListID, title: task.title)) {
-            NoteDragPreview(title: task.title)
-                .onAppear { draggingID = task.id }
-        }
-        .dropDestination(for: DraggedTask.self) { items, _ in
-            guard let dropped = items.first else { return false }
-            reorder(movingID: dropped.taskID, insertBefore: task.id)
-            draggingID = nil
-            return true
-        } isTargeted: { _ in }
+        NoteCellWrapper(
+            task: task,
+            draggingID: draggingID,
+            onTap: {
+                selectedNoteID = task.id
+                isNoteInspectorPresented = true
+            },
+            onDragStart: { draggingID = task.id },
+            onDrop: { droppedID in
+                reorder(movingID: droppedID, insertBefore: task.id)
+                draggingID = nil
+            }
+        )
     }
 
     // MARK: - Filter resolution
@@ -899,6 +898,42 @@ struct NotesView: View {
             next.append(movingID)
         }
         localOrder = next
+    }
+}
+
+// Wraps NoteCard to own the isTargeted state local to each row so drop-
+// target highlighting is scoped per-cell. Keeping it out of the parent
+// view avoids a full grid re-render on every dragEnter/Leave.
+private struct NoteCellWrapper: View {
+    let task: TaskMirror
+    let draggingID: TaskMirror.ID?
+    let onTap: () -> Void
+    let onDragStart: () -> Void
+    let onDrop: (TaskMirror.ID) -> Void
+    @State private var isTargeted = false
+
+    var body: some View {
+        NoteCard(task: task, isDragging: draggingID == task.id, onOpen: onTap)
+            .overlay(alignment: .top) {
+                if isTargeted {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(AppColor.ember)
+                        .frame(height: 2)
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.12), value: isTargeted)
+            .draggable(DraggedTask(taskID: task.id, taskListID: task.taskListID, title: task.title)) {
+                NoteDragPreview(title: task.title)
+                    .onAppear { onDragStart() }
+            }
+            .dropDestination(for: DraggedTask.self) { items, _ in
+                guard let dropped = items.first else { return false }
+                onDrop(dropped.taskID)
+                return true
+            } isTargeted: { targeted in
+                isTargeted = targeted
+            }
     }
 }
 
