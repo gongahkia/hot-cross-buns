@@ -358,14 +358,11 @@ struct StoreView: View {
     }
 
     private var inspectorBinding: Binding<Bool> {
+        // mirrors NotesView's noteInspectorBinding: only present when a task is selected. avoids the always-open empty-state pane on fresh load.
         Binding(
-            get: { isInspectorPresented && hasInspectableContent },
+            get: { isInspectorPresented && selection.isEmpty == false },
             set: { isInspectorPresented = $0 }
         )
-    }
-
-    private var hasInspectableContent: Bool {
-        model.account != nil && model.tasks.isEmpty == false
     }
 
     @ViewBuilder
