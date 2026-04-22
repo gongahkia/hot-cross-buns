@@ -149,48 +149,6 @@ private struct DetailedMenuBarPanel: View {
         .hcbScaledFrame(maxHeight: 190)
     }
 
-    private func markerDots(for date: Date) -> some View {
-        let colors = markerColors(for: date)
-        return HStack(spacing: 2) {
-            ForEach(Array(colors.enumerated()), id: \.offset) { _, color in
-                Circle()
-                    .fill(color)
-                    .hcbScaledFrame(width: 4, height: 4)
-            }
-        }
-        .hcbScaledFrame(height: 5)
-    }
-
-    private func markerColors(for date: Date) -> [Color] {
-        let start = Calendar.current.startOfDay(for: date)
-        let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start
-        let calendarColors: [String: Color] = Dictionary(
-            uniqueKeysWithValues: model.calendars.map { ($0.id, Color(hex: $0.colorHex)) }
-        )
-
-        let eventColors = model.events
-            .filter { $0.status != .cancelled && $0.endDate > start && $0.startDate < end }
-            .compactMap { calendarColors[$0.calendarID] }
-
-        let hasDueTasks = model.tasks.contains { task in
-            guard task.isDeleted == false, task.isCompleted == false, let dueDate = task.dueDate else { return false }
-            return Calendar.current.isDate(dueDate, inSameDayAs: date)
-        }
-
-        var colors = eventColors
-        if hasDueTasks {
-            colors.append(AppColor.ember)
-        }
-
-        var unique: [Color] = []
-        for color in colors where unique.count < 3 {
-            if unique.contains(color) == false {
-                unique.append(color)
-            }
-        }
-        return unique
-    }
-
     private var agendaSections: [MenuAgendaSection] {
         let horizon = 14
         let calendar = Calendar.current
