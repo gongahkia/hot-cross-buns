@@ -130,7 +130,7 @@ struct AppCommands: Commands {
 
         CommandGroup(replacing: .help) {
             let help = binding(.help)
-            Button("Hot Cross Buns Help") { actions?.openHelp() }
+            Button("Hot Cross Buns Help…") { actions?.openHelp() }
                 .keyboardShortcut(help.key.keyEquivalent, modifiers: help.modifiers.eventModifiers)
                 .disabled(actions == nil)
         }
