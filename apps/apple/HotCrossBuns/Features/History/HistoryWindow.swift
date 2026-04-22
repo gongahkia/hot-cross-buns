@@ -59,7 +59,7 @@ struct HistoryWindow: View {
                         })
                     }
                 }
-                .listStyle(.plain)
+                .listStyle(.inset) // native macOS grouped-inset, hover affordance, system row separators
             }
 
             Divider()

@@ -1,8 +1,9 @@
 import SwiftUI
 
-// Horizontal row of toggleable category chips above the history list.
-// Uses a ScrollView so the row never wraps awkwardly at small window
-// widths — matches macOS Finder's tag-chip sidebar idiom.
+// Horizontal row of native Toggle buttons above the history list. Uses
+// SwiftUI 14+ `.toggleStyle(.button)` which renders as platform-appropriate
+// pill-shaped toggles that respect the system chrome (light/dark, accent
+// color). Scrollable so narrow windows don't clip.
 struct HistoryFilterChips: View {
     @Binding var enabled: Set<String>
 
@@ -24,36 +25,26 @@ struct HistoryFilterChips: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
                 ForEach(Self.all, id: \.0) { (key, title, icon) in
-                    chip(key: key, title: title, icon: icon)
+                    Toggle(isOn: binding(for: key)) {
+                        Label(title, systemImage: icon)
+                    }
+                    .toggleStyle(.button)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help(enabled.contains(key) ? "Hide \(title.lowercased()) entries" : "Show \(title.lowercased()) entries")
                 }
             }
         }
     }
 
-    private func chip(key: String, title: String, icon: String) -> some View {
-        let isOn = enabled.contains(key)
-        return Button {
-            var new = enabled
-            if isOn { new.remove(key) } else { new.insert(key) }
-            enabled = new
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: icon)
-                    .hcbFont(.caption2, weight: .semibold)
-                Text(title)
-                    .hcbFont(.caption, weight: .medium)
+    private func binding(for key: String) -> Binding<Bool> {
+        Binding(
+            get: { enabled.contains(key) },
+            set: { isOn in
+                var new = enabled
+                if isOn { new.insert(key) } else { new.remove(key) }
+                enabled = new
             }
-            .hcbScaledPadding(.horizontal, 10)
-            .hcbScaledPadding(.vertical, 5)
-            .background(
-                Capsule().fill(isOn ? AppColor.ember.opacity(0.15) : AppColor.cream.opacity(0.4))
-            )
-            .overlay(
-                Capsule().strokeBorder(isOn ? AppColor.ember : .secondary.opacity(0.25), lineWidth: 0.8)
-            )
-            .foregroundStyle(isOn ? AppColor.ember : AppColor.ink)
-        }
-        .buttonStyle(.plain)
-        .help(isOn ? "Hide \(title.lowercased()) entries" : "Show \(title.lowercased()) entries")
+        )
     }
 }
