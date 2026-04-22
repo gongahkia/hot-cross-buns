@@ -88,9 +88,9 @@ private struct DetailedMenuBarPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            header
-            weekdayHeader
-            dayGrid
+            DatePicker("", selection: $selectedDay, displayedComponents: [.date])
+                .datePickerStyle(.graphical)
+                .labelsHidden()
             Divider()
             agenda
             Divider()
