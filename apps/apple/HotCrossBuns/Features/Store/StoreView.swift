@@ -44,7 +44,34 @@ struct StoreView: View {
         content
             .hcbSurface(.taskList)
             .appBackground()
+            .background(
+                Button("Toggle Inspector") {
+                    isInspectorPresented.toggle()
+                }
+                .hcbKeyboardShortcut(.storeShowInspector)
+                .opacity(0)
+                .hcbScaledFrame(width: 0, height: 0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            )
+            .background(
+                Button("Delete Selected") {
+                    Task { await deleteSelection() }
+                }
+                .hcbKeyboardShortcut(.storeClearCompleted)
+                .opacity(0)
+                .hcbScaledFrame(width: 0, height: 0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            )
+            .inspector(isPresented: inspectorBinding) {
+                inspectorContent
+                    .environment(\.routerPath, router) // inspector pane is hoisted out of NavigationStack env scope; re-inject so TaskInspectorView's @Environment(\.routerPath) resolves
+                    .appBackground()
+                    .inspectorColumnWidth(min: 340, ideal: 380, max: 520)
+            }
             .toolbar {
+                // must sit below .inspector so toolbar hosts at the window level (matches NotesView). attaching .toolbar above .inspector scopes it inside the main column and makes buttons hover over the inspector's header bar.
                 ToolbarItemGroup {
                     if selection.count > 1 {
                         bulkActionButtons
@@ -88,32 +115,6 @@ struct StoreView: View {
                         .disabled(isDisconnected)
                     }
                 }
-            }
-            .background(
-                Button("Toggle Inspector") {
-                    isInspectorPresented.toggle()
-                }
-                .hcbKeyboardShortcut(.storeShowInspector)
-                .opacity(0)
-                .hcbScaledFrame(width: 0, height: 0)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-            )
-            .background(
-                Button("Delete Selected") {
-                    Task { await deleteSelection() }
-                }
-                .hcbKeyboardShortcut(.storeClearCompleted)
-                .opacity(0)
-                .hcbScaledFrame(width: 0, height: 0)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-            )
-            .inspector(isPresented: inspectorBinding) {
-                inspectorContent
-                    .environment(\.routerPath, router) // inspector pane is hoisted out of NavigationStack env scope; re-inject so TaskInspectorView's @Environment(\.routerPath) resolves
-                    .appBackground()
-                    .inspectorColumnWidth(min: 340, ideal: 380, max: 520)
             }
             .sheet(isPresented: $isBulkMoveSheetPresented) {
                 BulkMoveSheet(taskIDs: Array(selection)) { movedCount in
