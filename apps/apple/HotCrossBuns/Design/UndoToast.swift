@@ -39,7 +39,7 @@ struct UndoToast: View {
                 Image(systemName: "xmark")
                     .hcbFont(.caption)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderless)
             .accessibilityLabel("Dismiss")
         }
         .hcbScaledPadding(.horizontal, 16)

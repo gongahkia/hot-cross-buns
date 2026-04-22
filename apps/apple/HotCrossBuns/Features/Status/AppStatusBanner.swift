@@ -37,7 +37,7 @@ struct AppStatusBanner: View {
                 Button(action: dismiss) {
                     Image(systemName: "xmark")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
                 .accessibilityLabel("Dismiss status message")
             }
             .hcbScaledPadding(14)
@@ -59,7 +59,7 @@ struct AppStatusBanner: View {
                 Button(action: dismiss) {
                     Image(systemName: "xmark")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
                 .accessibilityLabel("Dismiss status message")
             }
             .hcbScaledPadding(.vertical, 10)

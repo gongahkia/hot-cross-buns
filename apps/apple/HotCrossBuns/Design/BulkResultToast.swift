@@ -43,7 +43,7 @@ struct BulkResultToast: View {
             Button { self.message = nil } label: {
                 Image(systemName: "xmark").hcbFont(.caption)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderless)
             .accessibilityLabel("Dismiss")
         }
         .hcbScaledPadding(.horizontal, 16)
