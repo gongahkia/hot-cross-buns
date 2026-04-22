@@ -200,11 +200,8 @@ private struct DetailedMenuBarPanel: View {
 
     private func dayHeading(for day: Date) -> String {
         let calendar = Calendar.current
-        if calendar.isDateInToday(day) {
-            return "Today"
-        }
-        if calendar.isDateInTomorrow(day) {
-            return "Tomorrow"
+        if calendar.isDateInToday(day) || calendar.isDateInTomorrow(day) {
+            return day.formatted(.relative(presentation: .named, unitsStyle: .wide))
         }
         return day.formatted(.dateTime.weekday(.wide))
     }
