@@ -445,8 +445,14 @@ struct AppSettings: Hashable, Codable, Sendable {
         enableGlobalHotkey = try container.decodeIfPresent(Bool.self, forKey: .enableGlobalHotkey) ?? true
         customFilters = try container.decodeIfPresent([CustomFilterDefinition].self, forKey: .customFilters) ?? []
         eventTemplates = try container.decodeIfPresent([EventTemplate].self, forKey: .eventTemplates) ?? []
-        if let explicit = try container.decodeIfPresent(MenuBarStyle.self, forKey: .menuBarStyle) {
-            menuBarStyle = explicit
+        // Legacy raw values may include removed cases (e.g. "minimalBadge"
+        // which was consolidated into .compact). Decode via try? + raw-string
+        // fallback so an unknown / removed case doesn't fail the whole load.
+        if let explicit = try? container.decodeIfPresent(MenuBarStyle.self, forKey: .menuBarStyle) {
+            menuBarStyle = explicit ?? (showDetailedMenuBar ? .detailed : .compact)
+        } else if let raw = try? container.decodeIfPresent(String.self, forKey: .menuBarStyle) {
+            // "minimalBadge" maps to .compact (functionally equivalent).
+            menuBarStyle = MenuBarStyle(rawValue: raw) ?? .compact
         } else {
             // Migrate legacy showDetailedMenuBar bool into the new style enum
             menuBarStyle = showDetailedMenuBar ? .detailed : .compact
@@ -520,7 +526,6 @@ struct AppSettings: Hashable, Codable, Sendable {
         case detailed
         case weekly
         case focusStrip
-        case minimalBadge
 
         var title: String {
             switch self {
@@ -528,7 +533,6 @@ struct AppSettings: Hashable, Codable, Sendable {
             case .detailed: "Calendar"
             case .weekly: "Week-at-a-glance"
             case .focusStrip: "Focus strip"
-            case .minimalBadge: "Minimal badges"
             }
         }
     }
