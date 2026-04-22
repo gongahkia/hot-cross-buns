@@ -13,26 +13,23 @@ struct OnboardingView: View {
     @State private var stage: OnboardingStage = .introWelcome
 
     var body: some View {
-        NavigationStack {
-            Group {
-                switch stage {
-                case .introWelcome:
-                    IntroWelcomeView(
-                        onContinue: { stage = .introDetails },
-                        onLater: finish
-                    )
-                case .introDetails:
-                    IntroDetailsView(
-                        onContinue: { stage = .setup },
-                        onLater: finish
-                    )
-                case .setup:
-                    setupBody
-                }
+        Group {
+            switch stage {
+            case .introWelcome:
+                IntroWelcomeView(
+                    onContinue: { stage = .introDetails },
+                    onLater: finish
+                )
+            case .introDetails:
+                IntroDetailsView(
+                    onContinue: { stage = .setup },
+                    onLater: finish
+                )
+            case .setup:
+                setupBody
             }
-            .appBackground()
-            .navigationTitle(stage == .setup ? "Set Up" : "Welcome")
         }
+        .appBackground()
         .interactiveDismissDisabled(model.settings.hasCompletedOnboarding == false)
         .hcbScaledFrame(minWidth: 560, idealWidth: 600, minHeight: 560, idealHeight: 640)
     }
