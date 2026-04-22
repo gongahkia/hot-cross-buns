@@ -3,6 +3,13 @@ import SwiftUI
 struct HelpView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
+    // single source of truth: read live overrides so doc reflects user binds
+    @AppStorage(HCBShortcutStorage.userDefaultsKey) private var overridesJSON: String = "{}"
+
+    private func glyph(_ command: HCBShortcutCommand) -> String {
+        let overrides = HCBShortcutStorage.decode(overridesJSON)
+        return (overrides[command.rawValue] ?? command.defaultBinding).displayLabel
+    }
 
     var body: some View {
         NavigationStack {
@@ -18,21 +25,21 @@ struct HelpView: View {
 
                     section(title: "Capture") {
                         keyRow("⌘⇧␣", "Global quick-add from any app")
-                        keyRow("⌘N", "Quick-add inside Hot Cross Buns")
-                        keyRow("⌘⇧N", "New event")
-                        keyRow("⌘⇧T", "New task with the detailed form")
+                        keyRow(glyph(.newTask), "New task")
+                        keyRow(glyph(.newNote), "New note")
+                        keyRow(glyph(.newEvent), "New event")
                         bullet("Natural language in quick-add: 'email rent receipt tmr #personal' parses due date + list.")
                     }
 
                     section(title: "Navigation") {
-                        keyRow("⌘1  ⌘2", "Jump to Calendar / Store")
-                        keyRow("⌘,", "Open Settings window")
-                        keyRow("⌘P  ⌘K", "Command palette — also searches tasks and events")
+                        keyRow("\(glyph(.goToCalendar))  \(glyph(.goToStore))", "Jump to Calendar / Tasks")
+                        keyRow(glyph(.goToSettings), "Open Settings window")
+                        keyRow(glyph(.commandPalette), "Command palette — also searches tasks and events")
                         keyRow("⌘S", "Collapse sidebar to icons / expand")
-                        keyRow("⌘I", "Toggle task inspector")
-                        keyRow("⌘R", "Refresh sync")
-                        keyRow("⌘⇧R", "Force full resync")
-                        keyRow("⌘=  ⌘-  ⌘0", "Zoom in / out / reset")
+                        keyRow(glyph(.storeShowInspector), "Toggle task inspector")
+                        keyRow(glyph(.refresh), "Refresh sync")
+                        keyRow(glyph(.forceResync), "Force full resync")
+                        keyRow("\(glyph(.zoomIn))  \(glyph(.zoomOut))  \(glyph(.zoomReset))", "Zoom in / out / reset")
                     }
 
                     section(title: "Store") {
@@ -42,21 +49,21 @@ struct HelpView: View {
                     }
 
                     section(title: "Calendar") {
-                        keyRow("⌘←  ⌘→", "Previous / next period in the grid")
-                        keyRow("⌘⌥←  ⌘⌥→", "Jump one larger period (month in week view, year in month)")
-                        keyRow("⌘T", "Jump to today")
-                        keyRow("⌘⇧G", "Go to a specific date")
-                        keyRow("⌘F", "Focus the event filter field in the toolbar")
+                        keyRow("\(glyph(.calendarPrevious))  \(glyph(.calendarNext))", "Previous / next period in the grid")
+                        keyRow("\(glyph(.calendarJumpBack))  \(glyph(.calendarJumpForward))", "Jump one larger period (month in week view, year in month)")
+                        keyRow(glyph(.calendarToday), "Jump to today")
+                        keyRow(glyph(.calendarGoToDate), "Go to a specific date")
+                        keyRow(glyph(.calendarFocusSearch), "Focus the event filter field in the toolbar")
                         keyRow("⌘J", "Toggle schedule drawer in week view")
                         bullet("Drag a task from the drawer onto any day column to create a 60-minute event back-linked to the task.")
                         bullet("Drag an existing event to reschedule it (preserves duration, snaps to 15 min).")
                     }
 
                     section(title: "Task editor") {
-                        keyRow("⌘↩", "Toggle complete")
-                        keyRow("⌘⇧↩", "Save pending edits and close the inspector")
-                        keyRow("⌘⌫", "Delete task (in inspector or Store selection)")
-                        keyRow("⌘D", "Duplicate task")
+                        keyRow(glyph(.taskQuickSave), "Toggle complete")
+                        keyRow(glyph(.taskSaveAndClose), "Save pending edits and close the inspector")
+                        keyRow(glyph(.taskDelete), "Delete task (in inspector or Store selection)")
+                        keyRow(glyph(.taskDuplicate), "Duplicate task")
                         keyRow("Tab / ⇧Tab", "Indent / outdent (subtask)")
                         bullet("Star a task with ⭐ — it shows as a real star emoji in Google Tasks everywhere.")
                         bullet("Add reminders, repeat rules, and guests right from the inspector.")
