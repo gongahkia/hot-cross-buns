@@ -250,6 +250,38 @@ No open items at this time. The audits haven't surfaced anything new since the l
 
 For residual risks that have been fixed, see `COMPLETED.md` § "Residual risks fixed since the last audit pass".
 
+## 14b. [Highest priority] Encrypt the audit log at rest
+
+The `MutationAuditLog` (`Services/Logging/MutationAuditLog.swift`) writes
+`audit.log` as plaintext JSON to `~/Library/Application Support/<bundleID>/audit.log`.
+With the history-log expansion it now persists:
+
+- Every task / note / event title and a copy of notes body on edit and delete
+- `priorSnapshotJSON` / `postSnapshotJSON` blobs for operations that record
+  their pre/post state (so the history window can offer a "Copy snapshot"
+  affordance for non-reversible ops)
+- Bulk-action summaries including the first resource's title
+- Sync-diff counts
+
+This file is readable by any process the user launches. We already encrypt the
+local cache (§6.12 `cacheEncryptionEnabled`) — the audit log deserves parity.
+Implement by:
+
+1. Adding `auditLogEncryptionEnabled` + key to the existing Keychain-backed
+   passphrase flow (reuse `EncryptionSection.swift`'s UI).
+2. AES-256-GCM-wrap each persisted snapshot via `CryptoKit.SymmetricKey`
+   derived from the passphrase (Argon2 or PBKDF2-SHA256 ≥ 100k iters) —
+   same pattern as the local cache encryption already in the codebase.
+3. Lazy-migrate on first read: if the loaded file lacks a `v2` header, treat
+   as plaintext, re-wrap on next `persist()`.
+4. Surface enable/change/disable in `Features/Settings/EncryptionSection.swift`
+   next to the existing cache toggle so users don't hunt for two separate
+   switches.
+
+Until this ships, anyone with filesystem access can reconstruct the user's
+task + event titles months back — far more privacy-revealing than the
+session ID stash we already guard.
+
 ## 15. See-how / maybe
 
 - **Rename "Hot Cross Buns"** — consider swapping for a Korean or Japanese romanized word related to time (e.g. *jikan*, *toki*, *sigan*, *ima*). See-how only; not committed.
