@@ -11,28 +11,86 @@ struct MutationAuditEntry: Codable, Hashable, Sendable, Identifiable {
     let resourceID: String
     let summary: String
     let metadata: [String: String]
+    // JSON encodings of the pre/post resource state. Optional for backwards
+    // compatibility with entries written before the history expansion — old
+    // entries decode with nil and simply can't offer snapshot-copy.
+    let priorSnapshotJSON: String?
+    let postSnapshotJSON: String?
 
     var id: String { "\(timestamp.timeIntervalSince1970)-\(resourceID)-\(kind)" }
+
+    enum CodingKeys: String, CodingKey {
+        case timestamp, kind, resourceID, summary, metadata, priorSnapshotJSON, postSnapshotJSON
+    }
+
+    init(
+        timestamp: Date,
+        kind: String,
+        resourceID: String,
+        summary: String,
+        metadata: [String: String],
+        priorSnapshotJSON: String? = nil,
+        postSnapshotJSON: String? = nil
+    ) {
+        self.timestamp = timestamp
+        self.kind = kind
+        self.resourceID = resourceID
+        self.summary = summary
+        self.metadata = metadata
+        self.priorSnapshotJSON = priorSnapshotJSON
+        self.postSnapshotJSON = postSnapshotJSON
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        timestamp = try c.decode(Date.self, forKey: .timestamp)
+        kind = try c.decode(String.self, forKey: .kind)
+        resourceID = try c.decode(String.self, forKey: .resourceID)
+        summary = try c.decode(String.self, forKey: .summary)
+        metadata = try c.decode([String: String].self, forKey: .metadata)
+        priorSnapshotJSON = try c.decodeIfPresent(String.self, forKey: .priorSnapshotJSON)
+        postSnapshotJSON = try c.decodeIfPresent(String.self, forKey: .postSnapshotJSON)
+    }
 }
 
 actor MutationAuditLog {
     static let shared = MutationAuditLog()
-    private static let retentionLimit = 5000
+    // Absolute ceiling enforced regardless of user setting to keep file
+    // size bounded. Settings slider caps out at this value.
+    static let absoluteCeiling = 50000
+    private var retentionLimit: Int = 5000
     private var buffer: [MutationAuditEntry] = []
     private var hasLoaded = false
 
-    func record(kind: String, resourceID: String, summary: String, metadata: [String: String] = [:]) {
+    func setRetentionLimit(_ limit: Int) {
+        retentionLimit = max(1, min(Self.absoluteCeiling, limit))
+        if buffer.count > retentionLimit {
+            buffer.removeFirst(buffer.count - retentionLimit)
+            persist()
+        }
+    }
+
+    func record(
+        kind: String,
+        resourceID: String,
+        summary: String,
+        metadata: [String: String] = [:],
+        priorSnapshotJSON: String? = nil,
+        postSnapshotJSON: String? = nil
+    ) {
         ensureLoaded()
         let entry = MutationAuditEntry(
             timestamp: Date(),
             kind: kind,
             resourceID: resourceID,
             summary: summary,
-            metadata: metadata
+            metadata: metadata,
+            priorSnapshotJSON: priorSnapshotJSON,
+            postSnapshotJSON: postSnapshotJSON
         )
         buffer.append(entry)
-        if buffer.count > Self.retentionLimit {
-            buffer.removeFirst(buffer.count - Self.retentionLimit)
+        if buffer.count > retentionLimit {
+            buffer.removeFirst(buffer.count - retentionLimit)
         }
         persist()
     }
@@ -40,6 +98,17 @@ actor MutationAuditLog {
     func recentEntries(limit: Int = 100) -> [MutationAuditEntry] {
         ensureLoaded()
         return Array(buffer.suffix(limit).reversed())
+    }
+
+    func allEntries() -> [MutationAuditEntry] {
+        ensureLoaded()
+        return buffer.reversed()
+    }
+
+    func delete(id entryID: String) {
+        ensureLoaded()
+        buffer.removeAll { $0.id == entryID }
+        persist()
     }
 
     func clear() {
