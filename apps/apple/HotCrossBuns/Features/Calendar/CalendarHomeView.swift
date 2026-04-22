@@ -175,7 +175,7 @@ struct CalendarHomeView: View {
                     Label(m.title, systemImage: m.systemImage).tag(m)
                 }
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.menu)
             .labelsHidden()
             .fixedSize()
         }
