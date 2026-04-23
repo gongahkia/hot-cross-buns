@@ -1033,10 +1033,7 @@ private struct NoteCard: View {
             }
             .hcbScaledPadding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.white.opacity(0.92))
-            )
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
                     .strokeBorder(AppColor.cardStroke, lineWidth: 0.6)
