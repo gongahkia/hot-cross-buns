@@ -44,26 +44,7 @@ struct StoreView: View {
         content
             .hcbSurface(.taskList)
             .appBackground()
-            .background(
-                Button("Toggle Inspector") {
-                    isInspectorPresented.toggle()
-                }
-                .hcbKeyboardShortcut(.storeShowInspector)
-                .opacity(0)
-                .hcbScaledFrame(width: 0, height: 0)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-            )
-            .background(
-                Button("Delete Selected") {
-                    Task { await deleteSelection() }
-                }
-                .hcbKeyboardShortcut(.storeClearCompleted)
-                .opacity(0)
-                .hcbScaledFrame(width: 0, height: 0)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-            )
+            .focusedSceneValue(\.storeCommandActions, storeCommandActions)
             .inspector(isPresented: inspectorBinding) {
                 inspectorContent
                     .environment(\.routerPath, router) // inspector pane is hoisted out of NavigationStack env scope; re-inject so TaskInspectorView's @Environment(\.routerPath) resolves
@@ -162,6 +143,14 @@ struct StoreView: View {
             .onChange(of: kanbanColumnMode) { _, newValue in
                 kanbanColumnModeKey = newValue.rawValue
             }
+    }
+
+    private var storeCommandActions: StoreCommandActions {
+        StoreCommandActions(
+            toggleInspector: { isInspectorPresented.toggle() },
+            deleteSelectedTasks: { Task { await deleteSelection() } },
+            canDeleteSelectedTasks: selection.isEmpty == false
+        )
     }
 
     @ViewBuilder

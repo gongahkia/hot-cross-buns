@@ -73,6 +73,7 @@ struct CalendarHomeView: View {
             .hcbSurface(.calendarGrid) // §6.11 — covers day/week/month/year/agenda subtree
         }
         .appBackground()
+        .focusedSceneValue(\.calendarCommandActions, calendarCommandActions)
         // Adding a .toolbar here serves two jobs: (a) provides the + button
         // for event/task quick-create parity with the Tasks and Notes tabs,
         // (b) gets SwiftUI to render the native macOS titlebar so the
@@ -149,20 +150,17 @@ struct CalendarHomeView: View {
                 Image(systemName: "chevron.left").hcbFont(.body, weight: .semibold)
             }
             .buttonStyle(.plain)
-            .hcbKeyboardShortcut(.calendarPrevious)
             .accessibilityLabel("Previous \(mode.title.lowercased())")
 
             Button("Today") { selectedDate = Date() }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .hcbKeyboardShortcut(.calendarToday)
                 .accessibilityLabel("Jump to today")
 
             Button { shift(by: 1) } label: {
                 Image(systemName: "chevron.right").hcbFont(.body, weight: .semibold)
             }
             .buttonStyle(.plain)
-            .hcbKeyboardShortcut(.calendarNext)
             .accessibilityLabel("Next \(mode.title.lowercased())")
 
             Button {
@@ -194,28 +192,6 @@ struct CalendarHomeView: View {
         .hcbScaledPadding(.horizontal, 16)
         .hcbScaledPadding(.vertical, 10)
         .disabled(model.account == nil)
-        .background(
-            HStack(spacing: 0) {
-                Button("Jump back") { jumpLarge(by: -1) }
-                    .hcbKeyboardShortcut(.calendarJumpBack)
-                Button("Jump forward") { jumpLarge(by: 1) }
-                    .hcbKeyboardShortcut(.calendarJumpForward)
-                Button("Go to Date") { isGoToDateShown = true }
-                    .hcbKeyboardShortcut(.calendarGoToDate)
-                Button("Agenda View") { selectMode(.agenda) }
-                    .hcbKeyboardShortcut(.calendarViewAgenda)
-                Button("Day View") { selectMode(.day) }
-                    .hcbKeyboardShortcut(.calendarViewDay)
-                Button("Week View") { selectMode(.week) }
-                    .hcbKeyboardShortcut(.calendarViewWeek)
-                Button("Month View") { selectMode(.month) }
-                    .hcbKeyboardShortcut(.calendarViewMonth)
-            }
-            .opacity(0)
-            .hcbScaledFrame(width: 0, height: 0)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-        )
     }
 
     private var selectedEvents: [CalendarEventMirror] {
@@ -227,6 +203,30 @@ struct CalendarHomeView: View {
     // AppModel.setCalendarViewModeHidden setter refuses to hide the last one.
     private var visibleCalendarModes: [CalendarGridMode] {
         CalendarGridMode.allCases.filter { model.settings.hiddenCalendarViewModes.contains($0.rawValue) == false }
+    }
+
+    private var calendarCommandActions: CalendarCommandActions {
+        let canNavigate = model.account != nil
+        return CalendarCommandActions(
+            previous: { shift(by: -1) },
+            today: { selectedDate = Date() },
+            next: { shift(by: 1) },
+            jumpBack: { jumpLarge(by: -1) },
+            jumpForward: { jumpLarge(by: 1) },
+            goToDate: { isGoToDateShown = true },
+            focusSearch: {
+                NotificationCenter.default.post(name: .hcbFocusCalendarSearch, object: nil)
+            },
+            showAgenda: { selectMode(.agenda) },
+            showDay: { selectMode(.day) },
+            showWeek: { selectMode(.week) },
+            showMonth: { selectMode(.month) },
+            canNavigate: canNavigate,
+            canShowAgenda: canNavigate && visibleCalendarModes.contains(.agenda),
+            canShowDay: canNavigate && visibleCalendarModes.contains(.day),
+            canShowWeek: canNavigate && visibleCalendarModes.contains(.week),
+            canShowMonth: canNavigate && visibleCalendarModes.contains(.month)
+        )
     }
 
     // Keyboard shortcuts route here so hidden modes no-op rather than forcing
@@ -988,7 +988,15 @@ struct AddEventSheet: View {
             }
         }
         .hcbScaledFrame(minWidth: 820, idealWidth: 920, minHeight: 560, idealHeight: 680)
+        .focusedSceneValue(\.calendarEventEditorCommandActions, calendarEventEditorCommandActions)
         .interactiveDismissDisabled(isSaving)
+    }
+
+    private var calendarEventEditorCommandActions: CalendarEventEditorCommandActions {
+        CalendarEventEditorCommandActions(
+            duplicateEvent: { duplicateExisting(offsetDays: 0) },
+            canDuplicateEvent: editingEvent != nil && isSaving == false
+        )
     }
 
     // True if the event being edited carries a recurrence rule or is an
@@ -1050,7 +1058,6 @@ struct AddEventSheet: View {
             Divider()
             Menu("Duplicate") {
                 Button("Duplicate here") { duplicateExisting(offsetDays: 0) }
-                    .hcbKeyboardShortcut(.calendarDuplicateEvent)
                 Button("Duplicate to tomorrow") { duplicateExisting(offsetDays: 1) }
                 Button("Duplicate to next week") { duplicateExisting(offsetDays: 7) }
                 Button("Duplicate in 2 weeks") { duplicateExisting(offsetDays: 14) }
@@ -1893,14 +1900,9 @@ struct CalendarSearchField: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(.quaternary.opacity(0.4))
         )
-        .background(
-            Button("Focus Search") { isFocused = true }
-                .hcbKeyboardShortcut(.calendarFocusSearch)
-                .opacity(0)
-                .hcbScaledFrame(width: 0, height: 0)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        )
+        .onReceive(NotificationCenter.default.publisher(for: .hcbFocusCalendarSearch)) { _ in
+            isFocused = true
+        }
     }
 }
 

@@ -99,7 +99,8 @@ xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 
 - Files: `apps/apple/HotCrossBuns/Features/Store/StoreView.swift:47-66`, `apps/apple/HotCrossBuns/Features/Calendar/CalendarHomeView.swift:197-218`, `apps/apple/HotCrossBuns/Features/Tasks/TaskInspectorView.swift:131-141`
 - Deviation: invisible zero-size `Button` views are used to host keyboard shortcuts. This works, but it is harder for VoiceOver/focus inspection and menu parity than scene commands/focused values.
 - Native convention: keyboard shortcuts should generally be exposed through menu commands, focused values, or visible buttons.
-- Proposed fix: defer a broader command routing pass; where practical, move these actions into `AppCommands` or focused command values.
+- Proposed fix: move these actions into `AppCommands` or focused command values.
+- Status: addressed by routing Store, Calendar, and Task Inspector shortcuts through focused command values in the app command menus.
 
 ## Low
 
@@ -130,8 +131,3 @@ xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 
 
 - Related finding: `apps/apple/HotCrossBuns/App/CommandPaletteView.swift:142-203`
 - Reason: making this fully native would likely require a dedicated utility panel/window or a focused command/search scene rather than a `.sheet` with custom material and clear presentation background. That is a larger scene-architecture change and risks behavior outside a pure chrome pass.
-
-### D2. Hidden shortcut hosting should move into command routing
-
-- Related finding: M5
-- Reason: replacing zero-size shortcut host buttons safely requires reworking `AppCommands`, focused command values, and per-tab command availability. That is larger than a local visual refactor.
