@@ -525,10 +525,19 @@ struct MonthGridView: View {
         // Bands render in the overlay; per-cell shows only timed single-day events.
         let events = allEventsToday.filter { CalendarGridLayout.isBandEvent($0, calendar: calendar) == false }
         let tasks = tasksForDay(day)
-        let eventSlots = 2
-        let taskSlots = 2
         // +N more counts the hidden band events too so users see them accounted for.
         let hiddenBandEvents = max(0, allEventsToday.count - events.count - visibleBandCount(for: dayStart, in: day, allEventsToday: allEventsToday))
+        let rowStride = laneHeight + laneSpacing
+        let dayNumberReserve: CGFloat = 24
+        let verticalPadding: CGFloat = 8
+        let availableRowArea = max(0, fixedRowHeight - verticalPadding - dayNumberReserve - bandReserve)
+        let availableRows = max(0, Int(floor((availableRowArea + laneSpacing) / rowStride)))
+        let needsMoreButton = hiddenBandEvents > 0 || events.count + tasks.count > availableRows
+        let visibleItemRows = needsMoreButton ? max(0, availableRows - 1) : availableRows
+        let visibleEventCount = min(events.count, visibleItemRows)
+        let visibleTaskCount = min(tasks.count, max(0, visibleItemRows - visibleEventCount))
+        let hiddenEvents = max(0, events.count - visibleEventCount) + hiddenBandEvents
+        let hiddenTasks = max(0, tasks.count - visibleTaskCount)
         return VStack(alignment: .leading, spacing: 3) {
             HStack {
                 Text("\(calendar.component(.day, from: day))")
@@ -545,7 +554,7 @@ struct MonthGridView: View {
             if bandReserve > 0 {
                 Color.clear.frame(height: bandReserve)
             }
-            ForEach(events.prefix(eventSlots), id: \.id) { event in
+            ForEach(events.prefix(visibleEventCount), id: \.id) { event in
                 CalendarEventPreviewButton(event: event) {
                     Text(eventLabel(event, in: day))
                         .hcbFont(.caption2)
@@ -573,7 +582,7 @@ struct MonthGridView: View {
                         .background(Capsule().fill(calendarColor(for: event).opacity(0.35)))
                 }
             }
-            ForEach(tasks.prefix(taskSlots)) { task in
+            ForEach(tasks.prefix(visibleTaskCount)) { task in
                 HStack(spacing: 3) {
                     CalendarTaskCheckbox(task: task, size: 9)
                     CalendarTaskPreviewButton(task: task) {
@@ -598,17 +607,6 @@ struct MonthGridView: View {
                 .strikethrough(task.isCompleted, color: .secondary)
                 .opacity(task.isCompleted ? 0.55 : 1.0)
             }
-            let hiddenEvents = max(0, events.count - eventSlots) + hiddenBandEvents
-            let hiddenTasks = max(0, tasks.count - taskSlots)
-            if hiddenEvents + hiddenTasks > 0 {
-                MonthMoreButton(
-                    count: hiddenEvents + hiddenTasks,
-                    day: dayStart,
-                    events: allEventsToday,
-                    tasks: tasks,
-                    calendarColor: calendarColor(for:)
-                )
-            }
             Spacer(minLength: 0)
         }
         // Horizontal cell padding matches the bandOverlay's 2pt offset so
@@ -631,6 +629,19 @@ struct MonthGridView: View {
             Rectangle()
                 .strokeBorder(AppColor.cardStroke, lineWidth: 0.5)
         )
+        .overlay(alignment: .bottomLeading) {
+            if hiddenEvents + hiddenTasks > 0 {
+                MonthMoreButton(
+                    count: hiddenEvents + hiddenTasks,
+                    day: dayStart,
+                    events: allEventsToday,
+                    tasks: tasks,
+                    calendarColor: calendarColor(for:)
+                )
+                .padding(.horizontal, 4)
+                .padding(.bottom, 3)
+            }
+        }
         .contentShape(Rectangle())
         .onTapGesture {
             flashCell(dayStart)
