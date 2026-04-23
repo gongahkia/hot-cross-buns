@@ -239,17 +239,19 @@ code, kbd {
 .demo-video {
   display: block;
   width: 100%;
+  aspect-ratio: 16 / 10.4;
   height: auto;
   border-radius: 12px;
   overflow: hidden;
   box-shadow: var(--shadow);
   border: 1px solid color-mix(in srgb, var(--surface0) 70%, transparent);
   background: var(--mantle);
+  object-fit: contain;
+  object-position: center top;
 }
 
 .window-video {
-  aspect-ratio: 16 / 10.4;
-  object-fit: cover;
+  max-height: min(72vh, 860px);
 }
 
 /* window placeholder */
