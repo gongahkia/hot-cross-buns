@@ -194,9 +194,10 @@ struct DayGridView: View {
                         }
                         .animation(.easeOut(duration: 0.18), value: flashTimedSlot)
                     GeometryReader { geo in
-                        ForEach(timedEvents, id: \.id) { event in
-                            eventTile(event, columnWidth: geo.size.width - 56)
-                                .opacity(model.settings.opacityForPastEvent(event, now: Date()))
+                        let laidOutEvents = CalendarGridLayout.layout(eventsInDay: timedEvents, calendar: calendar)
+                        ForEach(Array(laidOutEvents.enumerated()), id: \.offset) { _, placed in
+                            eventTile(placed, availableWidth: geo.size.width - 56)
+                                .opacity(model.settings.opacityForPastEvent(placed.event, now: Date()))
                         }
                     }
                     .frame(height: CGFloat(hourEnd - hourStart) * hourHeight)
@@ -247,26 +248,32 @@ struct DayGridView: View {
         return date.formatted(.dateTime.hour())
     }
 
-    private func eventTile(_ event: CalendarEventMirror, columnWidth: CGFloat) -> some View {
+    private func eventTile(_ placed: CalendarGridLayout.LaidOutEvent, availableWidth: CGFloat) -> some View {
+        let event = placed.event
         let clampedStart = max(event.startDate, dayStart)
         let clampedEnd = min(event.endDate, dayEnd)
         let startMinutes = clampedStart.timeIntervalSince(dayStart) / 60
         let durationMinutes = max(clampedEnd.timeIntervalSince(clampedStart) / 60, 20)
         let yOffset = CGFloat(startMinutes) * (hourHeight / 60)
         let height = CGFloat(durationMinutes) * (hourHeight / 60)
+        let slotWidth = availableWidth / CGFloat(max(placed.columnCount, 1))
+        let xOffsetWithinDay = CGFloat(placed.columnIndex) * slotWidth
+        let tileWidth = max(slotWidth - 3, 1)
+        let tileHeight = max(height - 2, 1)
         let fill = calendarColor(for: event)
 
         return CalendarEventPreviewButton(event: event) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(event.summary)
                     .hcbFont(.caption, weight: .semibold)
-                    .lineLimit(2)
+                    .lineLimit(height > 38 ? 2 : 1)
                 if height > 38 {
                     Text("\(event.startDate.formatted(.dateTime.hour().minute())) – \(event.endDate.formatted(.dateTime.hour().minute()))")
                         .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
-                if height > 60, event.location.isEmpty == false {
+                if height > 60, slotWidth > 120, event.location.isEmpty == false {
                     Text(event.location)
                         .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
@@ -275,11 +282,12 @@ struct DayGridView: View {
             }
             .hcbScaledPadding(.horizontal, 8)
             .hcbScaledPadding(.vertical, 4)
-            .frame(width: max(columnWidth, 60), height: height - 2, alignment: .topLeading)
+            .frame(width: tileWidth, height: tileHeight, alignment: .topLeading)
+            .clipped()
             .background(RoundedRectangle(cornerRadius: 8).fill(fill.opacity(0.22)))
             .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(fill.opacity(0.55), lineWidth: 0.8))
         }
-        .offset(x: 56, y: yOffset)
+        .offset(x: 56 + xOffsetWithinDay, y: yOffset)
         .accessibilityLabel("\(event.summary), \(event.startDate.formatted(.dateTime.hour().minute())) to \(event.endDate.formatted(.dateTime.hour().minute()))")
     }
 
