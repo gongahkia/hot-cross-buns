@@ -29,6 +29,7 @@ struct WeekGridView: View {
     private let hourStart = 0
     private let hourEnd = 24
     private let allDayLaneHeight: CGFloat = 22
+    private let allDayVisibleLimit = 3
     private let taskVisibleLimit = 3
     private let taskRowHeight: CGFloat = 24
     private let taskRowSpacing: CGFloat = 2
@@ -259,7 +260,12 @@ struct WeekGridView: View {
     private var allDayStrip: some View {
         let spans = cachedAllDaySpans
         let laneCount = (spans.map(\.laneIndex).max() ?? -1) + 1
-        let stripHeight = max(CGFloat(laneCount) * allDayLaneHeight, allDayLaneHeight)
+        let visibleLaneCount = min(laneCount, allDayVisibleLimit)
+        let hasOverflow = laneCount > allDayVisibleLimit
+        let rowCount = max(visibleLaneCount + (hasOverflow ? 1 : 0), 1)
+        let stripHeight = CGFloat(rowCount) * allDayLaneHeight
+        let visibleSpans = spans.filter { $0.laneIndex < allDayVisibleLimit }
+        let allDayByDay = allDayEventsByDay()
         // Captured outside GeometryReader so DragGesture closures see a
         // reliable router reference (custom-EnvironmentKey reads inside
         // GeometryReader closures have shown propagation gaps).
@@ -291,8 +297,27 @@ struct WeekGridView: View {
                             .offset(x: left + 2, y: 2)
                             .allowsHitTesting(false)
                     }
-                    ForEach(spans) { span in
+                    ForEach(visibleSpans) { span in
                         allDaySpanTile(span, columnWidth: columnWidth, laneHeight: laneHeight)
+                    }
+                    ForEach(Array(weekDays.enumerated()), id: \.offset) { idx, day in
+                        let dayStart = calendar.startOfDay(for: day)
+                        let events = allDayByDay[dayStart] ?? []
+                        let hiddenCount = hiddenAllDaySpanCount(onColumn: idx, spans: spans)
+                        if hiddenCount > 0 {
+                            MonthMoreButton(
+                                count: hiddenCount,
+                                day: dayStart,
+                                events: events,
+                                tasks: [],
+                                calendarColor: calendarColor(for:)
+                            )
+                            .frame(width: max(columnWidth - 4, 20), height: laneHeight - 4, alignment: .leading)
+                            .offset(
+                                x: CGFloat(idx) * columnWidth + 2,
+                                y: CGFloat(visibleLaneCount) * laneHeight + 2
+                            )
+                        }
                     }
                 }
                 .contentShape(Rectangle())
@@ -320,6 +345,33 @@ struct WeekGridView: View {
         .frame(minHeight: stripHeight, idealHeight: stripHeight, maxHeight: stripHeight)
         .clipped()
         .hcbScaledPadding(.vertical, 4)
+    }
+
+    private func hiddenAllDaySpanCount(onColumn column: Int, spans: [AllDaySpan]) -> Int {
+        spans.filter { span in
+            span.laneIndex >= allDayVisibleLimit
+                && column >= span.startColumn
+                && column <= span.endColumn
+        }.count
+    }
+
+    private func allDayEventsByDay() -> [Date: [CalendarEventMirror]] {
+        var result: [Date: [CalendarEventMirror]] = [:]
+        for day in weekDays {
+            let dayStart = calendar.startOfDay(for: day)
+            result[dayStart] = visibleEvents
+                .filter { event in
+                    guard event.isAllDay else { return false }
+                    let eventStart = calendar.startOfDay(for: event.startDate)
+                    let eventEnd = CalendarGridLayout.eventEndDay(event: event, calendar: calendar)
+                    return eventStart <= dayStart && eventEnd >= dayStart
+                }
+                .sorted { lhs, rhs in
+                    if lhs.startDate != rhs.startDate { return lhs.startDate < rhs.startDate }
+                    return lhs.summary.localizedCaseInsensitiveCompare(rhs.summary) == .orderedAscending
+                }
+        }
+        return result
     }
 
     private func columnIndex(for x: CGFloat, columnWidth: CGFloat) -> Int {
@@ -444,13 +496,16 @@ struct WeekGridView: View {
                                         .opacity(task.isCompleted ? 0.55 : 1.0)
                                         .accessibilityLabel("Task due \(day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())): \(task.title)")
                                     }
-                                    if let count = tasksByDay[calendar.startOfDay(for: day)]?.count, count > taskVisibleLimit {
-                                        Text("+\(count - taskVisibleLimit) more")
-                                            .hcbFont(.caption2)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(1)
-                                            .padding(.leading, 4)
-                                            .frame(height: taskRowHeight, alignment: .leading)
+                                    let dayStart = calendar.startOfDay(for: day)
+                                    if let tasks = tasksByDay[dayStart], tasks.count > taskVisibleLimit {
+                                        MonthMoreButton(
+                                            count: tasks.count - taskVisibleLimit,
+                                            day: dayStart,
+                                            events: [],
+                                            tasks: tasks,
+                                            calendarColor: calendarColor(for:)
+                                        )
+                                        .frame(height: taskRowHeight, alignment: .leading)
                                     }
                                 }
                                 .hcbScaledPadding(.horizontal, 2)
