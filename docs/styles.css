@@ -316,6 +316,12 @@ code, kbd {
   margin: 0 auto;
   border-top: 1px solid color-mix(in srgb, var(--surface0) 55%, transparent);
 }
+.views-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(320px, .82fr);
+  gap: 48px 64px;
+  align-items: start;
+}
 .section-head { max-width: 62ch; margin-bottom: 56px; }
 .section-head.centered { margin-left: auto; margin-right: auto; text-align: center; }
 .section-head .eyebrow { display: block; margin-bottom: 14px; }
@@ -328,22 +334,35 @@ code, kbd {
 
 .views-single {
   margin: 0;
-  max-width: 1120px;
-  margin-inline: auto;
+  max-width: 100%;
 }
-.views-single figcaption {
-  margin-top: 22px;
-  text-align: center;
-  font-family: "Geist", sans-serif;
-  font-size: .88rem;
-  letter-spacing: .02em;
+.views-copy {
+  min-width: 0;
+}
+.views-copy .section-head {
+  margin-bottom: 36px;
+}
+.views-list {
+  display: grid;
+  gap: 22px;
+}
+.view-item {
+  padding-top: 18px;
+  border-top: 1px solid color-mix(in srgb, var(--surface0) 65%, transparent);
+}
+.view-item h3 {
+  font-family: "Fraunces", serif;
+  font-size: 1.28rem;
+  font-weight: 400;
+  letter-spacing: -.01em;
+  margin-bottom: 10px;
+}
+.view-item p {
   color: var(--subtext1);
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px 10px;
+  font-size: 1rem;
+  line-height: 1.55;
+  max-width: 34ch;
 }
-.views-single figcaption .sep { color: var(--overlay); }
 
 /* keys */
 .keys {
@@ -817,6 +836,11 @@ kbd {
   .hero { padding: 48px 18px 56px; gap: 36px; }
   .hero-copy .deck { font-size: 1rem; }
   .cta-primary.big { padding: 14px 22px; font-size: .98rem; }
+
+  .views-layout {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
 
   /* shrink large placeholder shots */
   .placeholder-window { min-height: 240px; }

@@ -22,8 +22,6 @@
   <div class="nav-links">
     <a href="#views">Views</a>
     <a href="#keys">Keyboard</a>
-    <a href="#security">Security</a>
-    <a href="#details">Details</a>
     <a href="#reviews">Reviews</a>
     <a href="#updates">Updates</a>
     <button id="theme-toggle" aria-label="Toggle theme">
@@ -51,17 +49,39 @@
 </header>
 
 <section id="views" class="views">
-  <div class="section-head">
-    <p class="eyebrow">Tasks, calendars, notes</p>
-    <h2>Everything you need<br>in <em>three</em> views.</h2>
-  </div>
+  <div class="views-layout">
+    <!-- RECORDING: views-cycle.gif — cycle through the three surfaces: Tasks → Calendar → Notes. ~12s. 1600×1100 @ 2x. -->
+    <figure class="views-single">
+      <video class="demo-video window-video" autoplay muted loop playsinline preload="metadata" aria-label="Tasks, calendar, and notes views">
+        <source src="media/views-cycle.mp4" type="video/mp4">
+      </video>
+    </figure>
 
-  <!-- RECORDING: views-cycle.gif — cycle through the three surfaces: Tasks → Calendar → Notes. ~12s. 1600×1100 @ 2x. -->
-  <figure class="views-single">
-    <video class="demo-video window-video" autoplay muted loop playsinline preload="metadata" aria-label="Tasks, calendar, and notes views">
-      <source src="media/views-cycle.mp4" type="video/mp4">
-    </video>
-  </figure>
+    <div class="views-copy">
+      <div class="section-head">
+        <p class="eyebrow">Tasks, calendars, notes</p>
+        <h2>Everything you need<br>in <em>three</em> views.</h2>
+        <p class="lede">Three surfaces, three jobs: tasks to finish, time to place, and notes to keep close.</p>
+      </div>
+
+      <div class="views-list">
+        <article class="view-item">
+          <h3>Tasks</h3>
+          <p>Lists for inbox capture and day-to-day execution. Syncs with Google Tasks.</p>
+        </article>
+
+        <article class="view-item">
+          <h3>Calendar</h3>
+          <p>Agenda through year views for time blocking and scheduling. Syncs with Google Calendar.</p>
+        </article>
+
+        <article class="view-item">
+          <h3>Notes</h3>
+          <p>Lightweight local notes for context, drafts, and reference material.</p>
+        </article>
+      </div>
+    </div>
+  </div>
 </section>
 
 <section id="keys" class="keys">
@@ -117,73 +137,6 @@
         <div><dt><kbd>⌘</kbd><kbd>K</kbd><span class="chord">then</span><kbd>H</kbd></dt><dd>help</dd></div>
       </dl>
     </div>
-  </div>
-</section>
-
-<section id="security" class="security">
-  <div class="security-prose">
-    <p class="eyebrow">Designed with security in mind</p>
-    <h2>Your plans,<br>under <em>lock</em> and key.</h2>
-    <p>A planner knows where you'll be, who you'll meet, and what you haven't done yet. That is sensitive data, and Hot Cross Buns treats it that way. Every surface is hardened on purpose — not after the fact.</p>
-    <p class="pullquote">AES-256-GCM on disk. Secrets in Keychain, never plaintext. URL handlers gated. Regex bounded. Logs redacted.</p>
-  </div>
-
-  <ul class="security-grid" role="list">
-    <li>
-      <h4>Local cache encryption</h4>
-      <p>Opt-in AES-256-GCM wrapping over the on-disk cache, keyed by a passphrase-derived <code>CryptoKit.SymmetricKey</code>. Nothing readable by another process on the machine.</p>
-    </li>
-    <li>
-      <h4>No eval, no ReDoS</h4>
-      <p>Natural-language parsers dispatch through typed enums, not string eval. All regex uses <code>\b</code> anchors and bounded quantifiers — no catastrophic-backtracking surface.</p>
-    </li>
-    <li>
-      <h4>Trusted IPC only</h4>
-      <p>Share-extension and Services-menu payloads carry a <code>source</code> bundle-id, validated against the app prefix, with a 10‑minute trust window and an 8&nbsp;KB byte cap.</p>
-    </li>
-    <li>
-      <h4>Logs don't leak</h4>
-      <p>Structured <code>os_log</code> interpolations — bare message public, metadata private. Nothing useful for a nosy <code>Console.app</code> observer.</p>
-    </li>
-  </ul>
-</section>
-
-<section id="details" class="details">
-  <div class="section-head">
-    <p class="eyebrow">The details</p>
-    <h2>Small things, <em>seriously</em> considered.</h2>
-  </div>
-
-  <div class="details-grid">
-    <article class="detail">
-      <h3>Find anything, in a sentence</h3>
-      <p>Ask the way you think. <code>attendee:alex duration&gt;30m has:notes tag:work due&lt;+7d</code> is one phrase, not six filters and a wall of checkboxes. Save the ones you run weekly.</p>
-    </article>
-
-    <article class="detail">
-      <h3>Write the recurring task once</h3>
-      <p>Your weekly review, your standup prep, your project kickoff — each is a template that fills itself in. <code>{{today}}</code>, <code>{{+7d}}</code>, <code>{{clipboard}}</code>, <code>{{prompt:Label}}</code>. You stop retyping the same thing Monday mornings.</p>
-    </article>
-
-    <article class="detail">
-      <h3>Fits inside your existing flow</h3>
-      <p>Call it from <a href="https://raycast.com" target="_blank" rel="noopener">Raycast</a>, Spotlight, Alfred, Shortcuts, or any script — the <code>hotcrossbuns://</code> URL scheme and macOS Services hook straight into the launchers you already use. The task is captured before you've even switched windows.</p>
-    </article>
-
-    <article class="detail">
-      <h3>Reads the way you want it to</h3>
-      <p>A serif for long‑form notes. A mono for the query bar. A tighter sans for dense lists. Six surfaces, six independent font choices — because one font never fits every job.</p>
-    </article>
-
-    <article class="detail">
-      <h3>Keeps working in the tunnel</h3>
-      <p>Planes, trains, bad hotel wifi — type as if you were online. A local mutation queue holds every change and reconciles it cleanly (etag‑based, no silent overwrites) the moment you're back on a signal.</p>
-    </article>
-
-    <article class="detail">
-      <h3>Matches the rest of your desktop</h3>
-      <p>If your terminal, editor, and window manager already wear <a href="https://catppuccin.com" target="_blank" rel="noopener">Catppuccin</a>, your planner finally does too. Latte and Mocha, tuned by hand — not a generic Light/Dark auto‑invert.</p>
-    </article>
   </div>
 </section>
 
