@@ -25,6 +25,7 @@
     <a href="#security">Security</a>
     <a href="#details">Details</a>
     <a href="#reviews">Reviews</a>
+    <a href="#updates">Updates</a>
     <button id="theme-toggle" aria-label="Toggle theme">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
     </button>
@@ -60,11 +61,6 @@
     <video class="demo-video window-video" autoplay muted loop playsinline preload="metadata" aria-label="Tasks, calendar, and notes views">
       <source src="media/views-cycle.mp4" type="video/mp4">
     </video>
-    <figcaption>
-      <span>Tasks</span><span class="sep">·</span>
-      <span>Calendar</span><span class="sep">·</span>
-      <span>Notes</span>
-    </figcaption>
   </figure>
 </section>
 
@@ -78,7 +74,7 @@
     <div class="section-head end">
       <p class="eyebrow">Made with keyboard users in mind</p>
       <h2>If you can name it,<br>you can <em>reach</em> it.</h2>
-      <p class="lede">Four chord groups. Twenty-odd shortcuts. A leader key for the rest. No menu‑diving for anything you do twice a day.</p>
+      <p class="lede">Core shortcuts stay single-key. Calendar views get their own lane. The leader key handles secondary actions without pushing everything into one menu.</p>
     </div>
   </div>
 
@@ -86,20 +82,20 @@
     <div class="key-col">
       <h4>Navigate</h4>
       <dl>
-        <div><dt><kbd>⌘</kbd><kbd>K</kbd></dt><dd>command palette</dd></div>
-        <div><dt><kbd>⌘</kbd><kbd>O</kbd></dt><dd>quick switcher</dd></div>
-        <div><dt><kbd>⌘</kbd><kbd>/</kbd></dt><dd>search everything</dd></div>
+        <div><dt><kbd>⌘</kbd><kbd>P</kbd></dt><dd>command palette</dd></div>
         <div><dt><kbd>⌘</kbd><kbd>,</kbd></dt><dd>settings</dd></div>
+        <div><dt><kbd>⌘</kbd><kbd>T</kbd></dt><dd>jump to today</dd></div>
+        <div><dt><kbd>⌘</kbd><kbd>⇧</kbd><kbd>G</kbd></dt><dd>go to date</dd></div>
       </dl>
     </div>
 
     <div class="key-col">
       <h4>Switch view</h4>
       <dl>
-        <div><dt><kbd>⌘</kbd><kbd>1</kbd></dt><dd>list</dd></div>
-        <div><dt><kbd>⌘</kbd><kbd>2</kbd></dt><dd>kanban</dd></div>
-        <div><dt><kbd>⌘</kbd><kbd>3</kbd></dt><dd>timeline</dd></div>
-        <div><dt><kbd>⌘</kbd><kbd>4</kbd></dt><dd>calendar</dd></div>
+        <div><dt><kbd>⌥</kbd><kbd>⌘</kbd><kbd>1</kbd></dt><dd>agenda</dd></div>
+        <div><dt><kbd>⌥</kbd><kbd>⌘</kbd><kbd>2</kbd></dt><dd>day</dd></div>
+        <div><dt><kbd>⌥</kbd><kbd>⌘</kbd><kbd>3</kbd></dt><dd>week</dd></div>
+        <div><dt><kbd>⌥</kbd><kbd>⌘</kbd><kbd>4</kbd></dt><dd>month</dd></div>
       </dl>
     </div>
 
@@ -107,19 +103,18 @@
       <h4>Capture</h4>
       <dl>
         <div><dt><kbd>⌘</kbd><kbd>N</kbd></dt><dd>new task</dd></div>
-        <div><dt><kbd>⌘</kbd><kbd>⇧</kbd><kbd>N</kbd></dt><dd>new event</dd></div>
-        <div><dt><kbd>⌘</kbd><kbd>D</kbd></dt><dd>duplicate</dd></div>
-        <div><dt><kbd>⌘</kbd><kbd>⌫</kbd></dt><dd>delete</dd></div>
+        <div><dt><kbd>⌘</kbd><kbd>⇧</kbd><kbd>N</kbd></dt><dd>new note</dd></div>
+        <div><dt><kbd>⌘</kbd><kbd>⇧</kbd><kbd>E</kbd></dt><dd>new event</dd></div>
       </dl>
     </div>
 
     <div class="key-col">
       <h4>Leader</h4>
       <dl>
-        <div><dt><kbd>⌘</kbd><kbd>K</kbd><span class="chord">then</span><kbd>t</kbd></dt><dd>add tag</dd></div>
-        <div><dt><kbd>⌘</kbd><kbd>K</kbd><span class="chord">then</span><kbd>p</kbd></dt><dd>pin filter</dd></div>
-        <div><dt><kbd>⌘</kbd><kbd>K</kbd><span class="chord">then</span><kbd>s</kbd></dt><dd>star</dd></div>
-        <div><dt><kbd>⌘</kbd><kbd>K</kbd><span class="chord">then</span><kbd>r</kbd></dt><dd>reschedule</dd></div>
+        <div><dt><kbd>⌘</kbd><kbd>K</kbd><span class="chord">then</span><kbd>P</kbd></dt><dd>command palette</dd></div>
+        <div><dt><kbd>⌘</kbd><kbd>K</kbd><span class="chord">then</span><kbd>R</kbd></dt><dd>refresh sync</dd></div>
+        <div><dt><kbd>⌘</kbd><kbd>K</kbd><span class="chord">then</span><kbd>D</kbd></dt><dd>diagnostics</dd></div>
+        <div><dt><kbd>⌘</kbd><kbd>K</kbd><span class="chord">then</span><kbd>H</kbd></dt><dd>help</dd></div>
       </dl>
     </div>
   </div>
@@ -225,6 +220,34 @@
       <summary>Prefer Homebrew?</summary>
       <pre><code>brew install --cask hot-cross-buns</code></pre>
     </details>
+  </div>
+</section>
+
+<section id="updates" class="updates">
+  <div class="updates-head">
+    <p class="eyebrow">Changelog</p>
+    <h2>What shipped in <em>v1.0.0</em>.</h2>
+  </div>
+
+  <div class="updates-list">
+    <article class="update-entry">
+      <div class="update-meta">
+        <h3>v1.0.0</h3>
+        <p>23 Apr 2026</p>
+      </div>
+      <div class="update-copy">
+        <ul>
+          <li>Added the three primary surfaces: Calendar, Tasks, and Notes.</li>
+          <li>Shipped command palette capture for tasks, notes, and events with keyboard-first defaults.</li>
+          <li>Added agenda, day, week, month, year, and multi-day calendar views.</li>
+          <li>Improved event layout so overlapping timed entries tile side by side instead of obscuring one another.</li>
+          <li>Added menu bar workflows, including the full calendar panel and compact focus strip.</li>
+          <li>Added templates, saved filters, Google Tasks sync, Google Calendar sync, and onboarding for first launch.</li>
+          <li>Added theme support, font tuning, hotkey customization, and macOS-native settings screens.</li>
+          <li>Hardened local storage, logging, and trust boundaries for URL and extension-driven capture.</li>
+        </ul>
+      </div>
+    </article>
   </div>
 </section>
 

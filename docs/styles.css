@@ -595,6 +595,54 @@ kbd {
   padding-bottom: 2px;
 }
 
+/* updates */
+.updates {
+  padding: clamp(72px, 10vw, 120px) clamp(20px, 4vw, 56px);
+  max-width: 1100px;
+  margin: 0 auto;
+  border-top: 1px solid color-mix(in srgb, var(--surface0) 55%, transparent);
+}
+.updates-head {
+  max-width: 58ch;
+  margin-bottom: 42px;
+}
+.updates-head .eyebrow { display: block; margin-bottom: 14px; }
+.updates-head h2 { margin-bottom: 18px; }
+.updates-head .lede {
+  color: var(--subtext1);
+  font-size: 1.04rem;
+  line-height: 1.55;
+}
+.updates-list {
+  display: grid;
+  gap: 28px;
+}
+.update-entry {
+  display: grid;
+  grid-template-columns: minmax(140px, 180px) minmax(0, 1fr);
+  gap: 24px 36px;
+  padding-top: 20px;
+  border-top: 1px solid color-mix(in srgb, var(--surface0) 65%, transparent);
+}
+.update-meta h3 {
+  font-family: "Fraunces", serif;
+  font-size: 1.28rem;
+  font-weight: 400;
+  letter-spacing: -.01em;
+  margin-bottom: 6px;
+}
+.update-meta p {
+  font-family: "Geist", sans-serif;
+  font-size: .86rem;
+  color: var(--subtext0);
+}
+.update-copy ul {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--subtext1);
+}
+.update-copy li + li { margin-top: 8px; }
+
 /* download */
 .download {
   padding: clamp(96px, 12vw, 160px) clamp(20px, 4vw, 56px);
@@ -780,8 +828,8 @@ kbd {
   .keys-grid { grid-template-columns: 1fr; gap: 32px; }
   .key-col dl > div { gap: 12px; }
 
-  /* views / security / details / reviews / download padding */
-  .views, .security, .details, .reviews, .download {
+  /* views / security / details / reviews / updates / download padding */
+  .views, .security, .details, .reviews, .updates, .download {
     padding-left: 18px; padding-right: 18px;
   }
   .section-head { margin-bottom: 36px; }
@@ -790,6 +838,8 @@ kbd {
 
   .reviews { padding-top: 56px; padding-bottom: 56px; }
   .review-list li { font-size: 1.05rem; }
+
+  .update-entry { grid-template-columns: 1fr; gap: 10px; }
 
   .download-inner { padding: 0 4px; }
 
