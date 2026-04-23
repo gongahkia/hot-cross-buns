@@ -1,49 +1,268 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Calendar" : {
-      "extractionState" : "manual",
+    "" : {
+
+    },
+    " " : {
+
+    },
+    "·" : {
+
+    },
+    "\"%@\" is part of a recurring series. \"Every event in the series\" moves past occurrences too — not just upcoming ones. This is destructive and can't be undone." : {
+
+    },
+    "[%@] %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Calendar"
+            "state" : "new",
+            "value" : "[%1$@] %2$@"
           }
         }
       }
     },
-    "Store" : {
-      "extractionState" : "manual",
+    "{{today}} {{tomorrow}} {{yesterday}} {{+Nd/-Nd/w/m/y}} {{nextWeekday:mon}} {{clipboard}} {{cursor}} {{prompt:Label}}" : {
+
+    },
+    "#%@" : {
+
+    },
+    "%@" : {
+
+    },
+    "%@ – %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Store"
+            "state" : "new",
+            "value" : "%1$@ – %2$@"
           }
         }
       }
     },
-    "Today" : {
-      "extractionState" : "manual",
+    "%@ · %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Today"
+            "state" : "new",
+            "value" : "%1$@ · %2$@"
           }
         }
       }
     },
-    "Refresh" : {
+    "%@ %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$@"
+          }
+        }
+      }
+    },
+    "%@ → %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ → %2$@"
+          }
+        }
+      }
+    },
+    "%@ days" : {
+
+    },
+    "%@ event%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ event%2$@"
+          }
+        }
+      }
+    },
+    "%@ event%@ · %@ task%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ event%2$@ · %3$@ task%4$@"
+          }
+        }
+      }
+    },
+    "%@ min" : {
+
+    },
+    "%@ occurrence%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ occurrence%2$@"
+          }
+        }
+      }
+    },
+    "%@ of %@ entries" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ of %2$@ entries"
+          }
+        }
+      }
+    },
+    "%@ pt" : {
+
+    },
+    "%@ selected" : {
+
+    },
+    "%@ task%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ task%2$@"
+          }
+        }
+      }
+    },
+    "%@ tasks selected" : {
+
+    },
+    "%@%%" : {
+
+    },
+    "•" : {
+
+    },
+    "• %@" : {
+
+    },
+    "• %@ completed task%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "• %1$@ completed task%2$@"
+          }
+        }
+      }
+    },
+    "• %@ event%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "• %1$@ event%2$@"
+          }
+        }
+      }
+    },
+    "+%@" : {
+
+    },
+    "+%@ more" : {
+
+    },
+    "⌘K %@" : {
+
+    },
+    "⌘P" : {
+
+    },
+    "□" : {
+
+    },
+    "1 day before" : {
+
+    },
+    "1 hour before" : {
+
+    },
+    "1 month before" : {
+
+    },
+    "1 week before" : {
+
+    },
+    "1 year" : {
+
+    },
+    "2 days before" : {
+
+    },
+    "2 hours before" : {
+
+    },
+    "2 weeks before" : {
+
+    },
+    "2 years" : {
+
+    },
+    "3 days before" : {
+
+    },
+    "5 min before" : {
+
+    },
+    "5 minutes before" : {
+
+    },
+    "10 min before" : {
+
+    },
+    "10 minutes before" : {
+
+    },
+    "15 min before" : {
+
+    },
+    "15 minutes before" : {
+
+    },
+    "30 days" : {
+
+    },
+    "30 min before" : {
+
+    },
+    "30 minutes before" : {
+
+    },
+    "90 days" : {
+
+    },
+    "180 days" : {
+
+    },
+    "A Mac-native client for Google Tasks and Google Calendar." : {
+
+    },
+    "A Mac-native planner on top of Google Tasks and Google Calendar." : {
+
+    },
+    "Add Event" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Refresh"
+            "value" : "Add Event"
           }
         }
       }
+    },
+    "Add task" : {
+
     },
     "Add Task" : {
       "extractionState" : "manual",
@@ -56,16 +275,761 @@
         }
       }
     },
-    "Add Event" : {
+    "After" : {
+
+    },
+    "Alert" : {
+
+    },
+    "All reminders within the next %@ days are scheduled." : {
+
+    },
+    "All-day" : {
+
+    },
+    "ALL-DAY" : {
+
+    },
+    "Appears as a section in the menu-bar popover with a match count and a short preview." : {
+
+    },
+    "Applies to %@ task%@. A %@ tag per task is silently skipped by the optimizer." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Applies to %1$@ task%2$@. A %3$@ tag per task is silently skipped by the optimizer."
+          }
+        }
+      }
+    },
+    "At time of event" : {
+
+    },
+    "Base colour scheme" : {
+
+    },
+    "Birthday" : {
+
+    },
+    "Calendar" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Add Event"
+            "value" : "Calendar"
           }
         }
       }
+    },
+    "Calendar view modes" : {
+
+    },
+    "Capture a task from any app. The Hot Cross Buns quick-add sheet opens immediately, pre-focused." : {
+
+    },
+    "Choose the Hot Cross Buns palette used by cards, text, and app surfaces." : {
+
+    },
+    "Choose whether app chrome resolves as dark, light, or follows macOS." : {
+
+    },
+    "Clear day. Nothing scheduled." : {
+
+    },
+    "Click a shortcut and press the new key combo. Escape cancels. Modifier keys (⌘⇧⌥⌃) are required except for function keys and arrows." : {
+
+    },
+    "Cmd-click to toggle individual rows, shift-click to extend the selection." : {
+
+    },
+    "Command" : {
+
+    },
+    "Commands are available immediately." : {
+
+    },
+    "Compact" : {
+
+    },
+    "Completed (%@)" : {
+
+    },
+    "Connect Google and refresh before creating a task." : {
+
+    },
+    "Connect Google and refresh before creating an event." : {
+
+    },
+    "Connect Google in Settings before adding tasks." : {
+
+    },
+    "Connect your Google account in Settings to see your tasks here." : {
+
+    },
+    "Connect your Google account to see your calendars here." : {
+
+    },
+    "Connecting to Google…" : {
+
+    },
+    "Convert" : {
+
+    },
+    "Couldn't decode snapshot. Raw JSON below." : {
+
+    },
+    "Couldn't save" : {
+
+    },
+    "Create Event" : {
+
+    },
+    "Create one in Settings → Event templates." : {
+
+    },
+    "Create one in Settings → Task templates." : {
+
+    },
+    "Create Task" : {
+
+    },
+    "Currently %@" : {
+
+    },
+    "Custom" : {
+
+    },
+    "Custom font applies to all text rendered via the app's semantic text styles. Calls that use system design variants (monospaced digits, rounded, serif) keep the system font on purpose." : {
+
+    },
+    "Custom: %@" : {
+
+    },
+    "Custom…" : {
+
+    },
+    "Date" : {
+
+    },
+    "Deep link error" : {
+
+    },
+    "Delete" : {
+
+    },
+    "Deleting an event with other attendees may remove it from their calendars and send cancellations. Proceed carefully." : {
+
+    },
+    "Details: %@" : {
+
+    },
+    "Disabled" : {
+
+    },
+    "Disabling will rewrite the cache as plaintext on disk. The passphrase is required so a stolen laptop can't flip this off." : {
+
+    },
+    "Disconnect Google" : {
+
+    },
+    "Dismissed duplicate groups will reappear with the !! badge if the current content still matches." : {
+
+    },
+    "Drop here" : {
+
+    },
+    "Drop on a calendar to move:" : {
+
+    },
+    "Each tab can hide lists independently of the global Task Lists selection. Turn off \"Use custom filter\" to fall back to the global set." : {
+
+    },
+    "Encrypts the local JSON mirror + offline mutation queue with AES-256-GCM. Google remains the source of truth — re-signing-in always restores task and event data. Forgetting the passphrase means any unsynced offline mutations are lost; synced Google data is not." : {
+
+    },
+    "End Repeat" : {
+
+    },
+    "Ends" : {
+
+    },
+    "Esc cancels · 3s timeout" : {
+
+    },
+    "Event" : {
+
+    },
+    "Every" : {
+
+    },
+    "Every Day" : {
+
+    },
+    "Every Month" : {
+
+    },
+    "Every open task with a due date fires a single notification on this Mac at the chosen time, `N` days before. Per-task offsets are not stored anywhere — the rule is app-wide." : {
+
+    },
+    "Every open task with a due date fires a single notification on this Mac at the chosen time, N days before. Per-task offsets are not stored anywhere — the rule is app-wide." : {
+
+    },
+    "Every Week" : {
+
+    },
+    "Every Year" : {
+
+    },
+    "Existing: %@" : {
+
+    },
+    "Finish step 1 first — your task lists and calendars will appear here once Google is connected." : {
+
+    },
+    "First writable (default)" : {
+
+    },
+    "Forever" : {
+
+    },
+    "Generated %@" : {
+
+    },
+    "Google Maps key not configured — showing Apple Maps." : {
+
+    },
+    "Google rejected these writes with HTTP 412 — someone else edited the same item between the time you made your change and when HCB sent it. Choose whose version wins." : {
+
+    },
+    "Google Tasks doesn't support moving between lists natively. The task will be recreated in the new list and the old copy deleted. Its Google ID will change." : {
+
+    },
+    "Google Tasks stores dates only; reminder times must be set as calendar events." : {
+
+    },
+    "Group by" : {
+
+    },
+    "Groups" : {
+
+    },
+    "GUESTS (%@)" : {
+
+    },
+    "Hidden modes disappear from the Calendar view picker. At least one mode stays visible." : {
+
+    },
+    "Hot Cross Buns" : {
+
+    },
+    "Hot Cross Buns will schedule up to 64 pending reminders on this Mac for the soonest-upcoming due tasks and Calendar events. 64 is an Apple-imposed ceiling for local notifications per app — later items get scheduled automatically as earlier ones fire or complete." : {
+
+    },
+    "In Quick Create (events only), typing a hashtag you've bound below auto-applies the matching Google Calendar color. The hashtag is stripped from the title before it's sent to Google." : {
+
+    },
+    "Inheriting global Task Lists visibility." : {
+
+    },
+    "Instantiate from the command palette: \"Insert Event Template…\". Same variable set as task templates; dateAnchor resolves to YYYY-MM-DD, timeAnchor is literal HH:mm. Unknown variables stay visible so typos don't silently drop values." : {
+
+    },
+    "Instantiate from the command palette: \"Insert Task Template…\". Variables in {{…}} are expanded before the task is created; unknown variables are left visible so typos don't silently drop values." : {
+
+    },
+    "Jump to…" : {
+
+    },
+    "Last %@ user mutations. Useful for reconstructing \"when did I do that?\" after the undo window has closed." : {
+
+    },
+    "Last checked %@" : {
+
+    },
+    "Layout scale" : {
+
+    },
+    "Layout scale resizes UI chrome (sidebar, icons, padding). Text size, font, and color scheme are controlled independently. System dialogs (alerts, confirmation dialogs) follow macOS display settings and aren't affected." : {
+
+    },
+    "Leader" : {
+
+    },
+    "Leave empty for a one-off event. The \"RRULE:\" prefix is added automatically if missing." : {
+
+    },
+    "Leave empty to match every list." : {
+
+    },
+    "Leave empty to use the structured fields below." : {
+
+    },
+    "List" : {
+
+    },
+    "LIST" : {
+
+    },
+    "Loading calendars from Google…" : {
+
+    },
+    "Loading next month…" : {
+
+    },
+    "Loading previous month…" : {
+
+    },
+    "Loading your Google Tasks lists…" : {
+
+    },
+    "Looking up location…" : {
+
+    },
+    "macOS denied access to the Keychain. Unlock it (Applications → Utilities → Keychain Access → log in) then Reconnect Google." : {
+
+    },
+    "macOS rejected %@ reminder%@. Check System Settings → Notifications → Hot Cross Buns, or the app logs for the underlying error." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "macOS rejected %1$@ reminder%2$@. Check System Settings → Notifications → Hot Cross Buns, or the app logs for the underlying error."
+          }
+        }
+      }
+    },
+    "macOS writes a symbolicated report each time the app crashes. Use these to see the exact Swift stack." : {
+
+    },
+    "Manual only refreshes on request. Balanced refreshes on launch and foreground. Near real-time adds foreground polling every 90 seconds with backoff on rate-limits." : {
+
+    },
+    "Mapping" : {
+
+    },
+    "markdown" : {
+
+    },
+    "Matched by exact title and notes. Jump to a sibling to compare, delete this one, or dismiss if it's a false positive." : {
+
+    },
+    "Month scroll range" : {
+
+    },
+    "Month view opens with this many months loaded around the selected month. Scrolling to either boundary loads one more month." : {
+
+    },
+    "More reminders exist in the next %@ days than macOS allows the app to schedule at once. They will be scheduled as earlier ones fire or are cancelled." : {
+
+    },
+    "Move %@ task%@ to:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Move %1$@ task%2$@ to:"
+          }
+        }
+      }
+    },
+    "Never" : {
+
+    },
+    "New Event" : {
+
+    },
+    "New List" : {
+
+    },
+    "New Task List" : {
+
+    },
+    "Next 7 days" : {
+
+    },
+    "No {{prompt:Label}} placeholders — the template instantiates without asking for input." : {
+
+    },
+    "No bindings start with this prefix." : {
+
+    },
+    "No calendars loaded yet. Leave empty to fall back to the first writable calendar at instantiation." : {
+
+    },
+    "No custom filters yet. Save a combination of due-window, list, star, and tag criteria — or a full DSL query — as a reusable sidebar entry." : {
+
+    },
+    "No event templates yet. Create one to pre-fill title, time, location, attendees, and recurrence using variables like {{today}}, {{nextWeekday:mon}}, {{prompt:Topic}}." : {
+
+    },
+    "No events or tasks" : {
+
+    },
+    "No fonts match" : {
+
+    },
+    "No lists or calendars yet. Tap Refresh above, or create a list in Google Tasks and try again." : {
+
+    },
+    "No log entries at this level yet." : {
+
+    },
+    "No matches" : {
+
+    },
+    "No snapshot was recorded for this action. Reconstruct manually from the fields above, or from the Google Tasks / Calendar web UI." : {
+
+    },
+    "No tags present in the selection." : {
+
+    },
+    "No task lists loaded yet." : {
+
+    },
+    "No templates yet. Create one to pre-fill title, notes, due, and list using variables like {{today}}, {{+7d}}, {{nextWeekday:mon}}, {{prompt:Owner}}, or {{clipboard}}." : {
+
+    },
+    "None" : {
+
+    },
+    "Notes include location: %@" : {
+
+    },
+    "Notes: %@" : {
+
+    },
+    "Nothing currently matches the rules — enabling this won't delete anything today, but future items will be cleaned up as they age past the threshold." : {
+
+    },
+    "Nothing matches \"%@\"" : {
+
+    },
+    "Nothing scheduled for this day." : {
+
+    },
+    "Nothing scheduled in the next %@ days." : {
+
+    },
+    "Off by default to avoid accidental emails. Turn on only when you want guests to get a notification for this change." : {
+
+    },
+    "Off: the popover starts compact and hides optional fields behind \"More\". On: the popover opens detailed — matches Apple Calendar's inline expansion." : {
+
+    },
+    "Older events are dropped from the local cache to keep memory + disk tight. Drops never touch Google — a Force Resync refetches everything." : {
+
+    },
+    "Older events are dropped from the local cache to keep memory + disk tight. Drops never touch Google — a Force Resync refetches everything. Recently-edited events (within the window) are preserved even if they ended earlier. Past-event cleanup on Google is a separate setting under \"Past cleanup\"." : {
+
+    },
+    "On Date" : {
+
+    },
+    "Opening Google Sign-In…" : {
+
+    },
+    "Options" : {
+
+    },
+    "Override the global font + size for specific surfaces. Settings persist locally and never touch Google data. Unset surfaces inherit the global Appearance values above." : {
+
+    },
+    "Pick a task from the list to view and edit its details." : {
+
+    },
+    "Pick at least one calendar in Settings → Calendars to see events here." : {
+
+    },
+    "Pinned filters" : {
+
+    },
+    "Press keys…" : {
+
+    },
+    "Prompts at instantiation: %@" : {
+
+    },
+    "Queued %@ · resource %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Queued %1$@ · resource %2$@"
+          }
+        }
+      }
+    },
+    "Quick create popover" : {
+
+    },
+    "Refresh" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh"
+          }
+        }
+      }
+    },
+    "Refresh after connecting Google to load calendars." : {
+
+    },
+    "Refresh after connecting Google to load task lists." : {
+
+    },
+    "Refresh to load your task lists." : {
+
+    },
+    "Removes these events from Google Calendar without sending guest updates. Recurring events are deleted as single occurrences." : {
+
+    },
+    "Removes these tasks from Google Tasks. Subtasks of deleted tasks are deleted too. This can't be undone from here." : {
+
+    },
+    "Repeat" : {
+
+    },
+    "Repeats yearly. Saved as an all-day event on the selected calendar." : {
+
+    },
+    "Retry" : {
+
+    },
+    "Return to add, Esc to cancel" : {
+
+    },
+    "Saved %@" : {
+
+    },
+    "Saves this event's summary, duration, reminders, attendees, and color as a reusable blueprint in Settings." : {
+
+    },
+    "Scroll down to load next month" : {
+
+    },
+    "Scroll up to load previous month" : {
+
+    },
+    "Search hotkeys" : {
+
+    },
+    "Searching tasks, events, and notes…" : {
+
+    },
+    "Select a task" : {
+
+    },
+    "Settings always stays visible so you can re-enable hidden tabs. Keyboard shortcuts for a hidden tab are ignored until it's re-enabled." : {
+
+    },
+    "Showing %@ hotkeys." : {
+
+    },
+    "Showing first 200 — refine the search" : {
+
+    },
+    "Showing first 200 fonts — use Appearance search above to browse all" : {
+
+    },
+    "Sidebar tabs" : {
+
+    },
+    "Sign in once to grant access. Hot Cross Buns asks for Google Tasks + Calendar only — no Gmail, Drive, or contacts." : {
+
+    },
+    "Sign in to see undated tasks here." : {
+
+    },
+    "Signed in with Tasks + Calendar scopes." : {
+
+    },
+    "Size" : {
+
+    },
+    "Skipping %@ attendee-event%@ (attendee deletion off)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Skipping %1$@ attendee-event%2$@ (attendee deletion off)."
+          }
+        }
+      }
+    },
+    "Skipping %@ recurring series master%@ — series stay alive." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Skipping %1$@ recurring series master%2$@ — series stay alive."
+          }
+        }
+      }
+    },
+    "Starts" : {
+
+    },
+    "Store" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Store"
+          }
+        }
+      }
+    },
+    "Structured fields are disabled while the query field is non-empty." : {
+
+    },
+    "Summary: %@" : {
+
+    },
+    "Task" : {
+
+    },
+    "Task list" : {
+
+    },
+    "Task reminders fire at 9:00 AM on the due date. Timed events fire 15 minutes before start." : {
+
+    },
+    "Tasks" : {
+
+    },
+    "Tasks without a due date show up here. Use the + button to capture a quick thought." : {
+
+    },
+    "Text size" : {
+
+    },
+    "That doesn't look like a valid email address." : {
+
+    },
+    "The item you're converting may have been deleted on Google." : {
+
+    },
+    "The onboarding flow has been reset. Switch back to the main Hot Cross Buns window to go through setup again." : {
+
+    },
+    "Themes" : {
+
+    },
+    "These writes exceeded the automatic retry ceiling (%@ attempts). They stay on this Mac until you retry or discard." : {
+
+    },
+    "This deletes \"%@\" and all tasks in it from Google Tasks." : {
+
+    },
+    "This deletes the event from Google Calendar. It cannot be undone." : {
+
+    },
+    "This deletes the task from Google Tasks." : {
+
+    },
+    "This deletes the task from Google Tasks. It cannot be undone." : {
+
+    },
+    "This erases the local audit log. It does not touch Google — your tasks and events are unaffected." : {
+
+    },
+    "This event is part of a recurring series. \"Every event in the series\" deletes past occurrences too — not just upcoming. No guest updates are sent." : {
+
+    },
+    "This event is part of a recurring series. \"Every event in the series\" updates past occurrences too — not just upcoming. No guest updates are sent." : {
+
+    },
+    "This event may have been deleted in Google Calendar." : {
+
+    },
+    "This task may have been deleted in Google Tasks." : {
+
+    },
+    "This will be created as a task — with a due date it'll show up in the Tasks tab, not Notes." : {
+
+    },
+    "This will delete on Google:" : {
+
+    },
+    "Title: %@" : {
+
+    },
+    "Today" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today"
+          }
+        }
+      }
+    },
+    "Tokens stay in your Mac Keychain. Disconnecting in Settings wipes local state." : {
+
+    },
+    "Travel Time and attachments sync through google.com but aren't exposed through the Google Calendar API — add them from the web UI after creating." : {
+
+    },
+    "Try a bare word, or `kind:note`, `tag:deep`, `/regex/`." : {
+
+    },
+    "Try a more specific address." : {
+
+    },
+    "UI font" : {
+
+    },
+    "Uncheck to hide a category from the history window. Sync events are off by default because every successful refresh emits one entry." : {
+
+    },
+    "Updated %@" : {
+
+    },
+    "Use the toolbar to complete, move, or delete them in bulk." : {
+
+    },
+    "Valid · %@ task%@ match now" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Valid · %1$@ task%2$@ match now"
+          }
+        }
+      }
+    },
+    "Visibility rules are local. Deletion modes issue Google API deletes — events go to Google Calendar's 30-day web trash, tasks are tombstoned and not user-recoverable." : {
+
+    },
+    "We haven't seen any calendars yet. Try Refresh, or check Settings → Calendars." : {
+
+    },
+    "We haven't seen any task lists. Hit Refresh, or create one from the toolbar." : {
+
+    },
+    "Welcome to Hot Cross Buns" : {
+
+    },
+    "When the query field is non-empty, the fields below are ignored. Invalid queries match nothing — your tasks aren't modified." : {
+
+    },
+    "Will ask for: %@" : {
+
+    },
+    "Will be lost on Google" : {
+
+    },
+    "You can change all of this later in Settings." : {
+
+    },
+    "You can connect Google later from Settings — we'll just show empty states until you do." : {
+
     }
   },
   "version" : "1.0"
