@@ -22,7 +22,7 @@ struct KeybindingsSection: View {
                 if let conflictMessage {
                     Label(conflictMessage, systemImage: "exclamationmark.triangle")
                         .hcbFont(.footnote)
-                        .foregroundStyle(AppColor.ember)
+                        .foregroundStyle(.red)
                 }
                 footer
             }
@@ -30,10 +30,10 @@ struct KeybindingsSection: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .hcbScaledPadding(18)
-        .background(AppColor.cardSurface, in: RoundedRectangle(cornerRadius: 12))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
         .overlay {
             RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(AppColor.cardStroke.opacity(0.8), lineWidth: 1)
+                .strokeBorder(.separator.opacity(0.8), lineWidth: 1)
         }
     }
 
@@ -76,7 +76,7 @@ struct KeybindingsSection: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Search hotkeys")
                     .hcbFont(.title3, weight: .semibold)
-                    .foregroundStyle(AppColor.ink)
+                    .foregroundStyle(.primary)
                 Text("Showing \(filteredCommands.count) hotkeys.")
                     .hcbFont(.footnote)
                     .foregroundStyle(.secondary)
@@ -101,7 +101,7 @@ struct KeybindingsSection: View {
         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
         .overlay {
             RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(AppColor.blue.opacity(query.isEmpty ? 0.35 : 0.9), lineWidth: 1)
+                .strokeBorder(Color.accentColor.opacity(query.isEmpty ? 0.35 : 0.9), lineWidth: 1)
         }
         .frame(width: 260)
     }
@@ -118,7 +118,7 @@ struct KeybindingsSection: View {
         .background(.quaternary.opacity(0.16), in: RoundedRectangle(cornerRadius: 10))
         .overlay {
             RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(AppColor.cardStroke.opacity(0.65), lineWidth: 1)
+                .strokeBorder(.separator.opacity(0.65), lineWidth: 1)
         }
     }
 
@@ -132,13 +132,13 @@ struct KeybindingsSection: View {
                 Spacer(minLength: 0)
                 Text("\(count(for: title))")
                     .hcbFont(.caption)
-                    .foregroundStyle(isSelected ? AppColor.ink : .secondary)
+                    .foregroundStyle(isSelected ? .primary : .secondary)
             }
             .hcbFont(.body, weight: isSelected ? .semibold : .regular)
-            .foregroundStyle(isSelected ? AppColor.ink : .primary)
+            .foregroundStyle(.primary)
             .hcbScaledPadding(.horizontal, 10)
             .hcbScaledPadding(.vertical, 8)
-            .background(isSelected ? AppColor.blue.opacity(0.22) : Color.clear, in: RoundedRectangle(cornerRadius: 8))
+            .background(isSelected ? Color.accentColor.opacity(0.18) : Color.clear, in: RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
     }
@@ -148,7 +148,7 @@ struct KeybindingsSection: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(command.title)
-                    .foregroundStyle(AppColor.ink)
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
                 if selectedGroup == nil {
                     Text(command.group.title)
@@ -178,11 +178,11 @@ struct KeybindingsSection: View {
                 .frame(width: 110, height: 26)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(AppColor.ember.opacity(0.18))
+                        .fill(Color.accentColor.opacity(0.18))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(AppColor.ember, lineWidth: 1)
+                        .strokeBorder(Color.accentColor, lineWidth: 1)
                 )
                 Text("Press keys…")
                     .hcbFont(.caption)
@@ -202,7 +202,7 @@ struct KeybindingsSection: View {
                     Text(effective.displayLabel.isEmpty ? "Blank" : effective.displayLabel)
                         .hcbFont(.body, weight: .medium)
                         .monospaced()
-                        .foregroundStyle(isCustom ? AppColor.ember : AppColor.ink)
+                        .foregroundStyle(isCustom ? Color.accentColor : .primary)
                         .frame(minWidth: 74, alignment: .center)
                         .hcbScaledPadding(.horizontal, 8)
                         .hcbScaledPadding(.vertical, 5)
