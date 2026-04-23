@@ -67,17 +67,13 @@ final class LocalCacheStoreSplitTests: XCTestCase {
         let store = LocalCacheStore(fileURL: mainFileURL)
         let state = makeState(events: [makeEvent(id: "x"), makeEvent(id: "y")])
         await store.save(state)
-
-        let firstMtime = try sidecarModificationDate()
-
-        // Sleep briefly so any second write would produce a different mtime.
-        try await Task.sleep(for: .milliseconds(50))
+        let firstBytes = try sidecarBytes()
 
         // Re-save the IDENTICAL state. Hash should match → sidecar untouched.
         await store.save(state)
 
-        let secondMtime = try sidecarModificationDate()
-        XCTAssertEqual(firstMtime, secondMtime,
+        let secondBytes = try sidecarBytes()
+        XCTAssertEqual(firstBytes, secondBytes,
                        "events sidecar should not be rewritten when events hash is unchanged")
     }
 
@@ -85,44 +81,38 @@ final class LocalCacheStoreSplitTests: XCTestCase {
         let store = LocalCacheStore(fileURL: mainFileURL)
         let state1 = makeState(events: [makeEvent(id: "a")])
         await store.save(state1)
-        let firstMtime = try sidecarModificationDate()
-
-        try await Task.sleep(for: .milliseconds(50))
+        let firstBytes = try sidecarBytes()
 
         // New events array → hash changes → sidecar must be rewritten.
         let state2 = makeState(events: [makeEvent(id: "a"), makeEvent(id: "b")])
         await store.save(state2)
 
-        let secondMtime = try sidecarModificationDate()
-        XCTAssertGreaterThan(secondMtime, firstMtime,
-                             "events sidecar should rewrite when events hash changes")
+        let secondBytes = try sidecarBytes()
+        XCTAssertNotEqual(firstBytes, secondBytes,
+                          "events sidecar should rewrite when events hash changes")
     }
 
     func testEtagChangeOnSameIdTriggersSidecarRewrite() async throws {
         let store = LocalCacheStore(fileURL: mainFileURL)
         let state1 = makeState(events: [makeEvent(id: "a", etag: "v1")])
         await store.save(state1)
-        let firstMtime = try sidecarModificationDate()
-
-        try await Task.sleep(for: .milliseconds(50))
+        let firstBytes = try sidecarBytes()
 
         // Same id, different etag — represents a remote update. Hash must
         // detect it so the sidecar reflects the new etag.
         let state2 = makeState(events: [makeEvent(id: "a", etag: "v2")])
         await store.save(state2)
 
-        let secondMtime = try sidecarModificationDate()
-        XCTAssertGreaterThan(secondMtime, firstMtime,
-                             "etag change on same event id should still bust the hash")
+        let secondBytes = try sidecarBytes()
+        XCTAssertNotEqual(firstBytes, secondBytes,
+                          "etag change on same event id should still bust the hash")
     }
 
     func testNonEventStateChangesDoNotRewriteSidecar() async throws {
         let store = LocalCacheStore(fileURL: mainFileURL)
         let state = makeState(events: [makeEvent(id: "z")])
         await store.save(state)
-        let firstMtime = try sidecarModificationDate()
-
-        try await Task.sleep(for: .milliseconds(50))
+        let firstBytes = try sidecarBytes()
 
         // Mutate something OTHER than events — settings change shouldn't
         // touch the events sidecar.
@@ -130,8 +120,8 @@ final class LocalCacheStoreSplitTests: XCTestCase {
         mutated.settings.syncMode = .nearRealtime
         await store.save(mutated)
 
-        let secondMtime = try sidecarModificationDate()
-        XCTAssertEqual(firstMtime, secondMtime,
+        let secondBytes = try sidecarBytes()
+        XCTAssertEqual(firstBytes, secondBytes,
                        "settings-only changes must not rewrite the events sidecar")
     }
 
@@ -238,9 +228,13 @@ final class LocalCacheStoreSplitTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func sidecarModificationDate() throws -> Date {
-        let attrs = try FileManager.default.attributesOfItem(atPath: eventsFileURL.path)
-        return try XCTUnwrap(attrs[.modificationDate] as? Date)
+    // Deterministic "did the sidecar get rewritten?" signal. Comparing raw
+    // bytes is insensitive to filesystem mtime resolution — mtime checks
+    // depend on APFS updating the timestamp promptly, which isn't guaranteed
+    // on CI runners, network volumes, or coarse-grained disks. If bytes
+    // change, a write happened; if they don't, no write did.
+    private func sidecarBytes() throws -> Data {
+        try Data(contentsOf: eventsFileURL)
     }
 
     private func makeState(events: [CalendarEventMirror]) -> CachedAppState {

@@ -85,7 +85,7 @@ final class HCBChordTests: XCTestCase {
         XCTAssertEqual(t?.label, "New Task")
     }
 
-    func testHudHintsMultipleBindingsShowEllipsis() {
+    func testHudHintsMultipleBindingsShowEllipsis() throws {
         let deep: [HCBChordBinding] = [
             HCBChordBinding(sequence: ["g", "s"], command: .goToStore, hint: "Go to Store"),
             HCBChordBinding(sequence: ["g", "c"], command: .goToCalendar, hint: "Go to Calendar"),
@@ -93,7 +93,8 @@ final class HCBChordTests: XCTestCase {
         ]
         // At top level, "g" surfaces 3 underlying bindings → ellipsis label.
         let hints = HCBChordMatcher.hudHints(current: [], in: deep)
-        XCTAssertEqual(hints.first?.key, "g")
-        XCTAssertTrue(hints.first!.label.contains("actions"))
+        let first = try XCTUnwrap(hints.first, "no hints surfaced for top-level chord prefix")
+        XCTAssertEqual(first.key, "g")
+        XCTAssertTrue(first.label.contains("actions"))
     }
 }
