@@ -203,7 +203,7 @@ enum GoogleAuthError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .notConfigured:
-            "Google sign-in isn't configured yet. See the README for how to add your OAuth client ID."
+            "This build of Hot Cross Buns isn't configured for Google sign-in. Install an official release or contact the developer for a configured build."
         case .noPresentationAnchor:
             "Couldn't find a window to open the Google sign-in sheet. Focus Hot Cross Buns and try again."
         case .noCurrentUser:
