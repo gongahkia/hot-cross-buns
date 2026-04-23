@@ -208,6 +208,10 @@ struct QuickCreatePopover: View {
         model.settings.quickCreateExpandedByDefault || showOptionalFields
     }
 
+    private var nativeControlFill: Color {
+        Color(nsColor: .controlBackgroundColor).opacity(0.72)
+    }
+
     // MARK: - Top bar (Event | Task toggle)
 
     private var topBar: some View {
@@ -323,13 +327,13 @@ struct QuickCreatePopover: View {
                     .hcbFont(.body)
             }
             .toggleStyle(.button)
-            .tint(AppColor.ember)
+            .tint(Color.accentColor)
             .help(addGoogleMeet ? "Google Meet link will be created" : "Add Google Meet")
         }
         .hcbScaledPadding(10)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(AppColor.cream.opacity(0.35))
+                .fill(nativeControlFill)
         )
     }
 
@@ -366,7 +370,7 @@ struct QuickCreatePopover: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(AppColor.cream.opacity(0.35))
+                .fill(nativeControlFill)
         )
     }
 
@@ -398,7 +402,7 @@ struct QuickCreatePopover: View {
         VStack(alignment: .leading, spacing: 8) {
             Toggle("All Day", isOn: $isAllDay)
                 .toggleStyle(.switch)
-                .tint(AppColor.ember)
+                .tint(Color.accentColor)
             HStack {
                 Text("Starts")
                     .hcbFont(.subheadline)
@@ -516,7 +520,7 @@ struct QuickCreatePopover: View {
         .hcbScaledPadding(10)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(AppColor.cream.opacity(0.35))
+                .fill(nativeControlFill)
         )
     }
 
@@ -586,7 +590,7 @@ struct QuickCreatePopover: View {
                     Toggle("", isOn: $hasDueDate)
                         .labelsHidden()
                         .toggleStyle(.switch)
-                        .tint(AppColor.ember)
+                        .tint(Color.accentColor)
                 }
                 .hcbScaledPadding(10)
                 .contentShape(Rectangle())
@@ -606,7 +610,7 @@ struct QuickCreatePopover: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(AppColor.cream.opacity(0.35))
+                .fill(nativeControlFill)
         )
     }
 
@@ -643,7 +647,7 @@ struct QuickCreatePopover: View {
         .hcbScaledPadding(10)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(AppColor.cream.opacity(0.35))
+                .fill(nativeControlFill)
         )
     }
 
@@ -672,7 +676,7 @@ struct QuickCreatePopover: View {
         .hcbScaledPadding(10)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(AppColor.cream.opacity(0.35))
+                .fill(nativeControlFill)
         )
         Text("Repeats yearly. Saved as an all-day event on the selected calendar.")
             .hcbFont(.caption2)
@@ -728,7 +732,7 @@ struct QuickCreatePopover: View {
                     .keyboardShortcut(.cancelAction)
                 Button(primaryActionLabel) { Task { await save() } }
                     .buttonStyle(.borderedProminent)
-                    .tint(AppColor.ember)
+                    .tint(Color.accentColor)
                     .keyboardShortcut(.defaultAction)
                     .disabled(canCreate == false)
             }
@@ -906,4 +910,3 @@ struct QuickCreatePopover: View {
         }
     }
 }
-
