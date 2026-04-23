@@ -632,13 +632,6 @@ kbd {
 }
 .download-meta .sep { color: var(--overlay); }
 .download-meta .sha { font-family: "Geist Mono", monospace; }
-.download-note {
-  margin: 0;
-  max-width: 560px;
-  color: var(--subtext0);
-  font-size: .92rem;
-  line-height: 1.6;
-}
 
 .brew { margin-top: 36px; }
 .brew summary {
@@ -665,6 +658,119 @@ kbd {
   font-size: .9rem;
   display: inline-block;
   border: 1px solid color-mix(in srgb, var(--surface0) 60%, transparent);
+}
+.brew-terminal .brew-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.brew-terminal p {
+  text-align: center;
+}
+.brew-terminal pre {
+  width: min(100%, 980px);
+  display: block;
+  margin: 18px auto 0;
+  text-align: center;
+  overflow-x: auto;
+}
+.brew-terminal code {
+  white-space: nowrap;
+}
+
+.download-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.download-modal[hidden] {
+  display: none;
+}
+.download-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(17, 17, 27, .6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.download-modal-card {
+  position: relative;
+  width: min(100%, 560px);
+  padding: 28px 28px 24px;
+  border-radius: 22px;
+  border: 1px solid color-mix(in srgb, var(--surface0) 70%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--mantle) 96%, transparent),
+    color-mix(in srgb, var(--base) 98%, transparent)
+  );
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+.download-modal-card .eyebrow {
+  display: block;
+  margin-bottom: 12px;
+}
+.download-modal-card h3 {
+  font-family: "Fraunces", serif;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  line-height: 1.08;
+  font-weight: 400;
+}
+.download-modal-copy {
+  margin-top: 14px;
+  color: var(--subtext1);
+  line-height: 1.6;
+}
+.download-modal-list {
+  margin: 18px 0 0;
+  padding-left: 20px;
+  color: var(--subtext1);
+}
+.download-modal-list li + li {
+  margin-top: 10px;
+}
+.download-modal-footnote {
+  margin-top: 18px;
+  color: var(--subtext0);
+  font-family: "Geist", sans-serif;
+  font-size: .88rem;
+}
+.download-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  margin-top: 24px;
+}
+.download-modal-cancel {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.download-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--subtext0);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.download-modal-close:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface0) 24%, transparent);
+}
+body.modal-open {
+  overflow: hidden;
 }
 
 /* footer */
@@ -825,6 +931,22 @@ kbd {
   .update-entry { grid-template-columns: 1fr; gap: 10px; }
 
   .download-inner { padding: 0 4px; }
+  .download-modal-card {
+    padding: 24px 20px 20px;
+  }
+  .download-modal-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+  .download-modal-actions .cta-primary,
+  .download-modal-actions .cta-secondary {
+    justify-content: center;
+    text-align: center;
+  }
+  .brew-terminal code {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
 
   /* footer */
   .foot { padding: 36px 18px 44px; }

@@ -188,36 +188,72 @@
   <a class="repo-link" href="https://github.com/gongahkia/hot-cross-buns" target="_blank" rel="noopener">See the repository →</a>
 </section>
 
-<section id="download" class="download">
-  <div class="download-inner">
-    <p class="eyebrow">Ready when you are</p>
-    <h2>Get Hot Cross Buns.</h2>
-    <p class="lede">Free. macOS 14 Sonoma and up. Unsigned preview DMGs are available on GitHub Releases.</p>
+	<section id="download" class="download">
+	  <div class="download-inner">
+	    <p class="eyebrow">Ready when you are</p>
+	    <h2>Get Hot Cross Buns.</h2>
+	    <p class="lede">Free. macOS 14 Sonoma and up.</p>
 
-    <div class="download-cta">
-      <a class="cta-primary big" href="https://github.com/gongahkia/hot-cross-buns/releases/latest/download/HotCrossBuns-macOS.dmg">Download Preview</a>
-      <p class="download-meta">
-        <span>Latest GitHub release asset</span>
-        <span class="sep">·</span>
-        <span class="sha">Unsigned preview build</span>
-      </p>
-      <p class="download-note">If macOS blocks the first launch, open Hot Cross Buns once, then go to System Settings &gt; Privacy &amp; Security and click Open Anyway. You should only need to do this once per Mac.</p>
-    </div>
+	    <div class="download-cta">
+	      <button
+	        class="cta-primary big"
+	        type="button"
+	        data-download-trigger
+	        data-download-url="https://github.com/gongahkia/hot-cross-buns/releases/latest/download/HotCrossBuns-macOS.dmg"
+	      >
+	        Download DMG
+	      </button>
+	      <p class="download-meta">
+	        <span>Latest GitHub release asset</span>
+	      </p>
+	    </div>
 
-    <details class="brew">
-      <summary>First launch on macOS</summary>
-      <p>Preview DMGs are unsigned for now. Move the app to Applications, try to open it once, then use System Settings &gt; Privacy &amp; Security &gt; Open Anyway if macOS blocks it.</p>
-    </details>
+	    <details class="brew brew-terminal">
+	      <summary>Prefer Terminal?</summary>
+	      <div class="brew-panel">
+	        <p>This one-liner downloads the latest GitHub release DMG and installs Hot Cross Buns into Applications or your home Applications folder.</p>
+	        <pre><code>curl -fsSL https://gongahkia.github.io/hot-cross-buns/install-macos-preview.sh | bash</code></pre>
+	      </div>
+	    </details>
+	  </div>
+	</section>
 
-    <details class="brew">
-      <summary>Prefer Terminal?</summary>
-      <p>This one-liner downloads the latest GitHub release DMG and installs Hot Cross Buns into Applications or your home Applications folder.</p>
-      <pre><code>curl -fsSL https://gongahkia.github.io/hot-cross-buns/install-macos-preview.sh | bash</code></pre>
-    </details>
-  </div>
-</section>
+	<div id="download-modal" class="download-modal" hidden aria-hidden="true">
+	  <div class="download-modal-backdrop" data-modal-close></div>
+	  <div
+	    class="download-modal-card"
+	    role="dialog"
+	    aria-modal="true"
+	    aria-labelledby="download-modal-title"
+	    aria-describedby="download-modal-copy"
+	  >
+	    <button class="download-modal-close" type="button" aria-label="Close" data-modal-close>×</button>
+	    <p class="eyebrow">First launch on macOS</p>
+	    <h3 id="download-modal-title">One quick thing before you download.</h3>
+	    <p id="download-modal-copy" class="download-modal-copy">
+	      Preview DMGs are unsigned for now, so macOS may ask you to approve Hot Cross Buns once before it opens normally.
+	    </p>
+	    <ul class="download-modal-list">
+	      <li>Move Hot Cross Buns into your Applications folder after opening the DMG.</li>
+	      <li>Try opening the app once.</li>
+	      <li>If macOS blocks it, go to System Settings &gt; Privacy &amp; Security and click Open Anyway.</li>
+	      <li>You should only need to do this once per Mac.</li>
+	    </ul>
+	    <p class="download-modal-footnote">You&apos;ll continue to the latest GitHub release asset.</p>
+	    <div class="download-modal-actions">
+	      <button class="cta-secondary download-modal-cancel" type="button" data-modal-close>Not now</button>
+	      <a
+	        id="download-modal-continue"
+	        class="cta-primary"
+	        href="https://github.com/gongahkia/hot-cross-buns/releases/latest/download/HotCrossBuns-macOS.dmg"
+	      >
+	        Continue to GitHub
+	      </a>
+	    </div>
+	  </div>
+	</div>
 
-<section id="updates" class="updates">
+	<section id="updates" class="updates">
   <div class="updates-head">
     <p class="eyebrow">Changelog</p>
     <h2>What shipped in <em>v1.0.0</em>.</h2>

@@ -19,3 +19,54 @@
     root.setAttribute("data-theme", e.matches ? "mocha" : "latte");
   });
 })();
+
+(() => {
+  const modal = document.getElementById("download-modal");
+  const continueLink = document.getElementById("download-modal-continue");
+  const triggers = document.querySelectorAll("[data-download-trigger]");
+  const closers = document.querySelectorAll("[data-modal-close]");
+  let lastFocusedElement = null;
+
+  if (!modal || !continueLink || triggers.length === 0) return;
+
+  const openModal = (downloadURL) => {
+    lastFocusedElement = document.activeElement;
+    continueLink.href = downloadURL;
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("modal-open");
+    window.requestAnimationFrame(() => continueLink.focus());
+  };
+
+  const closeModal = () => {
+    modal.hidden = true;
+    modal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("modal-open");
+    if (lastFocusedElement instanceof HTMLElement) {
+      lastFocusedElement.focus();
+    }
+  };
+
+  triggers.forEach((trigger) => {
+    trigger.addEventListener("click", (event) => {
+      event.preventDefault();
+      const downloadURL = trigger.getAttribute("data-download-url");
+      if (!downloadURL) return;
+      openModal(downloadURL);
+    });
+  });
+
+  closers.forEach((closer) => {
+    closer.addEventListener("click", closeModal);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && modal.hidden === false) {
+      closeModal();
+    }
+  });
+
+  continueLink.addEventListener("click", () => {
+    closeModal();
+  });
+})();
