@@ -173,9 +173,14 @@ private struct TaskTemplateEditor: View {
             }
             .navigationTitle("Task Template")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: onCancel) }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                        .keyboardShortcut(.cancelAction)
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { onSave(draft) }
+                        .keyboardShortcut(.defaultAction)
+                        .buttonStyle(.borderedProminent)
                         .disabled(draft.name.trimmingCharacters(in: .whitespaces).isEmpty
                             || draft.title.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
@@ -299,9 +304,14 @@ private struct EventTemplateEditor: View {
             }
             .navigationTitle("Event Template")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: onCancel) }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                        .keyboardShortcut(.cancelAction)
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { onSave(draft) }
+                        .keyboardShortcut(.defaultAction)
+                        .buttonStyle(.borderedProminent)
                         .disabled(draft.name.trimmingCharacters(in: .whitespaces).isEmpty
                             || draft.summary.trimmingCharacters(in: .whitespaces).isEmpty)
                 }

@@ -504,12 +504,15 @@ private struct BulkMoveSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .keyboardShortcut(.cancelAction)
                         .disabled(isMutating)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Move") {
                         Task { await perform() }
                     }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
                     .disabled(destinationListID == nil || isMutating || taskIDs.isEmpty)
                 }
             }
@@ -556,12 +559,15 @@ private struct SnoozePickerSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .keyboardShortcut(.cancelAction)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Snooze") {
                         onSelect(Calendar.current.startOfDay(for: pickedDate))
                         dismiss()
                     }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
                 }
             }
         }
@@ -627,9 +633,12 @@ struct ListRenameSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onCancel)
+                        .keyboardShortcut(.cancelAction)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save", action: onSave)
+                        .keyboardShortcut(.defaultAction)
+                        .buttonStyle(.borderedProminent)
                         .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
