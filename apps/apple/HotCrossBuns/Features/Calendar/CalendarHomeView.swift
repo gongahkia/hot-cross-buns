@@ -163,18 +163,20 @@ struct CalendarHomeView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Next \(mode.title.lowercased())")
 
-            Button {
-                isGoToDateShown.toggle()
-            } label: {
-                Text(periodTitle)
-                    .hcbFont(.title3, weight: .semibold)
-                    .foregroundStyle(AppColor.ink)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Jump to date")
-            .popover(isPresented: $isGoToDateShown, arrowEdge: .bottom) {
-                GoToDateSheet(initialDate: selectedDate) { newDate in
-                    selectedDate = newDate
+            if mode != .month {
+                Button {
+                    isGoToDateShown.toggle()
+                } label: {
+                    Text(periodTitle)
+                        .hcbFont(.title3, weight: .semibold)
+                        .foregroundStyle(AppColor.ink)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Jump to date")
+                .popover(isPresented: $isGoToDateShown, arrowEdge: .bottom) {
+                    GoToDateSheet(initialDate: selectedDate) { newDate in
+                        selectedDate = newDate
+                    }
                 }
             }
 
