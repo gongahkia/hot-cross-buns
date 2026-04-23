@@ -1,6 +1,21 @@
 import Foundation
 import UserNotifications
 
+protocol UserNotificationCentering: AnyObject {
+    func authorizationStatus() async -> UNAuthorizationStatus
+    func pendingNotificationRequests() async -> [UNNotificationRequest]
+    func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool
+    func add(_ request: UNNotificationRequest) async throws
+    func removePendingNotificationRequests(withIdentifiers identifiers: [String])
+    func removeDeliveredNotifications(withIdentifiers identifiers: [String])
+}
+
+extension UNUserNotificationCenter: UserNotificationCentering {
+    func authorizationStatus() async -> UNAuthorizationStatus {
+        await notificationSettings().authorizationStatus
+    }
+}
+
 // macOS / iOS cap at 64 pending UNNotificationRequest slots per app.
 // Previously we took the 64 nearest-sortDate items from *every*
 // task/event the user owned — a year-out event would never schedule if
@@ -32,10 +47,10 @@ actor LocalNotificationScheduler {
     private static let notificationPrefix = "hot-cross-buns."
     private static let schedulingWindowDays = 30
     private static let pendingRequestLimit = 64
-    private let notificationCenter: UNUserNotificationCenter
+    private let notificationCenter: UserNotificationCentering
     private(set) var lastSummary: NotificationScheduleSummary?
 
-    init(notificationCenter: UNUserNotificationCenter = .current()) {
+    init(notificationCenter: UserNotificationCentering = UNUserNotificationCenter.current()) {
         self.notificationCenter = notificationCenter
     }
 
@@ -122,9 +137,9 @@ actor LocalNotificationScheduler {
     }
 
     private func hasAuthorization(requestAuthorization: Bool) async -> Bool {
-        let settings = await notificationSettings()
+        let authorizationStatus = await notificationCenter.authorizationStatus()
 
-        switch settings.authorizationStatus {
+        switch authorizationStatus {
         case .authorized, .provisional, .ephemeral:
             return true
         case .notDetermined where requestAuthorization:
@@ -227,10 +242,6 @@ actor LocalNotificationScheduler {
 
         notificationCenter.removePendingNotificationRequests(withIdentifiers: identifiers)
         notificationCenter.removeDeliveredNotifications(withIdentifiers: identifiers)
-    }
-
-    private func notificationSettings() async -> UNNotificationSettings {
-        await notificationCenter.notificationSettings()
     }
 
     private func pendingNotificationRequests() async -> [UNNotificationRequest] {

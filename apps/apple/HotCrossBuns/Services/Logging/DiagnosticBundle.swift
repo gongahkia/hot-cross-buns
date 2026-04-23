@@ -1,6 +1,20 @@
 import AppKit
 import Foundation
 
+struct DiagnosticBundleEnvironment {
+    var now: @Sendable () -> Date
+    var bundle: Bundle
+    var loadPersistedLog: @Sendable () -> String
+    var readLastCrash: @Sendable () -> String?
+
+    static let live = DiagnosticBundleEnvironment(
+        now: { Date() },
+        bundle: .main,
+        loadPersistedLog: { AppLogger.shared.loadPersistedLog() },
+        readLastCrash: { CrashReporter.readLastCrash() }
+    )
+}
+
 // Single-file diagnostic dump the user can save and share when
 // reporting bugs. Concatenates the recent log, pending-mutation queue,
 // settings snapshot, last breadcrumb crash, and cache metadata into
@@ -13,12 +27,17 @@ import Foundation
 // can be pasted into a public issue safely.
 enum DiagnosticBundle {
     @MainActor
-    static func build(model: AppModel, cachePath: String, notificationSummary: NotificationScheduleSummary?) -> String {
+    static func build(
+        model: AppModel,
+        cachePath: String,
+        notificationSummary: NotificationScheduleSummary?,
+        environment: DiagnosticBundleEnvironment = .live
+    ) -> String {
         var sections: [String] = []
         sections.append("=== Hot Cross Buns Diagnostic Bundle ===")
-        sections.append("Generated: \(ISO8601DateFormatter.diagnostic.string(from: Date()))")
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        sections.append("Generated: \(ISO8601DateFormatter.diagnostic.string(from: environment.now()))")
+        let version = environment.bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let build = environment.bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
         sections.append("Version: \(version) (build \(build))")
         sections.append("")
         sections.append(summarySection(model: model, cachePath: cachePath, notificationSummary: notificationSummary))
@@ -33,10 +52,10 @@ enum DiagnosticBundle {
         }
         sections.append("")
         sections.append("=== Recent Logs (info+) ===")
-        let logFile = AppLogger.shared.loadPersistedLog()
+        let logFile = environment.loadPersistedLog()
         sections.append(logFile.isEmpty ? "(no persisted entries yet)" : logFile)
         sections.append("")
-        if let lastCrash = CrashReporter.readLastCrash() {
+        if let lastCrash = environment.readLastCrash() {
             sections.append("=== Last Crash Breadcrumb ===")
             sections.append(lastCrash)
             sections.append("")
