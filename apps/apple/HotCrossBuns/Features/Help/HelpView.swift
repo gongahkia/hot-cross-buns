@@ -83,6 +83,12 @@ struct HelpView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         .navigationTitle("Help")
+        .hcbSurface(.inspector)
+        .id(model.settings.colorSchemeID)
+        .withHCBAppearance(model.settings)
+        .environment(\.hcbShortcutOverrides, model.settings.shortcutOverrides)
+        .preferredColorScheme(HCBColorScheme.scheme(id: model.settings.colorSchemeID)?.isDark == true ? .dark : .light)
+        .appBackground()
         .hcbScaledFrame(minWidth: 640, idealWidth: 720, minHeight: 520, idealHeight: 620)
     }
 

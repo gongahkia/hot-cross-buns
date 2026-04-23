@@ -8,7 +8,6 @@ import SwiftUI
 //  - Kanban board (group-by picker retained; click empty space to add a task
 //    to that column's list).
 //  - Inspector (Cmd+I) for the selected task.
-//  - Clear-completed bulk helper.
 //  - List rename / delete / create — reused by both the Kanban column menu
 //    and the "New List" toolbar button.
 //  - BulkResult toast + bulk-action bar on multi-select.
@@ -86,8 +85,6 @@ struct StoreView: View {
                                 onCreate: { Task { await createNewList() } }
                             )
                         }
-                        clearCompletedMenu
-                            .disabled(isDisconnected)
                         Button {
                             router?.present(.quickCreateTask(listID: nil))
                         } label: {
@@ -190,40 +187,6 @@ struct StoreView: View {
         _ = await model.updateTask(task, title: task.title, notes: task.notes, dueDate: newDate)
     }
 
-    private func completedCount(in listID: TaskListMirror.ID) -> Int {
-        // Read from the prebuilt index rather than re-filtering the full
-        // tasks array on every menu render. rebuildSnapshots keeps this
-        // in sync; "Deleted" tasks are already excluded there.
-        model.taskListCompletionStats[listID]?.completed ?? 0
-    }
-
-    @ViewBuilder
-    private var clearCompletedMenu: some View {
-        Menu {
-            if visibleTaskLists.isEmpty {
-                Button("No task lists") {}.disabled(true)
-            } else {
-                ForEach(visibleTaskLists) { list in
-                    let n = completedCount(in: list.id)
-                    Button {
-                        Task { _ = await model.clearCompletedTasks(in: list.id) }
-                    } label: {
-                        Text("\(list.title) (\(n))")
-                    }
-                    .disabled(n == 0)
-                }
-            }
-        } label: {
-            Label("Clear Completed", systemImage: "eraser")
-        }
-        .help("Hide completed tasks from a list (uses Google's batch clear)")
-    }
-
-    private var visibleTaskLists: [TaskListMirror] {
-        let visible = visibleTaskListIDs
-        return model.taskLists.filter { visible.contains($0.id) }
-    }
-
     @ViewBuilder
     private var content: some View {
         ZStack(alignment: .bottom) {
@@ -245,9 +208,6 @@ struct StoreView: View {
                             renamingList = list
                         },
                         onDeleteList: { list in pendingListDeletion = list },
-                        onClearCompleted: { list in
-                            Task { _ = await model.clearCompletedTasks(in: list.id) }
-                        },
                         onNewList: {
                             newListTitle = ""
                             isCreatingList = true
@@ -274,8 +234,8 @@ struct StoreView: View {
 
     // Tasks shown on the Tasks tab = dated, non-deleted, respecting the
     // user's per-list visibility pick. Undated tasks auto-route to Notes.
-    // Past-cleanup hide-modes for overdue + completed tasks are enforced
-    // here so every downstream Kanban/snapshot sees the filtered pool.
+    // Completed tasks stay in the pool and render under each column's
+    // disclosure section. Overdue hide mode still applies to open tasks.
     private var datedTasks: [TaskMirror] {
         let now = Date()
         return model.tasks.filter { task in
@@ -283,7 +243,6 @@ struct StoreView: View {
                   task.dueDate != nil,
                   visibleTaskListIDs.contains(task.taskListID)
             else { return false }
-            if model.settings.shouldHideCompletedTask(task) { return false }
             if model.settings.shouldHideOverdueTask(task, now: now) { return false }
             return true
         }
@@ -707,8 +666,7 @@ struct NotesView: View {
     @State private var selectedNoteID: TaskMirror.ID?
     @State private var isNoteInspectorPresented: Bool = true
     // List management state — mirrors StoreView's New-List flow so the Notes
-    // toolbar can offer the same affordances (create new Google Tasks list,
-    // clear completed tasks within a list).
+    // toolbar can offer the same create-new-Google-Tasks-list affordance.
     @State private var isCreatingList: Bool = false
     @State private var newListTitle: String = ""
     @State private var isMutatingList: Bool = false
@@ -778,8 +736,6 @@ struct NotesView: View {
                             onCreate: { Task { await createNewListFromNotes() } }
                         )
                     }
-                    notesClearCompletedMenu
-                        .disabled(model.account == nil)
                     Button {
                         router?.present(.quickCreateNote(listID: nil))
                     } label: {
@@ -792,41 +748,6 @@ struct NotesView: View {
         }
         .onAppear { rebuildOrder() }
         .onChange(of: model.tasks) { _, _ in rebuildOrder() }
-    }
-
-    @ViewBuilder
-    private var notesClearCompletedMenu: some View {
-        Menu {
-            let lists = visibleNoteLists
-            if lists.isEmpty {
-                Button("No task lists") {}.disabled(true)
-            } else {
-                ForEach(lists) { list in
-                    let n = completedCount(in: list.id)
-                    Button {
-                        Task { _ = await model.clearCompletedTasks(in: list.id) }
-                    } label: {
-                        Text("\(list.title) (\(n))")
-                    }
-                    .disabled(n == 0)
-                }
-            }
-        } label: {
-            Label("Clear Completed", systemImage: "eraser")
-        }
-        .help("Hide completed tasks from a list (uses Google's batch clear)")
-    }
-
-    private var visibleNoteLists: [TaskListMirror] {
-        let visible = visibleListIDs
-        return model.taskLists.filter { visible.contains($0.id) }
-    }
-
-    private func completedCount(in listID: TaskListMirror.ID) -> Int {
-        // Read from the prebuilt index rather than re-filtering the full
-        // tasks array on every menu render. rebuildSnapshots keeps this
-        // in sync; "Deleted" tasks are already excluded there.
-        model.taskListCompletionStats[listID]?.completed ?? 0
     }
 
     private func createNewListFromNotes() async {
@@ -924,7 +845,6 @@ struct NotesView: View {
         let visible = visibleListIDs
         return model.tasks.filter {
             $0.isDeleted == false
-                && $0.isCompleted == false
                 && $0.dueDate == nil
                 && visible.contains($0.taskListID)
         }
