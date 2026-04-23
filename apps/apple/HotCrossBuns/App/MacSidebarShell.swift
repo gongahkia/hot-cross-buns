@@ -162,12 +162,6 @@ struct MacSidebarShell: View {
                     selection = first
                 }
             }
-            .onChange(of: sidebarVisibility) { _, newValue in
-                // System toolbar button tries to fully hide — snap back; ⌘S is the only collapse.
-                if newValue == .detailOnly {
-                    sidebarVisibility = .all
-                }
-            }
             .modifier(ShellZoomObservers(zoomIn: performZoomIn, zoomOut: performZoomOut, zoomReset: performZoomReset))
             .task { await performInitialLoad() }
             .onChange(of: model.settings.hasCompletedOnboarding) { _, hasCompleted in
@@ -323,7 +317,6 @@ struct MacSidebarShell: View {
             .scrollContentBackground(.hidden)
         }
         .frame(width: expandedSidebarWidth)
-        .toolbar(removing: .sidebarToggle)
     }
 
     @ViewBuilder
