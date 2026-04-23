@@ -179,6 +179,38 @@ enum CalendarGridLayout {
 
     static func layout(eventsInDay events: [CalendarEventMirror], calendar: Calendar = .current) -> [LaidOutEvent] {
         let sorted = events.sorted { $0.startDate < $1.startDate }
+        var groups: [[CalendarEventMirror]] = []
+        var currentGroup: [CalendarEventMirror] = []
+        var currentGroupEnd: Date?
+
+        for event in sorted {
+            guard let groupEnd = currentGroupEnd else {
+                currentGroup = [event]
+                currentGroupEnd = event.endDate
+                continue
+            }
+
+            if event.startDate < groupEnd {
+                currentGroup.append(event)
+                if event.endDate > groupEnd {
+                    currentGroupEnd = event.endDate
+                }
+            } else {
+                groups.append(currentGroup)
+                currentGroup = [event]
+                currentGroupEnd = event.endDate
+            }
+        }
+
+        if currentGroup.isEmpty == false {
+            groups.append(currentGroup)
+        }
+
+        return groups.flatMap { layoutCollisionGroup($0) }
+    }
+
+    private static func layoutCollisionGroup(_ events: [CalendarEventMirror]) -> [LaidOutEvent] {
+        let sorted = events.sorted { $0.startDate < $1.startDate }
         var columns: [[CalendarEventMirror]] = []
 
         for event in sorted {

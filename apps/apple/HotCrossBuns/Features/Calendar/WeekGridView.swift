@@ -222,7 +222,8 @@ struct WeekGridView: View {
             let clampedEnd = min(eventEnd, weekEndDay)
             let startIdx = calendar.dateComponents([.day], from: weekStartDay, to: clampedStart).day ?? 0
             let endIdx = calendar.dateComponents([.day], from: weekStartDay, to: clampedEnd).day ?? 0
-            return (event, max(0, min(6, startIdx)), max(0, min(6, endIdx)))
+            let lastColumn = max(weekDays.count - 1, 0)
+            return (event, max(0, min(lastColumn, startIdx)), max(0, min(lastColumn, endIdx)))
         }
 
         // Lane assignment: sort by start column, then place each span into the
@@ -316,12 +317,15 @@ struct WeekGridView: View {
             .frame(height: stripHeight)
             .clipped()
         }
+        .frame(minHeight: stripHeight, idealHeight: stripHeight, maxHeight: stripHeight)
+        .clipped()
         .hcbScaledPadding(.vertical, 4)
     }
 
     private func columnIndex(for x: CGFloat, columnWidth: CGFloat) -> Int {
         guard columnWidth > 0 else { return 0 }
-        return max(0, min(6, Int(x / columnWidth)))
+        let lastColumn = max(weekDays.count - 1, 0)
+        return max(0, min(lastColumn, Int(x / columnWidth)))
     }
 
     private func allDaySpanTile(_ span: AllDaySpan, columnWidth: CGFloat, laneHeight: CGFloat) -> some View {
@@ -458,6 +462,8 @@ struct WeekGridView: View {
                     .frame(height: stripHeight)
                     .clipped()
                 }
+                .frame(minHeight: stripHeight, idealHeight: stripHeight, maxHeight: stripHeight)
+                .clipped()
                 .hcbScaledPadding(.vertical, 4)
             }
         }
@@ -787,6 +793,8 @@ struct WeekGridView: View {
         let height = CGFloat(durationMinutes) * (hourHeight / 60)
         let slotWidth = columnWidth / CGFloat(placed.columnCount)
         let xOffsetWithinDay = CGFloat(placed.columnIndex) * slotWidth
+        let tileWidth = max(slotWidth - 2, 1)
+        let tileHeight = max(height - 2, 1)
         let fill = calendarColor(for: placed.event)
         let fullDurationMinutes = Int(max(placed.event.endDate.timeIntervalSince(placed.event.startDate) / 60, 15))
 
@@ -794,16 +802,18 @@ struct WeekGridView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(placed.event.summary)
                     .hcbFont(.caption, weight: .semibold)
-                    .lineLimit(2)
+                    .lineLimit(height > 38 ? 2 : 1)
                 if height > 34 {
                     Text("\(placed.event.startDate.formatted(.dateTime.hour().minute())) – \(placed.event.endDate.formatted(.dateTime.hour().minute()))")
                         .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
             }
             .hcbScaledPadding(.horizontal, 6)
             .hcbScaledPadding(.vertical, 4)
-            .frame(width: slotWidth - 2, height: height - 2, alignment: .topLeading)
+            .frame(width: tileWidth, height: tileHeight, alignment: .topLeading)
+            .clipped()
             .background(
                 RoundedRectangle(cornerRadius: 6)
                     .fill(fill.opacity(0.2))
@@ -817,7 +827,7 @@ struct WeekGridView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 6)
                 .strokeBorder(selectedEventIDs.contains(placed.event.id) ? AppColor.blue : Color.clear, lineWidth: 2)
-                .frame(width: slotWidth - 2, height: height - 2)
+                .frame(width: tileWidth, height: tileHeight)
                 .offset(x: xOffsetWithinDay + 1, y: yOffset)
                 .allowsHitTesting(false)
         )
