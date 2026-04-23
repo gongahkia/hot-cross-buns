@@ -151,6 +151,7 @@
 		B3FD5B5CFC0A25BB3A2D0F19 /* RecurrenceUntilRewriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 789C6E4688F23FCD6DA9A6D0 /* RecurrenceUntilRewriter.swift */; };
 		B4007C7CDFB8A24313A04A5F /* GoogleMapsConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E5EC5EF558326D415F76B1 /* GoogleMapsConfigTests.swift */; };
 		B63D287732D4657D498E55CD /* AppearanceSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB531053D620E337F1946147 /* AppearanceSection.swift */; };
+		B7A300DA4BA17F92E0BE9FEB /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = B0DACBB900FC888B11AAC6CD /* Localizable.xcstrings */; };
 		B961C661A38D5CE2845E6580 /* NaturalLanguageTaskParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B3C9FACB76521CB9850BC84 /* NaturalLanguageTaskParserTests.swift */; };
 		B9D9962B30CA73EFBD0719AD /* HCBSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06F2696FD874FEEBAEB421DC /* HCBSurface.swift */; };
 		BC1B43B0C73F002D0EA83908 /* KanbanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AD899D7DA4173441D6AF8D4 /* KanbanView.swift */; };
@@ -169,6 +170,7 @@
 		CDE181FCDB04EB34924DF98B /* SyncSchedulerTombstonePurgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A15AB7A557A7163BEA80ECC /* SyncSchedulerTombstonePurgeTests.swift */; };
 		CF1E70E970213C9400BBB1AB /* EncryptionSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 923D7E147E63ED13484B24AA /* EncryptionSection.swift */; };
 		D11457A3B187BDE2CD571614 /* TaskHierarchyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAC3322BC3706CFF61AE52DB /* TaskHierarchyTests.swift */; };
+		D13CA2D457A278C448417499 /* buns-welcomepage.webp in Resources */ = {isa = PBXBuildFile; fileRef = B3D98B80AC89448503D52E27 /* buns-welcomepage.webp */; };
 		D2F091285CF429E7C8CAE0F8 /* YearGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09D39CEECF9AC57283BF8021 /* YearGridView.swift */; };
 		D469641DB76139A358F0A8CB /* TasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 141ADCA673635CA9F5DA0BD1 /* TasksView.swift */; };
 		D553CCEF7C978404187F1049 /* HCBSettingsWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 322421AFC97A807AACB1057B /* HCBSettingsWindow.swift */; };
@@ -193,6 +195,7 @@
 		F17FBE647D419E3735B9591F /* PastCleanupServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD7C50518CD828FC3495F5EC /* PastCleanupServiceTests.swift */; };
 		F37DF95BBEC2335CA5AFBDED /* CalendarEventInstanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22DB41A975AB784A9EBDD654 /* CalendarEventInstanceTests.swift */; };
 		F544AFBC74E117992DB58913 /* CustomFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A76571F1E7EF40F32A62835 /* CustomFilter.swift */; };
+		F7014D145B92A0F81E1927E0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 359088FE0E6D820E2ED32A19 /* Assets.xcassets */; };
 		F8020A97ADD49D3F19BF7915 /* PastCleanupSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2BAC54146EDDDC11E3D930F /* PastCleanupSection.swift */; };
 		F8BA863DB51480D6B9ADEBE9 /* FuzzySearcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A49B39BEE4E940882B8C2AC5 /* FuzzySearcherTests.swift */; };
 		FA524DC3AE098023C142AF71 /* SubtaskDragPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20B9299699F46BFF95D48B7 /* SubtaskDragPayload.swift */; };
@@ -266,6 +269,7 @@
 		322421AFC97A807AACB1057B /* HCBSettingsWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HCBSettingsWindow.swift; sourceTree = "<group>"; };
 		339394C0D1D19EE6C0831091 /* UpdaterController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterController.swift; sourceTree = "<group>"; };
 		33A7C862FCE08662E355A0FA /* TaskBulkActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskBulkActionBar.swift; sourceTree = "<group>"; };
+		359088FE0E6D820E2ED32A19 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		35AD02E0F85CA96B243D335E /* SharedInboxItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedInboxItem.swift; sourceTree = "<group>"; };
 		365DC96473F7469BD2250779 /* WeekGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekGridView.swift; sourceTree = "<group>"; };
 		377A972E3BD6867D3483B92D /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
@@ -350,9 +354,11 @@
 		AEEF278EC506750047BC6B9C /* AdvancedSearchMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedSearchMatcher.swift; sourceTree = "<group>"; };
 		AF08213B82A11D35A48E9669 /* RouterPath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouterPath.swift; sourceTree = "<group>"; };
 		AF46AED18B8659500C9FDDB8 /* CalendarEventColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventColor.swift; sourceTree = "<group>"; };
+		B0DACBB900FC888B11AAC6CD /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		B1E03BB899FDA9756E7C268E /* OptimisticWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimisticWriter.swift; sourceTree = "<group>"; };
 		B2BAC54146EDDDC11E3D930F /* PastCleanupSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastCleanupSection.swift; sourceTree = "<group>"; };
 		B3C281076BBBC06FADE80BBB /* InsertTaskTemplateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsertTaskTemplateSheet.swift; sourceTree = "<group>"; };
+		B3D98B80AC89448503D52E27 /* buns-welcomepage.webp */ = {isa = PBXFileReference; path = "buns-welcomepage.webp"; sourceTree = "<group>"; };
 		B67B046600700AA50D42A500 /* HCBTemplateExpanderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HCBTemplateExpanderTests.swift; sourceTree = "<group>"; };
 		B73877CFD2F56A8ABE37036B /* HistoryEntryRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryEntryRow.swift; sourceTree = "<group>"; };
 		B73A839AA07E6C98129ED4BB /* StoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreView.swift; sourceTree = "<group>"; };
@@ -586,8 +592,19 @@
 				2993F4F950F323EB23735E6C /* HotCrossBuns */,
 				8630EC5238AF566E168516B9 /* HotCrossBunsMacTests */,
 				4FE2B99345625D57A8EB54B6 /* HotCrossBunsShareExtension */,
+				5228BDBDCD0990C82E5656A1 /* Resources */,
 				17A5AA790F99CFC316C5466E /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		5228BDBDCD0990C82E5656A1 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				359088FE0E6D820E2ED32A19 /* Assets.xcassets */,
+				B0DACBB900FC888B11AAC6CD /* Localizable.xcstrings */,
+				C981DA6CB2A3E0C60A75CC60 /* Onboarding */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		53B39DCC182CCC2125B4B908 /* Features */ = {
@@ -858,6 +875,14 @@
 			path = Persistence;
 			sourceTree = "<group>";
 		};
+		C981DA6CB2A3E0C60A75CC60 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				B3D98B80AC89448503D52E27 /* buns-welcomepage.webp */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
 		CEB92F923762775377EC3AFA /* AppIntents */ = {
 			isa = PBXGroup;
 			children = (
@@ -1011,6 +1036,7 @@
 			buildConfigurationList = 56570260CBCDF807EDDF7ADF /* Build configuration list for PBXNativeTarget "HotCrossBunsMac" */;
 			buildPhases = (
 				025C410EC6DDE432A999494F /* Sources */,
+				8973E7E29D82504E18356FC9 /* Resources */,
 				8C7849DF6492CA2E2B87BFEC /* Frameworks */,
 				76F24FC83BC9DBFD5FF52160 /* Embed Foundation Extensions */,
 			);
@@ -1092,6 +1118,19 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		8973E7E29D82504E18356FC9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F7014D145B92A0F81E1927E0 /* Assets.xcassets in Resources */,
+				B7A300DA4BA17F92E0BE9FEB /* Localizable.xcstrings in Resources */,
+				D13CA2D457A278C448417499 /* buns-welcomepage.webp in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		025C410EC6DDE432A999494F /* Sources */ = {
@@ -1330,6 +1369,7 @@
 					"@executable_path/../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.gongahkia.hotcrossbuns.mac;
+				PRODUCT_NAME = "Hot Cross Buns";
 				SDKROOT = macosx;
 			};
 			name = Debug;
@@ -1552,6 +1592,7 @@
 					"@executable_path/../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.gongahkia.hotcrossbuns.mac;
+				PRODUCT_NAME = "Hot Cross Buns";
 				SDKROOT = macosx;
 			};
 			name = Release;

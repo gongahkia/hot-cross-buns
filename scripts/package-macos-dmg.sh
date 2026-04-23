@@ -8,13 +8,14 @@ DERIVED_DATA_PATH="$BUILD_ROOT/DerivedData"
 DMG_ROOT="$BUILD_ROOT/dmg-root"
 CONFIGURATION="${CONFIGURATION:-Release}"
 SCHEME="${SCHEME:-HotCrossBunsMac}"
-APP_BUNDLE_NAME="${APP_BUNDLE_NAME:-HotCrossBunsMac.app}"
+APP_BUNDLE_NAME="${APP_BUNDLE_NAME:-Hot Cross Buns.app}"
 VOLUME_NAME="${VOLUME_NAME:-Hot Cross Buns}"
 VERSION="${VERSION:-$(git -C "$ROOT_DIR" describe --tags --always --dirty 2>/dev/null || echo dev)}"
 DMG_PATH="$BUILD_ROOT/HotCrossBuns-$VERSION-macOS.dmg"
 ENTITLEMENTS_PATH="$APPLE_DIR/HotCrossBuns/Support/HotCrossBuns.entitlements"
 CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-}"
 NOTARIZE="${NOTARIZE:-0}"
+PLIST_BUDDY="/usr/libexec/PlistBuddy"
 
 if [[ -n "$CODE_SIGN_IDENTITY" && -z "${CODE_SIGNING_ALLOWED+x}" ]]; then
   CODE_SIGNING_ALLOWED=YES
@@ -43,11 +44,110 @@ mkdir -p "$BUILD_ROOT"
     build
 )
 
-APP_PATH="$DERIVED_DATA_PATH/Build/Products/$CONFIGURATION/$APP_BUNDLE_NAME"
-if [[ ! -d "$APP_PATH" ]]; then
-  echo "Expected app bundle not found: $APP_PATH" >&2
-  exit 1
-fi
+resolve_app_path() {
+  local products_dir="$1"
+  local requested_path="$products_dir/$APP_BUNDLE_NAME"
+  local candidates=()
+  local candidate
+
+  if [[ -d "$requested_path" ]]; then
+    printf '%s\n' "$requested_path"
+    return 0
+  fi
+
+  while IFS= read -r -d '' candidate; do
+    candidates+=("$candidate")
+  done < <(find "$products_dir" -maxdepth 1 -type d -name '*.app' -print0 | sort -z)
+
+  case "${#candidates[@]}" in
+    0)
+      echo "Expected app bundle not found: $requested_path" >&2
+      return 1
+      ;;
+    1)
+      printf '%s\n' "${candidates[0]}"
+      return 0
+      ;;
+    *)
+      echo "Expected app bundle not found: $requested_path" >&2
+      echo "Found multiple app bundles in $products_dir:" >&2
+      printf '  %s\n' "${candidates[@]}" >&2
+      return 1
+      ;;
+  esac
+}
+
+plist_value() {
+  local plist_path="$1"
+  local key="$2"
+  "$PLIST_BUDDY" -c "Print :$key" "$plist_path" 2>/dev/null || true
+}
+
+is_missing_release_value() {
+  local value="$1"
+  local placeholder="$2"
+  local trimmed="${value#"${value%%[![:space:]]*}"}"
+  trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
+
+  if [[ -z "$trimmed" ]]; then
+    return 0
+  fi
+
+  if [[ "$trimmed" == '$('* ]]; then
+    return 0
+  fi
+
+  if [[ -n "$placeholder" && "$trimmed" == "$placeholder" ]]; then
+    return 0
+  fi
+
+  return 1
+}
+
+check_release_preflight() {
+  local app_path="$1"
+  local info_plist="$app_path/Contents/Info.plist"
+  local release_failures=()
+  local client_id sparkle_key
+  local strict_release_checks=0
+
+  if [[ -n "$CODE_SIGN_IDENTITY" || "$NOTARIZE" == "1" ]]; then
+    strict_release_checks=1
+  fi
+
+  if [[ ! -f "$info_plist" ]]; then
+    echo "Release preflight failed: missing app Info.plist at $info_plist" >&2
+    exit 1
+  fi
+
+  client_id="$(plist_value "$info_plist" "GIDClientID")"
+  sparkle_key="$(plist_value "$info_plist" "SUPublicEDKey")"
+
+  if is_missing_release_value "$client_id" "your-macos-oauth-client-id.apps.googleusercontent.com"; then
+    release_failures+=("Google OAuth client ID is missing or unresolved in the built app")
+  fi
+
+  if is_missing_release_value "$sparkle_key" ""; then
+    release_failures+=("Sparkle SUPublicEDKey is missing or unresolved in the built app")
+  fi
+
+  if [[ "${#release_failures[@]}" -eq 0 ]]; then
+    return 0
+  fi
+
+  echo "Release preflight found missing distribution configuration:" >&2
+  printf '  - %s\n' "${release_failures[@]}" >&2
+
+  if [[ "$strict_release_checks" == "1" ]]; then
+    echo "Refusing to package a signed/notarized DMG until release credentials are embedded." >&2
+    exit 1
+  fi
+
+  echo "Continuing because this is an unsigned local package. Set CODE_SIGN_IDENTITY or NOTARIZE=1 to enforce these checks." >&2
+}
+
+APP_PATH="$(resolve_app_path "$DERIVED_DATA_PATH/Build/Products/$CONFIGURATION")"
+check_release_preflight "$APP_PATH"
 
 if [[ -n "$CODE_SIGN_IDENTITY" ]]; then
   codesign \

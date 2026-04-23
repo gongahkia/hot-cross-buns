@@ -12,6 +12,14 @@ Hot Cross Buns ships as a signed, notarized macOS DMG with Sparkle auto-updates.
 4. Paste the public key into `HotCrossBuns/Support/Info-macOS.plist` under `SUPublicEDKey`, or pass it via an xcconfig.
 5. Enable GitHub Pages on the `gh-pages` branch of this repository.
 
+### Google Sign-In Release Config
+
+Signed DMGs must embed a real macOS OAuth client in the built app:
+
+1. Create a macOS OAuth client for bundle ID `com.gongahkia.hotcrossbuns.mac`.
+2. Provide `GOOGLE_MACOS_CLIENT_ID` and `GOOGLE_MACOS_REVERSED_CLIENT_ID` via local xcconfig or CI secrets.
+3. Verify the packaged app's `Info.plist` does not contain unresolved `$(...)` placeholders before shipping.
+
 ### Developer ID Signing
 
 See `URGENT-TODO.md` §5 for the full list of GitHub secrets required for DMG signing and notarization.
@@ -35,4 +43,4 @@ APP_SPECIFIC_PASSWORD="xxxx-xxxx-xxxx-xxxx" \
 scripts/package-macos-dmg.sh
 ```
 
-The resulting DMG is written to `build/apple/`. Inspect it with `spctl --assess --type open --context context:primary-signature` before publishing.
+The resulting DMG is written to `build/apple/`. The packaging script now auto-detects `Hot Cross Buns.app` in DerivedData and warns when Google OAuth or Sparkle public-key values are still placeholders. Inspect the signed artifact with `spctl --assess --type open --context context:primary-signature` before publishing.
