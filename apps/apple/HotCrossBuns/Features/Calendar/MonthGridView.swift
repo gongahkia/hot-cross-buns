@@ -501,23 +501,14 @@ struct MonthGridView: View {
             event.startDate < weekEnd && event.endDate > weekStart
         }
         let bands = CalendarGridLayout.monthBands(for: days, events: weekEvents, calendar: calendar)
-        let visibleLaneCount = min(maxVisibleLanes, (bands.map(\.lane).max() ?? -1) + 1)
-        let bandAreaHeight: CGFloat = visibleLaneCount > 0
-            ? CGFloat(visibleLaneCount) * laneHeight + CGFloat(max(visibleLaneCount - 1, 0)) * laneSpacing + 4
-            : 0
 
         return GeometryReader { geo in
             let cellWidth = geo.size.width / CGFloat(max(days.count, 1))
             ZStack(alignment: .topLeading) {
                 HStack(spacing: 0) {
                     ForEach(Array(days.enumerated()), id: \.element) { col, day in
-                        // Per-cell band reservation: cells with NO band events
-                        // crossing them get 0 reservation so timed-event tiles
-                        // can slide to the top. Cells crossed by ≥1 band keep
-                        // the uniform week-level reservation so they line up
-                        // under the band overlay rather than colliding with it.
-                        let cellHasBand = bands.contains { col >= $0.startColumn && col <= $0.endColumn && $0.lane < maxVisibleLanes }
-                        monthCell(day: day, bandReserve: cellHasBand ? bandAreaHeight : 0, byDay: byDay)
+                        let cellBandReserve = bandReserve(for: col, bands: bands)
+                        monthCell(day: day, bandReserve: cellBandReserve, byDay: byDay)
                             .frame(maxWidth: .infinity, minHeight: fixedRowHeight, maxHeight: fixedRowHeight, alignment: .top)
                             .clipped() // stop per-cell VStack overflow (day number + bandReserve + 2 events + 2 tasks + "+N more" can exceed fixedRowHeight) from bleeding into the next week row
                     }
@@ -528,6 +519,21 @@ struct MonthGridView: View {
         }
         .frame(height: fixedRowHeight)
         .clipped() // defense-in-depth: also clip the row itself so band overlays can't leak out
+    }
+
+    private func bandReserve(for column: Int, bands: [CalendarGridLayout.MonthBand]) -> CGFloat {
+        let highestVisibleLane = bands
+            .filter { band in
+                column >= band.startColumn
+                    && column <= band.endColumn
+                    && band.lane < maxVisibleLanes
+            }
+            .map(\.lane)
+            .max()
+        guard let highestVisibleLane else { return 0 }
+        return CGFloat(highestVisibleLane + 1) * laneHeight
+            + CGFloat(highestVisibleLane) * laneSpacing
+            + 4
     }
 
     private func previousMonthLoader(proxy: ScrollViewProxy) -> some View {

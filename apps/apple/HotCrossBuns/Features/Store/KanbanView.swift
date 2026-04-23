@@ -6,7 +6,7 @@ import SwiftUI
 //
 // Post-refactor responsibilities:
 //  - Group-by picker (byList | byDueBucket | byTag)
-//  - Column header dot + ⋯ menu (rename / delete / clear-completed), only
+//  - Column header dot + ⋯ menu (rename / delete), only
 //    shown in `byList` mode where a header maps 1:1 to a Google task list.
 //  - Empty-space tap inside a column → QuickCreatePopover in task-only mode
 //    pre-filled with that column's list.
@@ -24,7 +24,6 @@ struct KanbanView: View {
     var onResult: (BulkTaskExecutionResult) -> Void = { _ in }
     var onRenameList: (TaskListMirror) -> Void = { _ in }
     var onDeleteList: (TaskListMirror) -> Void = { _ in }
-    var onClearCompleted: (TaskListMirror) -> Void = { _ in }
     var onNewList: () -> Void = {}
     var onCreateTaskInList: (TaskListMirror.ID?) -> Void = { _ in }
     // Callers can override what happens when a card is tapped. Default is
@@ -62,7 +61,6 @@ struct KanbanView: View {
                             },
                             onRenameList: onRenameList,
                             onDeleteList: onDeleteList,
-                            onClearCompleted: onClearCompleted,
                             onCreateTask: { onCreateTaskInList(taskList(for: column)?.id) }
                         )
                     }
@@ -158,8 +156,9 @@ private struct KanbanColumnView: View {
     let onCardTap: (TaskMirror) -> Void
     let onRenameList: (TaskListMirror) -> Void
     let onDeleteList: (TaskListMirror) -> Void
-    let onClearCompleted: (TaskListMirror) -> Void
     let onCreateTask: () -> Void
+
+    @State private var isCompletedExpanded = false
 
     private let columnWidth: CGFloat = 260
 
@@ -172,41 +171,8 @@ private struct KanbanColumnView: View {
                 // scrolled off-screen. LazyVStack materializes cards as they
                 // approach the viewport.
                 LazyVStack(spacing: 8) {
-                    ForEach(column.tasks, id: \.id) { task in
-                        KanbanCardView(
-                            task: task,
-                            isSelected: selection.contains(task.id),
-                            onTap: { onCardTap(task) }
-                        )
-                        .draggable(DraggedTask(taskID: task.id, taskListID: task.taskListID, title: task.title))
-                        .contextMenu {
-                            Button(task.isCompleted ? "Mark as open" : "Mark complete") {
-                                Task { _ = await model.setTaskCompleted(!task.isCompleted, task: task) }
-                            }
-                            Divider()
-                            Button("Duplicate") {
-                                Task { _ = await model.duplicateTask(task) }
-                            }
-                            // parity with the Calendar tab's event / task right-click menus. The conversion sub-menu routes through the existing RouterPath intents so both Tasks tab (dated tasks) and Notes tab (undated tasks) get the right pair of options based on task.dueDate.
-                            Menu("Convert…") {
-                                Button("Convert to Event") {
-                                    router?.present(.convertTaskToEvent(task.id))
-                                }
-                                if task.dueDate == nil {
-                                    Button("Convert to Task (set due date)") {
-                                        router?.present(.convertNoteToTask(task.id))
-                                    }
-                                } else {
-                                    Button("Convert to Note (clear due date)") {
-                                        router?.present(.convertTaskToNote(task.id))
-                                    }
-                                }
-                            }
-                            Divider()
-                            Button("Delete", role: .destructive) {
-                                Task { _ = await model.deleteTask(task) }
-                            }
-                        }
+                    ForEach(openTasks, id: \.id) { task in
+                        taskCard(task)
                     }
                     // Inline add-task affordance — clicking anywhere in this
                     // zone opens QuickCreatePopover pre-filled with the
@@ -229,6 +195,14 @@ private struct KanbanColumnView: View {
                     }
                     .buttonStyle(.plain)
                     .hcbScaledPadding(.horizontal, 2)
+                    if completedTasks.isEmpty == false {
+                        completedDisclosure
+                        if isCompletedExpanded {
+                            ForEach(completedTasks, id: \.id) { task in
+                                completedTaskRow(task)
+                            }
+                        }
+                    }
                     if column.tasks.isEmpty, column.dropIntent != nil {
                         Text("Drop here")
                             .hcbFont(.caption)
@@ -264,6 +238,95 @@ private struct KanbanColumnView: View {
         }
     }
 
+    private var openTasks: [TaskMirror] {
+        column.tasks.filter { $0.isCompleted == false }
+    }
+
+    private var completedTasks: [TaskMirror] {
+        column.tasks.filter(\.isCompleted)
+    }
+
+    private var completedDisclosure: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.16)) {
+                isCompletedExpanded.toggle()
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: isCompletedExpanded ? "chevron.down" : "chevron.right")
+                    .hcbFont(.caption, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 14)
+                Text("Completed (\(completedTasks.count))")
+                    .hcbFont(.subheadline, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
+            .hcbScaledPadding(.horizontal, 6)
+            .hcbScaledPadding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isCompletedExpanded ? "Collapse completed tasks" : "Expand completed tasks")
+    }
+
+    private func taskCard(_ task: TaskMirror) -> some View {
+        KanbanCardView(
+            task: task,
+            isSelected: selection.contains(task.id),
+            onTap: { onCardTap(task) }
+        )
+        .draggable(DraggedTask(taskID: task.id, taskListID: task.taskListID, title: task.title))
+        .contextMenu {
+            taskContextMenu(for: task)
+        }
+    }
+
+    private func completedTaskRow(_ task: TaskMirror) -> some View {
+        KanbanCompletedTaskRowView(
+            task: task,
+            isSelected: selection.contains(task.id),
+            onTap: { onCardTap(task) }
+        )
+        .draggable(DraggedTask(taskID: task.id, taskListID: task.taskListID, title: task.title))
+        .contextMenu {
+            taskContextMenu(for: task)
+        }
+    }
+
+    @ViewBuilder
+    private func taskContextMenu(for task: TaskMirror) -> some View {
+        Button(task.isCompleted ? "Mark as open" : "Mark complete") {
+            Task { _ = await model.setTaskCompleted(!task.isCompleted, task: task) }
+        }
+        Divider()
+        Button("Duplicate") {
+            Task { _ = await model.duplicateTask(task) }
+        }
+        // Parity with the Calendar tab's event / task right-click menus.
+        // The conversion sub-menu routes through RouterPath intents so both
+        // Tasks tab (dated tasks) and Notes tab (undated tasks) get options
+        // based on task.dueDate.
+        Menu("Convert…") {
+            Button("Convert to Event") {
+                router?.present(.convertTaskToEvent(task.id))
+            }
+            if task.dueDate == nil {
+                Button("Convert to Task (set due date)") {
+                    router?.present(.convertNoteToTask(task.id))
+                }
+            } else {
+                Button("Convert to Note (clear due date)") {
+                    router?.present(.convertTaskToNote(task.id))
+                }
+            }
+        }
+        Divider()
+        Button("Delete", role: .destructive) {
+            Task { _ = await model.deleteTask(task) }
+        }
+    }
+
     private var header: some View {
         HStack(spacing: 8) {
             if mode == .byList {
@@ -290,11 +353,6 @@ private struct KanbanColumnView: View {
                     } label: {
                         Label("Rename", systemImage: "pencil")
                     }
-                    Button {
-                        onClearCompleted(list)
-                    } label: {
-                        Label("Clear Completed", systemImage: "eraser")
-                    }
                     Divider()
                     Button(role: .destructive) {
                         onDeleteList(list)
@@ -316,6 +374,50 @@ private struct KanbanColumnView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct KanbanCompletedTaskRowView: View {
+    let task: TaskMirror
+    let isSelected: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "checkmark")
+                    .hcbFont(.headline, weight: .semibold)
+                    .foregroundStyle(AppColor.ember)
+                    .frame(width: 18)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(TagExtractor.stripped(from: task.title))
+                        .hcbFont(.subheadline)
+                        .foregroundStyle(AppColor.ink)
+                        .strikethrough(true, color: AppColor.ink)
+                        .lineLimit(3)
+                        .multilineTextAlignment(.leading)
+                    Text(completedText)
+                        .hcbFont(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .hcbScaledPadding(.horizontal, 8)
+            .hcbScaledPadding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected ? AppColor.ember.opacity(0.10) : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var completedText: String {
+        guard let completedAt = task.completedAt else { return "Completed" }
+        return "Completed: \(completedAt.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))"
     }
 }
 
