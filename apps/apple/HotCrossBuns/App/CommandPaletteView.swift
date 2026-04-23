@@ -210,12 +210,13 @@ struct CommandPaletteView: View {
         debouncedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    // Cheap fingerprint for the entity universe. Concat of the counts that
-    // determine cachedEntities. When this changes (e.g., a sync brings in
-    // new events), the cache is rebuilt; otherwise the cache stays warm
-    // across body re-evaluations and keystrokes.
+    // Cheap fingerprint for the entity universe. dataRevision fingerprints
+    // tasks / events / taskLists / calendars together — the prior count-
+    // only key left stale lowercased search labels cached when a user
+    // renamed a task without changing the total count. customFilters still
+    // factored in by count because it doesn't flow through dataRevision.
     private var snapshotKey: String {
-        "\(model.tasks.count)|\(model.events.count)|\(model.taskLists.count)|\(model.calendars.count)|\(model.settings.customFilters.count)"
+        "\(model.dataRevision)|\(model.settings.customFilters.count)"
     }
 
     private func rebuildCachedEntitiesIfNeeded() {
