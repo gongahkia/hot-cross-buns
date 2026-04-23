@@ -1,4 +1,4 @@
-name: CI
+name: Hot Cross Buns CI/CD on push
 
 on:
   push:
