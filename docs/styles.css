@@ -632,6 +632,13 @@ kbd {
 }
 .download-meta .sep { color: var(--overlay); }
 .download-meta .sha { font-family: "Geist Mono", monospace; }
+.download-note {
+  margin: 0;
+  max-width: 560px;
+  color: var(--subtext0);
+  font-size: .92rem;
+  line-height: 1.6;
+}
 
 .brew { margin-top: 36px; }
 .brew summary {
@@ -644,6 +651,12 @@ kbd {
 .brew summary::-webkit-details-marker { display: none; }
 .brew summary::after { content: " ↓"; color: var(--overlay); }
 .brew[open] summary::after { content: " ↑"; }
+.brew p {
+  margin: 14px auto 0;
+  max-width: 560px;
+  color: var(--subtext0);
+  line-height: 1.6;
+}
 .brew pre {
   margin-top: 14px;
   background: var(--base);

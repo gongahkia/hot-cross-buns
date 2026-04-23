@@ -84,6 +84,7 @@ targets:
     settings:
       base:
         PRODUCT_NAME: Hot Cross Buns
+        PRODUCT_MODULE_NAME: HotCrossBunsMac
         PRODUCT_BUNDLE_IDENTIFIER: com.gongahkia.hotcrossbuns.mac
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: HotCrossBuns/Support/HotCrossBuns.entitlements
@@ -125,4 +126,6 @@ targets:
       - target: HotCrossBunsMac
     settings:
       base:
+        BUNDLE_LOADER: $(TEST_HOST)
         PRODUCT_BUNDLE_IDENTIFIER: com.gongahkia.hotcrossbuns.mac.tests
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Hot Cross Buns.app/Contents/MacOS/Hot Cross Buns"

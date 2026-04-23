@@ -137,6 +137,11 @@ private struct IntroDetailsView: View {
                         title: "No extra servers",
                         body: "We don't run a backend. Your OAuth token stays in the Keychain; sync goes directly to Google's APIs. Disconnecting Google in Settings wipes local state."
                     )
+                    introPoint(
+                        icon: "exclamationmark.shield",
+                        title: "Unsigned preview install",
+                        body: "If macOS blocks the first launch, open Hot Cross Buns once, then go to System Settings > Privacy & Security and click Open Anyway. You should only need to do this once per Mac."
+                    )
                 }
 
                 HStack {

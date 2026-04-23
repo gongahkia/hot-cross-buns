@@ -80,6 +80,7 @@
 		63F95290D2E706E05C1A9029 /* LocationFullView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADEF77C927632A04783BF515 /* LocationFullView.swift */; };
 		64E4A1BA0CF04097F8D1C9CB /* GoToDateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9EE90AE73008CDCBB548450 /* GoToDateSheet.swift */; };
 		6781A77091B43C2BBAAEC36A /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 8630D5999C10C8D0FF9DB5A1 /* GoogleSignInSwift */; };
+		69B576B38783EF27E236A00E /* ReleaseConfigGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8127C3548EA95EFE65DEFC21 /* ReleaseConfigGateTests.swift */; };
 		6BDBD1855A8378E737D6EE21 /* MenuBarExtraScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F6D2A903ACFF04A22993160 /* MenuBarExtraScene.swift */; };
 		6C767E7BC697FE433BF5AAA2 /* HCBDeepLinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 203E4B8B99B16857BB9E1C19 /* HCBDeepLinkRouter.swift */; };
 		6CC0289227C39CE602E5B1F3 /* HCBCacheKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = C52D7AE4A4A66334A5044478 /* HCBCacheKeychain.swift */; };
@@ -317,6 +318,7 @@
 		7D90185BBE4A34A691347F9E /* AdvancedSearchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedSearchTests.swift; sourceTree = "<group>"; };
 		7FC293FBF1818802ED9D013A /* StoreViewMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreViewMode.swift; sourceTree = "<group>"; };
 		7FC2AADAC806017C13510FCB /* HelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
+		8127C3548EA95EFE65DEFC21 /* ReleaseConfigGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseConfigGateTests.swift; sourceTree = "<group>"; };
 		81B6DCD044EB92F7793567B7 /* NaturalLanguageEventParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NaturalLanguageEventParser.swift; sourceTree = "<group>"; };
 		835C22A6F8FF88C02CDD31B6 /* SystemCrashReportReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemCrashReportReader.swift; sourceTree = "<group>"; };
 		838CDC9397AEB8B081E732EE /* AppCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCommands.swift; sourceTree = "<group>"; };
@@ -756,6 +758,7 @@
 				49E10912879943FB239566EB /* QueryDSLTests.swift */,
 				EF455BE4BA241A0C46869EF5 /* RecurrenceRuleTests.swift */,
 				E24E974EA5B94188A538989B /* RecurrenceUntilRewriterTests.swift */,
+				8127C3548EA95EFE65DEFC21 /* ReleaseConfigGateTests.swift */,
 				2902AF84DDE381956C0D149E /* ReviewBuilderTests.swift */,
 				D8AF38F4F743ECB0079BDD30 /* SmartListFilterTests.swift */,
 				5958F04B434E20A3436A5CC0 /* SpotlightIdentifierTests.swift */,
@@ -1321,6 +1324,7 @@
 				486292178C2C7163A0C8C45E /* QueryDSLTests.swift in Sources */,
 				DE7B01F05C5329EB42F6C188 /* RecurrenceRuleTests.swift in Sources */,
 				B3700FF9237085BF5E14CCE8 /* RecurrenceUntilRewriterTests.swift in Sources */,
+				69B576B38783EF27E236A00E /* ReleaseConfigGateTests.swift in Sources */,
 				3B7E0CB45C3A8F28831C31C5 /* ReviewBuilderTests.swift in Sources */,
 				823DFA52ED02235FC5C1F640 /* SmartListFilterTests.swift in Sources */,
 				90318AA2282A7731DA05F9F5 /* SpotlightIdentifierTests.swift in Sources */,
@@ -1369,6 +1373,7 @@
 					"@executable_path/../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.gongahkia.hotcrossbuns.mac;
+				PRODUCT_MODULE_NAME = HotCrossBunsMac;
 				PRODUCT_NAME = "Hot Cross Buns";
 				SDKROOT = macosx;
 			};
@@ -1469,7 +1474,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.gongahkia.hotcrossbuns.mac.tests;
 				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HotCrossBunsMac.app/Contents/MacOS/HotCrossBunsMac";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Hot Cross Buns.app/Contents/MacOS/Hot Cross Buns";
 			};
 			name = Release;
 		};
@@ -1575,7 +1580,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.gongahkia.hotcrossbuns.mac.tests;
 				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HotCrossBunsMac.app/Contents/MacOS/HotCrossBunsMac";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Hot Cross Buns.app/Contents/MacOS/Hot Cross Buns";
 			};
 			name = Debug;
 		};
@@ -1592,6 +1597,7 @@
 					"@executable_path/../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.gongahkia.hotcrossbuns.mac;
+				PRODUCT_MODULE_NAME = HotCrossBunsMac;
 				PRODUCT_NAME = "Hot Cross Buns";
 				SDKROOT = macosx;
 			};

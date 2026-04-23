@@ -192,20 +192,27 @@
   <div class="download-inner">
     <p class="eyebrow">Ready when you are</p>
     <h2>Get Hot Cross Buns.</h2>
-    <p class="lede">Free. macOS 14 Sonoma and up. Signed and notarized.</p>
+    <p class="lede">Free. macOS 14 Sonoma and up. Unsigned preview DMGs are available on GitHub Releases.</p>
 
     <div class="download-cta">
-      <a class="cta-primary big" href="#download-link">Download&nbsp;.dmg</a>
+      <a class="cta-primary big" href="https://github.com/gongahkia/hot-cross-buns/releases/latest/download/HotCrossBuns-macOS.dmg">Download Preview</a>
       <p class="download-meta">
-        <span>v0.1.0</span>
+        <span>Latest GitHub release asset</span>
         <span class="sep">·</span>
-        <span class="sha">SHA-256: placeholder</span>
+        <span class="sha">Unsigned preview build</span>
       </p>
+      <p class="download-note">If macOS blocks the first launch, open Hot Cross Buns once, then go to System Settings &gt; Privacy &amp; Security and click Open Anyway. You should only need to do this once per Mac.</p>
     </div>
 
     <details class="brew">
-      <summary>Prefer Homebrew?</summary>
-      <pre><code>brew install --cask hot-cross-buns</code></pre>
+      <summary>First launch on macOS</summary>
+      <p>Preview DMGs are unsigned for now. Move the app to Applications, try to open it once, then use System Settings &gt; Privacy &amp; Security &gt; Open Anyway if macOS blocks it.</p>
+    </details>
+
+    <details class="brew">
+      <summary>Prefer Terminal?</summary>
+      <p>This one-liner downloads the latest GitHub release DMG and installs Hot Cross Buns into Applications or your home Applications folder.</p>
+      <pre><code>curl -fsSL https://gongahkia.github.io/hot-cross-buns/install-macos-preview.sh | bash</code></pre>
     </details>
   </div>
 </section>

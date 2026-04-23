@@ -54,6 +54,15 @@ jobs:
           NOTARIZE: ${{ secrets.NOTARIZE_MACOS_DMG }}
         run: scripts/package-macos-dmg.sh
 
+      - name: Create latest-download DMG alias
+        run: |
+          VERSIONED_DMG=$(find build/apple -maxdepth 1 -type f -name 'HotCrossBuns-*-macOS.dmg' | head -n 1 || true)
+          if [[ -z "$VERSIONED_DMG" ]]; then
+            echo "Versioned DMG not found in build/apple" >&2
+            exit 1
+          fi
+          cp "$VERSIONED_DMG" build/apple/HotCrossBuns-macOS.dmg
+
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
@@ -71,7 +80,7 @@ jobs:
           chmod 600 "$RUNNER_TEMP/sparkle/ed_private_key"
 
           mkdir -p "$RUNNER_TEMP/appcast-source"
-          cp build/apple/*.dmg "$RUNNER_TEMP/appcast-source/"
+          cp build/apple/HotCrossBuns-*-macOS.dmg "$RUNNER_TEMP/appcast-source/"
           cp docs/appcast/appcast.xml "$RUNNER_TEMP/appcast-source/appcast.xml"
 
       - name: Locate Sparkle generate_appcast

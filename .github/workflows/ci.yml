@@ -41,3 +41,7 @@ jobs:
       - name: Build macOS target
         working-directory: apps/apple
         run: xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO
+
+      - name: Run macOS tests
+        working-directory: apps/apple
+        run: xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 'platform=macOS' test CODE_SIGNING_ALLOWED=NO
