@@ -462,7 +462,7 @@ struct MonthGridView: View {
         var base: [CalendarEventMirror] = []
         for cal in model.calendarSnapshot.selectedCalendars {
             if let bucket = model.eventsByCalendar[cal.id] {
-                base.append(contentsOf: bucket)
+                base.append(contentsOf: bucket.compactMap { model.event(id: $0) })
             }
         }
         let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -732,24 +732,15 @@ struct MonthGridView: View {
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
-    private var visibleTasks: [TaskMirror] {
+    private func tasksForDay(_ day: Date) -> [TaskMirror] {
+        let dayStart = calendar.startOfDay(for: day)
+        let key = dayStart.timeIntervalSinceReferenceDate
         let visibleLists: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
             ? model.settings.selectedTaskListIDs
             : Set(model.taskLists.map(\.id))
-        return model.tasks.filter { task in
-            task.isDeleted == false
-                && task.isCompleted == false
-                && visibleLists.contains(task.taskListID)
-                && task.dueDate != nil
-        }
-    }
-
-    private func tasksForDay(_ day: Date) -> [TaskMirror] {
-        let dayStart = calendar.startOfDay(for: day)
-        return visibleTasks.filter { task in
-            guard let due = task.dueDate else { return false }
-            return calendar.isDate(due, inSameDayAs: dayStart)
-        }
+        return (model.tasksByDueDate[key] ?? [])
+            .compactMap { model.task(id: $0) }
+            .filter { visibleLists.contains($0.taskListID) }
     }
 
     private func monthCell(day: Date, bandReserve: CGFloat, byDay: [Date: [CalendarEventMirror]]) -> some View {

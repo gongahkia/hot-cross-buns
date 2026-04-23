@@ -36,9 +36,10 @@ struct YearGridView: View {
         let yearStartKey = yearStart.timeIntervalSinceReferenceDate
         let yearEndKey = yearEnd.timeIntervalSinceReferenceDate
         var counts: [Date: Int] = [:]
-        for (key, events) in model.eventsByDay {
+        for (key, eventIDs) in model.eventsByDay {
             guard key >= yearStartKey && key < yearEndKey else { continue }
-            let count = events.reduce(into: 0) { acc, event in
+            let count = eventIDs.reduce(into: 0) { acc, eventID in
+                guard let event = model.event(id: eventID) else { return }
                 if selected.contains(event.calendarID) { acc += 1 }
             }
             if count > 0 {

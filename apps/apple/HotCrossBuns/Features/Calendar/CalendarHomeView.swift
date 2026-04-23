@@ -587,7 +587,7 @@ struct CalendarHomeView: View {
     }
 
     private func agendaEventsByDay(for range: [Date]) -> [Date: [CalendarEventMirror]] {
-        // Use the prebuilt model.eventsByDay (rebuildSnapshots already walks
+        // Use the prebuilt model.eventsByDay IDs (rebuildSnapshots already walks
         // the full event corpus once) instead of re-iterating on every body
         // eval. Apply calendar-selection filter per lookup; sort per day.
         guard range.isEmpty == false else { return [:] }
@@ -595,7 +595,8 @@ struct CalendarHomeView: View {
         var bucket: [Date: [CalendarEventMirror]] = [:]
         for day in range {
             let key = day.timeIntervalSinceReferenceDate
-            guard let entries = model.eventsByDay[key], entries.isEmpty == false else { continue }
+            guard let eventIDs = model.eventsByDay[key], eventIDs.isEmpty == false else { continue }
+            let entries = eventIDs.compactMap { model.event(id: $0) }
             let filtered = entries.filter { selectedIDs.contains($0.calendarID) }
             guard filtered.isEmpty == false else { continue }
             bucket[day] = filtered.sorted { lhs, rhs in
@@ -607,7 +608,7 @@ struct CalendarHomeView: View {
     }
 
     private func agendaTasksByDay(for range: [Date]) -> [Date: [TaskMirror]] {
-        // Use model.tasksByDueDate; rebuildSnapshots already walks tasks
+        // Use model.tasksByDueDate IDs; rebuildSnapshots already walks tasks
         // once and excludes deleted/completed. We only need to filter to
         // the visible task-list set and sort alphabetically per day.
         let visibleLists: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
@@ -616,7 +617,8 @@ struct CalendarHomeView: View {
         var bucket: [Date: [TaskMirror]] = [:]
         for day in range {
             let key = day.timeIntervalSinceReferenceDate
-            guard let entries = model.tasksByDueDate[key], entries.isEmpty == false else { continue }
+            guard let taskIDs = model.tasksByDueDate[key], taskIDs.isEmpty == false else { continue }
+            let entries = taskIDs.compactMap { model.task(id: $0) }
             let filtered = entries.filter { visibleLists.contains($0.taskListID) }
             guard filtered.isEmpty == false else { continue }
             bucket[day] = filtered.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
