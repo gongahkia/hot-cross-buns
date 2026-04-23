@@ -46,6 +46,19 @@ struct TemplatesSection: View {
                             Label("Delete", systemImage: "trash")
                         }
                     }
+                    .contextMenu {
+                        Button {
+                            taskEditor = template
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        Divider()
+                        Button(role: .destructive) {
+                            model.deleteTaskTemplate(template.id)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
                 }
             }
             Button {
@@ -97,6 +110,19 @@ struct TemplatesSection: View {
                     }
                     .buttonStyle(.plain)
                     .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            model.deleteEventTemplate(template.id)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                    .contextMenu {
+                        Button {
+                            eventEditor = template
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        Divider()
                         Button(role: .destructive) {
                             model.deleteEventTemplate(template.id)
                         } label: {
