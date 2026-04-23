@@ -1369,6 +1369,7 @@
 					"@executable_path/../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.gongahkia.hotcrossbuns.mac;
+				PRODUCT_NAME = "Hot Cross Buns";
 				SDKROOT = macosx;
 			};
 			name = Debug;
@@ -1591,6 +1592,7 @@
 					"@executable_path/../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.gongahkia.hotcrossbuns.mac;
+				PRODUCT_NAME = "Hot Cross Buns";
 				SDKROOT = macosx;
 			};
 			name = Release;
