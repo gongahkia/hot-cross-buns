@@ -138,7 +138,7 @@ Package an unsigned DMG locally:
 scripts/package-macos-dmg.sh
 ```
 
-To run the app locally from Xcode with Google sign-in enabled, provide local OAuth values via `apps/apple/Configuration/GoogleOAuth.local.xcconfig`. Use `apps/apple/Configuration/GoogleOAuth.example.xcconfig` as the template and do not commit real credentials.
+To run the app locally from Xcode with Google sign-in enabled, copy `apps/apple/Configuration/GoogleOAuth.example.xcconfig` to `apps/apple/Configuration/GoogleOAuth.local.xcconfig` and fill in your own values. The committed `apps/apple/Configuration/GoogleOAuth.xcconfig` provides blank CI-safe defaults and automatically includes the local override when present.
 
 ## Release Flow
 

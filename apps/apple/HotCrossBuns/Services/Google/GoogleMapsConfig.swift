@@ -3,7 +3,7 @@ import Foundation
 // Resolves the Google Maps Embed API key from the app bundle.
 //
 // The key is plumbed in via xcconfig → project.yml → Info.plist:
-//   apps/apple/Configuration/GoogleOAuth.local.xcconfig
+//   apps/apple/Configuration/GoogleOAuth.xcconfig
 //     GOOGLE_MAPS_EMBED_API_KEY = AIza...
 //   apps/apple/project.yml
 //     info.properties.GoogleMapsEmbedAPIKey: $(GOOGLE_MAPS_EMBED_API_KEY)

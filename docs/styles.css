@@ -216,6 +216,8 @@ code, kbd {
   font-family: "Geist", sans-serif;
   font-size: .96rem;
   font-weight: 500;
+  border: 0;
+  cursor: pointer;
   color: var(--base) !important;
   background: var(--text);
   border-radius: 999px;

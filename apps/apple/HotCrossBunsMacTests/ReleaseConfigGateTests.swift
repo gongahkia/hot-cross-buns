@@ -24,6 +24,9 @@ final class ReleaseConfigGateTests: XCTestCase {
             "GIDClientID": ""
         ])).isConfigured)
         XCTAssertFalse(GoogleAuthService(bundle: try makeBundle(info: [
+            "GIDClientID": "your-macos-oauth-client-id.apps.googleusercontent.com"
+        ])).isConfigured)
+        XCTAssertFalse(GoogleAuthService(bundle: try makeBundle(info: [
             "GIDClientID": "$(GOOGLE_MACOS_CLIENT_ID)"
         ])).isConfigured)
         XCTAssertTrue(GoogleAuthService(bundle: try makeBundle(info: [

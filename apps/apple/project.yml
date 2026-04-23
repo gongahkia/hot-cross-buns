@@ -5,8 +5,8 @@ options:
     macOS: "14.0"
   createIntermediateGroups: true
 configFiles:
-  Debug: Configuration/GoogleOAuth.local.xcconfig
-  Release: Configuration/GoogleOAuth.local.xcconfig
+  Debug: Configuration/GoogleOAuth.xcconfig
+  Release: Configuration/GoogleOAuth.xcconfig
 settings:
   base:
     SWIFT_VERSION: "5.9"
