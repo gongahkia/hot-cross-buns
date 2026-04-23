@@ -155,6 +155,7 @@ struct MarkdownLiveEditor: NSViewRepresentable {
 // editor font into a theme. Kept on this layer so MarkdownEditor stays a
 // one-line call.
 extension MarkdownHighlightTheme {
+    @MainActor
     static func current(baseFont: NSFont) -> MarkdownHighlightTheme {
         let scheme = HCBColorSchemeStore.current
         return .make(

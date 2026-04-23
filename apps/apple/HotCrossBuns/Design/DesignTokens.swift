@@ -6,6 +6,9 @@ import SwiftUI
 // working; the actual palette comes from HCBColorSchemeStore.current,
 // which Settings updates. The MacSidebarShell applies .id(schemeID) so
 // views re-render when the scheme changes.
+// @MainActor to match HCBColorSchemeStore.current; every caller is already
+// a SwiftUI View body / computed, which is @MainActor-bound.
+@MainActor
 enum AppColor {
     static var ember: Color { HCBColorSchemeStore.current.ember.swiftColor }
     static var moss: Color { HCBColorSchemeStore.current.moss.swiftColor }

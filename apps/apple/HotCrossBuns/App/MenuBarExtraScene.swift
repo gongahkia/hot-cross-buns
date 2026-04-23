@@ -227,6 +227,7 @@ private struct FocusStripMenuBarPanel: View {
             }
         }
 
+        @MainActor
         var tint: Color {
             switch self {
             case .now: AppColor.ember
