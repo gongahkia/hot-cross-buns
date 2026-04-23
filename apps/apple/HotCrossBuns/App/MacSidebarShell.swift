@@ -594,53 +594,33 @@ struct MacSidebarShell: View {
         [
             CommandPaletteCommand(
                 id: "new-task",
-                title: "Smart Add Task",
-                subtitle: "Natural-language quick add",
-                symbol: "sparkles",
+                title: "New Task",
+                subtitle: "Natural-language task capture",
+                symbol: "checklist",
                 shortcut: "Cmd+N",
-                keywords: ["task", "create", "new", "quick", "add", "smart"]
+                keywords: ["task", "create", "new", "quick", "add"]
             ) {
                 presentSheet(.quickAddTask, on: .store)
             },
             CommandPaletteCommand(
                 id: "new-note",
-                title: "Smart Add Note",
+                title: "New Note",
                 subtitle: "Natural-language note capture",
                 symbol: "note.text.badge.plus",
                 shortcut: "",
-                keywords: ["note", "create", "new", "quick", "add", "smart"]
+                keywords: ["note", "create", "new", "quick", "add"]
             ) {
                 presentSheet(.quickAddNote, on: .notes)
             },
             CommandPaletteCommand(
                 id: "new-event",
-                title: "Smart Add Event",
+                title: "New Event",
                 subtitle: "Natural-language event capture",
                 symbol: "calendar.badge.plus",
                 shortcut: "Cmd+Shift+N",
-                keywords: ["event", "calendar", "create", "new", "smart"]
+                keywords: ["event", "calendar", "create", "new", "quick", "add"]
             ) {
                 presentSheet(.quickAddEvent, on: .calendar)
-            },
-            CommandPaletteCommand(
-                id: "new-task-detailed",
-                title: "New Task (Detailed)",
-                subtitle: "Fill out the full task form",
-                symbol: "checklist",
-                shortcut: "Cmd+Shift+T",
-                keywords: ["task", "detailed", "form"]
-            ) {
-                presentSheet(.addTask, on: .store)
-            },
-            CommandPaletteCommand(
-                id: "new-event-detailed",
-                title: "New Event (Detailed)",
-                subtitle: "Fill out the full event form",
-                symbol: "calendar",
-                shortcut: "",
-                keywords: ["event", "calendar", "detailed", "form"]
-            ) {
-                presentSheet(.addEvent, on: .calendar)
             },
             CommandPaletteCommand(
                 id: "refresh",
