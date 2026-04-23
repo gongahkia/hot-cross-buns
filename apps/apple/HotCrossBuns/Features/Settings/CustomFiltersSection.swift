@@ -45,6 +45,19 @@ struct CustomFiltersSection: View {
                             Label("Delete", systemImage: "trash")
                         }
                     }
+                    .contextMenu {
+                        Button {
+                            editor = filter
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        Divider()
+                        Button(role: .destructive) {
+                            model.deleteCustomFilter(filter.id)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
                 }
             }
 
