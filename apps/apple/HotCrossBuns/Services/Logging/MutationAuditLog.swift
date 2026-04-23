@@ -66,7 +66,7 @@ actor MutationAuditLog {
         retentionLimit = max(1, min(Self.absoluteCeiling, limit))
         if buffer.count > retentionLimit {
             buffer.removeFirst(buffer.count - retentionLimit)
-            persist()
+            rewriteEntireFile()
         }
     }
 
@@ -89,10 +89,15 @@ actor MutationAuditLog {
             postSnapshotJSON: postSnapshotJSON
         )
         buffer.append(entry)
+        // Fast path: O(1) append to JSONL file. Retention trim triggers a
+        // full rewrite, but only when the buffer actually exceeds the cap —
+        // which is rare compared to the common case of appending one entry.
         if buffer.count > retentionLimit {
             buffer.removeFirst(buffer.count - retentionLimit)
+            rewriteEntireFile()
+        } else {
+            persistLastEntry()
         }
-        persist()
     }
 
     func recentEntries(limit: Int = 100) -> [MutationAuditEntry] {
@@ -108,12 +113,12 @@ actor MutationAuditLog {
     func delete(id entryID: String) {
         ensureLoaded()
         buffer.removeAll { $0.id == entryID }
-        persist()
+        rewriteEntireFile()
     }
 
     func clear() {
         buffer = []
-        persist()
+        rewriteEntireFile()
     }
 
     private func ensureLoaded() {
@@ -123,22 +128,95 @@ actor MutationAuditLog {
             let url = Self.fileURL(),
             FileManager.default.fileExists(atPath: url.path),
             let data = try? Data(contentsOf: url),
-            let decoded = try? JSONDecoder().decode([MutationAuditEntry].self, from: data)
+            data.isEmpty == false
         else { return }
+        // Back-compat: legacy v1 format wrote the whole buffer as a JSON array.
+        // New v2 format is JSONL (one entry per line, O(1) append on record).
+        // Detect v1 by leading '[' and rewrite once into v2 on next persist.
+        if data.first == UInt8(ascii: "[") {
+            if let legacy = try? JSONDecoder().decode([MutationAuditEntry].self, from: data) {
+                buffer = legacy
+                rewriteEntireFile()
+            }
+            return
+        }
+        let decoder = JSONDecoder()
+        var decoded: [MutationAuditEntry] = []
+        decoded.reserveCapacity(4096)
+        data.withUnsafeBytes { raw in
+            let bytes = raw.bindMemory(to: UInt8.self)
+            var start = 0
+            for i in 0..<bytes.count where bytes[i] == UInt8(ascii: "\n") {
+                if i > start {
+                    let slice = Data(bytes[start..<i])
+                    if let entry = try? decoder.decode(MutationAuditEntry.self, from: slice) {
+                        decoded.append(entry)
+                    }
+                }
+                start = i + 1
+            }
+            if start < bytes.count {
+                let slice = Data(bytes[start..<bytes.count])
+                if let entry = try? decoder.decode(MutationAuditEntry.self, from: slice) {
+                    decoded.append(entry)
+                }
+            }
+        }
         buffer = decoded
     }
 
-    private func persist() {
+    // Shared encoder instance — reused across every record() call so we
+    // don't pay the encoder-construction cost per entry.
+    private static let entryEncoder: JSONEncoder = {
+        let e = JSONEncoder()
+        e.dateEncodingStrategy = .deferredToDate
+        return e
+    }()
+
+    // Single-entry append. O(1) cost: encode one entry, open the file in
+    // append mode, write the bytes + newline, close. Replaces the old
+    // "re-encode the entire buffer on every record" hot path that turned
+    // a user-facing mutation into a ~1 MB atomic disk write.
+    private func persistLastEntry() {
+        guard let url = Self.fileURL(), let entry = buffer.last else { return }
+        do {
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            if FileManager.default.fileExists(atPath: url.path) == false {
+                FileManager.default.createFile(atPath: url.path, contents: nil)
+            }
+            var line = try Self.entryEncoder.encode(entry)
+            line.append(UInt8(ascii: "\n"))
+            let handle = try FileHandle(forWritingTo: url)
+            defer { try? handle.close() }
+            try handle.seekToEnd()
+            try handle.write(contentsOf: line)
+        } catch {
+            AppLogger.warn("audit log append failed", category: .cache, metadata: ["error": String(describing: error)])
+        }
+    }
+
+    // Used for deletes, retention trims, clears, and the v1→v2 migration.
+    // A full rewrite is O(n) but these are rare compared to append.
+    private func rewriteEntireFile() {
         guard let url = Self.fileURL() else { return }
         do {
             try FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(),
                 withIntermediateDirectories: true
             )
-            let data = try JSONEncoder().encode(buffer)
+            var data = Data()
+            data.reserveCapacity(buffer.count * 256)
+            for entry in buffer {
+                let line = try Self.entryEncoder.encode(entry)
+                data.append(line)
+                data.append(UInt8(ascii: "\n"))
+            }
             try data.write(to: url, options: [.atomic])
         } catch {
-            AppLogger.warn("audit log write failed", category: .cache, metadata: ["error": String(describing: error)])
+            AppLogger.warn("audit log rewrite failed", category: .cache, metadata: ["error": String(describing: error)])
         }
     }
 
