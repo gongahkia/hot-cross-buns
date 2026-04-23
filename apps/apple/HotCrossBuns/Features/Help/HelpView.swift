@@ -74,6 +74,7 @@ struct HelpView: View {
                     }
 
                     section(title: "Troubleshooting") {
+                        bullet("Preview DMG blocked by macOS? Open Hot Cross Buns once, then go to System Settings > Privacy & Security and click Open Anyway. You should only need to do this once per Mac.")
                         bullet("Sign-in disabled? This build is missing Google sign-in credentials. Install an official release or contact the developer for a configured build.")
                         bullet("Stuck sync? Sync menu → Force Full Resync clears all checkpoints and refetches.")
                         bullet("Something weird? Settings → Diagnostics and Recovery dumps state and lets you wipe cache.")

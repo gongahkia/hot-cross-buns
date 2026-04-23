@@ -15,13 +15,13 @@ final class AppModelEventsByCalendarTests: XCTestCase {
         let calendarIDs = Set(model.calendars.map(\.id))
 
         for calID in calendarIDs {
-            let direct = model.events.filter {
+            let directIDs = Set(model.events.filter {
                 $0.calendarID == calID && $0.status != .cancelled
-            }
-            let bucketed = model.eventsByCalendar[calID] ?? []
+            }.map(\.id))
+            let bucketedIDs = Set(model.eventsByCalendar[calID] ?? [])
             XCTAssertEqual(
-                Set(direct.map(\.id)),
-                Set(bucketed.map(\.id)),
+                directIDs,
+                bucketedIDs,
                 "bucket for \(calID) should match the direct filter result"
             )
         }
@@ -30,9 +30,16 @@ final class AppModelEventsByCalendarTests: XCTestCase {
     func testEventsByCalendarOmitsCancelledEvents() {
         let model = AppModel.preview
         for (_, bucket) in model.eventsByCalendar {
-            for event in bucket {
-                XCTAssertNotEqual(event.status, .cancelled,
-                                  "cancelled events must not appear in the bucket index")
+            for eventID in bucket {
+                guard let event = model.event(id: eventID) else {
+                    XCTFail("bucket index referenced missing event \(eventID)")
+                    continue
+                }
+                XCTAssertNotEqual(
+                    event.status,
+                    .cancelled,
+                    "cancelled events must not appear in the bucket index"
+                )
             }
         }
     }
