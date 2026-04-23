@@ -70,7 +70,7 @@ struct MacSidebarShell: View {
             .id(model.settings.colorSchemeID) // force re-render so AppColor.X picks up the new palette
             .withHCBAppearance(model.settings)
             .environment(\.hcbShortcutOverrides, model.settings.shortcutOverrides)
-            .preferredColorScheme(HCBColorScheme.scheme(id: model.settings.colorSchemeID)?.isDark == true ? .dark : .light)
+            .hcbPreferredColorScheme(model.settings)
             .appBackground()
             .safeAreaInset(edge: .top) {
                 AppStatusBanner(

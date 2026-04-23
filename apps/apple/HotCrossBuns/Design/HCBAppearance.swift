@@ -1,5 +1,35 @@
 import SwiftUI
 
+enum HCBBaseColorSchemePreference: String, CaseIterable, Identifiable {
+    static let storageKey = "hcb.baseColorSchemePreference"
+
+    case dark
+    case light
+    case system
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .dark: "Dark"
+        case .light: "Light"
+        case .system: "Adapt to system"
+        }
+    }
+
+    var preferredColorScheme: ColorScheme? {
+        switch self {
+        case .dark: .dark
+        case .light: .light
+        case .system: nil
+        }
+    }
+
+    static func fallback(for settings: AppSettings) -> HCBBaseColorSchemePreference {
+        HCBColorScheme.scheme(id: settings.colorSchemeID)?.isDark == true ? .dark : .light
+    }
+}
+
 enum HCBTextSize {
     static let minPoints: Double = 9
     static let maxPoints: Double = 24
@@ -55,6 +85,19 @@ struct HCBAppearanceModifier: ViewModifier {
     }
 }
 
+struct HCBPreferredColorSchemeModifier: ViewModifier {
+    let settings: AppSettings
+    @AppStorage(HCBBaseColorSchemePreference.storageKey) private var storedPreference: String = ""
+
+    func body(content: Content) -> some View {
+        content.preferredColorScheme(resolvedPreference.preferredColorScheme)
+    }
+
+    private var resolvedPreference: HCBBaseColorSchemePreference {
+        HCBBaseColorSchemePreference(rawValue: storedPreference) ?? HCBBaseColorSchemePreference.fallback(for: settings)
+    }
+}
+
 extension View {
     // Applies the app-wide appearance (layout scale + text size + font family)
     // to a subtree. Use at the shell root AND at every out-of-tree presentation
@@ -65,6 +108,10 @@ extension View {
             textSizePoints: HCBTextSize.clamp(settings.uiTextSizePoints),
             fontName: settings.uiFontName
         ))
+    }
+
+    func hcbPreferredColorScheme(_ settings: AppSettings) -> some View {
+        modifier(HCBPreferredColorSchemeModifier(settings: settings))
     }
 }
 
