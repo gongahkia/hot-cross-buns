@@ -49,6 +49,8 @@ Create a Google Cloud OAuth client for macOS, then provide these build settings 
 
 The committed defaults are intentionally blank in `Configuration/GoogleOAuth.xcconfig`, and that file optionally includes the ignored `Configuration/GoogleOAuth.local.xcconfig` when present. Use `Configuration/GoogleOAuth.example.xcconfig` as the template for your local override and do not commit real OAuth client IDs. You can also pass values directly to `xcodebuild` if you prefer.
 
+For GitHub-built public releases, set repository secrets `GOOGLE_MACOS_CLIENT_ID` and `GOOGLE_MACOS_REVERSED_CLIENT_ID`. The release workflow writes those into a temporary `Configuration/GoogleOAuth.local.xcconfig` before packaging the DMG, and tag releases now fail fast if those secrets are missing.
+
 ```bash
 xcodebuild \
   -project HotCrossBuns.xcodeproj \
