@@ -86,6 +86,14 @@ actor SyncScheduler {
         )
     }
 
+    // Concurrency cap for per-resource fan-out (task lists, calendars).
+    // Before: one child task per resource, no ceiling. Users with many
+    // shared calendars or task lists triggered 15+ parallel HTTP requests,
+    // competing for CPU/network and occasionally hitting Google rate
+    // limits. 5 is enough to hide latency behind one another without
+    // flooding.
+    private static let maxConcurrentSyncRequests = 5
+
     private func listTasks(
         for taskLists: [TaskListMirror],
         accountID: GoogleAccount.ID,
@@ -94,7 +102,13 @@ actor SyncScheduler {
     ) async throws -> [TaskListSyncResult] {
         let tasksClient = tasksClient
         return try await withThrowingTaskGroup(of: TaskListSyncResult.self) { group in
-            for taskList in taskLists {
+            var iter = taskLists.makeIterator()
+            // Seed the window with up to `maxConcurrentSyncRequests` children.
+            // As each finishes we add one more from the iterator until all are
+            // dispatched — keeps in-flight work bounded without losing any
+            // resource from the batch.
+            var enqueued = 0
+            while enqueued < Self.maxConcurrentSyncRequests, let taskList = iter.next() {
                 let checkpoint = checkpoint(
                     accountID: accountID,
                     resourceType: .taskList,
@@ -132,11 +146,49 @@ actor SyncScheduler {
                         checkpoint: nextCheckpoint
                     )
                 }
+                enqueued += 1
             }
 
             var results: [TaskListSyncResult] = []
             for try await result in group {
                 results.append(result)
+                // Maintain the sliding window: every time a child finishes
+                // and we collect its result, add the next pending task list.
+                if let nextList = iter.next() {
+                    let checkpoint = checkpoint(
+                        accountID: accountID,
+                        resourceType: .taskList,
+                        resourceID: nextList.id,
+                        checkpointIndex: checkpointIndex
+                    )
+                    group.addTask {
+                        let page = try await tasksClient.listTasks(
+                            taskListID: nextList.id,
+                            updatedMin: checkpoint?.tasksUpdatedMin
+                        )
+                        let nextWatermark: Date = page.serverDate
+                            ?? syncStartedAt.addingTimeInterval(-Self.tasksWatermarkSlackSeconds)
+                        let nextCheckpoint = SyncCheckpoint(
+                            id: SyncCheckpoint.stableID(
+                                accountID: accountID,
+                                resourceType: .taskList,
+                                resourceID: nextList.id
+                            ),
+                            accountID: accountID,
+                            resourceType: .taskList,
+                            resourceID: nextList.id,
+                            calendarSyncToken: nil,
+                            tasksUpdatedMin: nextWatermark,
+                            lastSuccessfulSyncAt: Date()
+                        )
+                        return TaskListSyncResult(
+                            taskListID: nextList.id,
+                            tasks: page.tasks,
+                            didFullSync: checkpoint?.tasksUpdatedMin == nil,
+                            checkpoint: nextCheckpoint
+                        )
+                    }
+                }
             }
             return results
         }
@@ -156,23 +208,26 @@ actor SyncScheduler {
         let calendarClient = calendarClient
 
         return try await withThrowingTaskGroup(of: CalendarSyncResult.self) { group in
-            for calendarID in resolvedIDs {
-                let checkpoint = checkpoint(
+            // Same sliding-window concurrency cap as listTasks.
+            let idArray = Array(resolvedIDs)
+            var iter = idArray.makeIterator()
+            func scheduleNext() {
+                guard let calendarID = iter.next() else { return }
+                let cp = checkpoint(
                     accountID: accountID,
                     resourceType: .calendar,
                     resourceID: calendarID,
                     checkpointIndex: checkpointIndex
                 )
-
                 group.addTask {
-                    let hadSyncToken = checkpoint?.calendarSyncToken?.isEmpty == false
+                    let hadSyncToken = cp?.calendarSyncToken?.isEmpty == false
                     let page: GoogleCalendarEventsPage
                     let didFullSync: Bool
 
                     do {
                         page = try await calendarClient.listEvents(
                             calendarID: calendarID,
-                            syncToken: checkpoint?.calendarSyncToken,
+                            syncToken: cp?.calendarSyncToken,
                             timeMin: startOfToday
                         )
                         didFullSync = hadSyncToken == false
@@ -194,7 +249,7 @@ actor SyncScheduler {
                         accountID: accountID,
                         resourceType: .calendar,
                         resourceID: calendarID,
-                        calendarSyncToken: page.nextSyncToken ?? checkpoint?.calendarSyncToken,
+                        calendarSyncToken: page.nextSyncToken ?? cp?.calendarSyncToken,
                         tasksUpdatedMin: nil,
                         lastSuccessfulSyncAt: syncStartedAt
                     )
@@ -207,9 +262,14 @@ actor SyncScheduler {
                 }
             }
 
+            for _ in 0..<Self.maxConcurrentSyncRequests {
+                scheduleNext()
+            }
+
             var results: [CalendarSyncResult] = []
             for try await result in group {
                 results.append(result)
+                scheduleNext()
             }
             return results
         }
