@@ -557,7 +557,7 @@ struct CalendarHomeView: View {
                             Button {
                                 router?.present(.editEvent(event.id))
                             } label: {
-                                EventListRow(event: event)
+                                EventListRow(event: event, accentColor: calendarColor(for: event))
                             }
                             .buttonStyle(.plain)
                         }
@@ -683,6 +683,16 @@ struct CalendarHomeView: View {
                 lhs.startDate < rhs.startDate
             }
     }
+
+    private func calendarColor(for event: CalendarEventMirror) -> Color {
+        if let hex = CalendarEventColor.from(colorId: event.colorId).hex {
+            return Color(hex: hex)
+        }
+        guard let cal = model.calendars.first(where: { $0.id == event.calendarID }) else {
+            return AppColor.blue
+        }
+        return Color(hex: cal.colorHex)
+    }
 }
 
 struct EventRowView: View {
@@ -701,11 +711,12 @@ struct EventRowView: View {
 
 private struct EventListRow: View {
     let event: CalendarEventMirror
+    var accentColor: Color = AppColor.blue
 
     var body: some View {
         HStack(spacing: 12) {
             RoundedRectangle(cornerRadius: 6)
-                .fill(AppColor.blue)
+                .fill(accentColor)
                 .hcbScaledFrame(width: 6)
             VStack(alignment: .leading, spacing: 5) {
                 Text(event.summary)
