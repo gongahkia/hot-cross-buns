@@ -118,6 +118,7 @@ struct TaskInspectorView: View {
         }
         .background(AppColor.cream.opacity(0.35))
         .hcbSurface(.inspector) // §6.11 per-surface font override
+        .focusedSceneValue(\.taskInspectorCommandActions, taskInspectorCommandActions)
         .onChange(of: task.id) { _, _ in
             commitPending()
             draft = TaskDraft(task: task)
@@ -128,17 +129,6 @@ struct TaskInspectorView: View {
         .onChange(of: task.notes) { _, _ in refreshDraftIfClean() }
         .onChange(of: task.dueDate) { _, _ in refreshDraftIfClean() }
         .onDisappear { commitPending() }
-        .background(
-            Button("Save and Close") {
-                commitPending()
-                close()
-            }
-            .hcbKeyboardShortcut(.taskSaveAndClose)
-            .opacity(0)
-            .hcbScaledFrame(width: 0, height: 0)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-        )
         .confirmationDialog(
             "Delete this task?",
             isPresented: $isConfirmingDelete,
@@ -151,6 +141,24 @@ struct TaskInspectorView: View {
         } message: {
             Text("This deletes the task from Google Tasks. It cannot be undone.")
         }
+    }
+
+    private var taskInspectorCommandActions: TaskInspectorCommandActions {
+        TaskInspectorCommandActions(
+            saveAndClose: {
+                commitPending()
+                close()
+            },
+            toggleCompletion: {
+                Task { await toggleCompletion() }
+            },
+            delete: {
+                isConfirmingDelete = true
+            },
+            duplicate: {
+                Task { _ = await model.duplicateTask(task) }
+            }
+        )
     }
 
     // MARK: - View-only body (renders populated fields only).
@@ -450,7 +458,6 @@ struct TaskInspectorView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(task.isCompleted ? AppColor.blue : AppColor.moss)
-            .hcbKeyboardShortcut(.taskQuickSave)
 
             Button(role: .destructive) {
                 isConfirmingDelete = true
@@ -459,7 +466,6 @@ struct TaskInspectorView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
-            .hcbKeyboardShortcut(.taskDelete)
 
             Button {
                 Task { _ = await model.duplicateTask(task) }
@@ -468,7 +474,6 @@ struct TaskInspectorView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
-            .hcbKeyboardShortcut(.taskDuplicate)
 
             Menu {
                 Button {
