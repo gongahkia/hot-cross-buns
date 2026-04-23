@@ -38,7 +38,7 @@ struct KanbanView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            ScrollView(.horizontal, showsIndicators: true) {
+            ScrollView(.horizontal) {
                 // Lazy horizontal stack so columns off-screen don't
                 // instantiate their row subtrees on every board render.
                 LazyHStack(alignment: .top, spacing: 14) {
@@ -166,7 +166,7 @@ private struct KanbanColumnView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             header
-            ScrollView(.vertical, showsIndicators: false) {
+            ScrollView(.vertical) {
                 // Lazy vertical stack — columns can contain thousands of
                 // cards; eager VStack instantiated every card even the ones
                 // scrolled off-screen. LazyVStack materializes cards as they
@@ -238,6 +238,7 @@ private struct KanbanColumnView: View {
                 }
                 .hcbScaledPadding(.vertical, 4)
             }
+            .scrollIndicators(.hidden)
             .frame(maxHeight: .infinity)
         }
         .frame(width: columnWidth, alignment: .top)

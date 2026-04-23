@@ -1817,7 +1817,7 @@ struct CalendarDropChipsStrip: View {
             if writable.count <= 1 {
                 EmptyView()
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
+                ScrollView(.horizontal) {
                     HStack(spacing: 6) {
                         Text("Drop on a calendar to move:")
                             .hcbFont(.caption2, weight: .semibold)
@@ -1830,6 +1830,7 @@ struct CalendarDropChipsStrip: View {
                     .hcbScaledPadding(.vertical, 6)
                     .hcbScaledPadding(.horizontal, 10)
                 }
+                .scrollIndicators(.hidden)
             }
         }
     }
