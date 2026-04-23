@@ -205,14 +205,22 @@ enum AdvancedSearchMatcher {
 
     // MARK: - regex
 
-    // Compiles the regex once and tests against a list of candidate labels
-    // per entity — title + keywords. Returns true if any label matches.
+    // Precompiled version: callers filtering thousands of entities should
+    // compile the regex ONCE per query (see regexMatches(_:compiled:))
+    // rather than paying the NSRegularExpression(pattern:) cost per entity.
     static func regexMatches(_ entity: QuickSwitcherEntity, regexPattern: String) -> Bool {
         guard let re = try? NSRegularExpression(pattern: regexPattern, options: [.caseInsensitive]) else { return false }
+        return regexMatches(entity, compiled: re)
+    }
+
+    // Fast path used by the command palette for regex queries over large
+    // entity sets. The caller builds the NSRegularExpression once; we reuse
+    // it across every candidate.
+    static func regexMatches(_ entity: QuickSwitcherEntity, compiled regex: NSRegularExpression) -> Bool {
         let candidates = regexCandidates(for: entity)
-        for c in candidates {
+        for c in candidates where c.isEmpty == false {
             let range = NSRange(c.startIndex..., in: c)
-            if re.firstMatch(in: c, range: range) != nil { return true }
+            if regex.firstMatch(in: c, range: range) != nil { return true }
         }
         return false
     }
