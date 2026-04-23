@@ -128,7 +128,7 @@ struct LocationMapPreview: View {
             return
         }
         // Debounce: short delay so each keystroke doesn't fire a geocode.
-        try? await Task.sleep(nanoseconds: 400_000_000)
+        try? await Task.sleep(for: .milliseconds(400))
         if Task.isCancelled { return }
         isGeocoding = true
         defer { isGeocoding = false }

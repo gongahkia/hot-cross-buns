@@ -292,7 +292,7 @@ struct EventHoverPreviewModifier: ViewModifier {
                 hoverTask?.cancel()
                 if hovering {
                     hoverTask = Task {
-                        try? await Task.sleep(nanoseconds: 600_000_000)
+                        try? await Task.sleep(for: .milliseconds(600))
                         guard Task.isCancelled == false else { return }
                         await MainActor.run { showPreview = true }
                     }
