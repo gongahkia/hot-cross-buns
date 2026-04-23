@@ -23,14 +23,18 @@ struct MacSidebarShell: View {
         HCBTextSize.clamp(model.settings.uiTextSizePoints)
     }
 
-    // Sized to fit the longest sidebar label ("Calendar") + icon + badge
-    // without leaving acres of whitespace. Bumped narrower from 240pt.
-    private let expandedSidebarWidthBase: CGFloat = 172
+    // Keep the source list compact by default while still allowing the system
+    // split-view grip to breathe with larger text or sidebar icon settings.
+    private let sidebarMinWidthBase: CGFloat = 160
+    private let sidebarIdealWidthBase: CGFloat = 188
+    private let sidebarMaxWidthBase: CGFloat = 240
     // Top inset reserved so the traffic-light buttons don't overlap the
     // first sidebar row when the window chrome sits over the sidebar.
     private let trafficLightInsetBase: CGFloat = 28
 
-    private var expandedSidebarWidth: CGFloat { expandedSidebarWidthBase * layoutZoomScale }
+    private var sidebarMinWidth: CGFloat { sidebarMinWidthBase * layoutZoomScale }
+    private var sidebarIdealWidth: CGFloat { sidebarIdealWidthBase * layoutZoomScale }
+    private var sidebarMaxWidth: CGFloat { sidebarMaxWidthBase * layoutZoomScale }
     private var trafficLightInset: CGFloat { trafficLightInsetBase * layoutZoomScale }
 
     @State private var selection: SidebarItem = .calendar
@@ -284,13 +288,11 @@ struct MacSidebarShell: View {
 
     private var sidebar: some View {
         expandedSidebar
-            .frame(width: expandedSidebarWidth, alignment: .topLeading)
             .navigationSplitViewColumnWidth(
-                min: expandedSidebarWidth,
-                ideal: expandedSidebarWidth,
-                max: expandedSidebarWidth
+                min: sidebarMinWidth,
+                ideal: sidebarIdealWidth,
+                max: sidebarMaxWidth
             )
-            .clipped()
             .hcbSurface(.sidebar) // §6.11 per-surface font override
     }
 
@@ -316,7 +318,12 @@ struct MacSidebarShell: View {
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
         }
-        .frame(width: expandedSidebarWidth)
+        .frame(
+            minWidth: sidebarMinWidth,
+            idealWidth: sidebarIdealWidth,
+            maxWidth: sidebarMaxWidth,
+            alignment: .topLeading
+        )
     }
 
     @ViewBuilder
@@ -770,8 +777,6 @@ struct MacSidebarShell: View {
                 }
             } icon: {
                 Image(systemName: item.systemImage)
-                    .hcbFontSystem(size: 18, weight: .medium)
-                    .hcbScaledFrame(width: 24)
             }
         }
     }
