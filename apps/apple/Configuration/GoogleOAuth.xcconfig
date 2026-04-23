@@ -1,0 +1,12 @@
+// Committed baseline config for local builds and CI.
+//
+// Values default to blank so the app still builds when Google OAuth is not
+// configured. A developer can create the ignored sibling file
+// `GoogleOAuth.local.xcconfig` to override these locally without touching the
+// repo or CI.
+
+GOOGLE_MACOS_CLIENT_ID =
+GOOGLE_MACOS_REVERSED_CLIENT_ID =
+GOOGLE_MAPS_EMBED_API_KEY =
+
+#include? "GoogleOAuth.local.xcconfig"

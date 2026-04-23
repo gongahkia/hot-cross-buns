@@ -298,6 +298,7 @@
 		4D029E6660BF1FF8C9C2E34E /* MarkdownHTML.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownHTML.swift; sourceTree = "<group>"; };
 		4D35E61D1B3B91A6E21DCC27 /* LocalCacheStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCacheStore.swift; sourceTree = "<group>"; };
 		4D768DB4E22AFC1D29F84EB1 /* BackoffPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffPolicyTests.swift; sourceTree = "<group>"; };
+		4EC096ACFA4E227917B9986A /* GoogleOAuth.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = GoogleOAuth.xcconfig; sourceTree = "<group>"; };
 		515AE22366D9FEE4138091FF /* GoogleCalendarClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleCalendarClient.swift; sourceTree = "<group>"; };
 		5219CCB9C481FFD04A218A66 /* DayGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayGridView.swift; sourceTree = "<group>"; };
 		52C304D2E832B788B8FAF20E /* RecurrenceRule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceRule.swift; sourceTree = "<group>"; };
@@ -311,7 +312,6 @@
 		5E7CCAAA53D6C1875F338A5B /* CalendarGridLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarGridLayoutTests.swift; sourceTree = "<group>"; };
 		62B7E28F16E7ED3A3AF854DC /* CacheSchemaMigrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheSchemaMigrator.swift; sourceTree = "<group>"; };
 		6366F53ACB2CE1B4D522E41D /* DockBadgeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockBadgeController.swift; sourceTree = "<group>"; };
-		643A4637A65B42FA2BBF76FE /* GoogleOAuth.local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = GoogleOAuth.local.xcconfig; sourceTree = "<group>"; };
 		679D4851E75DBE60257686A7 /* GoogleMapsConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleMapsConfig.swift; sourceTree = "<group>"; };
 		681B9DB65E8B12860BF51B3D /* QuickCreatePopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickCreatePopover.swift; sourceTree = "<group>"; };
 		6A88DE6FAF6CB6673FAFBC3A /* SpotlightIndexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightIndexer.swift; sourceTree = "<group>"; };
@@ -809,7 +809,7 @@
 		A5B9A9DA686ECB6D9965E6F4 /* Configuration */ = {
 			isa = PBXGroup;
 			children = (
-				643A4637A65B42FA2BBF76FE /* GoogleOAuth.local.xcconfig */,
+				4EC096ACFA4E227917B9986A /* GoogleOAuth.xcconfig */,
 			);
 			path = Configuration;
 			sourceTree = "<group>";
@@ -1405,7 +1405,7 @@
 		};
 		2E034626ED8CB04A15D7E0B5 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 643A4637A65B42FA2BBF76FE /* GoogleOAuth.local.xcconfig */;
+			baseConfigurationReference = 4EC096ACFA4E227917B9986A /* GoogleOAuth.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -1522,7 +1522,7 @@
 		};
 		A763CD2C691B1085A957B181 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 643A4637A65B42FA2BBF76FE /* GoogleOAuth.local.xcconfig */;
+			baseConfigurationReference = 4EC096ACFA4E227917B9986A /* GoogleOAuth.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;

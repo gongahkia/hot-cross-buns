@@ -46,9 +46,14 @@ final class GoogleAuthService {
     }
 
     static func isConfigured(clientID: String?) -> Bool {
-        guard let clientID, clientID.isEmpty == false, clientID.hasPrefix("$(") == false else {
+        let placeholderClientID = "your-macos-oauth-client-id.apps.googleusercontent.com"
+        guard let clientID else {
             return false
         }
+        let trimmed = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return false }
+        guard trimmed.hasPrefix("$(") == false else { return false }
+        guard trimmed != placeholderClientID else { return false }
         return true
     }
 
