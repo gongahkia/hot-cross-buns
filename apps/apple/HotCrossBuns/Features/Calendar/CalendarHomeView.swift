@@ -1246,7 +1246,7 @@ struct AddEventSheet: View {
                 .onChange(of: quickCreateText) { _, newValue in
                     parsedPreview = newValue.isEmpty ? nil : NaturalLanguageEventParser().parse(newValue)
                 }
-            if let preview = parsedPreview, preview.hasParsedMetadata {
+            if let preview = parsedPreview, preview.hasParsedMetadata || quickCreateColorTagResolution(for: preview) != nil {
                 HStack(spacing: 6) {
                     ForEach(Array(preview.matchedTokens.enumerated()), id: \.offset) { _, token in
                         Text(token.display)
@@ -1255,6 +1255,14 @@ struct AddEventSheet: View {
                             .hcbScaledPadding(.vertical, 2)
                             .background(Capsule().fill(AppColor.blue.opacity(0.15)))
                             .foregroundStyle(AppColor.blue)
+                    }
+                    if let color = quickCreateEventColor(for: preview) {
+                        Text(color.title)
+                            .hcbFont(.caption, weight: .medium)
+                            .hcbScaledPadding(.horizontal, 6)
+                            .hcbScaledPadding(.vertical, 2)
+                            .background(Capsule().fill(quickCreateColorTint(color).opacity(0.15)))
+                            .foregroundStyle(quickCreateColorTint(color))
                     }
                     Spacer(minLength: 0)
                     Button("Apply") { applyQuickCreate() }
@@ -1639,7 +1647,10 @@ struct AddEventSheet: View {
     private func applyQuickCreate() {
         let parsed = NaturalLanguageEventParser().parse(quickCreateText)
         guard parsed.summary.isEmpty == false else { return }
-        summary = parsed.summary
+        summary = quickCreateSummaryForSubmission(parsed)
+        if let color = quickCreateEventColor(for: parsed) {
+            eventColor = color
+        }
         if let loc = parsed.location { location = loc }
         if let start = parsed.startDate {
             startDate = start
@@ -1650,6 +1661,32 @@ struct AddEventSheet: View {
         }
         quickCreateText = ""
         parsedPreview = nil
+    }
+
+    private func quickCreateColorTagResolution(for parsed: ParsedQuickAddEvent) -> ColorTagResolver.Resolution? {
+        guard model.settings.colorTagAutoApplyEnabled else { return nil }
+        return ColorTagResolver.resolve(
+            title: parsed.summary,
+            bindings: model.settings.colorTagBindings,
+            policy: model.settings.colorTagMatchPolicy
+        )
+    }
+
+    private func quickCreateEventColor(for parsed: ParsedQuickAddEvent) -> CalendarEventColor? {
+        guard let colorId = quickCreateColorTagResolution(for: parsed)?.colorId else { return nil }
+        return CalendarEventColor.from(colorId: colorId)
+    }
+
+    private func quickCreateColorTint(_ color: CalendarEventColor) -> Color {
+        if let hex = color.hex { return Color(hex: hex) }
+        return AppColor.blue
+    }
+
+    private func quickCreateSummaryForSubmission(_ parsed: ParsedQuickAddEvent) -> String {
+        let raw = parsed.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let tag = quickCreateColorTagResolution(for: parsed)?.matchedTag else { return raw }
+        let stripped = ColorTagResolver.stripTag(tag, from: raw)
+        return stripped.isEmpty ? raw : stripped
     }
 
     private func createOrUpdateEvent(scope: AppModel.RecurringEventScope = .thisOccurrence) async {

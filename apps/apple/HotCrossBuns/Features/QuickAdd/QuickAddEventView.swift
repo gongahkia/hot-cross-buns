@@ -89,10 +89,13 @@ struct QuickAddEventView: View {
                     .hcbFont(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                chip(icon: "text.alignleft", text: parsed.summary, tint: AppColor.ink)
+                chip(icon: "text.alignleft", text: summaryForDisplay(), tint: AppColor.ink)
             }
             if let start = parsed.startDate {
                 chip(icon: "clock", text: formattedTime(start), tint: AppColor.moss)
+            }
+            if let color = matchedEventColor {
+                chip(icon: "circle.fill", text: color.title, tint: colorTint(color))
             }
             if let loc = parsed.location, loc.isEmpty == false {
                 chip(icon: "mappin.and.ellipse", text: loc, tint: AppColor.blue)
@@ -130,7 +133,7 @@ struct QuickAddEventView: View {
     }
 
     private var canSubmit: Bool {
-        parsed.summary.isEmpty == false && (selectedCalendarID ?? defaultCalendarID) != nil && model.account != nil && isSubmitting == false
+        summaryForSubmission().isEmpty == false && (selectedCalendarID ?? defaultCalendarID) != nil && model.account != nil && isSubmitting == false
     }
 
     private var defaultCalendarID: CalendarListMirror.ID? {
@@ -157,6 +160,36 @@ struct QuickAddEventView: View {
         return "\(start.formatted(.dateTime.month(.abbreviated).day().hour().minute()))-\(end.formatted(.dateTime.month(.abbreviated).day().hour().minute()))"
     }
 
+    private var colorTagResolution: ColorTagResolver.Resolution? {
+        guard model.settings.colorTagAutoApplyEnabled else { return nil }
+        return ColorTagResolver.resolve(
+            title: parsed.summary,
+            bindings: model.settings.colorTagBindings,
+            policy: model.settings.colorTagMatchPolicy
+        )
+    }
+
+    private var matchedEventColor: CalendarEventColor? {
+        guard let colorId = colorTagResolution?.colorId else { return nil }
+        return CalendarEventColor.from(colorId: colorId)
+    }
+
+    private func colorTint(_ color: CalendarEventColor) -> Color {
+        if let hex = color.hex { return Color(hex: hex) }
+        return AppColor.ember
+    }
+
+    private func summaryForDisplay() -> String {
+        summaryForSubmission()
+    }
+
+    private func summaryForSubmission() -> String {
+        let raw = parsed.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let tag = colorTagResolution?.matchedTag else { return raw }
+        let stripped = ColorTagResolver.stripTag(tag, from: raw)
+        return stripped.isEmpty ? raw : stripped
+    }
+
     private func submit() async {
         guard canSubmit else { return }
         guard let calendarID = selectedCalendarID ?? defaultCalendarID else { return }
@@ -165,7 +198,7 @@ struct QuickAddEventView: View {
         let start = parsed.startDate ?? Date()
         let end = parsed.endDate ?? start.addingTimeInterval(3600)
         let didCreate = await model.createEvent(
-            summary: parsed.summary,
+            summary: summaryForSubmission(),
             details: "",
             startDate: start,
             endDate: end,
@@ -177,7 +210,7 @@ struct QuickAddEventView: View {
             attendeeEmails: [],
             notifyGuests: false,
             addGoogleMeet: false,
-            colorId: nil
+            colorId: matchedEventColor?.wireValue
         )
         isSubmitting = false
         if didCreate {
