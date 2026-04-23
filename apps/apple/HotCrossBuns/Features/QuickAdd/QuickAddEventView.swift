@@ -148,7 +148,13 @@ struct QuickAddEventView: View {
         if parsed.isAllDay {
             return start.formatted(.dateTime.month(.abbreviated).day())
         }
-        return start.formatted(.dateTime.month(.abbreviated).day().hour().minute())
+        guard let end = parsed.endDate else {
+            return start.formatted(.dateTime.month(.abbreviated).day().hour().minute())
+        }
+        if Calendar.current.isDate(start, inSameDayAs: end) {
+            return "\(start.formatted(.dateTime.month(.abbreviated).day().hour().minute()))-\(end.formatted(.dateTime.hour().minute()))"
+        }
+        return "\(start.formatted(.dateTime.month(.abbreviated).day().hour().minute()))-\(end.formatted(.dateTime.month(.abbreviated).day().hour().minute()))"
     }
 
     private func submit() async {
