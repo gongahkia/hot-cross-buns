@@ -44,6 +44,7 @@ struct StoreView: View {
         content
             .hcbSurface(.taskList)
             .appBackground()
+            .navigationTitle("Hot Cross Buns")
             .focusedSceneValue(\.storeCommandActions, storeCommandActions)
             .inspector(isPresented: inspectorBinding) {
                 inspectorContent
@@ -744,6 +745,7 @@ struct NotesView: View {
         }
         .hcbSurface(.taskList)
         .appBackground()
+        .navigationTitle("Hot Cross Buns")
         .inspector(isPresented: noteInspectorBinding) {
             noteInspectorContent
                 .environment(\.routerPath, router)

@@ -817,6 +817,6 @@ struct TaskInspectorEmptyState: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppColor.cream.opacity(0.25))
-        .navigationTitle("Task")
+        .navigationTitle("Hot Cross Buns")
     }
 }
