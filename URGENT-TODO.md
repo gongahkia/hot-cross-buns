@@ -193,7 +193,18 @@ Second pass shipped (Phase A + B per perf-investigation notes, 2026-04-22):
 - A3: `AppModel.scheduleRebuildSnapshots()` coalesces upsert/remove-driven rebuilds via `DispatchQueue.main.async` — multiple rapid mutations (e.g. a sync flush of dozens of upserts) collapse to one rebuild per runloop tick.
 - B2: `LocalCacheStore` splits events into `cache-events.json` sidecar; main `cache-state.json` no longer carries events. `lastEventsHash` gates sidecar writes so settings/task-only mutations never touch the multi-MB blob. Legacy monolithic-format cache files migrate transparently on first save. Encrypted setups encrypt main + sidecar independently. Tests in `LocalCacheStoreSplitTests` cover split, merge, hash skip, etag-bust, legacy migration, encrypted roundtrip, and corrupt-sidecar fallback.
 
-Still to do (Phase C — deprioritized, do only if perceived perf is still sluggish after A+B):
+Third pass shipped (2026-04-23) — closes the correctness + hot-path-bloat set from the static audit:
+- Audit log O(1) append: `MutationAuditLog` writes one JSONL line per record instead of re-encoding the whole buffer (~10MB atomic rewrite per checkbox click → single `FileHandle.seekToEnd` + write). v1 JSON-array files migrate to v2 JSONL on first read. See `8e5beda`.
+- `AppModel.dataRevision` replaces count-based cache keys in MonthGridView / WeekGridView / CommandPaletteView — renames / reschedules / recolors that kept total count unchanged used to leave caches stale. See `3886e94`.
+- O(1) lookup dictionaries (`tasksByID` / `eventsByID` / `taskListsByID` / `calendarsByID`) rebuilt in `rebuildSnapshots`; `task(id:)` / `event(id:)` now hit a hash instead of scanning. `CalendarHomeView.agendaEventsByDay` / `agendaTasksByDay` read from the prebuilt `eventsByDay` / `tasksByDueDate` indexes instead of rescanning the full corpus per body eval. See `0879b0e`.
+- Command palette regex compiled once per query instead of once per entity (17k-entity scan was paying 17k regex compilations). See `1fd6913`.
+- Notifications + Spotlight decoupled from the user path and debounced independently (500ms / 2s). Sync-flush storms collapse to one rescan instead of one per mutation. See `dde55e7`.
+- Kanban `LazyHStack` + `LazyVStack` so off-screen columns and off-screen cards don't instantiate. See `410a90a`.
+- Near-realtime poll backs off 4× (capped at policy.maxDelay) on constrained network or low-power mode. See `33a0f3d`.
+- Calendar events endpoint page size 250 → 2500; `SyncScheduler` fan-out bounded to a 5-wide sliding TaskGroup window. See `e53bf4f`.
+- `NotesView.orderedTasks` uses Set membership instead of O(n²) Array.contains; `StoreView.completedCount` reads `taskListCompletionStats` instead of refiltering tasks; release cache encoder drops `.prettyPrinted` + `.sortedKeys`. See `371626a`.
+
+Still to do (Phase C — deprioritized, do only if perceived perf is still sluggish after A+B+C'):
 
 ### Phase C — Split AppModel into per-resource @Observable stores
 
@@ -209,14 +220,17 @@ Proposed shape:
 - `AppModel` remains as a coordinator that holds references to all stores and provides the public API (createEvent, updateTask, etc.). Mutations flow through AppModel which dispatches to the right store(s).
 
 Why deprioritized:
-- Phase A+B already cuts the worst-case work per render by ~95% via pre-bucketing + coalesced rebuilds + cache split. If user-perceived launch / scroll perf is acceptable after A+B (especially after a cold-launch with the 15 MB cache), Phase C may not be worth the diff.
-- Estimated diff is ~30 file touches. Every view that reads `model.X` needs to be reconnected to the right store via a new `@Environment` key.
+- Phase A+B+C' already cuts the worst-case work per render by ~95% via pre-bucketing + coalesced rebuilds + cache split + correctness-fixed cache keys + debounced integrations.
+- SwiftUI's `@Observable` macro does property-level tracking: a view reading `model.account` is NOT invalidated by a mutation to `model.tasks[0].title` unless the view also reads `model.tasks`. The "broad invalidation" concern the static audit describes is only real if feature views are reading broad slices they don't need — which has to be MEASURED before it can be fixed, not assumed.
+- Estimated diff is ~30 file touches. Every view that reads `model.X` needs to be reconnected to the right store via a new `@Environment` key. No test suite to catch subtle regressions.
 - Some logic that crosses resource boundaries (e.g., `rebuildSnapshots` populates both task and event snapshots) needs careful extraction so the stores don't end up tightly coupled again.
 
-Trigger criteria — start Phase C only when one of these holds:
+**Required before starting:** run Instruments' SwiftUI template while exercising the common paths (toggle a task, scroll the calendar during a sync flush, open the command palette while events land, open menu bar agenda). Record per-view body-invalidation counts. If a specific feature view shows >10× invalidation relative to its read set, THAT view becomes the scoped target of the split — not a wholesale rewrite of all 72 `@Environment(AppModel.self)` sites. The output of the measurement pass is a concrete list like "MonthGridView invalidates on `model.tasks` changes it doesn't need — extract TaskStore" rather than "split everything because it might be slow".
+
+Trigger criteria — start Phase C only when at least one of these holds AFTER measurement:
 - Cold launch from a >50k event cache exceeds 4s to interactive.
 - Calendar scroll drops below 30fps during an active sync flush.
-- Profiling shows an `@Observable` republish chain longer than ~6 hops on any single mutation.
+- Profiling shows a specific view's body evaluates >5× per user-observable event.
 
 Phase C plan once triggered:
 1. Extract `EventStore` first (largest and most isolated). Move `events`, `eventsByCalendar`, `calendarSnapshot`, `calendars`. Wire grid views to `@Environment(EventStore.self)`. AppModel keeps a reference and proxies mutation API.
