@@ -210,9 +210,9 @@ struct MonthGridView: View {
         flashDay = day
         Task {
             try? await Task.sleep(for: .milliseconds(220))
-            await MainActor.run {
-                if flashDay == day { flashDay = nil }
-            }
+            // Task inherits MainActor from the enclosing SwiftUI View;
+            // no explicit hop needed.
+            if flashDay == day { flashDay = nil }
         }
     }
 
@@ -413,10 +413,10 @@ struct MonthGridView: View {
                     if let (colStart, colEnd) = rowRange(weekDays, fromStart: fromStart, toStart: toStart) {
                         let left = CGFloat(colStart) * cellWidth
                         let width = CGFloat(colEnd - colStart + 1) * cellWidth
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        RoundedRectangle(cornerRadius: 6)
                             .fill(AppColor.ember.opacity(0.2))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                RoundedRectangle(cornerRadius: 6)
                                     .strokeBorder(AppColor.ember.opacity(0.6), lineWidth: 1.2)
                             )
                             .frame(width: max(width - 4, 4), height: fixedRowHeight - 4)
@@ -469,7 +469,7 @@ struct MonthGridView: View {
                             .hcbScaledPadding(.vertical, 2)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(
-                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                RoundedRectangle(cornerRadius: 4)
                                     .fill(calendarColor(for: band.event).opacity(0.25))
                             )
                             .foregroundStyle(AppColor.ink)
@@ -554,7 +554,7 @@ struct MonthGridView: View {
                         .hcbScaledPadding(.vertical, 2)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            RoundedRectangle(cornerRadius: 4)
                                 .fill(calendarColor(for: event).opacity(0.25))
                         )
                         .foregroundStyle(AppColor.ink)
@@ -587,11 +587,11 @@ struct MonthGridView: View {
                 .hcbScaledPadding(.horizontal, 6)
                 .hcbScaledPadding(.vertical, 2)
                 .background(
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    RoundedRectangle(cornerRadius: 4)
                         .fill(AppColor.ember.opacity(0.15))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    RoundedRectangle(cornerRadius: 4)
                         .strokeBorder(AppColor.ember.opacity(0.35), lineWidth: 0.6)
                 )
                 .foregroundStyle(AppColor.ink)

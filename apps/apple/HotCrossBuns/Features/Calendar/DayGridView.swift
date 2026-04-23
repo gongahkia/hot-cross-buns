@@ -125,10 +125,10 @@ struct DayGridView: View {
                             if let drag = timedDrag {
                                 let top = min(drag.startY, drag.endY)
                                 let height = max(abs(drag.endY - drag.startY), hourHeight / 4)
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                RoundedRectangle(cornerRadius: 6)
                                     .fill(AppColor.ember.opacity(0.22))
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        RoundedRectangle(cornerRadius: 6)
                                             .strokeBorder(AppColor.ember.opacity(0.6), lineWidth: 1.2)
                                     )
                                     .offset(x: 56, y: top)
@@ -183,7 +183,7 @@ struct DayGridView: View {
                                 let minutesIntoDay = flash.timeIntervalSince(dayStart) / 60.0
                                 let startHourOffset = Double(hourStart) * 60.0
                                 let y = CGFloat(max(0, minutesIntoDay - startHourOffset)) / 60.0 * hourHeight
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                RoundedRectangle(cornerRadius: 6)
                                     .fill(AppColor.ember.opacity(0.22))
                                     .frame(height: hourHeight * 0.5)
                                     .offset(x: 56, y: y)
@@ -236,9 +236,7 @@ struct DayGridView: View {
         flashTimedSlot = start
         Task {
             try? await Task.sleep(for: .milliseconds(220))
-            await MainActor.run {
-                if flashTimedSlot == start { flashTimedSlot = nil }
-            }
+            if flashTimedSlot == start { flashTimedSlot = nil }
         }
     }
 
@@ -278,8 +276,8 @@ struct DayGridView: View {
             .hcbScaledPadding(.horizontal, 8)
             .hcbScaledPadding(.vertical, 4)
             .frame(width: max(columnWidth, 60), height: height - 2, alignment: .topLeading)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(fill.opacity(0.22)))
-            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(fill.opacity(0.55), lineWidth: 0.8))
+            .background(RoundedRectangle(cornerRadius: 8).fill(fill.opacity(0.22)))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(fill.opacity(0.55), lineWidth: 0.8))
         }
         .offset(x: 56, y: yOffset)
         .accessibilityLabel("\(event.summary), \(event.startDate.formatted(.dateTime.hour().minute())) to \(event.endDate.formatted(.dateTime.hour().minute()))")
@@ -329,7 +327,7 @@ struct DayGridView: View {
                             }
                             .hcbScaledPadding(8)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(AppColor.cream.opacity(0.4)))
+                            .background(RoundedRectangle(cornerRadius: 8).fill(AppColor.cream.opacity(0.4)))
                             .opacity(task.isCompleted ? 0.6 : 1.0)
                         }
                     }

@@ -605,10 +605,13 @@ extension HCBColorScheme {
 // the user picks a new scheme in Settings. SwiftUI view re-evaluation is
 // triggered separately via a .id(schemeID) modifier at the shell root.
 //
-// nonisolated(unsafe) because Color resolution can happen on any actor
-// during SwiftUI's render pass. Writes only ever happen from the main
-// actor (AppModel mutations), so concurrent reads see a consistent
-// snapshot of a value-type struct.
+// @MainActor-bound: all writers (AppModel settings-change paths,
+// MacSidebarShell / MenuBarExtraScene color-scheme onChange handlers)
+// already run on main, and every reader flows through SwiftUI View body /
+// computed properties which are @MainActor. Previously nonisolated(unsafe)
+// — an escape hatch silencing the compiler rather than reflecting the real
+// access pattern. Under Swift 6 strict checking the @MainActor form surfaces
+// any future off-main caller as a compile error instead of a latent race.
 enum HCBColorSchemeStore {
-    nonisolated(unsafe) static var current: HCBColorScheme = .notion
+    @MainActor static var current: HCBColorScheme = .notion
 }

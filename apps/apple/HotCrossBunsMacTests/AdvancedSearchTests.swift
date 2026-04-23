@@ -1,75 +1,81 @@
-import XCTest
+import Testing
+import Foundation
 @testable import HotCrossBunsMac
 
-final class AdvancedSearchParserTests: XCTestCase {
-    func testEmptyIsEmpty() {
-        XCTAssertTrue(AdvancedSearchParser.parse("").isEmpty)
-        XCTAssertTrue(AdvancedSearchParser.parse("   ").isEmpty)
+// Migrated from XCTest to Swift Testing. Parser-side field-token coverage
+// collapsed to a parameterized table; matcher-side kept 1:1 because each
+// case pairs a specific entity shape with a specific filter — no payoff
+// from flattening.
+
+struct AdvancedSearchParserTests {
+
+    @Test(arguments: ["", "   "])
+    func emptyIsEmpty(input: String) {
+        #expect(AdvancedSearchParser.parse(input).isEmpty)
     }
 
-    func testBareKeywords() {
+    @Test func bareKeywords() {
         let q = AdvancedSearchParser.parse("overdue completed")
-        XCTAssertTrue(q.requireOverdue)
-        XCTAssertTrue(q.requireCompleted)
-        XCTAssertTrue(q.freeText.isEmpty)
+        #expect(q.requireOverdue)
+        #expect(q.requireCompleted)
+        #expect(q.freeText.isEmpty)
     }
 
-    func testDoneAliasForCompleted() {
-        let q = AdvancedSearchParser.parse("done")
-        XCTAssertTrue(q.requireCompleted)
+    @Test func doneAliasForCompleted() {
+        #expect(AdvancedSearchParser.parse("done").requireCompleted)
     }
 
-    func testFieldTokens() {
+    @Test func fieldTokens() {
         let q = AdvancedSearchParser.parse("title:bug tag:work list:home calendar:personal attendee:alice")
-        XCTAssertEqual(q.titleContains, ["bug"])
-        XCTAssertEqual(q.tagsAll, ["work"])
-        XCTAssertEqual(q.listMatch, "home")
-        XCTAssertEqual(q.calendarMatch, "personal")
-        XCTAssertEqual(q.attendeeMatch, "alice")
+        #expect(q.titleContains == ["bug"])
+        #expect(q.tagsAll == ["work"])
+        #expect(q.listMatch == "home")
+        #expect(q.calendarMatch == "personal")
+        #expect(q.attendeeMatch == "alice")
     }
 
-    func testHasKeywords() {
-        let q = AdvancedSearchParser.parse("has:notes has:location has:due")
-        XCTAssertTrue(q.requireNotes)
-        XCTAssertTrue(q.requireLocation)
-        XCTAssertTrue(q.requireDue)
+    // Three single-keyword `has:` filters. One row per keyword: cheap to add
+    // a new `has:foo` case by appending to the table.
+    @Test(arguments: [
+        ("has:notes", \AdvancedSearchQuery.requireNotes),
+        ("has:location", \AdvancedSearchQuery.requireLocation),
+        ("has:due", \AdvancedSearchQuery.requireDue),
+    ])
+    func singleHasKeyword(input: String, flag: KeyPath<AdvancedSearchQuery, Bool>) {
+        #expect(AdvancedSearchParser.parse(input)[keyPath: flag])
     }
 
-    func testQuotedValuesPreserveSpaces() {
-        let q = AdvancedSearchParser.parse("list:\"Work Email\"")
-        XCTAssertEqual(q.listMatch, "Work Email")
+    @Test func quotedValuesPreserveSpaces() {
+        #expect(AdvancedSearchParser.parse("list:\"Work Email\"").listMatch == "Work Email")
     }
 
-    func testFreeTextResidue() {
+    @Test func freeTextResidue() {
         let q = AdvancedSearchParser.parse("tag:deep focus block")
-        XCTAssertEqual(q.tagsAll, ["deep"])
-        XCTAssertEqual(q.freeText, "focus block")
+        #expect(q.tagsAll == ["deep"])
+        #expect(q.freeText == "focus block")
     }
 
-    func testRegexMode() {
+    @Test func regexMode() {
         let q = AdvancedSearchParser.parse("/^standup/")
-        XCTAssertEqual(q.regex, "^standup")
-        XCTAssertTrue(q.freeText.isEmpty)
-        XCTAssertTrue(q.titleContains.isEmpty)
+        #expect(q.regex == "^standup")
+        #expect(q.freeText.isEmpty)
+        #expect(q.titleContains.isEmpty)
     }
 
-    func testUnknownFieldFallsBackToFreeText() {
-        let q = AdvancedSearchParser.parse("foo:bar")
-        XCTAssertEqual(q.freeText, "foo:bar")
+    @Test func unknownFieldFallsBackToFreeText() {
+        #expect(AdvancedSearchParser.parse("foo:bar").freeText == "foo:bar")
     }
 
-    func testMultipleTitleTokensAccumulate() {
-        let q = AdvancedSearchParser.parse("title:foo title:bar")
-        XCTAssertEqual(q.titleContains, ["foo", "bar"])
+    @Test func multipleTitleTokensAccumulate() {
+        #expect(AdvancedSearchParser.parse("title:foo title:bar").titleContains == ["foo", "bar"])
     }
 
-    func testTagsLowercased() {
-        let q = AdvancedSearchParser.parse("tag:WORK")
-        XCTAssertEqual(q.tagsAll, ["work"])
+    @Test func tagsLowercased() {
+        #expect(AdvancedSearchParser.parse("tag:WORK").tagsAll == ["work"])
     }
 }
 
-final class AdvancedSearchMatcherTests: XCTestCase {
+struct AdvancedSearchMatcherTests {
     private let calendar: Calendar = {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(identifier: "UTC")!
@@ -126,90 +132,88 @@ final class AdvancedSearchMatcherTests: XCTestCase {
 
     // MARK: - task filters
 
-    func testOverdueFiltersTasks() {
-        let t = task(id: "a", due: day(-1))
-        let notOverdue = task(id: "b", due: day(1))
-        XCTAssertTrue(matches(.task(t), "overdue"))
-        XCTAssertFalse(matches(.task(notOverdue), "overdue"))
+    @Test func overdueFiltersTasks() {
+        #expect(matches(.task(task(id: "a", due: day(-1))), "overdue"))
+        #expect(matches(.task(task(id: "b", due: day(1))), "overdue") == false)
     }
 
-    func testListByTitle() {
+    @Test func listByTitle() {
         let t = task(id: "a", list: "L1")
-        XCTAssertTrue(matches(.task(t), "list:Work"))
-        XCTAssertFalse(matches(.task(t), "list:Home"))
+        #expect(matches(.task(t), "list:Work"))
+        #expect(matches(.task(t), "list:Home") == false)
     }
 
-    func testTagFilter() {
+    @Test func tagFilter() {
         let t = task(id: "a", title: "fix #work #urgent")
-        XCTAssertTrue(matches(.task(t), "tag:work"))
-        XCTAssertTrue(matches(.task(t), "tag:work tag:urgent"))
-        XCTAssertFalse(matches(.task(t), "tag:personal"))
+        #expect(matches(.task(t), "tag:work"))
+        #expect(matches(.task(t), "tag:work tag:urgent"))
+        #expect(matches(.task(t), "tag:personal") == false)
     }
 
-    func testHasNotesFilter() {
-        let withNotes = task(id: "a", notes: "notes here")
-        let empty = task(id: "b", notes: "")
-        XCTAssertTrue(matches(.task(withNotes), "has:notes"))
-        XCTAssertFalse(matches(.task(empty), "has:notes"))
+    @Test func hasNotesFilter() {
+        #expect(matches(.task(task(id: "a", notes: "notes here")), "has:notes"))
+        #expect(matches(.task(task(id: "b", notes: "")), "has:notes") == false)
     }
 
     // MARK: - event filters
 
-    func testCalendarFilter() {
+    @Test func calendarFilter() {
         let e = event(id: "a", cal: "cal2")
-        XCTAssertTrue(matches(.event(e), "calendar:\"Work Calendar\""))
-        XCTAssertFalse(matches(.event(e), "calendar:Primary"))
+        #expect(matches(.event(e), "calendar:\"Work Calendar\""))
+        #expect(matches(.event(e), "calendar:Primary") == false)
     }
 
-    func testAttendeeFilter() {
+    @Test func attendeeFilter() {
         let e = event(id: "a", attendees: ["alice@example.com", "bob@example.com"])
-        XCTAssertTrue(matches(.event(e), "attendee:alice"))
-        XCTAssertFalse(matches(.event(e), "attendee:charlie"))
+        #expect(matches(.event(e), "attendee:alice"))
+        #expect(matches(.event(e), "attendee:charlie") == false)
     }
 
-    func testHasLocationFilter() {
-        let withLoc = event(id: "a", location: "Zoom")
-        let withoutLoc = event(id: "b", location: "")
-        XCTAssertTrue(matches(.event(withLoc), "has:location"))
-        XCTAssertFalse(matches(.event(withoutLoc), "has:location"))
+    @Test func hasLocationFilter() {
+        #expect(matches(.event(event(id: "a", location: "Zoom")), "has:location"))
+        #expect(matches(.event(event(id: "b", location: "")), "has:location") == false)
     }
 
-    func testTasksDontMatchEventOnlyFilters() {
-        let t = task(id: "a")
-        XCTAssertFalse(matches(.task(t), "attendee:alice"))
-        XCTAssertFalse(matches(.task(t), "calendar:Work"))
-        XCTAssertFalse(matches(.task(t), "has:location"))
-    }
-
-    func testEventsDontMatchTaskOnlyFilters() {
-        let e = event(id: "a")
-        XCTAssertFalse(matches(.event(e), "overdue"))
-        XCTAssertFalse(matches(.event(e), "completed"))
-        XCTAssertFalse(matches(.event(e), "list:Work"))
-        XCTAssertFalse(matches(.event(e), "tag:deep"))
+    // Cross-kind rejection table: each row asserts that a task does NOT
+    // match event-only filters, or an event does NOT match task-only filters.
+    // Adding a new cross-kind rule = adding a row.
+    @Test(arguments: [
+        (true,  "attendee:alice"),    // true = apply to .task, assert no match
+        (true,  "calendar:Work"),
+        (true,  "has:location"),
+        (false, "overdue"),            // false = apply to .event, assert no match
+        (false, "completed"),
+        (false, "list:Work"),
+        (false, "tag:deep"),
+    ])
+    func crossKindRejection(applyToTask: Bool, query: String) {
+        let entity: QuickSwitcherEntity = applyToTask
+            ? .task(task(id: "a"))
+            : .event(event(id: "a"))
+        #expect(matches(entity, query) == false, Comment(rawValue: "\(applyToTask ? "task" : "event") should not match '\(query)'"))
     }
 
     // MARK: - title containment
 
-    func testTitleContainsIsAND() {
+    @Test func titleContainsIsAND() {
         let t = task(id: "a", title: "fix launch bug")
-        XCTAssertTrue(matches(.task(t), "title:fix title:bug"))
-        XCTAssertFalse(matches(.task(t), "title:fix title:deploy"))
+        #expect(matches(.task(t), "title:fix title:bug"))
+        #expect(matches(.task(t), "title:fix title:deploy") == false)
     }
 
     // MARK: - regex
 
-    func testRegexMatch() {
+    @Test func regexMatch() {
         let t = task(id: "a", title: "Standup Wednesday")
         let q = AdvancedSearchParser.parse("/^Standup/")
-        XCTAssertEqual(q.regex, "^Standup")
-        XCTAssertTrue(AdvancedSearchMatcher.regexMatches(.task(t), regexPattern: "^Standup"))
-        XCTAssertFalse(AdvancedSearchMatcher.regexMatches(.task(t), regexPattern: "^Launch"))
+        #expect(q.regex == "^Standup")
+        #expect(AdvancedSearchMatcher.regexMatches(.task(t), regexPattern: "^Standup"))
+        #expect(AdvancedSearchMatcher.regexMatches(.task(t), regexPattern: "^Launch") == false)
     }
 
-    func testRegexInvalidPatternReturnsFalse() {
+    @Test func regexInvalidPatternReturnsFalse() {
         let t = task(id: "a", title: "x")
         // Unterminated group — should not crash, just return false.
-        XCTAssertFalse(AdvancedSearchMatcher.regexMatches(.task(t), regexPattern: "(unterminated"))
+        #expect(AdvancedSearchMatcher.regexMatches(.task(t), regexPattern: "(unterminated") == false)
     }
 }

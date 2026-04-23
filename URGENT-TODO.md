@@ -361,6 +361,73 @@ Until this ships, anyone with filesystem access can reconstruct the user's
 task + event titles months back — far more privacy-revealing than the
 session ID stash we already guard.
 
+## 14c. Deferred items from the 2026-04-23 Swift-testing-pro audit
+
+The audit (commits `fb6c176`..`e11314b` on branch `swift-skills-audit`)
+shipped three correctness fixes and migrated three suites
+(`FuzzySearcherTests`, `AdvancedSearchTests`, `CalendarDropComputerTests`)
+to Swift Testing with parameterized tables. Two items were deferred —
+recording here so they don't vanish.
+
+### Deferred 1 — `GoogleTasksClientTransportTests` → Swift Testing (blocked)
+
+The async-heavy file is a natural fit for Swift Testing: `#expect(throws:
+GoogleAPIError.preconditionFailed)` reads much cleaner than the current
+`do/try/catch/XCTFail` pattern, and `async throws` tests are first-class.
+
+**Blocker:** the file (and adjacent mock-using suites) shares static state
+via `MockURLProtocol.requestHandler` AND `MockURLProtocol.capturedRequests`
+(both `nonisolated(unsafe) static var` in `Support/MockURLProtocol.swift`).
+Swift Testing defaults to parallel test execution; two tests reading /
+writing either global simultaneously would race. The fix is to either
+(a) annotate the migrated suite with `@Suite(.serialized)`, which regresses
+to the XCTest default and gives up Swift Testing's main parallelism benefit,
+or (b) refactor MockURLProtocol so each test owns its own instance / handler
+closure / captured-requests array rather than the type-level globals.
+
+**Option (b) is the right fix but touches all mock-using suites
+simultaneously.** Not scheduled because the existing XCTest suite works
+correctly — the flake surface only opens on a Swift Testing migration.
+
+When picking this up: search for every `MockURLProtocol.requestHandler =`
+assignment and `MockURLProtocol.reset()` call, replace with per-test
+instance, then migrate the suite. Rough estimate: 1 focused session.
+
+### Deferred 2 — Wholesale XCTest → Swift Testing migration for the other ~25 suites
+
+`TaskDraftTests`, `CalendarGridLayoutTests`, `TaskHierarchyTests`,
+`ConversionMapperTests`, `ExporterTests`, `ForecastBuilderTests`,
+`ReviewBuilderTests`, `BackoffPolicyTests`, `CacheSchemaVersioningTests`,
+`AppSettingsMacSurfacesTests`, `ModelPersistenceTests`,
+`OptimisticWriterTests`, `OfflineQueuePayloadTests`,
+`NaturalLanguageTaskParserTests`, `PastCleanupServiceTests`,
+`QueryDSLTests`, `CustomFilterTests`, `GuestsSectionEmailTests`,
+`SpotlightIdentifierTests`, `GoogleMapsConfigTests`,
+`HCBTemplateExpanderTests`, `MarkdownHTMLTests`, `HCBDeepLinkRouterTests`,
+`HCBCacheCryptoTests`, `GoogleTaskDueDateFormatterTests`,
+`KanbanGroupingTests`, `CalendarEventInstanceTests`,
+`AppModelEventsByCalendarTests`.
+
+**Why deferred:** all pass their `FIRST` checks already (fast, isolated,
+repeatable, self-verifying), none have parameterization opportunities
+that materially reduce duplication, and none rely on XCTest-specific
+behaviour that makes them worse than they could be. Mechanical migration
+is pure style churn — ~150–200 lines of diff per file with no behavior
+change and no new assertions gained.
+
+**Trigger criteria — migrate a specific file only when one of these
+holds:**
+
+- A new feature requires parameterized coverage and the suite already has
+  3+ near-duplicate methods that would collapse into a table.
+- A specific test becomes async-heavy and the XCTest
+  `expectation`/`fulfillment` plumbing would materially obscure intent
+  vs. Swift Testing's `async throws` body.
+- A suite needs `@Suite(.tags(.networking))` / `.serialized` /
+  `.disabled()` for CI filtering that XCTest can't express cleanly.
+
+No blanket migration — it's an engineering-for-engineering-sake trap.
+
 ## 15. See-how / maybe
 
 - **Rename "Hot Cross Buns"** — consider swapping for a Korean or Japanese romanized word related to time (e.g. *jikan*, *toki*, *sigan*, *ima*). See-how only; not committed.

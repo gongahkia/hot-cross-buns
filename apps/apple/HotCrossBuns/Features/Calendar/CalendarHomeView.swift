@@ -704,7 +704,7 @@ private struct EventListRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
+            RoundedRectangle(cornerRadius: 6)
                 .fill(AppColor.blue)
                 .hcbScaledFrame(width: 6)
             VStack(alignment: .leading, spacing: 5) {
@@ -1209,11 +1209,11 @@ struct AddEventSheet: View {
         .hcbScaledPadding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 12)
                 .fill(AppColor.cream.opacity(0.5))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 12)
                 .strokeBorder(AppColor.cardStroke, lineWidth: 0.6)
         )
     }
@@ -1817,7 +1817,7 @@ struct CalendarDropChipsStrip: View {
             if writable.count <= 1 {
                 EmptyView()
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
+                ScrollView(.horizontal) {
                     HStack(spacing: 6) {
                         Text("Drop on a calendar to move:")
                             .hcbFont(.caption2, weight: .semibold)
@@ -1830,6 +1830,7 @@ struct CalendarDropChipsStrip: View {
                     .hcbScaledPadding(.vertical, 6)
                     .hcbScaledPadding(.horizontal, 10)
                 }
+                .scrollIndicators(.hidden)
             }
         }
     }
@@ -1889,7 +1890,7 @@ struct CalendarSearchField: View {
         .hcbScaledPadding(.horizontal, 8)
         .hcbScaledPadding(.vertical, 4)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 8)
                 .fill(.quaternary.opacity(0.4))
         )
         .background(

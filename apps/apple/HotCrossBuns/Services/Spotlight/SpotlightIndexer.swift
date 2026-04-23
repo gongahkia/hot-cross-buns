@@ -32,32 +32,16 @@ actor SpotlightIndexer {
 
     func removeAll() async {
         do {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                index.deleteSearchableItems(withDomainIdentifiers: [Self.taskDomain, Self.eventDomain]) { error in
-                    if let error { continuation.resume(throwing: error) } else { continuation.resume() }
-                }
-            }
+            try await index.deleteSearchableItems(withDomainIdentifiers: [Self.taskDomain, Self.eventDomain])
         } catch {
             // best effort
         }
     }
 
     private func replace(items: [CSSearchableItem], in domain: String) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            index.deleteSearchableItems(withDomainIdentifiers: [domain]) { error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-                guard items.isEmpty == false else {
-                    continuation.resume()
-                    return
-                }
-                self.index.indexSearchableItems(items) { error in
-                    if let error { continuation.resume(throwing: error) } else { continuation.resume() }
-                }
-            }
-        }
+        try await index.deleteSearchableItems(withDomainIdentifiers: [domain])
+        guard items.isEmpty == false else { return }
+        try await index.indexSearchableItems(items)
     }
 
     nonisolated private func taskItem(_ task: TaskMirror) -> CSSearchableItem {

@@ -42,23 +42,30 @@ struct SettingsView: View {
                         .hcbFont(.footnote)
                         .foregroundStyle(.secondary)
 
-                    Label("Sync details", systemImage: "arrow.triangle.2.circlepath")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                        .onTapGesture { router?.present(.syncSettings) }
+                    Button {
+                        router?.present(.syncSettings)
+                    } label: {
+                        Label("Sync details", systemImage: "arrow.triangle.2.circlepath")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
 
-                    Label("Diagnostics and recovery", systemImage: "stethoscope")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                        .onTapGesture { router?.present(.diagnostics) }
+                    Button {
+                        router?.present(.diagnostics)
+                    } label: {
+                        Label("Diagnostics and recovery", systemImage: "stethoscope")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
 
-                    Label("Run setup again", systemImage: "sparkles")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            model.resetOnboarding()
-                            showOnboardingResetConfirmed = true
-                        }
+                    Button {
+                        model.resetOnboarding()
+                        showOnboardingResetConfirmed = true
+                    } label: {
+                        Label("Run setup again", systemImage: "sparkles")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
 
                     Picker("Local cache retention (Google untouched)", selection: eventRetentionBinding) {
                         Text("30 days").tag(30)

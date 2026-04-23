@@ -41,9 +41,9 @@ struct AppStatusBanner: View {
                 .accessibilityLabel("Dismiss status message")
             }
             .hcbScaledPadding(14)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 12)
                     .stroke(failure.tint.opacity(0.35), lineWidth: 1)
             )
             .hcbScaledPadding(.horizontal, 14)
@@ -64,7 +64,7 @@ struct AppStatusBanner: View {
             }
             .hcbScaledPadding(.vertical, 10)
             .hcbScaledPadding(.horizontal, 14)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
             .hcbScaledPadding(.horizontal, 14)
             .hcbScaledPadding(.top, 8)
         }

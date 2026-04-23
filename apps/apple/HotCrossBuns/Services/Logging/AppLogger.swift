@@ -86,7 +86,10 @@ final class AppLogger: @unchecked Sendable {
     private let inMemoryCap = 500
     // Only entries at or above this level are persisted + surfaced.
     // Debug logs still write to os.Logger (Console.app) regardless.
-    var persistentThreshold: LogLevel = .info
+    // `let` so the @unchecked Sendable claim holds without ambiguity —
+    // `var` would be a latent race surface for any future setter added
+    // outside the queue.
+    let persistentThreshold: LogLevel = .info
 
     private init() {}
 
