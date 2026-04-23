@@ -14,10 +14,7 @@ final class GoogleAuthService {
     }
 
     var isConfigured: Bool {
-        guard let clientID, clientID.isEmpty == false, clientID.hasPrefix("$(") == false else {
-            return false
-        }
-        return true
+        Self.isConfigured(clientID: clientID)
     }
 
     func restorePreviousSignIn() async throws -> GoogleAccount? {
@@ -33,9 +30,7 @@ final class GoogleAuthService {
 
         do {
             let user = try await GIDSignIn.sharedInstance.restorePreviousSignIn()
-            let missingScopes = requiredScopes.filter { scope in
-                user.grantedScopes?.contains(scope) != true
-            }
+            let missingScopes = Self.missingScopes(requiredScopes: requiredScopes, grantedScopes: user.grantedScopes)
             guard missingScopes.isEmpty else {
                 AppLogger.warn("restore: scopes revoked, forcing sign-out", category: .auth, metadata: ["missing": missingScopes.count.description])
                 GIDSignIn.sharedInstance.signOut()
@@ -50,7 +45,20 @@ final class GoogleAuthService {
         }
     }
 
-    private static func redact(_ email: String) -> String {
+    static func isConfigured(clientID: String?) -> Bool {
+        guard let clientID, clientID.isEmpty == false, clientID.hasPrefix("$(") == false else {
+            return false
+        }
+        return true
+    }
+
+    static func missingScopes(requiredScopes: [String], grantedScopes: [String]?) -> [String] {
+        requiredScopes.filter { scope in
+            grantedScopes?.contains(scope) != true
+        }
+    }
+
+    static func redact(_ email: String) -> String {
         guard let at = email.firstIndex(of: "@") else { return "<redacted>" }
         let local = email[..<at]
         let domain = email[email.index(after: at)...]
@@ -94,7 +102,7 @@ final class GoogleAuthService {
     // GIDSignIn collapses the real Keychain failure (OSStatus + GTMAppAuth
     // domain) behind a single Code=-2 "keychain error" NSError. Walk the
     // NSUnderlyingError chain so we can see what actually failed.
-    private static func errorMetadata(_ error: Error) -> [String: String] {
+    static func errorMetadata(_ error: Error) -> [String: String] {
         var metadata: [String: String] = ["error": String(describing: error)]
         let ns = error as NSError
         metadata["domain"] = ns.domain
@@ -138,9 +146,7 @@ final class GoogleAuthService {
     }
 
     private func accountWithRequiredScopes(for user: GIDGoogleUser) async throws -> GoogleAccount {
-        let missingScopes = requiredScopes.filter { scope in
-            user.grantedScopes?.contains(scope) != true
-        }
+        let missingScopes = Self.missingScopes(requiredScopes: requiredScopes, grantedScopes: user.grantedScopes)
 
         guard missingScopes.isEmpty == false else {
             return try account(from: user)
@@ -164,28 +170,54 @@ final class GoogleAuthService {
     }
 
     private func account(from user: GIDGoogleUser) throws -> GoogleAccount {
-        guard let email = user.profile?.email, email.isEmpty == false else {
-            throw GoogleAuthError.missingProfile
-        }
-
-        return GoogleAccount(
-            id: user.userID ?? email,
-            email: email,
-            displayName: user.profile?.name ?? email,
-            grantedScopes: Set(user.grantedScopes ?? [])
+        try Self.buildAccount(
+            userID: user.userID,
+            email: user.profile?.email,
+            displayName: user.profile?.name,
+            grantedScopes: user.grantedScopes
         )
     }
 
     private func currentPresentationAnchor() throws -> NSWindow {
-        if let keyWindow = NSApplication.shared.keyWindow {
+        try Self.resolvePresentationAnchor(
+            keyWindow: NSApplication.shared.keyWindow,
+            mainWindow: NSApplication.shared.mainWindow,
+            windows: NSApplication.shared.windows
+        )
+    }
+
+    static func buildAccount(
+        userID: String?,
+        email: String?,
+        displayName: String?,
+        grantedScopes: [String]?
+    ) throws -> GoogleAccount {
+        guard let email, email.isEmpty == false else {
+            throw GoogleAuthError.missingProfile
+        }
+
+        return GoogleAccount(
+            id: userID ?? email,
+            email: email,
+            displayName: displayName ?? email,
+            grantedScopes: Set(grantedScopes ?? [])
+        )
+    }
+
+    static func resolvePresentationAnchor(
+        keyWindow: NSWindow?,
+        mainWindow: NSWindow?,
+        windows: [NSWindow]
+    ) throws -> NSWindow {
+        if let keyWindow {
             return keyWindow
         }
 
-        if let mainWindow = NSApplication.shared.mainWindow {
+        if let mainWindow {
             return mainWindow
         }
 
-        if let visibleWindow = NSApplication.shared.windows.first(where: { $0.isVisible }) {
+        if let visibleWindow = windows.first(where: { $0.isVisible }) {
             return visibleWindow
         }
 

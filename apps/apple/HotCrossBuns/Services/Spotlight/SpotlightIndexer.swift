@@ -2,15 +2,22 @@
 import Foundation
 import UniformTypeIdentifiers
 
+protocol SpotlightIndexing {
+    func deleteSearchableItems(withDomainIdentifiers domainIdentifiers: [String]) async throws
+    func indexSearchableItems(_ items: [CSSearchableItem]) async throws
+}
+
+extension CSSearchableIndex: SpotlightIndexing {}
+
 actor SpotlightIndexer {
     static let taskDomain = "com.gongahkia.hotcrossbuns.tasks"
     static let eventDomain = "com.gongahkia.hotcrossbuns.events"
     static let taskURLScheme = "hotcrossbuns://task/"
     static let eventURLScheme = "hotcrossbuns://event/"
 
-    private let index: CSSearchableIndex
+    private let index: SpotlightIndexing
 
-    init(index: CSSearchableIndex = .default()) {
+    init(index: SpotlightIndexing = CSSearchableIndex.default()) {
         self.index = index
     }
 
