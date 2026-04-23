@@ -39,38 +39,22 @@ struct HCBSettingsWindow: View {
 
     var body: some View {
         TabView(selection: $tab) {
-            ScrollView {
-                GeneralTab(
-                    isSyncDetailsPresented: $isSyncDetailsPresented,
-                    isDiagnosticsPresented: $isDiagnosticsPresented
-                )
-                .hcbScaledPadding(16)
-                .frame(maxWidth: .infinity, alignment: .top)
-            }
+            GeneralTab(
+                isSyncDetailsPresented: $isSyncDetailsPresented,
+                isDiagnosticsPresented: $isDiagnosticsPresented
+            )
             .tabItem { Label("General", systemImage: "gearshape") }
             .tag(Tab.general)
 
-            ScrollView {
-                AppearanceTab()
-                    .hcbScaledPadding(16)
-                    .frame(maxWidth: .infinity, alignment: .top)
-            }
+            AppearanceTab()
             .tabItem { Label("Appearance", systemImage: "paintbrush") }
             .tag(Tab.appearance)
 
-            ScrollView {
-                AlertsTab()
-                    .hcbScaledPadding(16)
-                    .frame(maxWidth: .infinity, alignment: .top)
-            }
+            AlertsTab()
             .tabItem { Label("Alerts", systemImage: "bell") }
             .tag(Tab.alerts)
 
-            ScrollView {
-                AdvancedTab()
-                    .hcbScaledPadding(16)
-                    .frame(maxWidth: .infinity, alignment: .top)
-            }
+            AdvancedTab()
             .tabItem { Label("Advanced", systemImage: "gearshape.2") }
             .tag(Tab.advanced)
         }
@@ -203,7 +187,6 @@ private struct GeneralTab: View {
             }
         }
         .formStyle(.grouped)
-        .scrollDisabled(true)
     }
 
     private var syncModeBinding: Binding<SyncMode> {
@@ -225,17 +208,12 @@ private struct GeneralTab: View {
 
 private struct AppearanceTab: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            // Existing section structs use SwiftUI `Section` blocks;
-            // wrap in Form so macOS picks the right grouped style.
-            Form {
-                AppearanceSection()
-                PerSurfaceFontSection()
-                LayoutSection()
-            }
-            .formStyle(.grouped)
-            .scrollDisabled(true)
+        Form {
+            AppearanceSection()
+            PerSurfaceFontSection()
+            LayoutSection()
         }
+        .formStyle(.grouped)
     }
 }
 
@@ -275,7 +253,6 @@ private struct AlertsTab: View {
             }
         }
         .formStyle(.grouped)
-        .scrollDisabled(true)
         .alert("Local reminders enabled", isPresented: $showLocalNotificationsInfo) {
             Button("OK") { showLocalNotificationsInfo = false }
         } message: {
@@ -419,7 +396,6 @@ private struct AdvancedTab: View {
             UpdatesSection()
         }
         .formStyle(.grouped)
-        .scrollDisabled(true)
     }
 
     private func calendarBinding(_ id: CalendarListMirror.ID) -> Binding<Bool> {
