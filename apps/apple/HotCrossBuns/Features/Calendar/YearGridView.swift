@@ -51,17 +51,25 @@ struct YearGridView: View {
     var body: some View {
         let counts = eventsByDay
         let maxCount = counts.values.max() ?? 0
-        ScrollView {
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 4), spacing: 16) {
-                ForEach(months, id: \.self) { month in
-                    miniMonth(for: month, counts: counts, maxCount: maxCount)
+        GeometryReader { proxy in
+            let outerPadding: CGFloat = 16
+            let gridSpacing: CGFloat = 16
+            let availableHeight = max(0, proxy.size.height - outerPadding * 2 - gridSpacing * 2)
+            let monthHeight = max(210, availableHeight / 3)
+            let dayCellHeight = max(18, (monthHeight - 58) / 7)
+
+            ScrollView {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: 4), spacing: gridSpacing) {
+                    ForEach(months, id: \.self) { month in
+                        miniMonth(for: month, counts: counts, maxCount: maxCount, monthHeight: monthHeight, dayCellHeight: dayCellHeight)
+                    }
                 }
+                .hcbScaledPadding(outerPadding)
             }
-            .hcbScaledPadding(16)
         }
     }
 
-    private func miniMonth(for monthStart: Date, counts: [Date: Int], maxCount: Int) -> some View {
+    private func miniMonth(for monthStart: Date, counts: [Date: Int], maxCount: Int, monthHeight: CGFloat, dayCellHeight: CGFloat) -> some View {
         let cells = CalendarGridLayout.monthCells(for: monthStart, calendar: calendar)
         let monthNum = calendar.component(.month, from: monthStart)
         return VStack(alignment: .leading, spacing: 6) {
@@ -75,10 +83,12 @@ struct YearGridView: View {
                         .foregroundStyle(.secondary)
                 }
                 ForEach(cells, id: \.self) { day in
-                    dayCell(day: day, monthNum: monthNum, counts: counts, maxCount: maxCount)
+                    dayCell(day: day, monthNum: monthNum, counts: counts, maxCount: maxCount, dayCellHeight: dayCellHeight)
                 }
             }
+            Spacer(minLength: 0)
         }
+        .frame(minHeight: monthHeight, alignment: .top)
         .hcbScaledPadding(10)
         .background(
             RoundedRectangle(cornerRadius: 10)
@@ -90,7 +100,7 @@ struct YearGridView: View {
         )
     }
 
-    private func dayCell(day: Date, monthNum: Int, counts: [Date: Int], maxCount: Int) -> some View {
+    private func dayCell(day: Date, monthNum: Int, counts: [Date: Int], maxCount: Int, dayCellHeight: CGFloat) -> some View {
         let startOfDay = calendar.startOfDay(for: day)
         let isInMonth = calendar.component(.month, from: day) == monthNum
         let isToday = calendar.isDateInToday(day)
@@ -102,7 +112,7 @@ struct YearGridView: View {
             Text("\(calendar.component(.day, from: day))")
                 .hcbFontSystem(size: 9, weight: isToday ? .bold : .regular)
                 .foregroundStyle(isInMonth ? AppColor.ink : .secondary.opacity(0.5))
-                .frame(maxWidth: .infinity, minHeight: 18)
+                .frame(maxWidth: .infinity, minHeight: dayCellHeight)
                 .background(
                     RoundedRectangle(cornerRadius: 3)
                         .fill(isToday ? AppColor.ember.opacity(0.35) : AppColor.ember.opacity(shade))
