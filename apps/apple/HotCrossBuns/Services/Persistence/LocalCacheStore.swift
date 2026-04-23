@@ -344,7 +344,13 @@ private extension JSONEncoder {
     static var cachedAppState: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
+        // Debug keeps pretty + sorted for easier manual inspection of the
+        // cache file. Release drops both: pretty-print roughly doubles the
+        // encoded size and sortedKeys adds a sort pass per nested container,
+        // which dominates at 10k+ events.
+        #if DEBUG
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        #endif
         return encoder
     }
 }
