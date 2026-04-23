@@ -253,8 +253,15 @@ struct CommandPaletteView: View {
         let parsed = AdvancedSearchParser.parse(q)
 
         if let pattern = parsed.regex {
+            // Compile the regex ONCE per query, not once per entity. The
+            // palette runs against the full entity universe (thousands at
+            // scale) and compiling inside the per-entity filter was the
+            // dominant cost of regex searches.
+            guard let compiled = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+                return []
+            }
             return cachedEntities
-                .filter { AdvancedSearchMatcher.regexMatches($0, regexPattern: pattern) }
+                .filter { AdvancedSearchMatcher.regexMatches($0, compiled: compiled) }
                 .prefix(30)
                 .map { PaletteItem.entity($0) }
         }
