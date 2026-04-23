@@ -22,13 +22,8 @@ struct DayGridView: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            eventsColumn
-                .frame(maxWidth: .infinity)
-            Divider()
-            tasksPanel
-                .hcbScaledFrame(width: 260)
-        }
+        eventsColumn
+            .frame(maxWidth: .infinity)
         .hcbScaledPadding(12)
     }
 
@@ -62,27 +57,6 @@ struct DayGridView: View {
 
     private var timedEvents: [CalendarEventMirror] {
         visibleEvents.filter { $0.isAllDay == false }.sorted { $0.startDate < $1.startDate }
-    }
-
-    // Reads model.tasksByDueDate (pre-bucketed in rebuildSnapshots). The
-    // pre-built index already excludes completed + deleted tasks, so we
-    // only need to intersect with the user's list selection and apply the
-    // overdue-hide setting.
-    private var dayTasks: [TaskMirror] {
-        let visibleLists: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
-            ? model.settings.selectedTaskListIDs
-            : Set(model.taskLists.map(\.id))
-        let now = Date()
-        let key = dayStart.timeIntervalSinceReferenceDate
-        let bucket = (model.tasksByDueDate[key] ?? []).compactMap { model.task(id: $0) }
-        return bucket.filter { task in
-            if model.settings.shouldHideOverdueTask(task, now: now, calendar: calendar) { return false }
-            return visibleLists.contains(task.taskListID)
-        }
-        .sorted { lhs, rhs in
-            if lhs.isCompleted != rhs.isCompleted { return lhs.isCompleted == false }
-            return lhs.title < rhs.title
-        }
     }
 
     private var eventsColumn: some View {
@@ -297,52 +271,6 @@ struct DayGridView: View {
         guard now >= dayStart, now <= dayEnd else { return nil }
         let minutes = now.timeIntervalSince(dayStart) / 60
         return CGFloat(minutes) * (hourHeight / 60)
-    }
-
-    private var tasksPanel: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Due Today")
-                    .hcbFont(.headline)
-                Spacer()
-                Text("\(dayTasks.filter { $0.isCompleted == false }.count) open")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-            if dayTasks.isEmpty {
-                ContentUnavailableView(
-                    "No tasks due this day",
-                    systemImage: "checklist",
-                    description: Text("Drop a task onto a day in the Week view to schedule it.")
-                )
-                .frame(maxWidth: .infinity, alignment: .center)
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(dayTasks) { task in
-                            HStack(spacing: 8) {
-                                CalendarTaskCheckbox(task: task, size: 15)
-                                CalendarTaskPreviewButton(task: task) {
-                                    HStack(spacing: 8) {
-                                        Text(task.title)
-                                            .hcbFont(.subheadline)
-                                            .strikethrough(task.isCompleted)
-                                            .foregroundStyle(AppColor.ink)
-                                        Spacer(minLength: 0)
-                                    }
-                                    .contentShape(Rectangle())
-                                }
-                            }
-                            .hcbScaledPadding(8)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(AppColor.cream.opacity(0.4)))
-                            .opacity(task.isCompleted ? 0.6 : 1.0)
-                        }
-                    }
-                }
-            }
-        }
-        .cardSurface(cornerRadius: 16)
     }
 
     private func calendarColor(for event: CalendarEventMirror) -> Color {
