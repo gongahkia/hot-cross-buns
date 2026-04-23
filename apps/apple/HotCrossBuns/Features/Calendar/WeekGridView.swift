@@ -28,6 +28,10 @@ struct WeekGridView: View {
     private let hourHeight: CGFloat = 44
     private let hourStart = 0
     private let hourEnd = 24
+    private let allDayLaneHeight: CGFloat = 22
+    private let taskVisibleLimit = 3
+    private let taskRowHeight: CGFloat = 24
+    private let taskRowSpacing: CGFloat = 2
     private let calendar = Calendar.current
 
     @State private var allDayDrag: WeekDaySelection?
@@ -254,7 +258,7 @@ struct WeekGridView: View {
     private var allDayStrip: some View {
         let spans = cachedAllDaySpans
         let laneCount = (spans.map(\.laneIndex).max() ?? -1) + 1
-        let stripHeight = max(CGFloat(min(laneCount, 3)) * 22, 22)
+        let stripHeight = max(CGFloat(laneCount) * allDayLaneHeight, allDayLaneHeight)
         // Captured outside GeometryReader so DragGesture closures see a
         // reliable router reference (custom-EnvironmentKey reads inside
         // GeometryReader closures have shown propagation gaps).
@@ -310,6 +314,7 @@ struct WeekGridView: View {
                 )
             }
             .frame(height: stripHeight)
+            .clipped()
         }
         .hcbScaledPadding(.vertical, 4)
     }
@@ -389,6 +394,11 @@ struct WeekGridView: View {
             (calendar.startOfDay(for: day), tasksForDay(day))
         })
         let maxLanes = tasksByDay.values.map(\.count).max() ?? 0
+        let visibleRows = min(maxLanes, taskVisibleLimit)
+        let overflowRow = maxLanes > taskVisibleLimit ? 1 : 0
+        let rowCount = visibleRows + overflowRow
+        let stripHeight = CGFloat(rowCount) * taskRowHeight
+            + CGFloat(max(rowCount - 1, 0)) * taskRowSpacing
         return Group {
             if maxLanes == 0 {
                 EmptyView()
@@ -403,8 +413,8 @@ struct WeekGridView: View {
                         let columnWidth = geo.size.width / CGFloat(max(weekDays.count, 1))
                         ZStack(alignment: .topLeading) {
                             ForEach(Array(weekDays.enumerated()), id: \.offset) { idx, day in
-                                VStack(alignment: .leading, spacing: 2) {
-                                    ForEach((tasksByDay[calendar.startOfDay(for: day)] ?? []).prefix(3)) { task in
+                                VStack(alignment: .leading, spacing: taskRowSpacing) {
+                                    ForEach((tasksByDay[calendar.startOfDay(for: day)] ?? []).prefix(taskVisibleLimit)) { task in
                                         HStack(spacing: 4) {
                                             CalendarTaskCheckbox(task: task, size: 10)
                                             CalendarTaskPreviewButton(task: task) {
@@ -415,8 +425,8 @@ struct WeekGridView: View {
                                                     .contentShape(Rectangle())
                                             }
                                         }
-                                        .hcbScaledPadding(.horizontal, 6)
-                                        .hcbScaledPadding(.vertical, 3)
+                                        .padding(.horizontal, 6)
+                                        .frame(height: taskRowHeight)
                                         .background(
                                             RoundedRectangle(cornerRadius: 5)
                                                 .fill(AppColor.ember.opacity(0.15))
@@ -430,20 +440,23 @@ struct WeekGridView: View {
                                         .opacity(task.isCompleted ? 0.55 : 1.0)
                                         .accessibilityLabel("Task due \(day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())): \(task.title)")
                                     }
-                                    if let count = tasksByDay[calendar.startOfDay(for: day)]?.count, count > 3 {
-                                        Text("+\(count - 3) more")
+                                    if let count = tasksByDay[calendar.startOfDay(for: day)]?.count, count > taskVisibleLimit {
+                                        Text("+\(count - taskVisibleLimit) more")
                                             .hcbFont(.caption2)
                                             .foregroundStyle(.secondary)
-                                            .hcbScaledPadding(.leading, 4)
+                                            .lineLimit(1)
+                                            .padding(.leading, 4)
+                                            .frame(height: taskRowHeight, alignment: .leading)
                                     }
                                 }
                                 .hcbScaledPadding(.horizontal, 2)
-                                .frame(width: columnWidth, alignment: .leading)
+                                .frame(width: columnWidth, height: stripHeight, alignment: .topLeading)
                                 .offset(x: CGFloat(idx) * columnWidth)
                             }
                         }
                     }
-                    .frame(height: CGFloat(min(maxLanes, 3)) * 22)
+                    .frame(height: stripHeight)
+                    .clipped()
                 }
                 .hcbScaledPadding(.vertical, 4)
             }
