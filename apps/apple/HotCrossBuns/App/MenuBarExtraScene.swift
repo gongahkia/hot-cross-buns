@@ -375,7 +375,6 @@ struct MenuBarExtraContent: View {
             switch model.settings.menuBarStyle {
             case .detailed: DetailedMenuBarPanel()
             case .weekly: WeeklyMenuBarPanel()
-            case .focusStrip: FocusStripMenuBarPanel()
             case .compact: CompactMenuBarPanel()
             }
         }
@@ -398,47 +397,6 @@ private extension AppModel {
         settings.hasConfiguredTaskListSelection
             ? settings.selectedTaskListIDs
             : Set(taskLists.map(\.id))
-    }
-}
-
-private struct CompactMenuBarPanel: View {
-    @Environment(AppModel.self) private var model
-
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("Hot Cross Buns")
-                .hcbFont(.headline)
-            Spacer()
-            Text(model.syncState.title)
-                .hcbFont(.caption, weight: .medium)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-            overview
-            MenuBarPinnedFilters()
-            MenuBarQuickAddRow()
-            Divider()
-            MenuBarQuickActions()
-        }
-        .hcbScaledPadding(14)
-        .hcbScaledFrame(width: 320)
-    }
-
-    private var overview: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            StatusLine(label: "Due today", value: "\(model.todaySnapshot.dueTasks.count)")
-            StatusLine(label: "Overdue", value: "\(model.todaySnapshot.overdueCount)")
-            StatusLine(label: "Events today", value: "\(model.todaySnapshot.scheduledEvents.count)")
-            if let lastSync = model.lastSuccessfulSyncAt {
-                StatusLine(label: "Last sync", value: lastSync.formatted(date: .omitted, time: .shortened))
-            } else {
-                StatusLine(label: "Last sync", value: "Never")
-            }
-        }
     }
 }
 
@@ -561,7 +519,7 @@ private struct DetailedMenuBarPanel: View {
 
 }
 
-private struct FocusStripMenuBarPanel: View {
+private struct CompactMenuBarPanel: View {
     @Environment(AppModel.self) private var model
     @State private var completingTaskIDs: Set<TaskMirror.ID> = []
 
@@ -629,7 +587,7 @@ private struct FocusStripMenuBarPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Focus strip")
+                Text("Compact")
                     .hcbFont(.headline)
                 Spacer()
                 Text(model.syncState.title)
