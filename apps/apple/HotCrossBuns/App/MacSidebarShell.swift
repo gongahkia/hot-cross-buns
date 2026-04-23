@@ -815,7 +815,24 @@ struct MacSidebarShell: View {
                 // re-enter once reachability recovers.
                 return
             }
-            let delay: Duration = attempt == 0 ? policy.baseDelay : policy.delay(forAttempt: attempt)
+            // Back off the near-realtime cadence when the user's environment
+            // signals we shouldn't be aggressive: constrained network
+            // (cellular / expensive / captive portal) and low-power mode
+            // both benefit from a slower poll. Still never slower than the
+            // policy's maxDelay; still faster than the app is in balanced
+            // sync mode.
+            let baseDelay: Duration = attempt == 0 ? policy.baseDelay : policy.delay(forAttempt: attempt)
+            let delay: Duration = {
+                let isConstrained = networkMonitor.reachability == .constrained
+                let isLowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+                if isConstrained || isLowPower {
+                    // 4× slowdown caps out at policy.maxDelay so we never
+                    // go below the configured ceiling.
+                    let slowed = baseDelay * 4
+                    return min(slowed, policy.maxDelay)
+                }
+                return baseDelay
+            }()
             do {
                 try await Task.sleep(for: delay)
             } catch {
