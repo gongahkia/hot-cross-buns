@@ -122,6 +122,27 @@ LayoutSection auto-picks up new CalendarGridMode cases via `allCases`. No change
 - CalendarMirror retention window. `AppSettings.eventRetentionDaysBack` (Int, default 365, clamped to [0, 3650], 0 = keep-forever). Settings → Sync → "Keep past events" picker. `SyncScheduler.mergeEvents` drops events whose `endDate` is older than the cutoff; carve-outs preserve optimistic-pending writes and events with `updatedAt` inside the window (so reopening a past meeting to edit notes doesn't make it vanish between syncs). `AppModel.setEventRetentionDaysBack` applies the same cutoff in-memory on toggle so the cache shrinks immediately.
 - MonthGridView per-pass hoist. `filteredEvents` + `eventsByDay` computed once per body evaluation and threaded into `grid`, `weekRow`, and `monthCell` as parameters — prior structure made each `monthBands` call re-scan the full events list per week, O(events × weeks). Now O(events) plus O(weeks) dict lookups.
 
+## §7.02 Performance — second pass (Phase A + B, 2026-04-22)
+
+- A1: `AppModel.scheduleCacheSave()` debounces cache writes to 500ms; sync-flush bursts coalesce into a single disk hit. `flushPendingCacheSave()` is bound to scenePhase background to guarantee no in-flight write is lost on suspend.
+- A2: `AppModel.eventsByCalendar` index built once per `rebuildSnapshots()`, consumed by Month/Week/Day grid `visibleEvents` / `filteredEvents` so per-render filters operate on already-bucketed events instead of the full corpus (~17k+ → ~3k typical).
+- A3: `AppModel.scheduleRebuildSnapshots()` coalesces upsert/remove-driven rebuilds via `DispatchQueue.main.async` — multiple rapid mutations (e.g. a sync flush of dozens of upserts) collapse to one rebuild per runloop tick.
+- B2: `LocalCacheStore` splits events into `cache-events.json` sidecar; main `cache-state.json` no longer carries events. `lastEventsHash` gates sidecar writes so settings/task-only mutations never touch the multi-MB blob. Legacy monolithic-format cache files migrate transparently on first save. Encrypted setups encrypt main + sidecar independently. Tests in `LocalCacheStoreSplitTests` cover split, merge, hash skip, etag-bust, legacy migration, encrypted roundtrip, and corrupt-sidecar fallback.
+
+## §7.02 Performance — third pass (2026-04-23)
+
+Closes the correctness + hot-path-bloat set from the static audit.
+
+- Audit log O(1) append: `MutationAuditLog` writes one JSONL line per record instead of re-encoding the whole buffer (~10MB atomic rewrite per checkbox click → single `FileHandle.seekToEnd` + write). v1 JSON-array files migrate to v2 JSONL on first read. See `8e5beda`.
+- `AppModel.dataRevision` replaces count-based cache keys in MonthGridView / WeekGridView / CommandPaletteView — renames / reschedules / recolors that kept total count unchanged used to leave caches stale. See `3886e94`.
+- O(1) lookup dictionaries (`tasksByID` / `eventsByID` / `taskListsByID` / `calendarsByID`) rebuilt in `rebuildSnapshots`; `task(id:)` / `event(id:)` now hit a hash instead of scanning. `CalendarHomeView.agendaEventsByDay` / `agendaTasksByDay` read from the prebuilt `eventsByDay` / `tasksByDueDate` indexes instead of rescanning the full corpus per body eval. See `0879b0e`.
+- Command palette regex compiled once per query instead of once per entity (17k-entity scan was paying 17k regex compilations). See `1fd6913`.
+- Notifications + Spotlight decoupled from the user path and debounced independently (500ms / 2s). Sync-flush storms collapse to one rescan instead of one per mutation. See `dde55e7`.
+- Kanban `LazyHStack` + `LazyVStack` so off-screen columns and off-screen cards don't instantiate. See `410a90a`.
+- Near-realtime poll backs off 4× (capped at policy.maxDelay) on constrained network or low-power mode. See `33a0f3d`.
+- Calendar events endpoint page size 250 → 2500; `SyncScheduler` fan-out bounded to a 5-wide sliding TaskGroup window. See `e53bf4f`.
+- `NotesView.orderedTasks` uses Set membership instead of O(n²) Array.contains; `StoreView.completedCount` reads `taskListCompletionStats` instead of refiltering tasks; release cache encoder drops `.prettyPrinted` + `.sortedKeys`. See `371626a`.
+
 ## §10 Cybersecurity hardening — audit pass 1
 
 First focused pass. Reviewer swept four surfaces; two came back clean, two got fixes.

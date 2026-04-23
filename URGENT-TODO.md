@@ -8,11 +8,11 @@ Ranking principle:
 
 1. **§0** — immediate next task: full macOS-native design audit.
 2. **§1–§5** — setup + QA that block a shippable build. Cannot ship without these.
-3. **§7–§8** — visual polish / perf / battery passes.
-4. **§9** — deprioritized extended-interop work.
-5. **§10** — cybersecurity hardening.
-6. **§11** — least-priority: daily local backup (implement last).
-7. **§12–§14** — carve-outs / deferred roadmap / known residual risks. Reference only.
+3. **§7–§8** — perf / battery passes.
+4. **§10** — cybersecurity hardening.
+5. **§11** — least-priority: daily local backup (implement last).
+6. **§12–§15** — carve-outs / deferred roadmap / residual items / speculative.
+7. **§9** — deprioritized extended-interop work (moved to end).
 
 ## 0. [Next task] macOS-native design audit + refactor
 
@@ -179,32 +179,11 @@ Dogfood with a real account for at least one workday on macOS. Smoke checklist:
 17. **Services menu round-trip.** Select text anywhere (TextEdit, a web page) → right-click → Services → "Create Hot Cross Buns task". App should foreground and open QuickAdd with the selection prefilled.
 18. **.ics drop.** Export a Google Calendar to `.ics` (Settings → Import/Export) and drag onto the Calendar view. Should create events on the first writable calendar. Drop the same file a second time — alert should say "skipped N duplicates, imported 0".
 
-## 7.01 Visual reference — shipped
+## 7. Performance optimisation and RAM / memory usage
 
-All four phases of the frontend refactor landed. See `COMPLETED.md` § "§7.01 Visual reference — frontend refactor" for the shipped scope.
+First/second/third passes shipped — see `COMPLETED.md` § "§7.02 Performance — first/second/third pass".
 
-## 7.02. Performance optimisation and RAM / memory usage
-
-First pass landed: CalendarMirror retention window (Settings → Sync → "Keep past events", clamped to [0, 3650] days, default 365; 0 = keep-forever) + MonthGridView per-pass hoist of `filteredEvents` / `eventsByDay` so week bands don't re-iterate the whole events list per row. Pruning in `SyncScheduler.mergeEvents` preserves pending optimistic writes and recently-updated events so a user opening a past meeting to edit notes doesn't see it vanish.
-
-Second pass shipped (Phase A + B per perf-investigation notes, 2026-04-22):
-- A1: `AppModel.scheduleCacheSave()` debounces cache writes to 500ms; sync-flush bursts coalesce into a single disk hit. `flushPendingCacheSave()` is bound to scenePhase background to guarantee no in-flight write is lost on suspend.
-- A2: `AppModel.eventsByCalendar` index built once per `rebuildSnapshots()`, consumed by Month/Week/Day grid `visibleEvents` / `filteredEvents` so per-render filters operate on already-bucketed events instead of the full corpus (~17k+ → ~3k typical).
-- A3: `AppModel.scheduleRebuildSnapshots()` coalesces upsert/remove-driven rebuilds via `DispatchQueue.main.async` — multiple rapid mutations (e.g. a sync flush of dozens of upserts) collapse to one rebuild per runloop tick.
-- B2: `LocalCacheStore` splits events into `cache-events.json` sidecar; main `cache-state.json` no longer carries events. `lastEventsHash` gates sidecar writes so settings/task-only mutations never touch the multi-MB blob. Legacy monolithic-format cache files migrate transparently on first save. Encrypted setups encrypt main + sidecar independently. Tests in `LocalCacheStoreSplitTests` cover split, merge, hash skip, etag-bust, legacy migration, encrypted roundtrip, and corrupt-sidecar fallback.
-
-Third pass shipped (2026-04-23) — closes the correctness + hot-path-bloat set from the static audit:
-- Audit log O(1) append: `MutationAuditLog` writes one JSONL line per record instead of re-encoding the whole buffer (~10MB atomic rewrite per checkbox click → single `FileHandle.seekToEnd` + write). v1 JSON-array files migrate to v2 JSONL on first read. See `8e5beda`.
-- `AppModel.dataRevision` replaces count-based cache keys in MonthGridView / WeekGridView / CommandPaletteView — renames / reschedules / recolors that kept total count unchanged used to leave caches stale. See `3886e94`.
-- O(1) lookup dictionaries (`tasksByID` / `eventsByID` / `taskListsByID` / `calendarsByID`) rebuilt in `rebuildSnapshots`; `task(id:)` / `event(id:)` now hit a hash instead of scanning. `CalendarHomeView.agendaEventsByDay` / `agendaTasksByDay` read from the prebuilt `eventsByDay` / `tasksByDueDate` indexes instead of rescanning the full corpus per body eval. See `0879b0e`.
-- Command palette regex compiled once per query instead of once per entity (17k-entity scan was paying 17k regex compilations). See `1fd6913`.
-- Notifications + Spotlight decoupled from the user path and debounced independently (500ms / 2s). Sync-flush storms collapse to one rescan instead of one per mutation. See `dde55e7`.
-- Kanban `LazyHStack` + `LazyVStack` so off-screen columns and off-screen cards don't instantiate. See `410a90a`.
-- Near-realtime poll backs off 4× (capped at policy.maxDelay) on constrained network or low-power mode. See `33a0f3d`.
-- Calendar events endpoint page size 250 → 2500; `SyncScheduler` fan-out bounded to a 5-wide sliding TaskGroup window. See `e53bf4f`.
-- `NotesView.orderedTasks` uses Set membership instead of O(n²) Array.contains; `StoreView.completedCount` reads `taskListCompletionStats` instead of refiltering tasks; release cache encoder drops `.prettyPrinted` + `.sortedKeys`. See `371626a`.
-
-Still to do (Phase C — deprioritized, do only if perceived perf is still sluggish after A+B+C'):
+Still to do (Phase C — deprioritized, do only if perceived perf is still sluggish after the shipped passes):
 
 ### Phase C — Split AppModel into per-resource @Observable stores
 
@@ -249,38 +228,9 @@ Other still-to-do items unrelated to Phase C:
 
 Ensure foreground polling + background refresh don't drain battery. Includes: respecting `NetworkMonitor` low-power mode, throttling polling when window unfocused, suspending calendar grid animations off-screen, checking Spotlight indexer load.
 
-## 9. Deprioritized extended interop
-
-Implement only after §6 and §7/§8. Order within this section flexible.
-
-### 9.1 Multi-format import / export
-
-Readers + writers beyond the existing ICS path. All imports create real Google Tasks/Events; all exports are read-only snapshots. No parallel local store.
-
-- **Readers:** Things 3 (SQLite db or JSON export), Todoist (JSON/CSV API export), Apple Reminders (EventKit), OmniFocus (OFOCUS archive or taskpaper export), TaskPaper (plain text), org-mode (plain text + PROPERTIES), Microsoft To Do, Google Keep lists.
-- **Writers:** Markdown (per-task and digest), TaskPaper, org-mode, OPML, CSV, JSON.
-- Progress UI for long imports with per-item failure reporting.
-- Dedup on re-import (same as ICS flow).
-
-### 9.2 Optional CLI surface (`hcb`)
-
-Thin CLI that talks to the running app via local IPC (Unix socket or XPC) — does not open a second Google session. Commands: `add`, `list`, `complete`, `search`, `agenda`, `open <id>`. Read paths query the mirror; write paths dispatch through the same `OptimisticWriter`.
-
-### 9.3 MCP servers for AI agent integration
-
-Expose the mirror + mutation surface as an MCP server so external AI agents (Claude Desktop, others) can read tasks/events and propose changes. Every write still flows through the confirmation-gated path in §9.4. No background agent writes to Google without user approval.
-
-### 9.4 Optional BYOK AI manager
-
-User supplies their own API key (Anthropic / OpenAI). Natural-language input + image upload. Every interpreted action is presented as a diff-style confirmation before any Google write. Never auto-executes. Never stores API keys in plaintext — Keychain only. Deprioritized because it's additive, not blocking.
-
-### 9.5 Telegram bot layer
-
-Essentially a wrapper around the core functionality of hot cross buttons that allows users to plug in their telegram and call it as a bot and get updates. ensure there's hardening, sufficient hardening, especially since this is a remote endpoint. Clarify further is required, but I think that's a rough idea for now. 
-
 ## 10. Cybersecurity hardening
 
-Pass 1 shipped (URL-scheme + NL parser audits clean; Shared Inbox trust model + os_log privacy fixed — see `COMPLETED.md` § "§10 Cybersecurity hardening — audit pass 1").
+Pass 1 shipped — see `COMPLETED.md` § "§10 Cybersecurity hardening — audit pass 1".
 
 Remaining:
 - Verify all Google API responses are decoded against strict Codable schemas; no eval-style paths. (Large surface — separate focused pass.)
@@ -319,15 +269,6 @@ Not actively scheduled. Each is substantial enough to be its own focused push.
 - **Rich metadata in Calendar private extended properties** — cross-client fragility; app-only annotations would disappear outside Hot Cross Buns.
 - **SQLite migration for the local cache** — current JSON snapshot is adequate for one user's data volume. Reconsider if the cache grows past ~50MB or needs indexed queries.
 - **Windows / Linux / Android ports** — out of scope by product decision.
-
-## 14. Known residual risks
-
-No open items at this time. The audits haven't surfaced anything new since the last pass, and both previously-tracked risks are now resolved:
-
-- Single-occurrence recurring-event PATCH (the `originalStartTime` question) — verified during live QA on a weekly recurring series via both the title-edit path and the drag-to-reschedule path. Google's API correctly infers the occurrence from the instance-ID suffix; "This event only" updates exactly one instance and leaves the rest of the series untouched. No DTO change needed. Recorded in `COMPLETED.md`.
-- Tasks watermark derived from local clock — resolved by reading Google's response `Date` header and using it as the next `updatedMin`. Falls back to local clock with a 300s slack only when the header is absent. Recorded in `COMPLETED.md`.
-
-For residual risks that have been fixed, see `COMPLETED.md` § "Residual risks fixed since the last audit pass".
 
 ## 14b. [Highest priority] Encrypt the audit log at rest
 
@@ -437,3 +378,32 @@ No blanket migration — it's an engineering-for-engineering-sake trap.
 - **Universal portable format + user-hosted sync.** Extend HCB to first-class support a portable interchange format for tasks/notes/events on top of the current Google-2-way path. Options: (a) CalDAV/CardDAV-style open standard so any CalDAV server can sync; (b) an HCB-native serializable schema (JSON/protobuf) that's fully round-trippable. Either way, serialize + deserialize all HCB-visible state, let users point at their own backend (self-hosted sync server, object store, Syncthing, etc.) for multi-device replication without depending on Google. Scope includes: schema versioning, conflict resolution strategy mirroring our etag path, import/export tooling, and a decision on push vs pull topology. Deprioritized — implement only after Google parity is locked in.
 - **Menu-bar app rework — visible icon + live counter.** The current menu-bar extra is unreliable; the icon intermittently isn't visible and the overdue/today counter doesn't actually update in real time. Rework so: the status-bar icon is always registered and visible when `settings.showMenuBarExtra` is on (guard against NSStatusItem recycling); a running counter badge reflects `model.datedOpenTaskCount` + today's upcoming event count, updated on every mirror mutation and every sync tick; the dropdown panel honors `menuBarStyle` and renders without lag on open. Cover: cold launch, sleep/wake, appearance changes, counter rollover at midnight.
 - **Right-click / context-menu coverage across all interactable surfaces.** Currently right-click is a no-op in most of the UI. Add `.contextMenu` (SwiftUI) / `NSMenu` support on every surface where the user interacts with an event, task, or note: day/week/month/timeline event tiles; Kanban task cards; Notes grid cards; task inspector rows; Forecast/Review entries; Today dashboard items. Base menu per kind: Duplicate, Convert…, Edit…, Delete, Copy as Markdown, Open in Google (deep link), and kind-specific extras (recurring scope pickers on events, list move on tasks, date-set on notes). Left-click behavior stays as-is (primary action = open inspector); right-click adds the secondary affordance. Audit every tile-renderer to catch the long tail (menu-bar panel items, Spotlight results, palette hits).
+
+## 9. Deprioritized extended interop
+
+Implement only after §6 and §7/§8. Order within this section flexible.
+
+### 9.1 Multi-format import / export
+
+Readers + writers beyond the existing ICS path. All imports create real Google Tasks/Events; all exports are read-only snapshots. No parallel local store.
+
+- **Readers:** Things 3 (SQLite db or JSON export), Todoist (JSON/CSV API export), Apple Reminders (EventKit), OmniFocus (OFOCUS archive or taskpaper export), TaskPaper (plain text), org-mode (plain text + PROPERTIES), Microsoft To Do, Google Keep lists.
+- **Writers:** Markdown (per-task and digest), TaskPaper, org-mode, OPML, CSV, JSON.
+- Progress UI for long imports with per-item failure reporting.
+- Dedup on re-import (same as ICS flow).
+
+### 9.2 Optional CLI surface (`hcb`)
+
+Thin CLI that talks to the running app via local IPC (Unix socket or XPC) — does not open a second Google session. Commands: `add`, `list`, `complete`, `search`, `agenda`, `open <id>`. Read paths query the mirror; write paths dispatch through the same `OptimisticWriter`.
+
+### 9.3 MCP servers for AI agent integration
+
+Expose the mirror + mutation surface as an MCP server so external AI agents (Claude Desktop, others) can read tasks/events and propose changes. Every write still flows through the confirmation-gated path in §9.4. No background agent writes to Google without user approval.
+
+### 9.4 Optional BYOK AI manager
+
+User supplies their own API key (Anthropic / OpenAI). Natural-language input + image upload. Every interpreted action is presented as a diff-style confirmation before any Google write. Never auto-executes. Never stores API keys in plaintext — Keychain only. Deprioritized because it's additive, not blocking.
+
+### 9.5 Telegram bot layer
+
+Essentially a wrapper around the core functionality of hot cross buttons that allows users to plug in their telegram and call it as a bot and get updates. ensure there's hardening, sufficient hardening, especially since this is a remote endpoint. Clarify further is required, but I think that's a rough idea for now.
