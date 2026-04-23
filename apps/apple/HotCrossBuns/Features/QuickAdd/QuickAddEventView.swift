@@ -73,7 +73,7 @@ struct QuickAddEventView: View {
         HStack(spacing: 10) {
             Image(systemName: "calendar.badge.plus")
                 .foregroundStyle(AppColor.ember)
-            Text("Quick Add Event")
+            Text("New Event")
                 .hcbFont(.headline)
             Spacer(minLength: 0)
             Text("Return to add, Esc to cancel")
