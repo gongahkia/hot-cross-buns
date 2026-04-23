@@ -33,7 +33,7 @@ struct HelpView: View {
                         keyRow("\(glyph(.goToCalendar))  \(glyph(.goToStore))", "Jump to Calendar / Tasks")
                         keyRow(glyph(.goToSettings), "Open Settings window")
                         keyRow(glyph(.commandPalette), "Command palette — also searches tasks and events")
-                        keyRow("⌘S", "Collapse sidebar to icons / expand")
+                        bullet("Use the toolbar sidebar button or the View menu to show or hide the sidebar.")
                         keyRow(glyph(.storeShowInspector), "Toggle task inspector")
                         keyRow(glyph(.refresh), "Refresh sync")
                         keyRow(glyph(.forceResync), "Force full resync")
