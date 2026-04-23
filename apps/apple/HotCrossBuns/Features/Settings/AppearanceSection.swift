@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AppearanceSection: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.colorScheme) private var systemColorScheme
     @AppStorage(HCBBaseColorSchemePreference.storageKey) private var baseColorSchemePreference: String = ""
     @State private var fontQuery: String = ""
     @State private var availableFonts: [String] = []
@@ -20,6 +21,10 @@ struct AppearanceSection: View {
             if availableFonts.isEmpty {
                 availableFonts = HCBInstalledFonts.available()
             }
+            coerceThemeToBaseColourScheme()
+        }
+        .onChange(of: effectiveThemeIsDark) { _, _ in
+            coerceThemeToBaseColourScheme()
         }
     }
 
@@ -64,21 +69,21 @@ struct AppearanceSection: View {
             }
             Spacer(minLength: 16)
             HStack(spacing: 8) {
-                Button("Reset to Notion") { model.setColorSchemeID("notion") }
+                Button("Reset to \(defaultTheme.title)") { model.setColorSchemeID(defaultTheme.id) }
                     .buttonStyle(.borderless)
                     .hcbFont(.caption)
-                    .disabled(model.settings.colorSchemeID == "notion")
+                    .disabled(model.settings.colorSchemeID == defaultTheme.id)
                 Picker("Theme", selection: Binding(
                     get: { model.settings.colorSchemeID },
-                    set: { model.setColorSchemeID($0) }
+                    set: { newID in
+                        guard filteredThemes.contains(where: { $0.id == newID }) else { return }
+                        model.setColorSchemeID(newID)
+                    }
                 )) {
-                    ForEach(HCBColorScheme.all) { scheme in
+                    ForEach(filteredThemes) { scheme in
                         HStack(spacing: 8) {
                             ColorSchemeSwatch(scheme: scheme)
                             Text(scheme.title)
-                            if scheme.isDark {
-                                Text("· dark").foregroundStyle(.secondary)
-                            }
                         }
                         .tag(scheme.id)
                     }
@@ -94,8 +99,50 @@ struct AppearanceSection: View {
             get: {
                 HCBBaseColorSchemePreference(rawValue: baseColorSchemePreference) ?? HCBBaseColorSchemePreference.fallback(for: model.settings)
             },
-            set: { baseColorSchemePreference = $0.rawValue }
+            set: { preference in
+                baseColorSchemePreference = preference.rawValue
+                coerceThemeToBaseColourScheme(for: preference)
+            }
         )
+    }
+
+    private var resolvedBaseColourScheme: HCBBaseColorSchemePreference {
+        HCBBaseColorSchemePreference(rawValue: baseColorSchemePreference) ?? HCBBaseColorSchemePreference.fallback(for: model.settings)
+    }
+
+    private var effectiveThemeIsDark: Bool {
+        switch resolvedBaseColourScheme {
+        case .dark:
+            true
+        case .light:
+            false
+        case .system:
+            systemColorScheme == .dark
+        }
+    }
+
+    private var filteredThemes: [HCBColorScheme] {
+        HCBColorScheme.all.filter { $0.isDark == effectiveThemeIsDark }
+    }
+
+    private var defaultTheme: HCBColorScheme {
+        filteredThemes.first ?? .notion
+    }
+
+    private func coerceThemeToBaseColourScheme(for preference: HCBBaseColorSchemePreference? = nil) {
+        let targetIsDark: Bool
+        switch preference ?? resolvedBaseColourScheme {
+        case .dark:
+            targetIsDark = true
+        case .light:
+            targetIsDark = false
+        case .system:
+            targetIsDark = systemColorScheme == .dark
+        }
+
+        guard HCBColorScheme.scheme(id: model.settings.colorSchemeID)?.isDark != targetIsDark else { return }
+        let replacement = HCBColorScheme.all.first { $0.isDark == targetIsDark } ?? HCBColorScheme.notion
+        model.setColorSchemeID(replacement.id)
     }
 
     private var layoutScaleRow: some View {
