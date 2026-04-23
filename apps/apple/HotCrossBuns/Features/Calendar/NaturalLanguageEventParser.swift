@@ -41,13 +41,6 @@ struct NaturalLanguageEventParser: Sendable {
         var working = " \(trimmed) "
         var tokens: [ParsedQuickAddEvent.MatchedToken] = []
 
-        var location: String?
-        if let (loc, replacement) = extractLocation(in: working) {
-            location = loc
-            working = replacement
-            tokens.append(.init(kind: .location, display: "@\(loc)"))
-        }
-
         var durationMinutes: Int?
         if let (mins, replacement, display) = extractDuration(in: working) {
             durationMinutes = mins
@@ -56,15 +49,24 @@ struct NaturalLanguageEventParser: Sendable {
         }
 
         var startDate: Date?
+        var explicitEndDate: Date?
         var isAllDay = false
-        if let (date, allDay, replacement, display) = extractStart(in: working) {
+        if let (date, end, allDay, replacement, display) = extractStart(in: working) {
             startDate = date
+            explicitEndDate = end
             isAllDay = allDay
             working = replacement
             tokens.append(.init(kind: .startTime, display: display))
             if allDay {
                 tokens.append(.init(kind: .allDay, display: "All-day"))
             }
+        }
+
+        var location: String?
+        if let (loc, replacement) = extractLocation(in: working) {
+            location = loc
+            working = replacement
+            tokens.append(.init(kind: .location, display: "@\(loc)"))
         }
 
         let cleanedSummary = working
@@ -74,6 +76,7 @@ struct NaturalLanguageEventParser: Sendable {
         let endDate: Date? = {
             guard let start = startDate else { return nil }
             if isAllDay { return start }
+            if let explicitEndDate { return explicitEndDate }
             let minutes = durationMinutes ?? 60
             return calendar.date(byAdding: .minute, value: minutes, to: start)
         }()
@@ -148,29 +151,43 @@ struct NaturalLanguageEventParser: Sendable {
         return nil
     }
 
-    private func extractStart(in text: String) -> (Date, Bool, String, String)? {
+    private func extractStart(in text: String) -> (Date, Date?, Bool, String, String)? {
         let lower = text.lowercased()
         let dayAnchor = extractDayAnchor(in: lower, text: text)
 
-        // Try time patterns in decreasing specificity. Each returns
-        // (hour24, minute, NSRange-in-original-text). First hit wins.
-        if let hit = matchTime(lower: lower, text: text) {
+        if let hit = matchTimeExpression(lower: lower, text: text) {
             let base = dayAnchor?.date ?? calendar.startOfDay(for: now)
-            var comps = calendar.dateComponents([.year, .month, .day], from: base)
-            comps.hour = hit.hour
-            comps.minute = hit.minute
-            guard let resolved = calendar.date(from: comps) else { return nil }
+            guard let resolved = date(on: base, hour: hit.start.hour, minute: hit.start.minute) else { return nil }
+            var explicitEnd: Date?
+            if let end = hit.end, let endDate = date(on: base, hour: end.hour, minute: end.minute) {
+                if endDate <= resolved {
+                    explicitEnd = calendar.date(byAdding: .day, value: 1, to: endDate)
+                } else {
+                    explicitEnd = endDate
+                }
+            }
             var working = text
+            var rangesToRemove: [Range<String.Index>] = []
             if let dayRange = dayAnchor?.range {
-                working.removeSubrange(dayRange)
+                rangesToRemove.append(dayRange)
             }
-            if let timeRange = Range(hit.range, in: working) {
-                working.removeSubrange(timeRange)
+            if let timeRange = Range(hit.range, in: text) {
+                rangesToRemove.append(timeRange)
             }
+            removeSubranges(rangesToRemove, from: &working)
             let formatter = DateFormatter()
             formatter.calendar = calendar
             formatter.dateFormat = dayAnchor == nil ? "h:mm a" : "EEE h:mm a"
-            return (resolved, false, working, formatter.string(from: resolved))
+            let display: String
+            if let explicitEnd {
+                let endFormatter = DateFormatter()
+                endFormatter.calendar = calendar
+                endFormatter.dateFormat = calendar.isDate(resolved, inSameDayAs: explicitEnd) ? "h:mm a" : "EEE h:mm a"
+                display = "\(formatter.string(from: resolved))-\(endFormatter.string(from: explicitEnd))"
+            } else {
+                display = formatter.string(from: resolved)
+            }
+            return (resolved, explicitEnd, false, working, display)
         }
 
         if let anchor = dayAnchor {
@@ -179,9 +196,26 @@ struct NaturalLanguageEventParser: Sendable {
             formatter.dateFormat = "EEE MMM d"
             var working = text
             working.removeSubrange(anchor.range)
-            return (anchor.date, true, working, formatter.string(from: anchor.date))
+            return (anchor.date, nil, true, working, formatter.string(from: anchor.date))
         }
         return nil
+    }
+
+    private struct TimeExpressionHit {
+        let start: TimeHit
+        let end: TimeHit?
+        let range: NSRange
+    }
+
+    private struct RawTime {
+        let hour: Int
+        let minute: Int
+        let meridiem: Meridiem?
+    }
+
+    private enum Meridiem {
+        case am
+        case pm
     }
 
     private struct TimeHit {
@@ -190,7 +224,34 @@ struct NaturalLanguageEventParser: Sendable {
         let range: NSRange // in lower/text (identical length)
     }
 
-    private func matchTime(lower: String, text: String) -> TimeHit? {
+    private func matchTimeExpression(lower: String, text: String) -> TimeExpressionHit? {
+        if let rangeHit = matchTimeRange(lower: lower) {
+            return rangeHit
+        }
+        if let single = matchSingleTime(lower: lower) {
+            return TimeExpressionHit(start: single, end: nil, range: single.range)
+        }
+        return nil
+    }
+
+    private func matchTimeRange(lower: String) -> TimeExpressionHit? {
+        let timeToken = "(\\d{1,2})(?:[:\\.](\\d{2}))?\\s*((?:a|p)\\.?m\\.?)?"
+        let pattern = "\\b(?:from\\s+)?\(timeToken)\\s*(?:-|–|—|to|until|til|till)\\s*\(timeToken)\\b"
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: lower, range: NSRange(lower.startIndex..., in: lower)),
+              let startRaw = rawTime(match: match, in: lower, hourGroup: 1, minuteGroup: 2, meridiemGroup: 3),
+              let endRaw = rawTime(match: match, in: lower, hourGroup: 4, minuteGroup: 5, meridiemGroup: 6),
+              let resolved = resolveTimeRange(startRaw, endRaw) else {
+            return nil
+        }
+        return TimeExpressionHit(
+            start: TimeHit(hour: resolved.start.hour, minute: resolved.start.minute, range: match.range),
+            end: TimeHit(hour: resolved.end.hour, minute: resolved.end.minute, range: match.range),
+            range: match.range
+        )
+    }
+
+    private func matchSingleTime(lower: String) -> TimeHit? {
         // noon / midnight keywords first.
         if let hit = firstMatch(pattern: "\\bnoon\\b", in: lower) {
             return TimeHit(hour: 12, minute: 0, range: hit.range)
@@ -198,34 +259,118 @@ struct NaturalLanguageEventParser: Sendable {
         if let hit = firstMatch(pattern: "\\bmidnight\\b", in: lower) {
             return TimeHit(hour: 0, minute: 0, range: hit.range)
         }
-        // AM/PM with optional minutes: 9am, 9:30pm, 12 p.m.
-        if let regex = try? NSRegularExpression(pattern: "\\b(\\d{1,2})(?::(\\d{2}))?\\s*(a|p)\\.?m\\.?\\b"),
+        // AM/PM with optional minutes: 9am, 9:30pm, 4.30pm, 12 p.m.
+        if let regex = try? NSRegularExpression(pattern: "\\b(\\d{1,2})(?:[:\\.](\\d{2}))?\\s*(a|p)\\.?m\\.?\\b"),
            let match = regex.firstMatch(in: lower, range: NSRange(lower.startIndex..., in: lower)),
-           let hRange = Range(match.range(at: 1), in: lower),
-           let ampmRange = Range(match.range(at: 3), in: lower),
-           let hour12 = Int(lower[hRange])
+           let raw = rawTime(match: match, in: lower, hourGroup: 1, minuteGroup: 2, meridiemGroup: 3),
+           let resolved = resolveTime(raw, inheritedMeridiem: nil)
         {
-            let minute: Int = {
-                if let mRange = Range(match.range(at: 2), in: lower), let m = Int(lower[mRange]) { return m }
-                return 0
-            }()
-            let isPM = lower[ampmRange] == "p"
-            var hour24 = hour12 % 12
-            if isPM { hour24 += 12 }
-            return TimeHit(hour: hour24, minute: minute, range: match.range)
+            return TimeHit(hour: resolved.hour, minute: resolved.minute, range: match.range)
         }
-        // 24-hour HH:MM. Require a colon to avoid colliding with bare
-        // numbers like "5 days".
-        if let regex = try? NSRegularExpression(pattern: "\\b([01]?\\d|2[0-3]):([0-5]\\d)\\b"),
+        // Compact AM/PM: 430pm, 0930am.
+        if let regex = try? NSRegularExpression(pattern: "\\b(\\d{1,2})([0-5]\\d)\\s*(a|p)\\.?m\\.?\\b"),
            let match = regex.firstMatch(in: lower, range: NSRange(lower.startIndex..., in: lower)),
            let hRange = Range(match.range(at: 1), in: lower),
            let mRange = Range(match.range(at: 2), in: lower),
-           let h = Int(lower[hRange]),
-           let m = Int(lower[mRange])
+           let meridiemRange = Range(match.range(at: 3), in: lower),
+           let hour = Int(lower[hRange]),
+           let minute = Int(lower[mRange])
         {
-            return TimeHit(hour: h, minute: m, range: match.range)
+            let meridiem: Meridiem = lower[meridiemRange] == "p" ? .pm : .am
+            guard let resolved = resolveTime(RawTime(hour: hour, minute: minute, meridiem: meridiem), inheritedMeridiem: nil) else { return nil }
+            return TimeHit(hour: resolved.hour, minute: resolved.minute, range: match.range)
+        }
+        // 24-hour HH:MM or HH.MM. Require a separator to avoid colliding
+        // with bare numbers like "5 days".
+        if let regex = try? NSRegularExpression(pattern: "\\b([01]?\\d|2[0-3])[:\\.]([0-5]\\d)\\b"),
+           let match = regex.firstMatch(in: lower, range: NSRange(lower.startIndex..., in: lower)),
+           let raw = rawTime(match: match, in: lower, hourGroup: 1, minuteGroup: 2, meridiemGroup: nil),
+           let resolved = resolveTime(raw, inheritedMeridiem: nil)
+        {
+            return TimeHit(hour: resolved.hour, minute: resolved.minute, range: match.range)
         }
         return nil
+    }
+
+    private func rawTime(
+        match: NSTextCheckingResult,
+        in text: String,
+        hourGroup: Int,
+        minuteGroup: Int,
+        meridiemGroup: Int?
+    ) -> RawTime? {
+        guard let hourRange = Range(match.range(at: hourGroup), in: text),
+              let hour = Int(text[hourRange]) else { return nil }
+        let minute: Int = {
+            guard match.range(at: minuteGroup).location != NSNotFound,
+                  let minuteRange = Range(match.range(at: minuteGroup), in: text),
+                  let value = Int(text[minuteRange]) else { return 0 }
+            return value
+        }()
+        guard (0...59).contains(minute) else { return nil }
+        let meridiem: Meridiem? = {
+            guard let meridiemGroup,
+                  match.range(at: meridiemGroup).location != NSNotFound,
+                  let meridiemRange = Range(match.range(at: meridiemGroup), in: text) else { return nil }
+            return text[meridiemRange].hasPrefix("p") ? .pm : .am
+        }()
+        return RawTime(hour: hour, minute: minute, meridiem: meridiem)
+    }
+
+    private func resolveTimeRange(_ start: RawTime, _ end: RawTime) -> (start: (hour: Int, minute: Int), end: (hour: Int, minute: Int))? {
+        guard var resolvedEnd = resolveTime(end, inheritedMeridiem: nil) else { return nil }
+        var resolvedStart: (hour: Int, minute: Int)?
+        if start.meridiem == nil, let endMeridiem = end.meridiem {
+            let inherited = resolveTime(start, inheritedMeridiem: endMeridiem)
+            if endMeridiem == .pm,
+               let inherited,
+               totalMinutes(inherited) > totalMinutes(resolvedEnd),
+               let amStart = resolveTime(start, inheritedMeridiem: .am),
+               totalMinutes(amStart) <= totalMinutes(resolvedEnd) {
+                resolvedStart = amStart
+            } else {
+                resolvedStart = inherited
+            }
+        } else {
+            resolvedStart = resolveTime(start, inheritedMeridiem: nil)
+        }
+        guard let resolvedStart else { return nil }
+        if start.meridiem == nil,
+           end.meridiem == nil,
+           totalMinutes(resolvedEnd) <= totalMinutes(resolvedStart),
+           resolvedEnd.hour + 12 <= 23 {
+            resolvedEnd.hour += 12
+        }
+        return (resolvedStart, resolvedEnd)
+    }
+
+    private func resolveTime(_ raw: RawTime, inheritedMeridiem: Meridiem?) -> (hour: Int, minute: Int)? {
+        let meridiem = raw.meridiem ?? inheritedMeridiem
+        if let meridiem {
+            guard (1...12).contains(raw.hour) else { return nil }
+            var hour = raw.hour % 12
+            if meridiem == .pm { hour += 12 }
+            return (hour, raw.minute)
+        }
+        guard (0...23).contains(raw.hour) else { return nil }
+        return (raw.hour, raw.minute)
+    }
+
+    private func totalMinutes(_ time: (hour: Int, minute: Int)) -> Int {
+        time.hour * 60 + time.minute
+    }
+
+    private func date(on base: Date, hour: Int, minute: Int) -> Date? {
+        var comps = calendar.dateComponents([.year, .month, .day], from: base)
+        comps.hour = hour
+        comps.minute = minute
+        return calendar.date(from: comps)
+    }
+
+    private func removeSubranges(_ ranges: [Range<String.Index>], from text: inout String) {
+        for range in ranges.sorted(by: { $0.lowerBound > $1.lowerBound }) {
+            text.removeSubrange(range)
+        }
     }
 
     private func firstMatch(pattern: String, in text: String) -> NSTextCheckingResult? {
@@ -256,7 +401,7 @@ struct NaturalLanguageEventParser: Sendable {
                 let unit = String(lower[r2])
                 let today = self.calendar.startOfDay(for: self.now)
                 if ["hour", "hours", "hr", "hrs"].contains(unit) {
-                    return self.calendar.date(byAdding: .hour, value: n, to: Date())
+                    return self.calendar.date(byAdding: .hour, value: n, to: self.now)
                 }
                 if ["week", "weeks", "wk", "wks"].contains(unit) {
                     return self.calendar.date(byAdding: .day, value: n * 7, to: today)
@@ -293,7 +438,7 @@ struct NaturalLanguageEventParser: Sendable {
                       let y = Int(lower[yR]), let m = Int(lower[mR]), let d = Int(lower[dR]) else { return nil }
                 return self.resolveISODate(year: y, month: m, day: d)
             }),
-            ("\\b(\\d{1,2})[/.\\-](\\d{1,2})\\b", { match in
+            ("\\b(\\d{1,2})[/\\-](\\d{1,2})\\b", { match in
                 guard let r1 = Range(match.range(at: 1), in: lower), let m = Int(lower[r1]),
                       let r2 = Range(match.range(at: 2), in: lower), let d = Int(lower[r2]) else { return nil }
                 return self.resolveMonthDay(month: m, day: d)
