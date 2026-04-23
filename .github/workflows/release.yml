@@ -1,4 +1,4 @@
-name: Release
+name: Hot Cross Buns MacOS DMG Release
 
 on:
   workflow_dispatch:
