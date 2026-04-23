@@ -1,9 +1,28 @@
 import SwiftUI
 import AppKit
 
+enum CalendarMonthScrollWindow {
+    static let pastMonthsKey = "calendar.monthScroll.pastMonths"
+    static let futureMonthsKey = "calendar.monthScroll.futureMonths"
+    static let defaultPastMonths = 0
+    static let defaultFutureMonths = 12
+    static let pastRange = 0...24
+    static let futureRange = 1...36
+
+    static func clampedPast(_ value: Int) -> Int {
+        min(max(value, pastRange.lowerBound), pastRange.upperBound)
+    }
+
+    static func clampedFuture(_ value: Int) -> Int {
+        min(max(value, futureRange.lowerBound), futureRange.upperBound)
+    }
+}
+
 struct MonthGridView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
+    @AppStorage(CalendarMonthScrollWindow.pastMonthsKey) private var configuredPastMonths = CalendarMonthScrollWindow.defaultPastMonths
+    @AppStorage(CalendarMonthScrollWindow.futureMonthsKey) private var configuredFutureMonths = CalendarMonthScrollWindow.defaultFutureMonths
     @Binding var anchorDate: Date
     var searchQuery: String = ""
 
@@ -28,10 +47,7 @@ struct MonthGridView: View {
     // paged-month cell height (geo.height ÷ 6 for a 660pt region ≈ 110).
     private let fixedRowHeight: CGFloat = 110
     private let previousMonthLoaderHeight: CGFloat = 34
-    // 104 weeks loaded forward from the selected month. Past months are
-    // prepended on demand from the top boundary so the view opens at the
-    // current month instead of exposing a year of already-rendered history.
-    private let weeksInWindow: Int = 104
+    private let nextMonthLoaderHeight: CGFloat = 34
     // Named coordinate space the drag gesture and the highlight overlay both
     // resolve into. Needs to wrap the LazyVStack so both gesture points and
     // overlay positioning share the same frame.
@@ -74,6 +90,9 @@ struct MonthGridView: View {
     // runs, so subsequent user-driven preference changes work normally.
     @State private var didPerformInitialScroll: Bool = false
     @State private var isLoadingPreviousMonth: Bool = false
+    @State private var isLoadingNextMonth: Bool = false
+    @State private var windowFirstMonthStart: Date = Date()
+    @State private var windowLastMonthStart: Date = Date()
 
     private struct DragSelection: Equatable {
         var start: Date
@@ -119,6 +138,9 @@ struct MonthGridView: View {
                             .frame(height: fixedRowHeight)
                             .id(weekStart)
                         }
+
+                        nextMonthLoader(proxy: proxy)
+                            .frame(height: nextMonthLoaderHeight)
                     }
                     // Named coordinate space wraps the content so (a) the
                     // drag gesture can resolve points in absolute content
@@ -192,6 +214,11 @@ struct MonthGridView: View {
                     scrollToAnchor(proxy: proxy, animated: true)
                 }
                 .onChange(of: currentGridCacheKey) { _, _ in rebuildGridCacheIfNeeded() }
+                .onChange(of: monthWindowPreferenceKey) { _, _ in
+                    buildWindow(centeredOn: anchorDate)
+                    rebuildGridCacheIfNeeded()
+                    scheduleScrollToAnchor(proxy: proxy, animated: false)
+                }
                 .onPreferenceChange(ScrollOffsetKey.self) { offset in
                     let centerY = offset + outerGeo.size.height / 2
                     updateAnchorFromScroll(centerY: centerY)
@@ -214,6 +241,10 @@ struct MonthGridView: View {
     private var windowKey: String {
         guard let first = weekStarts.first else { return "empty" }
         return "\(Int(first.timeIntervalSince1970))-\(weekStarts.count)"
+    }
+
+    private var monthWindowPreferenceKey: String {
+        "\(CalendarMonthScrollWindow.clampedPast(configuredPastMonths))|\(CalendarMonthScrollWindow.clampedFuture(configuredFutureMonths))"
     }
 
     // Flash the tapped cell for ~220ms. Used on monthCell click-to-create
@@ -257,21 +288,60 @@ struct MonthGridView: View {
             ?? calendar.startOfDay(for: date)
     }
 
-    // Rebuilds the rolling window of week-start dates centered on the given
-    // date. Called on first appear and whenever an external anchor jumps
-    // outside the current window.
+    // Rebuilds the rolling window of week-start dates around the given date.
+    // Past/future month counts come from local UI preferences; the default
+    // preserves a bounded current-month start while keeping a year ahead ready.
     private func buildWindow(centeredOn date: Date) {
-        let start = firstVisibleWeekOfMonth(containing: date)
-        windowStart = start
-        weekStarts = (0..<weeksInWindow).compactMap {
-            calendar.date(byAdding: .day, value: $0 * 7, to: start)
-        }
+        let anchorMonth = monthStart(containing: date)
+        let firstMonth = calendar.date(
+            byAdding: .month,
+            value: -CalendarMonthScrollWindow.clampedPast(configuredPastMonths),
+            to: anchorMonth
+        ) ?? anchorMonth
+        let lastMonth = calendar.date(
+            byAdding: .month,
+            value: CalendarMonthScrollWindow.clampedFuture(configuredFutureMonths),
+            to: anchorMonth
+        ) ?? anchorMonth
+        setWindow(firstMonth: firstMonth, lastMonth: lastMonth)
     }
 
     private func firstVisibleWeekOfMonth(containing date: Date) -> Date {
+        startOfWeek(for: monthStart(containing: date))
+    }
+
+    private func lastVisibleWeekOfMonth(containing date: Date) -> Date {
+        let start = monthStart(containing: date)
+        let nextMonth = calendar.date(byAdding: .month, value: 1, to: start) ?? start
+        let lastDay = calendar.date(byAdding: .day, value: -1, to: nextMonth) ?? start
+        return startOfWeek(for: lastDay)
+    }
+
+    private func monthStart(containing date: Date) -> Date {
         let comps = calendar.dateComponents([.year, .month], from: date)
-        let monthStart = calendar.date(from: DateComponents(year: comps.year, month: comps.month, day: 1)) ?? date
-        return startOfWeek(for: monthStart)
+        return calendar.date(from: DateComponents(year: comps.year, month: comps.month, day: 1)) ?? calendar.startOfDay(for: date)
+    }
+
+    private func setWindow(firstMonth: Date, lastMonth: Date) {
+        let normalizedFirst = monthStart(containing: firstMonth)
+        let normalizedLast = max(monthStart(containing: lastMonth), normalizedFirst)
+        windowFirstMonthStart = normalizedFirst
+        windowLastMonthStart = normalizedLast
+        weekStarts = weeks(from: normalizedFirst, through: normalizedLast)
+        windowStart = weekStarts.first ?? firstVisibleWeekOfMonth(containing: normalizedFirst)
+    }
+
+    private func weeks(from firstMonth: Date, through lastMonth: Date) -> [Date] {
+        let firstWeek = firstVisibleWeekOfMonth(containing: firstMonth)
+        let lastWeek = lastVisibleWeekOfMonth(containing: lastMonth)
+        var out: [Date] = []
+        var cursor = firstWeek
+        while cursor <= lastWeek {
+            out.append(cursor)
+            guard let next = calendar.date(byAdding: .day, value: 7, to: cursor) else { break }
+            cursor = next
+        }
+        return out
     }
 
     private func isDateInWindow(_ date: Date) -> Bool {
@@ -330,17 +400,11 @@ struct MonthGridView: View {
         isLoadingPreviousMonth = true
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(180))
-            let previousMonth = calendar.date(byAdding: .month, value: -1, to: firstRepresentedMonthStart(for: firstWeek)) ?? firstWeek
-            let previousFirstWeek = firstVisibleWeekOfMonth(containing: previousMonth)
-            var newWeeks: [Date] = []
-            var cursor = previousFirstWeek
-            while cursor < firstWeek {
-                newWeeks.append(cursor)
-                guard let next = calendar.date(byAdding: .day, value: 7, to: cursor) else { break }
-                cursor = next
-            }
+            let previousMonth = calendar.date(byAdding: .month, value: -1, to: windowFirstMonthStart) ?? windowFirstMonthStart
+            let newWeeks = weeks(from: previousMonth, through: previousMonth).filter { $0 < firstWeek }
             if newWeeks.isEmpty == false {
                 weekStarts = newWeeks + weekStarts
+                windowFirstMonthStart = monthStart(containing: previousMonth)
                 windowStart = weekStarts.first ?? windowStart
                 rebuildGridCacheIfNeeded()
                 scheduleScroll(proxy: proxy, to: firstWeek, anchor: .bottom, animated: false)
@@ -349,15 +413,20 @@ struct MonthGridView: View {
         }
     }
 
-    private func firstRepresentedMonthStart(for weekStart: Date) -> Date {
-        for offset in 0..<7 {
-            guard let day = calendar.date(byAdding: .day, value: offset, to: weekStart) else { continue }
-            if calendar.component(.day, from: day) == 1 {
-                return calendar.startOfDay(for: day)
+    private func loadNextMonth(proxy: ScrollViewProxy) {
+        guard didPerformInitialScroll, isLoadingNextMonth == false, let lastWeek = weekStarts.last else { return }
+        isLoadingNextMonth = true
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(180))
+            let nextMonth = calendar.date(byAdding: .month, value: 1, to: windowLastMonthStart) ?? windowLastMonthStart
+            let newWeeks = weeks(from: nextMonth, through: nextMonth).filter { $0 > lastWeek }
+            if newWeeks.isEmpty == false {
+                weekStarts.append(contentsOf: newWeeks)
+                windowLastMonthStart = monthStart(containing: nextMonth)
+                rebuildGridCacheIfNeeded()
             }
+            isLoadingNextMonth = false
         }
-        let comps = calendar.dateComponents([.year, .month], from: weekStart)
-        return calendar.date(from: DateComponents(year: comps.year, month: comps.month, day: 1)) ?? weekStart
     }
 
     // Reverse-sync: as the user scrolls, figure out which week sits at the
@@ -483,6 +552,28 @@ struct MonthGridView: View {
         }
     }
 
+    private func nextMonthLoader(proxy: ScrollViewProxy) -> some View {
+        HStack(spacing: 8) {
+            if isLoadingNextMonth {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Loading next month…")
+                    .hcbFont(.caption, weight: .medium)
+            } else {
+                Text("Scroll down to load next month")
+                    .hcbFont(.caption, weight: .medium)
+                Image(systemName: "chevron.down")
+                    .hcbFont(.caption, weight: .semibold)
+            }
+        }
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.regularMaterial.opacity(0.35))
+        .onAppear {
+            loadNextMonth(proxy: proxy)
+        }
+    }
+
     // Resolves a gesture point — given in the "monthGridContent" named
     // coordinate space, i.e. relative to the LazyVStack's top-leading — into
     // a concrete date. Row derives from y / fixedRowHeight; column from
@@ -535,17 +626,34 @@ struct MonthGridView: View {
         ZStack(alignment: .topLeading) {
             ForEach(Array(days.enumerated()), id: \.element) { column, day in
                 if calendar.component(.day, from: day) == 1 {
-                    Rectangle()
-                        .fill(AppColor.cardStroke.opacity(0.9))
-                        .frame(
-                            width: column == 0 ? cellWidth * 7 : 1,
-                            height: column == 0 ? 1 : fixedRowHeight
-                        )
-                        .offset(x: CGFloat(column) * cellWidth, y: 0)
-                        .allowsHitTesting(false)
+                    let x = CGFloat(column) * cellWidth
+                    let line = monthBoundaryLineColor
+                    ZStack(alignment: .topLeading) {
+                        Rectangle()
+                            .fill(line)
+                            .frame(width: cellWidth * CGFloat(7 - column), height: 1.5)
+                            .offset(x: x, y: 0)
+
+                        if column > 0 {
+                            Rectangle()
+                                .fill(line)
+                                .frame(width: 1.5, height: fixedRowHeight)
+                                .offset(x: x, y: 0)
+
+                            Rectangle()
+                                .fill(line)
+                                .frame(width: x, height: 1.5)
+                                .offset(x: 0, y: fixedRowHeight - 1.5)
+                        }
+                    }
+                    .allowsHitTesting(false)
                 }
             }
         }
+    }
+
+    private var monthBoundaryLineColor: Color {
+        AppColor.ember.opacity(0.55)
     }
 
     // Backing visible-width cache for dateAtContentPoint, written by the
