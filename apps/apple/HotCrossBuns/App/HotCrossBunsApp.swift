@@ -21,6 +21,7 @@ struct HotCrossBunsApp: App {
                 .environment(appModel)
                 .environment(updater)
                 .environment(networkMonitor)
+                .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
                 .hcbScaledFrame(minWidth: 900, minHeight: 600)
                 .dockBadge(
                     overdueCount: appModel.todaySnapshot.overdueCount,
@@ -48,12 +49,14 @@ struct HotCrossBunsApp: App {
                 .environment(appModel)
                 .environment(updater)
                 .environment(networkMonitor)
+                .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
         }
         .windowResizability(.contentMinSize)
 
         Window("Hot Cross Buns Help", id: "help") {
             HelpView()
                 .environment(appModel)
+                .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
         }
         .defaultSize(width: 720, height: 620)
         .windowResizability(.contentMinSize)
@@ -62,27 +65,9 @@ struct HotCrossBunsApp: App {
         Window("History", id: "history") {
             HistoryWindow()
                 .environment(appModel)
+                .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
         }
         .defaultSize(width: 760, height: 560)
         .windowResizability(.contentMinSize)
-
-        MenuBarExtra(isInserted: menuBarInsertedBinding) {
-            MenuBarExtraContent()
-                .environment(appModel)
-        } label: {
-            Image("MenuBarIcon")
-                .renderingMode(.template)
-                .foregroundStyle(.black)
-                .hcbScaledFrame(width: 18, height: 18)
-                .accessibilityLabel("Hot Cross Buns")
-        }
-        .menuBarExtraStyle(.window)
-    }
-
-    private var menuBarInsertedBinding: Binding<Bool> {
-        Binding(
-            get: { appModel.settings.showMenuBarExtra },
-            set: { appModel.setShowMenuBarExtra($0) }
-        )
     }
 }
