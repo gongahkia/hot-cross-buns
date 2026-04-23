@@ -3,6 +3,7 @@ import AppKit
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let globalHotkey = GlobalHotkey()
+    let menuBarStatusController = HCBMenuBarStatusController()
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         // Register as the Services provider so the selector declared in
