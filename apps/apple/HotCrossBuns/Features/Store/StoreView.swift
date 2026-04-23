@@ -201,7 +201,10 @@ struct StoreView: View {
     }
 
     private func completedCount(in listID: TaskListMirror.ID) -> Int {
-        model.tasks.filter { $0.taskListID == listID && $0.isCompleted && $0.isDeleted == false }.count
+        // Read from the prebuilt index rather than re-filtering the full
+        // tasks array on every menu render. rebuildSnapshots keeps this
+        // in sync; "Deleted" tasks are already excluded there.
+        model.taskListCompletionStats[listID]?.completed ?? 0
     }
 
     @ViewBuilder
@@ -820,7 +823,10 @@ struct NotesView: View {
     }
 
     private func completedCount(in listID: TaskListMirror.ID) -> Int {
-        model.tasks.filter { $0.taskListID == listID && $0.isCompleted && $0.isDeleted == false }.count
+        // Read from the prebuilt index rather than re-filtering the full
+        // tasks array on every menu render. rebuildSnapshots keeps this
+        // in sync; "Deleted" tasks are already excluded there.
+        model.taskListCompletionStats[listID]?.completed ?? 0
     }
 
     private func createNewListFromNotes() async {
@@ -926,15 +932,20 @@ struct NotesView: View {
 
     private var orderedTasks: [TaskMirror] {
         let pool = Dictionary(uniqueKeysWithValues: undatedTasks.map { ($0.id, $0) })
+        let orderedSet = Set(localOrder)
         let ordered = localOrder.compactMap { pool[$0] }
-        let missing = undatedTasks.filter { pool[$0.id] != nil && localOrder.contains($0.id) == false }
+        // Set.contains is O(1). Array.contains was O(n), making this filter
+        // O(n²) for n notes — observable lag for users with hundreds+ notes
+        // on every rebuildOrder / reorder tick.
+        let missing = undatedTasks.filter { pool[$0.id] != nil && orderedSet.contains($0.id) == false }
         return ordered + missing
     }
 
     private func rebuildOrder() {
-        let currentIDs = undatedTasks.map(\.id)
-        let preserved = localOrder.filter(currentIDs.contains)
-        let fresh = currentIDs.filter { preserved.contains($0) == false }
+        let currentIDSet = Set(undatedTasks.map(\.id))
+        let preserved = localOrder.filter(currentIDSet.contains)
+        let preservedSet = Set(preserved)
+        let fresh = undatedTasks.map(\.id).filter { preservedSet.contains($0) == false }
         localOrder = preserved + fresh
     }
 
