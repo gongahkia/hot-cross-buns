@@ -126,7 +126,7 @@ struct KanbanView: View {
             .frame(width: 120, height: 80)
             .foregroundStyle(AppColor.ember)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 12)
                     .stroke(AppColor.ember.opacity(0.4), style: StrokeStyle(lineWidth: 1.2, dash: [4]))
             )
             .contentShape(Rectangle())
@@ -222,7 +222,7 @@ private struct KanbanColumnView: View {
                         .frame(maxWidth: .infinity)
                         .hcbScaledPadding(.vertical, 10)
                         .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            RoundedRectangle(cornerRadius: 8)
                                 .stroke(AppColor.ember.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [3]))
                         )
                         .contentShape(Rectangle())
@@ -244,11 +244,11 @@ private struct KanbanColumnView: View {
         .frame(width: columnWidth, alignment: .top)
         .hcbScaledPadding(10)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 12)
                 .fill(AppColor.cardSurface.opacity(isDropTargeted ? 0.9 : 0.55))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 12)
                 .strokeBorder(isDropTargeted ? AppColor.ember.opacity(0.6) : AppColor.cardStroke, lineWidth: isDropTargeted ? 1.4 : 0.6)
         )
         .dropDestination(for: DraggedTask.self) { items, _ in
@@ -348,11 +348,11 @@ private struct KanbanCardView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .hcbScaledPadding(10)
             .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: 10)
                     .fill(AppColor.cardSurface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: 10)
                     .strokeBorder(
                         isSelected ? AppColor.ember : AppColor.cardStroke,
                         lineWidth: isSelected ? 1.4 : 0.6

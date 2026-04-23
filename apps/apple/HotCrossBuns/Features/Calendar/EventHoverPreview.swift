@@ -7,7 +7,7 @@ struct EventHoverPreview: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                RoundedRectangle(cornerRadius: 3)
                     .fill(accent)
                     .hcbScaledFrame(width: 4, height: 20)
                 Text(event.summary)

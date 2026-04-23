@@ -45,11 +45,11 @@ struct UndoToast: View {
         .hcbScaledPadding(.horizontal, 16)
         .hcbScaledPadding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 10)
                 .fill(.regularMaterial)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 10)
                 .strokeBorder(AppColor.cardStroke, lineWidth: 0.8)
         )
         .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 3)

@@ -16,11 +16,11 @@ struct ChordHUD: View {
         .hcbScaledPadding(.horizontal, 14)
         .hcbScaledPadding(.vertical, 10)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 10)
                 .fill(.regularMaterial)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 10)
                 .strokeBorder(AppColor.cardStroke, lineWidth: 0.8)
         )
         .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 3)
@@ -61,7 +61,7 @@ struct ChordHUD: View {
                             .hcbScaledPadding(.horizontal, 4)
                             .hcbScaledPadding(.vertical, 1)
                             .background(
-                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                RoundedRectangle(cornerRadius: 4)
                                     .fill(.quaternary.opacity(0.6))
                             )
                         Text(hint.label)

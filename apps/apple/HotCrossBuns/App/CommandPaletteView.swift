@@ -194,10 +194,10 @@ struct CommandPaletteView: View {
             idealHeight: trimmedQuery.isEmpty ? 54 : 420
         )
         .background {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 12)
                 .fill(.ultraThinMaterial) // Alfred-style translucent vibrancy
         }
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
         .presentationBackground(.clear)
         .hcbScaledPadding(14)
     }
@@ -408,7 +408,7 @@ struct CommandPaletteView: View {
                     .hcbScaledPadding(.horizontal, 6)
                     .hcbScaledPadding(.vertical, 2)
                     .background(
-                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        RoundedRectangle(cornerRadius: 5)
                             .fill(.thinMaterial)
                     )
             }
@@ -432,7 +432,7 @@ struct CommandPaletteView: View {
                         .hcbScaledPadding(.horizontal, 5)
                         .hcbScaledPadding(.vertical, 1)
                         .background(
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            RoundedRectangle(cornerRadius: 4)
                                 .fill(.quaternary.opacity(0.5))
                         )
                 }

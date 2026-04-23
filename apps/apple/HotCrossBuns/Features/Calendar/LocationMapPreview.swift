@@ -42,15 +42,15 @@ struct LocationMapPreview: View {
                         .tint(AppColor.ember)
                 }
                 .frame(height: 140)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: 10)
                         .strokeBorder(AppColor.cardStroke, lineWidth: 0.6)
                 )
                 // Tap the map body itself (not a button) expands. Keeps the
                 // target large for trackpad clicks; the corner chip is a
                 // discoverability hint rather than the only affordance.
-                .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: 10))
                 .onTapGesture { isPresentingFullView = true }
                 .overlay(alignment: .topLeading) {
                     expandChip
@@ -86,7 +86,7 @@ struct LocationMapPreview: View {
                 .hcbScaledPadding(.horizontal, 8)
                 .hcbScaledPadding(.vertical, 4)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8)
                         .fill(.thinMaterial)
                 )
         }
@@ -104,7 +104,7 @@ struct LocationMapPreview: View {
                 .hcbScaledPadding(.horizontal, 8)
                 .hcbScaledPadding(.vertical, 4)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8)
                         .fill(.thinMaterial)
                 )
         }

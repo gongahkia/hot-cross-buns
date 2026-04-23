@@ -33,9 +33,9 @@ struct CardSurface: ViewModifier {
     func body(content: Content) -> some View {
         content
             .padding(18)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
             .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                RoundedRectangle(cornerRadius: cornerRadius)
                     .stroke(AppColor.cardStroke, lineWidth: 1)
             }
     }

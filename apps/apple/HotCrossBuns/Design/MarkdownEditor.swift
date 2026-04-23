@@ -121,11 +121,11 @@ struct MarkdownEditor: View {
         .frame(minHeight: minHeight, maxHeight: maxHeight)
         .hcbScaledPadding(10)
         .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
+            RoundedRectangle(cornerRadius: 6)
                 .fill(AppColor.cream.opacity(0.6))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
+            RoundedRectangle(cornerRadius: 6)
                 .strokeBorder(AppColor.cardStroke, lineWidth: 0.8)
         )
     }

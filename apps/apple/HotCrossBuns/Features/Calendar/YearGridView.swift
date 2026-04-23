@@ -81,11 +81,11 @@ struct YearGridView: View {
         }
         .hcbScaledPadding(10)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 10)
                 .fill(AppColor.cream.opacity(0.25))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 10)
                 .strokeBorder(AppColor.cardStroke, lineWidth: 0.5)
         )
     }
@@ -104,7 +104,7 @@ struct YearGridView: View {
                 .foregroundStyle(isInMonth ? AppColor.ink : .secondary.opacity(0.5))
                 .frame(maxWidth: .infinity, minHeight: 18)
                 .background(
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    RoundedRectangle(cornerRadius: 3)
                         .fill(isToday ? AppColor.ember.opacity(0.35) : AppColor.ember.opacity(shade))
                 )
         }

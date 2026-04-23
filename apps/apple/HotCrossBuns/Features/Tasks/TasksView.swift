@@ -376,11 +376,11 @@ struct AddTaskSheet: View {
         .hcbScaledPadding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 12)
                 .fill(AppColor.cream.opacity(0.5))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 12)
                 .strokeBorder(AppColor.cardStroke, lineWidth: 0.6)
         )
     }
