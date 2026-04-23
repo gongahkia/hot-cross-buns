@@ -77,8 +77,8 @@ struct YearGridView: View {
                 .hcbFont(.subheadline, weight: .semibold)
                 .foregroundStyle(AppColor.ink)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: 7), spacing: 2) {
-                ForEach(weekdayHeaders, id: \.self) { wd in
-                    Text(wd)
+                ForEach(weekdayHeaders.indices, id: \.self) { index in
+                    Text(weekdayHeaders[index])
                         .hcbFont(.caption2, weight: .medium)
                         .foregroundStyle(.secondary)
                 }
