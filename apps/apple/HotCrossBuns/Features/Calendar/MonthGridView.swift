@@ -157,15 +157,17 @@ struct MonthGridView: View {
                 .coordinateSpace(name: scrollCoordinateSpace)
                 .onAppear {
                     // Sequence matters: weekStarts must be populated before
-                    // scrollTo, or the target ID won't exist in the ForEach
-                    // and the scroll becomes a no-op (leaving the viewport at
-                    // the top of the 104-week window = ~1 year ago).
+                    // scrollTo, and SwiftUI must get one pass to render those
+                    // IDs in the ForEach before the proxy can resolve them.
+                    // Otherwise the first scroll is unreliable and the grid
+                    // can open at the wrong week until Today is clicked.
                     if weekStarts.isEmpty {
                         buildWindow(centeredOn: anchorDate)
                     }
                     rebuildGridCacheIfNeeded()
-                    scrollToAnchor(proxy: proxy, animated: false)
-                    didPerformInitialScroll = true
+                    scheduleScrollToAnchor(proxy: proxy, animated: false) {
+                        didPerformInitialScroll = true
+                    }
                 }
                 .onChange(of: anchorDate) { _, newValue in
                     if skipNextScrollSync {
@@ -176,6 +178,8 @@ struct MonthGridView: View {
                     if isDateInWindow(newValue) == false {
                         buildWindow(centeredOn: newValue)
                         rebuildGridCacheIfNeeded()
+                        scheduleScrollToAnchor(proxy: proxy, animated: true)
+                        return
                     }
                     scrollToAnchor(proxy: proxy, animated: true)
                 }
@@ -281,6 +285,18 @@ struct MonthGridView: View {
             }
         } else {
             proxy.scrollTo(target, anchor: .center)
+        }
+    }
+
+    private func scheduleScrollToAnchor(
+        proxy: ScrollViewProxy,
+        animated: Bool,
+        completion: (() -> Void)? = nil
+    ) {
+        Task { @MainActor in
+            await Task.yield()
+            scrollToAnchor(proxy: proxy, animated: animated)
+            completion?()
         }
     }
 
