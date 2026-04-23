@@ -87,7 +87,7 @@ struct HelpView: View {
         .id(model.settings.colorSchemeID)
         .withHCBAppearance(model.settings)
         .environment(\.hcbShortcutOverrides, model.settings.shortcutOverrides)
-        .preferredColorScheme(HCBColorScheme.scheme(id: model.settings.colorSchemeID)?.isDark == true ? .dark : .light)
+        .hcbPreferredColorScheme(model.settings)
         .appBackground()
         .hcbScaledFrame(minWidth: 640, idealWidth: 720, minHeight: 520, idealHeight: 620)
     }

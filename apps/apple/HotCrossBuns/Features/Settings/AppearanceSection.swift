@@ -2,12 +2,13 @@ import SwiftUI
 
 struct AppearanceSection: View {
     @Environment(AppModel.self) private var model
+    @AppStorage(HCBBaseColorSchemePreference.storageKey) private var baseColorSchemePreference: String = ""
     @State private var fontQuery: String = ""
     @State private var availableFonts: [String] = []
 
     var body: some View {
         Section("Appearance") {
-            colorSchemeRow
+            colourPanel
             layoutScaleRow
             textSizeRow
             fontRow
@@ -22,34 +23,79 @@ struct AppearanceSection: View {
         }
     }
 
-    private var colorSchemeRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Color scheme")
-                Spacer()
+    private var colourPanel: some View {
+        VStack(spacing: 0) {
+            baseColourSchemeRow
+            Divider()
+                .hcbScaledPadding(.vertical, 10)
+            themeRow
+        }
+    }
+
+    private var baseColourSchemeRow: some View {
+        HStack(alignment: .center, spacing: 18) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Base colour scheme")
+                    .hcbFont(.body, weight: .semibold)
+                Text("Choose whether app chrome resolves as dark, light, or follows macOS.")
+                    .hcbFont(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 16)
+            Picker("Base colour scheme", selection: baseColourSchemeBinding) {
+                ForEach(HCBBaseColorSchemePreference.allCases) { preference in
+                    Text(preference.title).tag(preference)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(width: 170)
+        }
+    }
+
+    private var themeRow: some View {
+        HStack(alignment: .center, spacing: 18) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Themes")
+                    .hcbFont(.body, weight: .semibold)
+                Text("Choose the Hot Cross Buns palette used by cards, text, and app surfaces.")
+                    .hcbFont(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 16)
+            HStack(spacing: 8) {
                 Button("Reset to Notion") { model.setColorSchemeID("notion") }
                     .buttonStyle(.borderless)
                     .hcbFont(.caption)
                     .disabled(model.settings.colorSchemeID == "notion")
-            }
-            Picker("Scheme", selection: Binding(
-                get: { model.settings.colorSchemeID },
-                set: { model.setColorSchemeID($0) }
-            )) {
-                ForEach(HCBColorScheme.all) { scheme in
-                    HStack(spacing: 8) {
-                        ColorSchemeSwatch(scheme: scheme)
-                        Text(scheme.title)
-                        if scheme.isDark {
-                            Text("· dark").foregroundStyle(.secondary)
+                Picker("Theme", selection: Binding(
+                    get: { model.settings.colorSchemeID },
+                    set: { model.setColorSchemeID($0) }
+                )) {
+                    ForEach(HCBColorScheme.all) { scheme in
+                        HStack(spacing: 8) {
+                            ColorSchemeSwatch(scheme: scheme)
+                            Text(scheme.title)
+                            if scheme.isDark {
+                                Text("· dark").foregroundStyle(.secondary)
+                            }
                         }
+                        .tag(scheme.id)
                     }
-                    .tag(scheme.id)
                 }
+                .pickerStyle(.menu)
+                .frame(width: 190)
             }
-            .pickerStyle(.menu)
-            .labelsHidden()
         }
+    }
+
+    private var baseColourSchemeBinding: Binding<HCBBaseColorSchemePreference> {
+        Binding(
+            get: {
+                HCBBaseColorSchemePreference(rawValue: baseColorSchemePreference) ?? HCBBaseColorSchemePreference.fallback(for: model.settings)
+            },
+            set: { baseColorSchemePreference = $0.rawValue }
+        )
     }
 
     private var layoutScaleRow: some View {
