@@ -65,6 +65,13 @@ struct MonthGridView: View {
     // (and potentially fight with the user's momentum). This flag short-
     // circuits one onChange pass.
     @State private var skipNextScrollSync: Bool = false
+    // First-render guard. Before the onAppear scrollToAnchor has positioned
+    // the viewport on today's week, the initial preference-change callback
+    // fires with scrollOffset = 0 → center week = start of the 104-week
+    // window (~1 year ago) → would stomp anchorDate back to last year before
+    // we ever got a chance to scroll. Flipped true once the initial scroll
+    // runs, so subsequent user-driven preference changes work normally.
+    @State private var didPerformInitialScroll: Bool = false
 
     private struct DragSelection: Equatable {
         var start: Date
@@ -79,12 +86,6 @@ struct MonthGridView: View {
             weekdayHeader
             Divider()
             continuousGrid
-        }
-        .onAppear {
-            if weekStarts.isEmpty {
-                buildWindow(centeredOn: anchorDate)
-            }
-            rebuildGridCacheIfNeeded()
         }
     }
 
@@ -154,7 +155,18 @@ struct MonthGridView: View {
                     )
                 }
                 .coordinateSpace(name: scrollCoordinateSpace)
-                .onAppear { scrollToAnchor(proxy: proxy, animated: false) }
+                .onAppear {
+                    // Sequence matters: weekStarts must be populated before
+                    // scrollTo, or the target ID won't exist in the ForEach
+                    // and the scroll becomes a no-op (leaving the viewport at
+                    // the top of the 104-week window = ~1 year ago).
+                    if weekStarts.isEmpty {
+                        buildWindow(centeredOn: anchorDate)
+                    }
+                    rebuildGridCacheIfNeeded()
+                    scrollToAnchor(proxy: proxy, animated: false)
+                    didPerformInitialScroll = true
+                }
                 .onChange(of: anchorDate) { _, newValue in
                     if skipNextScrollSync {
                         skipNextScrollSync = false
@@ -251,17 +263,21 @@ struct MonthGridView: View {
 
     // Programmatic scroll to the week containing `anchorDate`. Used by Today
     // / chevrons / mini-calendar — anything that updates the binding from
-    // outside. Anchoring the target week at .top gives a predictable landing
-    // position at the top of the visible area.
+    // outside. Anchoring at .center puts the target week in the middle of
+    // the viewport, which aligns with the reverse-sync rule (center-of-
+    // viewport week → anchorDate). Anchoring at .top would put the target
+    // at the top and shift the viewport center 2-3 weeks forward, which
+    // would immediately re-trigger the auto-anchor update and drag the nav
+    // bar title to the next month.
     private func scrollToAnchor(proxy: ScrollViewProxy, animated: Bool) {
         let target = startOfWeek(for: anchorDate)
         guard weekStarts.contains(target) else { return }
         if animated {
             withAnimation(.easeInOut(duration: 0.24)) {
-                proxy.scrollTo(target, anchor: .top)
+                proxy.scrollTo(target, anchor: .center)
             }
         } else {
-            proxy.scrollTo(target, anchor: .top)
+            proxy.scrollTo(target, anchor: .center)
         }
     }
 
@@ -270,6 +286,11 @@ struct MonthGridView: View {
     // short-circuits the resulting onChange(of: anchorDate) so programmatic
     // scroll doesn't fight live scrolling.
     private func updateAnchorFromScroll(centerY: CGFloat) {
+        // Suppress until the initial scrollTo has positioned the viewport.
+        // Without this, the first preference-change callback (fired at the
+        // moment the ScrollView lays out at offset 0) runs before onAppear's
+        // scrollTo and stomps anchorDate to the top of the window.
+        guard didPerformInitialScroll else { return }
         guard fixedRowHeight > 0 else { return }
         let index = Int((centerY / fixedRowHeight).rounded(.down))
         guard weekStarts.indices.contains(index) else { return }
