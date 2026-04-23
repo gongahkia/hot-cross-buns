@@ -512,16 +512,16 @@ private struct CommandPaletteRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(command.title)
-                    .hcbFontSystem(size: 19, weight: .semibold, design: .rounded)
+                    .hcbFont(.body, weight: .semibold)
                 Text(command.subtitle)
-                    .font(.system(.subheadline, design: .rounded))
+                    .hcbFont(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
             Spacer(minLength: 12)
 
             Text("Command")
-                .font(.system(.caption2, design: .rounded, weight: .medium))
+                .hcbFont(.caption2, weight: .medium)
                 .foregroundStyle(.secondary)
                 .hcbScaledPadding(.horizontal, 6)
                 .hcbScaledPadding(.vertical, 2)
@@ -561,10 +561,10 @@ private struct EntityRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(entity.label.isEmpty ? "(untitled)" : entity.label)
-                    .hcbFontSystem(size: 19, weight: .semibold, design: .rounded)
+                    .hcbFont(.body, weight: .semibold)
                     .lineLimit(1)
                 Text(subtitle)
-                    .font(.system(.subheadline, design: .rounded))
+                    .hcbFont(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -572,7 +572,7 @@ private struct EntityRow: View {
             Spacer(minLength: 12)
 
             Text(entity.kindLabel)
-                .font(.system(.caption2, design: .rounded, weight: .medium))
+                .hcbFont(.caption2, weight: .medium)
                 .foregroundStyle(.secondary)
                 .hcbScaledPadding(.horizontal, 6)
                 .hcbScaledPadding(.vertical, 2)

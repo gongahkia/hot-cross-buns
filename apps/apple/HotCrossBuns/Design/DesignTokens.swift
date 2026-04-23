@@ -30,7 +30,7 @@ struct AppBackground: ViewModifier {
 }
 
 struct CardSurface: ViewModifier {
-    var cornerRadius: CGFloat = 28
+    var cornerRadius: CGFloat = 18
 
     func body(content: Content) -> some View {
         content
@@ -48,7 +48,7 @@ extension View {
         modifier(AppBackground())
     }
 
-    func cardSurface(cornerRadius: CGFloat = 28) -> some View {
+    func cardSurface(cornerRadius: CGFloat = 18) -> some View {
         modifier(CardSurface(cornerRadius: cornerRadius))
     }
 }

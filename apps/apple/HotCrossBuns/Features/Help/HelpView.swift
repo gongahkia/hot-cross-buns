@@ -89,10 +89,10 @@ struct HelpView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Hot Cross Buns")
-                .font(.system(.largeTitle, weight: .bold))
+                .hcbFont(.title3, weight: .semibold)
                 .foregroundStyle(AppColor.ink)
             Text("A Mac-native planner on top of Google Tasks and Google Calendar.")
-                .hcbFont(.title3)
+                .hcbFont(.subheadline)
                 .foregroundStyle(.secondary)
         }
     }

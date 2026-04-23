@@ -692,7 +692,7 @@ struct EventRowView: View {
     var body: some View {
         Button(action: action) {
             EventListRow(event: event)
-                .cardSurface(cornerRadius: 24)
+                .cardSurface(cornerRadius: 18)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(event.summary)
@@ -2043,7 +2043,7 @@ struct AttendeeResponsesCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface(cornerRadius: 22)
+        .cardSurface(cornerRadius: 18)
     }
 
     private func tint(for status: AttendeeResponseStatus) -> Color {
