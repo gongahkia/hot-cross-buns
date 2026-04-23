@@ -193,7 +193,10 @@ struct MonthGridView: View {
     // skipping every drag-induced body re-eval.
     private var currentGridCacheKey: String {
         let selectedIds = model.calendarSnapshot.selectedCalendars.map(\.id).sorted().joined(separator: ",")
-        return "\(selectedIds)|\(searchQuery)|\(windowKey)|\(model.events.count)"
+        // dataRevision replaces the prior model.events.count fingerprint —
+        // renames / reschedules / recolors with unchanged total count now
+        // bust the cache correctly.
+        return "\(selectedIds)|\(searchQuery)|\(windowKey)|\(model.dataRevision)"
     }
 
     private var windowKey: String {

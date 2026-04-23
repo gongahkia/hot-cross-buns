@@ -84,7 +84,9 @@ struct WeekGridView: View {
     private var currentWeekCacheKey: String {
         let selectedIds = model.calendarSnapshot.selectedCalendars.map(\.id).sorted().joined(separator: ",")
         let start = weekDays.first.map { "\($0.timeIntervalSinceReferenceDate)" } ?? ""
-        return "\(selectedIds)|\(searchQuery)|\(start)|\(model.events.count)"
+        // dataRevision replaces event-count fingerprint so edits that keep
+        // the count unchanged still invalidate the cache. See MonthGridView.
+        return "\(selectedIds)|\(searchQuery)|\(start)|\(model.dataRevision)"
     }
 
     private func rebuildWeekCacheIfNeeded() {

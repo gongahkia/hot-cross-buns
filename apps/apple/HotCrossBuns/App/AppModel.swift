@@ -94,6 +94,15 @@ final class AppModel {
     // Per-list completion stats for Store section headers — avoids O(n)
     // filtering per list on every header render.
     private(set) var taskListCompletionStats: [TaskListMirror.ID: TaskListCompletionStats] = [:]
+    // Monotonic counter bumped on every rebuildSnapshots pass — i.e. every
+    // time the observable task/event/list/calendar state changes in a way a
+    // downstream view might care about. Consumer views (MonthGrid, WeekGrid,
+    // CommandPalette) compose this into their cache keys instead of the
+    // previous count-only key; renames / reschedules / recolors that kept
+    // the total count the same used to not bust those caches, producing
+    // stale UI. Bumping here is the one-place invariant: if snapshots
+    // rebuilt, the revision advances.
+    private(set) var dataRevision: UInt64 = 0
     private(set) var syncCheckpoints: [SyncCheckpoint] = []
     private(set) var pendingMutations: [PendingMutation] = []
     private(set) var recentlyCompletedTaskID: TaskMirror.ID?
@@ -3427,6 +3436,11 @@ final class AppModel {
             tasks: tasks,
             dismissedGroupKeys: settings.dismissedDuplicateGroups
         )
+
+        // Advance the content revision. Any view composing this into a
+        // cache key rebuilds its derived snapshot on the next observation
+        // tick. Overflow-safe (wraps after ~5 × 10^11 years at 1 bump/ms).
+        dataRevision &+= 1
 
         let elapsed = started.duration(to: .now)
         let micros = (elapsed.components.seconds * 1_000_000)
