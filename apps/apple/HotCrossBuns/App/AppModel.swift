@@ -3332,14 +3332,55 @@ final class AppModel {
         await notificationScheduler.lastSummary
     }
 
+    // Notification + Spotlight debounce handles. Kept @ObservationIgnored
+    // so cancel/re-assign doesn't invalidate observing views.
+    @ObservationIgnored private var notificationDebounce: Task<Void, Never>?
+    @ObservationIgnored private var spotlightDebounce: Task<Void, Never>?
+
+    // Every task/event/list mutation path calls this. Previously it ran BOTH
+    // the full notification scan AND the full Spotlight domain rebuild in
+    // sequence, on the user-facing command path — a checkbox click could
+    // trigger a Spotlight domain-delete + re-index of every task and event.
+    //
+    // Now: the actual work is debounced (notifications 500 ms, Spotlight
+    // 2 s) and runs in independent Tasks so a sync flush of dozens of
+    // upserts collapses to a single deferred scan per integration. The
+    // user's click returns immediately; integrations catch up shortly
+    // after with the latest state (Task body reads `self.tasks` / `self.events`
+    // at fire time, not at schedule time).
     private func synchronizeLocalNotifications(requestAuthorization: Bool = false) async {
+        notificationDebounce?.cancel()
+        spotlightDebounce?.cancel()
+        notificationDebounce = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard Task.isCancelled == false, let self else { return }
+            await self.runNotificationSync(requestAuthorization: requestAuthorization)
+        }
+        spotlightDebounce = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard Task.isCancelled == false, let self else { return }
+            await self.runSpotlightSync()
+        }
+    }
+
+    private func runNotificationSync(requestAuthorization: Bool) async {
+        // Snapshot on main actor at fire time — reflects the latest state
+        // regardless of how many mutations piled up during the debounce.
+        let tasksNow = tasks
+        let eventsNow = events
+        let settingsNow = settings
         await notificationScheduler.synchronize(
-            tasks: tasks,
-            events: events,
-            settings: settings,
+            tasks: tasksNow,
+            events: eventsNow,
+            settings: settingsNow,
             requestAuthorization: requestAuthorization
         )
-        await spotlightIndexer.update(tasks: tasks, events: events)
+    }
+
+    private func runSpotlightSync() async {
+        let tasksNow = tasks
+        let eventsNow = events
+        await spotlightIndexer.update(tasks: tasksNow, events: eventsNow)
     }
 
     // Schedules a coalesced rebuild on the next runloop tick. Multiple
