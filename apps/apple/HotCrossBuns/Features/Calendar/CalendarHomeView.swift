@@ -921,6 +921,7 @@ struct AddEventSheet: View {
                         // View-only pass: primary button escalates to edit.
                         Button("Edit") {
                             withAnimation(.easeInOut(duration: 0.12)) {
+                                details = HCBTextMarkup.markdownSource(from: details)
                                 isEditing = true
                             }
                         }
@@ -1489,7 +1490,7 @@ struct AddEventSheet: View {
 
     private var readDetailsCard: some View {
         sectionCard("Details") {
-            Text.markdown(details)
+            MarkdownBlock(source: details)
                 .hcbFont(.body)
                 .foregroundStyle(AppColor.ink)
                 .textSelection(.enabled)

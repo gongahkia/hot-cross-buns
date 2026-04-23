@@ -23,7 +23,7 @@ struct TaskDraft: Equatable {
         let trimmedDraftTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedDraftNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedTaskTitle = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedTaskNotes = task.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedTaskNotes = HCBTextMarkup.markdownSource(from: task.notes).trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedDraftTitle != trimmedTaskTitle { return true }
         if trimmedDraftNotes != trimmedTaskNotes { return true }
         let currentDue = task.dueDate
@@ -315,6 +315,7 @@ struct TaskInspectorView: View {
             if isEditing == false {
                 Button("Edit") {
                     withAnimation(.easeInOut(duration: 0.12)) {
+                        draft.notes = HCBTextMarkup.markdownSource(from: draft.notes)
                         isEditing = true
                     }
                 }
