@@ -22,9 +22,8 @@ enum AppColor {
 struct AppBackground: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .scrollContentBackground(.hidden)
             .background {
-                AppColor.cream
+                Color(nsColor: .windowBackgroundColor)
                     .ignoresSafeArea()
             }
     }
