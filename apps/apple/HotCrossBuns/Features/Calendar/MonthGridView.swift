@@ -1,9 +1,28 @@
 import SwiftUI
 import AppKit
 
+enum CalendarMonthScrollWindow {
+    static let pastMonthsKey = "calendar.monthScroll.pastMonths"
+    static let futureMonthsKey = "calendar.monthScroll.futureMonths"
+    static let defaultPastMonths = 0
+    static let defaultFutureMonths = 12
+    static let pastRange = 0...24
+    static let futureRange = 1...36
+
+    static func clampedPast(_ value: Int) -> Int {
+        min(max(value, pastRange.lowerBound), pastRange.upperBound)
+    }
+
+    static func clampedFuture(_ value: Int) -> Int {
+        min(max(value, futureRange.lowerBound), futureRange.upperBound)
+    }
+}
+
 struct MonthGridView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
+    @AppStorage(CalendarMonthScrollWindow.pastMonthsKey) private var configuredPastMonths = CalendarMonthScrollWindow.defaultPastMonths
+    @AppStorage(CalendarMonthScrollWindow.futureMonthsKey) private var configuredFutureMonths = CalendarMonthScrollWindow.defaultFutureMonths
     @Binding var anchorDate: Date
     var searchQuery: String = ""
 
@@ -27,10 +46,8 @@ struct MonthGridView: View {
     // layout across weeks regardless of band-event count. Matches the legacy
     // paged-month cell height (geo.height ÷ 6 for a 660pt region ≈ 110).
     private let fixedRowHeight: CGFloat = 110
-    // 104 weeks = ±1 year window around the user's initial anchor. Large
-    // enough that typical navigation stays inside it; a chevron jump outside
-    // the window triggers recentering via buildWindow().
-    private let weeksInWindow: Int = 104
+    private let previousMonthLoaderHeight: CGFloat = 34
+    private let nextMonthLoaderHeight: CGFloat = 34
     // Named coordinate space the drag gesture and the highlight overlay both
     // resolve into. Needs to wrap the LazyVStack so both gesture points and
     // overlay positioning share the same frame.
@@ -72,6 +89,10 @@ struct MonthGridView: View {
     // we ever got a chance to scroll. Flipped true once the initial scroll
     // runs, so subsequent user-driven preference changes work normally.
     @State private var didPerformInitialScroll: Bool = false
+    @State private var isLoadingPreviousMonth: Bool = false
+    @State private var isLoadingNextMonth: Bool = false
+    @State private var windowFirstMonthStart: Date = Date()
+    @State private var windowLastMonthStart: Date = Date()
 
     private struct DragSelection: Equatable {
         var start: Date
@@ -105,6 +126,9 @@ struct MonthGridView: View {
             ScrollViewReader { proxy in
                 ScrollView(.vertical) {
                     LazyVStack(spacing: 0) {
+                        previousMonthLoader(proxy: proxy)
+                            .frame(height: previousMonthLoaderHeight)
+
                         ForEach(weekStarts, id: \.self) { weekStart in
                             weekRow(
                                 for: weekStart,
@@ -114,6 +138,9 @@ struct MonthGridView: View {
                             .frame(height: fixedRowHeight)
                             .id(weekStart)
                         }
+
+                        nextMonthLoader(proxy: proxy)
+                            .frame(height: nextMonthLoaderHeight)
                     }
                     // Named coordinate space wraps the content so (a) the
                     // drag gesture can resolve points in absolute content
@@ -157,29 +184,41 @@ struct MonthGridView: View {
                 .coordinateSpace(name: scrollCoordinateSpace)
                 .onAppear {
                     // Sequence matters: weekStarts must be populated before
-                    // scrollTo, or the target ID won't exist in the ForEach
-                    // and the scroll becomes a no-op (leaving the viewport at
-                    // the top of the 104-week window = ~1 year ago).
+                    // scrollTo, and SwiftUI must get one pass to render those
+                    // IDs in the ForEach before the proxy can resolve them.
+                    // Otherwise the first scroll is unreliable and the grid
+                    // can open at the wrong week until Today is clicked.
                     if weekStarts.isEmpty {
                         buildWindow(centeredOn: anchorDate)
                     }
                     rebuildGridCacheIfNeeded()
-                    scrollToAnchor(proxy: proxy, animated: false)
-                    didPerformInitialScroll = true
+                    scheduleScrollToAnchor(proxy: proxy, animated: false) {
+                        didPerformInitialScroll = true
+                    }
                 }
                 .onChange(of: anchorDate) { _, newValue in
                     if skipNextScrollSync {
                         skipNextScrollSync = false
                         return
                     }
-                    // If the new anchor left the window, rebuild centered on it.
+                    // If the new anchor left the window, rebuild starting at
+                    // its month. Month mode is a bounded continuous surface:
+                    // programmatic jumps open at the month start, while
+                    // history loads on demand from the top boundary.
                     if isDateInWindow(newValue) == false {
                         buildWindow(centeredOn: newValue)
                         rebuildGridCacheIfNeeded()
+                        scheduleScrollToAnchor(proxy: proxy, animated: true)
+                        return
                     }
                     scrollToAnchor(proxy: proxy, animated: true)
                 }
                 .onChange(of: currentGridCacheKey) { _, _ in rebuildGridCacheIfNeeded() }
+                .onChange(of: monthWindowPreferenceKey) { _, _ in
+                    buildWindow(centeredOn: anchorDate)
+                    rebuildGridCacheIfNeeded()
+                    scheduleScrollToAnchor(proxy: proxy, animated: false)
+                }
                 .onPreferenceChange(ScrollOffsetKey.self) { offset in
                     let centerY = offset + outerGeo.size.height / 2
                     updateAnchorFromScroll(centerY: centerY)
@@ -202,6 +241,10 @@ struct MonthGridView: View {
     private var windowKey: String {
         guard let first = weekStarts.first else { return "empty" }
         return "\(Int(first.timeIntervalSince1970))-\(weekStarts.count)"
+    }
+
+    private var monthWindowPreferenceKey: String {
+        "\(CalendarMonthScrollWindow.clampedPast(configuredPastMonths))|\(CalendarMonthScrollWindow.clampedFuture(configuredFutureMonths))"
     }
 
     // Flash the tapped cell for ~220ms. Used on monthCell click-to-create
@@ -245,17 +288,60 @@ struct MonthGridView: View {
             ?? calendar.startOfDay(for: date)
     }
 
-    // Rebuilds the rolling window of week-start dates centered on the given
-    // date. Called on first appear and whenever an external anchor jumps
-    // outside the current window.
+    // Rebuilds the rolling window of week-start dates around the given date.
+    // Past/future month counts come from local UI preferences; the default
+    // preserves a bounded current-month start while keeping a year ahead ready.
     private func buildWindow(centeredOn date: Date) {
-        let anchorWeek = startOfWeek(for: date)
-        let lead = weeksInWindow / 2
-        let start = calendar.date(byAdding: .day, value: -lead * 7, to: anchorWeek) ?? anchorWeek
-        windowStart = start
-        weekStarts = (0..<weeksInWindow).compactMap {
-            calendar.date(byAdding: .day, value: $0 * 7, to: start)
+        let anchorMonth = monthStart(containing: date)
+        let firstMonth = calendar.date(
+            byAdding: .month,
+            value: -CalendarMonthScrollWindow.clampedPast(configuredPastMonths),
+            to: anchorMonth
+        ) ?? anchorMonth
+        let lastMonth = calendar.date(
+            byAdding: .month,
+            value: CalendarMonthScrollWindow.clampedFuture(configuredFutureMonths),
+            to: anchorMonth
+        ) ?? anchorMonth
+        setWindow(firstMonth: firstMonth, lastMonth: lastMonth)
+    }
+
+    private func firstVisibleWeekOfMonth(containing date: Date) -> Date {
+        startOfWeek(for: monthStart(containing: date))
+    }
+
+    private func lastVisibleWeekOfMonth(containing date: Date) -> Date {
+        let start = monthStart(containing: date)
+        let nextMonth = calendar.date(byAdding: .month, value: 1, to: start) ?? start
+        let lastDay = calendar.date(byAdding: .day, value: -1, to: nextMonth) ?? start
+        return startOfWeek(for: lastDay)
+    }
+
+    private func monthStart(containing date: Date) -> Date {
+        let comps = calendar.dateComponents([.year, .month], from: date)
+        return calendar.date(from: DateComponents(year: comps.year, month: comps.month, day: 1)) ?? calendar.startOfDay(for: date)
+    }
+
+    private func setWindow(firstMonth: Date, lastMonth: Date) {
+        let normalizedFirst = monthStart(containing: firstMonth)
+        let normalizedLast = max(monthStart(containing: lastMonth), normalizedFirst)
+        windowFirstMonthStart = normalizedFirst
+        windowLastMonthStart = normalizedLast
+        weekStarts = weeks(from: normalizedFirst, through: normalizedLast)
+        windowStart = weekStarts.first ?? firstVisibleWeekOfMonth(containing: normalizedFirst)
+    }
+
+    private func weeks(from firstMonth: Date, through lastMonth: Date) -> [Date] {
+        let firstWeek = firstVisibleWeekOfMonth(containing: firstMonth)
+        let lastWeek = lastVisibleWeekOfMonth(containing: lastMonth)
+        var out: [Date] = []
+        var cursor = firstWeek
+        while cursor <= lastWeek {
+            out.append(cursor)
+            guard let next = calendar.date(byAdding: .day, value: 7, to: cursor) else { break }
+            cursor = next
         }
+        return out
     }
 
     private func isDateInWindow(_ date: Date) -> Bool {
@@ -264,23 +350,82 @@ struct MonthGridView: View {
         return date >= first && date < endExclusive
     }
 
-    // Programmatic scroll to the week containing `anchorDate`. Used by Today
-    // / chevrons / mini-calendar — anything that updates the binding from
-    // outside. Anchoring at .center puts the target week in the middle of
-    // the viewport, which aligns with the reverse-sync rule (center-of-
-    // viewport week → anchorDate). Anchoring at .top would put the target
-    // at the top and shift the viewport center 2-3 weeks forward, which
-    // would immediately re-trigger the auto-anchor update and drag the nav
-    // bar title to the next month.
+    // Programmatic jumps in month mode open at the first visible week of the
+    // selected month. The month/year context now lives inside the grid, so the
+    // top chrome does not need to chase the scroll position.
     private func scrollToAnchor(proxy: ScrollViewProxy, animated: Bool) {
-        let target = startOfWeek(for: anchorDate)
+        let target = firstVisibleWeekOfMonth(containing: anchorDate)
         guard weekStarts.contains(target) else { return }
         if animated {
             withAnimation(.easeInOut(duration: 0.24)) {
-                proxy.scrollTo(target, anchor: .center)
+                proxy.scrollTo(target, anchor: .top)
             }
         } else {
-            proxy.scrollTo(target, anchor: .center)
+            proxy.scrollTo(target, anchor: .top)
+        }
+    }
+
+    private func scheduleScrollToAnchor(
+        proxy: ScrollViewProxy,
+        animated: Bool,
+        completion: (() -> Void)? = nil
+    ) {
+        Task { @MainActor in
+            await Task.yield()
+            scrollToAnchor(proxy: proxy, animated: animated)
+            completion?()
+        }
+    }
+
+    private func scheduleScroll(
+        proxy: ScrollViewProxy,
+        to target: Date,
+        anchor: UnitPoint,
+        animated: Bool
+    ) {
+        Task { @MainActor in
+            await Task.yield()
+            if animated {
+                withAnimation(.easeInOut(duration: 0.24)) {
+                    proxy.scrollTo(target, anchor: anchor)
+                }
+            } else {
+                proxy.scrollTo(target, anchor: anchor)
+            }
+        }
+    }
+
+    private func loadPreviousMonth(proxy: ScrollViewProxy) {
+        guard didPerformInitialScroll, isLoadingPreviousMonth == false, let firstWeek = weekStarts.first else { return }
+        isLoadingPreviousMonth = true
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(180))
+            let previousMonth = calendar.date(byAdding: .month, value: -1, to: windowFirstMonthStart) ?? windowFirstMonthStart
+            let newWeeks = weeks(from: previousMonth, through: previousMonth).filter { $0 < firstWeek }
+            if newWeeks.isEmpty == false {
+                weekStarts = newWeeks + weekStarts
+                windowFirstMonthStart = monthStart(containing: previousMonth)
+                windowStart = weekStarts.first ?? windowStart
+                rebuildGridCacheIfNeeded()
+                scheduleScroll(proxy: proxy, to: firstWeek, anchor: .bottom, animated: false)
+            }
+            isLoadingPreviousMonth = false
+        }
+    }
+
+    private func loadNextMonth(proxy: ScrollViewProxy) {
+        guard didPerformInitialScroll, isLoadingNextMonth == false, let lastWeek = weekStarts.last else { return }
+        isLoadingNextMonth = true
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(180))
+            let nextMonth = calendar.date(byAdding: .month, value: 1, to: windowLastMonthStart) ?? windowLastMonthStart
+            let newWeeks = weeks(from: nextMonth, through: nextMonth).filter { $0 > lastWeek }
+            if newWeeks.isEmpty == false {
+                weekStarts.append(contentsOf: newWeeks)
+                windowLastMonthStart = monthStart(containing: nextMonth)
+                rebuildGridCacheIfNeeded()
+            }
+            isLoadingNextMonth = false
         }
     }
 
@@ -295,7 +440,9 @@ struct MonthGridView: View {
         // scrollTo and stomps anchorDate to the top of the window.
         guard didPerformInitialScroll else { return }
         guard fixedRowHeight > 0 else { return }
-        let index = Int((centerY / fixedRowHeight).rounded(.down))
+        let gridY = centerY - previousMonthLoaderHeight
+        guard gridY >= 0 else { return }
+        let index = Int((gridY / fixedRowHeight).rounded(.down))
         guard weekStarts.indices.contains(index) else { return }
         let weekStart = weekStarts[index]
         // Use Thursday (offset 3) as the "representative" day — ISO week
@@ -315,7 +462,7 @@ struct MonthGridView: View {
         var base: [CalendarEventMirror] = []
         for cal in model.calendarSnapshot.selectedCalendars {
             if let bucket = model.eventsByCalendar[cal.id] {
-                base.append(contentsOf: bucket)
+                base.append(contentsOf: bucket.compactMap { model.event(id: $0) })
             }
         }
         let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -328,8 +475,8 @@ struct MonthGridView: View {
 
     private var weekdayHeader: some View {
         HStack(spacing: 0) {
-            ForEach(weekdaySymbols, id: \.self) { symbol in
-                Text(symbol)
+            ForEach(weekdaySymbols.indices, id: \.self) { index in
+                Text(weekdaySymbols[index])
                     .hcbFont(.caption, weight: .semibold)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
@@ -354,32 +501,83 @@ struct MonthGridView: View {
             event.startDate < weekEnd && event.endDate > weekStart
         }
         let bands = CalendarGridLayout.monthBands(for: days, events: weekEvents, calendar: calendar)
-        let visibleLaneCount = min(maxVisibleLanes, (bands.map(\.lane).max() ?? -1) + 1)
-        let bandAreaHeight: CGFloat = visibleLaneCount > 0
-            ? CGFloat(visibleLaneCount) * laneHeight + CGFloat(max(visibleLaneCount - 1, 0)) * laneSpacing + 4
-            : 0
 
         return GeometryReader { geo in
             let cellWidth = geo.size.width / CGFloat(max(days.count, 1))
             ZStack(alignment: .topLeading) {
                 HStack(spacing: 0) {
                     ForEach(Array(days.enumerated()), id: \.element) { col, day in
-                        // Per-cell band reservation: cells with NO band events
-                        // crossing them get 0 reservation so timed-event tiles
-                        // can slide to the top. Cells crossed by ≥1 band keep
-                        // the uniform week-level reservation so they line up
-                        // under the band overlay rather than colliding with it.
-                        let cellHasBand = bands.contains { col >= $0.startColumn && col <= $0.endColumn && $0.lane < maxVisibleLanes }
-                        monthCell(day: day, bandReserve: cellHasBand ? bandAreaHeight : 0, byDay: byDay)
+                        let cellBandReserve = bandReserve(for: col, bands: bands)
+                        monthCell(day: day, bandReserve: cellBandReserve, byDay: byDay)
                             .frame(maxWidth: .infinity, minHeight: fixedRowHeight, maxHeight: fixedRowHeight, alignment: .top)
                             .clipped() // stop per-cell VStack overflow (day number + bandReserve + 2 events + 2 tasks + "+N more" can exceed fixedRowHeight) from bleeding into the next week row
                     }
                 }
                 bandOverlay(bands: bands, cellWidth: cellWidth)
+                monthBoundaryOverlay(days: days, cellWidth: cellWidth)
             }
         }
         .frame(height: fixedRowHeight)
         .clipped() // defense-in-depth: also clip the row itself so band overlays can't leak out
+    }
+
+    private func bandReserve(for column: Int, bands: [CalendarGridLayout.MonthBand]) -> CGFloat {
+        let highestVisibleLane = bands
+            .filter { band in
+                column >= band.startColumn
+                    && column <= band.endColumn
+                    && band.lane < maxVisibleLanes
+            }
+            .map(\.lane)
+            .max()
+        guard let highestVisibleLane else { return 0 }
+        return CGFloat(highestVisibleLane + 1) * laneHeight
+            + CGFloat(highestVisibleLane) * laneSpacing
+            + 4
+    }
+
+    private func previousMonthLoader(proxy: ScrollViewProxy) -> some View {
+        HStack(spacing: 8) {
+            if isLoadingPreviousMonth {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Loading previous month…")
+                    .hcbFont(.caption, weight: .medium)
+            } else {
+                Image(systemName: "chevron.up")
+                    .hcbFont(.caption, weight: .semibold)
+                Text("Scroll up to load previous month")
+                    .hcbFont(.caption, weight: .medium)
+            }
+        }
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.regularMaterial.opacity(0.35))
+        .onAppear {
+            loadPreviousMonth(proxy: proxy)
+        }
+    }
+
+    private func nextMonthLoader(proxy: ScrollViewProxy) -> some View {
+        HStack(spacing: 8) {
+            if isLoadingNextMonth {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Loading next month…")
+                    .hcbFont(.caption, weight: .medium)
+            } else {
+                Text("Scroll down to load next month")
+                    .hcbFont(.caption, weight: .medium)
+                Image(systemName: "chevron.down")
+                    .hcbFont(.caption, weight: .semibold)
+            }
+        }
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.regularMaterial.opacity(0.35))
+        .onAppear {
+            loadNextMonth(proxy: proxy)
+        }
     }
 
     // Resolves a gesture point — given in the "monthGridContent" named
@@ -389,7 +587,9 @@ struct MonthGridView: View {
     // doesn't cause the selection to disappear mid-gesture.
     private func dateAtContentPoint(_ point: CGPoint) -> Date? {
         guard fixedRowHeight > 0, weekStarts.isEmpty == false else { return nil }
-        let rowIndex = max(0, min(weekStarts.count - 1, Int(point.y / fixedRowHeight)))
+        let gridY = point.y - previousMonthLoaderHeight
+        guard gridY >= 0 else { return nil }
+        let rowIndex = max(0, min(weekStarts.count - 1, Int(gridY / fixedRowHeight)))
         let cellWidth = visibleGridWidth / 7
         guard cellWidth > 0 else { return nil }
         let col = max(0, min(6, Int(point.x / cellWidth)))
@@ -420,12 +620,46 @@ struct MonthGridView: View {
                                     .strokeBorder(AppColor.ember.opacity(0.6), lineWidth: 1.2)
                             )
                             .frame(width: max(width - 4, 4), height: fixedRowHeight - 4)
-                            .offset(x: left + 2, y: CGFloat(index) * fixedRowHeight + 2)
+                            .offset(x: left + 2, y: previousMonthLoaderHeight + CGFloat(index) * fixedRowHeight + 2)
                             .allowsHitTesting(false)
                     }
                 }
             }
         }
+    }
+
+    private func monthBoundaryOverlay(days: [Date], cellWidth: CGFloat) -> some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(Array(days.enumerated()), id: \.element) { column, day in
+                if calendar.component(.day, from: day) == 1 {
+                    let x = CGFloat(column) * cellWidth
+                    let line = monthBoundaryLineColor
+                    ZStack(alignment: .topLeading) {
+                        Rectangle()
+                            .fill(line)
+                            .frame(width: cellWidth * CGFloat(7 - column), height: 1.5)
+                            .offset(x: x, y: 0)
+
+                        if column > 0 {
+                            Rectangle()
+                                .fill(line)
+                                .frame(width: 1.5, height: fixedRowHeight)
+                                .offset(x: x, y: 0)
+
+                            Rectangle()
+                                .fill(line)
+                                .frame(width: x, height: 1.5)
+                                .offset(x: 0, y: fixedRowHeight - 1.5)
+                        }
+                    }
+                    .allowsHitTesting(false)
+                }
+            }
+        }
+    }
+
+    private var monthBoundaryLineColor: Color {
+        AppColor.ember.opacity(0.55)
     }
 
     // Backing visible-width cache for dateAtContentPoint, written by the
@@ -498,42 +732,42 @@ struct MonthGridView: View {
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
-    private var visibleTasks: [TaskMirror] {
+    private func tasksForDay(_ day: Date) -> [TaskMirror] {
+        let dayStart = calendar.startOfDay(for: day)
+        let key = dayStart.timeIntervalSinceReferenceDate
         let visibleLists: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
             ? model.settings.selectedTaskListIDs
             : Set(model.taskLists.map(\.id))
-        return model.tasks.filter { task in
-            task.isDeleted == false
-                && task.isCompleted == false
-                && visibleLists.contains(task.taskListID)
-                && task.dueDate != nil
-        }
-    }
-
-    private func tasksForDay(_ day: Date) -> [TaskMirror] {
-        let dayStart = calendar.startOfDay(for: day)
-        return visibleTasks.filter { task in
-            guard let due = task.dueDate else { return false }
-            return calendar.isDate(due, inSameDayAs: dayStart)
-        }
+        return (model.tasksByDueDate[key] ?? [])
+            .compactMap { model.task(id: $0) }
+            .filter { visibleLists.contains($0.taskListID) }
     }
 
     private func monthCell(day: Date, bandReserve: CGFloat, byDay: [Date: [CalendarEventMirror]]) -> some View {
         let dayStart = calendar.startOfDay(for: day)
-        let isCurrentMonth = calendar.component(.month, from: day) == calendar.component(.month, from: anchorDate)
         let allEventsToday = byDay[dayStart] ?? []
         // Bands render in the overlay; per-cell shows only timed single-day events.
         let events = allEventsToday.filter { CalendarGridLayout.isBandEvent($0, calendar: calendar) == false }
         let tasks = tasksForDay(day)
-        let eventSlots = 2
-        let taskSlots = 2
         // +N more counts the hidden band events too so users see them accounted for.
         let hiddenBandEvents = max(0, allEventsToday.count - events.count - visibleBandCount(for: dayStart, in: day, allEventsToday: allEventsToday))
+        let rowStride = laneHeight + laneSpacing
+        let dayNumberReserve: CGFloat = 24
+        let verticalPadding: CGFloat = 8
+        let availableRowArea = max(0, fixedRowHeight - verticalPadding - dayNumberReserve - bandReserve)
+        let availableRows = max(0, Int(floor((availableRowArea + laneSpacing) / rowStride)))
+        let needsMoreButton = hiddenBandEvents > 0 || events.count + tasks.count > availableRows
+        let visibleItemRows = needsMoreButton ? max(0, availableRows - 1) : availableRows
+        let visibleEventCount = min(events.count, visibleItemRows)
+        let visibleTaskCount = min(tasks.count, max(0, visibleItemRows - visibleEventCount))
+        let hiddenEvents = max(0, events.count - visibleEventCount) + hiddenBandEvents
+        let hiddenTasks = max(0, tasks.count - visibleTaskCount)
         return VStack(alignment: .leading, spacing: 3) {
             HStack {
-                Text("\(calendar.component(.day, from: day))")
+                Text(dayLabel(for: day))
                     .hcbFont(.caption, weight: .semibold)
-                    .foregroundStyle(dayNumberColor(isCurrentMonth: isCurrentMonth, day: day))
+                    .foregroundStyle(dayNumberColor(for: day))
+                    .lineLimit(1)
                     .hcbScaledPadding(.horizontal, 6)
                     .hcbScaledPadding(.vertical, 2)
                     .background(
@@ -545,7 +779,7 @@ struct MonthGridView: View {
             if bandReserve > 0 {
                 Color.clear.frame(height: bandReserve)
             }
-            ForEach(events.prefix(eventSlots), id: \.id) { event in
+            ForEach(events.prefix(visibleEventCount), id: \.id) { event in
                 CalendarEventPreviewButton(event: event) {
                     Text(eventLabel(event, in: day))
                         .hcbFont(.caption2)
@@ -573,7 +807,7 @@ struct MonthGridView: View {
                         .background(Capsule().fill(calendarColor(for: event).opacity(0.35)))
                 }
             }
-            ForEach(tasks.prefix(taskSlots)) { task in
+            ForEach(tasks.prefix(visibleTaskCount)) { task in
                 HStack(spacing: 3) {
                     CalendarTaskCheckbox(task: task, size: 9)
                     CalendarTaskPreviewButton(task: task) {
@@ -598,17 +832,6 @@ struct MonthGridView: View {
                 .strikethrough(task.isCompleted, color: .secondary)
                 .opacity(task.isCompleted ? 0.55 : 1.0)
             }
-            let hiddenEvents = max(0, events.count - eventSlots) + hiddenBandEvents
-            let hiddenTasks = max(0, tasks.count - taskSlots)
-            if hiddenEvents + hiddenTasks > 0 {
-                MonthMoreButton(
-                    count: hiddenEvents + hiddenTasks,
-                    day: dayStart,
-                    events: allEventsToday,
-                    tasks: tasks,
-                    calendarColor: calendarColor(for:)
-                )
-            }
             Spacer(minLength: 0)
         }
         // Horizontal cell padding matches the bandOverlay's 2pt offset so
@@ -620,7 +843,7 @@ struct MonthGridView: View {
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(
             Rectangle()
-                .fill(isCurrentMonth ? Color.clear : AppColor.cream.opacity(0.15))
+                .fill(Color.clear)
         )
         .overlay(
             Rectangle()
@@ -631,6 +854,19 @@ struct MonthGridView: View {
             Rectangle()
                 .strokeBorder(AppColor.cardStroke, lineWidth: 0.5)
         )
+        .overlay(alignment: .bottomLeading) {
+            if hiddenEvents + hiddenTasks > 0 {
+                MonthMoreButton(
+                    count: hiddenEvents + hiddenTasks,
+                    day: dayStart,
+                    events: allEventsToday,
+                    tasks: tasks,
+                    calendarColor: calendarColor(for:)
+                )
+                .padding(.horizontal, 4)
+                .padding(.bottom, 3)
+            }
+        }
         .contentShape(Rectangle())
         .onTapGesture {
             flashCell(dayStart)
@@ -722,9 +958,16 @@ struct MonthGridView: View {
         return "\(event.startDate.formatted(.dateTime.hour().minute())) \(event.summary)"
     }
 
-    private func dayNumberColor(isCurrentMonth: Bool, day: Date) -> Color {
+    private func dayLabel(for day: Date) -> String {
+        if calendar.component(.day, from: day) == 1 {
+            return day.formatted(.dateTime.month(.abbreviated).day().year())
+        }
+        return "\(calendar.component(.day, from: day))"
+    }
+
+    private func dayNumberColor(for day: Date) -> Color {
         if calendar.isDateInToday(day) { return AppColor.ember }
-        return isCurrentMonth ? AppColor.ink : .secondary
+        return AppColor.ink
     }
 
     private func calendarColor(for event: CalendarEventMirror) -> Color {

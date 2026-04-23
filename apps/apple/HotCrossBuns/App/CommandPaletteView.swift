@@ -100,28 +100,17 @@ fileprivate enum PaletteItem: Identifiable {
         }
     }
 
-    var rankLabel: String {
-        switch self {
-        case .command(let c): return c.title
-        case .entity(let e): return e.label
-        }
-    }
-
-    var rankKeywords: [String] {
-        switch self {
-        case .command(let c): return [c.subtitle] + c.keywords
-        case .entity(let e): return e.keywords
-        }
-    }
 }
 
 struct CommandPaletteView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
     @State private var query = ""
-    // Debounced view of `query`. Rebuilt 150ms after the user stops typing
-    // so a typing burst doesn't run the rank pipeline on every keystroke.
-    @State private var debouncedQuery = ""
+    // Heavy entity results (tasks/events/notes) intentionally lag behind the
+    // live query. Command results are cheap and update immediately so local
+    // actions such as "New Task" feel instant.
+    @State private var entityResults: [PaletteItem] = []
+    @State private var entityResultsQuery = ""
     // Snapshot of the entity universe, built once and refreshed only when
     // model.tasks / events / taskLists / calendars / customFilters counts
     // change. Avoids re-allocating ~17k QuickSwitcherEntity values on every
@@ -148,7 +137,9 @@ struct CommandPaletteView: View {
 
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        if rankedItems.isEmpty {
+                        if rankedItems.isEmpty, isEntitySearchPending {
+                            entitySearchPendingState
+                        } else if rankedItems.isEmpty {
                             emptyState
                         } else {
                             ForEach(Array(rankedItems.enumerated()), id: \.element.id) { index, item in
@@ -161,26 +152,35 @@ struct CommandPaletteView: View {
             }
         }
         .onAppear {
+            rebuildCachedEntitiesIfNeeded()
             // Honour any deep-link-staged query: hotcrossbuns://search?q=… sets
             // model.pendingPaletteQuery before toggling the palette open. Clear
             // after consuming so a subsequent manual open starts blank.
             if let staged = model.pendingPaletteQuery, staged.isEmpty == false {
                 query = staged
-                debouncedQuery = staged
+                entityResultsQuery = staged
+                entityResults = entityItems(forQuery: staged.trimmingCharacters(in: .whitespacesAndNewlines))
                 model.pendingPaletteQuery = nil
             }
             isSearchFocused = true
-            rebuildCachedEntitiesIfNeeded()
         }
         .onChange(of: snapshotKey) { _, _ in
             rebuildCachedEntitiesIfNeeded()
+            entityResults = entityItems(forQuery: entityResultsQuery)
         }
-        // 150ms debounce: each keystroke restarts this task; only the final
-        // sleep that completes uncancelled writes through to debouncedQuery.
+        // Entity-search debounce: each keystroke restarts this task; commands
+        // do not wait for it because they are ranked directly from `query`.
         .task(id: query) {
+            let liveQuery = trimmedQuery
+            guard liveQuery.isEmpty == false else {
+                entityResultsQuery = ""
+                entityResults = []
+                return
+            }
             do {
                 try await Task.sleep(for: .milliseconds(150))
-                debouncedQuery = query
+                entityResultsQuery = liveQuery
+                entityResults = entityItems(forQuery: liveQuery)
             } catch {
                 // task cancelled by next keystroke — drop, the next one runs.
             }
@@ -204,10 +204,6 @@ struct CommandPaletteView: View {
 
     private var trimmedQuery: String {
         query.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var debouncedTrimmedQuery: String {
-        debouncedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // Cheap fingerprint for the entity universe. dataRevision fingerprints
@@ -235,20 +231,48 @@ struct CommandPaletteView: View {
     }
 
     // Merged ranked list. Behaviour:
+    //   - Commands rank synchronously from the live query.
+    //   - Entities rank from the debounced query and are only shown while
+    //     still current for the visible query.
     //   - Regex mode (/…/): entity-only regex filter, no commands.
     //   - Field-operator query with no free-text: entity-only structured
     //     filter, alphabetic, no commands. Keeps power-user DSL output stable.
     //   - Free-text (with or without operators): rank commands + entities
     //     together by fuzzy score; commands bubble up when the title matches.
     private var rankedItems: [PaletteItem] {
-        rank(forQuery: debouncedTrimmedQuery)
+        let q = trimmedQuery
+        guard q.isEmpty == false else { return [] }
+        let commands = commandItems(forQuery: q)
+        guard entityResultsQuery == q else { return commands }
+        return commands + entityResults
     }
 
-    // Pure rank pipeline. The computed `rankedItems` reads it with
-    // debouncedTrimmedQuery; executeFirstMatch reads it with trimmedQuery
-    // so Enter-immediately-after-typing doesn't pick a stale top match
-    // from the previous debounce window.
-    private func rank(forQuery q: String) -> [PaletteItem] {
+    private var isEntitySearchPending: Bool {
+        let q = trimmedQuery
+        return q.isEmpty == false && entityResultsQuery != q
+    }
+
+    private func commandItems(forQuery q: String) -> [PaletteItem] {
+        guard q.isEmpty == false else { return [] }
+        let parsed = AdvancedSearchParser.parse(q)
+        let freeText = parsed.freeText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard parsed.regex == nil, (hasStructuredFilters(parsed) == false || hasFreeTextOnly(parsed)) else {
+            return []
+        }
+
+        guard freeText.isEmpty == false else { return [] }
+        return FuzzySearcher.rank(
+            commands,
+            query: freeText,
+            labelForItem: { $0.title },
+            keywordsForItem: { [$0.subtitle] + $0.keywords },
+            limit: 12
+        )
+        .map { PaletteItem.command($0.item) }
+    }
+
+    private func entityItems(forQuery q: String) -> [PaletteItem] {
         guard q.isEmpty == false else { return [] }
         let parsed = AdvancedSearchParser.parse(q)
 
@@ -267,24 +291,7 @@ struct CommandPaletteView: View {
         }
 
         let freeText = parsed.freeText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let hasStructuredFilters = parsed != .empty && (
-            parsed.regex != nil
-            || parsed.titleContains.isEmpty == false
-            || parsed.tagsAll.isEmpty == false
-            || parsed.listMatch != nil
-            || parsed.calendarMatch != nil
-            || parsed.attendeeMatch != nil
-            || parsed.kind != nil
-            || parsed.requireNotes
-            || parsed.requireLocation
-            || parsed.requireDue
-            || parsed.requireCompleted
-            || parsed.requireOverdue
-        )
-
-        // If the user is clearly entity-searching (field operators / bare
-        // keywords present), suppress commands so the list stays focused.
-        let includeCommands = hasStructuredFilters == false || hasFreeTextOnly(parsed)
+        let hasStructuredFilters = hasStructuredFilters(parsed)
 
         // Pre-filter pool. The hot path here is free-text without structured
         // filters: walk cachedLowercaseLabels (one .contains per item) to
@@ -332,21 +339,31 @@ struct CommandPaletteView: View {
                 .map { PaletteItem.entity($0) }
         }
 
-        var pool: [PaletteItem] = []
-        pool.reserveCapacity(entitiesFiltered.count + commands.count)
-        pool.append(contentsOf: entitiesFiltered.map(PaletteItem.entity))
-        if includeCommands {
-            pool.append(contentsOf: commands.map(PaletteItem.command))
-        }
-
         let ranked = FuzzySearcher.rank(
-            pool,
+            entitiesFiltered,
             query: freeText,
-            labelForItem: { $0.rankLabel },
-            keywordsForItem: { $0.rankKeywords },
-            limit: 50
+            labelForItem: { $0.label },
+            keywordsForItem: { $0.keywords },
+            limit: 38
         )
-        return ranked.map(\.item)
+        return ranked.map { PaletteItem.entity($0.item) }
+    }
+
+    private func hasStructuredFilters(_ q: AdvancedSearchQuery) -> Bool {
+        q != .empty && (
+            q.regex != nil
+            || q.titleContains.isEmpty == false
+            || q.tagsAll.isEmpty == false
+            || q.listMatch != nil
+            || q.calendarMatch != nil
+            || q.attendeeMatch != nil
+            || q.kind != nil
+            || q.requireNotes
+            || q.requireLocation
+            || q.requireDue
+            || q.requireCompleted
+            || q.requireOverdue
+        )
     }
 
     // True when the parsed query carries only free text (no field operators
@@ -369,10 +386,9 @@ struct CommandPaletteView: View {
     }
 
     private func executeFirstMatch() {
-        // Bypass the debounced view — Enter is an explicit confirm and
-        // should act on what the user just typed, not what was visible
-        // 150ms ago.
-        if let first = rank(forQuery: trimmedQuery).first {
+        // Commands are local and should win immediately when they match the
+        // live query. Fall back to entity ranking for entity-only searches.
+        if let first = commandItems(forQuery: trimmedQuery).first ?? entityItems(forQuery: trimmedQuery).first {
             select(first)
         }
     }
@@ -498,6 +514,20 @@ struct CommandPaletteView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 180)
     }
+
+    private var entitySearchPendingState: some View {
+        VStack(spacing: 10) {
+            ProgressView()
+                .controlSize(.small)
+            Text("Searching tasks, events, and notes…")
+                .hcbFont(.headline)
+                .foregroundStyle(.secondary)
+            Text("Commands are available immediately.")
+                .hcbFont(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, minHeight: 180)
+    }
 }
 
 private struct CommandPaletteRow: View {
@@ -512,16 +542,16 @@ private struct CommandPaletteRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(command.title)
-                    .hcbFontSystem(size: 19, weight: .semibold, design: .rounded)
+                    .hcbFont(.body, weight: .semibold)
                 Text(command.subtitle)
-                    .font(.system(.subheadline, design: .rounded))
+                    .hcbFont(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
             Spacer(minLength: 12)
 
             Text("Command")
-                .font(.system(.caption2, design: .rounded, weight: .medium))
+                .hcbFont(.caption2, weight: .medium)
                 .foregroundStyle(.secondary)
                 .hcbScaledPadding(.horizontal, 6)
                 .hcbScaledPadding(.vertical, 2)
@@ -561,10 +591,10 @@ private struct EntityRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(entity.label.isEmpty ? "(untitled)" : entity.label)
-                    .hcbFontSystem(size: 19, weight: .semibold, design: .rounded)
+                    .hcbFont(.body, weight: .semibold)
                     .lineLimit(1)
                 Text(subtitle)
-                    .font(.system(.subheadline, design: .rounded))
+                    .hcbFont(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -572,7 +602,7 @@ private struct EntityRow: View {
             Spacer(minLength: 12)
 
             Text(entity.kindLabel)
-                .font(.system(.caption2, design: .rounded, weight: .medium))
+                .hcbFont(.caption2, weight: .medium)
                 .foregroundStyle(.secondary)
                 .hcbScaledPadding(.horizontal, 6)
                 .hcbScaledPadding(.vertical, 2)

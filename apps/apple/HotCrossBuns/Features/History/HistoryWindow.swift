@@ -89,7 +89,7 @@ struct HistoryWindow: View {
         .id(model.settings.colorSchemeID)
         .withHCBAppearance(model.settings)
         .environment(\.hcbShortcutOverrides, model.settings.shortcutOverrides)
-        .preferredColorScheme(HCBColorScheme.scheme(id: model.settings.colorSchemeID)?.isDark == true ? .dark : .light)
+        .hcbPreferredColorScheme(model.settings)
         .appBackground()
         .navigationTitle("History")
         .toolbar {

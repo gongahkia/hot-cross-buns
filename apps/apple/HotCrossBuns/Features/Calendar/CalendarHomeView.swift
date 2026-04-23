@@ -73,6 +73,7 @@ struct CalendarHomeView: View {
             .hcbSurface(.calendarGrid) // §6.11 — covers day/week/month/year/agenda subtree
         }
         .appBackground()
+        .focusedSceneValue(\.calendarCommandActions, calendarCommandActions)
         // Adding a .toolbar here serves two jobs: (a) provides the + button
         // for event/task quick-create parity with the Tasks and Notes tabs,
         // (b) gets SwiftUI to render the native macOS titlebar so the
@@ -149,34 +150,33 @@ struct CalendarHomeView: View {
                 Image(systemName: "chevron.left").hcbFont(.body, weight: .semibold)
             }
             .buttonStyle(.plain)
-            .hcbKeyboardShortcut(.calendarPrevious)
             .accessibilityLabel("Previous \(mode.title.lowercased())")
 
             Button("Today") { selectedDate = Date() }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .hcbKeyboardShortcut(.calendarToday)
                 .accessibilityLabel("Jump to today")
 
             Button { shift(by: 1) } label: {
                 Image(systemName: "chevron.right").hcbFont(.body, weight: .semibold)
             }
             .buttonStyle(.plain)
-            .hcbKeyboardShortcut(.calendarNext)
             .accessibilityLabel("Next \(mode.title.lowercased())")
 
-            Button {
-                isGoToDateShown.toggle()
-            } label: {
-                Text(periodTitle)
-                    .hcbFont(.title3, weight: .semibold)
-                    .foregroundStyle(AppColor.ink)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Jump to date")
-            .popover(isPresented: $isGoToDateShown, arrowEdge: .bottom) {
-                GoToDateSheet(initialDate: selectedDate) { newDate in
-                    selectedDate = newDate
+            if mode != .month {
+                Button {
+                    isGoToDateShown.toggle()
+                } label: {
+                    Text(periodTitle)
+                        .hcbFont(.title3, weight: .semibold)
+                        .foregroundStyle(AppColor.ink)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Jump to date")
+                .popover(isPresented: $isGoToDateShown, arrowEdge: .bottom) {
+                    GoToDateSheet(initialDate: selectedDate) { newDate in
+                        selectedDate = newDate
+                    }
                 }
             }
 
@@ -194,28 +194,6 @@ struct CalendarHomeView: View {
         .hcbScaledPadding(.horizontal, 16)
         .hcbScaledPadding(.vertical, 10)
         .disabled(model.account == nil)
-        .background(
-            HStack(spacing: 0) {
-                Button("Jump back") { jumpLarge(by: -1) }
-                    .hcbKeyboardShortcut(.calendarJumpBack)
-                Button("Jump forward") { jumpLarge(by: 1) }
-                    .hcbKeyboardShortcut(.calendarJumpForward)
-                Button("Go to Date") { isGoToDateShown = true }
-                    .hcbKeyboardShortcut(.calendarGoToDate)
-                Button("Agenda View") { selectMode(.agenda) }
-                    .hcbKeyboardShortcut(.calendarViewAgenda)
-                Button("Day View") { selectMode(.day) }
-                    .hcbKeyboardShortcut(.calendarViewDay)
-                Button("Week View") { selectMode(.week) }
-                    .hcbKeyboardShortcut(.calendarViewWeek)
-                Button("Month View") { selectMode(.month) }
-                    .hcbKeyboardShortcut(.calendarViewMonth)
-            }
-            .opacity(0)
-            .hcbScaledFrame(width: 0, height: 0)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-        )
     }
 
     private var selectedEvents: [CalendarEventMirror] {
@@ -227,6 +205,30 @@ struct CalendarHomeView: View {
     // AppModel.setCalendarViewModeHidden setter refuses to hide the last one.
     private var visibleCalendarModes: [CalendarGridMode] {
         CalendarGridMode.allCases.filter { model.settings.hiddenCalendarViewModes.contains($0.rawValue) == false }
+    }
+
+    private var calendarCommandActions: CalendarCommandActions {
+        let canNavigate = model.account != nil
+        return CalendarCommandActions(
+            previous: { shift(by: -1) },
+            today: { selectedDate = Date() },
+            next: { shift(by: 1) },
+            jumpBack: { jumpLarge(by: -1) },
+            jumpForward: { jumpLarge(by: 1) },
+            goToDate: { isGoToDateShown = true },
+            focusSearch: {
+                NotificationCenter.default.post(name: .hcbFocusCalendarSearch, object: nil)
+            },
+            showAgenda: { selectMode(.agenda) },
+            showDay: { selectMode(.day) },
+            showWeek: { selectMode(.week) },
+            showMonth: { selectMode(.month) },
+            canNavigate: canNavigate,
+            canShowAgenda: canNavigate && visibleCalendarModes.contains(.agenda),
+            canShowDay: canNavigate && visibleCalendarModes.contains(.day),
+            canShowWeek: canNavigate && visibleCalendarModes.contains(.week),
+            canShowMonth: canNavigate && visibleCalendarModes.contains(.month)
+        )
     }
 
     // Keyboard shortcuts route here so hidden modes no-op rather than forcing
@@ -557,7 +559,7 @@ struct CalendarHomeView: View {
                             Button {
                                 router?.present(.editEvent(event.id))
                             } label: {
-                                EventListRow(event: event)
+                                EventListRow(event: event, accentColor: calendarColor(for: event))
                             }
                             .buttonStyle(.plain)
                         }
@@ -585,7 +587,7 @@ struct CalendarHomeView: View {
     }
 
     private func agendaEventsByDay(for range: [Date]) -> [Date: [CalendarEventMirror]] {
-        // Use the prebuilt model.eventsByDay (rebuildSnapshots already walks
+        // Use the prebuilt model.eventsByDay IDs (rebuildSnapshots already walks
         // the full event corpus once) instead of re-iterating on every body
         // eval. Apply calendar-selection filter per lookup; sort per day.
         guard range.isEmpty == false else { return [:] }
@@ -593,7 +595,8 @@ struct CalendarHomeView: View {
         var bucket: [Date: [CalendarEventMirror]] = [:]
         for day in range {
             let key = day.timeIntervalSinceReferenceDate
-            guard let entries = model.eventsByDay[key], entries.isEmpty == false else { continue }
+            guard let eventIDs = model.eventsByDay[key], eventIDs.isEmpty == false else { continue }
+            let entries = eventIDs.compactMap { model.event(id: $0) }
             let filtered = entries.filter { selectedIDs.contains($0.calendarID) }
             guard filtered.isEmpty == false else { continue }
             bucket[day] = filtered.sorted { lhs, rhs in
@@ -605,7 +608,7 @@ struct CalendarHomeView: View {
     }
 
     private func agendaTasksByDay(for range: [Date]) -> [Date: [TaskMirror]] {
-        // Use model.tasksByDueDate; rebuildSnapshots already walks tasks
+        // Use model.tasksByDueDate IDs; rebuildSnapshots already walks tasks
         // once and excludes deleted/completed. We only need to filter to
         // the visible task-list set and sort alphabetically per day.
         let visibleLists: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
@@ -614,7 +617,8 @@ struct CalendarHomeView: View {
         var bucket: [Date: [TaskMirror]] = [:]
         for day in range {
             let key = day.timeIntervalSinceReferenceDate
-            guard let entries = model.tasksByDueDate[key], entries.isEmpty == false else { continue }
+            guard let taskIDs = model.tasksByDueDate[key], taskIDs.isEmpty == false else { continue }
+            let entries = taskIDs.compactMap { model.task(id: $0) }
             let filtered = entries.filter { visibleLists.contains($0.taskListID) }
             guard filtered.isEmpty == false else { continue }
             bucket[day] = filtered.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
@@ -683,6 +687,16 @@ struct CalendarHomeView: View {
                 lhs.startDate < rhs.startDate
             }
     }
+
+    private func calendarColor(for event: CalendarEventMirror) -> Color {
+        if let hex = CalendarEventColor.from(colorId: event.colorId).hex {
+            return Color(hex: hex)
+        }
+        guard let cal = model.calendars.first(where: { $0.id == event.calendarID }) else {
+            return AppColor.blue
+        }
+        return Color(hex: cal.colorHex)
+    }
 }
 
 struct EventRowView: View {
@@ -692,7 +706,7 @@ struct EventRowView: View {
     var body: some View {
         Button(action: action) {
             EventListRow(event: event)
-                .cardSurface(cornerRadius: 24)
+                .cardSurface(cornerRadius: 18)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(event.summary)
@@ -701,11 +715,12 @@ struct EventRowView: View {
 
 private struct EventListRow: View {
     let event: CalendarEventMirror
+    var accentColor: Color = AppColor.blue
 
     var body: some View {
         HStack(spacing: 12) {
             RoundedRectangle(cornerRadius: 6)
-                .fill(AppColor.blue)
+                .fill(accentColor)
                 .hcbScaledFrame(width: 6)
             VStack(alignment: .leading, spacing: 5) {
                 Text(event.summary)
@@ -906,6 +921,7 @@ struct AddEventSheet: View {
                         // View-only pass: primary button escalates to edit.
                         Button("Edit") {
                             withAnimation(.easeInOut(duration: 0.12)) {
+                                details = HCBTextMarkup.markdownSource(from: details)
                                 isEditing = true
                             }
                         }
@@ -988,7 +1004,15 @@ struct AddEventSheet: View {
             }
         }
         .hcbScaledFrame(minWidth: 820, idealWidth: 920, minHeight: 560, idealHeight: 680)
+        .focusedSceneValue(\.calendarEventEditorCommandActions, calendarEventEditorCommandActions)
         .interactiveDismissDisabled(isSaving)
+    }
+
+    private var calendarEventEditorCommandActions: CalendarEventEditorCommandActions {
+        CalendarEventEditorCommandActions(
+            duplicateEvent: { duplicateExisting(offsetDays: 0) },
+            canDuplicateEvent: editingEvent != nil && isSaving == false
+        )
     }
 
     // True if the event being edited carries a recurrence rule or is an
@@ -1050,7 +1074,6 @@ struct AddEventSheet: View {
             Divider()
             Menu("Duplicate") {
                 Button("Duplicate here") { duplicateExisting(offsetDays: 0) }
-                    .hcbKeyboardShortcut(.calendarDuplicateEvent)
                 Button("Duplicate to tomorrow") { duplicateExisting(offsetDays: 1) }
                 Button("Duplicate to next week") { duplicateExisting(offsetDays: 7) }
                 Button("Duplicate in 2 weeks") { duplicateExisting(offsetDays: 14) }
@@ -1226,7 +1249,7 @@ struct AddEventSheet: View {
                 .onChange(of: quickCreateText) { _, newValue in
                     parsedPreview = newValue.isEmpty ? nil : NaturalLanguageEventParser().parse(newValue)
                 }
-            if let preview = parsedPreview, preview.hasParsedMetadata {
+            if let preview = parsedPreview, preview.hasParsedMetadata || quickCreateColorTagResolution(for: preview) != nil {
                 HStack(spacing: 6) {
                     ForEach(Array(preview.matchedTokens.enumerated()), id: \.offset) { _, token in
                         Text(token.display)
@@ -1235,6 +1258,14 @@ struct AddEventSheet: View {
                             .hcbScaledPadding(.vertical, 2)
                             .background(Capsule().fill(AppColor.blue.opacity(0.15)))
                             .foregroundStyle(AppColor.blue)
+                    }
+                    if let color = quickCreateEventColor(for: preview) {
+                        Text(color.title)
+                            .hcbFont(.caption, weight: .medium)
+                            .hcbScaledPadding(.horizontal, 6)
+                            .hcbScaledPadding(.vertical, 2)
+                            .background(Capsule().fill(quickCreateColorTint(color).opacity(0.15)))
+                            .foregroundStyle(quickCreateColorTint(color))
                     }
                     Spacer(minLength: 0)
                     Button("Apply") { applyQuickCreate() }
@@ -1459,7 +1490,7 @@ struct AddEventSheet: View {
 
     private var readDetailsCard: some View {
         sectionCard("Details") {
-            Text.markdown(details)
+            MarkdownBlock(source: details)
                 .hcbFont(.body)
                 .foregroundStyle(AppColor.ink)
                 .textSelection(.enabled)
@@ -1619,7 +1650,10 @@ struct AddEventSheet: View {
     private func applyQuickCreate() {
         let parsed = NaturalLanguageEventParser().parse(quickCreateText)
         guard parsed.summary.isEmpty == false else { return }
-        summary = parsed.summary
+        summary = quickCreateSummaryForSubmission(parsed)
+        if let color = quickCreateEventColor(for: parsed) {
+            eventColor = color
+        }
         if let loc = parsed.location { location = loc }
         if let start = parsed.startDate {
             startDate = start
@@ -1630,6 +1664,32 @@ struct AddEventSheet: View {
         }
         quickCreateText = ""
         parsedPreview = nil
+    }
+
+    private func quickCreateColorTagResolution(for parsed: ParsedQuickAddEvent) -> ColorTagResolver.Resolution? {
+        guard model.settings.colorTagAutoApplyEnabled else { return nil }
+        return ColorTagResolver.resolve(
+            title: parsed.summary,
+            bindings: model.settings.colorTagBindings,
+            policy: model.settings.colorTagMatchPolicy
+        )
+    }
+
+    private func quickCreateEventColor(for parsed: ParsedQuickAddEvent) -> CalendarEventColor? {
+        guard let colorId = quickCreateColorTagResolution(for: parsed)?.colorId else { return nil }
+        return CalendarEventColor.from(colorId: colorId)
+    }
+
+    private func quickCreateColorTint(_ color: CalendarEventColor) -> Color {
+        if let hex = color.hex { return Color(hex: hex) }
+        return AppColor.blue
+    }
+
+    private func quickCreateSummaryForSubmission(_ parsed: ParsedQuickAddEvent) -> String {
+        let raw = parsed.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let tag = quickCreateColorTagResolution(for: parsed)?.matchedTag else { return raw }
+        let stripped = ColorTagResolver.stripTag(tag, from: raw)
+        return stripped.isEmpty ? raw : stripped
     }
 
     private func createOrUpdateEvent(scope: AppModel.RecurringEventScope = .thisOccurrence) async {
@@ -1893,14 +1953,9 @@ struct CalendarSearchField: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(.quaternary.opacity(0.4))
         )
-        .background(
-            Button("Focus Search") { isFocused = true }
-                .hcbKeyboardShortcut(.calendarFocusSearch)
-                .opacity(0)
-                .hcbScaledFrame(width: 0, height: 0)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        )
+        .onReceive(NotificationCenter.default.publisher(for: .hcbFocusCalendarSearch)) { _ in
+            isFocused = true
+        }
     }
 }
 
@@ -2043,7 +2098,7 @@ struct AttendeeResponsesCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface(cornerRadius: 22)
+        .cardSurface(cornerRadius: 18)
     }
 
     private func tint(for status: AttendeeResponseStatus) -> Color {

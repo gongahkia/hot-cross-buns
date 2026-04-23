@@ -45,6 +45,19 @@ struct CustomFiltersSection: View {
                             Label("Delete", systemImage: "trash")
                         }
                     }
+                    .contextMenu {
+                        Button {
+                            editor = filter
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        Divider()
+                        Button(role: .destructive) {
+                            model.deleteCustomFilter(filter.id)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
                 }
             }
 
@@ -104,103 +117,129 @@ private struct CustomFilterEditor: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Filter") {
-                    TextField("Name", text: $draft.name)
-                    TextField("SF Symbol", text: $draft.systemImage)
-                        .font(.body.monospaced())
-                    Toggle("Pin to menu bar", isOn: $draft.pinnedToMenuBar)
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        SettingsSheetSection("Filter") {
+                            SettingsSheetRow("Name") {
+                                TextField("", text: $draft.name)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                            SettingsSheetRow("SF Symbol") {
+                                TextField("", text: $draft.systemImage)
+                                    .font(.body.monospaced())
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                            SettingsSheetRow("") {
+                                Toggle("Pin to menu bar", isOn: $draft.pinnedToMenuBar)
+                                    .toggleStyle(.checkbox)
+                            }
+                        }
+
                     if draft.pinnedToMenuBar {
                         Text("Appears as a section in the menu-bar popover with a match count and a short preview.")
                             .hcbFont(.caption2)
                             .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                }
 
-                Section {
-                    TextEditor(text: $queryText)
-                        .font(.body.monospaced())
-                        .frame(minHeight: 72)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .strokeBorder(borderColor, lineWidth: 0.5)
-                        )
-                    queryStatusRow
-                    DisclosureGroup("DSL cheatsheet") {
-                        VStack(alignment: .leading, spacing: 4) {
-                            cheat("title:bug",         "task title contains 'bug'")
-                            cheat("notes:\"grocery\"", "notes contain 'grocery' (quoted for spaces)")
-                            cheat("list:Work",         "task belongs to list matching 'Work' (by title or id)")
-                            cheat("tag:deep",          "task has #deep tag")
-                            cheat("#deep",             "same as tag:deep")
-                            cheat("completed",         "task is completed")
-                            cheat("overdue",           "due date is before today")
-                            cheat("has:notes",         "notes field non-empty")
-                            cheat("has:due",           "due date set")
-                            cheat("has:tag",           "any tag present")
-                            cheat("due:today",         "due today")
-                            cheat("due<+7d",           "due within the next 7 days")
-                            cheat("due>=2026-01-01",   "due on or after an absolute date")
-                            cheat("not completed",     "NOT completed")
-                            cheat("A AND B",           "both; whitespace also implies AND")
-                            cheat("A OR B",            "either")
-                            cheat("(A OR B) AND C",    "parentheses group precedence")
-                        }
-                        .hcbFont(.caption)
-                        .foregroundStyle(.secondary)
-                    }
-                    Text("When the query field is non-empty, the fields below are ignored. Invalid queries match nothing — your tasks aren't modified.")
-                        .hcbFont(.footnote)
-                        .foregroundStyle(.secondary)
-                } header: {
-                    Text("Query (advanced)")
-                }
-
-                Section {
-                    Picker("Due window", selection: $draft.dueWindow) {
-                        ForEach(DueWindow.allCases, id: \.self) { window in
-                            Text(window.title).tag(window)
-                        }
-                    }
-                    .disabled(usingDSL)
-                } header: {
-                    Text("Due")
-                }
-                Section {
-                    Toggle("Include completed", isOn: $draft.includeCompleted)
-                } header: {
-                    Text("Qualifiers")
-                } footer: {
-                    if usingDSL {
-                        Text("Disabled while the query field is non-empty.")
-                            .hcbFont(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .disabled(usingDSL)
-                Section("Lists (leave empty for all)") {
-                    ForEach(model.taskLists) { list in
-                        Toggle(list.title, isOn: Binding(
-                            get: { draft.taskListIDs.contains(list.id) },
-                            set: { isOn in
-                                if isOn { draft.taskListIDs.insert(list.id) }
-                                else { draft.taskListIDs.remove(list.id) }
+                        SettingsSheetSection("Query (advanced)") {
+                            TextEditor(text: $queryText)
+                                .font(.body.monospaced())
+                                .frame(minHeight: 120)
+                                .scrollContentBackground(.hidden)
+                                .background(AppColor.cardSurface)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .strokeBorder(borderColor, lineWidth: 0.5)
+                                )
+                            queryStatusRow
+                            DisclosureGroup("DSL cheatsheet") {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    cheat("title:bug",         "task title contains 'bug'")
+                                    cheat("notes:\"grocery\"", "notes contain 'grocery' (quoted for spaces)")
+                                    cheat("list:Work",         "task belongs to list matching 'Work' (by title or id)")
+                                    cheat("tag:deep",          "task has #deep tag")
+                                    cheat("#deep",             "same as tag:deep")
+                                    cheat("completed",         "task is completed")
+                                    cheat("overdue",           "due date is before today")
+                                    cheat("has:notes",         "notes field non-empty")
+                                    cheat("has:due",           "due date set")
+                                    cheat("has:tag",           "any tag present")
+                                    cheat("due:today",         "due today")
+                                    cheat("due<+7d",           "due within the next 7 days")
+                                    cheat("due>=2026-01-01",   "due on or after an absolute date")
+                                    cheat("not completed",     "NOT completed")
+                                    cheat("A AND B",           "both; whitespace also implies AND")
+                                    cheat("A OR B",            "either")
+                                    cheat("(A OR B) AND C",    "parentheses group precedence")
+                                }
+                                .hcbFont(.caption)
+                                .foregroundStyle(.secondary)
                             }
-                        ))
+                            Text("When the query field is non-empty, the fields below are ignored. Invalid queries match nothing — your tasks aren't modified.")
+                                .hcbFont(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        SettingsSheetSection("Due") {
+                            SettingsSheetRow("Due window") {
+                                Picker("", selection: $draft.dueWindow) {
+                                    ForEach(DueWindow.allCases, id: \.self) { window in
+                                        Text(window.title).tag(window)
+                                    }
+                                }
+                                .labelsHidden()
+                                .frame(maxWidth: 260, alignment: .leading)
+                            }
+                            .disabled(usingDSL)
+                        }
+
+                        SettingsSheetSection("Qualifiers") {
+                            Toggle("Include completed", isOn: $draft.includeCompleted)
+                                .toggleStyle(.checkbox)
+                        }
+                        .disabled(usingDSL)
+                        if usingDSL {
+                            Text("Structured fields are disabled while the query field is non-empty.")
+                                .hcbFont(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        SettingsSheetSection("Lists") {
+                            Text("Leave empty to match every list.")
+                                .hcbFont(.caption2)
+                                .foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(model.taskLists) { list in
+                                    Toggle(list.title, isOn: Binding(
+                                        get: { draft.taskListIDs.contains(list.id) },
+                                        set: { isOn in
+                                            if isOn { draft.taskListIDs.insert(list.id) }
+                                            else { draft.taskListIDs.remove(list.id) }
+                                        }
+                                    ))
+                                    .toggleStyle(.checkbox)
+                                }
+                            }
+                        }
+                        .disabled(usingDSL)
+
+                        SettingsSheetSection("Tags") {
+                            SettingsSheetRow("Any match") {
+                                TextField("#work #urgent", text: $tagsText)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                        }
+                        .disabled(usingDSL)
                     }
+                    .padding(24)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
-                .disabled(usingDSL)
-                Section("Tags (space-separated, any match)") {
-                    TextField("#work #urgent", text: $tagsText)
-                }
-                .disabled(usingDSL)
-            }
-            .navigationTitle("Filter")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: onCancel)
-                }
-                ToolbarItem(placement: .confirmationAction) {
+
+                Divider()
+
+                SettingsSheetActions(cancelTitle: "Cancel", onCancel: onCancel) {
                     Button("Save") {
                         var out = draft
                         out.tagsAny = tagsText
@@ -211,11 +250,14 @@ private struct CustomFilterEditor: View {
                         out.queryExpression = trimmedQuery.isEmpty ? nil : trimmedQuery
                         onSave(out)
                     }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
                     .disabled(saveDisabled)
                 }
             }
+            .navigationTitle("Filter")
         }
-        .hcbScaledFrame(minWidth: 520, minHeight: 560)
+        .frame(width: 720, height: 720)
     }
 
     private var usingDSL: Bool {
@@ -295,5 +337,74 @@ private struct CustomFilterEditor: View {
                 .foregroundStyle(.secondary)
             Spacer(minLength: 0)
         }
+    }
+}
+
+struct SettingsSheetSection<Content: View>: View {
+    private let title: String
+    @ViewBuilder private let content: Content
+
+    init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .hcbFont(.headline, weight: .semibold)
+                .foregroundStyle(AppColor.ink)
+            VStack(alignment: .leading, spacing: 10) {
+                content
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct SettingsSheetRow<Content: View>: View {
+    private let title: String
+    @ViewBuilder private let content: Content
+
+    init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Text(title)
+                .hcbFont(.body, weight: .semibold)
+                .foregroundStyle(title.isEmpty ? .clear : .secondary)
+                .frame(width: 150, alignment: .trailing)
+                .accessibilityHidden(title.isEmpty)
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct SettingsSheetActions<Content: View>: View {
+    let cancelTitle: String
+    let onCancel: () -> Void
+    @ViewBuilder let content: Content
+
+    init(cancelTitle: String, onCancel: @escaping () -> Void, @ViewBuilder content: () -> Content) {
+        self.cancelTitle = cancelTitle
+        self.onCancel = onCancel
+        self.content = content()
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Spacer()
+            Button(cancelTitle, action: onCancel)
+                .keyboardShortcut(.cancelAction)
+            content
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 16)
+        .background(.bar)
     }
 }

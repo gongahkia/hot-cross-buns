@@ -48,11 +48,12 @@ targets:
         excludes:
           - Support/Info-macOS.plist
           - Support/HotCrossBuns.entitlements
-    resources:
       - path: Resources
+        buildPhase: resources
     info:
       path: HotCrossBuns/Support/Info-macOS.plist
       properties:
+        CFBundleName: Hot Cross Buns
         CFBundleDisplayName: Hot Cross Buns
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)

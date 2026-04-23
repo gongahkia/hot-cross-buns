@@ -3,20 +3,22 @@ import SwiftUI
 
 // Top-level detached Settings window. Opened via the Settings scene in
 // HotCrossBunsApp.swift (⌘, auto-wired by macOS). Layout matches Apple
-// Calendar / Mail — a top tab bar with four categories, content below.
-// Each tab hosts a scrollable Form of the section views HCB already
-// ships. The main app sidebar no longer carries a Settings tab; all
-// preferences live here.
+// Calendar / Mail — a top tab bar with focused categories, content below.
+// Most tabs host a scrollable Form of the section views HCB already
+// ships; wider tool panes such as Hotkeys can use their own layout.
+// The main app sidebar no longer carries a Settings tab; all preferences
+// live here.
 struct HCBSettingsWindow: View {
     @Environment(AppModel.self) private var model
     private enum Tab: String, CaseIterable, Identifiable {
-        case general, appearance, alerts, advanced
+        case general, appearance, hotkeys, alerts, advanced
         var id: String { rawValue }
 
         var title: String {
             switch self {
             case .general: "General"
             case .appearance: "Appearance"
+            case .hotkeys: "Hotkeys"
             case .alerts: "Alerts"
             case .advanced: "Advanced"
             }
@@ -26,6 +28,7 @@ struct HCBSettingsWindow: View {
             switch self {
             case .general: "gearshape"
             case .appearance: "paintbrush"
+            case .hotkeys: "keyboard"
             case .alerts: "bell"
             case .advanced: "gearshape.2"
             }
@@ -39,45 +42,32 @@ struct HCBSettingsWindow: View {
 
     var body: some View {
         TabView(selection: $tab) {
-            ScrollView {
-                GeneralTab(
-                    isSyncDetailsPresented: $isSyncDetailsPresented,
-                    isDiagnosticsPresented: $isDiagnosticsPresented
-                )
-                .hcbScaledPadding(16)
-                .frame(maxWidth: .infinity, alignment: .top)
-            }
+            GeneralTab(
+                isSyncDetailsPresented: $isSyncDetailsPresented,
+                isDiagnosticsPresented: $isDiagnosticsPresented
+            )
             .tabItem { Label("General", systemImage: "gearshape") }
             .tag(Tab.general)
 
-            ScrollView {
-                AppearanceTab()
-                    .hcbScaledPadding(16)
-                    .frame(maxWidth: .infinity, alignment: .top)
-            }
+            AppearanceTab()
             .tabItem { Label("Appearance", systemImage: "paintbrush") }
             .tag(Tab.appearance)
 
-            ScrollView {
-                AlertsTab()
-                    .hcbScaledPadding(16)
-                    .frame(maxWidth: .infinity, alignment: .top)
-            }
+            HotkeysTab()
+            .tabItem { Label("Hotkeys", systemImage: "keyboard") }
+            .tag(Tab.hotkeys)
+
+            AlertsTab()
             .tabItem { Label("Alerts", systemImage: "bell") }
             .tag(Tab.alerts)
 
-            ScrollView {
-                AdvancedTab()
-                    .hcbScaledPadding(16)
-                    .frame(maxWidth: .infinity, alignment: .top)
-            }
+            AdvancedTab()
             .tabItem { Label("Advanced", systemImage: "gearshape.2") }
             .tag(Tab.advanced)
         }
-        // Apple Calendar's settings window sits around 540pt wide. Give
-        // the window a sensible default but allow the user to grow both
-        // dimensions via .contentMinSize in the scene.
-        .frame(minWidth: 540, idealWidth: 540, minHeight: 560, idealHeight: 560)
+        // Hotkeys needs a two-column settings surface, so the detached
+        // settings window gets a wider default while remaining resizable.
+        .frame(minWidth: 680, idealWidth: 820, minHeight: 560, idealHeight: 640)
         // The Settings scene is a separate SwiftUI Scene, so the
         // appearance environment applied in MacSidebarShell doesn't
         // carry through — re-apply here so the color scheme, dark/light
@@ -85,20 +75,20 @@ struct HCBSettingsWindow: View {
         .id(model.settings.colorSchemeID)
         .withHCBAppearance(model.settings)
         .environment(\.hcbShortcutOverrides, model.settings.shortcutOverrides)
-        .preferredColorScheme(HCBColorScheme.scheme(id: model.settings.colorSchemeID)?.isDark == true ? .dark : .light)
+        .hcbPreferredColorScheme(model.settings)
         .appBackground()
         .navigationTitle(tab.title)
         .sheet(isPresented: $isSyncDetailsPresented) {
             SyncSettingsSheet()
                 .environment(model)
                 .withHCBAppearance(model.settings)
-                .preferredColorScheme(HCBColorScheme.scheme(id: model.settings.colorSchemeID)?.isDark == true ? .dark : .light)
+                .hcbPreferredColorScheme(model.settings)
         }
         .sheet(isPresented: $isDiagnosticsPresented) {
             DiagnosticsView()
                 .environment(model)
                 .withHCBAppearance(model.settings)
-                .preferredColorScheme(HCBColorScheme.scheme(id: model.settings.colorSchemeID)?.isDark == true ? .dark : .light)
+                .hcbPreferredColorScheme(model.settings)
         }
     }
 
@@ -203,7 +193,6 @@ private struct GeneralTab: View {
             }
         }
         .formStyle(.grouped)
-        .scrollDisabled(true)
     }
 
     private var syncModeBinding: Binding<SyncMode> {
@@ -225,16 +214,22 @@ private struct GeneralTab: View {
 
 private struct AppearanceTab: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            // Existing section structs use SwiftUI `Section` blocks;
-            // wrap in Form so macOS picks the right grouped style.
-            Form {
-                AppearanceSection()
-                PerSurfaceFontSection()
-                LayoutSection()
-            }
-            .formStyle(.grouped)
-            .scrollDisabled(true)
+        Form {
+            AppearanceSection()
+            PerSurfaceFontSection()
+            LayoutSection()
+        }
+        .formStyle(.grouped)
+    }
+}
+
+// MARK: - Hotkeys tab
+
+private struct HotkeysTab: View {
+    var body: some View {
+        ScrollView {
+            KeybindingsSection()
+                .hcbScaledPadding(20)
         }
     }
 }
@@ -275,7 +270,6 @@ private struct AlertsTab: View {
             }
         }
         .formStyle(.grouped)
-        .scrollDisabled(true)
         .alert("Local reminders enabled", isPresented: $showLocalNotificationsInfo) {
             Button("OK") { showLocalNotificationsInfo = false }
         } message: {
@@ -411,7 +405,6 @@ private struct AdvancedTab: View {
                 }
             }
 
-            KeybindingsSection()
             EncryptionSection()
             HistorySection()
             CustomFiltersSection()
@@ -419,7 +412,6 @@ private struct AdvancedTab: View {
             UpdatesSection()
         }
         .formStyle(.grouped)
-        .scrollDisabled(true)
     }
 
     private func calendarBinding(_ id: CalendarListMirror.ID) -> Binding<Bool> {

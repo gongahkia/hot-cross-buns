@@ -22,16 +22,15 @@ enum AppColor {
 struct AppBackground: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .scrollContentBackground(.hidden)
             .background {
-                AppColor.cream
+                Color(nsColor: .windowBackgroundColor)
                     .ignoresSafeArea()
             }
     }
 }
 
 struct CardSurface: ViewModifier {
-    var cornerRadius: CGFloat = 28
+    var cornerRadius: CGFloat = 18
 
     func body(content: Content) -> some View {
         content
@@ -49,7 +48,7 @@ extension View {
         modifier(AppBackground())
     }
 
-    func cardSurface(cornerRadius: CGFloat = 28) -> some View {
+    func cardSurface(cornerRadius: CGFloat = 18) -> some View {
         modifier(CardSurface(cornerRadius: cornerRadius))
     }
 }

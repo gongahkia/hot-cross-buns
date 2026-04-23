@@ -109,9 +109,9 @@ struct QuickAddView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            Image(systemName: noteMode ? "note.text.badge.plus" : "sparkles")
+            Image(systemName: noteMode ? "note.text.badge.plus" : "checklist")
                 .foregroundStyle(AppColor.ember)
-            Text(noteMode ? "Smart Add Note" : "Smart Add Task")
+            Text(noteMode ? "New Note" : "New Task")
                 .hcbFont(.headline)
             Spacer(minLength: 0)
             Text("Return to add, Esc to cancel")

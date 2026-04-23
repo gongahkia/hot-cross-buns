@@ -1,6 +1,375 @@
 import AppKit
 import SwiftUI
 
+extension View {
+    func hcbMenuBarStatusController(_ controller: HCBMenuBarStatusController, model: AppModel) -> some View {
+        background(HCBMenuBarStatusControllerHost(controller: controller, model: model))
+    }
+}
+
+private struct HCBMenuBarStatusControllerHost: View {
+    let controller: HCBMenuBarStatusController
+    let model: AppModel
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+            .onAppear { controller.configure(model: model) }
+            .onChange(of: model.settings.showMenuBarExtra) { _, _ in
+                controller.configure(model: model)
+            }
+            .onChange(of: model.settings.menuBarStyle) { _, _ in
+                controller.configure(model: model)
+            }
+            .onChange(of: model.settings.colorSchemeID) { _, _ in
+                controller.configure(model: model)
+            }
+            .onChange(of: model.dataRevision) { _, _ in
+                controller.refreshContent()
+            }
+    }
+}
+
+@MainActor
+final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelegate {
+    private weak var model: AppModel?
+    private var statusItem: NSStatusItem?
+    private var panel: HCBMenuBarPanelWindow?
+    private var hostingController: NSHostingController<AnyView>?
+    private var isPinned = false
+
+    func configure(model: AppModel) {
+        self.model = model
+        if model.settings.showMenuBarExtra {
+            installStatusItemIfNeeded()
+            refreshContent()
+        } else {
+            uninstallStatusItem()
+        }
+    }
+
+    func refreshContent() {
+        guard let model, statusItem != nil else { return }
+        let root = AnyView(
+            MenuBarExtraContent()
+                .environment(model)
+        )
+
+        if let hostingController {
+            hostingController.rootView = root
+        } else {
+            let hostingController = NSHostingController(rootView: root)
+            hostingController.view.wantsLayer = true
+            hostingController.view.layer?.backgroundColor = NSColor.clear.cgColor
+            self.hostingController = hostingController
+        }
+
+        if panel?.isVisible == true {
+            resizePanelToFitContent()
+            positionPanel()
+        }
+    }
+
+    private func installStatusItemIfNeeded() {
+        guard statusItem == nil else { return }
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        item.autosaveName = "HotCrossBunsStatusItem"
+        item.button?.target = self
+        item.button?.action = #selector(statusItemClicked(_:))
+        item.button?.sendAction(on: [.leftMouseDown, .rightMouseDown])
+        item.button?.image = statusImage()
+        item.button?.imagePosition = .imageOnly
+        item.button?.imageScaling = .scaleProportionallyDown
+        item.button?.setAccessibilityLabel("Hot Cross Buns")
+        statusItem = item
+    }
+
+    private func uninstallStatusItem() {
+        hidePanel()
+        if let statusItem {
+            NSStatusBar.system.removeStatusItem(statusItem)
+        }
+        statusItem = nil
+        hostingController = nil
+    }
+
+    private func statusImage() -> NSImage? {
+        guard let image = NSImage(named: "MenuBarIcon")
+            ?? NSImage(systemSymbolName: "calendar", accessibilityDescription: "Hot Cross Buns")
+        else { return nil }
+
+        image.isTemplate = true
+        image.size = NSSize(width: 18, height: 18)
+        return image
+    }
+
+    @objc private func statusItemClicked(_ sender: Any?) {
+        if NSApp.currentEvent?.type == .rightMouseDown {
+            showContextMenu()
+            return
+        }
+
+        if panel?.isVisible == true {
+            hidePanel()
+        } else {
+            showPanel()
+        }
+    }
+
+    private func showPanel() {
+        guard statusItem?.button != nil else { return }
+        refreshContent()
+        guard let hostingView = hostingController?.view else { return }
+
+        let panel = panel ?? HCBMenuBarPanelWindow()
+        panel.delegate = self
+        panel.setHostedView(hostingView)
+        self.panel = panel
+
+        resizePanelToFitContent()
+        positionPanel()
+        NSApp.unhideWithoutActivation()
+        panel.makeKeyAndOrderFront(nil)
+    }
+
+    private func hidePanel() {
+        panel?.orderOut(nil)
+    }
+
+    private func resizePanelToFitContent() {
+        guard let panel, let hostingView = hostingController?.view else { return }
+        hostingView.layoutSubtreeIfNeeded()
+        var fitting = hostingView.fittingSize
+        if fitting.width <= 1 { fitting.width = 320 }
+        if fitting.height <= 1 { fitting.height = 360 }
+
+        let screen = statusItemScreen()
+        let maxHeight = max(240, screen.visibleFrame.height - 48)
+        let contentSize = NSSize(
+            width: min(max(fitting.width, 300), 420),
+            height: min(max(fitting.height, 80), maxHeight)
+        )
+        panel.setContentBodySize(contentSize)
+    }
+
+    private func positionPanel() {
+        guard let panel, let button = statusItem?.button, let buttonWindow = button.window else { return }
+        var statusFrame = buttonWindow.convertToScreen(button.frame)
+        let screen = statusItemScreen()
+
+        statusFrame.origin.y = min(statusFrame.origin.y, screen.frame.maxY)
+        panel.position(relativeTo: statusFrame, in: screen)
+    }
+
+    private func statusItemScreen() -> NSScreen {
+        guard let button = statusItem?.button, let window = button.window else {
+            return NSScreen.main ?? NSScreen.screens.first!
+        }
+
+        let frame = window.convertToScreen(button.frame)
+        var testPoint = frame.origin
+        testPoint.y -= 100
+        return NSScreen.screens.first(where: { $0.frame.contains(testPoint) })
+            ?? window.screen
+            ?? NSScreen.main
+            ?? NSScreen.screens.first
+            ?? NSScreen.screens[0]
+    }
+
+    private func showContextMenu() {
+        guard let button = statusItem?.button else { return }
+        let menu = NSMenu()
+        menu.delegate = self
+
+        let openItem = menu.addItem(withTitle: "Open Hot Cross Buns", action: #selector(openMainWindow), keyEquivalent: "")
+        openItem.target = self
+
+        let settingsItem = menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: "")
+        settingsItem.target = self
+
+        let refreshItem = menu.addItem(withTitle: "Refresh", action: #selector(refresh), keyEquivalent: "")
+        refreshItem.target = self
+        refreshItem.isEnabled = model?.account != nil
+
+        menu.addItem(.separator())
+
+        let pinItem = menu.addItem(withTitle: "Keep Panel Open", action: #selector(togglePin), keyEquivalent: "")
+        pinItem.target = self
+        pinItem.state = isPinned ? .on : .off
+
+        menu.addItem(.separator())
+
+        let quitItem = menu.addItem(withTitle: "Quit Hot Cross Buns", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
+        quitItem.target = NSApp
+
+        if let event = NSApp.currentEvent {
+            NSMenu.popUpContextMenu(menu, with: event, for: button)
+        } else {
+            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY), in: button)
+        }
+    }
+
+    @objc private func openMainWindow() {
+        hidePanel()
+        NSApp.activate(ignoringOtherApps: true)
+        if let window = NSApp.windows.first(where: { $0.canBecomeMain }) {
+            window.makeKeyAndOrderFront(nil)
+        }
+    }
+
+    @objc private func openSettings() {
+        hidePanel()
+        NSApp.activate(ignoringOtherApps: true)
+        if NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) == false {
+            NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+        }
+    }
+
+    @objc private func refresh() {
+        guard let model else { return }
+        Task { await model.refreshNow() }
+    }
+
+    @objc private func togglePin() {
+        isPinned.toggle()
+    }
+
+    func windowDidResignKey(_ notification: Notification) {
+        guard isPinned == false else { return }
+        hidePanel()
+    }
+
+    func windowDidResize(_ notification: Notification) {
+        positionPanel()
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        statusItem?.menu = nil
+    }
+}
+
+private final class HCBMenuBarPanelWindow: NSPanel {
+    private let frameView = HCBMenuBarPanelFrameView()
+
+    init() {
+        super.init(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 420),
+            styleMask: [.nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        backgroundColor = .clear
+        isOpaque = false
+        hasShadow = true
+        level = .mainMenu
+        collectionBehavior = [.moveToActiveSpace, .transient]
+        animationBehavior = .utilityWindow
+        isMovableByWindowBackground = false
+        super.contentView = frameView
+    }
+
+    override var canBecomeMain: Bool { false }
+    override var canBecomeKey: Bool { true }
+
+    func setHostedView(_ hostedView: NSView) {
+        frameView.setHostedView(hostedView)
+    }
+
+    func setContentBodySize(_ contentSize: NSSize) {
+        let frameSize = frameView.outerSize(for: contentSize)
+        setFrame(NSRect(origin: frame.origin, size: frameSize), display: true)
+    }
+
+    func position(relativeTo statusFrame: NSRect, in screen: NSScreen) {
+        let screenMaxX = screen.frame.maxX
+        let margin: CGFloat = 10
+        var x = round(statusFrame.midX - frame.width / 2)
+        let y = statusFrame.minY - 2
+        if x + frame.width + margin > screenMaxX {
+            x = screenMaxX - frame.width - margin
+        }
+        x = max(screen.frame.minX + margin, x)
+
+        setFrameTopLeftPoint(NSPoint(x: x, y: y))
+        frameView.arrowMidX = statusFrame.midX - frame.minX
+        frameView.needsDisplay = true
+        invalidateShadow()
+    }
+
+    override func cancelOperation(_ sender: Any?) {
+        orderOut(nil)
+    }
+}
+
+private final class HCBMenuBarPanelFrameView: NSView {
+    var arrowMidX: CGFloat = 0
+
+    private let arrowHeight: CGFloat = 8
+    private let cornerRadius: CGFloat = 10
+    private let borderWidth: CGFloat = 1
+    private let sideInset: CGFloat = 1
+    private let bottomInset: CGFloat = 1
+    private var topInset: CGFloat { arrowHeight + borderWidth + 3 }
+    private weak var hostedView: NSView?
+
+    func outerSize(for contentSize: NSSize) -> NSSize {
+        NSSize(
+            width: contentSize.width + sideInset * 2,
+            height: contentSize.height + topInset + bottomInset
+        )
+    }
+
+    func setHostedView(_ view: NSView) {
+        guard hostedView !== view else { return }
+        hostedView?.removeFromSuperview()
+        hostedView = view
+        view.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(view)
+        NSLayoutConstraint.activate([
+            view.leadingAnchor.constraint(equalTo: leadingAnchor, constant: sideInset),
+            view.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -sideInset),
+            view.topAnchor.constraint(equalTo: topAnchor, constant: topInset),
+            view.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -bottomInset)
+        ])
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.clear.setFill()
+        dirtyRect.fill()
+
+        let bodyRect = NSRect(
+            x: borderWidth,
+            y: borderWidth,
+            width: bounds.width - borderWidth * 2,
+            height: bounds.height - arrowHeight - borderWidth * 2
+        )
+
+        let path = NSBezierPath(roundedRect: bodyRect, xRadius: cornerRadius, yRadius: cornerRadius)
+        let clampedArrowMidX = min(max(arrowMidX, bodyRect.minX + cornerRadius + arrowHeight), bodyRect.maxX - cornerRadius - arrowHeight)
+        let arrowBaseY = bodyRect.maxY - 1
+        let arrow = NSBezierPath()
+        arrow.move(to: NSPoint(x: clampedArrowMidX - arrowHeight, y: arrowBaseY))
+        arrow.curve(
+            to: NSPoint(x: clampedArrowMidX, y: arrowBaseY + arrowHeight),
+            controlPoint1: NSPoint(x: clampedArrowMidX - 4, y: arrowBaseY),
+            controlPoint2: NSPoint(x: clampedArrowMidX - 4, y: arrowBaseY + arrowHeight)
+        )
+        arrow.curve(
+            to: NSPoint(x: clampedArrowMidX + arrowHeight, y: arrowBaseY),
+            controlPoint1: NSPoint(x: clampedArrowMidX + 4, y: arrowBaseY + arrowHeight),
+            controlPoint2: NSPoint(x: clampedArrowMidX + 4, y: arrowBaseY)
+        )
+        path.append(arrow)
+
+        NSColor.windowBackgroundColor.withAlphaComponent(0.98).setFill()
+        path.fill()
+        NSColor.separatorColor.withAlphaComponent(0.65).setStroke()
+        path.lineWidth = borderWidth
+        path.stroke()
+    }
+}
+
 struct MenuBarExtraContent: View {
     @Environment(AppModel.self) private var model
 
@@ -9,7 +378,6 @@ struct MenuBarExtraContent: View {
             switch model.settings.menuBarStyle {
             case .detailed: DetailedMenuBarPanel()
             case .weekly: WeeklyMenuBarPanel()
-            case .focusStrip: FocusStripMenuBarPanel()
             case .compact: CompactMenuBarPanel()
             }
         }
@@ -35,56 +403,13 @@ private extension AppModel {
     }
 }
 
-private struct CompactMenuBarPanel: View {
-    @Environment(AppModel.self) private var model
-
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("Hot Cross Buns")
-                .hcbFont(.headline)
-            Spacer()
-            Text(model.syncState.title)
-                .hcbFont(.caption, weight: .medium)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-            overview
-            MenuBarPinnedFilters()
-            MenuBarQuickAddRow()
-            Divider()
-            MenuBarQuickActions()
-        }
-        .hcbScaledPadding(14)
-        .hcbScaledFrame(width: 320)
-    }
-
-    private var overview: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            StatusLine(label: "Due today", value: "\(model.todaySnapshot.dueTasks.count)")
-            StatusLine(label: "Overdue", value: "\(model.todaySnapshot.overdueCount)")
-            StatusLine(label: "Events today", value: "\(model.todaySnapshot.scheduledEvents.count)")
-            if let lastSync = model.lastSuccessfulSyncAt {
-                StatusLine(label: "Last sync", value: lastSync.formatted(date: .omitted, time: .shortened))
-            } else {
-                StatusLine(label: "Last sync", value: "Never")
-            }
-        }
-    }
-}
-
 private struct DetailedMenuBarPanel: View {
     @Environment(AppModel.self) private var model
     @State private var selectedDay = Calendar.current.startOfDay(for: Date())
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            DatePicker("", selection: $selectedDay, displayedComponents: [.date])
-                .datePickerStyle(.graphical)
-                .labelsHidden()
+            MenuBarMonthCalendar(selectedDay: $selectedDay)
             Divider()
             selectedDayHeader
             agenda
@@ -197,7 +522,7 @@ private struct DetailedMenuBarPanel: View {
 
 }
 
-private struct FocusStripMenuBarPanel: View {
+private struct CompactMenuBarPanel: View {
     @Environment(AppModel.self) private var model
     @State private var completingTaskIDs: Set<TaskMirror.ID> = []
 
@@ -265,7 +590,7 @@ private struct FocusStripMenuBarPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Focus strip")
+                Text("Compact")
                     .hcbFont(.headline)
                 Spacer()
                 Text(model.syncState.title)
@@ -675,6 +1000,130 @@ private struct MenuBarQuickActions: View {
         if let window = NSApp.windows.first(where: { $0.canBecomeMain }) {
             window.makeKeyAndOrderFront(nil)
         }
+    }
+}
+
+private struct MenuBarMonthCalendar: View {
+    @Binding var selectedDay: Date
+    @State private var displayedMonth: Date = Calendar.current.startOfDay(for: Date())
+
+    private let calendar = Calendar.current
+    private let columns = Array(repeating: GridItem(.flexible(minimum: 28), spacing: 4), count: 7)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            header
+            weekdayHeader
+            LazyVGrid(columns: columns, spacing: 4) {
+                ForEach(monthDays, id: \.self) { day in
+                    dayButton(day)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear { displayedMonth = calendar.startOfMonth(for: selectedDay) }
+        .onChange(of: selectedDay) { _, newValue in
+            if calendar.isDate(newValue, equalTo: displayedMonth, toGranularity: .month) == false {
+                displayedMonth = calendar.startOfMonth(for: newValue)
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 8) {
+            Text(displayedMonth.formatted(.dateTime.month(.wide).year()))
+                .hcbFont(.headline)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+            Button {
+                shiftMonth(by: -1)
+            } label: {
+                Image(systemName: "chevron.left")
+                    .frame(width: 20, height: 20)
+            }
+            .help("Previous month")
+            Button {
+                let today = calendar.startOfDay(for: Date())
+                selectedDay = today
+                displayedMonth = calendar.startOfMonth(for: today)
+            } label: {
+                Image(systemName: "circle.fill")
+                    .font(.system(size: 7, weight: .semibold))
+                    .frame(width: 20, height: 20)
+            }
+            .help("Today")
+            Button {
+                shiftMonth(by: 1)
+            } label: {
+                Image(systemName: "chevron.right")
+                    .frame(width: 20, height: 20)
+            }
+            .help("Next month")
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+    }
+
+    private var weekdayHeader: some View {
+        LazyVGrid(columns: columns, spacing: 4) {
+            ForEach(weekdaySymbols, id: \.self) { symbol in
+                Text(symbol)
+                    .hcbFont(.caption, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private var weekdaySymbols: [String] {
+        let symbols = calendar.shortWeekdaySymbols
+        let offset = max(calendar.firstWeekday - 1, 0)
+        return Array(symbols[offset...]) + Array(symbols[..<offset])
+    }
+
+    private var monthDays: [Date] {
+        let monthStart = calendar.startOfMonth(for: displayedMonth)
+        let firstWeekdayOffset = (calendar.component(.weekday, from: monthStart) - calendar.firstWeekday + 7) % 7
+        let gridStart = calendar.date(byAdding: .day, value: -firstWeekdayOffset, to: monthStart) ?? monthStart
+        return (0..<42).compactMap { calendar.date(byAdding: .day, value: $0, to: gridStart) }
+    }
+
+    private func dayButton(_ day: Date) -> some View {
+        let isDisplayedMonth = calendar.isDate(day, equalTo: displayedMonth, toGranularity: .month)
+        let isSelected = calendar.isDate(day, inSameDayAs: selectedDay)
+        let isToday = calendar.isDateInToday(day)
+
+        return Button {
+            selectedDay = calendar.startOfDay(for: day)
+            displayedMonth = calendar.startOfMonth(for: day)
+        } label: {
+            Text("\(calendar.component(.day, from: day))")
+                .font(.body.monospacedDigit().weight(isToday || isSelected ? .semibold : .regular))
+                .foregroundStyle(dayForeground(isDisplayedMonth: isDisplayedMonth, isSelected: isSelected))
+                .frame(maxWidth: .infinity, minHeight: 26)
+                .background {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(isSelected ? AppColor.blue.opacity(0.95) : isToday ? AppColor.blue.opacity(0.18) : Color.clear)
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(day.formatted(.dateTime.weekday(.wide).month(.wide).day().year()))
+    }
+
+    private func dayForeground(isDisplayedMonth: Bool, isSelected: Bool) -> Color {
+        if isSelected { return .white }
+        return isDisplayedMonth ? AppColor.ink : .secondary.opacity(0.45)
+    }
+
+    private func shiftMonth(by value: Int) {
+        displayedMonth = calendar.date(byAdding: .month, value: value, to: displayedMonth) ?? displayedMonth
+    }
+}
+
+private extension Calendar {
+    func startOfMonth(for date: Date) -> Date {
+        self.date(from: dateComponents([.year, .month], from: date)) ?? startOfDay(for: date)
     }
 }
 

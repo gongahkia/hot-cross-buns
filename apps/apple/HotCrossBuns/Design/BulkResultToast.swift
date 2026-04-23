@@ -23,7 +23,7 @@ struct BulkResultToast: View {
                     }
             }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: message)
+        .animation(.easeOut(duration: 0.16), value: message)
         .allowsHitTesting(message != nil)
     }
 

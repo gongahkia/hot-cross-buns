@@ -28,6 +28,11 @@ struct WeekGridView: View {
     private let hourHeight: CGFloat = 44
     private let hourStart = 0
     private let hourEnd = 24
+    private let allDayLaneHeight: CGFloat = 22
+    private let allDayVisibleLimit = 3
+    private let taskVisibleLimit = 3
+    private let taskRowHeight: CGFloat = 24
+    private let taskRowSpacing: CGFloat = 2
     private let calendar = Calendar.current
 
     @State private var allDayDrag: WeekDaySelection?
@@ -113,7 +118,7 @@ struct WeekGridView: View {
         var base: [CalendarEventMirror] = []
         for cal in model.calendarSnapshot.selectedCalendars {
             if let bucket = model.eventsByCalendar[cal.id] {
-                base.append(contentsOf: bucket)
+                base.append(contentsOf: bucket.compactMap { model.event(id: $0) })
             }
         }
         let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -125,18 +130,6 @@ struct WeekGridView: View {
         }
     }
 
-    private var visibleTasks: [TaskMirror] {
-        let visibleLists: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
-            ? model.settings.selectedTaskListIDs
-            : Set(model.taskLists.map(\.id))
-        return model.tasks.filter { task in
-            task.isDeleted == false
-                && task.isCompleted == false
-                && visibleLists.contains(task.taskListID)
-                && task.dueDate != nil
-        }
-    }
-
     private func tasksForDay(_ day: Date) -> [TaskMirror] {
         let dayStart = calendar.startOfDay(for: day)
         let key = dayStart.timeIntervalSinceReferenceDate
@@ -145,7 +138,7 @@ struct WeekGridView: View {
         let visibleLists = model.settings.hasConfiguredTaskListSelection
             ? model.settings.selectedTaskListIDs
             : Set(model.taskLists.map(\.id))
-        let bucket = model.tasksByDueDate[key] ?? []
+        let bucket = (model.tasksByDueDate[key] ?? []).compactMap { model.task(id: $0) }
         return bucket
             .filter { visibleLists.contains($0.taskListID) }
             .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
@@ -218,7 +211,8 @@ struct WeekGridView: View {
             let clampedEnd = min(eventEnd, weekEndDay)
             let startIdx = calendar.dateComponents([.day], from: weekStartDay, to: clampedStart).day ?? 0
             let endIdx = calendar.dateComponents([.day], from: weekStartDay, to: clampedEnd).day ?? 0
-            return (event, max(0, min(6, startIdx)), max(0, min(6, endIdx)))
+            let lastColumn = max(weekDays.count - 1, 0)
+            return (event, max(0, min(lastColumn, startIdx)), max(0, min(lastColumn, endIdx)))
         }
 
         // Lane assignment: sort by start column, then place each span into the
@@ -254,7 +248,12 @@ struct WeekGridView: View {
     private var allDayStrip: some View {
         let spans = cachedAllDaySpans
         let laneCount = (spans.map(\.laneIndex).max() ?? -1) + 1
-        let stripHeight = max(CGFloat(min(laneCount, 3)) * 22, 22)
+        let visibleLaneCount = min(laneCount, allDayVisibleLimit)
+        let hasOverflow = laneCount > allDayVisibleLimit
+        let rowCount = max(visibleLaneCount + (hasOverflow ? 1 : 0), 1)
+        let stripHeight = CGFloat(rowCount) * allDayLaneHeight
+        let visibleSpans = spans.filter { $0.laneIndex < allDayVisibleLimit }
+        let allDayByDay = allDayEventsByDay()
         // Captured outside GeometryReader so DragGesture closures see a
         // reliable router reference (custom-EnvironmentKey reads inside
         // GeometryReader closures have shown propagation gaps).
@@ -286,8 +285,27 @@ struct WeekGridView: View {
                             .offset(x: left + 2, y: 2)
                             .allowsHitTesting(false)
                     }
-                    ForEach(spans) { span in
+                    ForEach(visibleSpans) { span in
                         allDaySpanTile(span, columnWidth: columnWidth, laneHeight: laneHeight)
+                    }
+                    ForEach(Array(weekDays.enumerated()), id: \.offset) { idx, day in
+                        let dayStart = calendar.startOfDay(for: day)
+                        let events = allDayByDay[dayStart] ?? []
+                        let hiddenCount = hiddenAllDaySpanCount(onColumn: idx, spans: spans)
+                        if hiddenCount > 0 {
+                            MonthMoreButton(
+                                count: hiddenCount,
+                                day: dayStart,
+                                events: events,
+                                tasks: [],
+                                calendarColor: calendarColor(for:)
+                            )
+                            .frame(width: max(columnWidth - 4, 20), height: laneHeight - 4, alignment: .leading)
+                            .offset(
+                                x: CGFloat(idx) * columnWidth + 2,
+                                y: CGFloat(visibleLaneCount) * laneHeight + 2
+                            )
+                        }
                     }
                 }
                 .contentShape(Rectangle())
@@ -310,13 +328,44 @@ struct WeekGridView: View {
                 )
             }
             .frame(height: stripHeight)
+            .clipped()
         }
+        .frame(minHeight: stripHeight, idealHeight: stripHeight, maxHeight: stripHeight)
+        .clipped()
         .hcbScaledPadding(.vertical, 4)
+    }
+
+    private func hiddenAllDaySpanCount(onColumn column: Int, spans: [AllDaySpan]) -> Int {
+        spans.filter { span in
+            span.laneIndex >= allDayVisibleLimit
+                && column >= span.startColumn
+                && column <= span.endColumn
+        }.count
+    }
+
+    private func allDayEventsByDay() -> [Date: [CalendarEventMirror]] {
+        var result: [Date: [CalendarEventMirror]] = [:]
+        for day in weekDays {
+            let dayStart = calendar.startOfDay(for: day)
+            result[dayStart] = visibleEvents
+                .filter { event in
+                    guard event.isAllDay else { return false }
+                    let eventStart = calendar.startOfDay(for: event.startDate)
+                    let eventEnd = CalendarGridLayout.eventEndDay(event: event, calendar: calendar)
+                    return eventStart <= dayStart && eventEnd >= dayStart
+                }
+                .sorted { lhs, rhs in
+                    if lhs.startDate != rhs.startDate { return lhs.startDate < rhs.startDate }
+                    return lhs.summary.localizedCaseInsensitiveCompare(rhs.summary) == .orderedAscending
+                }
+        }
+        return result
     }
 
     private func columnIndex(for x: CGFloat, columnWidth: CGFloat) -> Int {
         guard columnWidth > 0 else { return 0 }
-        return max(0, min(6, Int(x / columnWidth)))
+        let lastColumn = max(weekDays.count - 1, 0)
+        return max(0, min(lastColumn, Int(x / columnWidth)))
     }
 
     private func allDaySpanTile(_ span: AllDaySpan, columnWidth: CGFloat, laneHeight: CGFloat) -> some View {
@@ -389,6 +438,11 @@ struct WeekGridView: View {
             (calendar.startOfDay(for: day), tasksForDay(day))
         })
         let maxLanes = tasksByDay.values.map(\.count).max() ?? 0
+        let visibleRows = min(maxLanes, taskVisibleLimit)
+        let overflowRow = maxLanes > taskVisibleLimit ? 1 : 0
+        let rowCount = visibleRows + overflowRow
+        let stripHeight = CGFloat(rowCount) * taskRowHeight
+            + CGFloat(max(rowCount - 1, 0)) * taskRowSpacing
         return Group {
             if maxLanes == 0 {
                 EmptyView()
@@ -403,8 +457,8 @@ struct WeekGridView: View {
                         let columnWidth = geo.size.width / CGFloat(max(weekDays.count, 1))
                         ZStack(alignment: .topLeading) {
                             ForEach(Array(weekDays.enumerated()), id: \.offset) { idx, day in
-                                VStack(alignment: .leading, spacing: 2) {
-                                    ForEach((tasksByDay[calendar.startOfDay(for: day)] ?? []).prefix(3)) { task in
+                                VStack(alignment: .leading, spacing: taskRowSpacing) {
+                                    ForEach((tasksByDay[calendar.startOfDay(for: day)] ?? []).prefix(taskVisibleLimit)) { task in
                                         HStack(spacing: 4) {
                                             CalendarTaskCheckbox(task: task, size: 10)
                                             CalendarTaskPreviewButton(task: task) {
@@ -415,8 +469,8 @@ struct WeekGridView: View {
                                                     .contentShape(Rectangle())
                                             }
                                         }
-                                        .hcbScaledPadding(.horizontal, 6)
-                                        .hcbScaledPadding(.vertical, 3)
+                                        .padding(.horizontal, 6)
+                                        .frame(height: taskRowHeight)
                                         .background(
                                             RoundedRectangle(cornerRadius: 5)
                                                 .fill(AppColor.ember.opacity(0.15))
@@ -430,21 +484,29 @@ struct WeekGridView: View {
                                         .opacity(task.isCompleted ? 0.55 : 1.0)
                                         .accessibilityLabel("Task due \(day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())): \(task.title)")
                                     }
-                                    if let count = tasksByDay[calendar.startOfDay(for: day)]?.count, count > 3 {
-                                        Text("+\(count - 3) more")
-                                            .hcbFont(.caption2)
-                                            .foregroundStyle(.secondary)
-                                            .hcbScaledPadding(.leading, 4)
+                                    let dayStart = calendar.startOfDay(for: day)
+                                    if let tasks = tasksByDay[dayStart], tasks.count > taskVisibleLimit {
+                                        MonthMoreButton(
+                                            count: tasks.count - taskVisibleLimit,
+                                            day: dayStart,
+                                            events: [],
+                                            tasks: tasks,
+                                            calendarColor: calendarColor(for:)
+                                        )
+                                        .frame(height: taskRowHeight, alignment: .leading)
                                     }
                                 }
                                 .hcbScaledPadding(.horizontal, 2)
-                                .frame(width: columnWidth, alignment: .leading)
+                                .frame(width: columnWidth, height: stripHeight, alignment: .topLeading)
                                 .offset(x: CGFloat(idx) * columnWidth)
                             }
                         }
                     }
-                    .frame(height: CGFloat(min(maxLanes, 3)) * 22)
+                    .frame(height: stripHeight)
+                    .clipped()
                 }
+                .frame(minHeight: stripHeight, idealHeight: stripHeight, maxHeight: stripHeight)
+                .clipped()
                 .hcbScaledPadding(.vertical, 4)
             }
         }
@@ -774,6 +836,8 @@ struct WeekGridView: View {
         let height = CGFloat(durationMinutes) * (hourHeight / 60)
         let slotWidth = columnWidth / CGFloat(placed.columnCount)
         let xOffsetWithinDay = CGFloat(placed.columnIndex) * slotWidth
+        let tileWidth = max(slotWidth - 2, 1)
+        let tileHeight = max(height - 2, 1)
         let fill = calendarColor(for: placed.event)
         let fullDurationMinutes = Int(max(placed.event.endDate.timeIntervalSince(placed.event.startDate) / 60, 15))
 
@@ -781,16 +845,18 @@ struct WeekGridView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(placed.event.summary)
                     .hcbFont(.caption, weight: .semibold)
-                    .lineLimit(2)
+                    .lineLimit(height > 38 ? 2 : 1)
                 if height > 34 {
                     Text("\(placed.event.startDate.formatted(.dateTime.hour().minute())) – \(placed.event.endDate.formatted(.dateTime.hour().minute()))")
                         .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
             }
             .hcbScaledPadding(.horizontal, 6)
             .hcbScaledPadding(.vertical, 4)
-            .frame(width: slotWidth - 2, height: height - 2, alignment: .topLeading)
+            .frame(width: tileWidth, height: tileHeight, alignment: .topLeading)
+            .clipped()
             .background(
                 RoundedRectangle(cornerRadius: 6)
                     .fill(fill.opacity(0.2))
@@ -804,7 +870,7 @@ struct WeekGridView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 6)
                 .strokeBorder(selectedEventIDs.contains(placed.event.id) ? AppColor.blue : Color.clear, lineWidth: 2)
-                .frame(width: slotWidth - 2, height: height - 2)
+                .frame(width: tileWidth, height: tileHeight)
                 .offset(x: xOffsetWithinDay + 1, y: yOffset)
                 .allowsHitTesting(false)
         )

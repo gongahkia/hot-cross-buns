@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en" data-theme="latte">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hot Cross Buns - Planner App for MacOS</title>
+<meta name="description" content="A keyboard-first, macOS-native planner for your tasks, calendar, and notes. Backed by Google.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..700,0..100&family=Geist:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,300..500;1,8..60,400&display=swap">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="../../asset/logo/buns-app-logo.png">
+</head>
+<body>
+
+<nav class="nav">
+  <a class="wordmark" href="#">
+    <img src="../../asset/logo/buns-app-logo.png" alt="" width="28" height="28">
+    <span>Hot Cross Buns</span>
+  </a>
+  <div class="nav-links">
+    <a href="#views">Views</a>
+    <a href="#keys">Keyboard</a>
+    <a href="#security">Security</a>
+    <a href="#details">Details</a>
+    <a href="#reviews">Reviews</a>
+    <button id="theme-toggle" aria-label="Toggle theme">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+    </button>
+    <a class="nav-cta" href="#download">Download</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="hero-copy">
+    <p class="eyebrow">v0.1.0 · macOS 14+ · free</p>
+    <h1>A planner for<br>busy people<br>with a <em>system</em>.</h1>
+    <p class="deck">Hot Cross Buns is a keyboard-first macOS-native client for Google&nbsp;Tasks and Google&nbsp;Calendar.</p>
+    <div class="hero-ctas">
+      <a class="cta-primary" href="#download">Download for macOS</a>
+      <a class="cta-secondary" href="https://github.com/gongahkia/hot-cross-buns" target="_blank" rel="noopener">GitHub →</a>
+    </div>
+    <p class="hero-meta">Signed · Sparkle auto-updates · Apple&nbsp;Silicon + Intel</p>
+  </div>
+
+  <figure class="hero-shot">
+    <!-- RECORDING: hero-window.gif — kanban board, still-ish with one card dragged across a column. 10s loop. 1600×1100 @ 2x. Show real-looking tasks, Catppuccin Latte. -->
+    <div class="placeholder placeholder-window" aria-label="App window preview">
+      <div class="tl"><span></span><span></span><span></span></div>
+      <div class="ph-label">hero-window.gif</div>
+      <div class="ph-note">kanban board · one card drag · 10s</div>
+    </div>
+  </figure>
+</header>
+
+<section id="views" class="views">
+  <div class="section-head">
+    <p class="eyebrow">Tasks, calendars, notes</p>
+    <h2>Everything you need<br>in <em>three</em> views.</h2>
+  </div>
+
+  <!-- RECORDING: views-cycle.gif — cycle through the three surfaces: Tasks → Calendar → Notes. ~12s. 1600×1100 @ 2x. -->
+  <figure class="views-single">
+    <div class="placeholder placeholder-window">
+      <div class="tl"><span></span><span></span><span></span></div>
+      <div class="ph-label">views-cycle.gif</div>
+      <div class="ph-note">tasks → calendar → notes</div>
+    </div>
+    <figcaption>
+      <span>Tasks</span><span class="sep">·</span>
+      <span>Calendar</span><span class="sep">·</span>
+      <span>Notes</span>
+    </figcaption>
+  </figure>
+</section>
+
+<section id="keys" class="keys">
+  <div class="keys-intro">
+    <figure class="keys-shot">
+      <!-- RECORDING: keys-palette.gif — open command palette (⌘K), fuzzy-type "reschedule", arrow down, enter. 8s. -->
+      <div class="placeholder placeholder-window">
+        <div class="tl"><span></span><span></span><span></span></div>
+        <div class="ph-label">keys-palette.gif</div>
+        <div class="ph-note">command palette · fuzzy match · leader chord</div>
+      </div>
+    </figure>
+    <div class="section-head end">
+      <p class="eyebrow">Made with keyboard users in mind</p>
+      <h2>If you can name it,<br>you can <em>reach</em> it.</h2>
+      <p class="lede">Four chord groups. Twenty-odd shortcuts. A leader key for the rest. No menu‑diving for anything you do twice a day.</p>
+    </div>
+  </div>
+
+  <div class="keys-grid">
+    <div class="key-col">
+      <h4>Navigate</h4>
+      <dl>
+        <div><dt><kbd>⌘</kbd><kbd>K</kbd></dt><dd>command palette</dd></div>
+        <div><dt><kbd>⌘</kbd><kbd>O</kbd></dt><dd>quick switcher</dd></div>
+        <div><dt><kbd>⌘</kbd><kbd>/</kbd></dt><dd>search everything</dd></div>
+        <div><dt><kbd>⌘</kbd><kbd>,</kbd></dt><dd>settings</dd></div>
+      </dl>
+    </div>
+
+    <div class="key-col">
+      <h4>Switch view</h4>
+      <dl>
+        <div><dt><kbd>⌘</kbd><kbd>1</kbd></dt><dd>list</dd></div>
+        <div><dt><kbd>⌘</kbd><kbd>2</kbd></dt><dd>kanban</dd></div>
+        <div><dt><kbd>⌘</kbd><kbd>3</kbd></dt><dd>timeline</dd></div>
+        <div><dt><kbd>⌘</kbd><kbd>4</kbd></dt><dd>calendar</dd></div>
+      </dl>
+    </div>
+
+    <div class="key-col">
+      <h4>Capture</h4>
+      <dl>
+        <div><dt><kbd>⌘</kbd><kbd>N</kbd></dt><dd>new task</dd></div>
+        <div><dt><kbd>⌘</kbd><kbd>⇧</kbd><kbd>N</kbd></dt><dd>new event</dd></div>
+        <div><dt><kbd>⌘</kbd><kbd>D</kbd></dt><dd>duplicate</dd></div>
+        <div><dt><kbd>⌘</kbd><kbd>⌫</kbd></dt><dd>delete</dd></div>
+      </dl>
+    </div>
+
+    <div class="key-col">
+      <h4>Leader</h4>
+      <dl>
+        <div><dt><kbd>⌘</kbd><kbd>K</kbd><span class="chord">then</span><kbd>t</kbd></dt><dd>add tag</dd></div>
+        <div><dt><kbd>⌘</kbd><kbd>K</kbd><span class="chord">then</span><kbd>p</kbd></dt><dd>pin filter</dd></div>
+        <div><dt><kbd>⌘</kbd><kbd>K</kbd><span class="chord">then</span><kbd>s</kbd></dt><dd>star</dd></div>
+        <div><dt><kbd>⌘</kbd><kbd>K</kbd><span class="chord">then</span><kbd>r</kbd></dt><dd>reschedule</dd></div>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<section id="security" class="security">
+  <div class="security-prose">
+    <p class="eyebrow">Designed with security in mind</p>
+    <h2>Your plans,<br>under <em>lock</em> and key.</h2>
+    <p>A planner knows where you'll be, who you'll meet, and what you haven't done yet. That is sensitive data, and Hot Cross Buns treats it that way. Every surface is hardened on purpose — not after the fact.</p>
+    <p class="pullquote">AES-256-GCM on disk. Secrets in Keychain, never plaintext. URL handlers gated. Regex bounded. Logs redacted.</p>
+  </div>
+
+  <ul class="security-grid" role="list">
+    <li>
+      <h4>Local cache encryption</h4>
+      <p>Opt-in AES-256-GCM wrapping over the on-disk cache, keyed by a passphrase-derived <code>CryptoKit.SymmetricKey</code>. Nothing readable by another process on the machine.</p>
+    </li>
+    <li>
+      <h4>No eval, no ReDoS</h4>
+      <p>Natural-language parsers dispatch through typed enums, not string eval. All regex uses <code>\b</code> anchors and bounded quantifiers — no catastrophic-backtracking surface.</p>
+    </li>
+    <li>
+      <h4>Trusted IPC only</h4>
+      <p>Share-extension and Services-menu payloads carry a <code>source</code> bundle-id, validated against the app prefix, with a 10‑minute trust window and an 8&nbsp;KB byte cap.</p>
+    </li>
+    <li>
+      <h4>Logs don't leak</h4>
+      <p>Structured <code>os_log</code> interpolations — bare message public, metadata private. Nothing useful for a nosy <code>Console.app</code> observer.</p>
+    </li>
+  </ul>
+</section>
+
+<section id="details" class="details">
+  <div class="section-head">
+    <p class="eyebrow">The details</p>
+    <h2>Small things, <em>seriously</em> considered.</h2>
+  </div>
+
+  <div class="details-grid">
+    <article class="detail">
+      <!-- RECORDING: detail-query.gif — typing query DSL with live token highlighting. 8s. -->
+      <div class="placeholder placeholder-inline">
+        <div class="ph-label">detail-query.gif</div>
+      </div>
+      <h3>Find anything, in a sentence</h3>
+      <p>Ask the way you think. <code>attendee:alex duration&gt;30m has:notes tag:work due&lt;+7d</code> is one phrase, not six filters and a wall of checkboxes. Save the ones you run weekly.</p>
+    </article>
+
+    <article class="detail">
+      <!-- RECORDING: detail-templates.gif — applying a template, variable prompts appear. 6s. -->
+      <div class="placeholder placeholder-inline">
+        <div class="ph-label">detail-templates.gif</div>
+      </div>
+      <h3>Write the recurring task once</h3>
+      <p>Your weekly review, your standup prep, your project kickoff — each is a template that fills itself in. <code>{{today}}</code>, <code>{{+7d}}</code>, <code>{{clipboard}}</code>, <code>{{prompt:Label}}</code>. You stop retyping the same thing Monday mornings.</p>
+    </article>
+
+    <article class="detail">
+      <!-- RECORDING: detail-quickadd.gif — system-wide quick-add hotkey, type, submit. 5s. -->
+      <div class="placeholder placeholder-inline">
+        <div class="ph-label">detail-quickadd.gif</div>
+      </div>
+      <h3>Fits inside your existing flow</h3>
+      <p>Call it from <a href="https://raycast.com" target="_blank" rel="noopener">Raycast</a>, Spotlight, Alfred, Shortcuts, or any script — the <code>hotcrossbuns://</code> URL scheme and macOS Services hook straight into the launchers you already use. The task is captured before you've even switched windows.</p>
+    </article>
+
+    <article class="detail">
+      <!-- RECORDING: detail-fonts.gif — per-surface font picker, see font change live in sidebar vs body. 6s. -->
+      <div class="placeholder placeholder-inline">
+        <div class="ph-label">detail-fonts.gif</div>
+      </div>
+      <h3>Reads the way you want it to</h3>
+      <p>A serif for long‑form notes. A mono for the query bar. A tighter sans for dense lists. Six surfaces, six independent font choices — because one font never fits every job.</p>
+    </article>
+
+    <article class="detail">
+      <!-- RECORDING: detail-offline.gif — toggle wifi off, make changes, toggle on, watch queue drain. 8s. -->
+      <div class="placeholder placeholder-inline">
+        <div class="ph-label">detail-offline.gif</div>
+      </div>
+      <h3>Keeps working in the tunnel</h3>
+      <p>Planes, trains, bad hotel wifi — type as if you were online. A local mutation queue holds every change and reconciles it cleanly (etag‑based, no silent overwrites) the moment you're back on a signal.</p>
+    </article>
+
+    <article class="detail">
+      <!-- RECORDING: detail-theme.gif — theme toggle, whole app shifts Latte → Mocha. 4s. -->
+      <div class="placeholder placeholder-inline">
+        <div class="ph-label">detail-theme.gif</div>
+      </div>
+      <h3>Matches the rest of your desktop</h3>
+      <p>If your terminal, editor, and window manager already wear <a href="https://catppuccin.com" target="_blank" rel="noopener">Catppuccin</a>, your planner finally does too. Latte and Mocha, tuned by hand — not a generic Light/Dark auto‑invert.</p>
+    </article>
+  </div>
+</section>
+
+<section id="reviews" class="reviews">
+  <p class="eyebrow">What people* are saying</p>
+  <h2>The reviews are <em>in</em>.</h2>
+  <p class="stars" aria-label="five stars">★★★★★</p>
+  <ul class="review-list">
+    <li>&ldquo;Awesome.&rdquo;</li>
+    <li>&ldquo;Finally, a planner that doesn't charge me monthly.&rdquo;</li>
+    <li>&ldquo;Not as good as Notion. But I'm not paying for Notion.&rdquo;</li>
+    <li>&ldquo;It's lovely, dear. Is it different from Apple Calendar?&rdquo;</li>
+  </ul>
+  <p class="review-footnote">* people = me and one time, my mother</p>
+  <a class="repo-link" href="https://github.com/gongahkia/hot-cross-buns" target="_blank" rel="noopener">See the repository →</a>
+</section>
+
+<section id="download" class="download">
+  <div class="download-inner">
+    <p class="eyebrow">Ready when you are</p>
+    <h2>Get Hot Cross Buns.</h2>
+    <p class="lede">Free. macOS 14 Sonoma and up. Signed and notarized. Updates itself through Sparkle.</p>
+
+    <div class="download-cta">
+      <a class="cta-primary big" href="#download-link">Download&nbsp;.dmg</a>
+      <p class="download-meta">
+        <span>Apple Silicon + Intel</span>
+        <span class="sep">·</span>
+        <span>v0.1.0</span>
+        <span class="sep">·</span>
+        <span class="sha">SHA-256: placeholder</span>
+      </p>
+    </div>
+
+    <details class="brew">
+      <summary>Prefer Homebrew?</summary>
+      <pre><code>brew install --cask hot-cross-buns</code></pre>
+    </details>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="foot-top">
+    <svg class="bun" viewBox="0 0 64 64" width="44" height="44" aria-hidden="true">
+      <defs>
+        <radialGradient id="g" cx="40%" cy="38%" r="60%">
+          <stop offset="0%" stop-color="#fab387"/>
+          <stop offset="100%" stop-color="#fe640b"/>
+        </radialGradient>
+      </defs>
+      <ellipse cx="32" cy="36" rx="26" ry="22" fill="url(#g)" stroke="#4c4f69" stroke-width="1.3"/>
+      <path d="M6 36 H58 M32 14 V58" stroke="#eff1f5" stroke-width="4.5" stroke-linecap="round"/>
+    </svg>
+    <div class="foot-cols">
+      <div>
+        <p class="foot-title">Hot Cross Buns</p>
+        <p>A small, personal macOS planner.</p>
+      </div>
+      <div>
+        <a href="https://github.com/gongahkia/hot-cross-buns">GitHub</a>
+        <a href="#download">Download</a>
+        <a href="https://github.com/gongahkia/hot-cross-buns/blob/main/docs/CONTRIBUTING.md">Contribute</a>
+        <a href="https://github.com/gongahkia/hot-cross-buns/releases">Releases</a>
+      </div>
+    </div>
+  </div>
+  <div class="foot-bottom">
+    <p class="made-by">Made with <span class="heart" aria-label="love">♥</span> by <a href="https://gabrielongzm.com" target="_blank" rel="noopener">Gabriel Ong</a></p>
+    <p class="copyright">© 2026 Gabriel Ong. All rights reserved.</p>
+  </div>
+</footer>
+
+<script src="main.js"></script>
+</body>
+</html>

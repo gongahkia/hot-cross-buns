@@ -21,6 +21,11 @@ enum MarkdownHTML {
         guard html.isEmpty == false else { return "" }
         var working = html
         working = working.replacingOccurrences(of: "\r\n", with: "\n")
+        // Some Calendar clients save rich descriptions with the HTML tags
+        // escaped as text (`&lt;p&gt;...&lt;a&gt;...`). Decode before tag
+        // conversion so those common Calendar tags do not leak into the
+        // read-only event view as literal markup.
+        working = decodeBasicEntities(working)
         working = replaceLists(in: working)
         working = replaceInline(in: working)
         working = replaceParagraphsAndDivs(in: working)

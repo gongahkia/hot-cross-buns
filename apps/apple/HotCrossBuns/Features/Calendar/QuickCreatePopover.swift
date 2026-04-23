@@ -42,6 +42,8 @@ struct QuickCreatePopover: View {
     @State private var mode: CreateMode = .event
     @State private var summary: String = ""
     @State private var selectedListID: TaskListMirror.ID?
+    @State private var autoAppliedTaskListTag: String? = nil
+    @State private var userManuallyPickedTaskList: Bool = false
     @State private var selectedCalendarID: CalendarListMirror.ID?
     @State private var isSaving = false
     @FocusState private var summaryFocused: Bool
@@ -90,6 +92,10 @@ struct QuickCreatePopover: View {
     @State private var eventEndRepeatDate: Date = Date().addingTimeInterval(60 * 60 * 24 * 30)
 
     private enum RecurrenceEndKind: Hashable { case never, after, onDate }
+    private struct TaskListTagMatch {
+        let list: TaskListMirror
+        let tag: String
+    }
 
     enum CreateMode: String, Hashable { case event, task, birthday }
 
@@ -176,6 +182,14 @@ struct QuickCreatePopover: View {
         }
         .onChange(of: summary) { _, newValue in
             applyColorTagAutoColor(title: newValue)
+            applyTaskListAutoSelection(title: newValue)
+        }
+        .onChange(of: mode) { _, newValue in
+            if newValue == .task {
+                applyTaskListAutoSelection(title: summary)
+            } else {
+                autoAppliedTaskListTag = nil
+            }
         }
     }
 
@@ -204,8 +218,55 @@ struct QuickCreatePopover: View {
         }
     }
 
+    private func applyTaskListAutoSelection(title: String) {
+        guard mode == .task, userManuallyPickedTaskList == false else { return }
+        if let match = taskListTagMatch(in: title) {
+            if selectedListID != match.list.id { selectedListID = match.list.id }
+            autoAppliedTaskListTag = match.tag
+        } else if autoAppliedTaskListTag != nil {
+            selectedListID = initialTaskListID ?? model.taskLists.first?.id
+            autoAppliedTaskListTag = nil
+        }
+    }
+
+    private func taskListTagMatch(in title: String) -> TaskListTagMatch? {
+        let tags = TagExtractor.tags(in: title)
+        guard tags.isEmpty == false else { return nil }
+        let listsByTagKey = model.taskLists.reduce(into: [String: TaskListMirror]()) { result, list in
+            let key = taskListTagKey(for: list.title)
+            guard key.isEmpty == false, result[key] == nil else { return }
+            result[key] = list
+        }
+        for tag in tags {
+            let key = taskListTagKey(for: tag)
+            if let list = listsByTagKey[key] {
+                return TaskListTagMatch(list: list, tag: tag)
+            }
+        }
+        return nil
+    }
+
+    private func taskListTagKey(for value: String) -> String {
+        value
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .unicodeScalars
+            .filter { CharacterSet.alphanumerics.contains($0) }
+            .map(String.init)
+            .joined()
+    }
+
+    private func selectTaskListManually(_ id: TaskListMirror.ID) {
+        selectedListID = id
+        userManuallyPickedTaskList = true
+        autoAppliedTaskListTag = nil
+    }
+
     private var effectiveExpanded: Bool {
         model.settings.quickCreateExpandedByDefault || showOptionalFields
+    }
+
+    private var nativeControlFill: Color {
+        Color(nsColor: .controlBackgroundColor).opacity(0.72)
     }
 
     // MARK: - Top bar (Event | Task toggle)
@@ -323,13 +384,13 @@ struct QuickCreatePopover: View {
                     .hcbFont(.body)
             }
             .toggleStyle(.button)
-            .tint(AppColor.ember)
+            .tint(Color.accentColor)
             .help(addGoogleMeet ? "Google Meet link will be created" : "Add Google Meet")
         }
         .hcbScaledPadding(10)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(AppColor.cream.opacity(0.35))
+                .fill(nativeControlFill)
         )
     }
 
@@ -366,7 +427,7 @@ struct QuickCreatePopover: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(AppColor.cream.opacity(0.35))
+                .fill(nativeControlFill)
         )
     }
 
@@ -398,7 +459,7 @@ struct QuickCreatePopover: View {
         VStack(alignment: .leading, spacing: 8) {
             Toggle("All Day", isOn: $isAllDay)
                 .toggleStyle(.switch)
-                .tint(AppColor.ember)
+                .tint(Color.accentColor)
             HStack {
                 Text("Starts")
                     .hcbFont(.subheadline)
@@ -516,7 +577,7 @@ struct QuickCreatePopover: View {
         .hcbScaledPadding(10)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(AppColor.cream.opacity(0.35))
+                .fill(nativeControlFill)
         )
     }
 
@@ -586,7 +647,7 @@ struct QuickCreatePopover: View {
                     Toggle("", isOn: $hasDueDate)
                         .labelsHidden()
                         .toggleStyle(.switch)
-                        .tint(AppColor.ember)
+                        .tint(Color.accentColor)
                 }
                 .hcbScaledPadding(10)
                 .contentShape(Rectangle())
@@ -606,7 +667,7 @@ struct QuickCreatePopover: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(AppColor.cream.opacity(0.35))
+                .fill(nativeControlFill)
         )
     }
 
@@ -623,7 +684,7 @@ struct QuickCreatePopover: View {
             Spacer(minLength: 8)
             Menu {
                 ForEach(model.taskLists) { list in
-                    Button(list.title) { selectedListID = list.id }
+                    Button(list.title) { selectTaskListManually(list.id) }
                 }
             } label: {
                 HStack(spacing: 4) {
@@ -643,7 +704,7 @@ struct QuickCreatePopover: View {
         .hcbScaledPadding(10)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(AppColor.cream.opacity(0.35))
+                .fill(nativeControlFill)
         )
     }
 
@@ -672,7 +733,7 @@ struct QuickCreatePopover: View {
         .hcbScaledPadding(10)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(AppColor.cream.opacity(0.35))
+                .fill(nativeControlFill)
         )
         Text("Repeats yearly. Saved as an all-day event on the selected calendar.")
             .hcbFont(.caption2)
@@ -728,7 +789,7 @@ struct QuickCreatePopover: View {
                     .keyboardShortcut(.cancelAction)
                 Button(primaryActionLabel) { Task { await save() } }
                     .buttonStyle(.borderedProminent)
-                    .tint(AppColor.ember)
+                    .tint(Color.accentColor)
                     .keyboardShortcut(.defaultAction)
                     .disabled(canCreate == false)
             }
@@ -765,7 +826,7 @@ struct QuickCreatePopover: View {
         case .task:
             Menu {
                 ForEach(model.taskLists) { list in
-                    Button(list.title) { selectedListID = list.id }
+                    Button(list.title) { selectTaskListManually(list.id) }
                 }
             } label: {
                 Label(currentListTitle, systemImage: "tray")
@@ -836,13 +897,7 @@ struct QuickCreatePopover: View {
     private func save() async {
         let rawTrimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
         guard rawTrimmed.isEmpty == false else { return }
-        // Strip the color-binding tag that won — and only that one — so
-        // Google sees a clean title with colorId carrying the intent.
-        // Losing tags and unmatched tags stay in the title.
-        let trimmed: String = {
-            guard mode == .event, let tag = autoAppliedTag else { return rawTrimmed }
-            return ColorTagResolver.stripTag(tag, from: rawTrimmed)
-        }()
+        let trimmed = submissionTitle(from: rawTrimmed)
         guard trimmed.isEmpty == false else { return }
         isSaving = true
         defer { isSaving = false }
@@ -905,5 +960,25 @@ struct QuickCreatePopover: View {
             if didCreate { dismiss() }
         }
     }
-}
 
+    private func submissionTitle(from rawTitle: String) -> String {
+        switch mode {
+        case .event:
+            // Strip the color-binding tag that won — and only that one —
+            // so Google sees a clean title with colorId carrying the
+            // intent. Losing tags and unmatched tags stay in the title.
+            guard let tag = autoAppliedTag else { return rawTitle }
+            let stripped = ColorTagResolver.stripTag(tag, from: rawTitle)
+            return stripped.isEmpty ? rawTitle : stripped
+        case .task:
+            // `#ListName` is a routing hint for quick task/note creation,
+            // not task content. Keep a lone tag as the title so the button
+            // does not silently create an empty task.
+            guard let tag = autoAppliedTaskListTag else { return rawTitle }
+            let stripped = ColorTagResolver.stripTag(tag, from: rawTitle)
+            return stripped.isEmpty ? rawTitle : stripped
+        case .birthday:
+            return rawTitle
+        }
+    }
+}

@@ -22,27 +22,22 @@ struct DayGridView: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            eventsColumn
-                .frame(maxWidth: .infinity)
-            Divider()
-            tasksPanel
-                .hcbScaledFrame(width: 260)
-        }
+        eventsColumn
+            .frame(maxWidth: .infinity)
         .hcbScaledPadding(12)
     }
 
     private var dayStart: Date { calendar.startOfDay(for: anchorDate) }
     private var dayEnd: Date { calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart }
 
-    // Looks up model.eventsByDay (pre-bucketed in rebuildSnapshots) rather
-    // than scanning model.events. Each lookup is O(bucket size) instead of
+    // Looks up model.eventsByDay IDs (pre-bucketed in rebuildSnapshots)
+    // rather than scanning model.events. Each lookup is O(bucket size) instead of
     // O(full corpus). Search + past-event filtering apply afterward.
     private var visibleEvents: [CalendarEventMirror] {
         let now = Date()
         let key = dayStart.timeIntervalSinceReferenceDate
         let selectedIDs = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
-        let bucket = model.eventsByDay[key] ?? []
+        let bucket = (model.eventsByDay[key] ?? []).compactMap { model.event(id: $0) }
         let filtered = bucket.filter { event in
             selectedIDs.contains(event.calendarID)
                 && model.settings.shouldHidePastEvent(event, now: now) == false
@@ -62,27 +57,6 @@ struct DayGridView: View {
 
     private var timedEvents: [CalendarEventMirror] {
         visibleEvents.filter { $0.isAllDay == false }.sorted { $0.startDate < $1.startDate }
-    }
-
-    // Reads model.tasksByDueDate (pre-bucketed in rebuildSnapshots). The
-    // pre-built index already excludes completed + deleted tasks, so we
-    // only need to intersect with the user's list selection and apply the
-    // overdue-hide setting.
-    private var dayTasks: [TaskMirror] {
-        let visibleLists: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
-            ? model.settings.selectedTaskListIDs
-            : Set(model.taskLists.map(\.id))
-        let now = Date()
-        let key = dayStart.timeIntervalSinceReferenceDate
-        let bucket = model.tasksByDueDate[key] ?? []
-        return bucket.filter { task in
-            if model.settings.shouldHideOverdueTask(task, now: now, calendar: calendar) { return false }
-            return visibleLists.contains(task.taskListID)
-        }
-        .sorted { lhs, rhs in
-            if lhs.isCompleted != rhs.isCompleted { return lhs.isCompleted == false }
-            return lhs.title < rhs.title
-        }
     }
 
     private var eventsColumn: some View {
@@ -194,9 +168,10 @@ struct DayGridView: View {
                         }
                         .animation(.easeOut(duration: 0.18), value: flashTimedSlot)
                     GeometryReader { geo in
-                        ForEach(timedEvents, id: \.id) { event in
-                            eventTile(event, columnWidth: geo.size.width - 56)
-                                .opacity(model.settings.opacityForPastEvent(event, now: Date()))
+                        let laidOutEvents = CalendarGridLayout.layout(eventsInDay: timedEvents, calendar: calendar)
+                        ForEach(Array(laidOutEvents.enumerated()), id: \.offset) { _, placed in
+                            eventTile(placed, availableWidth: geo.size.width - 56)
+                                .opacity(model.settings.opacityForPastEvent(placed.event, now: Date()))
                         }
                     }
                     .frame(height: CGFloat(hourEnd - hourStart) * hourHeight)
@@ -247,26 +222,32 @@ struct DayGridView: View {
         return date.formatted(.dateTime.hour())
     }
 
-    private func eventTile(_ event: CalendarEventMirror, columnWidth: CGFloat) -> some View {
+    private func eventTile(_ placed: CalendarGridLayout.LaidOutEvent, availableWidth: CGFloat) -> some View {
+        let event = placed.event
         let clampedStart = max(event.startDate, dayStart)
         let clampedEnd = min(event.endDate, dayEnd)
         let startMinutes = clampedStart.timeIntervalSince(dayStart) / 60
         let durationMinutes = max(clampedEnd.timeIntervalSince(clampedStart) / 60, 20)
         let yOffset = CGFloat(startMinutes) * (hourHeight / 60)
         let height = CGFloat(durationMinutes) * (hourHeight / 60)
+        let slotWidth = availableWidth / CGFloat(max(placed.columnCount, 1))
+        let xOffsetWithinDay = CGFloat(placed.columnIndex) * slotWidth
+        let tileWidth = max(slotWidth - 3, 1)
+        let tileHeight = max(height - 2, 1)
         let fill = calendarColor(for: event)
 
         return CalendarEventPreviewButton(event: event) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(event.summary)
                     .hcbFont(.caption, weight: .semibold)
-                    .lineLimit(2)
+                    .lineLimit(height > 38 ? 2 : 1)
                 if height > 38 {
                     Text("\(event.startDate.formatted(.dateTime.hour().minute())) – \(event.endDate.formatted(.dateTime.hour().minute()))")
                         .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
-                if height > 60, event.location.isEmpty == false {
+                if height > 60, slotWidth > 120, event.location.isEmpty == false {
                     Text(event.location)
                         .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
@@ -275,11 +256,12 @@ struct DayGridView: View {
             }
             .hcbScaledPadding(.horizontal, 8)
             .hcbScaledPadding(.vertical, 4)
-            .frame(width: max(columnWidth, 60), height: height - 2, alignment: .topLeading)
+            .frame(width: tileWidth, height: tileHeight, alignment: .topLeading)
+            .clipped()
             .background(RoundedRectangle(cornerRadius: 8).fill(fill.opacity(0.22)))
             .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(fill.opacity(0.55), lineWidth: 0.8))
         }
-        .offset(x: 56, y: yOffset)
+        .offset(x: 56 + xOffsetWithinDay, y: yOffset)
         .accessibilityLabel("\(event.summary), \(event.startDate.formatted(.dateTime.hour().minute())) to \(event.endDate.formatted(.dateTime.hour().minute()))")
     }
 
@@ -289,52 +271,6 @@ struct DayGridView: View {
         guard now >= dayStart, now <= dayEnd else { return nil }
         let minutes = now.timeIntervalSince(dayStart) / 60
         return CGFloat(minutes) * (hourHeight / 60)
-    }
-
-    private var tasksPanel: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Due Today")
-                    .hcbFont(.headline)
-                Spacer()
-                Text("\(dayTasks.filter { $0.isCompleted == false }.count) open")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-            if dayTasks.isEmpty {
-                ContentUnavailableView(
-                    "No tasks due this day",
-                    systemImage: "checklist",
-                    description: Text("Drop a task onto a day in the Week view to schedule it.")
-                )
-                .frame(maxWidth: .infinity, alignment: .center)
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(dayTasks) { task in
-                            HStack(spacing: 8) {
-                                CalendarTaskCheckbox(task: task, size: 15)
-                                CalendarTaskPreviewButton(task: task) {
-                                    HStack(spacing: 8) {
-                                        Text(task.title)
-                                            .hcbFont(.subheadline)
-                                            .strikethrough(task.isCompleted)
-                                            .foregroundStyle(AppColor.ink)
-                                        Spacer(minLength: 0)
-                                    }
-                                    .contentShape(Rectangle())
-                                }
-                            }
-                            .hcbScaledPadding(8)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(AppColor.cream.opacity(0.4)))
-                            .opacity(task.isCompleted ? 0.6 : 1.0)
-                        }
-                    }
-                }
-            }
-        }
-        .cardSurface(cornerRadius: 16)
     }
 
     private func calendarColor(for event: CalendarEventMirror) -> Color {

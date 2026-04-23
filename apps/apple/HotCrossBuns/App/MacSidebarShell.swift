@@ -23,14 +23,18 @@ struct MacSidebarShell: View {
         HCBTextSize.clamp(model.settings.uiTextSizePoints)
     }
 
-    // Sized to fit the longest sidebar label ("Calendar") + icon + badge
-    // without leaving acres of whitespace. Bumped narrower from 240pt.
-    private let expandedSidebarWidthBase: CGFloat = 172
+    // Keep the source list compact by default while still allowing the system
+    // split-view grip to breathe with larger text or sidebar icon settings.
+    private let sidebarMinWidthBase: CGFloat = 160
+    private let sidebarIdealWidthBase: CGFloat = 188
+    private let sidebarMaxWidthBase: CGFloat = 240
     // Top inset reserved so the traffic-light buttons don't overlap the
     // first sidebar row when the window chrome sits over the sidebar.
     private let trafficLightInsetBase: CGFloat = 28
 
-    private var expandedSidebarWidth: CGFloat { expandedSidebarWidthBase * layoutZoomScale }
+    private var sidebarMinWidth: CGFloat { sidebarMinWidthBase * layoutZoomScale }
+    private var sidebarIdealWidth: CGFloat { sidebarIdealWidthBase * layoutZoomScale }
+    private var sidebarMaxWidth: CGFloat { sidebarMaxWidthBase * layoutZoomScale }
     private var trafficLightInset: CGFloat { trafficLightInsetBase * layoutZoomScale }
 
     @State private var selection: SidebarItem = .calendar
@@ -66,7 +70,7 @@ struct MacSidebarShell: View {
             .id(model.settings.colorSchemeID) // force re-render so AppColor.X picks up the new palette
             .withHCBAppearance(model.settings)
             .environment(\.hcbShortcutOverrides, model.settings.shortcutOverrides)
-            .preferredColorScheme(HCBColorScheme.scheme(id: model.settings.colorSchemeID)?.isDark == true ? .dark : .light)
+            .hcbPreferredColorScheme(model.settings)
             .appBackground()
             .safeAreaInset(edge: .top) {
                 AppStatusBanner(
@@ -126,7 +130,7 @@ struct MacSidebarShell: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .animation(.spring(response: 0.28, dampingFraction: 0.82), value: chordKeys)
+            .animation(.easeOut(duration: 0.16), value: chordKeys)
             .focusedSceneValue(\.appCommandActions, appCommandActions)
             .onAppear(perform: handleShellAppear)
             .onReceive(NotificationCenter.default.publisher(for: .hcbOpenStoreTab)) { _ in
@@ -160,12 +164,6 @@ struct MacSidebarShell: View {
                 if hidden.contains(selection.rawValue), selection.isHideable,
                    let first = visibleSidebarItems.first {
                     selection = first
-                }
-            }
-            .onChange(of: sidebarVisibility) { _, newValue in
-                // System toolbar button tries to fully hide — snap back; ⌘S is the only collapse.
-                if newValue == .detailOnly {
-                    sidebarVisibility = .all
                 }
             }
             .modifier(ShellZoomObservers(zoomIn: performZoomIn, zoomOut: performZoomOut, zoomReset: performZoomReset))
@@ -290,13 +288,11 @@ struct MacSidebarShell: View {
 
     private var sidebar: some View {
         expandedSidebar
-            .frame(width: expandedSidebarWidth, alignment: .topLeading)
             .navigationSplitViewColumnWidth(
-                min: expandedSidebarWidth,
-                ideal: expandedSidebarWidth,
-                max: expandedSidebarWidth
+                min: sidebarMinWidth,
+                ideal: sidebarIdealWidth,
+                max: sidebarMaxWidth
             )
-            .clipped()
             .hcbSurface(.sidebar) // §6.11 per-surface font override
     }
 
@@ -322,8 +318,12 @@ struct MacSidebarShell: View {
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
         }
-        .frame(width: expandedSidebarWidth)
-        .toolbar(removing: .sidebarToggle)
+        .frame(
+            minWidth: sidebarMinWidth,
+            idealWidth: sidebarIdealWidth,
+            maxWidth: sidebarMaxWidth,
+            alignment: .topLeading
+        )
     }
 
     @ViewBuilder
@@ -594,53 +594,33 @@ struct MacSidebarShell: View {
         [
             CommandPaletteCommand(
                 id: "new-task",
-                title: "Smart Add Task",
-                subtitle: "Natural-language quick add",
-                symbol: "sparkles",
+                title: "New Task",
+                subtitle: "Natural-language task capture",
+                symbol: "checklist",
                 shortcut: "Cmd+N",
-                keywords: ["task", "create", "new", "quick", "add", "smart"]
+                keywords: ["task", "create", "new", "quick", "add"]
             ) {
                 presentSheet(.quickAddTask, on: .store)
             },
             CommandPaletteCommand(
                 id: "new-note",
-                title: "Smart Add Note",
+                title: "New Note",
                 subtitle: "Natural-language note capture",
                 symbol: "note.text.badge.plus",
                 shortcut: "",
-                keywords: ["note", "create", "new", "quick", "add", "smart"]
+                keywords: ["note", "create", "new", "quick", "add"]
             ) {
                 presentSheet(.quickAddNote, on: .notes)
             },
             CommandPaletteCommand(
                 id: "new-event",
-                title: "Smart Add Event",
+                title: "New Event",
                 subtitle: "Natural-language event capture",
                 symbol: "calendar.badge.plus",
                 shortcut: "Cmd+Shift+N",
-                keywords: ["event", "calendar", "create", "new", "smart"]
+                keywords: ["event", "calendar", "create", "new", "quick", "add"]
             ) {
                 presentSheet(.quickAddEvent, on: .calendar)
-            },
-            CommandPaletteCommand(
-                id: "new-task-detailed",
-                title: "New Task (Detailed)",
-                subtitle: "Fill out the full task form",
-                symbol: "checklist",
-                shortcut: "Cmd+Shift+T",
-                keywords: ["task", "detailed", "form"]
-            ) {
-                presentSheet(.addTask, on: .store)
-            },
-            CommandPaletteCommand(
-                id: "new-event-detailed",
-                title: "New Event (Detailed)",
-                subtitle: "Fill out the full event form",
-                symbol: "calendar",
-                shortcut: "",
-                keywords: ["event", "calendar", "detailed", "form"]
-            ) {
-                presentSheet(.addEvent, on: .calendar)
             },
             CommandPaletteCommand(
                 id: "refresh",
@@ -777,8 +757,6 @@ struct MacSidebarShell: View {
                 }
             } icon: {
                 Image(systemName: item.systemImage)
-                    .hcbFontSystem(size: 18, weight: .medium)
-                    .hcbScaledFrame(width: 24)
             }
         }
     }

@@ -2,12 +2,16 @@ import SwiftUI
 
 struct LayoutSection: View {
     @Environment(AppModel.self) private var model
+    @AppStorage(CalendarMonthScrollWindow.pastMonthsKey) private var monthScrollPastMonths = CalendarMonthScrollWindow.defaultPastMonths
+    @AppStorage(CalendarMonthScrollWindow.futureMonthsKey) private var monthScrollFutureMonths = CalendarMonthScrollWindow.defaultFutureMonths
 
     var body: some View {
         Section("Layout") {
             sidebarTabsBlock
             Divider()
             calendarViewsBlock
+            Divider()
+            monthScrollBlock
             Divider()
             quickCreateBlock
         }
@@ -68,6 +72,52 @@ struct LayoutSection: View {
         }
     }
 
+    private var monthScrollBlock: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Month scroll range")
+                .hcbFont(.subheadline, weight: .medium)
+            monthScrollRangeRow(
+                title: "Past months",
+                systemImage: "arrow.up.to.line",
+                value: monthScrollPastBinding,
+                bounds: CalendarMonthScrollWindow.pastRange
+            )
+            monthScrollRangeRow(
+                title: "Future months",
+                systemImage: "arrow.down.to.line",
+                value: monthScrollFutureBinding,
+                bounds: CalendarMonthScrollWindow.futureRange
+            )
+            Text("Month view opens with this many months loaded around the selected month. Scrolling to either boundary loads one more month.")
+                .hcbFont(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func monthScrollRangeRow(
+        title: String,
+        systemImage: String,
+        value: Binding<Int>,
+        bounds: ClosedRange<Int>
+    ) -> some View {
+        HStack(spacing: 8) {
+            Label(title, systemImage: systemImage)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            TextField(
+                title,
+                value: value,
+                format: .number.precision(.integerLength(1...2))
+            )
+            .textFieldStyle(.roundedBorder)
+            .monospacedDigit()
+            .multilineTextAlignment(.trailing)
+            .frame(width: 62)
+            .accessibilityLabel(title)
+            Stepper(title, value: value, in: bounds)
+                .labelsHidden()
+        }
+    }
+
     private func sidebarItemVisibleBinding(_ item: SidebarItem) -> Binding<Bool> {
         Binding(
             get: { model.settings.hiddenSidebarItems.contains(item.rawValue) == false },
@@ -90,6 +140,20 @@ struct LayoutSection: View {
             acc + (model.settings.hiddenCalendarViewModes.contains(m.rawValue) ? 0 : 1)
         }
         return visibleCount <= 1
+    }
+
+    private var monthScrollPastBinding: Binding<Int> {
+        Binding(
+            get: { CalendarMonthScrollWindow.clampedPast(monthScrollPastMonths) },
+            set: { monthScrollPastMonths = CalendarMonthScrollWindow.clampedPast($0) }
+        )
+    }
+
+    private var monthScrollFutureBinding: Binding<Int> {
+        Binding(
+            get: { CalendarMonthScrollWindow.clampedFuture(monthScrollFutureMonths) },
+            set: { monthScrollFutureMonths = CalendarMonthScrollWindow.clampedFuture($0) }
+        )
     }
 
 }

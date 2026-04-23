@@ -46,6 +46,19 @@ struct TemplatesSection: View {
                             Label("Delete", systemImage: "trash")
                         }
                     }
+                    .contextMenu {
+                        Button {
+                            taskEditor = template
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        Divider()
+                        Button(role: .destructive) {
+                            model.deleteTaskTemplate(template.id)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
                 }
             }
             Button {
@@ -103,6 +116,19 @@ struct TemplatesSection: View {
                             Label("Delete", systemImage: "trash")
                         }
                     }
+                    .contextMenu {
+                        Button {
+                            eventEditor = template
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        Divider()
+                        Button(role: .destructive) {
+                            model.deleteEventTemplate(template.id)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
                 }
             }
             Button {
@@ -141,47 +167,70 @@ private struct TaskTemplateEditor: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Template") {
-                    TextField("Name", text: $draft.name)
-                }
-                Section("Task") {
-                    TextField("Title (required)", text: $draft.title)
-                    TextField("Notes", text: $draft.notes, axis: .vertical)
-                        .lineLimit(3 ... 8)
-                    TextField("Due (e.g. {{today}}, {{+7d}}, 2026-05-01)", text: $draft.due)
-                    TextField("List (id, title, or empty for default)", text: $draft.listIdOrTitle)
-                }
-                Section {
-                    let prompts = draft.requiredPrompts()
-                    if prompts.isEmpty == false {
-                        Text("Prompts at instantiation: \(prompts.joined(separator: ", "))")
-                            .hcbFont(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text("No {{prompt:Label}} placeholders — the template instantiates without asking for input.")
-                            .hcbFont(.caption)
-                            .foregroundStyle(.secondary)
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        SettingsSheetSection("Template") {
+                            SettingsSheetRow("Name") {
+                                TextField("", text: $draft.name)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                        }
+
+                        SettingsSheetSection("Task") {
+                            SettingsSheetRow("Title") {
+                                TextField("Required", text: $draft.title)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                            SettingsSheetRow("Notes") {
+                                TextField("", text: $draft.notes, axis: .vertical)
+                                    .lineLimit(3 ... 8)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                            SettingsSheetRow("Due") {
+                                TextField("{{today}}, {{+7d}}, or 2026-05-01", text: $draft.due)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                            SettingsSheetRow("List") {
+                                TextField("ID, title, or empty for default", text: $draft.listIdOrTitle)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                        }
+
+                        SettingsSheetSection("Variables") {
+                            let prompts = draft.requiredPrompts()
+                            if prompts.isEmpty == false {
+                                Text("Prompts at instantiation: \(prompts.joined(separator: ", "))")
+                                    .hcbFont(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("No {{prompt:Label}} placeholders — the template instantiates without asking for input.")
+                                    .hcbFont(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text("{{today}} {{tomorrow}} {{yesterday}} {{+Nd/-Nd/w/m/y}} {{nextWeekday:mon}} {{clipboard}} {{cursor}} {{prompt:Label}}")
+                                .hcbFont(.caption2)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
-                } header: {
-                    Text("Variables")
-                } footer: {
-                    Text("{{today}} {{tomorrow}} {{yesterday}} {{+Nd/-Nd/w/m/y}} {{nextWeekday:mon}} {{clipboard}} {{cursor}} {{prompt:Label}}")
-                        .hcbFont(.caption2)
-                        .foregroundStyle(.secondary)
+                    .padding(24)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
-            }
-            .navigationTitle("Task Template")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: onCancel) }
-                ToolbarItem(placement: .confirmationAction) {
+
+                Divider()
+
+                SettingsSheetActions(cancelTitle: "Cancel", onCancel: onCancel) {
                     Button("Save") { onSave(draft) }
+                        .keyboardShortcut(.defaultAction)
+                        .buttonStyle(.borderedProminent)
                         .disabled(draft.name.trimmingCharacters(in: .whitespaces).isEmpty
                             || draft.title.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
+            .navigationTitle("Task Template")
         }
-        .hcbScaledFrame(minWidth: 480, minHeight: 460)
+        .frame(width: 680, height: 560)
     }
 }
 
@@ -200,114 +249,164 @@ private struct EventTemplateEditor: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Template") {
-                    TextField("Name", text: $draft.name)
-                }
-                Section("Event") {
-                    TextField("Title (required)", text: $draft.summary)
-                    TextField("Details", text: $draft.details, axis: .vertical)
-                        .lineLimit(3 ... 8)
-                    TextField("Location", text: $draft.location)
-                }
-                Section("When") {
-                    Toggle("All-day", isOn: $draft.isAllDay)
-                    TextField("Date anchor (e.g. {{today}}, {{nextWeekday:mon}}, 2026-05-01)", text: $draft.dateAnchor)
-                    if draft.isAllDay == false {
-                        TextField("Time (24h HH:mm — empty rounds up to the next 15m)", text: $draft.timeAnchor)
-                    }
-                    Stepper(
-                        value: $draft.durationMinutes,
-                        in: 5 ... 24 * 60,
-                        step: 5
-                    ) {
-                        Text("Duration: \(draft.durationMinutes) min")
-                    }
-                }
-                Section("Recurrence") {
-                    TextField("RRULE body (e.g. FREQ=WEEKLY;BYDAY=MO)", text: $draft.recurrenceRule)
-                        .textFieldStyle(.roundedBorder)
-                    Text("Leave empty for a one-off event. The \"RRULE:\" prefix is added automatically if missing.")
-                        .hcbFont(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                Section("Destination") {
-                    if writableCalendars.isEmpty {
-                        TextField("Calendar (id or title)", text: $draft.calendarIdOrTitle)
-                        Text("No calendars loaded yet. Leave empty to fall back to the first writable calendar at instantiation.")
-                            .hcbFont(.caption2)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Picker("Calendar", selection: calendarPickerBinding) {
-                            Text("First writable (default)").tag("")
-                            ForEach(writableCalendars) { cal in
-                                Text(cal.summary).tag(cal.id)
-                            }
-                            // Surface a free-form option so power users can still hand-enter
-                            // an id / title the picker doesn't list (e.g. a calendar that
-                            // hasn't synced yet).
-                            if draft.calendarIdOrTitle.isEmpty == false
-                                && writableCalendars.contains(where: { $0.id == draft.calendarIdOrTitle }) == false {
-                                Text("Custom: \(draft.calendarIdOrTitle)").tag(draft.calendarIdOrTitle)
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        SettingsSheetSection("Template") {
+                            SettingsSheetRow("Name") {
+                                TextField("", text: $draft.name)
+                                    .textFieldStyle(.roundedBorder)
                             }
                         }
-                        .pickerStyle(.menu)
-                    }
-                }
-                Section("Guests") {
-                    TextField("Attendees — one email per line", text: $attendeesRaw, axis: .vertical)
-                        .lineLimit(2 ... 6)
-                        .onChange(of: attendeesRaw) { _, newValue in
-                            draft.attendees = newValue
-                                .split(whereSeparator: { $0.isNewline })
-                                .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-                                .filter { $0.isEmpty == false }
+
+                        SettingsSheetSection("Event") {
+                            SettingsSheetRow("Title") {
+                                TextField("Required", text: $draft.summary)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                            SettingsSheetRow("Details") {
+                                TextField("", text: $draft.details, axis: .vertical)
+                                    .lineLimit(3 ... 8)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                            SettingsSheetRow("Location") {
+                                TextField("", text: $draft.location)
+                                    .textFieldStyle(.roundedBorder)
+                            }
                         }
-                    Toggle("Add Google Meet link", isOn: $draft.addGoogleMeet)
-                }
-                Section("Reminder") {
-                    Picker("Remind me", selection: reminderBinding) {
-                        Text("None").tag(-1)
-                        Text("At time of event").tag(0)
-                        Text("5 min before").tag(5)
-                        Text("10 min before").tag(10)
-                        Text("15 min before").tag(15)
-                        Text("30 min before").tag(30)
-                        Text("1 hour before").tag(60)
-                        Text("1 day before").tag(1440)
+
+                        SettingsSheetSection("When") {
+                            SettingsSheetRow("") {
+                                Toggle("All-day", isOn: $draft.isAllDay)
+                                    .toggleStyle(.checkbox)
+                            }
+                            SettingsSheetRow("Date anchor") {
+                                TextField("{{today}}, {{nextWeekday:mon}}, or 2026-05-01", text: $draft.dateAnchor)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                            if draft.isAllDay == false {
+                                SettingsSheetRow("Time") {
+                                    TextField("24h HH:mm; empty rounds up to the next 15m", text: $draft.timeAnchor)
+                                        .textFieldStyle(.roundedBorder)
+                                }
+                            }
+                            SettingsSheetRow("Duration") {
+                                Stepper(
+                                    value: $draft.durationMinutes,
+                                    in: 5 ... 24 * 60,
+                                    step: 5
+                                ) {
+                                    Text("\(draft.durationMinutes) min")
+                                }
+                            }
+                        }
+
+                        SettingsSheetSection("Recurrence") {
+                            SettingsSheetRow("RRULE body") {
+                                TextField("FREQ=WEEKLY;BYDAY=MO", text: $draft.recurrenceRule)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                            Text("Leave empty for a one-off event. The \"RRULE:\" prefix is added automatically if missing.")
+                                .hcbFont(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        SettingsSheetSection("Destination") {
+                            if writableCalendars.isEmpty {
+                                SettingsSheetRow("Calendar") {
+                                    TextField("ID or title", text: $draft.calendarIdOrTitle)
+                                        .textFieldStyle(.roundedBorder)
+                                }
+                                Text("No calendars loaded yet. Leave empty to fall back to the first writable calendar at instantiation.")
+                                    .hcbFont(.caption2)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                SettingsSheetRow("Calendar") {
+                                    Picker("", selection: calendarPickerBinding) {
+                                        Text("First writable (default)").tag("")
+                                        ForEach(writableCalendars) { cal in
+                                            Text(cal.summary).tag(cal.id)
+                                        }
+                                        if draft.calendarIdOrTitle.isEmpty == false
+                                            && writableCalendars.contains(where: { $0.id == draft.calendarIdOrTitle }) == false {
+                                            Text("Custom: \(draft.calendarIdOrTitle)").tag(draft.calendarIdOrTitle)
+                                        }
+                                    }
+                                    .labelsHidden()
+                                    .pickerStyle(.menu)
+                                }
+                            }
+                        }
+
+                        SettingsSheetSection("Guests") {
+                            SettingsSheetRow("Attendees") {
+                                TextField("One email per line", text: $attendeesRaw, axis: .vertical)
+                                    .lineLimit(2 ... 6)
+                                    .textFieldStyle(.roundedBorder)
+                                    .onChange(of: attendeesRaw) { _, newValue in
+                                        draft.attendees = newValue
+                                            .split(whereSeparator: { $0.isNewline })
+                                            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                                            .filter { $0.isEmpty == false }
+                                    }
+                            }
+                            SettingsSheetRow("") {
+                                Toggle("Add Google Meet link", isOn: $draft.addGoogleMeet)
+                                    .toggleStyle(.checkbox)
+                            }
+                        }
+
+                        SettingsSheetSection("Reminder") {
+                            SettingsSheetRow("Remind me") {
+                                Picker("", selection: reminderBinding) {
+                                    Text("None").tag(-1)
+                                    Text("At time of event").tag(0)
+                                    Text("5 min before").tag(5)
+                                    Text("10 min before").tag(10)
+                                    Text("15 min before").tag(15)
+                                    Text("30 min before").tag(30)
+                                    Text("1 hour before").tag(60)
+                                    Text("1 day before").tag(1440)
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.menu)
+                            }
+                        }
+
+                        SettingsSheetSection("Variables") {
+                            let prompts = draft.requiredPrompts()
+                            if prompts.isEmpty == false {
+                                Text("Prompts at instantiation: \(prompts.joined(separator: ", "))")
+                                    .hcbFont(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("No {{prompt:Label}} placeholders — the template instantiates without asking for input.")
+                                    .hcbFont(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text("{{today}} {{tomorrow}} {{yesterday}} {{+Nd/-Nd/w/m/y}} {{nextWeekday:mon}} {{clipboard}} {{cursor}} {{prompt:Label}}")
+                                .hcbFont(.caption2)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
-                    .pickerStyle(.menu)
+                    .padding(24)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
-                Section {
-                    let prompts = draft.requiredPrompts()
-                    if prompts.isEmpty == false {
-                        Text("Prompts at instantiation: \(prompts.joined(separator: ", "))")
-                            .hcbFont(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text("No {{prompt:Label}} placeholders — the template instantiates without asking for input.")
-                            .hcbFont(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                } header: {
-                    Text("Variables")
-                } footer: {
-                    Text("{{today}} {{tomorrow}} {{yesterday}} {{+Nd/-Nd/w/m/y}} {{nextWeekday:mon}} {{clipboard}} {{cursor}} {{prompt:Label}}")
-                        .hcbFont(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .navigationTitle("Event Template")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: onCancel) }
-                ToolbarItem(placement: .confirmationAction) {
+
+                Divider()
+
+                SettingsSheetActions(cancelTitle: "Cancel", onCancel: onCancel) {
                     Button("Save") { onSave(draft) }
+                        .keyboardShortcut(.defaultAction)
+                        .buttonStyle(.borderedProminent)
                         .disabled(draft.name.trimmingCharacters(in: .whitespaces).isEmpty
                             || draft.summary.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
+            .navigationTitle("Event Template")
         }
-        .hcbScaledFrame(minWidth: 520, minHeight: 560)
+        .frame(width: 760, height: 720)
         .onAppear {
             attendeesRaw = draft.attendees.joined(separator: "\n")
         }

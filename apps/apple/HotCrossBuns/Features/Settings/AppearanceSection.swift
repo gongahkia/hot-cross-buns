@@ -2,12 +2,14 @@ import SwiftUI
 
 struct AppearanceSection: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.colorScheme) private var systemColorScheme
+    @AppStorage(HCBBaseColorSchemePreference.storageKey) private var baseColorSchemePreference: String = ""
     @State private var fontQuery: String = ""
     @State private var availableFonts: [String] = []
 
     var body: some View {
         Section("Appearance") {
-            colorSchemeRow
+            colourPanel
             layoutScaleRow
             textSizeRow
             fontRow
@@ -19,37 +21,128 @@ struct AppearanceSection: View {
             if availableFonts.isEmpty {
                 availableFonts = HCBInstalledFonts.available()
             }
+            coerceThemeToBaseColourScheme()
+        }
+        .onChange(of: effectiveThemeIsDark) { _, _ in
+            coerceThemeToBaseColourScheme()
         }
     }
 
-    private var colorSchemeRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Color scheme")
-                Spacer()
-                Button("Reset to Notion") { model.setColorSchemeID("notion") }
-                    .buttonStyle(.borderless)
-                    .hcbFont(.caption)
-                    .disabled(model.settings.colorSchemeID == "notion")
+    private var colourPanel: some View {
+        VStack(spacing: 0) {
+            baseColourSchemeRow
+            Divider()
+                .hcbScaledPadding(.vertical, 10)
+            themeRow
+        }
+    }
+
+    private var baseColourSchemeRow: some View {
+        HStack(alignment: .center, spacing: 18) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Base colour scheme")
+                    .hcbFont(.body, weight: .semibold)
+                Text("Choose whether app chrome resolves as dark, light, or follows macOS.")
+                    .hcbFont(.footnote)
+                    .foregroundStyle(.secondary)
             }
-            Picker("Scheme", selection: Binding(
-                get: { model.settings.colorSchemeID },
-                set: { model.setColorSchemeID($0) }
-            )) {
-                ForEach(HCBColorScheme.all) { scheme in
-                    HStack(spacing: 8) {
-                        ColorSchemeSwatch(scheme: scheme)
-                        Text(scheme.title)
-                        if scheme.isDark {
-                            Text("· dark").foregroundStyle(.secondary)
-                        }
-                    }
-                    .tag(scheme.id)
+            Spacer(minLength: 16)
+            Picker("Base colour scheme", selection: baseColourSchemeBinding) {
+                ForEach(HCBBaseColorSchemePreference.allCases) { preference in
+                    Text(preference.title).tag(preference)
                 }
             }
-            .pickerStyle(.menu)
             .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(width: 170)
         }
+    }
+
+    private var themeRow: some View {
+        HStack(alignment: .center, spacing: 18) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Themes")
+                    .hcbFont(.body, weight: .semibold)
+                Text("Choose the Hot Cross Buns palette used by cards, text, and app surfaces.")
+                    .hcbFont(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 16)
+            HStack(spacing: 8) {
+                Button("Reset to \(defaultTheme.title)") { model.setColorSchemeID(defaultTheme.id) }
+                    .buttonStyle(.borderless)
+                    .hcbFont(.caption)
+                    .disabled(model.settings.colorSchemeID == defaultTheme.id)
+                Picker("Theme", selection: Binding(
+                    get: { model.settings.colorSchemeID },
+                    set: { newID in
+                        guard filteredThemes.contains(where: { $0.id == newID }) else { return }
+                        model.setColorSchemeID(newID)
+                    }
+                )) {
+                    ForEach(filteredThemes) { scheme in
+                        HStack(spacing: 8) {
+                            ColorSchemeSwatch(scheme: scheme)
+                            Text(scheme.title)
+                        }
+                        .tag(scheme.id)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(width: 190)
+            }
+        }
+    }
+
+    private var baseColourSchemeBinding: Binding<HCBBaseColorSchemePreference> {
+        Binding(
+            get: {
+                HCBBaseColorSchemePreference(rawValue: baseColorSchemePreference) ?? HCBBaseColorSchemePreference.fallback(for: model.settings)
+            },
+            set: { preference in
+                baseColorSchemePreference = preference.rawValue
+                coerceThemeToBaseColourScheme(for: preference)
+            }
+        )
+    }
+
+    private var resolvedBaseColourScheme: HCBBaseColorSchemePreference {
+        HCBBaseColorSchemePreference(rawValue: baseColorSchemePreference) ?? HCBBaseColorSchemePreference.fallback(for: model.settings)
+    }
+
+    private var effectiveThemeIsDark: Bool {
+        switch resolvedBaseColourScheme {
+        case .dark:
+            true
+        case .light:
+            false
+        case .system:
+            systemColorScheme == .dark
+        }
+    }
+
+    private var filteredThemes: [HCBColorScheme] {
+        HCBColorScheme.all.filter { $0.isDark == effectiveThemeIsDark }
+    }
+
+    private var defaultTheme: HCBColorScheme {
+        filteredThemes.first ?? .notion
+    }
+
+    private func coerceThemeToBaseColourScheme(for preference: HCBBaseColorSchemePreference? = nil) {
+        let targetIsDark: Bool
+        switch preference ?? resolvedBaseColourScheme {
+        case .dark:
+            targetIsDark = true
+        case .light:
+            targetIsDark = false
+        case .system:
+            targetIsDark = systemColorScheme == .dark
+        }
+
+        guard HCBColorScheme.scheme(id: model.settings.colorSchemeID)?.isDark != targetIsDark else { return }
+        let replacement = HCBColorScheme.all.first { $0.isDark == targetIsDark } ?? HCBColorScheme.notion
+        model.setColorSchemeID(replacement.id)
     }
 
     private var layoutScaleRow: some View {

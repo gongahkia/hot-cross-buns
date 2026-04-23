@@ -474,7 +474,6 @@ struct DetailField: View {
                 .textSelection(.enabled)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface(cornerRadius: 22)
+        .cardSurface(cornerRadius: 18)
     }
 }
-

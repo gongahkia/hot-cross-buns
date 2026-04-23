@@ -33,7 +33,7 @@ struct HelpView: View {
                         keyRow("\(glyph(.goToCalendar))  \(glyph(.goToStore))", "Jump to Calendar / Tasks")
                         keyRow(glyph(.goToSettings), "Open Settings window")
                         keyRow(glyph(.commandPalette), "Command palette — also searches tasks and events")
-                        keyRow("⌘S", "Collapse sidebar to icons / expand")
+                        bullet("Use the toolbar sidebar button or the View menu to show or hide the sidebar.")
                         keyRow(glyph(.storeShowInspector), "Toggle task inspector")
                         keyRow(glyph(.refresh), "Refresh sync")
                         keyRow(glyph(.forceResync), "Force full resync")
@@ -83,16 +83,22 @@ struct HelpView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         .navigationTitle("Help")
+        .hcbSurface(.inspector)
+        .id(model.settings.colorSchemeID)
+        .withHCBAppearance(model.settings)
+        .environment(\.hcbShortcutOverrides, model.settings.shortcutOverrides)
+        .hcbPreferredColorScheme(model.settings)
+        .appBackground()
         .hcbScaledFrame(minWidth: 640, idealWidth: 720, minHeight: 520, idealHeight: 620)
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Hot Cross Buns")
-                .font(.system(.largeTitle, weight: .bold))
+                .hcbFont(.title3, weight: .semibold)
                 .foregroundStyle(AppColor.ink)
             Text("A Mac-native planner on top of Google Tasks and Google Calendar.")
-                .hcbFont(.title3)
+                .hcbFont(.subheadline)
                 .foregroundStyle(.secondary)
         }
     }

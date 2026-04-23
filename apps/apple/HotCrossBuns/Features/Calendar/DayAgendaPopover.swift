@@ -24,7 +24,7 @@ struct MonthMoreButton: View {
                 .hcbFont(.caption2)
                 .foregroundStyle(.secondary)
                 .hcbScaledPadding(.leading, 6)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: 18, alignment: .leading)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
