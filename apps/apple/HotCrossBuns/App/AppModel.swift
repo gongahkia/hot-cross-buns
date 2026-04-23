@@ -3471,12 +3471,24 @@ final class AppModel {
         }
         tasksByDueDate = tByDay
 
-        // Precompute the sidebar open-task count so the badge doesn't have
-        // to re-filter every render.
+        // Precompute sidebar open-task counts so badges don't re-filter every
+        // render. Tasks and Notes can override the global Task Lists
+        // visibility independently, so their badges should follow the same
+        // per-tab list scopes as their content panes.
+        let tasksTabVisibleListIDs = settings.hasConfiguredTasksTabSelection
+            ? settings.tasksTabSelectedListIDs
+            : visibleTaskListIDs
+        let notesTabVisibleListIDs = settings.hasConfiguredNotesTabSelection
+            ? settings.notesTabSelectedListIDs
+            : visibleTaskListIDs
         var dated = 0
         var undated = 0
-        for task in visibleTasks where task.isCompleted == false && task.isDeleted == false {
-            if task.dueDate == nil { undated += 1 } else { dated += 1 }
+        for task in tasks where task.isCompleted == false && task.isDeleted == false {
+            if task.dueDate == nil {
+                if notesTabVisibleListIDs.contains(task.taskListID) { undated += 1 }
+            } else if tasksTabVisibleListIDs.contains(task.taskListID) {
+                dated += 1
+            }
         }
         datedOpenTaskCount = dated
         undatedOpenTaskCount = undated
