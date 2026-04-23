@@ -4,7 +4,7 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let globalHotkey = GlobalHotkey()
 
-    nonisolated func applicationWillFinishLaunching(_ notification: Notification) {
+    func applicationWillFinishLaunching(_ notification: Notification) {
         // Register as the Services provider so the selector declared in
         // Info.plist's NSServices block ("Create Hot Cross Buns task")
         // routes to handleCreateTaskService below. NSUpdateDynamicServices
@@ -16,7 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // Called by macOS when the user invokes the Services menu entry on a
     // text selection. The selector shape matches the Info.plist NSMessage
     // "handleCreateTaskService".
-    @objc nonisolated func handleCreateTaskService(
+    @objc func handleCreateTaskService(
         _ pasteboard: NSPasteboard,
         userData: String?,
         error: AutoreleasingUnsafeMutablePointer<NSString>
@@ -36,12 +36,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             source: Bundle.main.bundleIdentifier
         )
         SharedInboxDefaults.append(item)
-        Task { @MainActor in
-            NSApplication.shared.activate(ignoringOtherApps: true)
-        }
+        NSApplication.shared.activate(ignoringOtherApps: true)
     }
 
-    nonisolated func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         let menu = NSMenu()
 
         let newTask = NSMenuItem(title: "New Task", action: #selector(dockNewTask), keyEquivalent: "")
