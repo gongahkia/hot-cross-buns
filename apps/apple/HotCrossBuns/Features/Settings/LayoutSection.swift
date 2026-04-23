@@ -2,12 +2,16 @@ import SwiftUI
 
 struct LayoutSection: View {
     @Environment(AppModel.self) private var model
+    @AppStorage(CalendarMonthScrollWindow.pastMonthsKey) private var monthScrollPastMonths = CalendarMonthScrollWindow.defaultPastMonths
+    @AppStorage(CalendarMonthScrollWindow.futureMonthsKey) private var monthScrollFutureMonths = CalendarMonthScrollWindow.defaultFutureMonths
 
     var body: some View {
         Section("Layout") {
             sidebarTabsBlock
             Divider()
             calendarViewsBlock
+            Divider()
+            monthScrollBlock
             Divider()
             quickCreateBlock
         }
@@ -68,6 +72,22 @@ struct LayoutSection: View {
         }
     }
 
+    private var monthScrollBlock: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Month scroll range")
+                .hcbFont(.subheadline, weight: .medium)
+            Stepper(value: monthScrollPastBinding, in: CalendarMonthScrollWindow.pastRange) {
+                Label("Past months: \(monthScrollPastMonths)", systemImage: "arrow.up.to.line")
+            }
+            Stepper(value: monthScrollFutureBinding, in: CalendarMonthScrollWindow.futureRange) {
+                Label("Future months: \(monthScrollFutureMonths)", systemImage: "arrow.down.to.line")
+            }
+            Text("Month view opens with this many months loaded around the selected month. Scrolling to either boundary loads one more month.")
+                .hcbFont(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     private func sidebarItemVisibleBinding(_ item: SidebarItem) -> Binding<Bool> {
         Binding(
             get: { model.settings.hiddenSidebarItems.contains(item.rawValue) == false },
@@ -90,6 +110,20 @@ struct LayoutSection: View {
             acc + (model.settings.hiddenCalendarViewModes.contains(m.rawValue) ? 0 : 1)
         }
         return visibleCount <= 1
+    }
+
+    private var monthScrollPastBinding: Binding<Int> {
+        Binding(
+            get: { CalendarMonthScrollWindow.clampedPast(monthScrollPastMonths) },
+            set: { monthScrollPastMonths = CalendarMonthScrollWindow.clampedPast($0) }
+        )
+    }
+
+    private var monthScrollFutureBinding: Binding<Int> {
+        Binding(
+            get: { CalendarMonthScrollWindow.clampedFuture(monthScrollFutureMonths) },
+            set: { monthScrollFutureMonths = CalendarMonthScrollWindow.clampedFuture($0) }
+        )
     }
 
 }
