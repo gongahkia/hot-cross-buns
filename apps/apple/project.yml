@@ -48,8 +48,8 @@ targets:
         excludes:
           - Support/Info-macOS.plist
           - Support/HotCrossBuns.entitlements
-    resources:
       - path: Resources
+        buildPhase: resources
     info:
       path: HotCrossBuns/Support/Info-macOS.plist
       properties:
