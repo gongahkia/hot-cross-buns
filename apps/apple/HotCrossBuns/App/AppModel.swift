@@ -103,6 +103,15 @@ final class AppModel {
     // stale UI. Bumping here is the one-place invariant: if snapshots
     // rebuilt, the revision advances.
     private(set) var dataRevision: UInt64 = 0
+    // O(1) ID lookups maintained by rebuildSnapshots. task(id:) / event(id:)
+    // previously scanned the full arrays on every call, including inside
+    // menus and body evaluations — observable lag for users with thousands
+    // of tasks/events. Same invariant as the other snapshots: every
+    // mutation path lands in rebuildSnapshots, which rebuilds these.
+    private(set) var tasksByID: [TaskMirror.ID: TaskMirror] = [:]
+    private(set) var eventsByID: [CalendarEventMirror.ID: CalendarEventMirror] = [:]
+    private(set) var taskListsByID: [TaskListMirror.ID: TaskListMirror] = [:]
+    private(set) var calendarsByID: [CalendarListMirror.ID: CalendarListMirror] = [:]
     private(set) var syncCheckpoints: [SyncCheckpoint] = []
     private(set) var pendingMutations: [PendingMutation] = []
     private(set) var recentlyCompletedTaskID: TaskMirror.ID?
@@ -3091,11 +3100,11 @@ final class AppModel {
     }
 
     func task(id: TaskMirror.ID) -> TaskMirror? {
-        tasks.first(where: { $0.id == id })
+        tasksByID[id]
     }
 
     func event(id: CalendarEventMirror.ID) -> CalendarEventMirror? {
-        events.first(where: { $0.id == id })
+        eventsByID[id]
     }
 
     private func apply(_ state: CachedAppState) {
@@ -3436,6 +3445,13 @@ final class AppModel {
             tasks: tasks,
             dismissedGroupKeys: settings.dismissedDuplicateGroups
         )
+
+        // O(1) ID lookup tables. One pass over each collection replaces
+        // arbitrary .first(where:) scans scattered across the codebase.
+        tasksByID = Dictionary(uniqueKeysWithValues: tasks.map { ($0.id, $0) })
+        eventsByID = Dictionary(uniqueKeysWithValues: events.map { ($0.id, $0) })
+        taskListsByID = Dictionary(uniqueKeysWithValues: taskLists.map { ($0.id, $0) })
+        calendarsByID = Dictionary(uniqueKeysWithValues: calendars.map { ($0.id, $0) })
 
         // Advance the content revision. Any view composing this into a
         // cache key rebuilds its derived snapshot on the next observation

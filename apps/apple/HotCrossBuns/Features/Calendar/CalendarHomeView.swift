@@ -585,24 +585,18 @@ struct CalendarHomeView: View {
     }
 
     private func agendaEventsByDay(for range: [Date]) -> [Date: [CalendarEventMirror]] {
-        guard let first = range.first, let last = range.last else { return [:] }
-        let cal = Calendar.current
-        let endExclusive = cal.date(byAdding: .day, value: 1, to: last) ?? last
+        // Use the prebuilt model.eventsByDay (rebuildSnapshots already walks
+        // the full event corpus once) instead of re-iterating on every body
+        // eval. Apply calendar-selection filter per lookup; sort per day.
+        guard range.isEmpty == false else { return [:] }
         let selectedIDs = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
         var bucket: [Date: [CalendarEventMirror]] = [:]
-        for event in model.events {
-            guard event.status != .cancelled, selectedIDs.contains(event.calendarID) else { continue }
-            if event.endDate <= first || event.startDate >= endExclusive { continue }
-            var cursor = max(cal.startOfDay(for: event.startDate), first)
-            let end = min(cal.startOfDay(for: event.endDate), last)
-            while cursor <= end {
-                bucket[cursor, default: []].append(event)
-                guard let next = cal.date(byAdding: .day, value: 1, to: cursor) else { break }
-                cursor = next
-            }
-        }
-        for day in bucket.keys {
-            bucket[day]?.sort { lhs, rhs in
+        for day in range {
+            let key = day.timeIntervalSinceReferenceDate
+            guard let entries = model.eventsByDay[key], entries.isEmpty == false else { continue }
+            let filtered = entries.filter { selectedIDs.contains($0.calendarID) }
+            guard filtered.isEmpty == false else { continue }
+            bucket[day] = filtered.sorted { lhs, rhs in
                 if lhs.isAllDay != rhs.isAllDay { return lhs.isAllDay && rhs.isAllDay == false }
                 return lhs.startDate < rhs.startDate
             }
@@ -611,20 +605,19 @@ struct CalendarHomeView: View {
     }
 
     private func agendaTasksByDay(for range: [Date]) -> [Date: [TaskMirror]] {
-        let cal = Calendar.current
+        // Use model.tasksByDueDate; rebuildSnapshots already walks tasks
+        // once and excludes deleted/completed. We only need to filter to
+        // the visible task-list set and sort alphabetically per day.
         let visibleLists: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
             ? model.settings.selectedTaskListIDs
             : Set(model.taskLists.map(\.id))
         var bucket: [Date: [TaskMirror]] = [:]
-        let rangeSet = Set(range)
-        for task in model.tasks {
-            guard task.isDeleted == false, visibleLists.contains(task.taskListID), let due = task.dueDate else { continue }
-            let day = cal.startOfDay(for: due)
-            guard rangeSet.contains(day) else { continue }
-            bucket[day, default: []].append(task)
-        }
-        for day in bucket.keys {
-            bucket[day]?.sort { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        for day in range {
+            let key = day.timeIntervalSinceReferenceDate
+            guard let entries = model.tasksByDueDate[key], entries.isEmpty == false else { continue }
+            let filtered = entries.filter { visibleLists.contains($0.taskListID) }
+            guard filtered.isEmpty == false else { continue }
+            bucket[day] = filtered.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
         }
         return bucket
     }
