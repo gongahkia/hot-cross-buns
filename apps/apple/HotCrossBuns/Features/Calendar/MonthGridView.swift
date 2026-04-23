@@ -210,9 +210,9 @@ struct MonthGridView: View {
         flashDay = day
         Task {
             try? await Task.sleep(for: .milliseconds(220))
-            await MainActor.run {
-                if flashDay == day { flashDay = nil }
-            }
+            // Task inherits MainActor from the enclosing SwiftUI View;
+            // no explicit hop needed.
+            if flashDay == day { flashDay = nil }
         }
     }
 

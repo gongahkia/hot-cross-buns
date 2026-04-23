@@ -451,9 +451,7 @@ private struct FocusStripMenuBarPanel: View {
         completingTaskIDs.insert(task.id)
         Task {
             _ = await model.setTaskCompleted(true, task: task)
-            _ = await MainActor.run {
-                completingTaskIDs.remove(task.id)
-            }
+            completingTaskIDs.remove(task.id)
         }
     }
 }

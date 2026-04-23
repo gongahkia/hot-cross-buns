@@ -294,7 +294,7 @@ struct EventHoverPreviewModifier: ViewModifier {
                     hoverTask = Task {
                         try? await Task.sleep(for: .milliseconds(600))
                         guard Task.isCancelled == false else { return }
-                        await MainActor.run { showPreview = true }
+                        showPreview = true
                     }
                 } else {
                     showPreview = false

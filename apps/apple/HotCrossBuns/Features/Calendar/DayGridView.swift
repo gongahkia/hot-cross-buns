@@ -236,9 +236,7 @@ struct DayGridView: View {
         flashTimedSlot = start
         Task {
             try? await Task.sleep(for: .milliseconds(220))
-            await MainActor.run {
-                if flashTimedSlot == start { flashTimedSlot = nil }
-            }
+            if flashTimedSlot == start { flashTimedSlot = nil }
         }
     }
 
