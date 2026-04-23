@@ -448,9 +448,7 @@ private struct DetailedMenuBarPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            DatePicker("", selection: $selectedDay, displayedComponents: [.date])
-                .datePickerStyle(.graphical)
-                .labelsHidden()
+            MenuBarMonthCalendar(selectedDay: $selectedDay)
             Divider()
             selectedDayHeader
             agenda
@@ -1041,6 +1039,130 @@ private struct MenuBarQuickActions: View {
         if let window = NSApp.windows.first(where: { $0.canBecomeMain }) {
             window.makeKeyAndOrderFront(nil)
         }
+    }
+}
+
+private struct MenuBarMonthCalendar: View {
+    @Binding var selectedDay: Date
+    @State private var displayedMonth: Date = Calendar.current.startOfDay(for: Date())
+
+    private let calendar = Calendar.current
+    private let columns = Array(repeating: GridItem(.flexible(minimum: 28), spacing: 4), count: 7)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            header
+            weekdayHeader
+            LazyVGrid(columns: columns, spacing: 4) {
+                ForEach(monthDays, id: \.self) { day in
+                    dayButton(day)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear { displayedMonth = calendar.startOfMonth(for: selectedDay) }
+        .onChange(of: selectedDay) { _, newValue in
+            if calendar.isDate(newValue, equalTo: displayedMonth, toGranularity: .month) == false {
+                displayedMonth = calendar.startOfMonth(for: newValue)
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 8) {
+            Text(displayedMonth.formatted(.dateTime.month(.wide).year()))
+                .hcbFont(.headline)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+            Button {
+                shiftMonth(by: -1)
+            } label: {
+                Image(systemName: "chevron.left")
+                    .frame(width: 20, height: 20)
+            }
+            .help("Previous month")
+            Button {
+                let today = calendar.startOfDay(for: Date())
+                selectedDay = today
+                displayedMonth = calendar.startOfMonth(for: today)
+            } label: {
+                Image(systemName: "circle.fill")
+                    .font(.system(size: 7, weight: .semibold))
+                    .frame(width: 20, height: 20)
+            }
+            .help("Today")
+            Button {
+                shiftMonth(by: 1)
+            } label: {
+                Image(systemName: "chevron.right")
+                    .frame(width: 20, height: 20)
+            }
+            .help("Next month")
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+    }
+
+    private var weekdayHeader: some View {
+        LazyVGrid(columns: columns, spacing: 4) {
+            ForEach(weekdaySymbols, id: \.self) { symbol in
+                Text(symbol)
+                    .hcbFont(.caption, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private var weekdaySymbols: [String] {
+        let symbols = calendar.shortWeekdaySymbols
+        let offset = max(calendar.firstWeekday - 1, 0)
+        return Array(symbols[offset...]) + Array(symbols[..<offset])
+    }
+
+    private var monthDays: [Date] {
+        let monthStart = calendar.startOfMonth(for: displayedMonth)
+        let firstWeekdayOffset = (calendar.component(.weekday, from: monthStart) - calendar.firstWeekday + 7) % 7
+        let gridStart = calendar.date(byAdding: .day, value: -firstWeekdayOffset, to: monthStart) ?? monthStart
+        return (0..<42).compactMap { calendar.date(byAdding: .day, value: $0, to: gridStart) }
+    }
+
+    private func dayButton(_ day: Date) -> some View {
+        let isDisplayedMonth = calendar.isDate(day, equalTo: displayedMonth, toGranularity: .month)
+        let isSelected = calendar.isDate(day, inSameDayAs: selectedDay)
+        let isToday = calendar.isDateInToday(day)
+
+        return Button {
+            selectedDay = calendar.startOfDay(for: day)
+            displayedMonth = calendar.startOfMonth(for: day)
+        } label: {
+            Text("\(calendar.component(.day, from: day))")
+                .font(.body.monospacedDigit().weight(isToday || isSelected ? .semibold : .regular))
+                .foregroundStyle(dayForeground(isDisplayedMonth: isDisplayedMonth, isSelected: isSelected))
+                .frame(maxWidth: .infinity, minHeight: 26)
+                .background {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(isSelected ? AppColor.blue.opacity(0.95) : isToday ? AppColor.blue.opacity(0.18) : Color.clear)
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(day.formatted(.dateTime.weekday(.wide).month(.wide).day().year()))
+    }
+
+    private func dayForeground(isDisplayedMonth: Bool, isSelected: Bool) -> Color {
+        if isSelected { return .white }
+        return isDisplayedMonth ? AppColor.ink : .secondary.opacity(0.45)
+    }
+
+    private func shiftMonth(by value: Int) {
+        displayedMonth = calendar.date(byAdding: .month, value: value, to: displayedMonth) ?? displayedMonth
+    }
+}
+
+private extension Calendar {
+    func startOfMonth(for date: Date) -> Date {
+        self.date(from: dateComponents([.year, .month], from: date)) ?? startOfDay(for: date)
     }
 }
 
