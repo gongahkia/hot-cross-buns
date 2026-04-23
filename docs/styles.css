@@ -447,127 +447,54 @@ kbd {
   border-radius: 5px;
 }
 
-/* security */
-.security {
+/* menu bar */
+.menubar {
   padding: clamp(72px, 10vw, 140px) clamp(20px, 4vw, 56px);
   max-width: 1240px;
   margin: 0 auto;
-}
-@media (min-width: 960px) {
-  .security {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    column-gap: 80px;
-    align-items: start;
-  }
-}
-
-.security-prose { max-width: 52ch; margin-bottom: 56px; }
-@media (min-width: 960px) {
-  .security-prose { margin-bottom: 0; position: sticky; top: 96px; }
-}
-.security-prose .eyebrow { display: block; margin-bottom: 14px; }
-.security-prose h2 { margin-bottom: 24px; }
-.security-prose p {
-  color: var(--subtext1);
-  font-size: 1.08rem;
-  line-height: 1.6;
-}
-.security-prose p + p { margin-top: 22px; }
-.pullquote {
-  border-left: 2px solid var(--peach);
-  padding-left: 18px !important;
-  font-family: "Fraunces", serif;
-  font-style: italic;
-  font-size: 1.22rem !important;
-  color: var(--text) !important;
-  line-height: 1.4 !important;
-}
-
-.security-grid {
-  list-style: none;
-  padding: 0;
-  margin: 0 auto;
-  max-width: 860px;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 32px 40px;
-}
-@media (min-width: 720px) and (max-width: 959.98px) {
-  .security-grid { grid-template-columns: 1fr 1fr; }
-}
-@media (min-width: 960px) {
-  .security-grid {
-    max-width: none;
-    grid-template-columns: 1fr;
-    gap: 28px;
-  }
-}
-.security-grid li {
-  padding-top: 20px;
-  border-top: 1px solid color-mix(in srgb, var(--surface0) 65%, transparent);
-}
-.security-grid h4 {
-  font-family: "Fraunces", serif;
-  font-size: 1.14rem;
-  font-weight: 400;
-  color: var(--text);
-  letter-spacing: -.01em;
-  text-transform: none;
-  margin-bottom: 10px;
-}
-.security-grid p {
-  font-family: "Source Serif 4", serif;
-  font-size: .98rem;
-  color: var(--subtext1);
-  line-height: 1.5;
-  max-width: 38ch;
-}
-.security-grid code {
-  font-size: .84em;
-  background: var(--mantle);
-  padding: 1px 6px;
-  border-radius: 4px;
-  color: var(--text);
-}
-
-/* details */
-.details {
-  padding: clamp(72px, 10vw, 140px) clamp(20px, 4vw, 56px);
-  max-width: 1440px;
-  margin: 0 auto;
   border-top: 1px solid color-mix(in srgb, var(--surface0) 55%, transparent);
 }
-.details-grid {
+.menubar-layout {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 40px 48px;
-  align-items: start;
+  grid-template-columns: minmax(320px, .86fr) minmax(0, 1fr);
+  gap: 36px 56px;
+  align-items: center;
 }
-.detail {
-  padding-top: 18px;
+.menubar-shot {
+  margin: 0;
+}
+.menubar-copy {
+  min-width: 0;
+}
+.menubar-copy .eyebrow { display: block; margin-bottom: 14px; }
+.menubar-copy h2 { margin-bottom: 18px; }
+.menubar-copy .lede {
+  color: var(--subtext1);
+  font-size: 1.04rem;
+  line-height: 1.55;
+  margin-bottom: 28px;
+}
+.menubar-list {
+  display: grid;
+  gap: 18px;
+}
+.menubar-item {
+  padding-top: 16px;
   border-top: 1px solid color-mix(in srgb, var(--surface0) 65%, transparent);
 }
-.detail h3 {
+.menubar-item h3 {
   font-family: "Fraunces", serif;
-  font-size: 1.32rem;
+  font-size: 1.18rem;
   font-weight: 400;
-  letter-spacing: -.01em;
-  margin: 0 0 10px;
   color: var(--text);
+  letter-spacing: -.01em;
+  margin-bottom: 10px;
 }
-.detail p {
+.menubar-item p {
   color: var(--subtext1);
   font-size: 1rem;
   line-height: 1.55;
-  max-width: 36ch;
-}
-.detail code {
-  font-size: .85em;
-  background: var(--mantle);
-  padding: 1px 6px;
-  border-radius: 4px;
-  color: var(--text);
+  max-width: 34ch;
 }
 
 /* reviews */
@@ -852,13 +779,13 @@ kbd {
   .keys-grid { grid-template-columns: 1fr; gap: 32px; }
   .key-col dl > div { gap: 12px; }
 
-  /* views / security / details / reviews / updates / download padding */
-  .views, .security, .details, .reviews, .updates, .download {
+  /* views / menubar / reviews / updates / download padding */
+  .views, .menubar, .reviews, .updates, .download {
     padding-left: 18px; padding-right: 18px;
   }
   .section-head { margin-bottom: 36px; }
 
-  .details-grid { grid-template-columns: 1fr; }
+  .menubar-layout { grid-template-columns: 1fr; gap: 28px; }
 
   .reviews { padding-top: 56px; padding-bottom: 56px; }
   .review-list li { font-size: 1.05rem; }
