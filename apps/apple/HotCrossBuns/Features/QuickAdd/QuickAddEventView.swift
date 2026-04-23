@@ -25,11 +25,11 @@ struct QuickAddEventView: View {
                 .onChange(of: input) { _, newValue in reparse(newValue) }
                 .hcbScaledPadding(14)
                 .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: 16)
                         .fill(AppColor.cream.opacity(0.8))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: 16)
                         .strokeBorder(AppColor.cardStroke, lineWidth: 0.8)
                 )
 

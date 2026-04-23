@@ -218,7 +218,7 @@ struct TaskInspectorView: View {
         .hcbScaledPadding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 14)
                 .fill(.ultraThinMaterial)
         )
     }
@@ -280,11 +280,11 @@ struct TaskInspectorView: View {
             }
             .hcbScaledPadding(14)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 14)
                     .fill(AppColor.ember.opacity(0.08))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 14)
                     .strokeBorder(AppColor.ember.opacity(0.35), lineWidth: 0.8)
             )
         }
@@ -375,7 +375,7 @@ struct TaskInspectorView: View {
         }
         .hcbScaledPadding(14)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 14)
                 .fill(.ultraThinMaterial)
         )
     }
@@ -407,7 +407,7 @@ struct TaskInspectorView: View {
         }
         .hcbScaledPadding(14)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 14)
                 .fill(.ultraThinMaterial)
         )
         .confirmationDialog(
@@ -579,13 +579,13 @@ struct TaskInspectorView: View {
                 }
                 .hcbScaledPadding(10)
                 .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: 10)
                         .fill(AppColor.cream.opacity(0.5))
                 )
             }
             .hcbScaledPadding(14)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 14)
                     .fill(.ultraThinMaterial)
             )
         }
@@ -684,11 +684,11 @@ struct TaskInspectorView: View {
             }
             .hcbScaledPadding(12)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 12)
                     .fill(AppColor.ember.opacity(0.1))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 12)
                     .strokeBorder(AppColor.ember.opacity(0.4), lineWidth: 0.8)
             )
         }

@@ -3392,7 +3392,7 @@ final class AppModel {
     private func scheduleRebuildSnapshots() {
         if snapshotRebuildPending { return }
         snapshotRebuildPending = true
-        DispatchQueue.main.async { [weak self] in
+        Task { @MainActor [weak self] in
             guard let self else { return }
             self.snapshotRebuildPending = false
             self.rebuildSnapshots()

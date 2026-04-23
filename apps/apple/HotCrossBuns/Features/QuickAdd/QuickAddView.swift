@@ -33,11 +33,11 @@ struct QuickAddView: View {
                 .accessibilityHint("Type a task title. Words like tomorrow or #work are parsed into due date and list.")
                 .hcbScaledPadding(14)
                 .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: 16)
                         .fill(AppColor.cream.opacity(0.8))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: 16)
                         .strokeBorder(AppColor.cardStroke, lineWidth: 0.8)
                 )
 

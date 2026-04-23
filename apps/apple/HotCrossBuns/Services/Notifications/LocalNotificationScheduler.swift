@@ -230,39 +230,19 @@ actor LocalNotificationScheduler {
     }
 
     private func notificationSettings() async -> UNNotificationSettings {
-        await withCheckedContinuation { continuation in
-            notificationCenter.getNotificationSettings { settings in
-                continuation.resume(returning: settings)
-            }
-        }
+        await notificationCenter.notificationSettings()
     }
 
     private func pendingNotificationRequests() async -> [UNNotificationRequest] {
-        await withCheckedContinuation { continuation in
-            notificationCenter.getPendingNotificationRequests { requests in
-                continuation.resume(returning: requests)
-            }
-        }
+        await notificationCenter.pendingNotificationRequests()
     }
 
     private func requestNotificationAuthorization() async -> Bool {
-        await withCheckedContinuation { continuation in
-            notificationCenter.requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
-                continuation.resume(returning: granted)
-            }
-        }
+        (try? await notificationCenter.requestAuthorization(options: [.alert, .badge, .sound])) ?? false
     }
 
     private func add(_ request: UNNotificationRequest) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            notificationCenter.add(request) { error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume()
-                }
-            }
-        }
+        try await notificationCenter.add(request)
     }
 }
 

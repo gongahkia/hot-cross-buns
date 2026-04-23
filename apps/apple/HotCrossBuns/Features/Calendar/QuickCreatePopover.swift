@@ -328,7 +328,7 @@ struct QuickCreatePopover: View {
         }
         .hcbScaledPadding(10)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 8)
                 .fill(AppColor.cream.opacity(0.35))
         )
     }
@@ -365,7 +365,7 @@ struct QuickCreatePopover: View {
             }
         }
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 8)
                 .fill(AppColor.cream.opacity(0.35))
         )
     }
@@ -515,7 +515,7 @@ struct QuickCreatePopover: View {
         }
         .hcbScaledPadding(10)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 8)
                 .fill(AppColor.cream.opacity(0.35))
         )
     }
@@ -605,7 +605,7 @@ struct QuickCreatePopover: View {
             }
         }
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 8)
                 .fill(AppColor.cream.opacity(0.35))
         )
     }
@@ -642,7 +642,7 @@ struct QuickCreatePopover: View {
         }
         .hcbScaledPadding(10)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 8)
                 .fill(AppColor.cream.opacity(0.35))
         )
     }
@@ -671,7 +671,7 @@ struct QuickCreatePopover: View {
         }
         .hcbScaledPadding(10)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 8)
                 .fill(AppColor.cream.opacity(0.35))
         )
         Text("Repeats yearly. Saved as an all-day event on the selected calendar.")

@@ -115,7 +115,7 @@ final class ForecastBuilderTests: XCTestCase {
         )
         XCTAssertEqual(forecast.days[3].tasks.map(\.id), ["d3"])
         XCTAssertEqual(forecast.days[7].tasks.map(\.id), ["d7"])
-        XCTAssertTrue(forecast.days.allSatisfy { $0.tasks.contains(where: { $0.id == "past-horizon" }) == false })
+        XCTAssertFalse(forecast.days.contains { $0.tasks.contains { $0.id == "past-horizon" } }, "past-horizon task should not appear on any day within the forecast")
     }
 
     func testEventsBucketedByStartDate() {

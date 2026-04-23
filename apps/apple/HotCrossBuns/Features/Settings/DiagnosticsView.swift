@@ -79,7 +79,7 @@ struct DiagnosticsView: View {
                 if isWorking {
                     ProgressView("Working...")
                         .hcbScaledPadding(18)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
                 }
             }
             .task {
@@ -135,7 +135,7 @@ struct DiagnosticsView: View {
             .hcbScaledPadding(.vertical, 4)
             .hcbScaledPadding(.horizontal, 12)
             .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: 10)
                     .fill(isSelected ? AppColor.ember.opacity(0.12) : Color.clear)
             )
             .contentShape(Rectangle())
@@ -681,7 +681,7 @@ private struct SystemCrashRow: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .hcbScaledPadding(8)
                     .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: 8)
                             .fill(AppColor.cream.opacity(0.6))
                     )
             }

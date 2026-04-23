@@ -456,11 +456,11 @@ private struct BulkSelectionInspector: View {
             .hcbScaledPadding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: 16)
                     .fill(AppColor.cream.opacity(0.5))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: 16)
                     .strokeBorder(AppColor.cardStroke, lineWidth: 0.6)
             )
             Text("Cmd-click to toggle individual rows, shift-click to extend the selection.")
@@ -977,7 +977,7 @@ private struct NoteCellWrapper: View {
         NoteCard(task: task, isDragging: draggingID == task.id, onOpen: onTap)
             .overlay(alignment: .top) {
                 if isTargeted {
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    RoundedRectangle(cornerRadius: 2)
                         .fill(AppColor.ember)
                         .frame(height: 2)
                         .transition(.opacity)
@@ -1034,11 +1034,11 @@ private struct NoteCard: View {
             .hcbScaledPadding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 12)
                     .fill(Color.white.opacity(0.92))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 12)
                     .strokeBorder(AppColor.cardStroke, lineWidth: 0.6)
             )
             .shadow(color: Color.black.opacity(isDragging ? 0.08 : 0.0), radius: 6, y: 2)

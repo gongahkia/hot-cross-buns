@@ -7,7 +7,7 @@ struct EventHoverPreview: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                RoundedRectangle(cornerRadius: 3)
                     .fill(accent)
                     .hcbScaledFrame(width: 4, height: 20)
                 Text(event.summary)
@@ -292,9 +292,9 @@ struct EventHoverPreviewModifier: ViewModifier {
                 hoverTask?.cancel()
                 if hovering {
                     hoverTask = Task {
-                        try? await Task.sleep(nanoseconds: 600_000_000)
+                        try? await Task.sleep(for: .milliseconds(600))
                         guard Task.isCancelled == false else { return }
-                        await MainActor.run { showPreview = true }
+                        showPreview = true
                     }
                 } else {
                     showPreview = false

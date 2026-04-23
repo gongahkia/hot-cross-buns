@@ -1,84 +1,85 @@
-import XCTest
+import Testing
 @testable import HotCrossBunsMac
 
-final class FuzzySearcherTests: XCTestCase {
+// Migrated from XCTest to Swift Testing.
+// Parameterized the score-ordering suite so adding a new ranking scenario
+// only needs a row in the table, not a whole new test method.
+
+struct FuzzySearcherTests {
+
     // MARK: - match / score
 
-    func testEmptyQueryMatchesWithZeroScore() {
+    @Test func emptyQueryMatchesWithZeroScore() {
         let m = FuzzySearcher.match(label: "Anything", query: "")
-        XCTAssertNotNil(m)
-        XCTAssertEqual(m?.score, 0)
+        #expect(m != nil)
+        #expect(m?.score == 0)
     }
 
-    func testExactMatchScoresHighest() {
-        let exact = FuzzySearcher.match(label: "refresh", query: "refresh")!
-        let prefix = FuzzySearcher.match(label: "refresh sync", query: "refresh")!
-        let fuzzy = FuzzySearcher.match(label: "my refresh thingy", query: "refresh")!
-        XCTAssertGreaterThan(exact.score, prefix.score)
-        XCTAssertGreaterThan(prefix.score, fuzzy.score)
+    @Test func nonSubsequenceReturnsNil() {
+        #expect(FuzzySearcher.match(label: "Hello world", query: "zzz") == nil)
     }
 
-    func testNonSubsequenceReturnsNil() {
-        XCTAssertNil(FuzzySearcher.match(label: "Hello world", query: "zzz"))
+    @Test(arguments: [
+        ("Refresh Sync", "REFRESH"),
+        ("REFRESH SYNC", "refresh"),
+    ])
+    func caseInsensitive(label: String, query: String) {
+        #expect(FuzzySearcher.match(label: label, query: query) != nil)
     }
 
-    func testCaseInsensitive() {
-        XCTAssertNotNil(FuzzySearcher.match(label: "Refresh Sync", query: "REFRESH"))
-        XCTAssertNotNil(FuzzySearcher.match(label: "REFRESH SYNC", query: "refresh"))
-    }
-
-    func testWordStartOutranksMidWord() {
-        // "nt" matches New Task (word start of Task) and Snoring Theatrics (mid-word).
-        let wordStart = FuzzySearcher.match(label: "New Task", query: "nt")!
-        let midWord = FuzzySearcher.match(label: "Snoring Theatrics", query: "nt")!
-        XCTAssertGreaterThan(wordStart.score, midWord.score)
-    }
-
-    func testConsecutiveMatchBonus() {
-        let consecutive = FuzzySearcher.match(label: "buy milk", query: "buy")!
-        let scattered = FuzzySearcher.match(label: "b u y", query: "buy")!
-        XCTAssertGreaterThan(consecutive.score, scattered.score)
-    }
-
-    func testKeywordsAreConsulted() {
+    @Test func keywordsAreConsulted() {
         // Label alone doesn't contain 'sync', but the keyword does.
         let m = FuzzySearcher.match(label: "Refresh", keywords: ["sync", "reload"], query: "sync")
-        XCTAssertNotNil(m)
+        #expect(m != nil)
     }
 
-    func testHighlightRangesCoverMatches() {
-        let m = FuzzySearcher.match(label: "refresh sync", query: "rsh")!
+    @Test func highlightRangesCoverMatches() throws {
+        let m = try #require(FuzzySearcher.match(label: "refresh sync", query: "rsh"))
         let matched = m.matchedRanges.map { "refresh sync"[$0] }.joined()
-        XCTAssertEqual(String(matched), "rsh")
+        #expect(String(matched) == "rsh")
+    }
+
+    // Parameterized ordering table: (description, higher-scoring input, lower-scoring input, shared query).
+    // Each row asserts that the first input scores strictly higher than the second.
+    @Test(arguments: [
+        ("exact beats prefix", "refresh", "refresh sync", "refresh"),
+        ("prefix beats fuzzy", "refresh sync", "my refresh thingy", "refresh"),
+        ("word-start beats mid-word", "New Task", "Snoring Theatrics", "nt"),
+        ("consecutive beats scattered", "buy milk", "b u y", "buy"),
+    ])
+    func scoreOrderingMatrix(_ description: String, higher: String, lower: String, query: String) throws {
+        let high = try #require(FuzzySearcher.match(label: higher, query: query), Comment(rawValue: description))
+        let low = try #require(FuzzySearcher.match(label: lower, query: query), Comment(rawValue: description))
+        #expect(high.score > low.score, Comment(rawValue: description))
     }
 
     // MARK: - rank
 
-    func testRankReturnsHighestScoringFirst() {
+    @Test func rankReturnsHighestScoringFirst() {
         let labels = ["New Task", "Refresh Sync", "Open Diagnostics", "Force Full Resync"]
         let result = FuzzySearcher.rank(labels, query: "refresh", labelForItem: { $0 })
-        XCTAssertEqual(result.first?.item, "Refresh Sync")
+        #expect(result.first?.item == "Refresh Sync")
     }
 
-    func testRankDropsNonMatches() {
+    @Test func rankDropsNonMatches() {
         let labels = ["alpha", "beta", "gamma"]
         let result = FuzzySearcher.rank(labels, query: "zzz", labelForItem: { $0 })
-        XCTAssertTrue(result.isEmpty)
+        #expect(result.isEmpty)
     }
 
-    func testRankHonorsLimit() {
+    @Test func rankHonorsLimit() {
         let many = (1...100).map { "item\($0)" }
         let result = FuzzySearcher.rank(many, query: "item", labelForItem: { $0 }, limit: 5)
-        XCTAssertEqual(result.count, 5)
+        #expect(result.count == 5)
     }
 
-    func testRankWithEmptyQueryReturnsPrefix() {
+    @Test func rankWithEmptyQueryReturnsPrefix() {
         let labels = ["a", "b", "c", "d", "e"]
         let result = FuzzySearcher.rank(labels, query: "", labelForItem: { $0 }, limit: 3)
-        XCTAssertEqual(result.map(\.item), ["a", "b", "c"])
+        #expect(result.map(\.item) == ["a", "b", "c"])
     }
 
-    func testRankUsesKeywordsForFallback() {
+    @Test func rankUsesKeywordsForFallback() {
         struct Cmd { let title: String; let keywords: [String] }
         let cmds = [
             Cmd(title: "Refresh", keywords: ["sync", "reload"]),
@@ -90,6 +91,6 @@ final class FuzzySearcherTests: XCTestCase {
             labelForItem: { $0.title },
             keywordsForItem: { $0.keywords }
         )
-        XCTAssertEqual(result.first?.item.title, "Refresh")
+        #expect(result.first?.item.title == "Refresh")
     }
 }

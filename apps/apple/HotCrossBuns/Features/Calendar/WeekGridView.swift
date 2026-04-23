@@ -276,10 +276,10 @@ struct WeekGridView: View {
                         let (a, b) = drag.normalized
                         let left = CGFloat(a) * columnWidth
                         let width = CGFloat(b - a + 1) * columnWidth
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        RoundedRectangle(cornerRadius: 6)
                             .fill(AppColor.ember.opacity(0.22))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                RoundedRectangle(cornerRadius: 6)
                                     .strokeBorder(AppColor.ember.opacity(0.6), lineWidth: 1.2)
                             )
                             .frame(width: max(width - 4, 4), height: stripHeight - 4)
@@ -332,11 +332,11 @@ struct WeekGridView: View {
                 .hcbScaledPadding(.vertical, 3)
                 .frame(width: max(width, 20), height: laneHeight - 4, alignment: .leading)
                 .background(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    RoundedRectangle(cornerRadius: 5)
                         .fill(fill.opacity(0.3))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    RoundedRectangle(cornerRadius: 5)
                         .strokeBorder(fill.opacity(0.5), lineWidth: 0.8)
                 )
                 .foregroundStyle(AppColor.ink)
@@ -418,11 +418,11 @@ struct WeekGridView: View {
                                         .hcbScaledPadding(.horizontal, 6)
                                         .hcbScaledPadding(.vertical, 3)
                                         .background(
-                                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                            RoundedRectangle(cornerRadius: 5)
                                                 .fill(AppColor.ember.opacity(0.15))
                                         )
                                         .overlay(
-                                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                            RoundedRectangle(cornerRadius: 5)
                                                 .strokeBorder(AppColor.ember.opacity(0.35), lineWidth: 0.8)
                                         )
                                         .foregroundStyle(AppColor.ink)
@@ -522,9 +522,7 @@ struct WeekGridView: View {
         flashTimedSlot = start
         Task {
             try? await Task.sleep(for: .milliseconds(220))
-            await MainActor.run {
-                if flashTimedSlot == start { flashTimedSlot = nil }
-            }
+            if flashTimedSlot == start { flashTimedSlot = nil }
         }
     }
 
@@ -594,10 +592,10 @@ struct WeekGridView: View {
                     if col == endCol { return (0, max(lastY, hourHeight / 4)) }
                     return (0, totalHeight)
                 }()
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: 6)
                     .fill(AppColor.ember.opacity(0.22))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        RoundedRectangle(cornerRadius: 6)
                             .strokeBorder(AppColor.ember.opacity(0.6), lineWidth: 1.2)
                     )
                     .frame(width: max(columnWidth - 4, 4), height: height)
@@ -678,7 +676,7 @@ struct WeekGridView: View {
                 let minutesIntoDay = flash.timeIntervalSince(startOfDay) / 60.0
                 let startHourOffset = Double(hourStart) * 60.0
                 let y = CGFloat(max(0, minutesIntoDay - startHourOffset)) / 60.0 * hourHeight
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                RoundedRectangle(cornerRadius: 4)
                     .fill(AppColor.ember.opacity(0.22))
                     .frame(height: hourHeight * 0.5)
                     .offset(x: 4, y: y)
@@ -794,17 +792,17 @@ struct WeekGridView: View {
             .hcbScaledPadding(.vertical, 4)
             .frame(width: slotWidth - 2, height: height - 2, alignment: .topLeading)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: 6)
                     .fill(fill.opacity(0.2))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: 6)
                     .strokeBorder(fill.opacity(0.55), lineWidth: 0.8)
             )
         }
         .offset(x: xOffsetWithinDay + 1, y: yOffset)
         .overlay(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
+            RoundedRectangle(cornerRadius: 6)
                 .strokeBorder(selectedEventIDs.contains(placed.event.id) ? AppColor.blue : Color.clear, lineWidth: 2)
                 .frame(width: slotWidth - 2, height: height - 2)
                 .offset(x: xOffsetWithinDay + 1, y: yOffset)
