@@ -83,6 +83,7 @@ targets:
             NSReturnTypes: []
     settings:
       base:
+        PRODUCT_NAME: Hot Cross Buns
         PRODUCT_BUNDLE_IDENTIFIER: com.gongahkia.hotcrossbuns.mac
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: HotCrossBuns/Support/HotCrossBuns.entitlements

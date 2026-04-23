@@ -78,16 +78,20 @@ h1, h2, h3, h4 {
 }
 
 h1 {
-  font-size: clamp(3.2rem, 7vw, 6.2rem);
-  line-height: .98;
-  letter-spacing: -0.035em;
+  font-size: clamp(2.4rem, 8.5vw, 6.2rem);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
   font-weight: 350;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
 }
 h2 {
-  font-size: clamp(2.2rem, 4.4vw, 3.6rem);
-  line-height: 1.02;
-  letter-spacing: -0.025em;
+  font-size: clamp(1.8rem, 5.2vw, 3.6rem);
+  line-height: 1.05;
+  letter-spacing: -0.022em;
   font-weight: 350;
+  overflow-wrap: break-word;
 }
 h3 {
   font-family: "Geist", sans-serif;
@@ -746,7 +750,48 @@ kbd {
 
 /* small screens */
 @media (max-width: 700px) {
+  html, body { overflow-x: hidden; }
+
   .nav-links a:not(.nav-cta) { display: none; }
-  .nav-links { gap: 14px; }
-  h1 br { display: none; }
+  .nav-links { gap: 10px; }
+  .nav { padding: 14px 16px; }
+
+  /* keep line breaks, but guarantee a space if the browser collapses them */
+  h1 br { display: inline; }
+  h1 br::after { content: " "; white-space: pre; }
+
+  .hero { padding: 48px 18px 56px; gap: 36px; }
+  .hero-copy .deck { font-size: 1rem; }
+  .cta-primary.big { padding: 14px 22px; font-size: .98rem; }
+
+  /* shrink large placeholder shots */
+  .placeholder-window { min-height: 240px; }
+  .placeholder-window.small { min-height: 180px; }
+
+  /* keyboard section: stack shot + intro, let shortcuts breathe */
+  .keys { padding: 56px 18px; }
+  .section-head.end { text-align: left; margin-left: 0; }
+  .keys-grid { grid-template-columns: 1fr; gap: 32px; }
+  .key-col dl > div { gap: 12px; }
+
+  /* views / security / details / reviews / download padding */
+  .views, .security, .details, .reviews, .download {
+    padding-left: 18px; padding-right: 18px;
+  }
+  .section-head { margin-bottom: 36px; }
+
+  .details-grid { grid-template-columns: 1fr; }
+
+  .reviews { padding-top: 56px; padding-bottom: 56px; }
+  .review-list li { font-size: 1.05rem; }
+
+  .download-inner { padding: 0 4px; }
+
+  /* footer */
+  .foot { padding: 36px 18px 44px; }
+  .foot-top { grid-template-columns: 1fr; gap: 20px; }
+  .foot-cols { grid-template-columns: 1fr 1fr; gap: 20px; }
+
+  /* break long inline code without horizontal scroll */
+  code { word-break: break-word; white-space: normal; }
 }
