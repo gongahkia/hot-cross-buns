@@ -376,13 +376,14 @@ GoogleAPIError.preconditionFailed)` reads much cleaner than the current
 `do/try/catch/XCTFail` pattern, and `async throws` tests are first-class.
 
 **Blocker:** the file (and adjacent mock-using suites) shares static state
-via `MockURLProtocol.requestHandler`. Swift Testing defaults to parallel
-test execution; two tests setting `MockURLProtocol.requestHandler`
-simultaneously would race. The fix is to either (a) annotate the migrated
-suite with `@Suite(.serialized)`, which regresses to the XCTest default
-and gives up Swift Testing's main parallelism benefit, or (b) refactor
-MockURLProtocol so each test owns its own instance / handler closure
-rather than the type-level global.
+via `MockURLProtocol.requestHandler` AND `MockURLProtocol.capturedRequests`
+(both `nonisolated(unsafe) static var` in `Support/MockURLProtocol.swift`).
+Swift Testing defaults to parallel test execution; two tests reading /
+writing either global simultaneously would race. The fix is to either
+(a) annotate the migrated suite with `@Suite(.serialized)`, which regresses
+to the XCTest default and gives up Swift Testing's main parallelism benefit,
+or (b) refactor MockURLProtocol so each test owns its own instance / handler
+closure / captured-requests array rather than the type-level globals.
 
 **Option (b) is the right fix but touches all mock-using suites
 simultaneously.** Not scheduled because the existing XCTest suite works
