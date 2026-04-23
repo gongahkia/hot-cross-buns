@@ -76,15 +76,45 @@ struct LayoutSection: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Month scroll range")
                 .hcbFont(.subheadline, weight: .medium)
-            Stepper(value: monthScrollPastBinding, in: CalendarMonthScrollWindow.pastRange) {
-                Label("Past months: \(monthScrollPastMonths)", systemImage: "arrow.up.to.line")
-            }
-            Stepper(value: monthScrollFutureBinding, in: CalendarMonthScrollWindow.futureRange) {
-                Label("Future months: \(monthScrollFutureMonths)", systemImage: "arrow.down.to.line")
-            }
+            monthScrollRangeRow(
+                title: "Past months",
+                systemImage: "arrow.up.to.line",
+                value: monthScrollPastBinding,
+                bounds: CalendarMonthScrollWindow.pastRange
+            )
+            monthScrollRangeRow(
+                title: "Future months",
+                systemImage: "arrow.down.to.line",
+                value: monthScrollFutureBinding,
+                bounds: CalendarMonthScrollWindow.futureRange
+            )
             Text("Month view opens with this many months loaded around the selected month. Scrolling to either boundary loads one more month.")
                 .hcbFont(.footnote)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    private func monthScrollRangeRow(
+        title: String,
+        systemImage: String,
+        value: Binding<Int>,
+        bounds: ClosedRange<Int>
+    ) -> some View {
+        HStack(spacing: 8) {
+            Label(title, systemImage: systemImage)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            TextField(
+                title,
+                value: value,
+                format: .number.precision(.integerLength(1...2))
+            )
+            .textFieldStyle(.roundedBorder)
+            .monospacedDigit()
+            .multilineTextAlignment(.trailing)
+            .frame(width: 62)
+            .accessibilityLabel(title)
+            Stepper(title, value: value, in: bounds)
+                .labelsHidden()
         }
     }
 
