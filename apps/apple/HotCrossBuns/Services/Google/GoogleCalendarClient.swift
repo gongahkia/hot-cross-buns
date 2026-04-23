@@ -30,7 +30,12 @@ struct GoogleCalendarClient: Sendable {
         let baseQueryItems = [
             URLQueryItem(name: "singleEvents", value: "true"),
             URLQueryItem(name: "showDeleted", value: "true"),
-            URLQueryItem(name: "maxResults", value: "250")
+            // Google Calendar events endpoint supports up to 2500 per page.
+            // Previously 250 — meant a 1000-event calendar took 4 round
+            // trips of ~1s each. 2500 keeps most calendars to a single
+            // request. Response size scales but decode cost is linear in
+            // events either way.
+            URLQueryItem(name: "maxResults", value: "2500")
         ]
         var pageToken: String?
         var events: [CalendarEventMirror] = []
