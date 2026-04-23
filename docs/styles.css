@@ -196,7 +196,6 @@ code, kbd {
   .hero { grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.1fr); align-items: center; }
 }
 
-.hero-copy .eyebrow { margin-bottom: 20px; display: block; }
 .hero-copy h1 { margin-bottom: 28px; }
 .hero-copy .deck {
   max-width: 38ch;
@@ -234,15 +233,24 @@ code, kbd {
 }
 .cta-secondary:hover { color: var(--peach); }
 
-.hero-meta {
-  font-family: "Geist", sans-serif;
-  font-size: .82rem;
-  color: var(--subtext0);
-  letter-spacing: .02em;
-}
-
 /* hero shot */
 .hero-shot { margin: 0; position: relative; }
+
+.demo-video {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  border: 1px solid color-mix(in srgb, var(--surface0) 70%, transparent);
+  background: var(--mantle);
+}
+
+.window-video {
+  aspect-ratio: 16 / 10.4;
+  object-fit: cover;
+}
 
 /* window placeholder */
 .placeholder {
@@ -297,18 +305,6 @@ code, kbd {
   font-size: .76rem;
   color: var(--overlay);
   letter-spacing: .04em;
-}
-
-.placeholder-inline {
-  aspect-ratio: 16 / 9;
-  border-radius: 10px;
-  background: var(--mantle);
-  border: 1px dashed color-mix(in srgb, var(--overlay) 60%, transparent);
-  box-shadow: none;
-}
-.placeholder-inline .ph-label {
-  border-style: dashed;
-  color: var(--overlay);
 }
 
 /* views */
@@ -524,14 +520,19 @@ kbd {
 .details-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 56px 48px;
+  gap: 40px 48px;
+  align-items: start;
+}
+.detail {
+  padding-top: 18px;
+  border-top: 1px solid color-mix(in srgb, var(--surface0) 65%, transparent);
 }
 .detail h3 {
   font-family: "Fraunces", serif;
   font-size: 1.32rem;
   font-weight: 400;
   letter-spacing: -.01em;
-  margin: 22px 0 10px;
+  margin: 0 0 10px;
   color: var(--text);
 }
 .detail p {

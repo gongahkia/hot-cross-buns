@@ -34,23 +34,18 @@
 
 <header class="hero">
   <div class="hero-copy">
-    <p class="eyebrow">v0.1.0 · macOS 14+ · free</p>
     <h1>A planner for<br>busy people<br>with a <em>system</em>.</h1>
     <p class="deck">Hot Cross Buns is a keyboard-first macOS-native client for Google&nbsp;Tasks and Google&nbsp;Calendar.</p>
     <div class="hero-ctas">
       <a class="cta-primary" href="#download">Download for macOS</a>
       <a class="cta-secondary" href="https://github.com/gongahkia/hot-cross-buns" target="_blank" rel="noopener">GitHub →</a>
     </div>
-    <p class="hero-meta">Signed · Sparkle auto-updates · Apple&nbsp;Silicon + Intel</p>
   </div>
 
   <figure class="hero-shot">
-    <!-- RECORDING: hero-window.gif — kanban board, still-ish with one card dragged across a column. 10s loop. 1600×1100 @ 2x. Show real-looking tasks, Catppuccin Latte. -->
-    <div class="placeholder placeholder-window" aria-label="App window preview">
-      <div class="tl"><span></span><span></span><span></span></div>
-      <div class="ph-label">hero-window.gif</div>
-      <div class="ph-note">kanban board · one card drag · 10s</div>
-    </div>
+    <video class="demo-video window-video" autoplay muted loop playsinline preload="metadata" aria-label="App window preview">
+      <source src="media/hero-window.mp4" type="video/mp4">
+    </video>
   </figure>
 </header>
 
@@ -62,11 +57,9 @@
 
   <!-- RECORDING: views-cycle.gif — cycle through the three surfaces: Tasks → Calendar → Notes. ~12s. 1600×1100 @ 2x. -->
   <figure class="views-single">
-    <div class="placeholder placeholder-window">
-      <div class="tl"><span></span><span></span><span></span></div>
-      <div class="ph-label">views-cycle.gif</div>
-      <div class="ph-note">tasks → calendar → notes</div>
-    </div>
+    <video class="demo-video window-video" autoplay muted loop playsinline preload="metadata" aria-label="Tasks, calendar, and notes views">
+      <source src="media/views-cycle.mp4" type="video/mp4">
+    </video>
     <figcaption>
       <span>Tasks</span><span class="sep">·</span>
       <span>Calendar</span><span class="sep">·</span>
@@ -78,12 +71,9 @@
 <section id="keys" class="keys">
   <div class="keys-intro">
     <figure class="keys-shot">
-      <!-- RECORDING: keys-palette.gif — open command palette (⌘K), fuzzy-type "reschedule", arrow down, enter. 8s. -->
-      <div class="placeholder placeholder-window">
-        <div class="tl"><span></span><span></span><span></span></div>
-        <div class="ph-label">keys-palette.gif</div>
-        <div class="ph-note">command palette · fuzzy match · leader chord</div>
-      </div>
+      <video class="demo-video window-video" autoplay muted loop playsinline preload="metadata" aria-label="Command palette and keyboard workflow">
+        <source src="media/keys-palette.mp4" type="video/mp4">
+      </video>
     </figure>
     <div class="section-head end">
       <p class="eyebrow">Made with keyboard users in mind</p>
@@ -171,55 +161,31 @@
 
   <div class="details-grid">
     <article class="detail">
-      <!-- RECORDING: detail-query.gif — typing query DSL with live token highlighting. 8s. -->
-      <div class="placeholder placeholder-inline">
-        <div class="ph-label">detail-query.gif</div>
-      </div>
       <h3>Find anything, in a sentence</h3>
       <p>Ask the way you think. <code>attendee:alex duration&gt;30m has:notes tag:work due&lt;+7d</code> is one phrase, not six filters and a wall of checkboxes. Save the ones you run weekly.</p>
     </article>
 
     <article class="detail">
-      <!-- RECORDING: detail-templates.gif — applying a template, variable prompts appear. 6s. -->
-      <div class="placeholder placeholder-inline">
-        <div class="ph-label">detail-templates.gif</div>
-      </div>
       <h3>Write the recurring task once</h3>
       <p>Your weekly review, your standup prep, your project kickoff — each is a template that fills itself in. <code>{{today}}</code>, <code>{{+7d}}</code>, <code>{{clipboard}}</code>, <code>{{prompt:Label}}</code>. You stop retyping the same thing Monday mornings.</p>
     </article>
 
     <article class="detail">
-      <!-- RECORDING: detail-quickadd.gif — system-wide quick-add hotkey, type, submit. 5s. -->
-      <div class="placeholder placeholder-inline">
-        <div class="ph-label">detail-quickadd.gif</div>
-      </div>
       <h3>Fits inside your existing flow</h3>
       <p>Call it from <a href="https://raycast.com" target="_blank" rel="noopener">Raycast</a>, Spotlight, Alfred, Shortcuts, or any script — the <code>hotcrossbuns://</code> URL scheme and macOS Services hook straight into the launchers you already use. The task is captured before you've even switched windows.</p>
     </article>
 
     <article class="detail">
-      <!-- RECORDING: detail-fonts.gif — per-surface font picker, see font change live in sidebar vs body. 6s. -->
-      <div class="placeholder placeholder-inline">
-        <div class="ph-label">detail-fonts.gif</div>
-      </div>
       <h3>Reads the way you want it to</h3>
       <p>A serif for long‑form notes. A mono for the query bar. A tighter sans for dense lists. Six surfaces, six independent font choices — because one font never fits every job.</p>
     </article>
 
     <article class="detail">
-      <!-- RECORDING: detail-offline.gif — toggle wifi off, make changes, toggle on, watch queue drain. 8s. -->
-      <div class="placeholder placeholder-inline">
-        <div class="ph-label">detail-offline.gif</div>
-      </div>
       <h3>Keeps working in the tunnel</h3>
       <p>Planes, trains, bad hotel wifi — type as if you were online. A local mutation queue holds every change and reconciles it cleanly (etag‑based, no silent overwrites) the moment you're back on a signal.</p>
     </article>
 
     <article class="detail">
-      <!-- RECORDING: detail-theme.gif — theme toggle, whole app shifts Latte → Mocha. 4s. -->
-      <div class="placeholder placeholder-inline">
-        <div class="ph-label">detail-theme.gif</div>
-      </div>
       <h3>Matches the rest of your desktop</h3>
       <p>If your terminal, editor, and window manager already wear <a href="https://catppuccin.com" target="_blank" rel="noopener">Catppuccin</a>, your planner finally does too. Latte and Mocha, tuned by hand — not a generic Light/Dark auto‑invert.</p>
     </article>
@@ -249,8 +215,6 @@
     <div class="download-cta">
       <a class="cta-primary big" href="#download-link">Download&nbsp;.dmg</a>
       <p class="download-meta">
-        <span>Apple Silicon + Intel</span>
-        <span class="sep">·</span>
         <span>v0.1.0</span>
         <span class="sep">·</span>
         <span class="sha">SHA-256: placeholder</span>
