@@ -53,6 +53,7 @@ targets:
     info:
       path: HotCrossBuns/Support/Info-macOS.plist
       properties:
+        CFBundleName: Hot Cross Buns
         CFBundleDisplayName: Hot Cross Buns
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)

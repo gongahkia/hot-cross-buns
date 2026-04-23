@@ -95,7 +95,10 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
     }
 
     private func statusImage() -> NSImage? {
-        guard let image = NSImage(named: "MenuBarIcon") else { return nil }
+        guard let image = NSImage(named: "MenuBarIcon")
+            ?? NSImage(systemSymbolName: "calendar", accessibilityDescription: "Hot Cross Buns")
+        else { return nil }
+
         image.isTemplate = true
         image.size = NSSize(width: 18, height: 18)
         return image
