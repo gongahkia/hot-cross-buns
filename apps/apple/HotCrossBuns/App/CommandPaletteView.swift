@@ -381,7 +381,7 @@ struct CommandPaletteView: View {
         dismiss()
         // Defer execution so sheet dismissal animation doesn't fight
         // downstream navigation / sheet presentation.
-        DispatchQueue.main.async {
+        Task { @MainActor in
             switch item {
             case .command(let command): command.action()
             case .entity(let entity): onSelectEntity(entity)
