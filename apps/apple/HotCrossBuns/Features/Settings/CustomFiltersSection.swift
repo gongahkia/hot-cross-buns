@@ -199,6 +199,7 @@ private struct CustomFilterEditor: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onCancel)
+                        .keyboardShortcut(.cancelAction)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
@@ -211,6 +212,8 @@ private struct CustomFilterEditor: View {
                         out.queryExpression = trimmedQuery.isEmpty ? nil : trimmedQuery
                         onSave(out)
                     }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
                     .disabled(saveDisabled)
                 }
             }

@@ -139,11 +139,14 @@ private struct PassphrasePromptSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onCancel)
+                        .keyboardShortcut(.cancelAction)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Apply") {
                         onSubmit(first, mode == .change ? second : "")
                     }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
                     .disabled(canSubmit == false)
                 }
             }
