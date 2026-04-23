@@ -63,23 +63,24 @@ final class AppModel {
     private(set) var tasks: [TaskMirror] = []
     private(set) var calendars: [CalendarListMirror] = []
     private(set) var events: [CalendarEventMirror] = []
-    // Pre-bucketed events by calendar id. Recomputed in rebuildSnapshots so
+    // Pre-bucketed event IDs by calendar id. Recomputed in rebuildSnapshots so
     // each grid view can avoid the per-render `model.events.filter` over the
     // full event corpus (~17k+ at scale → ~3k once bucketed by typical
     // calendar selections, and lookup is O(1) per calendar). Cancelled
-    // events are omitted to match the existing visibleEvents semantics.
-    private(set) var eventsByCalendar: [CalendarListMirror.ID: [CalendarEventMirror]] = [:]
-    // Pre-bucketed events keyed on startOfDay. Multi-day events appear in
+    // events are omitted to match the existing visibleEvents semantics. IDs
+    // keep these indexes compact instead of retaining duplicate event mirrors.
+    private(set) var eventsByCalendar: [CalendarListMirror.ID: [CalendarEventMirror.ID]] = [:]
+    // Pre-bucketed event IDs keyed on startOfDay. Multi-day events appear in
     // every day they overlap. Cancelled events excluded. Grid views look up
     // O(1) per cell rather than re-filtering the full event corpus each
     // render. Stored as [TimeInterval] keys so Dictionary hashing stays
     // fast — comparing Date instances allocates formatter strings in some
     // Swift runtimes. Callers round to startOfDay before lookup.
-    private(set) var eventsByDay: [TimeInterval: [CalendarEventMirror]] = [:]
-    // Pre-bucketed tasks keyed on startOfDay(dueDate). Open, non-deleted
+    private(set) var eventsByDay: [TimeInterval: [CalendarEventMirror.ID]] = [:]
+    // Pre-bucketed task IDs keyed on startOfDay(dueDate). Open, non-deleted
     // tasks only. Mirrors eventsByDay so grids skip the tasks.filter per
-    // cell render.
-    private(set) var tasksByDueDate: [TimeInterval: [TaskMirror]] = [:]
+    // cell render without retaining duplicate task mirrors.
+    private(set) var tasksByDueDate: [TimeInterval: [TaskMirror.ID]] = [:]
     private(set) var taskSections: [TaskListSectionSnapshot] = []
     private(set) var todaySnapshot: TodaySnapshot = .empty
     private(set) var calendarSnapshot: CalendarSnapshot = .empty
@@ -103,15 +104,13 @@ final class AppModel {
     // stale UI. Bumping here is the one-place invariant: if snapshots
     // rebuilt, the revision advances.
     private(set) var dataRevision: UInt64 = 0
-    // O(1) ID lookups maintained by rebuildSnapshots. task(id:) / event(id:)
+    // O(1) ID-to-index lookups maintained by rebuildSnapshots. task(id:) / event(id:)
     // previously scanned the full arrays on every call, including inside
     // menus and body evaluations — observable lag for users with thousands
-    // of tasks/events. Same invariant as the other snapshots: every
-    // mutation path lands in rebuildSnapshots, which rebuilds these.
-    private(set) var tasksByID: [TaskMirror.ID: TaskMirror] = [:]
-    private(set) var eventsByID: [CalendarEventMirror.ID: CalendarEventMirror] = [:]
-    private(set) var taskListsByID: [TaskListMirror.ID: TaskListMirror] = [:]
-    private(set) var calendarsByID: [CalendarListMirror.ID: CalendarListMirror] = [:]
+    // of tasks/events. The values are indexes rather than full mirrors so
+    // lookup tables do not double-retain the largest data collections.
+    private var taskIndexByID: [TaskMirror.ID: Int] = [:]
+    private var eventIndexByID: [CalendarEventMirror.ID: Int] = [:]
     private(set) var syncCheckpoints: [SyncCheckpoint] = []
     private(set) var pendingMutations: [PendingMutation] = []
     private(set) var recentlyCompletedTaskID: TaskMirror.ID?
@@ -3100,11 +3099,24 @@ final class AppModel {
     }
 
     func task(id: TaskMirror.ID) -> TaskMirror? {
-        tasksByID[id]
+        guard let index = taskIndexByID[id],
+              tasks.indices.contains(index),
+              tasks[index].id == id else {
+            // Snapshot rebuilds are intentionally coalesced to the next tick.
+            // During that tiny stale-index window, fall back to a scan instead
+            // of returning the wrong mirror after an insertion/removal shifts.
+            return tasks.first { $0.id == id }
+        }
+        return tasks[index]
     }
 
     func event(id: CalendarEventMirror.ID) -> CalendarEventMirror? {
-        eventsByID[id]
+        guard let index = eventIndexByID[id],
+              events.indices.contains(index),
+              events[index].id == id else {
+            return events.first { $0.id == id }
+        }
+        return events[index]
     }
 
     private func apply(_ state: CachedAppState) {
@@ -3419,10 +3431,10 @@ final class AppModel {
         // Bucket events by calendar id so grid views can skip the
         // per-render full-events filter. Done once here, read O(1) per
         // calendar by callers.
-        var byCalendar: [CalendarListMirror.ID: [CalendarEventMirror]] = [:]
+        var byCalendar: [CalendarListMirror.ID: [CalendarEventMirror.ID]] = [:]
         byCalendar.reserveCapacity(calendars.count)
         for event in events where event.status != .cancelled {
-            byCalendar[event.calendarID, default: []].append(event)
+            byCalendar[event.calendarID, default: []].append(event.id)
         }
         eventsByCalendar = byCalendar
 
@@ -3432,7 +3444,7 @@ final class AppModel {
         // recurrence expansions etc). TimeInterval key avoids Date hashing
         // overhead at scale.
         let cal = Calendar.current
-        var byDay: [TimeInterval: [CalendarEventMirror]] = [:]
+        var byDay: [TimeInterval: [CalendarEventMirror.ID]] = [:]
         byDay.reserveCapacity(events.count)
         for event in events where event.status != .cancelled {
             let startDay = cal.startOfDay(for: event.startDate)
@@ -3440,7 +3452,7 @@ final class AppModel {
             var day = startDay
             var steps = 0
             while day <= endDay && steps < 366 {
-                byDay[day.timeIntervalSinceReferenceDate, default: []].append(event)
+                byDay[day.timeIntervalSinceReferenceDate, default: []].append(event.id)
                 guard let next = cal.date(byAdding: .day, value: 1, to: day) else { break }
                 day = next
                 steps += 1
@@ -3451,11 +3463,11 @@ final class AppModel {
         // Bucket open, non-deleted tasks by due date (startOfDay). Mirrors
         // eventsByDay so the grid + agenda views can skip filtering
         // `model.tasks` on every cell render.
-        var tByDay: [TimeInterval: [TaskMirror]] = [:]
+        var tByDay: [TimeInterval: [TaskMirror.ID]] = [:]
         for task in tasks where task.isDeleted == false && task.isCompleted == false {
             guard let due = task.dueDate else { continue }
             let key = cal.startOfDay(for: due).timeIntervalSinceReferenceDate
-            tByDay[key, default: []].append(task)
+            tByDay[key, default: []].append(task.id)
         }
         tasksByDueDate = tByDay
 
@@ -3489,10 +3501,8 @@ final class AppModel {
 
         // O(1) ID lookup tables. One pass over each collection replaces
         // arbitrary .first(where:) scans scattered across the codebase.
-        tasksByID = Dictionary(uniqueKeysWithValues: tasks.map { ($0.id, $0) })
-        eventsByID = Dictionary(uniqueKeysWithValues: events.map { ($0.id, $0) })
-        taskListsByID = Dictionary(uniqueKeysWithValues: taskLists.map { ($0.id, $0) })
-        calendarsByID = Dictionary(uniqueKeysWithValues: calendars.map { ($0.id, $0) })
+        taskIndexByID = Dictionary(uniqueKeysWithValues: tasks.enumerated().map { ($0.element.id, $0.offset) })
+        eventIndexByID = Dictionary(uniqueKeysWithValues: events.enumerated().map { ($0.element.id, $0.offset) })
 
         // Advance the content revision. Any view composing this into a
         // cache key rebuilds its derived snapshot on the next observation

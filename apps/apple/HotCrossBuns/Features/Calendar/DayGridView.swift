@@ -35,14 +35,14 @@ struct DayGridView: View {
     private var dayStart: Date { calendar.startOfDay(for: anchorDate) }
     private var dayEnd: Date { calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart }
 
-    // Looks up model.eventsByDay (pre-bucketed in rebuildSnapshots) rather
-    // than scanning model.events. Each lookup is O(bucket size) instead of
+    // Looks up model.eventsByDay IDs (pre-bucketed in rebuildSnapshots)
+    // rather than scanning model.events. Each lookup is O(bucket size) instead of
     // O(full corpus). Search + past-event filtering apply afterward.
     private var visibleEvents: [CalendarEventMirror] {
         let now = Date()
         let key = dayStart.timeIntervalSinceReferenceDate
         let selectedIDs = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
-        let bucket = model.eventsByDay[key] ?? []
+        let bucket = (model.eventsByDay[key] ?? []).compactMap { model.event(id: $0) }
         let filtered = bucket.filter { event in
             selectedIDs.contains(event.calendarID)
                 && model.settings.shouldHidePastEvent(event, now: now) == false
@@ -74,7 +74,7 @@ struct DayGridView: View {
             : Set(model.taskLists.map(\.id))
         let now = Date()
         let key = dayStart.timeIntervalSinceReferenceDate
-        let bucket = model.tasksByDueDate[key] ?? []
+        let bucket = (model.tasksByDueDate[key] ?? []).compactMap { model.task(id: $0) }
         return bucket.filter { task in
             if model.settings.shouldHideOverdueTask(task, now: now, calendar: calendar) { return false }
             return visibleLists.contains(task.taskListID)

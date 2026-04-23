@@ -118,7 +118,7 @@ struct WeekGridView: View {
         var base: [CalendarEventMirror] = []
         for cal in model.calendarSnapshot.selectedCalendars {
             if let bucket = model.eventsByCalendar[cal.id] {
-                base.append(contentsOf: bucket)
+                base.append(contentsOf: bucket.compactMap { model.event(id: $0) })
             }
         }
         let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -130,18 +130,6 @@ struct WeekGridView: View {
         }
     }
 
-    private var visibleTasks: [TaskMirror] {
-        let visibleLists: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
-            ? model.settings.selectedTaskListIDs
-            : Set(model.taskLists.map(\.id))
-        return model.tasks.filter { task in
-            task.isDeleted == false
-                && task.isCompleted == false
-                && visibleLists.contains(task.taskListID)
-                && task.dueDate != nil
-        }
-    }
-
     private func tasksForDay(_ day: Date) -> [TaskMirror] {
         let dayStart = calendar.startOfDay(for: day)
         let key = dayStart.timeIntervalSinceReferenceDate
@@ -150,7 +138,7 @@ struct WeekGridView: View {
         let visibleLists = model.settings.hasConfiguredTaskListSelection
             ? model.settings.selectedTaskListIDs
             : Set(model.taskLists.map(\.id))
-        let bucket = model.tasksByDueDate[key] ?? []
+        let bucket = (model.tasksByDueDate[key] ?? []).compactMap { model.task(id: $0) }
         return bucket
             .filter { visibleLists.contains($0.taskListID) }
             .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
