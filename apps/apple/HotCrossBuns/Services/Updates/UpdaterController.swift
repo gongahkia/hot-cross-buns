@@ -18,8 +18,32 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
         let tagName: String
         let htmlURL: URL
         let downloadURL: URL?
+        let downloadFilename: String?
         let publishedAt: Date?
         let notesMarkdown: String
+    }
+
+    struct DownloadState: Equatable {
+        enum Phase: Equatable {
+            case idle
+            case downloading
+            case ready
+            case failed
+        }
+
+        let phase: Phase
+        let releaseTag: String?
+        let progress: Double?
+        let fileURL: URL?
+        let message: String?
+
+        static let idle = DownloadState(
+            phase: .idle,
+            releaseTag: nil,
+            progress: nil,
+            fileURL: nil,
+            message: nil
+        )
     }
 
     enum CheckTrigger {
@@ -60,6 +84,12 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
         }
     }
 
+    typealias ReleaseAssetDownloader = @Sendable (
+        URL,
+        URL,
+        @escaping @Sendable (Double?) -> Void
+    ) async throws -> Void
+
     private struct ReleaseVersion: Comparable {
         let components: [Int]
 
@@ -91,9 +121,12 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
     private let urlSession: URLSession
     private let openURL: (URL) -> Bool
     private let now: () -> Date
+    private let downloadsDirectory: () -> URL?
+    private let releaseAssetDownloader: ReleaseAssetDownloader
     private var controller: SPUStandardUpdaterController?
     private(set) var toastState: ToastState?
     private(set) var availableRelease: AvailableRelease?
+    private(set) var downloadState: DownloadState = .idle
     private(set) var updatePromptSequence: Int = 0
     private(set) var isChecking = false
 
@@ -105,13 +138,25 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
         userDefaults: UserDefaults = .standard,
         urlSession: URLSession = .shared,
         openURL: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) },
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        downloadsDirectory: @escaping () -> URL? = {
+            FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+        },
+        releaseAssetDownloader: @escaping ReleaseAssetDownloader = { remoteURL, destinationURL, progress in
+            try await UpdaterController.defaultReleaseAssetDownloader(
+                from: remoteURL,
+                to: destinationURL,
+                progress: progress
+            )
+        }
     ) {
         self.bundle = bundle
         self.userDefaults = userDefaults
         self.urlSession = urlSession
         self.openURL = openURL
         self.now = now
+        self.downloadsDirectory = downloadsDirectory
+        self.releaseAssetDownloader = releaseAssetDownloader
         super.init()
     }
 
@@ -186,16 +231,22 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
 
             if isNewerThanCurrentVersion(release.tagName) {
                 availableRelease = makeAvailableRelease(from: release)
-                requestAvailableReleasePrompt()
-                if trigger == .manual || trigger == .automatic {
-                    toastState = ToastState(
-                        title: "Update available",
-                        message: "Hot Cross Buns \(availableRelease?.version ?? release.tagName) is available from GitHub Releases.",
-                        isWarning: false
-                    )
+                if availableRelease?.downloadURL != nil {
+                    await downloadAvailableRelease(shouldPresentPrompt: true)
+                } else {
+                    downloadState = .idle
+                    requestAvailableReleasePrompt()
+                    if trigger == .manual || trigger == .automatic {
+                        toastState = ToastState(
+                            title: "Update available",
+                            message: "Hot Cross Buns \(availableRelease?.version ?? release.tagName) is available from GitHub Releases.",
+                            isWarning: false
+                        )
+                    }
                 }
             } else {
                 availableRelease = nil
+                downloadState = .idle
                 if trigger == .manual {
                     toastState = ToastState(
                         title: "You're on the latest version",
@@ -230,14 +281,25 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
     }
 
     func openAvailableReleaseDownload() {
-        let target = availableRelease?.downloadURL ?? availableRelease?.htmlURL ?? githubReleasesPageURL
+        let target = activeDownloadURL ?? availableRelease?.downloadURL ?? availableRelease?.htmlURL ?? githubReleasesPageURL
         guard openURL(target) else {
             toastState = ToastState(
-                title: "Couldn't open release page",
+                title: "Couldn't open update",
                 message: target.absoluteString,
                 isWarning: true
             )
             return
+        }
+    }
+
+    func revealDownloadedReleaseInFinder() {
+        guard let fileURL = activeDownloadURL else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+    }
+
+    func retryAvailableReleaseDownload() {
+        Task {
+            await downloadAvailableRelease(shouldPresentPrompt: true)
         }
     }
 
@@ -321,13 +383,15 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
     }
 
     private func makeAvailableRelease(from release: GitHubRelease) -> AvailableRelease {
-        let download = preferredDMGAsset(in: release.assets)?.browserDownloadURL
+        let asset = preferredDMGAsset(in: release.assets)
+        let download = asset?.browserDownloadURL
         return AvailableRelease(
             title: release.name,
             version: normalizedVersionString(release.tagName),
             tagName: release.tagName,
             htmlURL: release.htmlURL,
             downloadURL: download,
+            downloadFilename: asset?.name,
             publishedAt: release.publishedAt,
             notesMarkdown: release.body?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         )
@@ -335,6 +399,161 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
 
     private func requestAvailableReleasePrompt() {
         updatePromptSequence += 1
+    }
+
+    private var activeDownloadURL: URL? {
+        guard let release = availableRelease,
+              downloadState.phase == .ready,
+              downloadState.releaseTag == release.tagName,
+              let fileURL = downloadState.fileURL,
+              FileManager.default.fileExists(atPath: fileURL.path) else {
+            return nil
+        }
+        return fileURL
+    }
+
+    private func downloadAvailableRelease(shouldPresentPrompt: Bool) async {
+        guard let release = availableRelease,
+              let remoteURL = release.downloadURL else {
+            if shouldPresentPrompt {
+                requestAvailableReleasePrompt()
+            }
+            return
+        }
+
+        if let existingFileURL = existingDownloadURL(for: release) {
+            downloadState = DownloadState(
+                phase: .ready,
+                releaseTag: release.tagName,
+                progress: 1,
+                fileURL: existingFileURL,
+                message: nil
+            )
+            toastState = ToastState(
+                title: "Update ready to install",
+                message: "Hot Cross Buns \(release.version) is already downloaded in Downloads.",
+                isWarning: false
+            )
+            if shouldPresentPrompt {
+                requestAvailableReleasePrompt()
+            }
+            return
+        }
+
+        let destinationURL: URL
+        do {
+            destinationURL = try downloadDestination(for: release, remoteURL: remoteURL)
+        } catch {
+            downloadState = DownloadState(
+                phase: .failed,
+                releaseTag: release.tagName,
+                progress: nil,
+                fileURL: nil,
+                message: error.localizedDescription
+            )
+            toastState = ToastState(
+                title: "Couldn't prepare update download",
+                message: error.localizedDescription,
+                isWarning: true
+            )
+            if shouldPresentPrompt {
+                requestAvailableReleasePrompt()
+            }
+            return
+        }
+
+        downloadState = DownloadState(
+            phase: .downloading,
+            releaseTag: release.tagName,
+            progress: nil,
+            fileURL: nil,
+            message: nil
+        )
+
+        do {
+            try await releaseAssetDownloader(remoteURL, destinationURL) { [weak self] progress in
+                Task { @MainActor in
+                    guard let self,
+                          self.availableRelease?.tagName == release.tagName,
+                          self.downloadState.phase == .downloading else {
+                        return
+                    }
+                    self.downloadState = DownloadState(
+                        phase: .downloading,
+                        releaseTag: release.tagName,
+                        progress: progress,
+                        fileURL: nil,
+                        message: nil
+                    )
+                }
+            }
+            downloadState = DownloadState(
+                phase: .ready,
+                releaseTag: release.tagName,
+                progress: 1,
+                fileURL: destinationURL,
+                message: nil
+            )
+            toastState = ToastState(
+                title: "Update ready to install",
+                message: "Hot Cross Buns \(release.version) downloaded to Downloads.",
+                isWarning: false
+            )
+        } catch {
+            downloadState = DownloadState(
+                phase: .failed,
+                releaseTag: release.tagName,
+                progress: nil,
+                fileURL: nil,
+                message: error.localizedDescription
+            )
+            toastState = ToastState(
+                title: "Couldn't download update",
+                message: error.localizedDescription,
+                isWarning: true
+            )
+        }
+
+        if shouldPresentPrompt {
+            requestAvailableReleasePrompt()
+        }
+    }
+
+    private func existingDownloadURL(for release: AvailableRelease) -> URL? {
+        guard let destinationURL = try? downloadDestination(for: release, remoteURL: release.downloadURL),
+              FileManager.default.fileExists(atPath: destinationURL.path) else {
+            return nil
+        }
+        return destinationURL
+    }
+
+    private func downloadDestination(for release: AvailableRelease, remoteURL: URL?) throws -> URL {
+        guard let downloadsURL = downloadsDirectory() else {
+            throw UpdateDownloadError.missingDownloadsDirectory
+        }
+        let baseName = sanitizedFilename(
+            release.downloadFilename
+                ?? remoteURL?.lastPathComponent
+                ?? "HotCrossBuns-\(release.version).dmg"
+        )
+        let filename: String
+        if baseName.lowercased().hasSuffix(".dmg") {
+            filename = baseName
+        } else {
+            filename = "\(baseName).dmg"
+        }
+        return downloadsURL.appendingPathComponent(filename, isDirectory: false)
+    }
+
+    private func sanitizedFilename(_ rawValue: String) -> String {
+        let fallback = "HotCrossBuns-\(currentVersionString).dmg"
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return fallback }
+        return trimmed.replacingOccurrences(
+            of: #"[/\\:\n\r\t]+"#,
+            with: "-",
+            options: .regularExpression
+        )
     }
 
     private func preferredDMGAsset(in assets: [GitHubAsset]) -> GitHubAsset? {
@@ -376,6 +595,18 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
             isWarning: true
         )
     }
+
+    nonisolated private static func defaultReleaseAssetDownloader(
+        from remoteURL: URL,
+        to destinationURL: URL,
+        progress: @escaping @Sendable (Double?) -> Void
+    ) async throws {
+        try await ReleaseAssetDownloadCoordinator.download(
+            from: remoteURL,
+            to: destinationURL,
+            progress: progress
+        )
+    }
 }
 
 private enum UpdateCheckError: LocalizedError {
@@ -392,5 +623,111 @@ private enum UpdateCheckError: LocalizedError {
             }
             return "GitHub Releases responded with HTTP \(code)."
         }
+    }
+}
+
+private enum UpdateDownloadError: LocalizedError {
+    case missingDownloadsDirectory
+
+    var errorDescription: String? {
+        switch self {
+        case .missingDownloadsDirectory:
+            return "Couldn't resolve the Downloads folder for this account."
+        }
+    }
+}
+
+private final class ReleaseAssetDownloadCoordinator: NSObject, URLSessionDownloadDelegate, URLSessionTaskDelegate {
+    private let progressHandler: @Sendable (Double?) -> Void
+    private var continuation: CheckedContinuation<Void, Error>?
+    private var destinationURL: URL?
+    private var completionHandled = false
+
+    private init(progressHandler: @escaping @Sendable (Double?) -> Void) {
+        self.progressHandler = progressHandler
+    }
+
+    static func download(
+        from remoteURL: URL,
+        to destinationURL: URL,
+        progress: @escaping @Sendable (Double?) -> Void
+    ) async throws {
+        let coordinator = ReleaseAssetDownloadCoordinator(progressHandler: progress)
+        try await coordinator.download(from: remoteURL, to: destinationURL)
+    }
+
+    private func download(from remoteURL: URL, to destinationURL: URL) async throws {
+        self.destinationURL = destinationURL
+        try FileManager.default.createDirectory(
+            at: destinationURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+        if FileManager.default.fileExists(atPath: destinationURL.path) {
+            try FileManager.default.removeItem(at: destinationURL)
+        }
+
+        let configuration = URLSessionConfiguration.ephemeral
+        let session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+        defer {
+            session.finishTasksAndInvalidate()
+        }
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            self.continuation = continuation
+            let task = session.downloadTask(with: remoteURL)
+            task.resume()
+        }
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didWriteData bytesWritten: Int64,
+        totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        let fraction: Double?
+        if totalBytesExpectedToWrite > 0 {
+            fraction = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+        } else {
+            fraction = nil
+        }
+        progressHandler(fraction)
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didFinishDownloadingTo location: URL
+    ) {
+        guard let destinationURL else {
+            finish(.failure(UpdateDownloadError.missingDownloadsDirectory))
+            return
+        }
+
+        do {
+            if FileManager.default.fileExists(atPath: destinationURL.path) {
+                try FileManager.default.removeItem(at: destinationURL)
+            }
+            try FileManager.default.moveItem(at: location, to: destinationURL)
+            progressHandler(1)
+            finish(.success(()))
+        } catch {
+            finish(.failure(error))
+        }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        if let error {
+            finish(.failure(error))
+        }
+    }
+
+    private func finish(_ result: Result<Void, Error>) {
+        guard completionHandled == false, let continuation else { return }
+        completionHandled = true
+        self.continuation = nil
+        continuation.resume(with: result)
     }
 }

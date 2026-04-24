@@ -57,8 +57,11 @@ final class ReleaseConfigGateTests: XCTestCase {
         let suiteName = "ReleaseConfigGateTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
+        let downloadsURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: downloadsURL, withIntermediateDirectories: true, attributes: nil)
         addTeardownBlock {
             defaults.removePersistentDomain(forName: suiteName)
+            try? FileManager.default.removeItem(at: downloadsURL)
         }
 
         let controller = UpdaterController(
@@ -66,7 +69,13 @@ final class ReleaseConfigGateTests: XCTestCase {
             userDefaults: defaults,
             urlSession: session,
             openURL: { _ in true },
-            now: { Date(timeIntervalSince1970: 1_777_000_000) }
+            now: { Date(timeIntervalSince1970: 1_777_000_000) },
+            downloadsDirectory: { downloadsURL },
+            releaseAssetDownloader: { _, destinationURL, progress in
+                progress(0.5)
+                try Data("fixture".utf8).write(to: destinationURL)
+                progress(1)
+            }
         )
 
         await controller.checkForUpdatesNow(trigger: .manual)
@@ -75,8 +84,11 @@ final class ReleaseConfigGateTests: XCTestCase {
         XCTAssertEqual(controller.availableRelease?.title, "Spring Refresh")
         XCTAssertEqual(controller.availableRelease?.notesMarkdown, "## Changes\n- Added update prompts")
         XCTAssertEqual(controller.availableRelease?.downloadURL?.absoluteString, "https://github.com/gongahkia/hot-cross-buns/releases/download/v1.2.0/HotCrossBuns-macOS.dmg")
-        XCTAssertEqual(controller.toastState?.title, "Update available")
+        XCTAssertEqual(controller.toastState?.title, "Update ready to install")
         XCTAssertEqual(controller.updatePromptSequence, 1)
+        XCTAssertEqual(controller.downloadState.phase, .ready)
+        XCTAssertEqual(controller.downloadState.fileURL?.lastPathComponent, "HotCrossBuns-macOS.dmg")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: try XCTUnwrap(controller.downloadState.fileURL).path))
         XCTAssertNotNil(controller.lastUpdateCheckDate)
     }
 
@@ -109,6 +121,54 @@ final class ReleaseConfigGateTests: XCTestCase {
         XCTAssertEqual(controller.toastState?.title, "You're on the latest version")
     }
 
+    func testOpenAvailableReleaseDownloadPrefersDownloadedLocalDMG() async throws {
+        let session = try makeStubbedSession(statusCode: 200, body: """
+        {
+          "tag_name": "v1.2.0",
+          "html_url": "https://github.com/gongahkia/hot-cross-buns/releases/tag/v1.2.0",
+          "published_at": "2026-04-24T00:00:00Z",
+          "assets": [
+            {
+              "name": "HotCrossBuns-macOS.dmg",
+              "browser_download_url": "https://github.com/gongahkia/hot-cross-buns/releases/download/v1.2.0/HotCrossBuns-macOS.dmg"
+            }
+          ]
+        }
+        """)
+        let suiteName = "ReleaseConfigGateTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let downloadsURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: downloadsURL, withIntermediateDirectories: true, attributes: nil)
+        addTeardownBlock {
+            defaults.removePersistentDomain(forName: suiteName)
+            try? FileManager.default.removeItem(at: downloadsURL)
+        }
+
+        var openedURL: URL?
+        let controller = UpdaterController(
+            bundle: try makeBundle(info: ["CFBundleShortVersionString": "1.0.0"]),
+            userDefaults: defaults,
+            urlSession: session,
+            openURL: {
+                openedURL = $0
+                return true
+            },
+            downloadsDirectory: { downloadsURL },
+            releaseAssetDownloader: { _, destinationURL, progress in
+                progress(nil)
+                try Data("fixture".utf8).write(to: destinationURL)
+                progress(1)
+            }
+        )
+
+        await controller.checkForUpdatesNow(trigger: .manual)
+        controller.openAvailableReleaseDownload()
+
+        XCTAssertEqual(openedURL?.isFileURL, true)
+        XCTAssertEqual(openedURL?.lastPathComponent, "HotCrossBuns-macOS.dmg")
+    }
+
     func testGoogleAuthServiceRequiresConcreteClientID() throws {
         XCTAssertFalse(GoogleAuthService(bundle: try makeBundle(info: [:])).isConfigured)
         XCTAssertFalse(GoogleAuthService(bundle: try makeBundle(info: [
@@ -130,7 +190,7 @@ final class ReleaseConfigGateTests: XCTestCase {
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("bundle")
         let contentsURL = rootURL.appendingPathComponent("Contents", isDirectory: true)
-        try FileManager.default.createDirectory(at: contentsURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: contentsURL, withIntermediateDirectories: true, attributes: nil)
         addTeardownBlock {
             try? FileManager.default.removeItem(at: rootURL)
         }
