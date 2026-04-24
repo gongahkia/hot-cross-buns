@@ -112,6 +112,9 @@ struct HCBSettingsWindow: View {
         .onChange(of: updater.updatePromptSequence) { _, _ in
             openWindow(id: "update-available")
         }
+        .onChange(of: updater.installGuideSequence) { _, _ in
+            openWindow(id: "install-update")
+        }
     }
 
 }

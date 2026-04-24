@@ -14,6 +14,17 @@ private struct UpdatePromptWindowObserver: ViewModifier {
     }
 }
 
+private struct InstallGuideWindowObserver: ViewModifier {
+    let sequence: Int
+    let openWindow: OpenWindowAction
+
+    func body(content: Content) -> some View {
+        content.onChange(of: sequence) { _, _ in
+            openWindow(id: "install-update")
+        }
+    }
+}
+
 struct MacSidebarShell: View {
     @Environment(AppModel.self) private var model
     @Environment(UpdaterController.self) private var updater
@@ -223,6 +234,7 @@ struct MacSidebarShell: View {
                 }
             }
             .modifier(UpdatePromptWindowObserver(sequence: updater.updatePromptSequence, openWindow: openWindow))
+            .modifier(InstallGuideWindowObserver(sequence: updater.installGuideSequence, openWindow: openWindow))
             .modifier(ShellZoomObservers(zoomIn: performZoomIn, zoomOut: performZoomOut, zoomReset: performZoomReset))
             .task { await performInitialLoad() }
             .task { await updater.performAutomaticCheckIfNeeded() }
