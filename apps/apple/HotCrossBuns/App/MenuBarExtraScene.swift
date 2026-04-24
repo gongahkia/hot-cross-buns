@@ -379,7 +379,7 @@ private final class HCBMenuBarPanelFrameView: NSView {
     var arrowMidX: CGFloat = 0
 
     private let arrowHeight: CGFloat = 8
-    private let cornerRadius: CGFloat = 10
+    private let cornerRadius: CGFloat = 12
     private let borderWidth: CGFloat = 1
     private let sideInset: CGFloat = 1
     private let bottomInset: CGFloat = 1
@@ -435,9 +435,9 @@ private final class HCBMenuBarPanelFrameView: NSView {
         )
         path.append(arrow)
 
-        NSColor.windowBackgroundColor.withAlphaComponent(0.98).setFill()
+        NSColor.controlBackgroundColor.setFill()
         path.fill()
-        NSColor.separatorColor.withAlphaComponent(0.65).setStroke()
+        NSColor.separatorColor.withAlphaComponent(0.45).setStroke()
         path.lineWidth = borderWidth
         path.stroke()
     }
@@ -456,6 +456,7 @@ struct MenuBarExtraContent: View {
         }
         .id(model.settings.colorSchemeID)
         .withHCBAppearance(model.settings)
+        .hcbPreferredColorScheme(model.settings)
         .hcbSurface(.menuBar) // §6.11 per-surface font override
         .onChange(of: model.settings.colorSchemeID, initial: true) { _, newID in
             HCBColorSchemeStore.current = HCBColorScheme.scheme(id: newID) ?? .notion
