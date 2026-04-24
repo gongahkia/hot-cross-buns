@@ -79,8 +79,6 @@ Around those core surfaces, the app also includes:
   <video src="https://github.com/user-attachments/assets/ea15df17-b65f-4f2e-b6f2-a6fec0fe5490" controls muted playsinline preload="metadata"></video>
 </div>
 
-> If the embedded video does not render in your GitHub client, open the [hero demo](https://gongahkia.github.io/hot-cross-buns/media/hero-window.mp4) or the [full docsite](https://gongahkia.github.io/hot-cross-buns/).
-
 ## Install
 
 **Direct download**
