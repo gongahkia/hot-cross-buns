@@ -3290,8 +3290,8 @@ final class AppModel {
         // we overwrite. Skipped on cold launch (empty local) and when nothing
         // differed (steady-state poll). Only the net diff is recorded so the
         // history log isn't spammed every 30s refresh tick.
-        let priorTasks = Dictionary(uniqueKeysWithValues: tasks.map { ($0.id, $0) })
-        let priorEvents = Dictionary(uniqueKeysWithValues: events.map { ($0.id, $0) })
+        let priorTasks = tasks
+        let priorEvents = events
         let shouldEmitSyncDiff = priorTasks.isEmpty == false || priorEvents.isEmpty == false
 
         account = state.account
@@ -3311,27 +3311,64 @@ final class AppModel {
         Task { await MutationAuditLog.shared.setRetentionLimit(cap) }
 
         if shouldEmitSyncDiff {
-            let newTasks = Dictionary(uniqueKeysWithValues: state.tasks.map { ($0.id, $0) })
-            let newEvents = Dictionary(uniqueKeysWithValues: state.events.map { ($0.id, $0) })
-            let taskDiff = countDiff(prior: priorTasks, next: newTasks, eq: { $0 == $1 })
-            let eventDiff = countDiff(prior: priorEvents, next: newEvents, eq: { $0 == $1 })
-            if taskDiff > 0 { recordUndo(.syncPulled(kind: "task", count: taskDiff)) }
-            if eventDiff > 0 { recordUndo(.syncPulled(kind: "event", count: eventDiff)) }
+            Self.recordSyncDiffAsync(
+                priorTasks: priorTasks,
+                priorEvents: priorEvents,
+                nextTasks: state.tasks,
+                nextEvents: state.events
+            )
         }
     }
 
-    // Helper: counts added + removed + modified items between two id-keyed maps.
-    // Used by the sync-diff hook to emit one syncPulled entry per resource-kind
-    // diff rather than per refresh tick.
-    private func countDiff<V: Equatable>(
+    // Counts sync diffs away from the main apply path. These history records
+    // are informational only, so they should not delay freshly synced data
+    // becoming visible.
+    nonisolated private static func recordSyncDiffAsync(
+        priorTasks: [TaskMirror],
+        priorEvents: [CalendarEventMirror],
+        nextTasks: [TaskMirror],
+        nextEvents: [CalendarEventMirror]
+    ) {
+        Task.detached(priority: .utility) {
+            let priorTaskMap = Dictionary(uniqueKeysWithValues: priorTasks.map { ($0.id, $0) })
+            let nextTaskMap = Dictionary(uniqueKeysWithValues: nextTasks.map { ($0.id, $0) })
+            let priorEventMap = Dictionary(uniqueKeysWithValues: priorEvents.map { ($0.id, $0) })
+            let nextEventMap = Dictionary(uniqueKeysWithValues: nextEvents.map { ($0.id, $0) })
+
+            let taskDiff = syncDiffCount(prior: priorTaskMap, next: nextTaskMap)
+            let eventDiff = syncDiffCount(prior: priorEventMap, next: nextEventMap)
+
+            if taskDiff > 0 {
+                await MutationAuditLog.shared.record(
+                    kind: "sync.task",
+                    resourceID: "",
+                    summary: "sync",
+                    metadata: ["count": String(taskDiff)],
+                    priorSnapshotJSON: nil,
+                    postSnapshotJSON: nil
+                )
+            }
+            if eventDiff > 0 {
+                await MutationAuditLog.shared.record(
+                    kind: "sync.event",
+                    resourceID: "",
+                    summary: "sync",
+                    metadata: ["count": String(eventDiff)],
+                    priorSnapshotJSON: nil,
+                    postSnapshotJSON: nil
+                )
+            }
+        }
+    }
+
+    nonisolated private static func syncDiffCount<V: Equatable>(
         prior: [String: V],
-        next: [String: V],
-        eq: (V, V) -> Bool
+        next: [String: V]
     ) -> Int {
         var count = 0
         for (id, newValue) in next {
             if let oldValue = prior[id] {
-                if eq(oldValue, newValue) == false { count += 1 }
+                if oldValue != newValue { count += 1 }
             } else {
                 count += 1
             }
