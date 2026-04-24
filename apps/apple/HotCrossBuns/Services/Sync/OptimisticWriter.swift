@@ -356,7 +356,7 @@ extension PendingMutation {
 extension GoogleAPIError {
     var isTransient: Bool {
         switch self {
-        case .preconditionFailed, .invalidURL, .invalidResponse:
+        case .preconditionFailed, .invalidURL, .invalidResponse, .invalidPayload:
             return false
         case .httpStatus(let status, _):
             return status == 429 || (500...599).contains(status)

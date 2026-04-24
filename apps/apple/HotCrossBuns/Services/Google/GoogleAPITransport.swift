@@ -160,6 +160,10 @@ struct GoogleAPITransport: Sendable {
             throw GoogleAPIError.preconditionFailed
         }
 
+        if httpResponse.statusCode == 400 {
+            throw GoogleAPIError.invalidPayload(String(data: data, encoding: .utf8))
+        }
+
         guard (200..<300).contains(httpResponse.statusCode) else {
             throw GoogleAPIError.httpStatus(httpResponse.statusCode, String(data: data, encoding: .utf8))
         }
@@ -172,6 +176,7 @@ enum GoogleAPIError: LocalizedError, Equatable {
     case invalidURL
     case invalidResponse
     case preconditionFailed
+    case invalidPayload(String?)
     case httpStatus(Int, String?)
 
     var errorDescription: String? {
@@ -182,9 +187,18 @@ enum GoogleAPIError: LocalizedError, Equatable {
             "Google returned a response we couldn't read. Try Refresh."
         case .preconditionFailed:
             "Someone else (or another device) changed this item while you were editing. We'll refresh so you can try again with the latest version."
+        case .invalidPayload(let body):
+            invalidPayloadMessage(body: body)
         case .httpStatus(let status, let body):
             statusMessage(status: status, body: body)
         }
+    }
+
+    var isInvalidPayload: Bool {
+        if case .invalidPayload = self {
+            return true
+        }
+        return false
     }
 
     private func statusMessage(status: Int, body: String?) -> String {
@@ -210,6 +224,60 @@ enum GoogleAPIError: LocalizedError, Equatable {
         }
 
         return baseMessage + " " + body.prefix(180)
+    }
+
+    private func invalidPayloadMessage(body: String?) -> String {
+        let baseMessage = "Google rejected the queued write because the payload was invalid. Review it in Sync Issues, copy the payload if needed, then retry after fixing the source data."
+        guard let body, body.isEmpty == false else {
+            return baseMessage
+        }
+        return baseMessage + " " + body.prefix(180)
+    }
+}
+
+enum SyncFailureKind: Equatable, Sendable {
+    case offline
+    case rateLimited
+    case serviceUnavailable
+    case authRequired
+    case invalidPayload
+    case other
+
+    static func classify(_ error: Error) -> SyncFailureKind {
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .notConnectedToInternet, .networkConnectionLost, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed, .timedOut:
+                return .offline
+            default:
+                break
+            }
+        }
+
+        if let tokenError = error as? GoogleTokenRefreshError, tokenError.requiresReconnect {
+            return .authRequired
+        }
+
+        guard let apiError = error as? GoogleAPIError else {
+            return .other
+        }
+
+        switch apiError {
+        case .invalidPayload:
+            return .invalidPayload
+        case .httpStatus(let status, _):
+            switch status {
+            case 401, 403:
+                return .authRequired
+            case 429:
+                return .rateLimited
+            case 500...599:
+                return .serviceUnavailable
+            default:
+                return .other
+            }
+        default:
+            return .other
+        }
     }
 }
 
