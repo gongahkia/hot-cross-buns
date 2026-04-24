@@ -102,7 +102,8 @@ struct CalendarEventPreviewButton<Label: View>: View {
                 }
             }
             Button("Copy as Markdown") {
-                let md = EventICSExporter.ics(for: event)
+                let calendarTitle = model.calendars.first(where: { $0.id == event.calendarID })?.summary
+                let md = EventMarkdownExporter.markdown(for: event, calendarTitle: calendarTitle)
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(md, forType: .string)
             }

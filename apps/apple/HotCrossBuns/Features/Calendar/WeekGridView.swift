@@ -882,10 +882,6 @@ struct WeekGridView: View {
         .accessibilityLabel(eventAccessibilityLabel(placed.event))
         .accessibilityHint("Opens event details")
         .modifier(EventHoverPreviewModifier(event: placed.event))
-        .contextMenu {
-            Button("Export .ics…") { exportSingleEventICS(placed.event) }
-            Button("Copy as Markdown") { copyEventMarkdown(placed.event) }
-        }
         .draggable(DraggedEvent(
             eventID: placed.event.id,
             calendarID: placed.event.calendarID,
