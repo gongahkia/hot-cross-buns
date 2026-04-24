@@ -23,12 +23,22 @@ final class RouterPath: ObservableObject {
     }
 
     func present(_ sheet: SheetDestination) {
+        guard presentedSheet != sheet else { return }
         presentedSheet = sheet
     }
 
+    func replacePath(_ newPath: [AppRoute]) {
+        guard path != newPath else { return }
+        path = newPath
+    }
+
     func reset() {
-        path = []
-        presentedSheet = nil
+        if path.isEmpty == false {
+            path = []
+        }
+        if presentedSheet != nil {
+            presentedSheet = nil
+        }
     }
 }
 
@@ -50,7 +60,7 @@ final class TabRouter {
         let router = router(for: key)
         return Binding(
             get: { router.path },
-            set: { router.path = $0 }
+            set: { router.replacePath($0) }
         )
     }
 
@@ -58,7 +68,10 @@ final class TabRouter {
         let router = router(for: key)
         return Binding(
             get: { router.presentedSheet },
-            set: { router.presentedSheet = $0 }
+            set: {
+                guard router.presentedSheet != $0 else { return }
+                router.presentedSheet = $0
+            }
         )
     }
 }
