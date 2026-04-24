@@ -59,6 +59,7 @@ final class AppModel {
     // prior timestamp on disk).
     private(set) var daysSinceLastLaunch: Int?
     private(set) var lastMutationError: String?
+    private(set) var globalHotkeyRegistrationState: GlobalHotkeyRegistrationState = .disabled
     private(set) var taskLists: [TaskListMirror] = []
     private(set) var tasks: [TaskMirror] = []
     private(set) var calendars: [CalendarListMirror] = []
@@ -1649,6 +1650,16 @@ final class AppModel {
         guard settings.enableGlobalHotkey != isEnabled else { return }
         settings.enableGlobalHotkey = isEnabled
         scheduleCacheSave()
+    }
+
+    func setGlobalHotkeyBinding(_ binding: GlobalHotkeyBinding) {
+        guard settings.globalHotkeyBinding != binding else { return }
+        settings.globalHotkeyBinding = binding
+        scheduleCacheSave()
+    }
+
+    func setGlobalHotkeyRegistrationState(_ state: GlobalHotkeyRegistrationState) {
+        globalHotkeyRegistrationState = state
     }
 
     // History-log + duplicate-detection setters. Kept clustered for discoverability.

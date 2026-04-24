@@ -84,14 +84,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    func setGlobalHotkeyEnabled(_ isEnabled: Bool) {
-        if isEnabled {
-            globalHotkey.action = { [weak self] in
-                self?.triggerGlobalQuickAdd()
-            }
-            globalHotkey.install()
-        } else {
+    func configureGlobalHotkey(enabled: Bool, binding: GlobalHotkeyBinding) -> GlobalHotkeyRegistrationState {
+        guard enabled else {
             globalHotkey.uninstall()
+            return .disabled
+        }
+
+        globalHotkey.action = { [weak self] in
+            self?.triggerGlobalQuickAdd()
+        }
+        do {
+            try globalHotkey.install(binding: binding)
+            return .ready(binding.displayLabel)
+        } catch {
+            globalHotkey.uninstall()
+            return .failed(error.localizedDescription)
         }
     }
 

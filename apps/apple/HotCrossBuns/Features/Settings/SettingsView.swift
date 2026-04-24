@@ -148,12 +148,7 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Keyboard") {
-                Toggle("Global quick-add hotkey (Cmd+Shift+Space)", isOn: globalHotkeyBinding)
-                Text("Capture a task from any app. The Hot Cross Buns quick-add sheet opens immediately, pre-focused.")
-                    .hcbFont(.footnote)
-                    .foregroundStyle(.secondary)
-            }
+            GlobalHotkeySection()
 
             CustomFiltersSection()
 
@@ -285,13 +280,6 @@ struct SettingsView: View {
         Binding(
             get: { model.settings.menuBarStyle },
             set: { model.setMenuBarStyle($0) }
-        )
-    }
-
-    private var globalHotkeyBinding: Binding<Bool> {
-        Binding(
-            get: { model.settings.enableGlobalHotkey },
-            set: { model.setEnableGlobalHotkey($0) }
         )
     }
 

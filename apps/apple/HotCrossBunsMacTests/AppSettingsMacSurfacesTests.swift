@@ -1,3 +1,4 @@
+import Carbon.HIToolbox
 import XCTest
 @testable import HotCrossBunsMac
 
@@ -19,6 +20,7 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
         XCTAssertTrue(settings.showMenuBarExtra, "legacy caches should opt into the menu bar extra by default")
         XCTAssertFalse(settings.showDetailedMenuBar, "legacy caches should default to compact menu bar panel")
         XCTAssertTrue(settings.showDockBadge, "legacy caches should opt into the dock badge by default")
+        XCTAssertEqual(settings.globalHotkeyBinding, .defaultQuickAdd)
     }
 
     func testEncodedSettingsRoundTripPreservesMacSurfaceFlags() throws {
@@ -29,7 +31,12 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
             enableLocalNotifications: true,
             showMenuBarExtra: false,
             showDetailedMenuBar: true,
-            showDockBadge: false
+            showDockBadge: false,
+            globalHotkeyBinding: GlobalHotkeyBinding(
+                keyCode: UInt32(kVK_ANSI_K),
+                key: .char("k"),
+                modifiers: [.command, .shift]
+            )
         )
 
         let data = try JSONEncoder().encode(settings)
@@ -38,5 +45,6 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
         XCTAssertFalse(decoded.showMenuBarExtra)
         XCTAssertTrue(decoded.showDetailedMenuBar)
         XCTAssertFalse(decoded.showDockBadge)
+        XCTAssertEqual(decoded.globalHotkeyBinding.displayLabel, "⇧⌘K")
     }
 }

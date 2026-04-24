@@ -304,12 +304,7 @@ private struct AlertsTab: View {
                 Toggle("Dock badge for overdue tasks", isOn: dockBadgeBinding)
             }
 
-            Section("Global hotkey") {
-                Toggle("Global quick-add hotkey (Cmd+Shift+Space)", isOn: globalHotkeyBinding)
-                Text("Capture a task from any app. The Hot Cross Buns quick-add sheet opens immediately, pre-focused.")
-                    .hcbFont(.footnote)
-                    .foregroundStyle(.secondary)
-            }
+            GlobalHotkeySection()
         }
         .formStyle(.grouped)
         .sheet(item: $permissionPrimer) { primer in
@@ -377,13 +372,6 @@ private struct AlertsTab: View {
         Binding(
             get: { model.settings.showDockBadge },
             set: { model.setShowDockBadge($0) }
-        )
-    }
-
-    private var globalHotkeyBinding: Binding<Bool> {
-        Binding(
-            get: { model.settings.enableGlobalHotkey },
-            set: { model.setEnableGlobalHotkey($0) }
         )
     }
 
