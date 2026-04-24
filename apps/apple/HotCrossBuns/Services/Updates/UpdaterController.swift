@@ -13,11 +13,13 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
     }
 
     struct AvailableRelease: Equatable {
+        let title: String?
         let version: String
         let tagName: String
         let htmlURL: URL
         let downloadURL: URL?
         let publishedAt: Date?
+        let notesMarkdown: String
     }
 
     enum CheckTrigger {
@@ -41,15 +43,19 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
     }
 
     private struct GitHubRelease: Decodable {
+        let name: String?
         let tagName: String
         let htmlURL: URL
         let publishedAt: Date?
+        let body: String?
         let assets: [GitHubAsset]
 
         enum CodingKeys: String, CodingKey {
+            case name
             case tagName = "tag_name"
             case htmlURL = "html_url"
             case publishedAt = "published_at"
+            case body
             case assets
         }
     }
@@ -88,6 +94,7 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
     private var controller: SPUStandardUpdaterController?
     private(set) var toastState: ToastState?
     private(set) var availableRelease: AvailableRelease?
+    private(set) var updatePromptSequence: Int = 0
     private(set) var isChecking = false
 
     private let githubLatestReleaseURL = URL(string: "https://api.github.com/repos/gongahkia/hot-cross-buns/releases/latest")!
@@ -179,6 +186,7 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
 
             if isNewerThanCurrentVersion(release.tagName) {
                 availableRelease = makeAvailableRelease(from: release)
+                requestAvailableReleasePrompt()
                 if trigger == .manual || trigger == .automatic {
                     toastState = ToastState(
                         title: "Update available",
@@ -231,6 +239,11 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
             )
             return
         }
+    }
+
+    func presentAvailableReleasePrompt() {
+        guard availableRelease != nil else { return }
+        requestAvailableReleasePrompt()
     }
 
     func openReleasesPage() {
@@ -310,12 +323,18 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
     private func makeAvailableRelease(from release: GitHubRelease) -> AvailableRelease {
         let download = preferredDMGAsset(in: release.assets)?.browserDownloadURL
         return AvailableRelease(
+            title: release.name,
             version: normalizedVersionString(release.tagName),
             tagName: release.tagName,
             htmlURL: release.htmlURL,
             downloadURL: download,
-            publishedAt: release.publishedAt
+            publishedAt: release.publishedAt,
+            notesMarkdown: release.body?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         )
+    }
+
+    private func requestAvailableReleasePrompt() {
+        updatePromptSequence += 1
     }
 
     private func preferredDMGAsset(in assets: [GitHubAsset]) -> GitHubAsset? {

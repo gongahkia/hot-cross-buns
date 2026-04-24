@@ -11,6 +11,7 @@ import SwiftUI
 struct HCBSettingsWindow: View {
     @Environment(AppModel.self) private var model
     @Environment(UpdaterController.self) private var updater
+    @Environment(\.openWindow) private var openWindow
     private enum Tab: String, CaseIterable, Identifiable {
         case general, appearance, hotkeys, alerts, advanced
         var id: String { rawValue }
@@ -107,6 +108,9 @@ struct HCBSettingsWindow: View {
                 successSymbol: "arrow.down.circle.fill",
                 warningSymbol: "wifi.exclamationmark"
             )
+        }
+        .onChange(of: updater.updatePromptSequence) { _, _ in
+            openWindow(id: "update-available")
         }
     }
 

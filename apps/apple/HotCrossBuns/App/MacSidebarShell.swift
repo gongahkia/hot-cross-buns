@@ -3,6 +3,17 @@ import UniformTypeIdentifiers
 import CoreSpotlight
 import SwiftUI
 
+private struct UpdatePromptWindowObserver: ViewModifier {
+    let sequence: Int
+    let openWindow: OpenWindowAction
+
+    func body(content: Content) -> some View {
+        content.onChange(of: sequence) { _, _ in
+            openWindow(id: "update-available")
+        }
+    }
+}
+
 struct MacSidebarShell: View {
     @Environment(AppModel.self) private var model
     @Environment(UpdaterController.self) private var updater
@@ -211,6 +222,7 @@ struct MacSidebarShell: View {
                     selection = first
                 }
             }
+            .modifier(UpdatePromptWindowObserver(sequence: updater.updatePromptSequence, openWindow: openWindow))
             .modifier(ShellZoomObservers(zoomIn: performZoomIn, zoomOut: performZoomOut, zoomReset: performZoomReset))
             .task { await performInitialLoad() }
             .task { await updater.performAutomaticCheckIfNeeded() }
