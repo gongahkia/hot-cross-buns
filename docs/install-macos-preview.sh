@@ -6,6 +6,7 @@ REPO_NAME="${REPO_NAME:-hot-cross-buns}"
 ASSET_NAME="${ASSET_NAME:-HotCrossBuns-macOS.dmg}"
 APP_NAME="${APP_NAME:-Hot Cross Buns.app}"
 DOWNLOAD_URL="${DOWNLOAD_URL:-https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest/download/${ASSET_NAME}}"
+DOWNLOAD_SHA256_URL="${DOWNLOAD_SHA256_URL:-${DOWNLOAD_URL}.sha256}"
 INSTALL_DIR_OVERRIDE="${INSTALL_DIR:-}"
 
 require_command() {
@@ -74,6 +75,7 @@ require_command curl
 require_command ditto
 require_command hdiutil
 require_command sed
+require_command shasum
 
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/hot-cross-buns-install.XXXXXX")"
 MOUNT_POINT=""
@@ -82,9 +84,26 @@ trap cleanup EXIT
 INSTALL_DIR="$(choose_install_dir)"
 TARGET_PATH="$INSTALL_DIR/$APP_NAME"
 DMG_PATH="$TMP_DIR/$ASSET_NAME"
+SHA256_PATH="$TMP_DIR/${ASSET_NAME}.sha256"
 
 echo "Downloading latest preview DMG..."
 curl -fL "$DOWNLOAD_URL" -o "$DMG_PATH"
+curl -fL "$DOWNLOAD_SHA256_URL" -o "$SHA256_PATH"
+
+echo "Verifying SHA-256 checksum..."
+EXPECTED_SHA="$(sed -E 's/[[:space:]].*$//' "$SHA256_PATH" | tr -d '\r\n')"
+if [[ -z "$EXPECTED_SHA" ]]; then
+  echo "Checksum file did not contain a SHA-256 digest." >&2
+  exit 1
+fi
+
+ACTUAL_SHA="$(shasum -a 256 "$DMG_PATH" | awk '{print $1}')"
+if [[ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]]; then
+  echo "Checksum mismatch for downloaded DMG." >&2
+  echo "Expected: $EXPECTED_SHA" >&2
+  echo "Actual:   $ACTUAL_SHA" >&2
+  exit 1
+fi
 
 echo "Mounting DMG..."
 ATTACH_OUTPUT="$(hdiutil attach "$DMG_PATH" -nobrowse)"

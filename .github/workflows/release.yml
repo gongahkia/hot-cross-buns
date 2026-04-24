@@ -86,11 +86,19 @@ jobs:
           fi
           cp "$VERSIONED_DMG" build/apple/HotCrossBuns-macOS.dmg
 
+      - name: Generate SHA-256 checksums
+        run: |
+          for artifact in build/apple/*.dmg; do
+            shasum -a 256 "$artifact" | awk '{print $1}' > "${artifact}.sha256"
+          done
+
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HotCrossBuns-macOS-DMG
-          path: build/apple/*.dmg
+          name: HotCrossBuns-macOS-artifacts
+          path: |
+            build/apple/*.dmg
+            build/apple/*.sha256
           if-no-files-found: error
 
       - name: Prepare appcast inputs
@@ -138,5 +146,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: build/apple/*.dmg
+          files: |
+            build/apple/*.dmg
+            build/apple/*.sha256
           generate_release_notes: true

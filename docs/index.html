@@ -25,6 +25,7 @@
     <a href="#menubar">Menu Bar</a>
     <a href="#reviews">Reviews</a>
     <a href="#updates">Updates</a>
+    <a href="privacy.html">Privacy</a>
     <button id="theme-toggle" aria-label="Toggle theme">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
     </button>
@@ -78,7 +79,7 @@
 
         <article class="view-item">
           <h3>Notes</h3>
-          <p>Lightweight local notes for context, drafts, and reference material.</p>
+          <p>Lightweight notes backed by Google Tasks for context, drafts, and reference material.</p>
         </article>
       </div>
     </div>
@@ -204,7 +205,7 @@
 	        Download DMG
 	      </button>
 	      <p class="download-meta">
-	        <span>Latest GitHub release asset</span>
+	        <span>Latest GitHub release asset with published SHA-256 checksum</span>
 	      </p>
 	    </div>
 
@@ -213,6 +214,7 @@
 	      <div class="brew-panel">
 	        <p>This one-liner downloads the latest GitHub release DMG and installs Hot Cross Buns into Applications or your home Applications folder.</p>
 	        <pre><code>curl -fsSL https://gongahkia.github.io/hot-cross-buns/install-macos-preview.sh | bash</code></pre>
+          <p class="brew-note">The script also downloads the matching <code>.sha256</code> file and verifies the DMG before install.</p>
 	      </div>
 	    </details>
 	  </div>
@@ -240,6 +242,7 @@
 	      <li>You should only need to do this once per Mac.</li>
 	    </ul>
 	    <p class="download-modal-footnote">You&apos;ll continue to the latest GitHub release asset.</p>
+        <p class="download-modal-footnote">Checksums are published for each release. See <a href="privacy.html">Privacy and Trust</a> for details.</p>
 	    <div class="download-modal-actions">
 	      <button class="cta-secondary download-modal-cancel" type="button" data-modal-close>Not now</button>
 	      <a
@@ -291,6 +294,7 @@
       <div class="foot-links">
         <a href="https://github.com/gongahkia/hot-cross-buns">GitHub</a>
         <a href="#download">Download</a>
+        <a href="privacy.html">Privacy</a>
         <a href="https://github.com/gongahkia/hot-cross-buns/blob/main/docs/CONTRIBUTING.md">Contribute</a>
         <a href="https://github.com/gongahkia/hot-cross-buns/releases">Releases</a>
       </div>

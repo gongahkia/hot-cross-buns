@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en" data-theme="latte">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Privacy and Trust - Hot Cross Buns</title>
+<meta name="description" content="Privacy, storage, permissions, and release integrity details for Hot Cross Buns.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..700,0..100&family=Geist:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,300..500;1,8..60,400&display=swap">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="logo.png">
+</head>
+<body>
+
+<nav class="nav">
+  <a class="wordmark" href="index.html">
+    <img src="logo.png" alt="" width="28" height="28">
+    <span>Hot Cross Buns</span>
+  </a>
+  <div class="nav-links">
+    <a href="index.html#views">Views</a>
+    <a href="index.html#download">Download</a>
+    <a href="privacy.html" aria-current="page">Privacy</a>
+    <a class="nav-cta" href="https://github.com/gongahkia/hot-cross-buns" target="_blank" rel="noopener">GitHub</a>
+  </div>
+</nav>
+
+<main class="doc-page">
+  <section class="doc-hero">
+    <p class="eyebrow">Privacy and trust</p>
+    <h1>What Hot Cross Buns stores, requests, and does not send.</h1>
+    <p class="deck">
+      Hot Cross Buns is a Mac app that talks directly to Google Tasks and Google Calendar. There is no separate Hot Cross Buns backend.
+    </p>
+  </section>
+
+  <section class="doc-grid">
+    <article class="doc-card">
+      <h2>Google access</h2>
+      <p>Hot Cross Buns asks Google only for the scopes it needs to read and write your selected task lists and calendars:</p>
+      <ul>
+        <li><code>https://www.googleapis.com/auth/tasks</code></li>
+        <li><code>https://www.googleapis.com/auth/calendar</code></li>
+      </ul>
+      <p>Those scopes are used for sign-in, sync, and edit operations against Google APIs. Hot Cross Buns does not request Drive, Gmail, Contacts, or Photos access.</p>
+    </article>
+
+    <article class="doc-card">
+      <h2>Where local data lives</h2>
+      <p>By default the app keeps a local cache under <code>~/Library/Application Support/com.gongahkia.hotcrossbuns.mac/</code>.</p>
+      <ul>
+        <li><code>cache-state.json</code>: account metadata, settings, sync checkpoints, pending offline mutations, and non-event mirrors</li>
+        <li><code>cache-events.json</code>: calendar event mirrors stored separately so routine saves stay small</li>
+        <li><code>cache-state.salt</code>: encryption salt when cache encryption is enabled</li>
+        <li><code>crash.log</code>: local crash note written on certain fatal crashes</li>
+      </ul>
+      <p>The cache is replaceable. Google remains the source of truth for synced tasks and events.</p>
+    </article>
+
+    <article class="doc-card">
+      <h2>Encryption and credentials</h2>
+      <p>Google OAuth tokens stay in the macOS Keychain. Optional local cache encryption uses AES-256-GCM with a passphrase-derived key. That encryption protects local cache files on your Mac; it does not change what Google stores.</p>
+    </article>
+
+    <article class="doc-card">
+      <h2>Crash logs and telemetry</h2>
+      <p>Hot Cross Buns does not include a third-party analytics or crash-upload SDK. macOS may still produce system crash reports in your Library logs, and the app may write a local crash note next to the cache to help diagnose launch failures. Those files stay on-device unless you choose to share them.</p>
+    </article>
+
+    <article class="doc-card">
+      <h2>Notes, tasks, and events</h2>
+      <p>Tasks and calendar events are backed by Google Tasks and Google Calendar. Notes in the app are task-shaped items that use Google Tasks storage, typically by keeping the note body in the Google Tasks notes field and leaving the due date empty.</p>
+    </article>
+
+    <article class="doc-card">
+      <h2>Permissions</h2>
+      <p>Notifications are optional and used only for device-local reminders. Accessibility permission is only needed if you enable global hotkeys that should work outside the app. You can revoke Google account access from your Google account settings and disconnect Hot Cross Buns from the app’s Settings window.</p>
+    </article>
+
+    <article class="doc-card">
+      <h2>Release integrity</h2>
+      <p>Each GitHub release publishes a matching SHA-256 checksum file for the DMG. The install script downloads both the DMG and checksum, verifies them locally, and refuses to install if they do not match.</p>
+    </article>
+
+    <article class="doc-card">
+      <h2>Distribution model</h2>
+      <p>Preview DMGs are currently distributed outside the Mac App Store. They may be unsigned or not notarized, so macOS can require a one-time manual approval under System Settings &gt; Privacy &amp; Security. Unsigned preview builds do not promise in-app auto-updates; download new DMGs from GitHub Releases instead.</p>
+    </article>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="foot-top">
+    <div class="foot-cols">
+      <div>
+        <p class="foot-title">Hot Cross Buns</p>
+        <p>A small, personal macOS planner.</p>
+      </div>
+      <div class="foot-links">
+        <a href="index.html">Home</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="https://github.com/gongahkia/hot-cross-buns">GitHub</a>
+        <a href="https://github.com/gongahkia/hot-cross-buns/releases">Releases</a>
+      </div>
+    </div>
+  </div>
+  <div class="foot-bottom">
+    <p class="made-by">Made with <span class="heart" aria-label="love">♥</span> by <a href="https://gabrielongzm.com" target="_blank" rel="noopener">Gabriel Ong</a></p>
+    <p class="copyright">© 2026 Gabriel Ong. All rights reserved.</p>
+  </div>
+</footer>
+
+<script src="main.js"></script>
+</body>
+</html>
