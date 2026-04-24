@@ -273,8 +273,8 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
 private extension NSImage {
     func hcbMenuBarBadgedImage(count: Int) -> NSImage {
         let displayCount = count > 99 ? "99+" : "\(count)"
-        let canvasSize = NSSize(width: 22, height: 18)
-        let iconRect = NSRect(x: 0, y: 2, width: 15, height: 15)
+        let canvasSize = NSSize(width: 22, height: 20)
+        let iconRect = NSRect(x: 0, y: 1, width: 18, height: 18)
         let image = NSImage(size: canvasSize, flipped: false) { _ in
             NSColor.labelColor.setFill()
             if let cgImage = self.cgImage(forProposedRect: nil, context: nil, hints: nil),
@@ -290,18 +290,18 @@ private extension NSImage {
             let font = NSFont.monospacedDigitSystemFont(ofSize: displayCount.count > 2 ? 7 : 8, weight: .bold)
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: font,
-                .foregroundColor: NSColor.white
+                .foregroundColor: NSColor.controlBackgroundColor
             ]
             let textSize = displayCount.size(withAttributes: attributes)
             let badgeHeight: CGFloat = 11
             let badgeWidth = max(badgeHeight, ceil(textSize.width) + 6)
             let badgeRect = NSRect(
                 x: canvasSize.width - badgeWidth,
-                y: canvasSize.height - badgeHeight,
+                y: 0,
                 width: badgeWidth,
                 height: badgeHeight
             )
-            NSColor.controlAccentColor.setFill()
+            NSColor.labelColor.setFill()
             NSBezierPath(roundedRect: badgeRect, xRadius: badgeHeight / 2, yRadius: badgeHeight / 2).fill()
 
             let textRect = NSRect(
