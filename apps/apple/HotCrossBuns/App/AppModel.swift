@@ -254,7 +254,11 @@ final class AppModel {
             // Force-flush: account state must hit disk before any sync run.
             await saveCurrentState()
         } catch {
-            authState = .failed(error.localizedDescription)
+            if GoogleAuthService.isUserCancellation(error) {
+                authState = .cancelled("Sign-in was cancelled. Tap Connect Google to try again.")
+            } else {
+                authState = .failed(error.localizedDescription)
+            }
         }
     }
 
@@ -2522,6 +2526,22 @@ final class AppModel {
         Task {
             scheduleCacheSave()
             await synchronizeLocalNotifications(requestAuthorization: isEnabled)
+        }
+    }
+
+    func requestEnableLocalNotifications() async -> NotificationAuthorizationOutcome {
+        let outcome = await notificationScheduler.authorizationOutcome(requestAuthorization: true)
+        switch outcome {
+        case .authorized:
+            settings.enableLocalNotifications = true
+            scheduleCacheSave()
+            await synchronizeLocalNotifications(requestAuthorization: false)
+            return .authorized
+        case .denied, .notDetermined:
+            settings.enableLocalNotifications = false
+            scheduleCacheSave()
+            await synchronizeLocalNotifications(requestAuthorization: false)
+            return .denied
         }
     }
 

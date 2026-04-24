@@ -98,6 +98,7 @@ struct HCBSettingsWindow: View {
 
 private struct GeneralTab: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openWindow) private var openWindow
     @Binding var isSyncDetailsPresented: Bool
     @Binding var isDiagnosticsPresented: Bool
     @State private var showOnboardingResetConfirmed = false
@@ -175,6 +176,14 @@ private struct GeneralTab: View {
                     Text("Older events are dropped from the local cache to keep memory + disk tight. Drops never touch Google — a Force Resync refetches everything.")
                         .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
+
+                    if hasSyncAttentionItems {
+                        Button {
+                            openWindow(id: "sync-issues")
+                        } label: {
+                            Label(syncAttentionLabel, systemImage: "exclamationmark.bubble")
+                        }
+                    }
                 }
 
                 Section("Setup") {
@@ -208,6 +217,27 @@ private struct GeneralTab: View {
             set: { model.setEventRetentionDaysBack($0) }
         )
     }
+
+    private var hasSyncAttentionItems: Bool {
+        model.conflictedMutationCount > 0
+            || model.quarantinedMutationCount > 0
+            || (model.lastNotificationScheduleSummary?.hasDeferred ?? false)
+    }
+
+    private var syncAttentionLabel: String {
+        var parts: [String] = []
+        if model.conflictedMutationCount > 0 {
+            parts.append("\(model.conflictedMutationCount) conflict\(model.conflictedMutationCount == 1 ? "" : "s")")
+        }
+        if model.quarantinedMutationCount > 0 {
+            parts.append("\(model.quarantinedMutationCount) queued write\(model.quarantinedMutationCount == 1 ? "" : "s")")
+        }
+        if let summary = model.lastNotificationScheduleSummary, summary.hasDeferred {
+            let total = summary.deferredEvents + summary.deferredTasks
+            parts.append("\(total) deferred reminder\(total == 1 ? "" : "s")")
+        }
+        return "Review sync issues: " + parts.joined(separator: " • ")
+    }
 }
 
 // MARK: - Appearance tab
@@ -238,7 +268,10 @@ private struct HotkeysTab: View {
 
 private struct AlertsTab: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openWindow) private var openWindow
+    @State private var permissionPrimer: PermissionPrimer?
     @State private var showLocalNotificationsInfo = false
+    @State private var showNotificationsDeniedAlert = false
 
     var body: some View {
         Form {
@@ -246,8 +279,17 @@ private struct AlertsTab: View {
                 Toggle("Local reminders", isOn: localNotificationsBinding)
                 if model.settings.enableLocalNotifications {
                     taskReminderControls
+                    if let summary = model.lastNotificationScheduleSummary, summary.hasDeferred {
+                        Button {
+                            openWindow(id: "sync-issues")
+                        } label: {
+                            Label(reminderCapacityLabel(summary), systemImage: "bell.badge")
+                        }
+                    }
                 }
             }
+
+            CompletionSoundSection()
 
             Section("Menu bar") {
                 Toggle("Menu bar extra", isOn: menuBarExtraBinding)
@@ -270,10 +312,37 @@ private struct AlertsTab: View {
             }
         }
         .formStyle(.grouped)
+        .sheet(item: $permissionPrimer) { primer in
+            PermissionPrimerView(primer: primer) {
+                permissionPrimer = nil
+                Task {
+                    let result = await model.requestEnableLocalNotifications()
+                    await MainActor.run {
+                        if result == .authorized {
+                            showLocalNotificationsInfo = true
+                        } else {
+                            showNotificationsDeniedAlert = true
+                        }
+                    }
+                }
+            } onCancel: {
+                permissionPrimer = nil
+            }
+        }
         .alert("Local reminders enabled", isPresented: $showLocalNotificationsInfo) {
             Button("OK") { showLocalNotificationsInfo = false }
         } message: {
             Text("Hot Cross Buns will schedule up to 64 pending reminders on this Mac for the soonest-upcoming due tasks and Calendar events. 64 is an Apple-imposed ceiling for local notifications per app — later items get scheduled automatically as earlier ones fire or complete.")
+        }
+        .alert("Notifications are off for Hot Cross Buns", isPresented: $showNotificationsDeniedAlert) {
+            Button("Open Notifications Settings") {
+                HotCrossBunsSystemSettings.open(HotCrossBunsSystemSettings.notificationsURL)
+            }
+            Button("Cancel", role: .cancel) {
+                showNotificationsDeniedAlert = false
+            }
+        } message: {
+            Text("macOS blocked notifications for Hot Cross Buns. Open System Settings > Notifications > Hot Cross Buns to allow device-local reminders.")
         }
     }
 
@@ -281,10 +350,10 @@ private struct AlertsTab: View {
         Binding(
             get: { model.settings.enableLocalNotifications },
             set: { newValue in
-                let wasOff = model.settings.enableLocalNotifications == false
-                model.updateLocalNotificationsEnabled(newValue)
-                if wasOff, newValue {
-                    showLocalNotificationsInfo = true
+                if newValue {
+                    permissionPrimer = .notifications
+                } else {
+                    model.updateLocalNotificationsEnabled(false)
                 }
             }
         )
@@ -364,6 +433,11 @@ private struct AlertsTab: View {
                 model.setTaskReminderTime(hour: comps.hour ?? 9, minute: comps.minute ?? 0)
             }
         )
+    }
+
+    private func reminderCapacityLabel(_ summary: NotificationScheduleSummary) -> String {
+        let total = summary.deferredEvents + summary.deferredTasks
+        return "Review \(total) deferred reminder\(total == 1 ? "" : "s")"
     }
 }
 

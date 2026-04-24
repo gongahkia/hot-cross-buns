@@ -23,6 +23,7 @@ enum AuthState: Equatable, Sendable {
     case signedOut
     case authenticating
     case signedIn(GoogleAccount)
+    case cancelled(String)
     case failed(String)
 
     var title: String {
@@ -33,6 +34,8 @@ enum AuthState: Equatable, Sendable {
             "Connecting"
         case .signedIn(let account):
             account.email
+        case .cancelled:
+            "Not connected"
         case .failed:
             "Connection failed"
         }

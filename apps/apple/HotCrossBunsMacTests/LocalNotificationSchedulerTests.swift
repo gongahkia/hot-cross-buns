@@ -158,6 +158,18 @@ final class LocalNotificationSchedulerTests: XCTestCase {
         XCTAssertEqual(summary?.scheduledTasks, 0)
     }
 
+    func testAuthorizationOutcomeReturnsDeniedWhenPromptIsRejected() async {
+        let center = FakeUserNotificationCenter()
+        center.currentAuthorizationStatus = .notDetermined
+        center.authorizationRequestResult = false
+        let scheduler = LocalNotificationScheduler(notificationCenter: center)
+
+        let outcome = await scheduler.authorizationOutcome(requestAuthorization: true)
+
+        XCTAssertEqual(outcome, .denied)
+        XCTAssertTrue(center.didRequestAuthorization)
+    }
+
     private var referenceDate: Date {
         var components = DateComponents()
         components.year = 2026

@@ -1,4 +1,5 @@
 import AppKit
+import GoogleSignIn
 import XCTest
 @testable import HotCrossBunsMac
 
@@ -101,5 +102,15 @@ final class GoogleAuthServiceHelpersTests: XCTestCase {
         XCTAssertEqual(metadata["underlying1.domain"], "deep.domain")
         XCTAssertEqual(metadata["underlying1.code"], "42")
         XCTAssertEqual(metadata["underlying1.description"], "very broken")
+    }
+
+    func testIsUserCancellationDetectsGoogleCancelError() {
+        let error = NSError(
+            domain: kGIDSignInErrorDomain,
+            code: GIDSignInError.canceled.rawValue
+        )
+
+        XCTAssertTrue(GoogleAuthService.isUserCancellation(error))
+        XCTAssertFalse(GoogleAuthService.isUserCancellation(NSError(domain: "other", code: 1)))
     }
 }

@@ -126,6 +126,11 @@ final class GoogleAuthService {
         return metadata
     }
 
+    static func isUserCancellation(_ error: Error) -> Bool {
+        let ns = error as NSError
+        return ns.domain == kGIDSignInErrorDomain && ns.code == GIDSignInError.canceled.rawValue
+    }
+
     func signOut() {
         GIDSignIn.sharedInstance.signOut()
     }
