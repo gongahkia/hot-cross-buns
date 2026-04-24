@@ -407,6 +407,10 @@ struct MacSidebarShell: View {
     }
 
     private func performInitialLoad() async {
+        guard HCBLaunchMode.current.isSmokeTest == false else {
+            selection = SidebarItem(rawValue: storedSelection) ?? .calendar
+            return
+        }
         await model.loadInitialState()
         isPresentingOnboarding = model.settings.hasCompletedOnboarding == false
         await model.restoreGoogleSession()
@@ -820,6 +824,9 @@ struct MacSidebarShell: View {
     }
 
     private func runNearRealtimeSyncLoop() async {
+        guard HCBLaunchMode.current.isSmokeTest == false else {
+            return
+        }
         guard scenePhase == .active, model.settings.syncMode == .nearRealtime, model.account != nil else {
             return
         }

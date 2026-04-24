@@ -14,6 +14,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSUpdateDynamicServices()
     }
 
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        guard HCBLaunchMode.current.isSmokeTest else { return }
+
+        Task { @MainActor in
+            // Give SwiftUI a brief window to finish scene creation, then
+            // exit cleanly so CI can treat launch hangs/crashes as failures.
+            try? await Task.sleep(for: .seconds(2))
+            NSApplication.shared.terminate(nil)
+        }
+    }
+
     // Called by macOS when the user invokes the Services menu entry on a
     // text selection. The selector shape matches the Info.plist NSMessage
     // "handleCreateTaskService".

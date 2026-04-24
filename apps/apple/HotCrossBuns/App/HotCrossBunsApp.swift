@@ -1,5 +1,18 @@
 import SwiftUI
 
+enum HCBLaunchMode {
+    case normal
+    case smokeTest
+
+    static let current: HCBLaunchMode = ProcessInfo.processInfo.arguments.contains("--smoke-test")
+        ? .smokeTest
+        : .normal
+
+    var isSmokeTest: Bool {
+        self == .smokeTest
+    }
+}
+
 @main
 struct HotCrossBunsApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
@@ -11,7 +24,8 @@ struct HotCrossBunsApp: App {
         CrashReporter.install()
         AppLogger.info("app launch", category: .misc, metadata: [
             "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?",
-            "build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+            "build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?",
+            "launchMode": HCBLaunchMode.current.isSmokeTest ? "smoke-test" : "normal"
         ])
     }
 
@@ -68,6 +82,26 @@ struct HotCrossBunsApp: App {
                 .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
         }
         .defaultSize(width: 760, height: 560)
+        .windowResizability(.contentMinSize)
+
+        Window("Sync Issues", id: "sync-issues") {
+            SyncIssuesWindow()
+                .environment(appModel)
+                .withHCBAppearance(appModel.settings)
+                .hcbPreferredColorScheme(appModel.settings)
+                .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
+        }
+        .defaultSize(width: 760, height: 620)
+        .windowResizability(.contentMinSize)
+
+        Window("Review Duplicates", id: "duplicate-review") {
+            DuplicateReviewWindow()
+                .environment(appModel)
+                .withHCBAppearance(appModel.settings)
+                .hcbPreferredColorScheme(appModel.settings)
+                .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
+        }
+        .defaultSize(width: 860, height: 620)
         .windowResizability(.contentMinSize)
     }
 }
