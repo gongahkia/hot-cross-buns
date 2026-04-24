@@ -151,6 +151,7 @@ struct CalendarTaskPreviewButton<Label: View>: View {
     @ViewBuilder let label: () -> Label
     @State private var isPresented = false
     @State private var isConfirmingDelete = false
+    @State private var snoozeCustomTask: TaskMirror?
 
     private var listName: String {
         model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Unknown list"
@@ -164,39 +165,20 @@ struct CalendarTaskPreviewButton<Label: View>: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
-            Button("Open…") {
-                router?.present(.editTask(task.id))
-            }
-            Button(task.isCompleted ? "Mark as Needs Action" : "Mark Complete") {
-                Task { _ = await model.setTaskCompleted(!task.isCompleted, task: task) }
-            }
-            Button("Duplicate") {
-                Task { _ = await model.duplicateTask(task) }
-            }
-            Divider()
-            Menu("Convert…") {
-                Button("Convert to Event") {
-                    router?.present(.convertTaskToEvent(task.id))
-                }
-                if task.dueDate == nil {
-                    Button("Set Due Date…") {
+            TaskContextMenu(
+                task: task,
+                onOpen: { router?.present(.editTask(task.id)) },
+                onCustomSnooze: { snoozeCustomTask = task },
+                onConvertToEvent: { router?.present(.convertTaskToEvent(task.id)) },
+                onConvertToTaskOrNote: {
+                    if task.dueDate == nil {
                         router?.present(.convertNoteToTask(task.id))
-                    }
-                } else {
-                    Button("Clear Due Date") {
+                    } else {
                         router?.present(.convertTaskToNote(task.id))
                     }
-                }
-            }
-            Button("Copy as Markdown") {
-                let md = TaskMarkdownExporter.markdown(for: task, taskListTitle: listName)
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(md, forType: .string)
-            }
-            Divider()
-            Button("Delete", role: .destructive) {
-                isConfirmingDelete = true
-            }
+                },
+                onDelete: { isConfirmingDelete = true }
+            )
         }
         .confirmationDialog(
             "Delete \"\(task.title)\"?",
@@ -207,6 +189,18 @@ struct CalendarTaskPreviewButton<Label: View>: View {
                 Task { _ = await model.deleteTask(task) }
             }
             Button("Cancel", role: .cancel) {}
+        }
+        .sheet(item: $snoozeCustomTask) { selectedTask in
+            SnoozePickerSheet(task: selectedTask) { newDate in
+                Task {
+                    _ = await model.updateTask(
+                        selectedTask,
+                        title: selectedTask.title,
+                        notes: selectedTask.notes,
+                        dueDate: newDate
+                    )
+                }
+            }
         }
         .popover(isPresented: $isPresented, arrowEdge: .trailing) {
             VStack(alignment: .leading, spacing: 10) {

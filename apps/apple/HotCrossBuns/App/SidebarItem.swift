@@ -65,6 +65,9 @@ extension Notification.Name {
     // Tasks tab. MacSidebarShell observes this and updates selection.
     static let hcbOpenStoreTab = Notification.Name("hcb.open.store.tab")
     static let hcbOpenNotesTab = Notification.Name("hcb.open.notes.tab")
+    // Despite the historical name, this now routes to Tasks vs Notes based
+    // on whether the task currently has a due date.
+    static let hcbRevealTaskInStore = Notification.Name("hcb.reveal.task.in.store")
     // Posted by the "Settings…" menu command + ⌘,; AppDelegate opens the
     // detached Settings window in response.
     static let hcbOpenSettingsWindow = Notification.Name("hcb.open.settings.window")

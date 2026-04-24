@@ -406,6 +406,7 @@ private extension AppModel {
 private struct DetailedMenuBarPanel: View {
     @Environment(AppModel.self) private var model
     @State private var selectedDay = Calendar.current.startOfDay(for: Date())
+    @State private var snoozeCustomTask: TaskMirror?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -419,6 +420,11 @@ private struct DetailedMenuBarPanel: View {
         }
         .hcbScaledPadding(12)
         .hcbScaledFrame(width: 320)
+        .sheet(item: $snoozeCustomTask) { task in
+            SnoozePickerSheet(task: task) { newDate in
+                Task { await snooze(task, to: newDate) }
+            }
+        }
     }
 
     private var selectedDayHeader: some View {
@@ -461,11 +467,7 @@ private struct DetailedMenuBarPanel: View {
                             )
                         }
                         ForEach(tasks, id: \.id) { task in
-                            dayItemRow(
-                                title: task.title,
-                                subtitle: model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Tasks",
-                                symbol: "checkmark.circle"
-                            )
+                            taskDayItemRow(task)
                         }
                     }
                     .hcbScaledPadding(.top, 2)
@@ -494,6 +496,29 @@ private struct DetailedMenuBarPanel: View {
         }
     }
 
+    private func taskDayItemRow(_ task: TaskMirror) -> some View {
+        dayItemRow(
+            title: task.title,
+            subtitle: model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Tasks",
+            symbol: "checkmark.circle"
+        )
+        .contextMenu {
+            TaskContextMenu(
+                task: task,
+                onOpen: { open(task) },
+                onCustomSnooze: { snoozeCustomTask = task },
+                onDelete: {
+                    Task { _ = await model.deleteTask(task) }
+                }
+            )
+        }
+    }
+
+    private func open(_ task: TaskMirror) {
+        NSApp.activate(ignoringOtherApps: true)
+        NotificationCenter.default.post(name: .hcbRevealTaskInStore, object: task.id)
+    }
+
     private var eventsForSelectedDay: [CalendarEventMirror] {
         let cal = Calendar.current
         let selected = model.menuBarSelectedCalendarIDs
@@ -520,11 +545,16 @@ private struct DetailedMenuBarPanel: View {
             .sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
     }
 
+    private func snooze(_ task: TaskMirror, to newDate: Date?) async {
+        _ = await model.updateTask(task, title: task.title, notes: task.notes, dueDate: newDate)
+    }
+
 }
 
 private struct CompactMenuBarPanel: View {
     @Environment(AppModel.self) private var model
     @State private var completingTaskIDs: Set<TaskMirror.ID> = []
+    @State private var snoozeCustomTask: TaskMirror?
 
     private enum Lane: Int, CaseIterable, Identifiable {
         case now
@@ -610,6 +640,11 @@ private struct CompactMenuBarPanel: View {
         }
         .hcbScaledPadding(14)
         .hcbScaledFrame(width: 320)
+        .sheet(item: $snoozeCustomTask) { task in
+            SnoozePickerSheet(task: task) { newDate in
+                Task { await snooze(task, to: newDate) }
+            }
+        }
     }
 
     @ViewBuilder
@@ -653,6 +688,23 @@ private struct CompactMenuBarPanel: View {
         }
         .hcbScaledPadding(.horizontal, 4)
         .hcbScaledPadding(.vertical, 4)
+        .contextMenu {
+            if let task = row.task {
+                TaskContextMenu(
+                    task: task,
+                    onOpen: { open(task) },
+                    onCustomSnooze: { snoozeCustomTask = task },
+                    onDelete: {
+                        Task { _ = await model.deleteTask(task) }
+                    }
+                )
+            }
+        }
+    }
+
+    private func open(_ task: TaskMirror) {
+        NSApp.activate(ignoringOtherApps: true)
+        NotificationCenter.default.post(name: .hcbRevealTaskInStore, object: task.id)
     }
 
     private var actionable: [ActionableItem] {
@@ -779,6 +831,10 @@ private struct CompactMenuBarPanel: View {
             _ = await model.setTaskCompleted(true, task: task)
             completingTaskIDs.remove(task.id)
         }
+    }
+
+    private func snooze(_ task: TaskMirror, to newDate: Date?) async {
+        _ = await model.updateTask(task, title: task.title, notes: task.notes, dueDate: newDate)
     }
 }
 

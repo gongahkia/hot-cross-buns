@@ -113,6 +113,7 @@ final class AppModel {
     private var eventIndexByID: [CalendarEventMirror.ID: Int] = [:]
     private(set) var syncCheckpoints: [SyncCheckpoint] = []
     private(set) var pendingMutations: [PendingMutation] = []
+    private(set) var lastNotificationScheduleSummary: NotificationScheduleSummary?
     private(set) var recentlyCompletedTaskID: TaskMirror.ID?
     private(set) var undoable: UndoableAction?
     private var undoActionID = UUID()
@@ -435,11 +436,15 @@ final class AppModel {
     }
 
     func duplicateTask(_ task: TaskMirror) async -> Bool {
+        await duplicateTask(task, dueDate: task.dueDate)
+    }
+
+    func duplicateTask(_ task: TaskMirror, dueDate: Date?) async -> Bool {
         let sourceTitle = task.title
         return await createTaskInternal(
             title: task.title,
             notes: task.notes,
-            dueDate: task.dueDate,
+            dueDate: dueDate,
             taskListID: task.taskListID,
             parentID: task.parentID,
             recordAs: { optimistic in .taskDuplicate(newSnapshot: optimistic, sourceTitle: sourceTitle) }
@@ -824,6 +829,9 @@ final class AppModel {
             priorCompleted: originalTask.isCompleted,
             title: optimistic.title
         ))
+        if isCompleted {
+            CompletionSoundPlayer.play(.taskCompleted, settings: settings)
+        }
 
         beginMutation()
         do {
@@ -1472,6 +1480,7 @@ final class AppModel {
         // Record the undoable immediately (optimistic) so the toast fires
         // without waiting on Google's 200.
         recordUndo(.eventDismissed(snapshot: originalEvent))
+        CompletionSoundPlayer.play(.eventDismissed, settings: settings)
         beginMutation()
         do {
             let targetID = event.id
@@ -2462,6 +2471,52 @@ final class AppModel {
         scheduleCacheSave()
     }
 
+    func setTaskCompletionSoundEnabled(_ isEnabled: Bool) {
+        guard settings.enableTaskCompletionSound != isEnabled else { return }
+        settings.enableTaskCompletionSound = isEnabled
+        scheduleCacheSave()
+    }
+
+    func setEventCompletionSoundEnabled(_ isEnabled: Bool) {
+        guard settings.enableEventCompletionSound != isEnabled else { return }
+        settings.enableEventCompletionSound = isEnabled
+        scheduleCacheSave()
+    }
+
+    func setTaskCompletionSoundChoice(_ choice: CompletionSoundChoice) {
+        guard settings.taskCompletionSoundChoice != choice else { return }
+        settings.taskCompletionSoundChoice = normalizedCompletionSoundChoice(choice, fallback: .defaultTask)
+        scheduleCacheSave()
+    }
+
+    func setEventCompletionSoundChoice(_ choice: CompletionSoundChoice) {
+        guard settings.eventCompletionSoundChoice != choice else { return }
+        settings.eventCompletionSoundChoice = normalizedCompletionSoundChoice(choice, fallback: .defaultEvent)
+        scheduleCacheSave()
+    }
+
+    @discardableResult
+    func importCustomCompletionSound(from sourceURL: URL) throws -> CompletionSoundAsset {
+        let asset = try CompletionSoundLibrary.importSound(from: sourceURL)
+        settings.customCompletionSounds.insert(asset, at: 0)
+        scheduleCacheSave()
+        return asset
+    }
+
+    func deleteCustomCompletionSound(_ assetID: CompletionSoundAsset.ID) {
+        guard let asset = settings.customCompletionSounds.first(where: { $0.id == assetID }) else { return }
+        settings.customCompletionSounds.removeAll { $0.id == assetID }
+        CompletionSoundLibrary.delete(asset)
+
+        if settings.taskCompletionSoundChoice.customAssetID == assetID {
+            settings.taskCompletionSoundChoice = .defaultTask
+        }
+        if settings.eventCompletionSoundChoice.customAssetID == assetID {
+            settings.eventCompletionSoundChoice = .defaultEvent
+        }
+        scheduleCacheSave()
+    }
+
     func updateLocalNotificationsEnabled(_ isEnabled: Bool) {
         settings.enableLocalNotifications = isEnabled
         Task {
@@ -3387,6 +3442,25 @@ final class AppModel {
             settings: settingsNow,
             requestAuthorization: requestAuthorization
         )
+        lastNotificationScheduleSummary = await notificationScheduler.lastSummary
+    }
+
+    private func normalizedCompletionSoundChoice(
+        _ choice: CompletionSoundChoice,
+        fallback: CompletionSoundChoice
+    ) -> CompletionSoundChoice {
+        switch choice.source {
+        case .system:
+            return CompletionSoundLibrary.builtInSoundNames.contains(choice.identifier) ? choice : fallback
+        case .custom:
+            guard
+                let assetID = choice.customAssetID,
+                settings.customCompletionSounds.contains(where: { $0.id == assetID })
+            else {
+                return fallback
+            }
+            return choice
+        }
     }
 
     private func runSpotlightSync() async {
