@@ -1469,9 +1469,9 @@ private struct MenuBarMonthCalendar: View {
     }
 
     private func dayButton(_ day: Date) -> some View {
-        let isDisplayedMonth = calendar.isDate(day, equalTo: displayedMonth, toGranularity: .month)
         let isSelected = calendar.isDate(day, inSameDayAs: selectedDay)
         let isToday = calendar.isDateInToday(day)
+        let isPast = calendar.startOfDay(for: day) < calendar.startOfDay(for: Date())
 
         return Button {
             selectedDay = calendar.startOfDay(for: day)
@@ -1479,7 +1479,7 @@ private struct MenuBarMonthCalendar: View {
         } label: {
             Text("\(calendar.component(.day, from: day))")
                 .font(.body.monospacedDigit().weight(isToday || isSelected ? .semibold : .regular))
-                .foregroundStyle(dayForeground(isDisplayedMonth: isDisplayedMonth, isSelected: isSelected))
+                .foregroundStyle(dayForeground(isSelected: isSelected, isPast: isPast))
                 .frame(maxWidth: .infinity, minHeight: 26)
                 .background {
                     RoundedRectangle(cornerRadius: 6)
@@ -1491,9 +1491,9 @@ private struct MenuBarMonthCalendar: View {
         .help(day.formatted(.dateTime.weekday(.wide).month(.wide).day().year()))
     }
 
-    private func dayForeground(isDisplayedMonth: Bool, isSelected: Bool) -> Color {
+    private func dayForeground(isSelected: Bool, isPast: Bool) -> Color {
         if isSelected { return .white }
-        return isDisplayedMonth ? AppColor.ink : .secondary.opacity(0.45)
+        return isPast ? Color.secondary.opacity(0.35) : .primary
     }
 
     private func shiftMonth(by value: Int) {

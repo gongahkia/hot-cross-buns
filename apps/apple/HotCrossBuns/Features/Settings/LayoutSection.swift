@@ -102,9 +102,10 @@ struct LayoutSection: View {
     ) -> some View {
         HStack(spacing: 8) {
             Label(title, systemImage: systemImage)
+                .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
             TextField(
-                title,
+                "",
                 value: value,
                 format: .number.precision(.integerLength(1...2))
             )
@@ -113,7 +114,9 @@ struct LayoutSection: View {
             .multilineTextAlignment(.trailing)
             .frame(width: 62)
             .accessibilityLabel(title)
-            Stepper(title, value: value, in: bounds)
+            Stepper(value: value, in: bounds) {
+                EmptyView()
+            }
                 .labelsHidden()
         }
     }
