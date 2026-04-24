@@ -20,6 +20,32 @@ struct ParsedQuickAddTask: Equatable, Sendable {
 }
 
 struct NaturalLanguageTaskParser: Sendable {
+    struct HelpEntry: Identifiable, Sendable {
+        let title: String
+        let examples: [String]
+        let summary: String
+
+        var id: String { title }
+    }
+
+    static let helpEntries: [HelpEntry] = [
+        HelpEntry(
+            title: "Relative dates",
+            examples: ["tdy", "tnt", "tmr", "next monday", "in 3 days", "eom"],
+            summary: "Accepts today / tonight / tomorrow aliases, next-weekday phrases, relative offsets, and end-of-period shortcuts."
+        ),
+        HelpEntry(
+            title: "Absolute dates",
+            examples: ["2026-04-25", "4/25", "Apr 25", "25 Apr"],
+            summary: "Parses ISO, numeric month-day, and month-name dates."
+        ),
+        HelpEntry(
+            title: "List hints",
+            examples: ["#personal", "#deep-work"],
+            summary: "Maps a task to a task list hint without opening the full editor."
+        )
+    ]
+
     let calendar: Calendar
     let now: Date
 

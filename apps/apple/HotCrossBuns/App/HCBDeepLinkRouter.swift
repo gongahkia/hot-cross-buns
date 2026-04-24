@@ -66,12 +66,47 @@ struct HCBDeepLinkError: Error, Equatable, Sendable {
 }
 
 enum HCBDeepLinkRouter {
+    struct HelpRoute: Identifiable, Sendable {
+        let title: String
+        let example: String
+        let summary: String
+
+        var id: String { example }
+    }
+
     static let scheme = "hotcrossbuns"
     // 2 KB per param. Task titles + notes rarely exceed this in practice;
     // anything larger is almost certainly a crafted URL.
     static let maxParamLength = 2048
     // Max id length — Google task/event ids are typically < 64 chars.
     static let maxIdLength = 256
+    static let helpRoutes: [HelpRoute] = [
+        HelpRoute(
+            title: "Open task",
+            example: "hotcrossbuns://task/abc123",
+            summary: "Opens a specific task in the Tasks surface."
+        ),
+        HelpRoute(
+            title: "Open event",
+            example: "hotcrossbuns://event/evt_456",
+            summary: "Opens a specific calendar event in Calendar."
+        ),
+        HelpRoute(
+            title: "Prefill task",
+            example: "hotcrossbuns://new/task?title=Email%20rent&due=tmr&list=personal&tags=bills,urgent",
+            summary: "Stages a new-task sheet with title, due date, list hint, and tags."
+        ),
+        HelpRoute(
+            title: "Prefill event",
+            example: "hotcrossbuns://new/event?title=Standup&start=2026-04-25T09:00&end=2026-04-25T09:30&location=Zoom",
+            summary: "Stages a new-event sheet with start, end, calendar, all-day, and location fields."
+        ),
+        HelpRoute(
+            title: "Search",
+            example: "hotcrossbuns://search?q=kind:note%20tag:deep",
+            summary: "Opens the command palette with a staged search query."
+        )
+    ]
 
     static func route(_ url: URL, now: Date = Date(), calendar: Calendar = .current) -> Result<HCBDeepLinkAction, HCBDeepLinkError> {
         guard url.scheme?.lowercased() == scheme else {
