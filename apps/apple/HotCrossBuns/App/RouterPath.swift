@@ -3,9 +3,9 @@ import Combine
 
 // Tab-scoped navigation state. Paths are intentionally empty-by-design now
 // that the legacy full-screen TaskDetailView / EventDetailView have been
-// replaced by edit sheets — every task/event surface is sheet-based. The
-// path[] / navigate() vestiges are kept so future detail routes (e.g. a
-// per-task attachment viewer) can slot in without reshuffling SheetDestination.
+// replaced by edit sheets — every task/event surface is sheet-based. Keep the
+// typed path in place so future push-style routes can be reintroduced without
+// reshuffling SheetDestination.
 //
 // Uses legacy ObservableObject (not @Observable) because the new Observation
 // framework's .environment(value) propagation was failing for RouterPath
@@ -17,10 +17,6 @@ import Combine
 final class RouterPath: ObservableObject {
     @Published var path: [AppRoute] = []
     @Published var presentedSheet: SheetDestination?
-
-    func navigate(to route: AppRoute) {
-        path.append(route)
-    }
 
     func present(_ sheet: SheetDestination) {
         guard presentedSheet != sheet else { return }
