@@ -252,6 +252,19 @@ private struct SyncPreferenceCard: View {
             Text(model.settings.syncMode.detail)
                 .hcbFont(.footnote)
                 .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(SyncMode.allCases) { mode in
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: mode == model.settings.syncMode ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(mode == model.settings.syncMode ? AppColor.moss : .secondary)
+                        Text("\(mode.title): \(mode.guidance)")
+                            .hcbFont(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
         }
     }
 
