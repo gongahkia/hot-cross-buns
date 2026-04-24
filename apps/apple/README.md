@@ -40,7 +40,10 @@ The script creates an unsigned DMG under `build/apple/` by default. If `CODE_SIG
 
 ## Google Integration
 
-The app uses the native Google Sign-In SDK and requests Google Tasks plus Google Calendar scopes during sign-in.
+The app uses the native Google Sign-In SDK and requests these Google scopes during sign-in:
+
+- `https://www.googleapis.com/auth/tasks`
+- `https://www.googleapis.com/auth/calendar`
 
 Create a Google Cloud OAuth client for macOS, then provide these build settings locally:
 
@@ -67,7 +70,9 @@ The app uses a NavigationSplitView sidebar shell with a full CommandMenu (`⌘N`
 
 ## Local Cache
 
-The current cache is a JSON app-state snapshot in Application Support. It is intentionally small and replaceable: it preserves account metadata, task/calendar mirrors, sync checkpoints, pending mutation placeholders, and user settings so launch does not depend on an immediate Google round trip. A SQLite-backed cache can replace this once offline mutation replay needs stronger migrations.
+The current cache is a JSON app-state snapshot in Application Support under `~/Library/Application Support/com.gongahkia.hotcrossbuns.mac/`. It is intentionally small and replaceable: it preserves account metadata, task/calendar mirrors, sync checkpoints, pending mutation placeholders, and user settings so launch does not depend on an immediate Google round trip. Event mirrors live in a `cache-events.json` sidecar so routine saves stay smaller. A SQLite-backed cache can replace this once offline mutation replay needs stronger migrations.
+
+OAuth tokens live in the macOS Keychain. Optional cache encryption uses AES-256-GCM for the local cache files only; Google remains the source of truth for synced tasks and events. The app does not ship a third-party analytics SDK or cloud crash reporter.
 
 ## Onboarding
 
@@ -113,6 +118,8 @@ The Tasks section includes online task create, edit, complete/reopen, and delete
 
 The Calendar section includes online timed and all-day event create, edit, and delete flows backed by Google Calendar `events.insert`, `events.patch`, and `events.delete`. Event forms support custom popup reminders.
 
-## Auto-Update
+## Distribution And Updates
 
-Release builds embed Sparkle and point at an appcast hosted on GitHub Pages. Users get in-app update prompts when a new signed, notarized DMG is published via the release workflow.
+Preview DMGs are distributed through GitHub Releases. Each release publishes a matching SHA-256 checksum file alongside the DMG, and `docs/install-macos-preview.sh` verifies that checksum before installing.
+
+Unsigned preview builds should not promise in-app auto-updates. Until the app is consistently shipped as a signed and notarized Developer ID build with a maintained update feed, users should install newer DMGs manually from GitHub Releases.

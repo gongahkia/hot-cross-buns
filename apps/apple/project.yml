@@ -71,8 +71,6 @@ targets:
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
         CFBundleDevelopmentRegion: en
         NSHumanReadableCopyright: Copyright 2026 Gongahkia
-        SUFeedURL: https://gongahkia.github.io/hot-cross-buns/appcast.xml
-        SUEnableAutomaticChecks: true
         NSServices:
           - NSMenuItem:
               default: Create Hot Cross Buns task
@@ -103,6 +101,8 @@ targets:
       path: HotCrossBunsShareExtension/Info.plist
       properties:
         CFBundleDisplayName: Hot Cross Buns
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
