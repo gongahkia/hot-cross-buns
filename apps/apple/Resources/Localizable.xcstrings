@@ -75,6 +75,16 @@
     "%@ days" : {
 
     },
+    "%@ dismissed group%@ hidden" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ dismissed group%2$@ hidden"
+          }
+        }
+      }
+    },
     "%@ event%@" : {
       "localizations" : {
         "en" : {
@@ -94,6 +104,9 @@
           }
         }
       }
+    },
+    "%@ imported" : {
+
     },
     "%@ min" : {
 
@@ -136,6 +149,16 @@
     },
     "%@ tasks selected" : {
 
+    },
+    "%@: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: %2$@"
+          }
+        }
+      }
     },
     "%@%%" : {
 
@@ -290,6 +313,9 @@
     "ALL-DAY" : {
 
     },
+    "Allow" : {
+
+    },
     "Appears as a section in the menu-bar popover with a match count and a short preview." : {
 
     },
@@ -326,7 +352,7 @@
     "Calendar view modes" : {
 
     },
-    "Capture a task from any app. The Hot Cross Buns quick-add sheet opens immediately, pre-focused." : {
+    "Choose separate sounds for tasks and events, preview them before selecting, or import your own audio. Imported sounds are copied into Hot Cross Buns so playback keeps working even if the original file moves." : {
 
     },
     "Choose the Hot Cross Buns palette used by cards, text, and app surfaces." : {
@@ -351,6 +377,9 @@
 
     },
     "Compact" : {
+
+    },
+    "Completed" : {
 
     },
     "Completed (%@)" : {
@@ -416,7 +445,13 @@
     "Deep link error" : {
 
     },
+    "Deferred reminders, sync conflicts, and quarantined writes will appear here when they need action." : {
+
+    },
     "Delete" : {
+
+    },
+    "Delete \"%@\" from Google Calendar?" : {
 
     },
     "Deleting an event with other attendees may remove it from their calendars and send cancellations. Proceed carefully." : {
@@ -435,6 +470,12 @@
 
     },
     "Dismissed duplicate groups will reappear with the !! badge if the current content still matches." : {
+
+    },
+    "Download an update first, then the install guide will appear here." : {
+
+    },
+    "Downloaded file: %@" : {
 
     },
     "Drop here" : {
@@ -482,6 +523,9 @@
     "Every Year" : {
 
     },
+    "Exact-match title and notes across %@ active tasks." : {
+
+    },
     "Existing: %@" : {
 
     },
@@ -498,6 +542,9 @@
 
     },
     "Google Maps key not configured — showing Apple Maps." : {
+
+    },
+    "Google rejected these writes with HTTP 400 because the payload shape or content was invalid. The payload is preserved so you can copy it for debugging, then retry after fixing the source data." : {
 
     },
     "Google rejected these writes with HTTP 412 — someone else edited the same item between the time you made your change and when HCB sent it. Choose whose version wins." : {
@@ -524,13 +571,34 @@
     "Hot Cross Buns" : {
 
     },
+    "Hot Cross Buns %@ is available from GitHub Releases." : {
+
+    },
+    "Hot Cross Buns did not find a newer release yet." : {
+
+    },
     "Hot Cross Buns will schedule up to 64 pending reminders on this Mac for the soonest-upcoming due tasks and Calendar events. 64 is an Apple-imposed ceiling for local notifications per app — later items get scheduled automatically as earlier ones fire or complete." : {
+
+    },
+    "Imported %@" : {
+
+    },
+    "Imported library" : {
 
     },
     "In Quick Create (events only), typing a hashtag you've bound below auto-applies the matching Google Calendar color. The hashtag is stripped from the title before it's sent to Google." : {
 
     },
     "Inheriting global Task Lists visibility." : {
+
+    },
+    "Install Guidance" : {
+
+    },
+    "Install Hot Cross Buns %@" : {
+
+    },
+    "Installing the new DMG replaces the app bundle only. Your settings, local cache, and history stay on this Mac because they live outside the app in UserDefaults and Application Support." : {
 
     },
     "Instantiate from the command palette: \"Insert Event Template…\". Same variable set as task templates; dateAnchor resolves to YYYY-MM-DD, timeAnchor is literal HH:mm. Unknown variables stay visible so typos don't silently drop values." : {
@@ -545,7 +613,17 @@
     "Last %@ user mutations. Useful for reconstructing \"when did I do that?\" after the undo window has closed." : {
 
     },
-    "Last checked %@" : {
+    "Last checked %@ via %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Last checked %1$@ via %2$@"
+          }
+        }
+      }
+    },
+    "Last computed %@" : {
 
     },
     "Layout scale" : {
@@ -585,6 +663,12 @@
 
     },
     "Looking up location…" : {
+
+    },
+    "macOS allows up to 64 pending local notifications per app. Hot Cross Buns scheduled the nearest items first and deferred the rest until the queue frees up." : {
+
+    },
+    "macOS blocked notifications for Hot Cross Buns. Open System Settings > Notifications > Hot Cross Buns to allow device-local reminders." : {
 
     },
     "macOS denied access to the Keychain. Unlock it (Applications → Utilities → Keychain Access → log in) then Reconnect Google." : {
@@ -679,6 +763,12 @@
     "No matches" : {
 
     },
+    "No recent commands yet" : {
+
+    },
+    "No release notes were published for this version." : {
+
+    },
     "No snapshot was recorded for this action. Reconstruct manually from the fields above, or from the Google Tasks / Calendar web UI." : {
 
     },
@@ -745,10 +835,16 @@
     "Pinned filters" : {
 
     },
+    "Potential duplicate tasks will appear here when exact title-and-notes matches are found." : {
+
+    },
     "Press keys…" : {
 
     },
     "Prompts at instantiation: %@" : {
+
+    },
+    "Published %@" : {
 
     },
     "Queued %@ · resource %@" : {
@@ -762,6 +858,9 @@
       }
     },
     "Quick create popover" : {
+
+    },
+    "Recent Commands" : {
 
     },
     "Refresh" : {
@@ -784,6 +883,9 @@
     "Refresh to load your task lists." : {
 
     },
+    "Release Notes" : {
+
+    },
     "Removes these events from Google Calendar without sending guest updates. Recurring events are deleted as single occurrences." : {
 
     },
@@ -800,6 +902,15 @@
 
     },
     "Return to add, Esc to cancel" : {
+
+    },
+    "Review sync attention items without changing the underlying replay model." : {
+
+    },
+    "Review tasks that currently match on exact title and notes." : {
+
+    },
+    "Run a command once and it will stay here for quick repeat access." : {
 
     },
     "Saved %@" : {
@@ -824,6 +935,9 @@
 
     },
     "Settings always stays visible so you can re-enable hidden tabs. Keyboard shortcuts for a hidden tab are ignored until it's re-enabled." : {
+
+    },
+    "Shortcut" : {
 
     },
     "Showing %@ hotkeys." : {
@@ -870,6 +984,9 @@
         }
       }
     },
+    "Some reminders were deferred on this Mac" : {
+
+    },
     "Starts" : {
 
     },
@@ -911,6 +1028,9 @@
     "That doesn't look like a valid email address." : {
 
     },
+    "The DMG is open. Finish the update in Finder, then relaunch the app." : {
+
+    },
     "The item you're converting may have been deleted on Google." : {
 
     },
@@ -918,6 +1038,9 @@
 
     },
     "Themes" : {
+
+    },
+    "These controls operate on the existing pending mutation queue and notification scheduler only. They do not change how Hot Cross Buns creates, retries, or reconciles Google writes." : {
 
     },
     "These writes exceeded the automatic retry ceiling (%@ attempts). They stay on this Mac until you retry or discard." : {
@@ -945,6 +1068,12 @@
 
     },
     "This event may have been deleted in Google Calendar." : {
+
+    },
+    "This is a local review surface only. It uses the existing duplicate index and dismissal rules; it does not change how tasks sync or mutate." : {
+
+    },
+    "This is a system-wide shortcut for quick task capture. If the combo is already reserved, Hot Cross Buns keeps your previous working shortcut instead of silently dropping it." : {
 
     },
     "This task may have been deleted in Google Tasks." : {
@@ -982,6 +1111,9 @@
     "Try a more specific address." : {
 
     },
+    "Try searching for sync, chords, deep links, notes, or quick-add." : {
+
+    },
     "UI font" : {
 
     },
@@ -1003,6 +1135,9 @@
           }
         }
       }
+    },
+    "Version %@" : {
+
     },
     "Visibility rules are local. Deletion modes issue Google API deletes — events go to Google Calendar's 30-day web trash, tasks are tombstoned and not user-recoverable." : {
 
@@ -1029,6 +1164,9 @@
 
     },
     "You can connect Google later from Settings — we'll just show empty states until you do." : {
+
+    },
+    "You’ll see a macOS dialog next" : {
 
     }
   },

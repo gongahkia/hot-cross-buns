@@ -84,6 +84,12 @@ struct HistorySection: View {
                  : "\(count) duplicate group\(count == 1 ? "" : "s") dismissed as false positives.")
                 .hcbFont(.footnote)
                 .foregroundStyle(.secondary)
+            Button {
+                openWindow(id: "duplicate-review")
+            } label: {
+                Label("Review duplicates…", systemImage: "square.stack.3d.up")
+            }
+            .buttonStyle(.borderless)
             Button(role: .destructive) {
                 isConfirmingClearDismissals = true
             } label: {

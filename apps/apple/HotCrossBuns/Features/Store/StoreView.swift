@@ -177,12 +177,6 @@ struct StoreView: View {
         }
     }
 
-    private func snoozeDate(daysFromNow days: Int) -> Date {
-        let cal = Calendar.current
-        let startOfToday = cal.startOfDay(for: Date())
-        return cal.date(byAdding: .day, value: days, to: startOfToday) ?? startOfToday
-    }
-
     private func snooze(_ task: TaskMirror, to newDate: Date?) async {
         _ = await model.updateTask(task, title: task.title, notes: task.notes, dueDate: newDate)
     }
@@ -211,6 +205,9 @@ struct StoreView: View {
                         onNewList: {
                             newListTitle = ""
                             isCreatingList = true
+                        },
+                        onCustomSnooze: { task in
+                            snoozeCustomTask = task
                         },
                         onCreateTaskInList: { listID in
                             router?.present(.quickCreateTask(listID: listID))
@@ -486,41 +483,6 @@ private struct BulkMoveSheet: View {
         }
         onComplete(moved)
         dismiss()
-    }
-}
-
-private struct SnoozePickerSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    let task: TaskMirror
-    let onSelect: (Date) -> Void
-
-    @State private var pickedDate: Date = Date()
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Snooze \(task.title) until") {
-                    DatePicker("Date", selection: $pickedDate, in: Calendar.current.startOfDay(for: Date())..., displayedComponents: [.date])
-                        .datePickerStyle(.graphical)
-                }
-            }
-            .navigationTitle("Snooze Task")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                        .keyboardShortcut(.cancelAction)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Snooze") {
-                        onSelect(Calendar.current.startOfDay(for: pickedDate))
-                        dismiss()
-                    }
-                    .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.borderedProminent)
-                }
-            }
-        }
-        .hcbScaledFrame(minWidth: 360, minHeight: 400)
     }
 }
 
