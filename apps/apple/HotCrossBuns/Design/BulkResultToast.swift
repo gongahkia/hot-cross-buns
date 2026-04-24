@@ -9,6 +9,10 @@ import SwiftUI
 struct BulkResultToast: View {
     @Binding var message: String?
     var isWarning: Bool = false
+    var successTitle: String = "Bulk action complete"
+    var warningTitle: String = "Bulk action partially applied"
+    var successSymbol: String = "checkmark.circle.fill"
+    var warningSymbol: String = "exclamationmark.triangle.fill"
     private let dismissAfter: Duration = .seconds(7)
 
     var body: some View {
@@ -29,10 +33,10 @@ struct BulkResultToast: View {
 
     private func content(message: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: isWarning ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+            Image(systemName: isWarning ? warningSymbol : successSymbol)
                 .foregroundStyle(isWarning ? .orange : AppColor.moss)
             VStack(alignment: .leading, spacing: 2) {
-                Text(isWarning ? "Bulk action partially applied" : "Bulk action complete")
+                Text(isWarning ? warningTitle : successTitle)
                     .hcbFont(.subheadline, weight: .semibold)
                 Text(message)
                     .hcbFont(.footnote)

@@ -28,6 +28,17 @@ enum SyncMode: String, CaseIterable, Identifiable, Codable, Sendable {
             "Poll more aggressively while foregrounded with backoff."
         }
     }
+
+    var guidance: String {
+        switch self {
+        case .manual:
+            "Only syncs when you tap Refresh. Best for low-bandwidth or API-quota-sensitive setups."
+        case .balanced:
+            "Syncs on launch and when you return to the app. Recommended."
+        case .nearRealtime:
+            "Polls every 90 seconds while the app is open. Highest Google API usage."
+        }
+    }
 }
 
 enum SyncState: Equatable, Sendable {
@@ -175,6 +186,10 @@ struct AppSettings: Hashable, Codable, Sendable {
     var hasConfiguredCalendarSelection: Bool
     var hasConfiguredTaskListSelection: Bool
     var enableLocalNotifications: Bool
+    var enableTaskCompletionSound: Bool
+    var enableEventCompletionSound: Bool
+    var taskCompletionSoundChoice: CompletionSoundChoice
+    var eventCompletionSoundChoice: CompletionSoundChoice
     var hasCompletedOnboarding: Bool
     var showMenuBarExtra: Bool
     var showDetailedMenuBar: Bool
@@ -183,6 +198,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var globalHotkeyBinding: GlobalHotkeyBinding
     var customFilters: [CustomFilterDefinition]
     var eventTemplates: [EventTemplate]
+    var customCompletionSounds: [CompletionSoundAsset]
     var menuBarStyle: MenuBarStyle
     var uiLayoutScale: Double // 0.80–1.50, geometric scale of UI chrome only (not text)
     var uiTextSizePoints: Double // literal body-text point size (9–24), drives every semantic style
@@ -260,6 +276,10 @@ struct AppSettings: Hashable, Codable, Sendable {
         hasConfiguredCalendarSelection: Bool = false,
         hasConfiguredTaskListSelection: Bool = false,
         enableLocalNotifications: Bool,
+        enableTaskCompletionSound: Bool = true,
+        enableEventCompletionSound: Bool = true,
+        taskCompletionSoundChoice: CompletionSoundChoice = .defaultTask,
+        eventCompletionSoundChoice: CompletionSoundChoice = .defaultEvent,
         hasCompletedOnboarding: Bool = false,
         showMenuBarExtra: Bool = true,
         showDetailedMenuBar: Bool = false,
@@ -268,6 +288,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         globalHotkeyBinding: GlobalHotkeyBinding = .defaultQuickAdd,
         customFilters: [CustomFilterDefinition] = [],
         eventTemplates: [EventTemplate] = [],
+        customCompletionSounds: [CompletionSoundAsset] = [],
         menuBarStyle: MenuBarStyle = .compact,
         uiLayoutScale: Double = 1.0,
         uiTextSizePoints: Double = 13.0,
@@ -316,6 +337,10 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.hasConfiguredCalendarSelection = hasConfiguredCalendarSelection
         self.hasConfiguredTaskListSelection = hasConfiguredTaskListSelection
         self.enableLocalNotifications = enableLocalNotifications
+        self.enableTaskCompletionSound = enableTaskCompletionSound
+        self.enableEventCompletionSound = enableEventCompletionSound
+        self.taskCompletionSoundChoice = taskCompletionSoundChoice
+        self.eventCompletionSoundChoice = eventCompletionSoundChoice
         self.hasCompletedOnboarding = hasCompletedOnboarding
         self.showMenuBarExtra = showMenuBarExtra
         self.showDetailedMenuBar = showDetailedMenuBar
@@ -324,6 +349,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.globalHotkeyBinding = globalHotkeyBinding
         self.customFilters = customFilters
         self.eventTemplates = eventTemplates
+        self.customCompletionSounds = customCompletionSounds
         self.menuBarStyle = menuBarStyle
         self.uiLayoutScale = uiLayoutScale
         self.uiTextSizePoints = uiTextSizePoints
@@ -374,6 +400,10 @@ struct AppSettings: Hashable, Codable, Sendable {
         case hasConfiguredCalendarSelection
         case hasConfiguredTaskListSelection
         case enableLocalNotifications
+        case enableTaskCompletionSound
+        case enableEventCompletionSound
+        case taskCompletionSoundChoice
+        case eventCompletionSoundChoice
         case hasCompletedOnboarding
         case showMenuBarExtra
         case showDetailedMenuBar
@@ -382,6 +412,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case globalHotkeyBinding
         case customFilters
         case eventTemplates
+        case customCompletionSounds
         case menuBarStyle
         case uiLayoutScale
         case uiTextSizePoints
@@ -442,6 +473,10 @@ struct AppSettings: Hashable, Codable, Sendable {
         hasConfiguredCalendarSelection = try container.decodeIfPresent(Bool.self, forKey: .hasConfiguredCalendarSelection) ?? false
         hasConfiguredTaskListSelection = try container.decodeIfPresent(Bool.self, forKey: .hasConfiguredTaskListSelection) ?? false
         enableLocalNotifications = try container.decodeIfPresent(Bool.self, forKey: .enableLocalNotifications) ?? false
+        enableTaskCompletionSound = try container.decodeIfPresent(Bool.self, forKey: .enableTaskCompletionSound) ?? true
+        enableEventCompletionSound = try container.decodeIfPresent(Bool.self, forKey: .enableEventCompletionSound) ?? true
+        taskCompletionSoundChoice = try container.decodeIfPresent(CompletionSoundChoice.self, forKey: .taskCompletionSoundChoice) ?? .defaultTask
+        eventCompletionSoundChoice = try container.decodeIfPresent(CompletionSoundChoice.self, forKey: .eventCompletionSoundChoice) ?? .defaultEvent
         hasCompletedOnboarding = try container.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? false
         showMenuBarExtra = try container.decodeIfPresent(Bool.self, forKey: .showMenuBarExtra) ?? true
         showDetailedMenuBar = try container.decodeIfPresent(Bool.self, forKey: .showDetailedMenuBar) ?? false
@@ -450,6 +485,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         globalHotkeyBinding = try container.decodeIfPresent(GlobalHotkeyBinding.self, forKey: .globalHotkeyBinding) ?? .defaultQuickAdd
         customFilters = try container.decodeIfPresent([CustomFilterDefinition].self, forKey: .customFilters) ?? []
         eventTemplates = try container.decodeIfPresent([EventTemplate].self, forKey: .eventTemplates) ?? []
+        customCompletionSounds = try container.decodeIfPresent([CompletionSoundAsset].self, forKey: .customCompletionSounds) ?? []
         // Legacy raw values may include removed cases. Decode via try? + raw-string
         // fallback so an unknown / removed case doesn't fail the whole load.
         if let explicit = try? container.decodeIfPresent(MenuBarStyle.self, forKey: .menuBarStyle) {

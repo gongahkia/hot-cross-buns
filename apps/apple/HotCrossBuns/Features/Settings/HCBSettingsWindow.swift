@@ -10,6 +10,7 @@ import SwiftUI
 // live here.
 struct HCBSettingsWindow: View {
     @Environment(AppModel.self) private var model
+    @Environment(UpdaterController.self) private var updater
     private enum Tab: String, CaseIterable, Identifiable {
         case general, appearance, hotkeys, alerts, advanced
         var id: String { rawValue }
@@ -90,6 +91,23 @@ struct HCBSettingsWindow: View {
                 .withHCBAppearance(model.settings)
                 .hcbPreferredColorScheme(model.settings)
         }
+        .overlay {
+            BulkResultToast(
+                message: Binding(
+                    get: { updater.toastState?.message },
+                    set: { newValue in
+                        if newValue == nil {
+                            updater.clearToast()
+                        }
+                    }
+                ),
+                isWarning: updater.toastState?.isWarning ?? false,
+                successTitle: updater.toastState?.title ?? "Update check complete",
+                warningTitle: updater.toastState?.title ?? "Update check failed",
+                successSymbol: "arrow.down.circle.fill",
+                warningSymbol: "wifi.exclamationmark"
+            )
+        }
     }
 
 }
@@ -145,6 +163,7 @@ private struct GeneralTab: View {
                     Text(model.settings.syncMode.detail)
                         .hcbFont(.footnote)
                         .foregroundStyle(.secondary)
+                    syncModeGuidance
                     Picker("Keep past events", selection: eventRetentionBinding) {
                         Text("30 days").tag(30)
                         Text("90 days").tag(90)
@@ -216,6 +235,21 @@ private struct GeneralTab: View {
             get: { model.settings.eventRetentionDaysBack },
             set: { model.setEventRetentionDaysBack($0) }
         )
+    }
+
+    private var syncModeGuidance: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(SyncMode.allCases) { mode in
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: mode == model.settings.syncMode ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(mode == model.settings.syncMode ? AppColor.moss : .secondary)
+                    Text("\(mode.title): \(mode.guidance)")
+                        .hcbFont(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
     }
 
     private var hasSyncAttentionItems: Bool {

@@ -5,6 +5,7 @@ import SwiftUI
 
 struct MacSidebarShell: View {
     @Environment(AppModel.self) private var model
+    @Environment(UpdaterController.self) private var updater
     @Environment(NetworkMonitor.self) private var networkMonitor
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openSettings) private var openSettings
@@ -124,6 +125,23 @@ struct MacSidebarShell: View {
             }
             .overlay {
                 DeepLinkErrorToast(message: $deepLinkErrorMessage)
+            }
+            .overlay {
+                BulkResultToast(
+                    message: Binding(
+                        get: { updater.toastState?.message },
+                        set: { newValue in
+                            if newValue == nil {
+                                updater.clearToast()
+                            }
+                        }
+                    ),
+                    isWarning: updater.toastState?.isWarning ?? false,
+                    successTitle: updater.toastState?.title ?? "Update check complete",
+                    warningTitle: updater.toastState?.title ?? "Update check failed",
+                    successSymbol: "arrow.down.circle.fill",
+                    warningSymbol: "wifi.exclamationmark"
+                )
             }
             .overlay(alignment: .bottomTrailing) {
                 if let keys = chordKeys {

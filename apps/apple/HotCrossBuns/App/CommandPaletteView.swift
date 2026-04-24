@@ -105,6 +105,7 @@ fileprivate enum PaletteItem: Identifiable {
 struct CommandPaletteView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
+    @AppStorage("hcb.commandPalette.recentCommandIDs") private var recentCommandIDsJSON: String = "[]"
     @State private var query = ""
     // Heavy entity results (tasks/events/notes) intentionally lag behind the
     // live query. Command results are cheap and update immediately so local
@@ -132,12 +133,14 @@ struct CommandPaletteView: View {
         VStack(spacing: 0) {
             searchHeader
 
-            if trimmedQuery.isEmpty == false {
+            if trimmedQuery.isEmpty == false || recentCommands.isEmpty == false {
                 Divider().overlay(.secondary.opacity(0.25))
 
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        if rankedItems.isEmpty, isEntitySearchPending {
+                        if trimmedQuery.isEmpty {
+                            recentCommandsSection
+                        } else if rankedItems.isEmpty, isEntitySearchPending {
                             entitySearchPendingState
                         } else if rankedItems.isEmpty {
                             emptyState
@@ -190,8 +193,8 @@ struct CommandPaletteView: View {
             minWidth: 520,
             idealWidth: 560,
             maxWidth: 620,
-            minHeight: trimmedQuery.isEmpty ? 54 : 360,
-            idealHeight: trimmedQuery.isEmpty ? 54 : 420
+            minHeight: paletteHeight.min,
+            idealHeight: paletteHeight.ideal
         )
         .background {
             RoundedRectangle(cornerRadius: 12)
@@ -204,6 +207,29 @@ struct CommandPaletteView: View {
 
     private var trimmedQuery: String {
         query.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var recentCommandIDs: [String] {
+        guard let data = recentCommandIDsJSON.data(using: .utf8),
+              let ids = try? JSONDecoder().decode([String].self, from: data) else {
+            return []
+        }
+        return ids
+    }
+
+    private var recentCommands: [CommandPaletteCommand] {
+        let byID = Dictionary(uniqueKeysWithValues: commands.map { ($0.id, $0) })
+        return recentCommandIDs.compactMap { byID[$0] }
+    }
+
+    private var paletteHeight: (min: CGFloat, ideal: CGFloat) {
+        if trimmedQuery.isEmpty == false {
+            return (360, 420)
+        }
+        if recentCommands.isEmpty == false {
+            return (220, 300)
+        }
+        return (54, 54)
     }
 
     // Cheap fingerprint for the entity universe. dataRevision fingerprints
@@ -386,6 +412,10 @@ struct CommandPaletteView: View {
     }
 
     private func executeFirstMatch() {
+        if trimmedQuery.isEmpty, let first = recentCommands.first {
+            select(.command(first))
+            return
+        }
         // Commands are local and should win immediately when they match the
         // live query. Fall back to entity ranking for entity-only searches.
         if let first = commandItems(forQuery: trimmedQuery).first ?? entityItems(forQuery: trimmedQuery).first {
@@ -399,10 +429,23 @@ struct CommandPaletteView: View {
         // downstream navigation / sheet presentation.
         Task { @MainActor in
             switch item {
-            case .command(let command): command.action()
+            case .command(let command):
+                recordRecentCommand(id: command.id)
+                command.action()
             case .entity(let entity): onSelectEntity(entity)
             }
         }
+    }
+
+    private func recordRecentCommand(id: String) {
+        var ids = recentCommandIDs.filter { $0 != id }
+        ids.insert(id, at: 0)
+        ids = Array(ids.prefix(10))
+        guard let data = try? JSONEncoder().encode(ids),
+              let json = String(data: data, encoding: .utf8) else {
+            return
+        }
+        recentCommandIDsJSON = json
     }
 
     private var searchHeader: some View {
@@ -527,6 +570,36 @@ struct CommandPaletteView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, minHeight: 180)
+    }
+
+    @ViewBuilder
+    private var recentCommandsSection: some View {
+        if recentCommands.isEmpty {
+            VStack(spacing: 10) {
+                Image(systemName: "command")
+                    .hcbFont(.title2, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                Text("No recent commands yet")
+                    .hcbFont(.headline)
+                    .foregroundStyle(.secondary)
+                Text("Run a command once and it will stay here for quick repeat access.")
+                    .hcbFont(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, minHeight: 180)
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Recent Commands")
+                    .hcbFont(.caption, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                    .hcbScaledPadding(.horizontal, 20)
+                    .hcbScaledPadding(.top, 4)
+                ForEach(Array(recentCommands.enumerated()), id: \.element.id) { index, command in
+                    rowButton(item: .command(command), index: index)
+                }
+            }
+        }
     }
 }
 
