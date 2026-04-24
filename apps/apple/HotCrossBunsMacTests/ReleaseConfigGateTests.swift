@@ -41,9 +41,11 @@ final class ReleaseConfigGateTests: XCTestCase {
     func testGitHubReleaseCheckDetectsNewerVersionAndDownload() async throws {
         let session = try makeStubbedSession(statusCode: 200, body: """
         {
+          "name": "Spring Refresh",
           "tag_name": "v1.2.0",
           "html_url": "https://github.com/gongahkia/hot-cross-buns/releases/tag/v1.2.0",
           "published_at": "2026-04-24T00:00:00Z",
+          "body": "## Changes\\n- Added update prompts",
           "assets": [
             {
               "name": "HotCrossBuns-macOS.dmg",
@@ -70,8 +72,11 @@ final class ReleaseConfigGateTests: XCTestCase {
         await controller.checkForUpdatesNow(trigger: .manual)
 
         XCTAssertEqual(controller.availableRelease?.version, "1.2.0")
+        XCTAssertEqual(controller.availableRelease?.title, "Spring Refresh")
+        XCTAssertEqual(controller.availableRelease?.notesMarkdown, "## Changes\n- Added update prompts")
         XCTAssertEqual(controller.availableRelease?.downloadURL?.absoluteString, "https://github.com/gongahkia/hot-cross-buns/releases/download/v1.2.0/HotCrossBuns-macOS.dmg")
         XCTAssertEqual(controller.toastState?.title, "Update available")
+        XCTAssertEqual(controller.updatePromptSequence, 1)
         XCTAssertNotNil(controller.lastUpdateCheckDate)
     }
 
