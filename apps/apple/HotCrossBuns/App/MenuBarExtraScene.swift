@@ -282,10 +282,10 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
         guard let model, let selectedWeekDetailDay, panel?.isVisible == true else { return }
         let root = AnyView(
             WeeklyMenuBarDayDetailPanel(day: selectedWeekDetailDay)
-                .environment(model)
                 .withHCBAppearance(model.settings)
                 .hcbPreferredColorScheme(model.settings)
                 .hcbSurface(.menuBar)
+                .environment(model)
         )
 
         if let detailHostingController {
