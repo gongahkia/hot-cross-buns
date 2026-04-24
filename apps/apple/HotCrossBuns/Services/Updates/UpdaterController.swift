@@ -128,6 +128,7 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
     private(set) var availableRelease: AvailableRelease?
     private(set) var downloadState: DownloadState = .idle
     private(set) var updatePromptSequence: Int = 0
+    private(set) var installGuideSequence: Int = 0
     private(set) var isChecking = false
 
     private let githubLatestReleaseURL = URL(string: "https://api.github.com/repos/gongahkia/hot-cross-buns/releases/latest")!
@@ -290,6 +291,9 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
             )
             return
         }
+        if shouldPresentInstallGuide(for: target) {
+            requestInstallGuidePrompt()
+        }
     }
 
     func revealDownloadedReleaseInFinder() {
@@ -399,6 +403,10 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
 
     private func requestAvailableReleasePrompt() {
         updatePromptSequence += 1
+    }
+
+    private func requestInstallGuidePrompt() {
+        installGuideSequence += 1
     }
 
     private var activeDownloadURL: URL? {
@@ -554,6 +562,13 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
             with: "-",
             options: .regularExpression
         )
+    }
+
+    private func shouldPresentInstallGuide(for target: URL) -> Bool {
+        if target.isFileURL {
+            return target.pathExtension.caseInsensitiveCompare("dmg") == .orderedSame
+        }
+        return false
     }
 
     private func preferredDMGAsset(in assets: [GitHubAsset]) -> GitHubAsset? {

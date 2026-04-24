@@ -113,5 +113,15 @@ struct HotCrossBunsApp: App {
         }
         .defaultSize(width: 620, height: 560)
         .windowResizability(.contentMinSize)
+
+        Window("Install Update", id: "install-update") {
+            InstallUpdateWindow()
+                .environment(updater)
+                .withHCBAppearance(appModel.settings)
+                .hcbPreferredColorScheme(appModel.settings)
+                .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
+        }
+        .defaultSize(width: 520, height: 360)
+        .windowResizability(.contentMinSize)
     }
 }

@@ -317,3 +317,88 @@ struct UpdateAvailableWindow: View {
         }
     }
 }
+
+struct InstallUpdateWindow: View {
+    @Environment(UpdaterController.self) private var updater
+
+    var body: some View {
+        Group {
+            if let release = updater.availableRelease {
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("Install Hot Cross Buns \(release.version)")
+                        .font(.title2.weight(.semibold))
+
+                    Text("The DMG is open. Finish the update in Finder, then relaunch the app.")
+                        .foregroundStyle(.secondary)
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        installStep(
+                            number: 1,
+                            title: "Wait for the disk image to appear",
+                            detail: "Finder should mount the downloaded Hot Cross Buns DMG automatically."
+                        )
+                        installStep(
+                            number: 2,
+                            title: "Replace the existing app",
+                            detail: "Drag the new Hot Cross Buns app into Applications and confirm Replace when macOS asks."
+                        )
+                        installStep(
+                            number: 3,
+                            title: "Open the updated app",
+                            detail: "Launch Hot Cross Buns again from Applications. Your settings, cache, and history stay on this Mac."
+                        )
+                    }
+
+                    HStack(spacing: 12) {
+                        Button("Open Downloaded DMG") {
+                            updater.openAvailableReleaseDownload()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(updater.downloadState.phase != .ready)
+
+                        Button("Reveal in Finder") {
+                            updater.revealDownloadedReleaseInFinder()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(updater.downloadState.phase != .ready)
+                    }
+
+                    if let fileURL = updater.downloadState.fileURL {
+                        Text("Downloaded file: \(fileURL.path)")
+                            .hcbFont(.footnote)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(20)
+            } else {
+                ContentUnavailableView(
+                    "No Downloaded Update",
+                    systemImage: "shippingbox",
+                    description: Text("Download an update first, then the install guide will appear here.")
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(24)
+            }
+        }
+    }
+
+    private func installStep(number: Int, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("\(number)")
+                .font(.headline)
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(Color.accentColor.opacity(0.15)))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+                Text(detail)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}

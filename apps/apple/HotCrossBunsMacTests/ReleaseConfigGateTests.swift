@@ -167,6 +167,7 @@ final class ReleaseConfigGateTests: XCTestCase {
 
         XCTAssertEqual(openedURL?.isFileURL, true)
         XCTAssertEqual(openedURL?.lastPathComponent, "HotCrossBuns-macOS.dmg")
+        XCTAssertEqual(controller.installGuideSequence, 1)
     }
 
     func testGoogleAuthServiceRequiresConcreteClientID() throws {
