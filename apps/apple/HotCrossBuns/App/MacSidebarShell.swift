@@ -213,6 +213,7 @@ struct MacSidebarShell: View {
             }
             .modifier(ShellZoomObservers(zoomIn: performZoomIn, zoomOut: performZoomOut, zoomReset: performZoomReset))
             .task { await performInitialLoad() }
+            .task { await updater.performAutomaticCheckIfNeeded() }
             .onChange(of: model.settings.hasCompletedOnboarding) { _, hasCompleted in
                 // Re-present onboarding when the flag is flipped back
                 // (Settings → "Run setup again"); dismiss when the
