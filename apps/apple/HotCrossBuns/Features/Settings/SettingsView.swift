@@ -4,7 +4,9 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
+    @State private var permissionPrimer: PermissionPrimer?
     @State private var showLocalNotificationsInfo = false
+    @State private var showNotificationsDeniedAlert = false
     @State private var showOnboardingResetConfirmed = false
 
     var body: some View {
@@ -102,16 +104,8 @@ struct SettingsView: View {
                     }
                 }
             }
-            .alert("Local reminders enabled", isPresented: $showLocalNotificationsInfo) {
-                Button("OK") { showLocalNotificationsInfo = false }
-            } message: {
-                Text("Hot Cross Buns will schedule up to 64 pending reminders on this Mac for the soonest-upcoming due tasks and Calendar events. 64 is an Apple-imposed ceiling for local notifications per app — later items get scheduled automatically as earlier ones fire or complete.")
-            }
-            .alert("Setup will run now", isPresented: $showOnboardingResetConfirmed) {
-                Button("OK") { showOnboardingResetConfirmed = false }
-            } message: {
-                Text("The onboarding flow has been reset. Switch back to the main Hot Cross Buns window to go through setup again.")
-            }
+
+            CompletionSoundSection()
 
             AppearanceSection()
 
@@ -185,6 +179,43 @@ struct SettingsView: View {
             PastCleanupSection()
         }
         .appBackground()
+        .sheet(item: $permissionPrimer) { primer in
+            PermissionPrimerView(primer: primer) {
+                permissionPrimer = nil
+                Task {
+                    let result = await model.requestEnableLocalNotifications()
+                    await MainActor.run {
+                        if result == .authorized {
+                            showLocalNotificationsInfo = true
+                        } else {
+                            showNotificationsDeniedAlert = true
+                        }
+                    }
+                }
+            } onCancel: {
+                permissionPrimer = nil
+            }
+        }
+        .alert("Local reminders enabled", isPresented: $showLocalNotificationsInfo) {
+            Button("OK") { showLocalNotificationsInfo = false }
+        } message: {
+            Text("Hot Cross Buns will schedule up to 64 pending reminders on this Mac for the soonest-upcoming due tasks and Calendar events. 64 is an Apple-imposed ceiling for local notifications per app — later items get scheduled automatically as earlier ones fire or complete.")
+        }
+        .alert("Notifications are off for Hot Cross Buns", isPresented: $showNotificationsDeniedAlert) {
+            Button("Open Notifications Settings") {
+                HotCrossBunsSystemSettings.open(HotCrossBunsSystemSettings.notificationsURL)
+            }
+            Button("Cancel", role: .cancel) {
+                showNotificationsDeniedAlert = false
+            }
+        } message: {
+            Text("macOS blocked notifications for Hot Cross Buns. Open System Settings > Notifications > Hot Cross Buns to allow device-local reminders.")
+        }
+        .alert("Setup will run now", isPresented: $showOnboardingResetConfirmed) {
+            Button("OK") { showOnboardingResetConfirmed = false }
+        } message: {
+            Text("The onboarding flow has been reset. Switch back to the main Hot Cross Buns window to go through setup again.")
+        }
     }
 
     private var syncModeBinding: Binding<SyncMode> {
@@ -198,11 +229,10 @@ struct SettingsView: View {
         Binding(
             get: { model.settings.enableLocalNotifications },
             set: { newValue in
-                let wasOff = model.settings.enableLocalNotifications == false
-                model.updateLocalNotificationsEnabled(newValue)
-                // Only show the explainer on an off→on transition.
-                if wasOff, newValue {
-                    showLocalNotificationsInfo = true
+                if newValue {
+                    permissionPrimer = .notifications
+                } else {
+                    model.updateLocalNotificationsEnabled(false)
                 }
             }
         )
@@ -314,6 +344,10 @@ struct AccountStatusView: View {
                 Text(message)
                     .hcbFont(.footnote)
                     .foregroundStyle(.red)
+            } else if case .cancelled(let message) = authState {
+                Text(message)
+                    .hcbFont(.footnote)
+                    .foregroundStyle(.secondary)
             }
 
             if let account {
@@ -350,6 +384,8 @@ struct AccountStatusView: View {
             "person.crop.circle.badge.checkmark"
         case .authenticating:
             "hourglass"
+        case .cancelled:
+            "info.circle"
         case .failed:
             "exclamationmark.triangle"
         case .signedOut:

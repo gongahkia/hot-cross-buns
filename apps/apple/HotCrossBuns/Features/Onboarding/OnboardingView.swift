@@ -194,6 +194,12 @@ private struct ConnectGoogleCard: View {
                         .hcbFont(.subheadline)
                         .foregroundStyle(.secondary)
                 }
+            case .cancelled(let message):
+                Text(message)
+                    .hcbFont(.footnote)
+                    .foregroundStyle(.secondary)
+                connectButton
+                scopeFootnote
             case .failed(let message):
                 Text(message)
                     .hcbFont(.footnote)
@@ -335,6 +341,9 @@ private struct SourceSelectionCard: View {
 
 private struct ReminderPreferenceCard: View {
     @Environment(AppModel.self) private var model
+    @State private var primer: PermissionPrimer?
+    @State private var showNotificationsDeniedAlert = false
+    @State private var showLocalNotificationsInfo = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -344,12 +353,50 @@ private struct ReminderPreferenceCard: View {
                 .hcbFont(.footnote)
                 .foregroundStyle(.secondary)
         }
+        .sheet(item: $primer) { current in
+            PermissionPrimerView(primer: current) {
+                primer = nil
+                Task {
+                    let result = await model.requestEnableLocalNotifications()
+                    await MainActor.run {
+                        if result == .authorized {
+                            showLocalNotificationsInfo = true
+                        } else {
+                            showNotificationsDeniedAlert = true
+                        }
+                    }
+                }
+            } onCancel: {
+                primer = nil
+            }
+        }
+        .alert("Local reminders enabled", isPresented: $showLocalNotificationsInfo) {
+            Button("OK") { showLocalNotificationsInfo = false }
+        } message: {
+            Text("Hot Cross Buns will schedule up to 64 pending reminders on this Mac for the soonest-upcoming due tasks and Calendar events. 64 is an Apple-imposed ceiling for local notifications per app — later items get scheduled automatically as earlier ones fire or complete.")
+        }
+        .alert("Notifications are off for Hot Cross Buns", isPresented: $showNotificationsDeniedAlert) {
+            Button("Open Notifications Settings") {
+                HotCrossBunsSystemSettings.open(HotCrossBunsSystemSettings.notificationsURL)
+            }
+            Button("Cancel", role: .cancel) {
+                showNotificationsDeniedAlert = false
+            }
+        } message: {
+            Text("macOS blocked notifications for Hot Cross Buns. Open System Settings > Notifications > Hot Cross Buns to allow device-local reminders.")
+        }
     }
 
     private var remindersBinding: Binding<Bool> {
         Binding(
             get: { model.settings.enableLocalNotifications },
-            set: { model.updateLocalNotificationsEnabled($0) }
+            set: { newValue in
+                if newValue {
+                    primer = .notifications
+                } else {
+                    model.updateLocalNotificationsEnabled(false)
+                }
+            }
         )
     }
 }

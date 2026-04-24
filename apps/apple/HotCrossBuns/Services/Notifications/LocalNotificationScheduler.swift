@@ -43,6 +43,12 @@ struct NotificationScheduleSummary: Equatable, Sendable {
     var totalFailed: Int { failedEvents + failedTasks }
 }
 
+enum NotificationAuthorizationOutcome: Equatable, Sendable {
+    case authorized
+    case denied
+    case notDetermined
+}
+
 actor LocalNotificationScheduler {
     private static let notificationPrefix = "hot-cross-buns."
     private static let schedulingWindowDays = 30
@@ -136,17 +142,23 @@ actor LocalNotificationScheduler {
         )
     }
 
-    private func hasAuthorization(requestAuthorization: Bool) async -> Bool {
+    func authorizationOutcome(requestAuthorization: Bool) async -> NotificationAuthorizationOutcome {
         let authorizationStatus = await notificationCenter.authorizationStatus()
 
         switch authorizationStatus {
         case .authorized, .provisional, .ephemeral:
-            return true
+            return .authorized
         case .notDetermined where requestAuthorization:
-            return await requestNotificationAuthorization()
+            return await requestNotificationAuthorization() ? .authorized : .denied
+        case .notDetermined:
+            return .notDetermined
         default:
-            return false
+            return .denied
         }
+    }
+
+    private func hasAuthorization(requestAuthorization: Bool) async -> Bool {
+        await authorizationOutcome(requestAuthorization: requestAuthorization) == .authorized
     }
 
     private func taskNotificationRequests(
