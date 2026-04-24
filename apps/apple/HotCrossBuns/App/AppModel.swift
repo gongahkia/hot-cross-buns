@@ -113,6 +113,7 @@ final class AppModel {
     // lookup tables do not double-retain the largest data collections.
     private var taskIndexByID: [TaskMirror.ID: Int] = [:]
     private var eventIndexByID: [CalendarEventMirror.ID: Int] = [:]
+    private var taskListIndexByID: [TaskListMirror.ID: Int] = [:]
     private(set) var syncCheckpoints: [SyncCheckpoint] = []
     private(set) var pendingMutations: [PendingMutation] = []
     private(set) var lastNotificationScheduleSummary: NotificationScheduleSummary?
@@ -3365,26 +3366,35 @@ final class AppModel {
     }
 
     private func upsert(_ task: TaskMirror) {
-        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+        if let index = taskArrayIndex(for: task.id) {
             tasks[index] = task
         } else {
+            taskIndexByID[task.id] = tasks.count
             tasks.append(task)
         }
         scheduleRebuildSnapshots()
     }
 
     private func upsert(_ taskList: TaskListMirror) {
-        if let index = taskLists.firstIndex(where: { $0.id == taskList.id }) {
+        if let index = taskListArrayIndex(for: taskList.id) {
             taskLists[index] = taskList
         } else {
+            taskListIndexByID[taskList.id] = taskLists.count
             taskLists.append(taskList)
         }
         scheduleRebuildSnapshots()
     }
 
     private func removeTaskList(id: TaskListMirror.ID) {
-        taskLists.removeAll { $0.id == id }
+        if let index = taskListArrayIndex(for: id) {
+            taskLists.remove(at: index)
+            rebuildTaskListIndex()
+        } else {
+            taskLists.removeAll { $0.id == id }
+            rebuildTaskListIndex()
+        }
         tasks.removeAll { $0.taskListID == id }
+        rebuildTaskIndex()
         settings.selectedTaskListIDs.remove(id)
         syncCheckpoints.removeAll { checkpoint in
             checkpoint.resourceType == .taskList && checkpoint.resourceID == id
@@ -3393,7 +3403,16 @@ final class AppModel {
     }
 
     private func removeTask(id: TaskMirror.ID) {
-        tasks.removeAll { $0.id == id }
+        if let index = taskArrayIndex(for: id) {
+            tasks.remove(at: index)
+            rebuildTaskIndex()
+        } else {
+            let originalCount = tasks.count
+            tasks.removeAll { $0.id == id }
+            if tasks.count != originalCount {
+                rebuildTaskIndex()
+            }
+        }
         scheduleRebuildSnapshots()
     }
 
@@ -3411,17 +3430,66 @@ final class AppModel {
            cal.defaultReminderMinutes.isEmpty == false {
             resolved.reminderMinutes = cal.defaultReminderMinutes
         }
-        if let index = events.firstIndex(where: { $0.id == resolved.id }) {
+        if let index = eventArrayIndex(for: resolved.id) {
             events[index] = resolved
         } else {
+            eventIndexByID[resolved.id] = events.count
             events.append(resolved)
         }
         scheduleRebuildSnapshots()
     }
 
     private func removeEvent(id: CalendarEventMirror.ID) {
-        events.removeAll { $0.id == id }
+        if let index = eventArrayIndex(for: id) {
+            events.remove(at: index)
+            rebuildEventIndex()
+        } else {
+            let originalCount = events.count
+            events.removeAll { $0.id == id }
+            if events.count != originalCount {
+                rebuildEventIndex()
+            }
+        }
         scheduleRebuildSnapshots()
+    }
+
+    private func taskArrayIndex(for id: TaskMirror.ID) -> Int? {
+        if let index = taskIndexByID[id],
+           tasks.indices.contains(index),
+           tasks[index].id == id {
+            return index
+        }
+        return tasks.firstIndex { $0.id == id }
+    }
+
+    private func eventArrayIndex(for id: CalendarEventMirror.ID) -> Int? {
+        if let index = eventIndexByID[id],
+           events.indices.contains(index),
+           events[index].id == id {
+            return index
+        }
+        return events.firstIndex { $0.id == id }
+    }
+
+    private func taskListArrayIndex(for id: TaskListMirror.ID) -> Int? {
+        if let index = taskListIndexByID[id],
+           taskLists.indices.contains(index),
+           taskLists[index].id == id {
+            return index
+        }
+        return taskLists.firstIndex { $0.id == id }
+    }
+
+    private func rebuildTaskIndex() {
+        taskIndexByID = Dictionary(uniqueKeysWithValues: tasks.enumerated().map { ($0.element.id, $0.offset) })
+    }
+
+    private func rebuildEventIndex() {
+        eventIndexByID = Dictionary(uniqueKeysWithValues: events.enumerated().map { ($0.element.id, $0.offset) })
+    }
+
+    private func rebuildTaskListIndex() {
+        taskListIndexByID = Dictionary(uniqueKeysWithValues: taskLists.enumerated().map { ($0.element.id, $0.offset) })
     }
 
     private func currentCachedState() -> CachedAppState {
@@ -3680,8 +3748,9 @@ final class AppModel {
 
         // O(1) ID lookup tables. One pass over each collection replaces
         // arbitrary .first(where:) scans scattered across the codebase.
-        taskIndexByID = Dictionary(uniqueKeysWithValues: tasks.enumerated().map { ($0.element.id, $0.offset) })
-        eventIndexByID = Dictionary(uniqueKeysWithValues: events.enumerated().map { ($0.element.id, $0.offset) })
+        rebuildTaskIndex()
+        rebuildEventIndex()
+        rebuildTaskListIndex()
 
         // Advance the content revision. Any view composing this into a
         // cache key rebuilds its derived snapshot on the next observation
