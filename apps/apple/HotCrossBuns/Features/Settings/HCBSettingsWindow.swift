@@ -508,6 +508,8 @@ private struct AdvancedTab: View {
                 }
             }
 
+            PerTabListFilterSection()
+
             EncryptionSection()
             HistorySection()
             CustomFiltersSection()
