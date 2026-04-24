@@ -14,6 +14,8 @@ struct CalendarHomeView: View {
     @State private var importResultMessage: String?
     @State private var selectedEventIDs: Set<String> = []
     @State private var isGoToDateShown = false
+    @State private var snoozeCustomTask: TaskMirror?
+    @State private var pendingDeleteEvent: CalendarEventMirror?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,49 +29,7 @@ struct CalendarHomeView: View {
             )
             navigationBar
             Divider()
-            Group {
-                if model.account == nil && model.authState == .authenticating {
-                    restoringPrompt
-                } else if model.account == nil {
-                    connectPrompt
-                } else if model.calendarSnapshot.selectedCalendars.isEmpty {
-                    calendarsEmptyPrompt
-                } else {
-                    ZStack(alignment: .bottom) {
-                        switch mode {
-                        case .agenda: agendaContent
-                        case .day: DayGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
-                        case .multiDay:
-                            VStack(spacing: 0) {
-                                multiDayStepperBar
-                                WeekGridView(
-                                    anchorDate: $selectedDate,
-                                    searchQuery: searchQuery,
-                                    selectedEventIDs: $selectedEventIDs,
-                                    multiDayCount: model.settings.multiDayCount
-                                )
-                            }
-                        case .week:
-                            WeekGridView(anchorDate: $selectedDate, searchQuery: searchQuery, selectedEventIDs: $selectedEventIDs)
-                        case .month: MonthGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
-                        case .year: YearGridView(anchorDate: $selectedDate, onPickDay: { day in
-                            selectedDate = day
-                            mode = .day
-                        })
-                        }
-
-                        if selectedEventIDs.count >= 2 {
-                            EventBulkActionBar(
-                                selection: $selectedEventIDs,
-                                events: selectedEvents
-                            )
-                            .hcbScaledPadding(.bottom, 16)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                        }
-                    }
-                    .animation(.easeInOut(duration: 0.2), value: selectedEventIDs.count >= 2)
-                }
-            }
+            contentArea
             .hcbSurface(.calendarGrid) // §6.11 — covers day/week/month/year/agenda subtree
         }
         .appBackground()
@@ -106,6 +66,13 @@ struct CalendarHomeView: View {
         } message: {
             Text(importResultMessage ?? "")
         }
+        .sheet(item: $snoozeCustomTask) { task in
+            SnoozePickerSheet(task: task) { newDate in
+                Task {
+                    _ = await model.updateTask(task, title: task.title, notes: task.notes, dueDate: newDate)
+                }
+            }
+        }
         .confirmationDialog(
             "Move which occurrences?",
             isPresented: Binding(
@@ -127,6 +94,28 @@ struct CalendarHomeView: View {
         } message: { request in
             Text("\"\(request.eventSummary)\" is part of a recurring series. \"Every event in the series\" moves past occurrences too — not just upcoming ones. This is destructive and can't be undone.")
         }
+        .confirmationDialog(
+            "Delete this event?",
+            isPresented: Binding(
+                get: { pendingDeleteEvent != nil },
+                set: { if $0 == false { pendingDeleteEvent = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let event = pendingDeleteEvent {
+                Button("Delete", role: .destructive) {
+                    Task {
+                        _ = await model.deleteEvent(event)
+                        pendingDeleteEvent = nil
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) { pendingDeleteEvent = nil }
+        } message: {
+            if let event = pendingDeleteEvent {
+                Text("Delete \"\(event.summary)\" from Google Calendar?")
+            }
+        }
         .onAppear {
             let restored = CalendarGridMode(rawValue: storedMode) ?? .month
             mode = visibleCalendarModes.contains(restored) ? restored : (visibleCalendarModes.first ?? .month)
@@ -141,6 +130,66 @@ struct CalendarHomeView: View {
             if visibleCalendarModes.contains(mode) == false, let first = visibleCalendarModes.first {
                 mode = first
             }
+        }
+    }
+
+    @ViewBuilder
+    private var contentArea: some View {
+        Group {
+            if model.account == nil && model.authState == .authenticating {
+                restoringPrompt
+            } else if model.account == nil {
+                connectPrompt
+            } else if model.calendarSnapshot.selectedCalendars.isEmpty {
+                calendarsEmptyPrompt
+            } else {
+                activeCalendarSurface
+            }
+        }
+    }
+
+    private var activeCalendarSurface: some View {
+        ZStack(alignment: .bottom) {
+            currentModeContent
+
+            if selectedEventIDs.count >= 2 {
+                EventBulkActionBar(
+                    selection: $selectedEventIDs,
+                    events: selectedEvents
+                )
+                .hcbScaledPadding(.bottom, 16)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: selectedEventIDs.count >= 2)
+    }
+
+    @ViewBuilder
+    private var currentModeContent: some View {
+        switch mode {
+        case .agenda:
+            agendaContent
+        case .day:
+            DayGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
+        case .multiDay:
+            VStack(spacing: 0) {
+                multiDayStepperBar
+                WeekGridView(
+                    anchorDate: $selectedDate,
+                    searchQuery: searchQuery,
+                    selectedEventIDs: $selectedEventIDs,
+                    multiDayCount: model.settings.multiDayCount
+                )
+            }
+        case .week:
+            WeekGridView(anchorDate: $selectedDate, searchQuery: searchQuery, selectedEventIDs: $selectedEventIDs)
+        case .month:
+            MonthGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
+        case .year:
+            YearGridView(anchorDate: $selectedDate, onPickDay: { day in
+                selectedDate = day
+                mode = .day
+            })
         }
     }
 
@@ -562,6 +611,15 @@ struct CalendarHomeView: View {
                                 EventListRow(event: event, accentColor: calendarColor(for: event))
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                EventContextMenu(
+                                    event: event,
+                                    onOpen: { router?.present(.editEvent(event.id)) },
+                                    onConvertToTask: { router?.present(.convertEventToTask(event.id)) },
+                                    onConvertToNote: { router?.present(.convertEventToNote(event.id)) },
+                                    onDelete: { pendingDeleteEvent = event }
+                                )
+                            }
                         }
                         ForEach(dayTasks) { task in
                             agendaTaskRow(task)
@@ -668,6 +726,24 @@ struct CalendarHomeView: View {
             .buttonStyle(.plain)
         }
         .opacity(task.isCompleted ? 0.6 : 1.0)
+        .contextMenu {
+            TaskContextMenu(
+                task: task,
+                onOpen: { router?.present(.editTask(task.id)) },
+                onCustomSnooze: { snoozeCustomTask = task },
+                onConvertToEvent: { router?.present(.convertTaskToEvent(task.id)) },
+                onConvertToTaskOrNote: {
+                    if task.dueDate == nil {
+                        router?.present(.convertNoteToTask(task.id))
+                    } else {
+                        router?.present(.convertTaskToNote(task.id))
+                    }
+                },
+                onDelete: {
+                    Task { _ = await model.deleteTask(task) }
+                }
+            )
+        }
     }
 
     private func events(on date: Date) -> [CalendarEventMirror] {
