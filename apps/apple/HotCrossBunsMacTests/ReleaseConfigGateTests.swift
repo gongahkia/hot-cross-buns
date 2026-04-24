@@ -18,6 +18,92 @@ final class ReleaseConfigGateTests: XCTestCase {
         ])).isConfigured)
     }
 
+    func testUpdaterControllerFallsBackToGitHubChecksWithoutSparkle() throws {
+        let suiteName = "ReleaseConfigGateTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        addTeardownBlock {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let controller = UpdaterController(
+            bundle: try makeBundle(info: [:]),
+            userDefaults: defaults,
+            urlSession: .shared,
+            openURL: { _ in true }
+        )
+
+        XCTAssertFalse(controller.isConfigured)
+        XCTAssertEqual(controller.updateSourceLabel, "GitHub Releases")
+        XCTAssertTrue(controller.automaticallyChecksForUpdates)
+    }
+
+    func testGitHubReleaseCheckDetectsNewerVersionAndDownload() async throws {
+        let session = try makeStubbedSession(statusCode: 200, body: """
+        {
+          "tag_name": "v1.2.0",
+          "html_url": "https://github.com/gongahkia/hot-cross-buns/releases/tag/v1.2.0",
+          "published_at": "2026-04-24T00:00:00Z",
+          "assets": [
+            {
+              "name": "HotCrossBuns-macOS.dmg",
+              "browser_download_url": "https://github.com/gongahkia/hot-cross-buns/releases/download/v1.2.0/HotCrossBuns-macOS.dmg"
+            }
+          ]
+        }
+        """)
+        let suiteName = "ReleaseConfigGateTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        addTeardownBlock {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let controller = UpdaterController(
+            bundle: try makeBundle(info: ["CFBundleShortVersionString": "1.0.0"]),
+            userDefaults: defaults,
+            urlSession: session,
+            openURL: { _ in true },
+            now: { Date(timeIntervalSince1970: 1_777_000_000) }
+        )
+
+        await controller.checkForUpdatesNow(trigger: .manual)
+
+        XCTAssertEqual(controller.availableRelease?.version, "1.2.0")
+        XCTAssertEqual(controller.availableRelease?.downloadURL?.absoluteString, "https://github.com/gongahkia/hot-cross-buns/releases/download/v1.2.0/HotCrossBuns-macOS.dmg")
+        XCTAssertEqual(controller.toastState?.title, "Update available")
+        XCTAssertNotNil(controller.lastUpdateCheckDate)
+    }
+
+    func testGitHubReleaseCheckReportsLatestVersion() async throws {
+        let session = try makeStubbedSession(statusCode: 200, body: """
+        {
+          "tag_name": "v1.0.0",
+          "html_url": "https://github.com/gongahkia/hot-cross-buns/releases/tag/v1.0.0",
+          "published_at": "2026-04-24T00:00:00Z",
+          "assets": []
+        }
+        """)
+        let suiteName = "ReleaseConfigGateTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        addTeardownBlock {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let controller = UpdaterController(
+            bundle: try makeBundle(info: ["CFBundleShortVersionString": "1.0.0"]),
+            userDefaults: defaults,
+            urlSession: session,
+            openURL: { _ in true }
+        )
+
+        await controller.checkForUpdatesNow(trigger: .manual)
+
+        XCTAssertNil(controller.availableRelease)
+        XCTAssertEqual(controller.toastState?.title, "You're on the latest version")
+    }
+
     func testGoogleAuthServiceRequiresConcreteClientID() throws {
         XCTAssertFalse(GoogleAuthService(bundle: try makeBundle(info: [:])).isConfigured)
         XCTAssertFalse(GoogleAuthService(bundle: try makeBundle(info: [
@@ -61,8 +147,55 @@ final class ReleaseConfigGateTests: XCTestCase {
         }
         return bundle
     }
+
+    private func makeStubbedSession(statusCode: Int, body: String) throws -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        StubURLProtocol.handler = { request in
+            let response = HTTPURLResponse(
+                url: try XCTUnwrap(request.url),
+                statusCode: statusCode,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(body.utf8))
+        }
+        addTeardownBlock {
+            StubURLProtocol.handler = nil
+        }
+        return URLSession(configuration: configuration)
+    }
 }
 
 private enum FixtureBundleError: Error {
     case failedToLoadBundle
+}
+
+private final class StubURLProtocol: URLProtocol {
+    static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        guard let handler = Self.handler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+        do {
+            let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
 }

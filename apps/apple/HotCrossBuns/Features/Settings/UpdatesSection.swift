@@ -6,28 +6,54 @@ struct UpdatesSection: View {
 
     var body: some View {
         Section("Updates") {
-            if updater.isConfigured {
-                Toggle("Check for updates automatically", isOn: autoCheckBinding)
-                Button {
-                    updater.checkForUpdates()
-                } label: {
-                    Label("Check for Updates Now", systemImage: "arrow.down.circle")
+            Toggle(updater.automaticCheckLabel, isOn: autoCheckBinding)
+
+            Button {
+                updater.checkForUpdates()
+            } label: {
+                Label(
+                    updater.isChecking ? "Checking GitHub Releases…" : "Check for Updates Now",
+                    systemImage: "arrow.down.circle"
+                )
+            }
+            .disabled(updater.isChecking)
+
+            if let release = updater.availableRelease {
+                LabeledContent("Latest available") {
+                    Text("Version \(release.version)")
                 }
-                if let last = updater.lastUpdateCheckDate {
-                    Text("Last checked \(last.formatted(date: .abbreviated, time: .shortened))")
+                if let publishedAt = release.publishedAt {
+                    Text("Published \(publishedAt.formatted(date: .abbreviated, time: .shortened))")
                         .hcbFont(.footnote)
                         .foregroundStyle(.secondary)
                 }
+                HStack(spacing: 12) {
+                    Button(release.downloadURL == nil ? "Open Release Notes" : "Download Latest DMG") {
+                        updater.openAvailableReleaseDownload()
+                    }
+                    Button("View Releases Page") {
+                        updater.openReleasesPage()
+                    }
+                }
             } else {
-                Label("Updates unavailable until Sparkle keys are configured.", systemImage: "exclamationmark.triangle")
+                Label(
+                    updater.isConfigured
+                        ? "Signed release builds can install updates in-app."
+                        : "This checks GitHub Releases and opens the latest DMG. It does not replace the app in place.",
+                    systemImage: updater.isConfigured ? "arrow.triangle.2.circlepath" : "shippingbox"
+                )
+                    .hcbFont(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let last = updater.lastUpdateCheckDate {
+                Text("Last checked \(last.formatted(date: .abbreviated, time: .shortened)) via \(updater.updateSourceLabel)")
                     .hcbFont(.footnote)
                     .foregroundStyle(.secondary)
             }
         }
         .onAppear {
-            if updater.isConfigured {
-                autoCheck = updater.automaticallyChecksForUpdates
-            }
+            autoCheck = updater.automaticallyChecksForUpdates
         }
     }
 
