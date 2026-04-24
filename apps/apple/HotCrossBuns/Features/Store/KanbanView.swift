@@ -25,6 +25,7 @@ struct KanbanView: View {
     var onRenameList: (TaskListMirror) -> Void = { _ in }
     var onDeleteList: (TaskListMirror) -> Void = { _ in }
     var onNewList: () -> Void = {}
+    var onCustomSnooze: (TaskMirror) -> Void = { _ in }
     var onCreateTaskInList: (TaskListMirror.ID?) -> Void = { _ in }
     // Callers can override what happens when a card is tapped. Default is
     // to set `selection` to just that task id. Notes tab overrides this to
@@ -61,6 +62,7 @@ struct KanbanView: View {
                             },
                             onRenameList: onRenameList,
                             onDeleteList: onDeleteList,
+                            onCustomSnooze: onCustomSnooze,
                             onCreateTask: { onCreateTaskInList(taskList(for: column)?.id) }
                         )
                     }
@@ -156,6 +158,7 @@ private struct KanbanColumnView: View {
     let onCardTap: (TaskMirror) -> Void
     let onRenameList: (TaskListMirror) -> Void
     let onDeleteList: (TaskListMirror) -> Void
+    let onCustomSnooze: (TaskMirror) -> Void
     let onCreateTask: () -> Void
 
     @State private var isCompletedExpanded = false
@@ -296,35 +299,22 @@ private struct KanbanColumnView: View {
 
     @ViewBuilder
     private func taskContextMenu(for task: TaskMirror) -> some View {
-        Button(task.isCompleted ? "Mark as open" : "Mark complete") {
-            Task { _ = await model.setTaskCompleted(!task.isCompleted, task: task) }
-        }
-        Divider()
-        Button("Duplicate") {
-            Task { _ = await model.duplicateTask(task) }
-        }
-        // Parity with the Calendar tab's event / task right-click menus.
-        // The conversion sub-menu routes through RouterPath intents so both
-        // Tasks tab (dated tasks) and Notes tab (undated tasks) get options
-        // based on task.dueDate.
-        Menu("Convert…") {
-            Button("Convert to Event") {
-                router?.present(.convertTaskToEvent(task.id))
-            }
-            if task.dueDate == nil {
-                Button("Convert to Task (set due date)") {
+        TaskContextMenu(
+            task: task,
+            onOpen: { onCardTap(task) },
+            onCustomSnooze: { onCustomSnooze(task) },
+            onConvertToEvent: { router?.present(.convertTaskToEvent(task.id)) },
+            onConvertToTaskOrNote: {
+                if task.dueDate == nil {
                     router?.present(.convertNoteToTask(task.id))
-                }
-            } else {
-                Button("Convert to Note (clear due date)") {
+                } else {
                     router?.present(.convertTaskToNote(task.id))
                 }
+            },
+            onDelete: {
+                Task { _ = await model.deleteTask(task) }
             }
-        }
-        Divider()
-        Button("Delete", role: .destructive) {
-            Task { _ = await model.deleteTask(task) }
-        }
+        )
     }
 
     private var header: some View {

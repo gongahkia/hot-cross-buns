@@ -48,6 +48,7 @@ struct TaskDraft: Equatable {
 
 struct TaskInspectorView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openWindow) private var openWindow
     @Environment(\.routerPath) private var router
     let task: TaskMirror
     let close: () -> Void
@@ -62,6 +63,7 @@ struct TaskInspectorView: View {
     @State private var isSavingNow = false
     @State private var savedAt: Date?
     @State private var saveFailureMessage: String?
+    @State private var snoozeCustomTask: TaskMirror?
     // View-only-first flow (mirrors AddEventSheet / AddTaskSheet). Clicking
     // a task in the list opens a read-only surface; Edit flips to the live
     // auto-saving form below. Reset to view-only whenever the selected task
@@ -141,6 +143,11 @@ struct TaskInspectorView: View {
         } message: {
             Text("This deletes the task from Google Tasks. It cannot be undone.")
         }
+        .sheet(item: $snoozeCustomTask) { selectedTask in
+            SnoozePickerSheet(task: selectedTask) { newDate in
+                Task { await snooze(selectedTask, to: newDate) }
+            }
+        }
     }
 
     private var taskInspectorCommandActions: TaskInspectorCommandActions {
@@ -215,6 +222,21 @@ struct TaskInspectorView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .contextMenu {
+            TaskContextMenu(
+                task: task,
+                onCustomSnooze: { snoozeCustomTask = task },
+                onConvertToEvent: { router?.present(.convertTaskToEvent(task.id)) },
+                onConvertToTaskOrNote: {
+                    if task.dueDate == nil {
+                        router?.present(.convertNoteToTask(task.id))
+                    } else {
+                        router?.present(.convertTaskToNote(task.id))
+                    }
+                },
+                onDelete: { isConfirmingDelete = true }
+            )
+        }
     }
 
     @ViewBuilder
@@ -281,6 +303,14 @@ struct TaskInspectorView: View {
                         model.dismissDuplicateGroup(groupKey)
                     } label: {
                         Label("Dismiss", systemImage: "checkmark.shield")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button {
+                        openWindow(id: "duplicate-review")
+                    } label: {
+                        Label("Review all", systemImage: "square.stack.3d.up")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
@@ -763,6 +793,10 @@ struct TaskInspectorView: View {
     private func refreshDraftIfClean() {
         guard draft.differs(from: task) == false else { return }
         draft = TaskDraft(task: task)
+    }
+
+    private func snooze(_ task: TaskMirror, to newDate: Date?) async {
+        _ = await model.updateTask(task, title: task.title, notes: task.notes, dueDate: newDate)
     }
 
     private func saveIfDirty() async {

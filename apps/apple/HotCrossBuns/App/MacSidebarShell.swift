@@ -80,7 +80,9 @@ struct MacSidebarShell: View {
                     isSyncPaused: model.isSyncPaused,
                     quarantinedCount: model.quarantinedMutationCount,
                     conflictCount: model.conflictedMutationCount,
+                    deferredReminderSummary: model.lastNotificationScheduleSummary,
                     daysSinceLastLaunch: model.daysSinceLastLaunch,
+                    openSyncIssues: { openWindow(id: "sync-issues") },
                     retry: {
                         model.resumeSync()
                         Task { await model.refreshNow() }
@@ -141,6 +143,12 @@ struct MacSidebarShell: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .hcbOpenSettingsWindow)) { _ in
                 openSettings()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .hcbRevealTaskInStore)) { note in
+                guard let taskID = note.object as? TaskMirror.ID else { return }
+                let targetTab: SidebarItem = model.task(id: taskID)?.dueDate == nil ? .notes : .store
+                selection = targetTab
+                tabRouter.router(for: sidebarItemKey(targetTab)).present(.editTask(taskID))
             }
             .onDisappear {
                 uninstallAppShortcutMonitor()
