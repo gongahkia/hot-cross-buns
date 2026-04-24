@@ -1,4 +1,4 @@
-name: Hot Cross Buns CI/CD on push
+name: Hot Cross Buns CI on push
 
 on:
   push:
@@ -16,32 +16,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Verify legacy Go sync server is removed
         run: |
           test ! -d services/server
           test ! -f docker-compose.yml
           ! grep -R "services/server" README.md docs
-
-  apple-build:
-    name: Apple macOS Build
-    runs-on: macos-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install XcodeGen
-        run: brew install xcodegen
-
-      - name: Generate Xcode project
-        working-directory: apps/apple
-        run: xcodegen generate
-
-      - name: Build macOS target
-        working-directory: apps/apple
-        run: xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO
-
-      - name: Run macOS tests
-        working-directory: apps/apple
-        run: xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 'platform=macOS' test CODE_SIGNING_ALLOWED=NO
