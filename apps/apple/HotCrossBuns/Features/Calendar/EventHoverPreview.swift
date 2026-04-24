@@ -83,34 +83,13 @@ struct CalendarEventPreviewButton<Label: View>: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
-            Button("Open…") {
-                router?.present(.editEvent(event.id))
-            }
-            Button("Mark as Done") {
-                Task { _ = await model.dismissEvent(event) }
-            }
-            Button("Duplicate") {
-                Task { _ = await model.duplicateEvent(event) }
-            }
-            Divider()
-            Menu("Convert…") {
-                Button("Convert to Task") {
-                    router?.present(.convertEventToTask(event.id))
-                }
-                Button("Convert to Note") {
-                    router?.present(.convertEventToNote(event.id))
-                }
-            }
-            Button("Copy as Markdown") {
-                let calendarTitle = model.calendars.first(where: { $0.id == event.calendarID })?.summary
-                let md = EventMarkdownExporter.markdown(for: event, calendarTitle: calendarTitle)
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(md, forType: .string)
-            }
-            Divider()
-            Button("Delete", role: .destructive) {
-                isConfirmingDelete = true
-            }
+            EventContextMenu(
+                event: event,
+                onOpen: { router?.present(.editEvent(event.id)) },
+                onConvertToTask: { router?.present(.convertEventToTask(event.id)) },
+                onConvertToNote: { router?.present(.convertEventToNote(event.id)) },
+                onDelete: { isConfirmingDelete = true }
+            )
         }
         .confirmationDialog(
             "Delete \"\(event.summary)\"?",

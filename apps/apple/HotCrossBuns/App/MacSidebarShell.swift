@@ -150,6 +150,11 @@ struct MacSidebarShell: View {
                 selection = targetTab
                 tabRouter.router(for: sidebarItemKey(targetTab)).present(.editTask(taskID))
             }
+            .onReceive(NotificationCenter.default.publisher(for: .hcbRevealEventInCalendar)) { note in
+                guard let eventID = note.object as? CalendarEventMirror.ID else { return }
+                selection = .calendar
+                tabRouter.router(for: sidebarItemKey(.calendar)).present(.editEvent(eventID))
+            }
             .onDisappear {
                 uninstallAppShortcutMonitor()
             }

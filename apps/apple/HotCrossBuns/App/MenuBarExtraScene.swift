@@ -407,6 +407,7 @@ private struct DetailedMenuBarPanel: View {
     @Environment(AppModel.self) private var model
     @State private var selectedDay = Calendar.current.startOfDay(for: Date())
     @State private var snoozeCustomTask: TaskMirror?
+    @State private var pendingDeleteEvent: CalendarEventMirror?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -423,6 +424,28 @@ private struct DetailedMenuBarPanel: View {
         .sheet(item: $snoozeCustomTask) { task in
             SnoozePickerSheet(task: task) { newDate in
                 Task { await snooze(task, to: newDate) }
+            }
+        }
+        .confirmationDialog(
+            "Delete this event?",
+            isPresented: Binding(
+                get: { pendingDeleteEvent != nil },
+                set: { if $0 == false { pendingDeleteEvent = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let event = pendingDeleteEvent {
+                Button("Delete", role: .destructive) {
+                    Task {
+                        _ = await model.deleteEvent(event)
+                        pendingDeleteEvent = nil
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) { pendingDeleteEvent = nil }
+        } message: {
+            if let event = pendingDeleteEvent {
+                Text("Delete \"\(event.summary)\" from Google Calendar?")
             }
         }
     }
@@ -458,13 +481,7 @@ private struct DetailedMenuBarPanel: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 6) {
                         ForEach(events, id: \.id) { event in
-                            dayItemRow(
-                                title: event.summary,
-                                subtitle: event.isAllDay
-                                    ? "All day"
-                                    : event.startDate.formatted(.dateTime.hour().minute()),
-                                symbol: "calendar"
-                            )
+                            eventDayItemRow(event)
                         }
                         ForEach(tasks, id: \.id) { task in
                             taskDayItemRow(task)
@@ -517,6 +534,28 @@ private struct DetailedMenuBarPanel: View {
     private func open(_ task: TaskMirror) {
         NSApp.activate(ignoringOtherApps: true)
         NotificationCenter.default.post(name: .hcbRevealTaskInStore, object: task.id)
+    }
+
+    private func eventDayItemRow(_ event: CalendarEventMirror) -> some View {
+        dayItemRow(
+            title: event.summary,
+            subtitle: event.isAllDay
+                ? "All day"
+                : event.startDate.formatted(.dateTime.hour().minute()),
+            symbol: "calendar"
+        )
+        .contextMenu {
+            EventContextMenu(
+                event: event,
+                onOpen: { open(event) },
+                onDelete: { pendingDeleteEvent = event }
+            )
+        }
+    }
+
+    private func open(_ event: CalendarEventMirror) {
+        NSApp.activate(ignoringOtherApps: true)
+        NotificationCenter.default.post(name: .hcbRevealEventInCalendar, object: event.id)
     }
 
     private var eventsForSelectedDay: [CalendarEventMirror] {
