@@ -178,11 +178,12 @@ To run the app locally from Xcode with Google sign-in enabled, copy `apps/apple/
 
 ## Release Flow
 
-- Push a tag matching `v*` to trigger [.github/workflows/release.yml](.github/workflows/release.yml).
-- Tag-based public releases require GitHub Actions secrets `GOOGLE_MACOS_CLIENT_ID` and `GOOGLE_MACOS_REVERSED_CLIENT_ID`.
+- Build release DMGs locally; this repository no longer uses GitHub Actions to package macOS releases.
+- Local release builds require `apps/apple/Configuration/GoogleOAuth.local.xcconfig` with `GOOGLE_MACOS_CLIENT_ID` and `GOOGLE_MACOS_REVERSED_CLIENT_ID`.
 - `GOOGLE_MAPS_EMBED_API_KEY` is optional. When omitted, the app falls back to MapKit instead of the embedded Google Maps iframe.
-- The release workflow builds the DMG, creates the stable alias `HotCrossBuns-macOS.dmg`, smoke-tests the packaged app, and publishes matching `.sha256` files.
-- The website download button and one-line installer both target that stable latest-release asset.
+- Upload the versioned DMG, stable `HotCrossBuns-macOS.dmg` alias, and matching `.sha256` files to GitHub Releases.
+- The website download button, one-line installer, and in-app updater all target the stable latest-release asset.
+- See [reference/release/RELEASING.md](reference/release/RELEASING.md) for the exact local release commands.
 
 ## Testing
 
