@@ -170,7 +170,7 @@ final class PastCleanupCoordinator {
             while Task.isCancelled == false {
                 // Sleep until the next local midnight. Falls back to 24h
                 // if the calendar date math hits an edge case.
-                let interval = secondsUntilNextMidnight()
+                let interval = self?.secondsUntilNextMidnight() ?? 60 * 60 * 24
                 try? await Task.sleep(for: .seconds(interval))
                 if Task.isCancelled { break }
                 _ = await self?.runSilentSweepIfAcknowledged()

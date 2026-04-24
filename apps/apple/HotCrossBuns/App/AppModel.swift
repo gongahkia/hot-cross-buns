@@ -359,7 +359,7 @@ final class AppModel {
                 }
             }
             if let tokenError = error as? GoogleTokenRefreshError, tokenError.requiresReconnect {
-                authState = .failed(tokenError.localizedDescription ?? "Reconnect Google to continue.")
+                authState = .failed(tokenError.localizedDescription)
             }
             var meta: [String: String] = ["error": String(describing: error)]
             if let httpStatus { meta["status"] = httpStatus }

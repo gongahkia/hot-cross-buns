@@ -489,7 +489,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         // Legacy raw values may include removed cases. Decode via try? + raw-string
         // fallback so an unknown / removed case doesn't fail the whole load.
         if let explicit = try? container.decodeIfPresent(MenuBarStyle.self, forKey: .menuBarStyle) {
-            menuBarStyle = explicit ?? (showDetailedMenuBar ? .detailed : .compact)
+            menuBarStyle = explicit
         } else if let raw = try? container.decodeIfPresent(String.self, forKey: .menuBarStyle) {
             // "focusStrip" is now the new Compact panel; older compact-like
             // variants also collapse into the single compact choice.
