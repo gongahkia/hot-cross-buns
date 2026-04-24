@@ -79,8 +79,11 @@ struct MacSidebarShell: View {
                     mutationError: model.lastMutationError,
                     isSyncPaused: model.isSyncPaused,
                     quarantinedCount: model.quarantinedMutationCount,
+                    invalidPayloadCount: model.invalidPayloadMutationCount,
                     conflictCount: model.conflictedMutationCount,
                     deferredReminderSummary: model.lastNotificationScheduleSummary,
+                    syncFailureKind: model.syncFailureKind,
+                    networkReachability: networkMonitor.reachability,
                     daysSinceLastLaunch: model.daysSinceLastLaunch,
                     openSyncIssues: { openWindow(id: "sync-issues") },
                     retry: {

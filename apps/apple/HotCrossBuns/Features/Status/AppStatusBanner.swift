@@ -6,12 +6,16 @@ struct AppStatusBanner: View {
     let mutationError: String?
     var isSyncPaused: Bool = false
     var quarantinedCount: Int = 0
+    var invalidPayloadCount: Int = 0
     var conflictCount: Int = 0
+    var deferredReminderSummary: NotificationScheduleSummary? = nil
+    var syncFailureKind: SyncFailureKind? = nil
+    var networkReachability: NetworkReachability = .unknown
     // Days elapsed since the previous launch. Nil on first launch / same-day
     // relaunch. Used to render an "N days since last open — fetching" row
     // during .syncing so a long-absence cold launch isn't a silent freeze.
     var daysSinceLastLaunch: Int? = nil
-    var openDiagnostics: (() -> Void)? = nil
+    var openSyncIssues: (() -> Void)? = nil
     let retry: () -> Void
     let dismiss: () -> Void
 
@@ -30,15 +34,20 @@ struct AppStatusBanner: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 8)
-                if failure.canRetry {
+                if let action = failure.action {
+                    Button(failure.actionLabel, action: action)
+                        .buttonStyle(.bordered)
+                } else if failure.canRetry {
                     Button("Retry", action: retry)
                         .buttonStyle(.bordered)
                 }
-                Button(action: dismiss) {
-                    Image(systemName: "xmark")
+                if failure.canDismiss {
+                    Button(action: dismiss) {
+                        Image(systemName: "xmark")
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Dismiss status message")
                 }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("Dismiss status message")
             }
             .hcbScaledPadding(14)
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
@@ -92,10 +101,27 @@ struct AppStatusBanner: View {
             let noun = conflictCount == 1 ? "conflict" : "conflicts"
             return FailureContext(
                 title: "\(conflictCount) sync \(noun) — whose change wins?",
-                message: "Google rejected these writes because someone edited the same item elsewhere. Open Diagnostics to keep your change or take the server version.",
+                message: "Google rejected these writes because someone edited the same item elsewhere. Review them in Sync Issues to keep your change or take the server version.",
                 systemImage: "arrow.triangle.branch",
                 tint: .red,
-                canRetry: false
+                canRetry: false,
+                actionLabel: "Review",
+                action: openSyncIssues,
+                canDismiss: false
+            )
+        }
+
+        if invalidPayloadCount > 0 {
+            let noun = invalidPayloadCount == 1 ? "queued write has" : "queued writes have"
+            return FailureContext(
+                title: "\(invalidPayloadCount) \(noun) invalid data",
+                message: "Google rejected these payloads as malformed. Review them in Sync Issues, copy the payloads if you need to diagnose the bug, then retry after fixing the source data.",
+                systemImage: "doc.badge.exclamationmark",
+                tint: .red,
+                canRetry: false,
+                actionLabel: "Review",
+                action: openSyncIssues,
+                canDismiss: false
             )
         }
 
@@ -103,10 +129,13 @@ struct AppStatusBanner: View {
             let noun = quarantinedCount == 1 ? "change" : "changes"
             return FailureContext(
                 title: "\(quarantinedCount) \(noun) need your attention",
-                message: "Google rejected these writes after several retries. Open Diagnostics to review and retry or discard them.",
+                message: "Google rejected these writes after several retries. Review them in Sync Issues to retry or discard them.",
                 systemImage: "exclamationmark.octagon",
                 tint: .red,
-                canRetry: false
+                canRetry: false,
+                actionLabel: "Review",
+                action: openSyncIssues,
+                canDismiss: false
             )
         }
 
@@ -116,31 +145,108 @@ struct AppStatusBanner: View {
                 message: mutationError,
                 systemImage: "exclamationmark.triangle",
                 tint: AppColor.ember,
-                canRetry: false
+                canRetry: false,
+                canDismiss: true
             )
         }
 
         if isSyncPaused {
+            let copy = Self.syncFailureCopy(
+                fallbackMessage: "Google wasn't reachable after several attempts. Your local changes are safe and will sync when you retry.",
+                isPaused: true,
+                failureKind: syncFailureKind,
+                networkReachability: networkReachability
+            )
             return FailureContext(
-                title: "Sync paused — tap Retry when you're back online",
-                message: "Google wasn't reachable after several attempts. Your local changes are safe and will sync when you retry.",
-                systemImage: "pause.circle",
+                title: copy.title,
+                message: copy.message,
+                systemImage: copy.systemImage,
                 tint: AppColor.ember,
-                canRetry: true
+                canRetry: true,
+                canDismiss: true
             )
         }
 
         if case .failed(let message) = syncState {
+            let copy = Self.syncFailureCopy(
+                fallbackMessage: message,
+                isPaused: false,
+                failureKind: syncFailureKind,
+                networkReachability: networkReachability
+            )
             return FailureContext(
-                title: "Couldn't reach Google — try Refresh",
-                message: message,
-                systemImage: "exclamationmark.arrow.triangle.2.circlepath",
+                title: copy.title,
+                message: copy.message,
+                systemImage: copy.systemImage,
                 tint: AppColor.ember,
-                canRetry: true
+                canRetry: true,
+                canDismiss: true
+            )
+        }
+
+        if let summary = deferredReminderSummary, summary.hasDeferred {
+            let totalDeferred = summary.deferredEvents + summary.deferredTasks
+            let noun = totalDeferred == 1 ? "reminder was" : "reminders were"
+            return FailureContext(
+                title: "\(totalDeferred) \(noun) deferred on this Mac",
+                message: "macOS only allows 64 pending local notifications per app. Hot Cross Buns scheduled the nearest items first and will roll in the rest automatically as space frees up.",
+                systemImage: "bell.badge",
+                tint: AppColor.ember,
+                canRetry: false,
+                actionLabel: "Review",
+                action: openSyncIssues,
+                canDismiss: false
             )
         }
 
         return nil
+    }
+
+    static func syncFailureCopy(
+        fallbackMessage: String,
+        isPaused: Bool,
+        failureKind: SyncFailureKind?,
+        networkReachability: NetworkReachability
+    ) -> (title: String, message: String, systemImage: String) {
+        let effectiveKind: SyncFailureKind = {
+            if networkReachability == .offline {
+                return .offline
+            }
+            return failureKind ?? .other
+        }()
+
+        switch effectiveKind {
+        case .offline:
+            return (
+                isPaused ? "Sync paused while you're offline" : "You're offline",
+                "Changes are queued locally and will sync when you reconnect.",
+                isPaused ? "pause.circle" : "wifi.slash"
+            )
+        case .rateLimited:
+            return (
+                isPaused ? "Sync paused after rate limiting" : "Google is rate-limiting requests",
+                "Hot Cross Buns will retry automatically. Your local changes are safe.",
+                isPaused ? "pause.circle" : "speedometer"
+            )
+        case .serviceUnavailable:
+            return (
+                isPaused ? "Sync paused while Google is unavailable" : "Google Calendar or Tasks is briefly unavailable",
+                "Hot Cross Buns will retry automatically as soon as the service recovers.",
+                isPaused ? "pause.circle" : "exclamationmark.arrow.triangle.2.circlepath"
+            )
+        case .authRequired:
+            return (
+                "Reconnect Google to keep syncing",
+                fallbackMessage,
+                "person.crop.circle.badge.exclamationmark"
+            )
+        case .invalidPayload, .other:
+            return (
+                isPaused ? "Sync paused — tap Retry when you're ready" : "Couldn't reach Google — try Refresh",
+                fallbackMessage,
+                isPaused ? "pause.circle" : "exclamationmark.arrow.triangle.2.circlepath"
+            )
+        }
     }
 }
 
@@ -150,6 +256,9 @@ private struct FailureContext {
     var systemImage: String
     var tint: Color
     var canRetry: Bool
+    var actionLabel: String = "Review"
+    var action: (() -> Void)? = nil
+    var canDismiss: Bool = true
 }
 
 private struct InfoContext {

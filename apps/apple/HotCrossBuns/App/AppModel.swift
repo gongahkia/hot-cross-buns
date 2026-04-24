@@ -60,6 +60,7 @@ final class AppModel {
     private(set) var daysSinceLastLaunch: Int?
     private(set) var lastMutationError: String?
     private(set) var globalHotkeyRegistrationState: GlobalHotkeyRegistrationState = .disabled
+    private(set) var syncFailureKind: SyncFailureKind?
     private(set) var taskLists: [TaskListMirror] = []
     private(set) var tasks: [TaskMirror] = []
     private(set) var calendars: [CalendarListMirror] = []
@@ -319,6 +320,7 @@ final class AppModel {
         let started = Date()
         AppLogger.info("refresh start", category: .sync, metadata: ["mode": settings.syncMode.rawValue])
         syncState = .syncing(startedAt: started)
+        syncFailureKind = nil
         await replayPendingMutations()
         do {
             let syncedState = try await syncScheduler.syncNow(
@@ -329,6 +331,7 @@ final class AppModel {
             authState = syncedState.account.map(AuthState.signedIn) ?? .signedOut
             syncState = .synced(at: Date())
             isSyncPaused = false
+            syncFailureKind = nil
             // Force-flush: completed sync state must hit disk so a crash
             // before the next mutation doesn't lose the freshly-fetched
             // events. (replayPendingMutations runs again next launch
@@ -347,6 +350,7 @@ final class AppModel {
             _ = await pastCleanupCoordinator.runSilentSweepIfAcknowledged()
             return .succeeded
         } catch {
+            syncFailureKind = SyncFailureKind.classify(error)
             var httpStatus: String? = nil
             if case let GoogleAPIError.httpStatus(status, _) = error {
                 httpStatus = String(status)
@@ -2602,6 +2606,7 @@ final class AppModel {
         }
 
         lastMutationError = nil
+        syncFailureKind = nil
     }
 
     func replayPendingMutations() async {
@@ -2674,6 +2679,14 @@ final class AppModel {
         pendingMutations.filter(\.isQuarantined).count
     }
 
+    var invalidPayloadMutationCount: Int {
+        pendingMutations.filter {
+            $0.isQuarantined
+                && $0.isConflict == false
+                && (($0.lastErrorSummary ?? "").hasPrefix("Invalid payload"))
+        }.count
+    }
+
     // Releases a quarantined mutation back into the automatic replay loop.
     // Called from the Diagnostics "Retry" button.
     @discardableResult
@@ -2703,6 +2716,19 @@ final class AppModel {
         pendingMutations[idx].quarantinedAt = Date()
         pendingMutations[idx].conflictedAt = Date()
         AppLogger.warn("mutation conflict — 412 on replay", category: .replay, metadata: [
+            "id": mutationID.uuidString,
+            "resourceType": pendingMutations[idx].resourceType.rawValue,
+            "action": pendingMutations[idx].action.rawValue,
+            "error": error.localizedDescription
+        ])
+    }
+
+    private func markMutationInvalidPayload(_ mutationID: PendingMutation.ID, error: GoogleAPIError) {
+        guard let idx = pendingMutations.firstIndex(where: { $0.id == mutationID }) else { return }
+        pendingMutations[idx].lastAttemptAt = Date()
+        pendingMutations[idx].lastErrorSummary = "Invalid payload — Google rejected this queued write. Copy the payload, fix the source data, then retry."
+        pendingMutations[idx].quarantinedAt = Date()
+        AppLogger.warn("mutation quarantined — invalid payload", category: .replay, metadata: [
             "id": mutationID.uuidString,
             "resourceType": pendingMutations[idx].resourceType.rawValue,
             "action": pendingMutations[idx].action.rawValue,
@@ -2841,6 +2867,10 @@ final class AppModel {
             markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
             scheduleCacheSave()
+        } catch let error as GoogleAPIError where error.isInvalidPayload {
+            markMutationInvalidPayload(mutation.id, error: error)
+            lastMutationError = "Task couldn't be created on Google. The queued payload was preserved in Sync Issues."
+            scheduleCacheSave()
         } catch {
             if let payload = try? PendingMutationEncoder.decodeTaskCreate(mutation.payload) {
                 removeTask(id: payload.localID)
@@ -2869,6 +2899,10 @@ final class AppModel {
         } catch let error as GoogleAPIError where error.isTransient {
             markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
+            scheduleCacheSave()
+        } catch let error as GoogleAPIError where error.isInvalidPayload {
+            markMutationInvalidPayload(mutation.id, error: error)
+            lastMutationError = "Queued task update was preserved in Sync Issues because Google rejected its payload."
             scheduleCacheSave()
         } catch let error as GoogleAPIError where error == .preconditionFailed {
             // Queued edit raced a server-side change. Don't silently drop —
@@ -2912,6 +2946,10 @@ final class AppModel {
             markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
             scheduleCacheSave()
+        } catch let error as GoogleAPIError where error.isInvalidPayload {
+            markMutationInvalidPayload(mutation.id, error: error)
+            lastMutationError = "Queued task completion was preserved in Sync Issues because Google rejected its payload."
+            scheduleCacheSave()
         } catch let error as GoogleAPIError where error == .preconditionFailed {
             markMutationConflict(mutation.id, error: error)
             scheduleCacheSave()
@@ -2938,6 +2976,10 @@ final class AppModel {
         } catch let error as GoogleAPIError where error.isTransient {
             markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
+            scheduleCacheSave()
+        } catch let error as GoogleAPIError where error.isInvalidPayload {
+            markMutationInvalidPayload(mutation.id, error: error)
+            lastMutationError = "Queued task delete was preserved in Sync Issues because Google rejected its payload."
             scheduleCacheSave()
         } catch let error as GoogleAPIError where error == .preconditionFailed {
             markMutationConflict(mutation.id, error: error)
@@ -2979,6 +3021,10 @@ final class AppModel {
             markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
             scheduleCacheSave()
+        } catch let error as GoogleAPIError where error.isInvalidPayload {
+            markMutationInvalidPayload(mutation.id, error: error)
+            lastMutationError = "Queued event update was preserved in Sync Issues because Google rejected its payload."
+            scheduleCacheSave()
         } catch let error as GoogleAPIError where error == .preconditionFailed {
             markMutationConflict(mutation.id, error: error)
             scheduleCacheSave()
@@ -3005,6 +3051,10 @@ final class AppModel {
         } catch let error as GoogleAPIError where error.isTransient {
             markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
+            scheduleCacheSave()
+        } catch let error as GoogleAPIError where error.isInvalidPayload {
+            markMutationInvalidPayload(mutation.id, error: error)
+            lastMutationError = "Queued event delete was preserved in Sync Issues because Google rejected its payload."
             scheduleCacheSave()
         } catch let error as GoogleAPIError where error == .preconditionFailed {
             markMutationConflict(mutation.id, error: error)
@@ -3044,6 +3094,10 @@ final class AppModel {
         } catch let error as GoogleAPIError where error.isTransient {
             markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
+            scheduleCacheSave()
+        } catch let error as GoogleAPIError where error.isInvalidPayload {
+            markMutationInvalidPayload(mutation.id, error: error)
+            lastMutationError = "Event couldn't be created on Google. The queued payload was preserved in Sync Issues."
             scheduleCacheSave()
         } catch {
             if let payload = try? PendingMutationEncoder.decodeEventCreate(mutation.payload) {

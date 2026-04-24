@@ -57,6 +57,7 @@ struct DiagnosticsView: View {
                         cacheSection
                     case .sync:
                         if conflictedMutations.isEmpty == false { syncConflictsSection }
+                        if invalidPayloadQuarantined.isEmpty == false { invalidPayloadSection }
                         if retryableQuarantined.isEmpty == false { quarantinedSection }
                         if queuedMutations.isEmpty == false { pendingQueueSection }
                         recoverySection
@@ -244,6 +245,22 @@ struct DiagnosticsView: View {
     }
 
     @ViewBuilder
+    private var invalidPayloadSection: some View {
+        Section("Invalid queued payloads") {
+            Text("Google rejected these writes with HTTP 400 because the payload shape or content was invalid. The payload is preserved so you can copy it for debugging, then retry after fixing the source data.")
+                .hcbFont(.caption)
+                .foregroundStyle(.secondary)
+            ForEach(invalidPayloadQuarantined) { mutation in
+                PendingMutationRow(
+                    mutation: mutation,
+                    onDrop: { _ = model.clearPendingMutation(id: mutation.id) },
+                    onCopyPayload: { copyPayload(mutation.payload) }
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
     private var quarantinedSection: some View {
         Section("Quarantined changes") {
             Text("These writes exceeded the automatic retry ceiling (\(BackoffPolicy.nearRealtime.maxAttempts) attempts). They stay on this Mac until you retry or discard.")
@@ -253,7 +270,8 @@ struct DiagnosticsView: View {
                 PendingMutationRow(
                     mutation: mutation,
                     onDrop: { _ = model.clearPendingMutation(id: mutation.id) },
-                    onRetry: { _ = model.requeueQuarantinedMutation(id: mutation.id) }
+                    onRetry: { _ = model.requeueQuarantinedMutation(id: mutation.id) },
+                    onCopyPayload: { copyPayload(mutation.payload) }
                 )
             }
         }
@@ -461,7 +479,19 @@ struct DiagnosticsView: View {
     // Quarantined but not a conflict — i.e., hit the transient-error ceiling.
     // Conflicts get their own section with "Keep mine" / "Keep server" copy.
     private var retryableQuarantined: [PendingMutation] {
-        model.pendingMutations.filter { $0.isQuarantined && $0.isConflict == false }
+        model.pendingMutations.filter {
+            $0.isQuarantined
+                && $0.isConflict == false
+                && (($0.lastErrorSummary ?? "").hasPrefix("Invalid payload") == false)
+        }
+    }
+
+    private var invalidPayloadQuarantined: [PendingMutation] {
+        model.pendingMutations.filter {
+            $0.isQuarantined
+                && $0.isConflict == false
+                && (($0.lastErrorSummary ?? "").hasPrefix("Invalid payload"))
+        }
     }
 
     private var queuedMutations: [PendingMutation] {
@@ -545,6 +575,19 @@ struct DiagnosticsView: View {
 
     private func refreshLogs() {
         logEntries = AppLogger.shared.recentEntries(limit: 200, minimumLevel: logLevelFilter)
+    }
+
+    private func copyPayload(_ payload: Data) {
+        let value: String
+        if let object = try? JSONSerialization.jsonObject(with: payload),
+           JSONSerialization.isValidJSONObject(object),
+           let pretty = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]),
+           let string = String(data: pretty, encoding: .utf8) {
+            value = string
+        } else {
+            value = String(data: payload, encoding: .utf8) ?? payload.base64EncodedString()
+        }
+        Clipboard.copy(value)
     }
 
     @MainActor
@@ -778,6 +821,7 @@ private struct PendingMutationRow: View {
     let mutation: PendingMutation
     let onDrop: () -> Void
     var onRetry: (() -> Void)? = nil
+    var onCopyPayload: (() -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -807,6 +851,14 @@ private struct PendingMutationRow: View {
                 .labelStyle(.iconOnly)
                 .buttonStyle(.borderless)
                 .help("Reset retry counter and release this mutation back to the replay queue")
+            }
+            if let onCopyPayload {
+                Button(action: onCopyPayload) {
+                    Label("Copy payload", systemImage: "doc.on.doc")
+                }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+                .help("Copy the preserved queued payload to the clipboard")
             }
             Button(role: .destructive, action: onDrop) {
                 Label("Drop", systemImage: "xmark.circle")

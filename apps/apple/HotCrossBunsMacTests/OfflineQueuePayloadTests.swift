@@ -153,6 +153,7 @@ final class OfflineQueuePayloadTests: XCTestCase {
         XCTAssertTrue(GoogleAPIError.httpStatus(500, nil).isTransient)
         XCTAssertTrue(GoogleAPIError.httpStatus(503, nil).isTransient)
         XCTAssertTrue(GoogleAPIError.httpStatus(599, nil).isTransient)
+        XCTAssertFalse(GoogleAPIError.invalidPayload(nil).isTransient)
         XCTAssertFalse(GoogleAPIError.httpStatus(400, nil).isTransient)
         XCTAssertFalse(GoogleAPIError.httpStatus(401, nil).isTransient)
         XCTAssertFalse(GoogleAPIError.httpStatus(403, nil).isTransient)
@@ -160,5 +161,52 @@ final class OfflineQueuePayloadTests: XCTestCase {
         XCTAssertFalse(GoogleAPIError.preconditionFailed.isTransient)
         XCTAssertFalse(GoogleAPIError.invalidResponse.isTransient)
         XCTAssertFalse(GoogleAPIError.invalidURL.isTransient)
+    }
+
+    func testSyncFailureKindClassification() {
+        XCTAssertEqual(SyncFailureKind.classify(GoogleAPIError.httpStatus(429, nil)), .rateLimited)
+        XCTAssertEqual(SyncFailureKind.classify(GoogleAPIError.httpStatus(503, nil)), .serviceUnavailable)
+        XCTAssertEqual(SyncFailureKind.classify(GoogleAPIError.invalidPayload(nil)), .invalidPayload)
+        XCTAssertEqual(
+            SyncFailureKind.classify(URLError(.notConnectedToInternet)),
+            .offline
+        )
+    }
+
+    func testSyncFailureCopyUsesOfflineMessaging() {
+        let copy = AppStatusBanner.syncFailureCopy(
+            fallbackMessage: "ignored",
+            isPaused: false,
+            failureKind: .other,
+            networkReachability: .offline
+        )
+
+        XCTAssertEqual(copy.title, "You're offline")
+        XCTAssertEqual(copy.message, "Changes are queued locally and will sync when you reconnect.")
+        XCTAssertEqual(copy.systemImage, "wifi.slash")
+    }
+
+    func testSyncFailureCopyUsesRateLimitMessaging() {
+        let copy = AppStatusBanner.syncFailureCopy(
+            fallbackMessage: "ignored",
+            isPaused: false,
+            failureKind: .rateLimited,
+            networkReachability: .online
+        )
+
+        XCTAssertEqual(copy.title, "Google is rate-limiting requests")
+        XCTAssertEqual(copy.message, "Hot Cross Buns will retry automatically. Your local changes are safe.")
+    }
+
+    func testSyncFailureCopyUsesServiceUnavailableMessaging() {
+        let copy = AppStatusBanner.syncFailureCopy(
+            fallbackMessage: "ignored",
+            isPaused: false,
+            failureKind: .serviceUnavailable,
+            networkReachability: .online
+        )
+
+        XCTAssertEqual(copy.title, "Google Calendar or Tasks is briefly unavailable")
+        XCTAssertEqual(copy.message, "Hot Cross Buns will retry automatically as soon as the service recovers.")
     }
 }
