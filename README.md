@@ -62,16 +62,12 @@ Hot Cross Buns is a native Mac planner built around three everyday surfaces:
 
 Around those core surfaces, the app also includes:
 
-- command palette capture and keyboard-first navigation
-- leader-key shortcuts for diagnostics, help, refresh, and secondary actions
+- Command palette capture and keyboard-first navigation
+- Leader-key shortcuts for diagnostics, help, refresh, and secondary actions
 - menu bar surfaces for glanceable calendar, compact capture, and fast return to the main app
-
-
-
-
 - Spotlight indexing and App Shortcuts integration
-- local cache, sync checkpoints, and pending offline mutations
-- diagnostics, recovery tools, and local reminder scheduling
+- Local cache, sync checkpoints, and pending offline mutations
+- Diagnostics, recovery tools, and local reminder scheduling
 
 ## Demo
 
