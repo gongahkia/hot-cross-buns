@@ -19,6 +19,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Show Xcode version
+        run: xcodebuild -version
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
@@ -75,7 +78,21 @@ jobs:
           APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
           NOTARIZE: ${{ secrets.NOTARIZE_MACOS_DMG }}
           REQUIRE_GOOGLE_OAUTH_FOR_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') && '1' || '0' }}
-        run: scripts/package-macos-dmg.sh
+        run: |
+          set -o pipefail
+          mkdir -p build/apple
+          scripts/package-macos-dmg.sh \
+            SWIFT_OPTIMIZATION_LEVEL=-Onone \
+            SWIFT_COMPILATION_MODE=singlefile \
+            2>&1 | tee build/apple/package-macos-dmg.log
+
+      - name: Upload package log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HotCrossBuns-macOS-package-log
+          path: build/apple/package-macos-dmg.log
+          if-no-files-found: ignore
 
       - name: Create latest-download DMG alias
         run: |
