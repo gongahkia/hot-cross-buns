@@ -1,11 +1,10 @@
 import AppKit
 import Foundation
 import Observation
-import Sparkle
 
 @MainActor
 @Observable
-final class UpdaterController: NSObject, SPUUpdaterDelegate {
+final class UpdaterController {
     struct ToastState: Equatable {
         let title: String
         let message: String
@@ -123,7 +122,6 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
     private let now: () -> Date
     private let downloadsDirectory: () -> URL?
     private let releaseAssetDownloader: ReleaseAssetDownloader
-    private var controller: SPUStandardUpdaterController?
     private(set) var toastState: ToastState?
     private(set) var availableRelease: AvailableRelease?
     private(set) var downloadState: DownloadState = .idle
@@ -158,50 +156,29 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
         self.now = now
         self.downloadsDirectory = downloadsDirectory
         self.releaseAssetDownloader = releaseAssetDownloader
-        super.init()
-    }
-
-    var usesSparkle: Bool {
-        let feedURL = (bundle.object(forInfoDictionaryKey: "SUFeedURL") as? String) ?? ""
-        let publicKey = (bundle.object(forInfoDictionaryKey: "SUPublicEDKey") as? String) ?? ""
-        return feedURL.isEmpty == false && publicKey.isEmpty == false
-    }
-
-    var isConfigured: Bool {
-        usesSparkle
     }
 
     var updateSourceLabel: String {
-        usesSparkle ? "Built-in feed" : "GitHub Releases"
+        "GitHub Releases"
     }
 
     var automaticCheckLabel: String {
-        usesSparkle ? "Check for updates automatically" : "Check GitHub releases automatically"
+        "Check GitHub releases automatically"
     }
 
     var automaticallyChecksForUpdates: Bool {
         get {
-            if usesSparkle {
-                return updaterController(startingUpdater: false)?.updater.automaticallyChecksForUpdates ?? false
-            }
             if userDefaults.object(forKey: DefaultsKey.autoCheckEnabled) == nil {
                 return true
             }
             return userDefaults.bool(forKey: DefaultsKey.autoCheckEnabled)
         }
         set {
-            if usesSparkle {
-                updaterController(startingUpdater: true)?.updater.automaticallyChecksForUpdates = newValue
-            } else {
-                userDefaults.set(newValue, forKey: DefaultsKey.autoCheckEnabled)
-            }
+            userDefaults.set(newValue, forKey: DefaultsKey.autoCheckEnabled)
         }
     }
 
     var lastUpdateCheckDate: Date? {
-        if usesSparkle {
-            return updaterController(startingUpdater: false)?.updater.lastUpdateCheckDate
-        }
         return userDefaults.object(forKey: DefaultsKey.lastCheckAt) as? Date
     }
 
@@ -212,11 +189,6 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
     }
 
     func checkForUpdatesNow(trigger: CheckTrigger) async {
-        if usesSparkle {
-            startSparkleIfNeeded(trigger: trigger)
-            return
-        }
-
         guard isChecking == false else { return }
         isChecking = true
         defer { isChecking = false }
@@ -268,11 +240,6 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
     }
 
     func performAutomaticCheckIfNeeded() async {
-        if usesSparkle {
-            _ = updaterController(startingUpdater: true)
-            return
-        }
-
         guard automaticallyChecksForUpdates else { return }
         if let lastUpdateCheckDate,
            now().timeIntervalSince(lastUpdateCheckDate) < 60 * 60 * 24 {
@@ -325,40 +292,6 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
 
     func clearToast() {
         toastState = nil
-    }
-
-    private func startSparkleIfNeeded(trigger: CheckTrigger) {
-        guard let controller = updaterController(startingUpdater: true) else {
-            if trigger == .manual {
-                toastState = ToastState(
-                    title: "Updates unavailable",
-                    message: "Install a configured release build or use the GitHub Releases page.",
-                    isWarning: true
-                )
-            }
-            return
-        }
-        if trigger == .manual {
-            controller.checkForUpdates(nil)
-        }
-    }
-
-    private func updaterController(startingUpdater: Bool) -> SPUStandardUpdaterController? {
-        guard usesSparkle else {
-            return nil
-        }
-
-        if let controller {
-            return controller
-        }
-
-        let created = SPUStandardUpdaterController(
-            startingUpdater: startingUpdater,
-            updaterDelegate: self,
-            userDriverDelegate: nil
-        )
-        controller = created
-        return created
     }
 
     private func githubLatestReleaseRequest() -> URLRequest {
@@ -593,22 +526,6 @@ final class UpdaterController: NSObject, SPUUpdaterDelegate {
             return current < remote
         }
         return normalizedVersionString(releaseTag) != currentVersionString
-    }
-
-    func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
-        toastState = ToastState(
-            title: "You're on the latest version",
-            message: "Hot Cross Buns didn't find anything newer to install.",
-            isWarning: false
-        )
-    }
-
-    func updater(_ updater: SPUUpdater, didAbortWithError error: any Error) {
-        toastState = ToastState(
-            title: "Couldn't reach update server",
-            message: error.localizedDescription,
-            isWarning: true
-        )
     }
 
     nonisolated private static func defaultReleaseAssetDownloader(
