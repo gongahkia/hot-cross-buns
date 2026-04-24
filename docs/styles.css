@@ -725,11 +725,13 @@ kbd {
   width: min(100%, 980px);
   display: block;
   margin: 18px auto 0;
-  text-align: center;
-  overflow-x: auto;
+  text-align: left;
+  overflow-x: hidden;
 }
 .brew-terminal code {
-  white-space: nowrap;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .download-modal {
