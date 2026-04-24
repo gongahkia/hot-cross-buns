@@ -48,10 +48,8 @@ struct UpdatesSection: View {
                 }
             } else {
                 Label(
-                    updater.isConfigured
-                        ? "Signed release builds can install updates in-app."
-                        : "This checks GitHub Releases, prompts when a new DMG exists, and opens the download for a manual replace.",
-                    systemImage: updater.isConfigured ? "arrow.triangle.2.circlepath" : "shippingbox"
+                    "This checks GitHub Releases, downloads the newest DMG into Downloads, and opens install guidance for a manual replace.",
+                    systemImage: "shippingbox"
                 )
                     .hcbFont(.footnote)
                     .foregroundStyle(.secondary)

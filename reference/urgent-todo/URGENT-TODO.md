@@ -94,17 +94,15 @@ Cannot be done from repo code alone. `apps/apple/Configuration/GoogleOAuth.xccon
 - In Xcode, attach that xcconfig to the `HotCrossBunsMac` target's Debug + Release configurations.
 - Verify sign-in, disconnect, reconnect, and incremental scope grant behavior with a real Google account.
 
-## 2. Sparkle auto-update provisioning
+## 2. GitHub Releases update path
 
-`SUPublicEDKey` is still missing from `apps/apple/HotCrossBuns/Support/Info-macOS.plist`. Sparkle will refuse updates without it.
+The old feed-based updater has been removed. The app now checks GitHub Releases directly and guides users through a manual DMG replace.
 
-- Run Sparkle's `generate_keys` (bundled in the SwiftPM package's derived-data directory, or downloadable from the Sparkle GitHub release) once per machine.
-- Paste the **public** key into `Info-macOS.plist` under `SUPublicEDKey` via a build setting or direct edit.
-- Store the **private** key as GitHub Actions secret `SPARKLE_PRIVATE_KEY`.
-- Enable GitHub Pages on the `gh-pages` branch so `https://gongahkia.github.io/hot-cross-buns/appcast.xml` serves.
-- Confirm the first release publishes an appcast entry and that a previously installed build picks it up via in-app "Check for Updates".
+- Confirm every tagged release attaches both `HotCrossBuns-macOS.dmg` and `HotCrossBuns-macOS.dmg.sha256`.
+- Confirm the website and `docs/install-macos-preview.sh` both target `releases/latest/download/HotCrossBuns-macOS.dmg`.
+- Confirm in-app "Check for Updates" downloads the DMG into `~/Downloads`, opens the install guide window, and falls back to the release page when direct download is unavailable.
 
-See `docs/RELEASING.md` for the end-to-end flow.
+See `reference/release/RELEASING.md` for the end-to-end flow.
 
 ## 3. Apple Developer ID + notarization
 
@@ -173,7 +171,7 @@ Dogfood with a real account for at least one workday on macOS. Smoke checklist:
 11. Toggle `Dock badge for overdue tasks` off → confirm badge clears; on → matches overdue count.
 12. Spotlight for a task title → confirm a result appears and clicking opens the task detail inside the app.
 13. Confirm menu bar extra popover renders and quick-add works.
-14. Sync menu → Check for Updates → confirm Sparkle dialog opens (will show "no updates" until an appcast entry is published).
+14. Sync menu → Check for Updates → confirm the GitHub Releases check shows either the latest-version toast or the update/download windows.
 15. ~~Recurring event single-occurrence edit (originalStartTime check).~~ — Verified passing in live QA (both title-edit and drag-reschedule paths). See `COMPLETED.md`.
 16. **Share Extension round-trip.** In Safari, pick a web page → Share → Hot Cross Buns. App should foreground and open QuickAdd with the page URL prefilled. If the extension doesn't appear in Safari's Share menu, log out/in (or Finder → kill and relaunch) — macOS is finicky about picking up new share extensions on first install.
 17. **Services menu round-trip.** Select text anywhere (TextEdit, a web page) → right-click → Services → "Create Hot Cross Buns task". App should foreground and open QuickAdd with the selection prefilled.
@@ -235,7 +233,7 @@ Pass 1 shipped — see `COMPLETED.md` § "§10 Cybersecurity hardening — audit
 Remaining:
 - Verify all Google API responses are decoded against strict Codable schemas; no eval-style paths. (Large surface — separate focused pass.)
 - Verify Keychain access groups are correctly scoped post-§3a. Blocked until a real Apple Developer team-ID lands (see §3a).
-- Dependency vulnerability scan on SwiftPM graph (GoogleSignIn, Sparkle, etc.). Requires external tooling (e.g., GitHub Dependabot, `swift package audit` when stable).
+- Dependency vulnerability scan on SwiftPM graph (GoogleSignIn, AppAuth, etc.). Requires external tooling (e.g., GitHub Dependabot, `swift package audit` when stable).
 
 ## 11. Daily local backup (least priority — implement last)
 

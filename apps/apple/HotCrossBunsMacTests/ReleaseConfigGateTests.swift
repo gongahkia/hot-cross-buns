@@ -4,21 +4,7 @@ import XCTest
 
 @MainActor
 final class ReleaseConfigGateTests: XCTestCase {
-    func testUpdaterControllerRequiresFeedURLAndPublicKey() throws {
-        XCTAssertFalse(UpdaterController(bundle: try makeBundle(info: [:])).isConfigured)
-        XCTAssertFalse(UpdaterController(bundle: try makeBundle(info: [
-            "SUFeedURL": "https://example.com/appcast.xml"
-        ])).isConfigured)
-        XCTAssertFalse(UpdaterController(bundle: try makeBundle(info: [
-            "SUPublicEDKey": "public-key"
-        ])).isConfigured)
-        XCTAssertTrue(UpdaterController(bundle: try makeBundle(info: [
-            "SUFeedURL": "https://example.com/appcast.xml",
-            "SUPublicEDKey": "public-key"
-        ])).isConfigured)
-    }
-
-    func testUpdaterControllerFallsBackToGitHubChecksWithoutSparkle() throws {
+    func testUpdaterControllerUsesGitHubReleaseChecks() throws {
         let suiteName = "ReleaseConfigGateTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
@@ -33,8 +19,8 @@ final class ReleaseConfigGateTests: XCTestCase {
             openURL: { _ in true }
         )
 
-        XCTAssertFalse(controller.isConfigured)
         XCTAssertEqual(controller.updateSourceLabel, "GitHub Releases")
+        XCTAssertEqual(controller.automaticCheckLabel, "Check GitHub releases automatically")
         XCTAssertTrue(controller.automaticallyChecksForUpdates)
     }
 

@@ -109,7 +109,7 @@ check_release_preflight() {
   local info_plist="$app_path/Contents/Info.plist"
   local release_failures=()
   local release_warnings=()
-  local client_id sparkle_key
+  local client_id
   local strict_release_checks=0
   local require_google_oauth="${REQUIRE_GOOGLE_OAUTH_FOR_RELEASE:-0}"
 
@@ -123,21 +123,12 @@ check_release_preflight() {
   fi
 
   client_id="$(plist_value "$info_plist" "GIDClientID")"
-  sparkle_key="$(plist_value "$info_plist" "SUPublicEDKey")"
 
   if is_missing_release_value "$client_id" "your-macos-oauth-client-id.apps.googleusercontent.com"; then
     if [[ "$strict_release_checks" == "1" || "$require_google_oauth" == "1" ]]; then
       release_failures+=("Google OAuth client ID is missing or unresolved in the built app")
     else
       release_warnings+=("Google OAuth client ID is missing or unresolved in the built app")
-    fi
-  fi
-
-  if is_missing_release_value "$sparkle_key" ""; then
-    if [[ "$strict_release_checks" == "1" ]]; then
-      release_failures+=("Sparkle SUPublicEDKey is missing or unresolved in the built app")
-    else
-      release_warnings+=("Sparkle SUPublicEDKey is missing or unresolved in the built app; in-app updates will stay disabled")
     fi
   fi
 

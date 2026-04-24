@@ -33,7 +33,7 @@ Around those three surfaces, the app also includes:
 - `apps/apple` is the canonical product. Older Tauri and self-hosted sync-server work has been removed from the active repo path.
 - Google Tasks and Google Calendar are the source of truth.
 - The public download path is currently an unsigned preview DMG, not a signed/notarized consumer release.
-- Preview builds should be treated as manual-update installs. Sparkle is still reserved for the future signed release path.
+- Preview builds should be treated as manual-update installs. The app checks GitHub Releases for newer DMGs and guides the user through a manual replace.
 
 ## Install
 
@@ -98,7 +98,7 @@ flowchart TD
 ```text
 hot-cross-buns/
   apps/apple/          macOS SwiftUI app, tests, and XcodeGen project spec
-  docs/                marketing site, release install script, appcast assets
+  docs/                marketing site, release install script, and privacy docs
   scripts/             build and packaging helpers
   .github/workflows/   CI and release automation
   reference/           historical architecture and planning notes

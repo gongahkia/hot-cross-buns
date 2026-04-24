@@ -10,7 +10,7 @@ User-facing gaps found in a 2026-04-24 audit of Hot Cross Buns. Ordered by user-
 - **Entry point**: `apps/apple/HotCrossBuns/App/HotCrossBunsApp.swift`. Main shell: `MacSidebarShell.swift`. Central state: `App/AppModel.swift` (~152k lines, single file — do not refactor as part of these tasks).
 - **Services**: `HotCrossBuns/Services/{Auth,Google,Sync,Notifications,Persistence,Updates,Feedback,...}`.
 - **Tests**: `apps/apple/HotCrossBunsMacTests/` (48 test files; Swift Testing + XCTest mix).
-- **Marketing/docsite**: `docs/` (served at https://gongahkia.github.io/hot-cross-buns/). Install script: `docs/install-macos-preview.sh`. Appcast: `docs/appcast/appcast.xml`.
+- **Marketing/docsite**: `docs/` (served at https://gongahkia.github.io/hot-cross-buns/). Install script: `docs/install-macos-preview.sh`.
 - **CI**: `.github/workflows/{ci.yml,release.yml}`. CI runs the test suite on push/PR. Release triggers on `v*` tag.
 - **OAuth config**: `apps/apple/Configuration/GoogleOAuth.{xcconfig,example.xcconfig,local.xcconfig}`. Local file gitignored, CI injects from secrets.
 - **Global conventions**: see root `CLAUDE.md` — terse, no auto-refactor outside task scope, in-line comments only, fail fast.
@@ -64,13 +64,17 @@ Three distinct silent-failure paths. Fix all three; they share a pattern.
 
 - Agent should: check `AXIsProcessTrustedWithOptions` before `install()`. If untrusted, show a one-time explainer sheet describing why the permission is needed, then open System Settings → Privacy & Security → Accessibility. If the user declines, flip the Settings toggle off with a visible reason.
 
-### 4. Sparkle appcast: populate or remove the claim
+### 4. Keep the GitHub Releases update path honest
 
-- **Symptom**: `docs/appcast/appcast.xml` is an empty RSS skeleton. `apps/apple/README.md:118` ("Release builds embed Sparkle and point at an appcast") is aspirational.
-- **Options**:
-  - **A (preferred)**: wire `.github/workflows/release.yml:96-135` to populate `appcast.xml` on every tag release. The conditional block already exists — gate only the EdDSA signing on `secrets.SPARKLE_PRIVATE_KEY`; always write the item entry, even unsigned (Sparkle will refuse to install unsigned updates but at least the feed is real and the path is validated). Commit the updated `docs/appcast/appcast.xml` back on release, or publish it to GitHub Pages via the Pages job.
-  - **B**: remove the auto-update claim from `apps/apple/README.md:118` and `Features/Help/HelpView.swift` troubleshooting, and disable the `SUEnableAutomaticChecks` Info.plist key in `apps/apple/project.yml:75`. Ship updates through the install script until signing is ready.
-- **Agent should**: pick A if `SPARKLE_PRIVATE_KEY` is already configured in repo secrets (check with `gh secret list`); otherwise B. Do not leave the current "stub" state.
+- **Symptom**: update surfaces can drift between the app, the website, and the install script. The current product promise is not "silent auto-update"; it is "check GitHub Releases, download the DMG, then replace the app manually."
+- **Files to keep aligned**:
+  - `apps/apple/HotCrossBuns/Services/Updates/UpdaterController.swift`
+  - `apps/apple/HotCrossBuns/Features/Settings/UpdatesSection.swift`
+  - `apps/apple/HotCrossBuns/Features/Help/HelpView.swift`
+  - `docs/index.html`
+  - `docs/install-macos-preview.sh`
+  - `.github/workflows/release.yml`
+- **Agent should**: if the updater behavior changes, update all of those surfaces in the same PR so user-facing copy does not drift from the real install flow.
 
 ---
 
@@ -129,8 +133,8 @@ Three distinct silent-failure paths. Fix all three; they share a pattern.
 
 ### 11. Update-check feedback
 
-- **Symptom**: `Services/Updates/UpdaterController.swift` delegates to Sparkle. "Check for updates" from `AppCommands.swift` has no user-visible response when no update is found or the feed is unreachable.
-- **Fix**: subscribe to `SPUUpdaterDelegate` callbacks (`updater:didFinishUpdateCycleFor:`, `updater:didAbortWithError:`) and post a transient toast: "You're on the latest version" / "Couldn't reach update server."
+- **Symptom**: `Services/Updates/UpdaterController.swift` calls GitHub Releases directly. If a future refactor removes the manual success/error toasts, the menu action will feel broken again.
+- **Fix**: preserve explicit user-visible outcomes for both cases: "You're on the latest version" and "Couldn't reach GitHub Releases."
 - **Agent should**: route toasts through whatever global-toast mechanism already exists [Unverified — likely `AppStatusBanner` or a dedicated HUD; grep for `toast`/`Banner`].
 
 ### 12. Notes isn't a first-class surface

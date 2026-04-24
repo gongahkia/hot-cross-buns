@@ -26,9 +26,6 @@ packages:
   GoogleSignIn:
     url: https://github.com/google/GoogleSignIn-iOS
     from: 9.1.0
-  Sparkle:
-    url: https://github.com/sparkle-project/Sparkle
-    from: 2.6.0
 targets:
   HotCrossBunsMac:
     type: application
@@ -38,8 +35,6 @@ targets:
         product: GoogleSignIn
       - package: GoogleSignIn
         product: GoogleSignInSwift
-      - package: Sparkle
-        product: Sparkle
       - target: HotCrossBunsShareExtension
         embed: true
         codeSign: true
