@@ -65,15 +65,19 @@ Around those core surfaces, the app also includes:
 - command palette capture and keyboard-first navigation
 - leader-key shortcuts for diagnostics, help, refresh, and secondary actions
 - menu bar surfaces for glanceable calendar, compact capture, and fast return to the main app
+
+
+
+
 - Spotlight indexing and App Shortcuts integration
 - local cache, sync checkpoints, and pending offline mutations
 - diagnostics, recovery tools, and local reminder scheduling
 
 ## Demo
 
-<p align="center">
-  <video src="https://gongahkia.github.io/hot-cross-buns/media/hero-window.mp4" controls muted playsinline preload="metadata"></video>
-</p>
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/ea15df17-b65f-4f2e-b6f2-a6fec0fe5490" controls muted playsinline preload="metadata"></video>
+</div>
 
 > If the embedded video does not render in your GitHub client, open the [hero demo](https://gongahkia.github.io/hot-cross-buns/media/hero-window.mp4) or the [full docsite](https://gongahkia.github.io/hot-cross-buns/).
 
