@@ -42,7 +42,10 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
     private weak var model: AppModel?
     private var statusItem: NSStatusItem?
     private var panel: HCBMenuBarPanelWindow?
+    private var detailPanel: HCBMenuBarAttachedPanelWindow?
     private var hostingController: NSHostingController<AnyView>?
+    private var detailHostingController: NSHostingController<AnyView>?
+    private var selectedWeekDetailDay: Date?
     private var isPinned = false
 
     func configure(model: AppModel) {
@@ -58,7 +61,9 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
     func refreshContent() {
         guard let model, statusItem != nil else { return }
         let root = AnyView(
-            MenuBarExtraContent()
+            MenuBarExtraContent { [weak self] day in
+                self?.showWeekDayDetail(day)
+            }
                 .environment(model)
         )
 
@@ -71,9 +76,14 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
             self.hostingController = hostingController
         }
 
+        if model.settings.menuBarStyle != .weekly {
+            hideWeekDayDetail()
+        }
+
         if panel?.isVisible == true {
             resizePanelToFitContent()
             positionPanel()
+            refreshWeekDayDetailIfNeeded()
         }
     }
 
@@ -97,6 +107,8 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
         }
         statusItem = nil
         hostingController = nil
+        detailHostingController = nil
+        selectedWeekDetailDay = nil
     }
 
     func refreshStatusItemImage() {
@@ -155,6 +167,7 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
     }
 
     private func hidePanel() {
+        hideWeekDayDetail()
         panel?.orderOut(nil)
     }
 
@@ -181,6 +194,7 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
 
         statusFrame.origin.y = min(statusFrame.origin.y, screen.frame.maxY)
         panel.position(relativeTo: statusFrame, in: screen)
+        positionWeekDayDetail()
     }
 
     private func statusItemScreen() -> NSScreen {
@@ -256,7 +270,69 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
         isPinned.toggle()
     }
 
+    private func showWeekDayDetail(_ day: Date) {
+        guard model != nil, panel?.isVisible == true else { return }
+        selectedWeekDetailDay = Calendar.current.startOfDay(for: day)
+        refreshWeekDayDetailIfNeeded()
+        positionWeekDayDetail()
+        detailPanel?.orderFront(nil)
+    }
+
+    private func refreshWeekDayDetailIfNeeded() {
+        guard let model, let selectedWeekDetailDay, panel?.isVisible == true else { return }
+        let root = AnyView(
+            WeeklyMenuBarDayDetailPanel(day: selectedWeekDetailDay)
+                .environment(model)
+                .withHCBAppearance(model.settings)
+                .hcbPreferredColorScheme(model.settings)
+                .hcbSurface(.menuBar)
+        )
+
+        if let detailHostingController {
+            detailHostingController.rootView = root
+        } else {
+            let detailHostingController = NSHostingController(rootView: root)
+            detailHostingController.view.wantsLayer = true
+            detailHostingController.view.layer?.backgroundColor = NSColor.clear.cgColor
+            self.detailHostingController = detailHostingController
+        }
+
+        let detailPanel = detailPanel ?? HCBMenuBarAttachedPanelWindow()
+        detailPanel.delegate = self
+        guard let detailView = detailHostingController?.view else { return }
+        detailPanel.setHostedView(detailView)
+        self.detailPanel = detailPanel
+        resizeWeekDayDetail()
+    }
+
+    private func resizeWeekDayDetail() {
+        guard let detailPanel, let detailView = detailHostingController?.view else { return }
+        detailView.layoutSubtreeIfNeeded()
+        var fitting = detailView.fittingSize
+        if fitting.width <= 1 { fitting.width = 300 }
+        if fitting.height <= 1 { fitting.height = 320 }
+        let screen = statusItemScreen()
+        let maxHeight = max(220, screen.visibleFrame.height - 72)
+        detailPanel.setContentBodySize(NSSize(
+            width: min(max(fitting.width, 280), 340),
+            height: min(max(fitting.height, 160), maxHeight)
+        ))
+    }
+
+    private func positionWeekDayDetail() {
+        guard let panel, let detailPanel else { return }
+        let screen = statusItemScreen()
+        detailPanel.position(attachedTo: panel.frame, in: screen)
+    }
+
+    private func hideWeekDayDetail() {
+        detailPanel?.orderOut(nil)
+        selectedWeekDetailDay = nil
+    }
+
     func windowDidResignKey(_ notification: Notification) {
+        let keyWindow = NSApp.keyWindow
+        if keyWindow === panel || keyWindow === detailPanel { return }
         guard isPinned == false else { return }
         hidePanel()
     }
@@ -443,14 +519,110 @@ private final class HCBMenuBarPanelFrameView: NSView {
     }
 }
 
+private final class HCBMenuBarAttachedPanelWindow: NSPanel {
+    private let frameView = HCBMenuBarAttachedPanelFrameView()
+
+    init() {
+        super.init(
+            contentRect: NSRect(x: 0, y: 0, width: 300, height: 320),
+            styleMask: [.nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        backgroundColor = .clear
+        isOpaque = false
+        hasShadow = true
+        level = .mainMenu
+        collectionBehavior = [.moveToActiveSpace, .transient]
+        animationBehavior = .utilityWindow
+        isMovableByWindowBackground = false
+        super.contentView = frameView
+    }
+
+    override var canBecomeMain: Bool { false }
+    override var canBecomeKey: Bool { true }
+
+    func setHostedView(_ hostedView: NSView) {
+        frameView.setHostedView(hostedView)
+    }
+
+    func setContentBodySize(_ contentSize: NSSize) {
+        let frameSize = frameView.outerSize(for: contentSize)
+        setFrame(NSRect(origin: frame.origin, size: frameSize), display: true)
+    }
+
+    func position(attachedTo mainFrame: NSRect, in screen: NSScreen) {
+        let visibleFrame = screen.visibleFrame
+        let gap: CGFloat = 8
+        let margin: CGFloat = 8
+
+        let fitsRight = mainFrame.maxX + gap + frame.width <= visibleFrame.maxX - margin
+        let proposedX = fitsRight
+            ? mainFrame.maxX + gap
+            : mainFrame.minX - gap - frame.width
+        let x = min(max(proposedX, visibleFrame.minX + margin), visibleFrame.maxX - frame.width - margin)
+
+        let proposedTopY = mainFrame.maxY
+        let minTopY = visibleFrame.minY + frame.height + margin
+        let maxTopY = visibleFrame.maxY - margin
+        let y = min(max(proposedTopY, minTopY), maxTopY)
+
+        setFrameTopLeftPoint(NSPoint(x: round(x), y: round(y)))
+        invalidateShadow()
+    }
+
+    override func cancelOperation(_ sender: Any?) {
+        orderOut(nil)
+    }
+}
+
+private final class HCBMenuBarAttachedPanelFrameView: NSView {
+    private let cornerRadius: CGFloat = 12
+    private let borderWidth: CGFloat = 1
+    private let inset: CGFloat = 1
+    private weak var hostedView: NSView?
+
+    func outerSize(for contentSize: NSSize) -> NSSize {
+        NSSize(width: contentSize.width + inset * 2, height: contentSize.height + inset * 2)
+    }
+
+    func setHostedView(_ view: NSView) {
+        guard hostedView !== view else { return }
+        hostedView?.removeFromSuperview()
+        hostedView = view
+        view.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(view)
+        NSLayoutConstraint.activate([
+            view.leadingAnchor.constraint(equalTo: leadingAnchor, constant: inset),
+            view.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -inset),
+            view.topAnchor.constraint(equalTo: topAnchor, constant: inset),
+            view.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -inset)
+        ])
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.clear.setFill()
+        dirtyRect.fill()
+
+        let bodyRect = bounds.insetBy(dx: borderWidth, dy: borderWidth)
+        let path = NSBezierPath(roundedRect: bodyRect, xRadius: cornerRadius, yRadius: cornerRadius)
+        NSColor.controlBackgroundColor.setFill()
+        path.fill()
+        NSColor.separatorColor.withAlphaComponent(0.45).setStroke()
+        path.lineWidth = borderWidth
+        path.stroke()
+    }
+}
+
 struct MenuBarExtraContent: View {
     @Environment(AppModel.self) private var model
+    let onWeekDaySelected: (Date) -> Void
 
     var body: some View {
         Group {
             switch model.settings.menuBarStyle {
             case .detailed: DetailedMenuBarPanel()
-            case .weekly: WeeklyMenuBarPanel()
+            case .weekly: WeeklyMenuBarPanel(onDaySelected: onWeekDaySelected)
             case .compact: CompactMenuBarPanel()
             }
         }
@@ -1312,8 +1484,179 @@ private struct StatusLine: View {
     }
 }
 
+private struct WeeklyMenuBarDayDetailPanel: View {
+    @Environment(AppModel.self) private var model
+    let day: Date
+
+    private var events: [CalendarEventMirror] {
+        let cal = Calendar.current
+        let selected = model.menuBarSelectedCalendarIDs
+        return model.events
+            .filter { event in
+                selected.contains(event.calendarID)
+                    && event.status != .cancelled
+                    && cal.isDate(event.startDate, inSameDayAs: day)
+            }
+            .sorted { lhs, rhs in
+                if lhs.startDate == rhs.startDate {
+                    return lhs.summary.localizedCaseInsensitiveCompare(rhs.summary) == .orderedAscending
+                }
+                return lhs.startDate < rhs.startDate
+            }
+    }
+
+    private var tasks: [TaskMirror] {
+        let cal = Calendar.current
+        let visible = model.menuBarVisibleTaskListIDs
+        return model.tasks
+            .filter { task in
+                guard let due = task.dueDate else { return false }
+                return task.isDeleted == false
+                    && task.isCompleted == false
+                    && visible.contains(task.taskListID)
+                    && cal.isDate(due, inSameDayAs: day)
+            }
+            .sorted { lhs, rhs in
+                let leftDue = lhs.dueDate ?? .distantFuture
+                let rightDue = rhs.dueDate ?? .distantFuture
+                if leftDue == rightDue {
+                    return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+                }
+                return leftDue < rightDue
+            }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            header
+            Divider()
+            content
+        }
+        .hcbScaledPadding(12)
+        .hcbScaledFrame(width: 300, alignment: .leading)
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
+                .hcbFont(.headline)
+                .lineLimit(1)
+            Text("\(events.count) event\(events.count == 1 ? "" : "s") · \(tasks.count) task\(tasks.count == 1 ? "" : "s")")
+                .hcbFont(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if events.isEmpty && tasks.isEmpty {
+            HStack(spacing: 8) {
+                Image(systemName: "tray")
+                    .foregroundStyle(.secondary)
+                Text("Nothing scheduled for this day.")
+                    .hcbFont(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .hcbScaledPadding(.vertical, 10)
+        } else {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 10) {
+                    if events.isEmpty == false {
+                        detailSection(title: "Events") {
+                            ForEach(events, id: \.id) { event in
+                                detailRow(
+                                    symbol: "calendar",
+                                    title: event.summary,
+                                    subtitle: eventSubtitle(event)
+                                )
+                            }
+                        }
+                    }
+
+                    if tasks.isEmpty == false {
+                        detailSection(title: "Tasks") {
+                            ForEach(tasks, id: \.id) { task in
+                                detailRow(
+                                    symbol: "checkmark.circle",
+                                    title: task.title,
+                                    subtitle: taskSubtitle(task)
+                                )
+                            }
+                        }
+                    }
+                }
+                .hcbScaledPadding(.vertical, 1)
+            }
+            .hcbScaledFrame(maxHeight: 320)
+        }
+    }
+
+    private func detailSection<Content: View>(
+        title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .hcbFont(.caption2, weight: .semibold)
+                .foregroundStyle(.secondary)
+            content()
+        }
+    }
+
+    private func detailRow(symbol: String, title: String, subtitle: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: symbol)
+                .hcbFont(.caption)
+                .foregroundStyle(.secondary)
+                .hcbScaledFrame(width: 16)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title.isEmpty ? "Untitled" : title)
+                    .hcbFont(.subheadline, weight: .medium)
+                    .lineLimit(2)
+                Text(subtitle)
+                    .hcbFont(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 0)
+        }
+        .hcbScaledPadding(.vertical, 2)
+    }
+
+    private func eventSubtitle(_ event: CalendarEventMirror) -> String {
+        var parts: [String] = [eventTimeLabel(event)]
+        if let calendar = model.calendars.first(where: { $0.id == event.calendarID })?.summary,
+           calendar.isEmpty == false {
+            parts.append(calendar)
+        }
+        if event.location.isEmpty == false {
+            parts.append(event.location)
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private func taskSubtitle(_ task: TaskMirror) -> String {
+        var parts: [String] = []
+        if let due = task.dueDate {
+            parts.append(due.formatted(.dateTime.hour().minute()))
+        }
+        parts.append(model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Tasks")
+        if task.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            parts.append(task.notes.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private func eventTimeLabel(_ event: CalendarEventMirror) -> String {
+        if event.isAllDay { return "All day" }
+        return "\(event.startDate.formatted(.dateTime.hour().minute()))-\(event.endDate.formatted(.dateTime.hour().minute()))"
+    }
+}
+
 private struct WeeklyMenuBarPanel: View {
     @Environment(AppModel.self) private var model
+    let onDaySelected: (Date) -> Void
 
     private var days: [Date] {
         let cal = Calendar.current
@@ -1376,32 +1719,38 @@ private struct WeeklyMenuBarPanel: View {
         // Monochrome: weekday + day number use .primary / .secondary only.
         // Today is signalled via a bolder day-number weight, not color — in
         // line with native macOS menu bar apps.
-        return HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(day.formatted(.dateTime.weekday(.abbreviated)))
-                    .hcbFont(.caption2, weight: .semibold)
-                    .foregroundStyle(.secondary)
-                Text("\(cal.component(.day, from: day))")
-                    .font(.headline.monospacedDigit())
-                    .foregroundStyle(isToday ? .primary : .secondary)
+        return Button {
+            onDaySelected(day)
+        } label: {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(day.formatted(.dateTime.weekday(.abbreviated)))
+                        .hcbFont(.caption2, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                    Text("\(cal.component(.day, from: day))")
+                        .font(.headline.monospacedDigit())
+                        .foregroundStyle(isToday ? .primary : .secondary)
+                }
+                .hcbScaledFrame(width: 38)
+                Divider().hcbScaledFrame(height: 28)
+                HStack(spacing: 6) {
+                    countChip(symbol: "calendar", count: events.count)
+                    countChip(symbol: "checkmark.circle", count: tasks.count)
+                }
+                Spacer(minLength: 0)
+                if let first = events.first {
+                    Text(first.isAllDay ? "All day" : first.startDate.formatted(.dateTime.hour().minute()))
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
             }
-            .hcbScaledFrame(width: 38)
-            Divider().hcbScaledFrame(height: 28)
-            HStack(spacing: 6) {
-                countChip(symbol: "calendar", count: events.count)
-                countChip(symbol: "checkmark.circle", count: tasks.count)
-            }
-            Spacer(minLength: 0)
-            if let first = events.first {
-                Text(first.isAllDay ? "All day" : first.startDate.formatted(.dateTime.hour().minute()))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
+            .hcbScaledPadding(.vertical, 4)
+            .hcbScaledPadding(.horizontal, 6)
+            .background(isToday ? Color.secondary.opacity(0.10) : Color.clear)
+            .contentShape(Rectangle())
         }
-        .hcbScaledPadding(.vertical, 4)
-        .hcbScaledPadding(.horizontal, 6)
-        // Subtle today highlight with system's neutral emphasis tint.
-        .background(isToday ? Color.secondary.opacity(0.10) : Color.clear)
+        .buttonStyle(.plain)
+        .help("Show \(day.formatted(.dateTime.weekday(.wide).month(.wide).day()))")
     }
 
     private func countChip(symbol: String, count: Int) -> some View {
