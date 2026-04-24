@@ -652,11 +652,14 @@ private extension AppModel {
     func menuBarEvents(on day: Date) -> [CalendarEventMirror] {
         let cal = Calendar.current
         let selected = menuBarSelectedCalendarIDs
-        return events
+        let dayStart = cal.startOfDay(for: day)
+        let key = dayStart.timeIntervalSinceReferenceDate
+        return (eventsByDay[key] ?? [])
+            .compactMap { event(id: $0) }
             .filter { event in
                 selected.contains(event.calendarID)
                     && event.status != .cancelled
-                    && cal.isDate(event.startDate, inSameDayAs: day)
+                    && cal.isDate(event.startDate, inSameDayAs: dayStart)
             }
             .sorted { lhs, rhs in
                 if lhs.startDate == rhs.startDate {
@@ -669,7 +672,9 @@ private extension AppModel {
     func menuBarTasks(on day: Date) -> [TaskMirror] {
         let cal = Calendar.current
         let visible = menuBarVisibleTaskListIDs
-        return tasks
+        let key = cal.startOfDay(for: day).timeIntervalSinceReferenceDate
+        return (tasksByDueDate[key] ?? [])
+            .compactMap { task(id: $0) }
             .filter { task in
                 guard let due = task.dueDate else { return false }
                 return task.isDeleted == false
@@ -685,6 +690,18 @@ private extension AppModel {
                 }
                 return leftDue < rightDue
             }
+    }
+
+    func menuBarDatedOpenTasks() -> [TaskMirror] {
+        let visible = menuBarVisibleTaskListIDs
+        var out: [TaskMirror] = []
+        for key in tasksByDueDate.keys.sorted() {
+            let bucket = (tasksByDueDate[key] ?? [])
+                .compactMap { task(id: $0) }
+                .filter { visible.contains($0.taskListID) }
+            out.append(contentsOf: bucket)
+        }
+        return out
     }
 }
 
@@ -844,29 +861,11 @@ private struct DetailedMenuBarPanel: View {
     }
 
     private var eventsForSelectedDay: [CalendarEventMirror] {
-        let cal = Calendar.current
-        let selected = model.menuBarSelectedCalendarIDs
-        return model.events
-            .filter { event in
-                selected.contains(event.calendarID)
-                    && event.status != .cancelled
-                    && cal.isDate(event.startDate, inSameDayAs: selectedDay)
-            }
-            .sorted { $0.startDate < $1.startDate }
+        model.menuBarEvents(on: selectedDay)
     }
 
     private var tasksForSelectedDay: [TaskMirror] {
-        let cal = Calendar.current
-        let visible = model.menuBarVisibleTaskListIDs
-        return model.tasks
-            .filter { task in
-                guard let due = task.dueDate else { return false }
-                return task.isDeleted == false
-                    && task.isCompleted == false
-                    && visible.contains(task.taskListID)
-                    && cal.isDate(due, inSameDayAs: selectedDay)
-            }
-            .sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
+        model.menuBarTasks(on: selectedDay)
     }
 
     private func snooze(_ task: TaskMirror, to newDate: Date?) async {
@@ -1036,16 +1035,8 @@ private struct CompactMenuBarPanel: View {
         let calendar = Calendar.current
         let startOfToday = calendar.startOfDay(for: now)
         let selectedCalendars = model.menuBarSelectedCalendarIDs
-        let visibleTaskLists = model.menuBarVisibleTaskListIDs
 
-        let taskPool = model.tasks
-            .filter { task in
-                guard task.isDeleted == false, task.isCompleted == false, task.dueDate != nil else { return false }
-                return visibleTaskLists.contains(task.taskListID)
-            }
-            .sorted {
-                ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture)
-            }
+        let taskPool = model.menuBarDatedOpenTasks()
 
         let overdueTasks = taskPool.filter { ($0.dueDate ?? .distantFuture) < startOfToday }
         let dueTodayTasks = taskPool.filter { task in
@@ -1125,7 +1116,7 @@ private struct CompactMenuBarPanel: View {
     }
 
     private func taskSubtitle(for task: TaskMirror) -> String {
-        let listTitle = model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Tasks"
+        let listTitle = model.taskListTitle(for: task.taskListID, fallback: "Tasks")
         guard let dueDate = task.dueDate else {
             return listTitle
         }
@@ -1141,7 +1132,7 @@ private struct CompactMenuBarPanel: View {
     }
 
     private func eventSubtitle(for event: CalendarEventMirror) -> String {
-        let calendarTitle = model.calendars.first(where: { $0.id == event.calendarID })?.summary ?? "Calendar"
+        let calendarTitle = model.calendarTitle(for: event.calendarID, fallback: "Calendar")
         if event.isAllDay {
             return "All day · \(calendarTitle)"
         }
@@ -1635,8 +1626,8 @@ private struct WeeklyMenuBarDayDetailPanel: View {
 
     private func eventSubtitle(_ event: CalendarEventMirror) -> String {
         var parts: [String] = [eventTimeLabel(event)]
-        if let calendar = model.calendars.first(where: { $0.id == event.calendarID })?.summary,
-           calendar.isEmpty == false {
+        let calendar = model.calendarTitle(for: event.calendarID, fallback: "")
+        if calendar.isEmpty == false {
             parts.append(calendar)
         }
         if event.location.isEmpty == false {
@@ -1650,7 +1641,7 @@ private struct WeeklyMenuBarDayDetailPanel: View {
         if let due = task.dueDate {
             parts.append(due.formatted(.dateTime.hour().minute()))
         }
-        parts.append(model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Tasks")
+        parts.append(model.taskListTitle(for: task.taskListID, fallback: "Tasks"))
         if task.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
             parts.append(task.notes.trimmingCharacters(in: .whitespacesAndNewlines))
         }
@@ -1674,27 +1665,11 @@ private struct WeeklyMenuBarPanel: View {
     }
 
     private func eventsOn(_ day: Date) -> [CalendarEventMirror] {
-        let cal = Calendar.current
-        let selected = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
-        return model.events.filter { event in
-            selected.contains(event.calendarID)
-                && event.status != .cancelled
-                && cal.isDate(event.startDate, inSameDayAs: day)
-        }
+        model.menuBarEvents(on: day)
     }
 
     private func tasksOn(_ day: Date) -> [TaskMirror] {
-        let cal = Calendar.current
-        let visible: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
-            ? model.settings.selectedTaskListIDs
-            : Set(model.taskLists.map(\.id))
-        return model.tasks.filter { task in
-            guard let due = task.dueDate else { return false }
-            return task.isDeleted == false
-                && task.isCompleted == false
-                && visible.contains(task.taskListID)
-                && cal.isDate(due, inSameDayAs: day)
-        }
+        model.menuBarTasks(on: day)
     }
 
     var body: some View {
