@@ -339,6 +339,8 @@ private struct AlertsTab: View {
                         Text(style.title).tag(style)
                     }
                 }
+                Toggle("Menu bar badge for overdue tasks", isOn: menuBarBadgeBinding)
+                    .disabled(model.settings.showMenuBarExtra == false)
             }
 
             Section("Dock") {
@@ -406,6 +408,13 @@ private struct AlertsTab: View {
         Binding(
             get: { model.settings.menuBarStyle },
             set: { model.setMenuBarStyle($0) }
+        )
+    }
+
+    private var menuBarBadgeBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.showMenuBarBadge },
+            set: { model.setShowMenuBarBadge($0) }
         )
     }
 

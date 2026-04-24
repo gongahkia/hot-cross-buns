@@ -22,8 +22,14 @@ private struct HCBMenuBarStatusControllerHost: View {
             .onChange(of: model.settings.menuBarStyle) { _, _ in
                 controller.configure(model: model)
             }
+            .onChange(of: model.settings.showMenuBarBadge) { _, _ in
+                controller.refreshStatusItemImage()
+            }
             .onChange(of: model.settings.colorSchemeID) { _, _ in
                 controller.configure(model: model)
+            }
+            .onChange(of: model.todaySnapshot.overdueCount) { _, _ in
+                controller.refreshStatusItemImage()
             }
             .onChange(of: model.dataRevision) { _, _ in
                 controller.refreshContent()
@@ -78,11 +84,10 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
         item.button?.target = self
         item.button?.action = #selector(statusItemClicked(_:))
         item.button?.sendAction(on: [.leftMouseDown, .rightMouseDown])
-        item.button?.image = statusImage()
         item.button?.imagePosition = .imageOnly
         item.button?.imageScaling = .scaleProportionallyDown
-        item.button?.setAccessibilityLabel("Hot Cross Buns")
         statusItem = item
+        refreshStatusItemImage()
     }
 
     private func uninstallStatusItem() {
@@ -94,14 +99,30 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
         hostingController = nil
     }
 
-    private func statusImage() -> NSImage? {
+    func refreshStatusItemImage() {
+        guard let model, let button = statusItem?.button else { return }
+        let count = model.settings.showMenuBarBadge ? model.todaySnapshot.overdueCount : 0
+        button.image = statusImage(badgeCount: count)
+        if count > 0 {
+            button.setAccessibilityLabel("Hot Cross Buns, \(count) overdue task\(count == 1 ? "" : "s")")
+        } else {
+            button.setAccessibilityLabel("Hot Cross Buns")
+        }
+    }
+
+    private func statusImage(badgeCount: Int) -> NSImage? {
         guard let image = NSImage(named: "MenuBarIcon")
             ?? NSImage(systemSymbolName: "calendar", accessibilityDescription: "Hot Cross Buns")
         else { return nil }
 
-        image.isTemplate = true
-        image.size = NSSize(width: 18, height: 18)
-        return image
+        guard badgeCount > 0 else {
+            let copy = image.copy() as? NSImage ?? image
+            copy.isTemplate = true
+            copy.size = NSSize(width: 18, height: 18)
+            return copy
+        }
+
+        return image.hcbMenuBarBadgedImage(count: badgeCount)
     }
 
     @objc private func statusItemClicked(_ sender: Any?) {
@@ -246,6 +267,55 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
 
     func menuDidClose(_ menu: NSMenu) {
         statusItem?.menu = nil
+    }
+}
+
+private extension NSImage {
+    func hcbMenuBarBadgedImage(count: Int) -> NSImage {
+        let displayCount = count > 99 ? "99+" : "\(count)"
+        let canvasSize = NSSize(width: 22, height: 18)
+        let iconRect = NSRect(x: 0, y: 2, width: 15, height: 15)
+        let image = NSImage(size: canvasSize, flipped: false) { _ in
+            NSColor.labelColor.setFill()
+            if let cgImage = self.cgImage(forProposedRect: nil, context: nil, hints: nil),
+               let context = NSGraphicsContext.current?.cgContext {
+                context.saveGState()
+                context.clip(to: iconRect, mask: cgImage)
+                context.fill(iconRect)
+                context.restoreGState()
+            } else {
+                self.draw(in: iconRect)
+            }
+
+            let font = NSFont.monospacedDigitSystemFont(ofSize: displayCount.count > 2 ? 7 : 8, weight: .bold)
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: NSColor.white
+            ]
+            let textSize = displayCount.size(withAttributes: attributes)
+            let badgeHeight: CGFloat = 11
+            let badgeWidth = max(badgeHeight, ceil(textSize.width) + 6)
+            let badgeRect = NSRect(
+                x: canvasSize.width - badgeWidth,
+                y: canvasSize.height - badgeHeight,
+                width: badgeWidth,
+                height: badgeHeight
+            )
+            NSColor.controlAccentColor.setFill()
+            NSBezierPath(roundedRect: badgeRect, xRadius: badgeHeight / 2, yRadius: badgeHeight / 2).fill()
+
+            let textRect = NSRect(
+                x: badgeRect.midX - textSize.width / 2,
+                y: badgeRect.midY - textSize.height / 2,
+                width: textSize.width,
+                height: textSize.height
+            )
+            displayCount.draw(in: textRect, withAttributes: attributes)
+            return true
+        }
+        image.isTemplate = false
+        image.size = canvasSize
+        return image
     }
 }
 

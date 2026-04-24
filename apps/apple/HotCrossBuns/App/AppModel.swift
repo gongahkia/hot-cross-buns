@@ -1650,6 +1650,14 @@ final class AppModel {
         scheduleCacheSave()
     }
 
+    func setShowMenuBarBadge(_ isEnabled: Bool) {
+        guard settings.showMenuBarBadge != isEnabled else {
+            return
+        }
+        settings.showMenuBarBadge = isEnabled
+        scheduleCacheSave()
+    }
+
     func setEnableGlobalHotkey(_ isEnabled: Bool) {
         guard settings.enableGlobalHotkey != isEnabled else { return }
         settings.enableGlobalHotkey = isEnabled

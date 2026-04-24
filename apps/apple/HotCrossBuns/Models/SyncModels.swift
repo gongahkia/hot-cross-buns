@@ -193,6 +193,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var hasCompletedOnboarding: Bool
     var showMenuBarExtra: Bool
     var showDetailedMenuBar: Bool
+    var showMenuBarBadge: Bool
     var showDockBadge: Bool
     var enableGlobalHotkey: Bool
     var globalHotkeyBinding: GlobalHotkeyBinding
@@ -283,6 +284,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         hasCompletedOnboarding: Bool = false,
         showMenuBarExtra: Bool = true,
         showDetailedMenuBar: Bool = false,
+        showMenuBarBadge: Bool = true,
         showDockBadge: Bool = true,
         enableGlobalHotkey: Bool = true,
         globalHotkeyBinding: GlobalHotkeyBinding = .defaultQuickAdd,
@@ -344,6 +346,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.hasCompletedOnboarding = hasCompletedOnboarding
         self.showMenuBarExtra = showMenuBarExtra
         self.showDetailedMenuBar = showDetailedMenuBar
+        self.showMenuBarBadge = showMenuBarBadge
         self.showDockBadge = showDockBadge
         self.enableGlobalHotkey = enableGlobalHotkey
         self.globalHotkeyBinding = globalHotkeyBinding
@@ -407,6 +410,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case hasCompletedOnboarding
         case showMenuBarExtra
         case showDetailedMenuBar
+        case showMenuBarBadge
         case showDockBadge
         case enableGlobalHotkey
         case globalHotkeyBinding
@@ -480,6 +484,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         hasCompletedOnboarding = try container.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? false
         showMenuBarExtra = try container.decodeIfPresent(Bool.self, forKey: .showMenuBarExtra) ?? true
         showDetailedMenuBar = try container.decodeIfPresent(Bool.self, forKey: .showDetailedMenuBar) ?? false
+        showMenuBarBadge = try container.decodeIfPresent(Bool.self, forKey: .showMenuBarBadge) ?? true
         showDockBadge = try container.decodeIfPresent(Bool.self, forKey: .showDockBadge) ?? true
         enableGlobalHotkey = try container.decodeIfPresent(Bool.self, forKey: .enableGlobalHotkey) ?? true
         globalHotkeyBinding = try container.decodeIfPresent(GlobalHotkeyBinding.self, forKey: .globalHotkeyBinding) ?? .defaultQuickAdd

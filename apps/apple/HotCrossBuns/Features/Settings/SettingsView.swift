@@ -138,6 +138,8 @@ struct SettingsView: View {
                     }
                 }
                 .pickerStyle(.menu)
+                Toggle("Menu bar badge for overdue tasks", isOn: menuBarBadgeBinding)
+                    .disabled(model.settings.showMenuBarExtra == false)
                 Toggle("Dock badge for overdue tasks", isOn: dockBadgeBinding)
             }
 
@@ -279,6 +281,13 @@ struct SettingsView: View {
         Binding(
             get: { model.settings.showDockBadge },
             set: { model.setShowDockBadge($0) }
+        )
+    }
+
+    private var menuBarBadgeBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.showMenuBarBadge },
+            set: { model.setShowMenuBarBadge($0) }
         )
     }
 
