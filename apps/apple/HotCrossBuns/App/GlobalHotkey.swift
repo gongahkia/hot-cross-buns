@@ -1,6 +1,44 @@
 import AppKit
 import Carbon.HIToolbox
 
+enum GlobalHotkeyRegistrationState: Equatable {
+    case disabled
+    case ready(String)
+    case failed(String)
+
+    var message: String {
+        switch self {
+        case .disabled:
+            "The global quick-add hotkey is off."
+        case .ready(let label):
+            "Ready on this Mac: \(label)"
+        case .failed(let message):
+            message
+        }
+    }
+}
+
+enum GlobalHotkeyRegistrationError: LocalizedError, Equatable {
+    case alreadyInUse
+    case system(OSStatus)
+
+    var errorDescription: String? {
+        switch self {
+        case .alreadyInUse:
+            "That shortcut is already in use by macOS or another app."
+        case .system(let status):
+            "macOS could not register that global hotkey (status \(status))."
+        }
+    }
+
+    static func from(status: OSStatus) -> GlobalHotkeyRegistrationError {
+        if status == eventHotKeyExistsErr {
+            return .alreadyInUse
+        }
+        return .system(status)
+    }
+}
+
 @MainActor
 final class GlobalHotkey {
     private var hotKeyRef: EventHotKeyRef?
@@ -10,30 +48,45 @@ final class GlobalHotkey {
     var action: (() -> Void)?
     var isInstalled: Bool { hotKeyRef != nil }
 
-    func install(keyCode: UInt32 = UInt32(kVK_Space), modifiers: UInt32 = UInt32(cmdKey | shiftKey)) {
-        guard hotKeyRef == nil else { return }
-
+    func install(binding: GlobalHotkeyBinding) throws {
+        uninstall()
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
         let selfPointer = Unmanaged.passUnretained(self).toOpaque()
-        InstallEventHandler(GetApplicationEventTarget(), { _, event, userData in
-            guard let event, let userData else { return noErr }
-            var hkID = EventHotKeyID()
-            GetEventParameter(
-                event,
-                EventParamName(kEventParamDirectObject),
-                EventParamType(typeEventHotKeyID),
-                nil,
-                MemoryLayout<EventHotKeyID>.size,
-                nil,
-                &hkID
-            )
-            let center = Unmanaged<GlobalHotkey>.fromOpaque(userData).takeUnretainedValue()
-            DispatchQueue.main.async { center.action?() }
-            return noErr
-        }, 1, &spec, selfPointer, &eventHandlerRef)
+        if eventHandlerRef == nil {
+            let status = InstallEventHandler(GetApplicationEventTarget(), { _, event, userData in
+                guard let event, let userData else { return noErr }
+                var hkID = EventHotKeyID()
+                GetEventParameter(
+                    event,
+                    EventParamName(kEventParamDirectObject),
+                    EventParamType(typeEventHotKeyID),
+                    nil,
+                    MemoryLayout<EventHotKeyID>.size,
+                    nil,
+                    &hkID
+                )
+                let center = Unmanaged<GlobalHotkey>.fromOpaque(userData).takeUnretainedValue()
+                DispatchQueue.main.async { center.action?() }
+                return noErr
+            }, 1, &spec, selfPointer, &eventHandlerRef)
+            guard status == noErr else {
+                throw GlobalHotkeyRegistrationError.from(status: status)
+            }
+        }
 
         let hotKeyIDStruct = EventHotKeyID(signature: Self.hotKeyID, id: 1)
-        RegisterEventHotKey(keyCode, modifiers, hotKeyIDStruct, GetApplicationEventTarget(), 0, &hotKeyRef)
+        let status = RegisterEventHotKey(
+            binding.keyCode,
+            binding.carbonModifiers,
+            hotKeyIDStruct,
+            GetApplicationEventTarget(),
+            0,
+            &hotKeyRef
+        )
+        guard status == noErr else {
+            hotKeyRef = nil
+            throw GlobalHotkeyRegistrationError.from(status: status)
+        }
     }
 
     func uninstall() {

@@ -1,3 +1,5 @@
+import AppKit
+import Carbon.HIToolbox
 import SwiftUI
 
 // Every rebindable keyboard shortcut in the app. Each case carries a
@@ -225,12 +227,46 @@ struct HCBKeyBinding: Codable, Hashable {
         self.modifiers = modifiers
     }
 
-    static func events(_ key: HCBKey, _ events: EventModifiers) -> HCBKeyBinding {
+    static func events(_ key: HCBKey, _ events: SwiftUI.EventModifiers) -> HCBKeyBinding {
         HCBKeyBinding(key: key, modifiers: HCBModifierSet(events))
     }
 
     var displayLabel: String {
         modifiers.displayPrefix + key.displayLabel
+    }
+}
+
+struct GlobalHotkeyBinding: Codable, Hashable, Sendable {
+    var keyCode: UInt32
+    var key: HCBKey
+    var modifiers: HCBModifierSet
+
+    static let defaultQuickAdd = GlobalHotkeyBinding(
+        keyCode: UInt32(kVK_Space),
+        key: .space,
+        modifiers: [.command, .shift]
+    )
+
+    var displayLabel: String {
+        modifiers.displayPrefix + key.displayLabel
+    }
+
+    var carbonModifiers: UInt32 {
+        var flags: UInt32 = 0
+        if modifiers.contains(.command) { flags |= UInt32(cmdKey) }
+        if modifiers.contains(.shift) { flags |= UInt32(shiftKey) }
+        if modifiers.contains(.option) { flags |= UInt32(optionKey) }
+        if modifiers.contains(.control) { flags |= UInt32(controlKey) }
+        return flags
+    }
+
+    static func binding(from event: NSEvent) -> GlobalHotkeyBinding? {
+        guard let base = KeyRecorderNSView.binding(from: event) else { return nil }
+        return GlobalHotkeyBinding(
+            keyCode: UInt32(event.keyCode),
+            key: base.key,
+            modifiers: base.modifiers
+        )
     }
 }
 
@@ -248,7 +284,7 @@ struct HCBModifierSet: OptionSet, Codable, Hashable {
         self.rawValue = rawValue
     }
 
-    init(_ events: EventModifiers) {
+    init(_ events: SwiftUI.EventModifiers) {
         var raw = 0
         if events.contains(.command) { raw |= 1 << 0 }
         if events.contains(.shift) { raw |= 1 << 1 }
@@ -257,8 +293,8 @@ struct HCBModifierSet: OptionSet, Codable, Hashable {
         self.rawValue = raw
     }
 
-    var eventModifiers: EventModifiers {
-        var mods: EventModifiers = []
+    var eventModifiers: SwiftUI.EventModifiers {
+        var mods: SwiftUI.EventModifiers = []
         if contains(.command) { mods.insert(.command) }
         if contains(.shift) { mods.insert(.shift) }
         if contains(.option) { mods.insert(.option) }

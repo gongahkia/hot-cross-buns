@@ -162,9 +162,20 @@ struct MacSidebarShell: View {
                 HCBColorSchemeStore.current = HCBColorScheme.scheme(id: newID) ?? .notion
             }
             .onChange(of: model.settings.enableGlobalHotkey) { _, newValue in
-                if let delegate = NSApp.delegate as? AppDelegate {
-                    delegate.setGlobalHotkeyEnabled(newValue)
-                }
+                guard let delegate = NSApp.delegate as? AppDelegate else { return }
+                let state = delegate.configureGlobalHotkey(
+                    enabled: newValue,
+                    binding: model.settings.globalHotkeyBinding
+                )
+                model.setGlobalHotkeyRegistrationState(state)
+            }
+            .onChange(of: model.settings.globalHotkeyBinding) { _, newValue in
+                guard let delegate = NSApp.delegate as? AppDelegate else { return }
+                let state = delegate.configureGlobalHotkey(
+                    enabled: model.settings.enableGlobalHotkey,
+                    binding: newValue
+                )
+                model.setGlobalHotkeyRegistrationState(state)
             }
             .onChange(of: selection) { _, newValue in
                 storedSelection = newValue.rawValue
@@ -403,7 +414,11 @@ struct MacSidebarShell: View {
 
     private func configureGlobalHotkey() {
         guard let delegate = NSApp.delegate as? AppDelegate else { return }
-        delegate.setGlobalHotkeyEnabled(model.settings.enableGlobalHotkey)
+        let state = delegate.configureGlobalHotkey(
+            enabled: model.settings.enableGlobalHotkey,
+            binding: model.settings.globalHotkeyBinding
+        )
+        model.setGlobalHotkeyRegistrationState(state)
     }
 
     private func configureCommandActions() {

@@ -180,6 +180,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var showDetailedMenuBar: Bool
     var showDockBadge: Bool
     var enableGlobalHotkey: Bool
+    var globalHotkeyBinding: GlobalHotkeyBinding
     var customFilters: [CustomFilterDefinition]
     var eventTemplates: [EventTemplate]
     var menuBarStyle: MenuBarStyle
@@ -264,6 +265,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         showDetailedMenuBar: Bool = false,
         showDockBadge: Bool = true,
         enableGlobalHotkey: Bool = true,
+        globalHotkeyBinding: GlobalHotkeyBinding = .defaultQuickAdd,
         customFilters: [CustomFilterDefinition] = [],
         eventTemplates: [EventTemplate] = [],
         menuBarStyle: MenuBarStyle = .compact,
@@ -319,6 +321,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.showDetailedMenuBar = showDetailedMenuBar
         self.showDockBadge = showDockBadge
         self.enableGlobalHotkey = enableGlobalHotkey
+        self.globalHotkeyBinding = globalHotkeyBinding
         self.customFilters = customFilters
         self.eventTemplates = eventTemplates
         self.menuBarStyle = menuBarStyle
@@ -376,6 +379,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case showDetailedMenuBar
         case showDockBadge
         case enableGlobalHotkey
+        case globalHotkeyBinding
         case customFilters
         case eventTemplates
         case menuBarStyle
@@ -443,6 +447,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         showDetailedMenuBar = try container.decodeIfPresent(Bool.self, forKey: .showDetailedMenuBar) ?? false
         showDockBadge = try container.decodeIfPresent(Bool.self, forKey: .showDockBadge) ?? true
         enableGlobalHotkey = try container.decodeIfPresent(Bool.self, forKey: .enableGlobalHotkey) ?? true
+        globalHotkeyBinding = try container.decodeIfPresent(GlobalHotkeyBinding.self, forKey: .globalHotkeyBinding) ?? .defaultQuickAdd
         customFilters = try container.decodeIfPresent([CustomFilterDefinition].self, forKey: .customFilters) ?? []
         eventTemplates = try container.decodeIfPresent([EventTemplate].self, forKey: .eventTemplates) ?? []
         // Legacy raw values may include removed cases. Decode via try? + raw-string
