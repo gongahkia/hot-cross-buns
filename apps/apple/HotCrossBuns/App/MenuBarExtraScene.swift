@@ -306,16 +306,16 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
     }
 
     private func resizeWeekDayDetail() {
-        guard let detailPanel, let detailView = detailHostingController?.view else { return }
-        detailView.layoutSubtreeIfNeeded()
-        var fitting = detailView.fittingSize
-        if fitting.width <= 1 { fitting.width = 300 }
-        if fitting.height <= 1 { fitting.height = 320 }
+        guard let detailPanel, let model, let selectedWeekDetailDay else { return }
+        let eventCount = model.menuBarEvents(on: selectedWeekDetailDay).count
+        let taskCount = model.menuBarTasks(on: selectedWeekDetailDay).count
+        let rowCount = eventCount + taskCount
         let screen = statusItemScreen()
         let maxHeight = max(220, screen.visibleFrame.height - 72)
+        let preferredHeight = CGFloat(112 + min(rowCount, 8) * 44)
         detailPanel.setContentBodySize(NSSize(
-            width: min(max(fitting.width, 280), 340),
-            height: min(max(fitting.height, 160), maxHeight)
+            width: 300,
+            height: min(max(preferredHeight, 160), min(maxHeight, 420))
         ))
     }
 
@@ -338,6 +338,7 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
     }
 
     func windowDidResize(_ notification: Notification) {
+        guard notification.object as? NSWindow === panel else { return }
         positionPanel()
     }
 
@@ -646,6 +647,44 @@ private extension AppModel {
         settings.hasConfiguredTaskListSelection
             ? settings.selectedTaskListIDs
             : Set(taskLists.map(\.id))
+    }
+
+    func menuBarEvents(on day: Date) -> [CalendarEventMirror] {
+        let cal = Calendar.current
+        let selected = menuBarSelectedCalendarIDs
+        return events
+            .filter { event in
+                selected.contains(event.calendarID)
+                    && event.status != .cancelled
+                    && cal.isDate(event.startDate, inSameDayAs: day)
+            }
+            .sorted { lhs, rhs in
+                if lhs.startDate == rhs.startDate {
+                    return lhs.summary.localizedCaseInsensitiveCompare(rhs.summary) == .orderedAscending
+                }
+                return lhs.startDate < rhs.startDate
+            }
+    }
+
+    func menuBarTasks(on day: Date) -> [TaskMirror] {
+        let cal = Calendar.current
+        let visible = menuBarVisibleTaskListIDs
+        return tasks
+            .filter { task in
+                guard let due = task.dueDate else { return false }
+                return task.isDeleted == false
+                    && task.isCompleted == false
+                    && visible.contains(task.taskListID)
+                    && cal.isDate(due, inSameDayAs: day)
+            }
+            .sorted { lhs, rhs in
+                let leftDue = lhs.dueDate ?? .distantFuture
+                let rightDue = rhs.dueDate ?? .distantFuture
+                if leftDue == rightDue {
+                    return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+                }
+                return leftDue < rightDue
+            }
     }
 }
 
@@ -1489,41 +1528,11 @@ private struct WeeklyMenuBarDayDetailPanel: View {
     let day: Date
 
     private var events: [CalendarEventMirror] {
-        let cal = Calendar.current
-        let selected = model.menuBarSelectedCalendarIDs
-        return model.events
-            .filter { event in
-                selected.contains(event.calendarID)
-                    && event.status != .cancelled
-                    && cal.isDate(event.startDate, inSameDayAs: day)
-            }
-            .sorted { lhs, rhs in
-                if lhs.startDate == rhs.startDate {
-                    return lhs.summary.localizedCaseInsensitiveCompare(rhs.summary) == .orderedAscending
-                }
-                return lhs.startDate < rhs.startDate
-            }
+        model.menuBarEvents(on: day)
     }
 
     private var tasks: [TaskMirror] {
-        let cal = Calendar.current
-        let visible = model.menuBarVisibleTaskListIDs
-        return model.tasks
-            .filter { task in
-                guard let due = task.dueDate else { return false }
-                return task.isDeleted == false
-                    && task.isCompleted == false
-                    && visible.contains(task.taskListID)
-                    && cal.isDate(due, inSameDayAs: day)
-            }
-            .sorted { lhs, rhs in
-                let leftDue = lhs.dueDate ?? .distantFuture
-                let rightDue = rhs.dueDate ?? .distantFuture
-                if leftDue == rightDue {
-                    return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
-                }
-                return leftDue < rightDue
-            }
+        model.menuBarTasks(on: day)
     }
 
     var body: some View {
