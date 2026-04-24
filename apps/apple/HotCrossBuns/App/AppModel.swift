@@ -97,6 +97,11 @@ final class AppModel {
     // Per-list completion stats for Store section headers — avoids O(n)
     // filtering per list on every header render.
     private(set) var taskListCompletionStats: [TaskListMirror.ID: TaskListCompletionStats] = [:]
+    // Small title lookup maps shared by row/menu/search surfaces. These avoid
+    // repeated first(where:) scans while keeping the large task/event mirrors
+    // as the single source of truth.
+    private(set) var taskListTitleByID: [TaskListMirror.ID: String] = [:]
+    private(set) var calendarTitleByID: [CalendarListMirror.ID: String] = [:]
     // Monotonic counter bumped on every rebuildSnapshots pass — i.e. every
     // time the observable task/event/list/calendar state changes in a way a
     // downstream view might care about. Consumer views (MonthGrid, WeekGrid,
@@ -3268,6 +3273,18 @@ final class AppModel {
         return events[index]
     }
 
+    func taskListTitle(for id: TaskListMirror.ID, fallback: String = "Unknown list") -> String {
+        taskListTitleByID[id] ?? fallback
+    }
+
+    func calendarTitle(for id: CalendarListMirror.ID, fallback: String = "Calendar") -> String {
+        calendarTitleByID[id] ?? fallback
+    }
+
+    func openTaskCount(forTaskListID id: TaskListMirror.ID) -> Int {
+        taskListCompletionStats[id]?.openCount ?? 0
+    }
+
     private func apply(_ state: CachedAppState) {
         // Sync-diff detection: count net changes vs current in-memory state BEFORE
         // we overwrite. Skipped on cold launch (empty local) and when nothing
@@ -3739,6 +3756,8 @@ final class AppModel {
             stats[task.taskListID] = entry
         }
         taskListCompletionStats = stats
+        taskListTitleByID = Dictionary(uniqueKeysWithValues: taskLists.map { ($0.id, $0.title) })
+        calendarTitleByID = Dictionary(uniqueKeysWithValues: calendars.map { ($0.id, $0.summary) })
 
         // rebuild duplicate groups last (reads final tasks + dismissedGroupKeys)
         duplicateIndex = DuplicateIndex.build(

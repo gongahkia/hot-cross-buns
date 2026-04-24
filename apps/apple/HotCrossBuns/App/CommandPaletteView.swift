@@ -522,19 +522,19 @@ struct CommandPaletteView: View {
     private func entitySubtitle(_ entity: QuickSwitcherEntity) -> String {
         switch entity {
         case .task(let t):
-            let list = model.taskLists.first(where: { $0.id == t.taskListID })?.title ?? "—"
+            let list = model.taskListTitle(for: t.taskListID, fallback: "—")
             if let due = t.dueDate {
                 return "\(list) · due \(due.formatted(.dateTime.month(.abbreviated).day()))"
             }
             return list
         case .event(let e):
-            let cal = model.calendars.first(where: { $0.id == e.calendarID })?.summary ?? "—"
+            let cal = model.calendarTitle(for: e.calendarID, fallback: "—")
             if e.isAllDay {
                 return "\(cal) · \(e.startDate.formatted(.dateTime.month(.abbreviated).day()))"
             }
             return "\(cal) · \(e.startDate.formatted(.dateTime.month(.abbreviated).day().hour().minute()))"
         case .taskList(let l):
-            let count = model.tasks.filter { $0.taskListID == l.id && $0.isDeleted == false && $0.isCompleted == false }.count
+            let count = model.openTaskCount(forTaskListID: l.id)
             return "\(count) open"
         case .calendar(let c):
             return c.colorHex
