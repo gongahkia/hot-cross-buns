@@ -24,6 +24,37 @@ struct ParsedQuickAddEvent: Equatable, Sendable {
 }
 
 struct NaturalLanguageEventParser: Sendable {
+    struct HelpEntry: Identifiable, Sendable {
+        let title: String
+        let examples: [String]
+        let summary: String
+
+        var id: String { title }
+    }
+
+    static let helpEntries: [HelpEntry] = [
+        HelpEntry(
+            title: "Start times",
+            examples: ["3pm", "3:30pm", "from 2pm to 4pm", "noon", "midnight"],
+            summary: "Understands single times, ranges, and keyword anchors like noon or midnight."
+        ),
+        HelpEntry(
+            title: "Durations",
+            examples: ["for 45m", "for 1h 30m", "half hour", "quarter hour"],
+            summary: "Expands a start time into an end time when no explicit end is given."
+        ),
+        HelpEntry(
+            title: "Day anchors",
+            examples: ["today", "tomorrow", "next fri", "weekend"],
+            summary: "Accepts relative day words and weekday phrases for all-day or timed events."
+        ),
+        HelpEntry(
+            title: "Locations",
+            examples: ["@Office", "at Cafe"],
+            summary: "Extracts a location from @place or 'at place' syntax."
+        )
+    ]
+
     let calendar: Calendar
     let now: Date
 
