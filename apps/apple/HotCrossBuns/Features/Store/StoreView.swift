@@ -215,6 +215,7 @@ struct StoreView: View {
                     )
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             if selection.count >= 2 {
                 TaskBulkActionBar(
                     selection: $selection,
