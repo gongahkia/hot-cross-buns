@@ -22,6 +22,8 @@
 
 (() => {
   const modal = document.getElementById("download-modal");
+  const modalCard = modal?.querySelector(".download-modal-card");
+  const closeButton = modal?.querySelector(".download-modal-close");
   const continueLink = document.getElementById("download-modal-continue");
   const triggers = document.querySelectorAll("[data-download-trigger]");
   const closers = document.querySelectorAll("[data-modal-close]");
@@ -35,7 +37,10 @@
     modal.hidden = false;
     modal.setAttribute("aria-hidden", "false");
     document.body.classList.add("modal-open");
-    window.requestAnimationFrame(() => continueLink.focus());
+    window.requestAnimationFrame(() => {
+      if (modalCard instanceof HTMLElement) modalCard.scrollTop = 0;
+      if (closeButton instanceof HTMLElement) closeButton.focus({ preventScroll: true });
+    });
   };
 
   const closeModal = () => {
