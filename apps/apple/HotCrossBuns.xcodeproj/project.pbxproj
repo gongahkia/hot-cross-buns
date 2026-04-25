@@ -99,6 +99,7 @@
 		76FE748A00BF7565093EB3C2 /* CustomFiltersSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F4517375C8E849B9FBA844C /* CustomFiltersSection.swift */; };
 		7A31F091EF2A8AE7B9F1742B /* BackoffPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D768DB4E22AFC1D29F84EB1 /* BackoffPolicyTests.swift */; };
 		7AA65A861A8B2A58F45B8070 /* BulkResultToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = A78470AB49D26395D2CD6F7C /* BulkResultToast.swift */; };
+		7B25895146B9C72A4161E19B /* macos-open-anyway-warning.jpeg in Resources */ = {isa = PBXBuildFile; fileRef = 8DCF05B74EEF0CEFC2A45B56 /* macos-open-anyway-warning.jpeg */; };
 		7B40B5F28634337136A7E5DA /* HCBAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11D2101729E351EFCFEB1B66 /* HCBAppearance.swift */; };
 		7C22315140ECF1FB53AD1A6A /* TaskContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD4FAA00AFF8741B931B28A5 /* TaskContextMenu.swift */; };
 		7D78BE1A86E813F0669673E5 /* MarkdownHTMLTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16A222520E37F1BD9721EF0B /* MarkdownHTMLTests.swift */; };
@@ -207,6 +208,7 @@
 		E97AE973C28C215FBD434B5A /* CalendarGridLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 382C796971460006AB7D939E /* CalendarGridLayout.swift */; };
 		E98AEB930CC53067A2C2BCE3 /* CustomFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8744975197402E661FA13A2 /* CustomFilterTests.swift */; };
 		EF7717EABD3E2F5C54B2408A /* PermissionPrimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73C6AC21EF221365170C0EA0 /* PermissionPrimerView.swift */; };
+		F032090C6ABED1A77C8EEF11 /* macos-not-opened-warning.jpeg in Resources */ = {isa = PBXBuildFile; fileRef = 196CE9743073A989FF1D1994 /* macos-not-opened-warning.jpeg */; };
 		F17FBE647D419E3735B9591F /* PastCleanupServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD7C50518CD828FC3495F5EC /* PastCleanupServiceTests.swift */; };
 		F37DF95BBEC2335CA5AFBDED /* CalendarEventInstanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22DB41A975AB784A9EBDD654 /* CalendarEventInstanceTests.swift */; };
 		F544AFBC74E117992DB58913 /* CustomFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A76571F1E7EF40F32A62835 /* CustomFilter.swift */; };
@@ -271,6 +273,7 @@
 		165DF0F051694E742FB59FB7 /* TaskMirror.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskMirror.swift; sourceTree = "<group>"; };
 		16A222520E37F1BD9721EF0B /* MarkdownHTMLTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownHTMLTests.swift; sourceTree = "<group>"; };
 		16A980BF4A880C22BC900697 /* OfflineQueuePayloadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueuePayloadTests.swift; sourceTree = "<group>"; };
+		196CE9743073A989FF1D1994 /* macos-not-opened-warning.jpeg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = "macos-not-opened-warning.jpeg"; sourceTree = "<group>"; };
 		1A15AB7A557A7163BEA80ECC /* SyncSchedulerTombstonePurgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncSchedulerTombstonePurgeTests.swift; sourceTree = "<group>"; };
 		1AE4271884E414A0922884E1 /* CalendarDropComputerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDropComputerTests.swift; sourceTree = "<group>"; };
 		1B0DFDCF8E31CE997881CE68 /* TaskDrawerPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDrawerPanel.swift; sourceTree = "<group>"; };
@@ -353,6 +356,7 @@
 		8A76571F1E7EF40F32A62835 /* CustomFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomFilter.swift; sourceTree = "<group>"; };
 		8BFD977211942ADB9C88E1CF /* GoogleTaskDueDateFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleTaskDueDateFormatterTests.swift; sourceTree = "<group>"; };
 		8D28DC41B5549CBBC446FEC9 /* KeybindingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeybindingsSection.swift; sourceTree = "<group>"; };
+		8DCF05B74EEF0CEFC2A45B56 /* macos-open-anyway-warning.jpeg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = "macos-open-anyway-warning.jpeg"; sourceTree = "<group>"; };
 		8FF54DB319263C6A1FD8A97D /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteView.swift; sourceTree = "<group>"; };
 		9062C2E730F1E70F0DCBDADA /* RecurrenceEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceEditor.swift; sourceTree = "<group>"; };
 		923D7E147E63ED13484B24AA /* EncryptionSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EncryptionSection.swift; sourceTree = "<group>"; };
@@ -952,6 +956,8 @@
 			isa = PBXGroup;
 			children = (
 				B3D98B80AC89448503D52E27 /* buns-welcomepage.webp */,
+				196CE9743073A989FF1D1994 /* macos-not-opened-warning.jpeg */,
+				8DCF05B74EEF0CEFC2A45B56 /* macos-open-anyway-warning.jpeg */,
 			);
 			path = Onboarding;
 			sourceTree = "<group>";
@@ -1201,6 +1207,8 @@
 				F7014D145B92A0F81E1927E0 /* Assets.xcassets in Resources */,
 				B7A300DA4BA17F92E0BE9FEB /* Localizable.xcstrings in Resources */,
 				D13CA2D457A278C448417499 /* buns-welcomepage.webp in Resources */,
+				F032090C6ABED1A77C8EEF11 /* macos-not-opened-warning.jpeg in Resources */,
+				7B25895146B9C72A4161E19B /* macos-open-anyway-warning.jpeg in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
