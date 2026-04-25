@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="360" viewBox="0 0 560 360" role="img" aria-labelledby="title desc">
+  <title id="title">macOS unsigned app warning</title>
+  <desc id="desc">Illustration of the macOS dialog that says Hot Cross Buns was not opened because Apple could not verify it is free of malware.</desc>
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#11111b" flood-opacity=".22"/>
+    </filter>
+    <linearGradient id="panel" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#f6f7fb"/>
+      <stop offset="1" stop-color="#eeeff7"/>
+    </linearGradient>
+    <linearGradient id="gear" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#c7d3d8"/>
+      <stop offset="1" stop-color="#9aa7ad"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="560" height="360" fill="none"/>
+  <g filter="url(#shadow)">
+    <rect x="20" y="18" width="520" height="324" rx="40" fill="url(#panel)" stroke="#d7dae5"/>
+
+    <g transform="translate(66 58)">
+      <path d="M57 0l8 15 17-5 7 18 19 1-2 19 15 11-12 15 7 18-18 7-2 19-19-2-12 14-15-12-18 7-8-17-19-2 2-19-15-12 12-15-7-18 18-8 2-18 19 1z" fill="url(#gear)" stroke="#86949b"/>
+      <circle cx="57" cy="62" r="33" fill="#3c4146"/>
+      <circle cx="57" cy="62" r="22" fill="#aab5bb" stroke="#dce3e7" stroke-width="3"/>
+      <path d="M95 58l31 56H64z" fill="#f7c948" stroke="#fff" stroke-width="8" stroke-linejoin="round"/>
+      <path d="M95 58l31 56H64z" fill="#f7c948" stroke="#b5962e" stroke-width="3" stroke-linejoin="round"/>
+      <rect x="91" y="76" width="8" height="25" rx="4" fill="#fff"/>
+      <circle cx="95" cy="107" r="4" fill="#fff"/>
+    </g>
+
+    <text x="62" y="160" fill="#242632" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="27" font-weight="700">
+      "Hot Cross Buns" Not Opened
+    </text>
+    <text x="62" y="212" fill="#242632" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="25">
+      <tspan x="62" dy="0">Apple could not verify "Hot Cross</tspan>
+      <tspan x="62" dy="32">Buns" is free of malware that may</tspan>
+      <tspan x="62" dy="32">harm your Mac or compromise your</tspan>
+      <tspan x="62" dy="32">privacy.</tspan>
+    </text>
+    <g transform="translate(50 292)">
+      <rect width="220" height="54" rx="27" fill="#dedfe7"/>
+      <text x="110" y="35" text-anchor="middle" fill="#242632" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="26">Done</text>
+    </g>
+    <g transform="translate(290 292)">
+      <rect width="220" height="54" rx="27" fill="#3b82f6"/>
+      <text x="110" y="35" text-anchor="middle" fill="#fff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="26">Move to Bin</text>
+    </g>
+  </g>
+</svg>

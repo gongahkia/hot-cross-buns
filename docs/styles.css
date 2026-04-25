@@ -754,7 +754,7 @@ kbd {
 }
 .download-modal-card {
   position: relative;
-  width: min(100%, 560px);
+  width: min(100%, 680px);
   padding: 28px 28px 24px;
   border-radius: 22px;
   border: 1px solid color-mix(in srgb, var(--surface0) 70%, transparent);
@@ -780,6 +780,16 @@ kbd {
   margin-top: 14px;
   color: var(--subtext1);
   line-height: 1.6;
+}
+.download-modal-warning {
+  margin: 18px 0 0;
+}
+.download-modal-warning img {
+  display: block;
+  width: min(100%, 480px);
+  height: auto;
+  border-radius: 20px;
+  box-shadow: 0 18px 50px rgba(17, 17, 27, .16);
 }
 .download-modal-list {
   margin: 18px 0 0;
