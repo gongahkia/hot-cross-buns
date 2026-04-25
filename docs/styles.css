@@ -811,6 +811,8 @@ kbd {
   line-height: 1.6;
 }
 .download-modal-warning {
+  display: grid;
+  gap: 12px;
   margin: 18px 0 0;
 }
 .download-modal-warning img {
@@ -819,6 +821,11 @@ kbd {
   height: auto;
   border-radius: 20px;
   box-shadow: 0 18px 50px rgba(17, 17, 27, .16);
+}
+.download-modal-warning img + img {
+  width: min(100%, 520px);
+  border-radius: 14px;
+  box-shadow: 0 14px 38px rgba(17, 17, 27, .12);
 }
 .download-modal-list {
   margin: 18px 0 0;
