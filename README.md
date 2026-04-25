@@ -174,11 +174,14 @@ xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 
 scripts/package-macos-dmg.sh
 ```
 
+The default local DMG path ad-hoc signs the app bundle for free so macOS applies the app sandbox and Keychain entitlements required by Google sign-in. This is not Developer ID signing and it does not notarize the DMG, so first-launch Gatekeeper approval is still expected.
+
 To run the app locally from Xcode with Google sign-in enabled, copy `apps/apple/Configuration/GoogleOAuth.example.xcconfig` to `apps/apple/Configuration/GoogleOAuth.local.xcconfig` and fill in your own values. The committed `apps/apple/Configuration/GoogleOAuth.xcconfig` provides blank CI-safe defaults and includes the local override when present.
 
 ## Release Flow
 
 - Build release DMGs locally; this repository no longer uses GitHub Actions to package macOS releases.
+- Unsigned preview DMGs should use the default ad-hoc app signing from `scripts/package-macos-dmg.sh`; do not force `CODE_SIGNING_ALLOWED=NO` for release artifacts because Google sign-in needs Keychain entitlements.
 - Local release builds require `apps/apple/Configuration/GoogleOAuth.local.xcconfig` with `GOOGLE_MACOS_CLIENT_ID` and `GOOGLE_MACOS_REVERSED_CLIENT_ID`.
 - `GOOGLE_MAPS_EMBED_API_KEY` is optional. When omitted, the app falls back to MapKit instead of the embedded Google Maps iframe.
 - Upload the versioned DMG, stable `HotCrossBuns-macOS.dmg` alias, and matching `.sha256` files to GitHub Releases.
