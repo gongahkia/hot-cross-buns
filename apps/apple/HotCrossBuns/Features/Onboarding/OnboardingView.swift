@@ -144,6 +144,8 @@ private struct IntroDetailsView: View {
                     )
                 }
 
+                FirstLaunchWarningsCard()
+
                 HStack {
                     Button("Later", action: onLater)
                         .buttonStyle(.bordered)
@@ -170,6 +172,118 @@ private struct IntroDetailsView: View {
                 .hcbFont(.title3)
                 .foregroundStyle(.secondary)
         }
+    }
+}
+
+private struct FirstLaunchWarningsCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("First-launch warnings you may see")
+                .hcbFont(.headline)
+                .foregroundStyle(AppColor.ink)
+
+            Text("Unsigned DMGs and Google OAuth verification can show scary system copy. If you downloaded Hot Cross Buns from the official GitHub release, these are the one-time approval paths to expect.")
+                .hcbFont(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 10) {
+                warningImage(
+                    resource: "macos-not-opened-warning",
+                    extensionName: "jpeg",
+                    accessibilityLabel: "macOS says Hot Cross Buns was not opened because Apple could not verify it"
+                )
+                warningImage(
+                    resource: "macos-open-anyway-warning",
+                    extensionName: "jpeg",
+                    accessibilityLabel: "System Settings Privacy and Security shows Open Anyway for Hot Cross Buns"
+                )
+                GoogleUnverifiedWarningPreview()
+            }
+
+            Text("For Google, click Advanced, then Go to Hot Cross Buns only if you trust the app and downloaded it from the official release page. This screen should disappear once Google completes app verification.")
+                .hcbFont(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .hcbScaledPadding(16)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(.quaternary)
+        )
+    }
+
+    @ViewBuilder
+    private func warningImage(resource: String, extensionName: String, accessibilityLabel: String) -> some View {
+        if let image = onboardingImage(resource: resource, extensionName: extensionName) {
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFit()
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(.quaternary)
+                )
+                .accessibilityLabel(accessibilityLabel)
+        }
+    }
+
+    private func onboardingImage(resource: String, extensionName: String) -> NSImage? {
+        guard let url = Bundle.main.url(
+            forResource: resource,
+            withExtension: extensionName,
+            subdirectory: "Onboarding"
+        ) else {
+            return nil
+        }
+        return NSImage(contentsOf: url)
+    }
+}
+
+private struct GoogleUnverifiedWarningPreview: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .hcbFont(.largeTitle)
+                    .foregroundStyle(.red)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Google hasn't verified this app")
+                        .hcbFont(.headline)
+                    Text("You may see this while Google is reviewing Hot Cross Buns.")
+                        .hcbFont(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            HStack(alignment: .top, spacing: 18) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("1. Click Advanced")
+                    Text("2. Click Go to Hot Cross Buns")
+                }
+                .hcbFont(.caption)
+                .foregroundStyle(.secondary)
+
+                Spacer(minLength: 12)
+
+                Text("BACK TO SAFETY")
+                    .hcbFont(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.blue, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+            }
+        }
+        .hcbScaledPadding(14)
+        .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(.quaternary)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Google has not verified this app warning preview")
     }
 }
 
