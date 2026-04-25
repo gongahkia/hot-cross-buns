@@ -2,7 +2,6 @@ import SwiftUI
 import AppKit
 
 private enum OnboardingStage {
-    case introWelcome
     case introDetails
     case setup
 }
@@ -10,16 +9,11 @@ private enum OnboardingStage {
 struct OnboardingView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
-    @State private var stage: OnboardingStage = .introWelcome
+    @State private var stage: OnboardingStage = .introDetails
 
     var body: some View {
         Group {
             switch stage {
-            case .introWelcome:
-                IntroWelcomeView(
-                    onContinue: { stage = .introDetails },
-                    onLater: finish
-                )
             case .introDetails:
                 IntroDetailsView(
                     onContinue: { stage = .setup },
@@ -48,60 +42,6 @@ struct OnboardingView: View {
     private func finish() {
         model.completeOnboarding()
         dismiss()
-    }
-}
-
-private struct IntroWelcomeView: View {
-    let onContinue: () -> Void
-    let onLater: () -> Void
-
-    private var heroImage: NSImage? {
-        guard let url = Bundle.main.url(
-            forResource: "buns-welcomepage",
-            withExtension: "webp",
-            subdirectory: "Onboarding"
-        ) else {
-            return nil
-        }
-        return NSImage(contentsOf: url)
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-                Text("Welcome to Hot Cross Buns")
-                    .font(.system(.largeTitle, weight: .bold))
-                    .foregroundStyle(AppColor.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Group {
-                    if let heroImage {
-                        Image(nsImage: heroImage)
-                            .resizable()
-                            .scaledToFit()
-                    } else {
-                        Image(systemName: "photo")
-                            .resizable()
-                            .scaledToFit()
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .hcbScaledFrame(maxWidth: 520)
-                .frame(maxWidth: .infinity)
-
-                HStack {
-                    Button("Later", action: onLater)
-                        .buttonStyle(.bordered)
-                    Spacer()
-                    Button("Continue", action: onContinue)
-                        .buttonStyle(.borderedProminent)
-                        .keyboardShortcut(.defaultAction)
-                }
-            }
-            .hcbScaledPadding(28)
-            .cardSurface(cornerRadius: 16)
-            .hcbScaledPadding(20)
-        }
     }
 }
 
