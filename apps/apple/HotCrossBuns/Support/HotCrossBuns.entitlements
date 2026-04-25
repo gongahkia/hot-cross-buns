@@ -22,7 +22,7 @@
 	</array>
 	<key>keychain-access-groups</key>
 	<array>
-		<string>$(AppIdentifierPrefix)$(CFBundleIdentifier)</string>
+		<string>$(AppIdentifierPrefix)com.gongahkia.hotcrossbuns.mac</string>
 	</array>
 </dict>
 </plist>

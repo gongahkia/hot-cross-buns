@@ -14,7 +14,6 @@ VERSION="${VERSION:-$(git -C "$ROOT_DIR" describe --tags --always --dirty 2>/dev
 DMG_PATH="$BUILD_ROOT/HotCrossBuns-$VERSION-macOS.dmg"
 ENTITLEMENTS_PATH="$APPLE_DIR/HotCrossBuns/Support/HotCrossBuns.entitlements"
 CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-}"
-AD_HOC_SIGN="${AD_HOC_SIGN:-1}"
 NOTARIZE="${NOTARIZE:-0}"
 PLIST_BUDDY="/usr/libexec/PlistBuddy"
 
@@ -158,49 +157,16 @@ check_release_preflight() {
   echo "Continuing because this is an unsigned local package. Set CODE_SIGN_IDENTITY or NOTARIZE=1 to enforce these checks." >&2
 }
 
-generated_entitlements_path() {
-  local app_path="$1"
-  local info_plist="$app_path/Contents/Info.plist"
-  local bundle_id
-  local app_identifier_prefix="${APP_IDENTIFIER_PREFIX:-}"
-  local generated_path="$BUILD_ROOT/HotCrossBuns.generated.entitlements"
-
-  bundle_id="$(plist_value "$info_plist" "CFBundleIdentifier")"
-  if [[ -z "$bundle_id" ]]; then
-    echo "Unable to read CFBundleIdentifier from $info_plist" >&2
-    return 1
-  fi
-
-  sed \
-    -e "s|\$(CFBundleIdentifier)|$bundle_id|g" \
-    -e "s|\$(AppIdentifierPrefix)|$app_identifier_prefix|g" \
-    "$ENTITLEMENTS_PATH" > "$generated_path"
-
-  printf '%s\n' "$generated_path"
-}
-
 APP_PATH="$(resolve_app_path "$DERIVED_DATA_PATH/Build/Products/$CONFIGURATION")"
 check_release_preflight "$APP_PATH"
 
-if [[ -z "$CODE_SIGN_IDENTITY" && "$AD_HOC_SIGN" == "1" ]]; then
-  GENERATED_ENTITLEMENTS_PATH="$(generated_entitlements_path "$APP_PATH")"
-  codesign \
-    --force \
-    --deep \
-    --entitlements "$GENERATED_ENTITLEMENTS_PATH" \
-    --sign - \
-    "$APP_PATH"
-  echo "App bundle was ad-hoc signed for local Keychain/OAuth support. The DMG is still not notarized." >&2
-fi
-
 if [[ -n "$CODE_SIGN_IDENTITY" ]]; then
-  GENERATED_ENTITLEMENTS_PATH="$(generated_entitlements_path "$APP_PATH")"
   codesign \
     --force \
     --deep \
     --options runtime \
     --timestamp \
-    --entitlements "$GENERATED_ENTITLEMENTS_PATH" \
+    --entitlements "$ENTITLEMENTS_PATH" \
     --sign "$CODE_SIGN_IDENTITY" \
     "$APP_PATH"
 
