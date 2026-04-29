@@ -25,6 +25,79 @@ private struct InstallGuideWindowObserver: ViewModifier {
     }
 }
 
+private struct UpdaterToastModifier: ViewModifier {
+    @Environment(UpdaterController.self) private var updater
+
+    private var message: Binding<String?> {
+        Binding(
+            get: { updater.toastState?.message },
+            set: { newValue in
+                if newValue == nil {
+                    updater.clearToast()
+                }
+            }
+        )
+    }
+
+    func body(content: Content) -> some View {
+        let title = updater.toastState?.title ?? "Update check complete"
+        return content.overlay {
+            BulkResultToast(
+                message: message,
+                isWarning: updater.toastState?.isWarning ?? false,
+                successTitle: title,
+                warningTitle: title,
+                successSymbol: "arrow.down.circle.fill",
+                warningSymbol: "wifi.exclamationmark"
+            )
+        }
+    }
+}
+
+private struct SettingsTransferPresentationModifier: ViewModifier {
+    @Binding var message: String?
+    @Binding var isWarning: Bool
+    @Binding var importPreview: SettingsImportPreview?
+    @Binding var pendingImport: SettingsTransferBundle?
+    let applyImport: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .confirmationDialog(
+                "Import Settings?",
+                item: $importPreview,
+                titleVisibility: .visible,
+                actions: importActions,
+                message: importMessage
+            )
+            .overlay {
+                BulkResultToast(
+                    message: $message,
+                    isWarning: isWarning,
+                    successTitle: "Settings transfer complete",
+                    warningTitle: "Settings transfer failed",
+                    successSymbol: "gearshape.fill"
+                )
+            }
+    }
+
+    @ViewBuilder
+    private func importActions(_ preview: SettingsImportPreview) -> some View {
+        if preview.changeCount == 0 {
+            Button("Import Settings", action: applyImport)
+        } else {
+            Button("Import Settings", role: .destructive, action: applyImport)
+        }
+        Button("Cancel", role: .cancel) {
+            pendingImport = nil
+        }
+    }
+
+    private func importMessage(_ preview: SettingsImportPreview) -> Text {
+        Text(preview.message)
+    }
+}
+
 struct MacSidebarShell: View {
     @Environment(AppModel.self) private var model
     @Environment(UpdaterController.self) private var updater
@@ -136,20 +209,13 @@ struct MacSidebarShell: View {
                     .environment(model)
                     .withHCBAppearance(model.settings)
             }
-            .confirmationDialog(
-                "Import Settings?",
-                item: $settingsImportPreview,
-                titleVisibility: .visible
-            ) { preview in
-                Button("Import Settings", role: preview.changeCount == 0 ? nil : .destructive) {
-                    applyPendingSettingsImport()
-                }
-                Button("Cancel", role: .cancel) {
-                    pendingSettingsImport = nil
-                }
-            } message: { preview in
-                Text(preview.message)
-            }
+            .modifier(SettingsTransferPresentationModifier(
+                message: $settingsTransferMessage,
+                isWarning: $settingsTransferIsWarning,
+                importPreview: $settingsImportPreview,
+                pendingImport: $pendingSettingsImport,
+                applyImport: applyPendingSettingsImport
+            ))
             .overlay {
                 UndoToast()
             }
@@ -163,32 +229,7 @@ struct MacSidebarShell: View {
                     successSymbol: "doc.on.clipboard"
                 )
             }
-            .overlay {
-                BulkResultToast(
-                    message: $settingsTransferMessage,
-                    isWarning: settingsTransferIsWarning,
-                    successTitle: "Settings transfer complete",
-                    warningTitle: "Settings transfer failed",
-                    successSymbol: "gearshape.fill"
-                )
-            }
-            .overlay {
-                BulkResultToast(
-                    message: Binding(
-                        get: { updater.toastState?.message },
-                        set: { newValue in
-                            if newValue == nil {
-                                updater.clearToast()
-                            }
-                        }
-                    ),
-                    isWarning: updater.toastState?.isWarning ?? false,
-                    successTitle: updater.toastState?.title ?? "Update check complete",
-                    warningTitle: updater.toastState?.title ?? "Update check failed",
-                    successSymbol: "arrow.down.circle.fill",
-                    warningSymbol: "wifi.exclamationmark"
-                )
-            }
+            .modifier(UpdaterToastModifier())
             .overlay(alignment: .bottomTrailing) {
                 if let keys = chordKeys {
                     ChordHUD(
