@@ -2136,6 +2136,13 @@ final class AppModel {
         scheduleCacheSave()
     }
 
+    func setShowCompletedItemsInCalendar(_ isVisible: Bool) {
+        guard settings.showCompletedItemsInCalendar != isVisible else { return }
+        settings.showCompletedItemsInCalendar = isVisible
+        rebuildSnapshots()
+        scheduleCacheSave()
+    }
+
     func setOverdueTaskBehavior(_ behavior: OverdueTaskBehavior) {
         guard settings.overdueTaskBehavior != behavior else { return }
         settings.overdueTaskBehavior = behavior
@@ -3782,7 +3789,7 @@ final class AppModel {
         // calendar by callers.
         var byCalendar: [CalendarListMirror.ID: [CalendarEventMirror.ID]] = [:]
         byCalendar.reserveCapacity(calendars.count)
-        for event in events where event.status != .cancelled {
+        for event in events where settings.showCompletedItemsInCalendar || event.status != .cancelled {
             byCalendar[event.calendarID, default: []].append(event.id)
         }
         eventsByCalendar = byCalendar
@@ -3795,7 +3802,7 @@ final class AppModel {
         let cal = Calendar.current
         var byDay: [TimeInterval: [CalendarEventMirror.ID]] = [:]
         byDay.reserveCapacity(events.count)
-        for event in events where event.status != .cancelled {
+        for event in events where settings.showCompletedItemsInCalendar || event.status != .cancelled {
             let startDay = cal.startOfDay(for: event.startDate)
             let endDay = cal.startOfDay(for: event.endDate)
             var day = startDay
@@ -3809,11 +3816,12 @@ final class AppModel {
         }
         eventsByDay = byDay
 
-        // Bucket open, non-deleted tasks by due date (startOfDay). Mirrors
-        // eventsByDay so the grid + agenda views can skip filtering
+        // Bucket dated, non-deleted tasks by due date (startOfDay). Completed
+        // tasks are included only when the calendar setting asks to show them.
+        // Mirrors eventsByDay so the grid + agenda views can skip filtering
         // `model.tasks` on every cell render.
         var tByDay: [TimeInterval: [TaskMirror.ID]] = [:]
-        for task in tasks where task.isDeleted == false && task.isCompleted == false {
+        for task in tasks where task.isDeleted == false && (settings.showCompletedItemsInCalendar || task.isCompleted == false) {
             guard let due = task.dueDate else { continue }
             let key = cal.startOfDay(for: due).timeIntervalSinceReferenceDate
             tByDay[key, default: []].append(task.id)

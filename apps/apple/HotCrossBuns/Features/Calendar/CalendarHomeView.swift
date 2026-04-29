@@ -667,8 +667,8 @@ struct CalendarHomeView: View {
 
     private func agendaTasksByDay(for range: [Date]) -> [Date: [TaskMirror]] {
         // Use model.tasksByDueDate IDs; rebuildSnapshots already walks tasks
-        // once and excludes deleted/completed. We only need to filter to
-        // the visible task-list set and sort alphabetically per day.
+        // once and applies the completed-item calendar setting. We only need
+        // to filter to the visible task-list set and sort alphabetically per day.
         let visibleLists: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
             ? model.settings.selectedTaskListIDs
             : Set(model.taskLists.map(\.id))
@@ -754,7 +754,7 @@ struct CalendarHomeView: View {
 
         return model.events
             .filter { event in
-                event.status != .cancelled
+                (model.settings.showCompletedItemsInCalendar || event.status != .cancelled)
                     && selectedCalendarIDs.contains(event.calendarID)
                     && event.startDate < endOfDay
                     && event.endDate > startOfDay

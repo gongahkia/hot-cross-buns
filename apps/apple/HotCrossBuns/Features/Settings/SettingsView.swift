@@ -152,6 +152,7 @@ struct SettingsView: View {
             UpdatesSection()
 
             Section("Calendars") {
+                Toggle("Show completed tasks and dismissed events in calendar views", isOn: showCompletedItemsInCalendarBinding)
                 if model.calendars.isEmpty {
                     Text("Refresh after connecting Google to load calendars.")
                         .foregroundStyle(.secondary)
@@ -287,6 +288,13 @@ struct SettingsView: View {
         Binding(
             get: { model.settings.showDockBadge },
             set: { model.setShowDockBadge($0) }
+        )
+    }
+
+    private var showCompletedItemsInCalendarBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.showCompletedItemsInCalendar },
+            set: { model.setShowCompletedItemsInCalendar($0) }
         )
     }
 

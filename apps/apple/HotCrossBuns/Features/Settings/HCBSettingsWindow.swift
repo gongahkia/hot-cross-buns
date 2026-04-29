@@ -494,6 +494,7 @@ private struct AdvancedTab: View {
     var body: some View {
         Form {
             Section("Calendars") {
+                Toggle("Show completed tasks and dismissed events in calendar views", isOn: showCompletedItemsInCalendarBinding)
                 if model.calendars.isEmpty {
                     Text("Refresh after connecting Google to load calendars.")
                         .foregroundStyle(.secondary)
@@ -539,6 +540,13 @@ private struct AdvancedTab: View {
         Binding(
             get: { model.calendars.first(where: { $0.id == id })?.isSelected ?? false },
             set: { _ in model.toggleCalendar(id) }
+        )
+    }
+
+    private var showCompletedItemsInCalendarBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.showCompletedItemsInCalendar },
+            set: { model.setShowCompletedItemsInCalendar($0) }
         )
     }
 
