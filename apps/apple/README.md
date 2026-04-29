@@ -47,7 +47,11 @@ The app uses the native Google Sign-In SDK and requests these Google scopes duri
 
 Hot Cross Buns does not run a hosted OAuth proxy. Users can connect a downloaded DMG through their own Google Cloud project by creating a `Desktop app` OAuth client, then pasting that client ID and optional client secret into the in-app Google OAuth client setup card.
 
-Setup checklist for downloaded DMGs:
+There are two supported Google OAuth paths.
+
+### Path A: Downloaded DMG + Runtime Desktop OAuth
+
+Setup checklist:
 
 1. Create a Google Cloud project.
 2. Enable the Google Tasks API and Google Calendar API.
@@ -57,6 +61,8 @@ Setup checklist for downloaded DMGs:
 6. Click Connect Google and finish the browser consent flow.
 
 For ongoing personal use, publish the OAuth app to `In production` after setup. Google's `Testing` publishing status issues refresh tokens that expire after 7 days for the Tasks and Calendar scopes. An unverified personal production client may still show Google's warning screen, but it avoids using the maintainer's Google Cloud project and avoids the testing-mode seven-day refresh-token expiry.
+
+### Path B: Source Build + Embedded Native Google Sign-In
 
 Source builds can also embed a native Google Sign-In client. Create a Google Cloud OAuth client for iOS/macOS, then provide these build settings locally:
 
