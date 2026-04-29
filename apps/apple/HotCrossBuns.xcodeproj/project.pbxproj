@@ -142,6 +142,7 @@
 		9D78958B97CA82C8F51F677D /* DeepLinkErrorToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A8E603703D051876757E55F /* DeepLinkErrorToast.swift */; };
 		9EBF3A8E77C96C14106AB758 /* AppSettingsMacSurfacesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE4353BBFBCECA1F1E1EDF1B /* AppSettingsMacSurfacesTests.swift */; };
 		9F5667AD62B1FCFE12C86B22 /* CalendarEventColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF46AED18B8659500C9FDDB8 /* CalendarEventColor.swift */; };
+		A2BEBC765E32DA58297945C0 /* OpenAtLoginSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02C7A904DC7CEE72415D48DD /* OpenAtLoginSection.swift */; };
 		A4F5475C83084114BD319807 /* CompletionSoundSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA67CCC0FD16CD50BF3BF5E7 /* CompletionSoundSection.swift */; };
 		A533C4E4E484B4B03C7254F0 /* LocalNotificationSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E1914111389946DFA7D57E1 /* LocalNotificationSchedulerTests.swift */; };
 		A611406C5953E72F56D5BD59 /* GuestsSectionEmailTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1701AD968AE58FBC7E76F7 /* GuestsSectionEmailTests.swift */; };
@@ -216,6 +217,7 @@
 		F544AFBC74E117992DB58913 /* CustomFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A76571F1E7EF40F32A62835 /* CustomFilter.swift */; };
 		F7014D145B92A0F81E1927E0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 359088FE0E6D820E2ED32A19 /* Assets.xcassets */; };
 		F8020A97ADD49D3F19BF7915 /* PastCleanupSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2BAC54146EDDDC11E3D930F /* PastCleanupSection.swift */; };
+		F8A2CD7C0F938252E975C021 /* LoginItemController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3140D743D55592477DF37F51 /* LoginItemController.swift */; };
 		F8BA863DB51480D6B9ADEBE9 /* FuzzySearcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A49B39BEE4E940882B8C2AC5 /* FuzzySearcherTests.swift */; };
 		FA524DC3AE098023C142AF71 /* SubtaskDragPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20B9299699F46BFF95D48B7 /* SubtaskDragPayload.swift */; };
 		FAF5552BD86281508DDFA800 /* CompletionSoundSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F2825131BCE1BE98DDD8C0C /* CompletionSoundSettings.swift */; };
@@ -257,6 +259,7 @@
 
 /* Begin PBXFileReference section */
 		00588264F1181263111E2D02 /* SyncIssuesWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncIssuesWindow.swift; sourceTree = "<group>"; };
+		02C7A904DC7CEE72415D48DD /* OpenAtLoginSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAtLoginSection.swift; sourceTree = "<group>"; };
 		031DDCF639C5EF4AC563E602 /* TaskSnoozeSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskSnoozeSupport.swift; sourceTree = "<group>"; };
 		04200A166E83F915A6DECF28 /* CrashReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReporter.swift; sourceTree = "<group>"; };
 		049BF64AB830949A8FF5F454 /* ConversionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversionService.swift; sourceTree = "<group>"; };
@@ -291,6 +294,7 @@
 		2A2CC11D691079D5BE603A94 /* MarkdownEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownEditor.swift; sourceTree = "<group>"; };
 		2B5A02F709EC80DD855D2C87 /* ISO8601DateFormatter+Google.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ISO8601DateFormatter+Google.swift"; sourceTree = "<group>"; };
 		2FCE1E9B77CF162DAED39DE5 /* HCBTemplateExpander.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HCBTemplateExpander.swift; sourceTree = "<group>"; };
+		3140D743D55592477DF37F51 /* LoginItemController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginItemController.swift; sourceTree = "<group>"; };
 		322421AFC97A807AACB1057B /* HCBSettingsWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HCBSettingsWindow.swift; sourceTree = "<group>"; };
 		339394C0D1D19EE6C0831091 /* UpdaterController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterController.swift; sourceTree = "<group>"; };
 		33A7C862FCE08662E355A0FA /* TaskBulkActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskBulkActionBar.swift; sourceTree = "<group>"; };
@@ -756,6 +760,7 @@
 		7E8C34F1922051CB7BFB916D /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				3140D743D55592477DF37F51 /* LoginItemController.swift */,
 				925C270356E32422F9A8BDF9 /* Auth */,
 				7012A6EA5A68FD35E172AF58 /* Cleanup */,
 				C3A36708433EEA73FD777008 /* ColorTag */,
@@ -1081,6 +1086,7 @@
 				E0F94A52DF81C406B97107BD /* HistorySection.swift */,
 				8D28DC41B5549CBBC446FEC9 /* KeybindingsSection.swift */,
 				9742B8184AB071BE000E4235 /* LayoutSection.swift */,
+				02C7A904DC7CEE72415D48DD /* OpenAtLoginSection.swift */,
 				B2BAC54146EDDDC11E3D930F /* PastCleanupSection.swift */,
 				A29E4EA796CF06BFCDDDEE8F /* PerSurfaceFontSection.swift */,
 				9DE5E9D4244D8F56D1FC3227 /* PerTabListFilterSection.swift */,
@@ -1321,6 +1327,7 @@
 				05D2E8C1B772FA0D7DF885CB /* LocalNotificationScheduler.swift in Sources */,
 				63F95290D2E706E05C1A9029 /* LocationFullView.swift in Sources */,
 				018B126DFE1CB3880ACADD4F /* LocationMapPreview.swift in Sources */,
+				F8A2CD7C0F938252E975C021 /* LoginItemController.swift in Sources */,
 				D5F3BF67D13D6303ED82BC24 /* MacSidebarShell.swift in Sources */,
 				E956B3E8A886C76761B9ED91 /* MarkdownEditor.swift in Sources */,
 				03465E1F1734DE5270C3F7EE /* MarkdownHTML.swift in Sources */,
@@ -1336,6 +1343,7 @@
 				BFA45D24358F6B2E8F93D30B /* NotesViewMode.swift in Sources */,
 				FC53C77C9D94EA2806AAEEA1 /* OAuthLoopbackServer.swift in Sources */,
 				827C84F1E10F6B534F590F1B /* OnboardingView.swift in Sources */,
+				A2BEBC765E32DA58297945C0 /* OpenAtLoginSection.swift in Sources */,
 				D6CEEB629BAA00D100C52E52 /* OptimisticWriter.swift in Sources */,
 				9D6382244372C23C7D0D91DE /* PastCleanupBehaviors.swift in Sources */,
 				57C28D13661010694743BE77 /* PastCleanupFilter.swift in Sources */,
