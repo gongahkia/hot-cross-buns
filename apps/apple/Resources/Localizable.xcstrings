@@ -219,6 +219,9 @@
     "1 year" : {
 
     },
+    "1. Click Advanced" : {
+
+    },
     "2 days before" : {
 
     },
@@ -229,6 +232,9 @@
 
     },
     "2 years" : {
+
+    },
+    "2. Click Go to Hot Cross Buns" : {
 
     },
     "3 days before" : {
@@ -332,10 +338,19 @@
     "At time of event" : {
 
     },
+    "Auth provider: %@" : {
+
+    },
+    "BACK TO SAFETY" : {
+
+    },
     "Base colour scheme" : {
 
     },
     "Birthday" : {
+
+    },
+    "Cache encrypted" : {
 
     },
     "Calendar" : {
@@ -475,6 +490,9 @@
     "Download an update first, then the install guide will appear here." : {
 
     },
+    "Downloaded DMGs can sync through your own Google Cloud project. Set this up once, then Hot Cross Buns keeps the OAuth client and refresh token in your Mac Keychain for normal future launches." : {
+
+    },
     "Downloaded file: %@" : {
 
     },
@@ -532,13 +550,25 @@
     "Finish step 1 first — your task lists and calendars will appear here once Google is connected." : {
 
     },
+    "First load can take 10-30 seconds on larger Google accounts." : {
+
+    },
     "First writable (default)" : {
+
+    },
+    "First-launch warnings you may see" : {
+
+    },
+    "For Google, click Advanced, then Go to Hot Cross Buns only if you trust the app and the OAuth project is yours. Personal unverified OAuth clients can keep showing this warning." : {
 
     },
     "Forever" : {
 
     },
     "Generated %@" : {
+
+    },
+    "Google hasn't verified this app" : {
 
     },
     "Google Maps key not configured — showing Apple Maps." : {
@@ -572,6 +602,9 @@
 
     },
     "Hot Cross Buns %@ is available from GitHub Releases." : {
+
+    },
+    "Hot Cross Buns cannot store tasks, events, or notes until a Google account is connected. You can connect later from Settings, but the app will be read-only empty setup until then." : {
 
     },
     "Hot Cross Buns did not find a newer release yet." : {
@@ -660,6 +693,9 @@
 
     },
     "Loading your Google Tasks lists…" : {
+
+    },
+    "Locks when Mac locks" : {
 
     },
     "Looking up location…" : {
@@ -754,7 +790,7 @@
     "No fonts match" : {
 
     },
-    "No lists or calendars yet. Tap Refresh above, or create a list in Google Tasks and try again." : {
+    "No lists or calendars yet. Tap Refresh above, then give Google up to 30 seconds on larger accounts. You can also create a list in Google Tasks and try again." : {
 
     },
     "No log entries at this level yet." : {
@@ -904,6 +940,9 @@
     "Return to add, Esc to cancel" : {
 
     },
+    "Return to add, Esc to close" : {
+
+    },
     "Review sync attention items without changing the underlying replay model." : {
 
     },
@@ -911,6 +950,9 @@
 
     },
     "Run a command once and it will stay here for quick repeat access." : {
+
+    },
+    "Save a desktop OAuth client above, or build the app with an embedded Google Sign-In client." : {
 
     },
     "Saved %@" : {
@@ -935,6 +977,9 @@
 
     },
     "Settings always stays visible so you can re-enable hidden tabs. Keyboard shortcuts for a hidden tab are ignored until it's re-enabled." : {
+
+    },
+    "Share Link…" : {
 
     },
     "Shortcut" : {
@@ -990,6 +1035,9 @@
     "Starts" : {
 
     },
+    "Starts the app automatically when you sign in to this Mac." : {
+
+    },
     "Store" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1019,13 +1067,16 @@
     "Tasks" : {
 
     },
-    "Tasks without a due date show up here. Use the + button to capture a quick thought." : {
+    "Tasks without a due date show up here." : {
 
     },
     "Text size" : {
 
     },
     "That doesn't look like a valid email address." : {
+
+    },
+    "The app stores this OAuth client and the resulting refresh token in your macOS Keychain. Clearing the client removes the saved custom client and token from this Mac." : {
 
     },
     "The DMG is open. Finish the update in Finder, then relaunch the app." : {
@@ -1044,6 +1095,9 @@
 
     },
     "These writes exceeded the automatic retry ceiling (%@ attempts). They stay on this Mac until you retry or discard." : {
+
+    },
+    "This build is missing a Google OAuth client ID. Follow the Google Cloud setup above, rebuild the app, then connect your account." : {
 
     },
     "This deletes \"%@\" and all tasks in it from Google Tasks." : {
@@ -1073,7 +1127,7 @@
     "This is a local review surface only. It uses the existing duplicate index and dismissal rules; it does not change how tasks sync or mutate." : {
 
     },
-    "This is a system-wide shortcut for quick task capture. If the combo is already reserved, Hot Cross Buns keeps your previous working shortcut instead of silently dropping it." : {
+    "This is a system-wide shortcut for the floating quick-capture panel. If the combo is already reserved, Hot Cross Buns keeps your previous working shortcut instead of silently dropping it." : {
 
     },
     "This task may have been deleted in Google Tasks." : {
@@ -1120,6 +1174,9 @@
     "Uncheck to hide a category from the history window. Sync events are off by default because every successful refresh emits one entry." : {
 
     },
+    "Unsigned DMGs and personal Google OAuth clients can show scary system copy. If you built Hot Cross Buns yourself or downloaded it from a trusted release, these are the approval paths to expect." : {
+
+    },
     "Updated %@" : {
 
     },
@@ -1148,9 +1205,6 @@
     "We haven't seen any task lists. Hit Refresh, or create one from the toolbar." : {
 
     },
-    "Welcome to Hot Cross Buns" : {
-
-    },
     "When the query field is non-empty, the fields below are ignored. Invalid queries match nothing — your tasks aren't modified." : {
 
     },
@@ -1163,7 +1217,7 @@
     "You can change all of this later in Settings." : {
 
     },
-    "You can connect Google later from Settings — we'll just show empty states until you do." : {
+    "You may see this while Google is reviewing Hot Cross Buns." : {
 
     },
     "You’ll see a macOS dialog next" : {

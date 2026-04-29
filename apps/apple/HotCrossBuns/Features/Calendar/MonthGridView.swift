@@ -5,7 +5,7 @@ enum CalendarMonthScrollWindow {
     static let pastMonthsKey = "calendar.monthScroll.pastMonths"
     static let futureMonthsKey = "calendar.monthScroll.futureMonths"
     static let defaultPastMonths = 0
-    static let defaultFutureMonths = 12
+    static let defaultFutureMonths = 3
     static let pastRange = 0...24
     static let futureRange = 1...36
 
@@ -273,27 +273,31 @@ struct MonthGridView: View {
         let key = currentGridCacheKey
         guard key != cachedGridKey else { return }
         cachedGridKey = key
-        let filtered = filteredEvents
-        cachedFiltered = filtered
         let first = weekStarts.first ?? anchorDate
         let last = weekStarts.last.flatMap { calendar.date(byAdding: .day, value: 6, to: $0) } ?? first
+        let filtered = filteredEvents(from: first, to: last)
+        cachedFiltered = filtered
         cachedByDay = CalendarGridLayout.eventsByDay(
             filtered,
             from: first,
             to: last,
             calendar: calendar
         )
-        cachedBandsByWeek = buildBandsByWeek(filtered: filtered)
+        cachedBandsByWeek = buildBandsByWeek(byDay: cachedByDay)
         cachedTasksByDay = buildTasksByDay(from: first, to: last)
     }
 
-    private func buildBandsByWeek(filtered: [CalendarEventMirror]) -> [Date: [CalendarGridLayout.MonthBand]] {
+    private func buildBandsByWeek(byDay: [Date: [CalendarEventMirror]]) -> [Date: [CalendarGridLayout.MonthBand]] {
         var bandsByWeek: [Date: [CalendarGridLayout.MonthBand]] = [:]
         for weekStart in weekStarts {
             let days = weekDays(startingAt: weekStart)
-            let weekEnd = calendar.date(byAdding: .day, value: 7, to: weekStart) ?? weekStart
-            let weekEvents = filtered.filter { event in
-                event.startDate < weekEnd && event.endDate > weekStart
+            var seen: Set<CalendarEventMirror.ID> = []
+            var weekEvents: [CalendarEventMirror] = []
+            for day in days {
+                let dayStart = calendar.startOfDay(for: day)
+                for event in byDay[dayStart] ?? [] where seen.insert(event.id).inserted {
+                    weekEvents.append(event)
+                }
             }
             bandsByWeek[weekStart] = CalendarGridLayout.monthBands(for: days, events: weekEvents, calendar: calendar)
         }
@@ -505,21 +509,37 @@ struct MonthGridView: View {
         }
     }
 
-    private var filteredEvents: [CalendarEventMirror] {
-        // Reads model.eventsByCalendar (built once in rebuildSnapshots) so
-        // we walk only the events for the user's selected calendars rather
-        // than filtering the full ~17k+ event corpus on every body eval.
-        var base: [CalendarEventMirror] = []
-        for cal in model.calendarSnapshot.selectedCalendars {
-            if let bucket = model.eventsByCalendar[cal.id] {
-                base.append(contentsOf: bucket.compactMap { model.event(id: $0) })
-            }
-        }
+    private func filteredEvents(from rangeStart: Date, to rangeEnd: Date) -> [CalendarEventMirror] {
+        // Reads the model's pre-bucketed day index so month scrolling only
+        // considers events inside the rendered window. The previous path walked
+        // every selected-calendar event, then re-filtered that corpus per week;
+        // large future calendars made downward scroll-window extension janky.
+        let selectedCalendarIDs = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
         let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return q.isEmpty ? base : base.filter { event in
-            event.summary.localizedCaseInsensitiveContains(q)
-                || event.details.localizedCaseInsensitiveContains(q)
-                || event.location.localizedCaseInsensitiveContains(q)
+
+        var seen: Set<CalendarEventMirror.ID> = []
+        var out: [CalendarEventMirror] = []
+        var cursor = calendar.startOfDay(for: rangeStart)
+        let last = calendar.startOfDay(for: rangeEnd)
+        while cursor <= last {
+            let key = cursor.timeIntervalSinceReferenceDate
+            for eventID in model.eventsByDay[key] ?? [] where seen.insert(eventID).inserted {
+                guard let event = model.event(id: eventID),
+                      selectedCalendarIDs.contains(event.calendarID) else { continue }
+                if q.isEmpty
+                    || event.summary.localizedCaseInsensitiveContains(q)
+                    || event.details.localizedCaseInsensitiveContains(q)
+                    || event.location.localizedCaseInsensitiveContains(q) {
+                    out.append(event)
+                }
+            }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+        }
+
+        return out.sorted { lhs, rhs in
+            if lhs.startDate != rhs.startDate { return lhs.startDate < rhs.startDate }
+            return lhs.id < rhs.id
         }
     }
 

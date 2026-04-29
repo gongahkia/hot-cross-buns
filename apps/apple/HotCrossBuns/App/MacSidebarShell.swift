@@ -409,6 +409,8 @@ struct MacSidebarShell: View {
 
     private func dispatchDeepLinkAction(_ action: HCBDeepLinkAction) {
         switch action {
+        case .openApp:
+            NSApp.activate(ignoringOtherApps: true)
         case .openTask(let id):
             selection = .store
             tabRouter.router(for: sidebarItemKey(.store)).present(.editTask(id))

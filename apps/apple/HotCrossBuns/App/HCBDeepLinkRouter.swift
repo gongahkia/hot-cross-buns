@@ -8,6 +8,7 @@ import Foundation
 //  - hotcrossbuns://new/task?title=&notes=&due=&list=&tags=
 //  - hotcrossbuns://new/event?title=&start=&end=&location=&calendar=&allday=
 //  - hotcrossbuns://search?q=
+//  - hotcrossbuns://open                          → activate the app
 //
 // Safety invariants (see URGENT-TODO §6.3):
 //  - No URL may commit a write directly. `new/*` prefills a sheet; the user must
@@ -19,6 +20,7 @@ import Foundation
 //    memory via a pathological query string.
 
 enum HCBDeepLinkAction: Equatable, Sendable {
+    case openApp
     case openTask(id: String)
     case openEvent(id: String)
     case newTask(DeepLinkTaskPrefill)
@@ -82,6 +84,11 @@ enum HCBDeepLinkRouter {
     static let maxIdLength = 256
     static let helpRoutes: [HelpRoute] = [
         HelpRoute(
+            title: "Open app",
+            example: "hotcrossbuns://open",
+            summary: "Activates Hot Cross Buns without changing the current view."
+        ),
+        HelpRoute(
             title: "Open task",
             example: "hotcrossbuns://task/abc123",
             summary: "Opens a specific task in the Tasks surface."
@@ -113,7 +120,7 @@ enum HCBDeepLinkRouter {
             return .failure(.init(message: "Not a hotcrossbuns:// URL."))
         }
         guard let host = url.host?.lowercased(), host.isEmpty == false else {
-            return .failure(.init(message: "Missing route — expected hotcrossbuns://task, event, new, or search."))
+            return .failure(.init(message: "Missing route — expected hotcrossbuns://open, task, event, new, or search."))
         }
 
         // `/` path components from URL.pathComponents include "/" entries; strip them.
@@ -125,6 +132,9 @@ enum HCBDeepLinkRouter {
         }
 
         switch host {
+        case "open", "home":
+            return .success(.openApp)
+
         case "task":
             guard let id = pathComponents.first, id.isEmpty == false else {
                 return .failure(.init(message: "Missing task id — expected hotcrossbuns://task/<id>."))
@@ -160,7 +170,7 @@ enum HCBDeepLinkRouter {
             return .success(.search(q))
 
         default:
-            return .failure(.init(message: "Unknown route '\(host)' — expected task, event, new, or search."))
+            return .failure(.init(message: "Unknown route '\(host)' — expected open, task, event, new, or search."))
         }
     }
 
