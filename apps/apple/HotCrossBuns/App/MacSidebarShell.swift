@@ -61,14 +61,32 @@ private struct SettingsTransferPresentationModifier: ViewModifier {
     @Binding var pendingImport: SettingsTransferBundle?
     let applyImport: () -> Void
 
+    private var isImportPresented: Binding<Bool> {
+        Binding(
+            get: { importPreview != nil },
+            set: { isPresented in
+                if isPresented == false {
+                    importPreview = nil
+                    pendingImport = nil
+                }
+            }
+        )
+    }
+
     func body(content: Content) -> some View {
         content
             .confirmationDialog(
                 "Import Settings?",
-                item: $importPreview,
+                isPresented: isImportPresented,
                 titleVisibility: .visible,
-                actions: importActions,
-                message: importMessage
+                actions: {
+                    if let importPreview {
+                        importActions(importPreview)
+                    }
+                },
+                message: {
+                    Text(importPreview?.message ?? "")
+                }
             )
             .overlay {
                 BulkResultToast(
@@ -91,10 +109,6 @@ private struct SettingsTransferPresentationModifier: ViewModifier {
         Button("Cancel", role: .cancel) {
             pendingImport = nil
         }
-    }
-
-    private func importMessage(_ preview: SettingsImportPreview) -> Text {
-        Text(preview.message)
     }
 }
 
