@@ -979,6 +979,7 @@ struct MacSidebarShell: View {
     }
 
     private func badge(for item: SidebarItem) -> String? {
+        guard model.account != nil else { return nil }
         switch item {
         case .calendar:
             let count = model.todaySnapshot.scheduledEvents.count
