@@ -76,6 +76,7 @@ struct EventContextMenu: View {
             let eventURL = HCBDeepLinkBuilder.eventURL(for: event)
             Button("Copy Link") {
                 copyToPasteboard(eventURL.absoluteString)
+                postCopyToast("Event link copied to clipboard.")
             }
             ShareLink(item: eventURL) {
                 Text("Share Link…")
@@ -83,11 +84,13 @@ struct EventContextMenu: View {
             if let googleEventURL {
                 Button("Copy Google Calendar Link") {
                     copyToPasteboard(googleEventURL.absoluteString)
+                    postCopyToast("Google Calendar link copied to clipboard.")
                 }
             }
             Button("Copy as Markdown") {
                 let markdown = EventMarkdownExporter.markdown(for: event, calendarTitle: calendarTitle)
                 copyToPasteboard(markdown)
+                postCopyToast("Event Markdown copied to clipboard.")
             }
             Button("Export .ics…") {
                 exportICS()
@@ -108,6 +111,10 @@ struct EventContextMenu: View {
     private func copyToPasteboard(_ value: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(value, forType: .string)
+    }
+
+    private func postCopyToast(_ message: String) {
+        NotificationCenter.default.post(name: .hcbClipboardMessage, object: message)
     }
 
     private func move(to calendarID: CalendarListMirror.ID) async {
