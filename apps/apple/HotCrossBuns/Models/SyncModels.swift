@@ -253,6 +253,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var pastEventBehavior: PastEventBehavior
     var pastEventDeleteThresholdDays: Int
     var allowDeletingAttendeeEvents: Bool
+    var showCompletedItemsInCalendar: Bool
     var overdueTaskBehavior: OverdueTaskBehavior
     var completedTaskBehavior: CompletedTaskBehavior
     var completedTaskDeleteThresholdDays: Int
@@ -322,6 +323,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         pastEventBehavior: PastEventBehavior = .showAll,
         pastEventDeleteThresholdDays: Int = 30,
         allowDeletingAttendeeEvents: Bool = false,
+        showCompletedItemsInCalendar: Bool = false,
         overdueTaskBehavior: OverdueTaskBehavior = .showAll,
         completedTaskBehavior: CompletedTaskBehavior = .showAll,
         completedTaskDeleteThresholdDays: Int = 30,
@@ -384,6 +386,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.pastEventBehavior = pastEventBehavior
         self.pastEventDeleteThresholdDays = max(1, min(365, pastEventDeleteThresholdDays))
         self.allowDeletingAttendeeEvents = allowDeletingAttendeeEvents
+        self.showCompletedItemsInCalendar = showCompletedItemsInCalendar
         self.overdueTaskBehavior = overdueTaskBehavior
         self.completedTaskBehavior = completedTaskBehavior
         self.completedTaskDeleteThresholdDays = max(1, min(365, completedTaskDeleteThresholdDays))
@@ -448,6 +451,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case pastEventBehavior
         case pastEventDeleteThresholdDays
         case allowDeletingAttendeeEvents
+        case showCompletedItemsInCalendar
         case overdueTaskBehavior
         case completedTaskBehavior
         case completedTaskDeleteThresholdDays
@@ -551,6 +555,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         let rawEventThreshold = try container.decodeIfPresent(Int.self, forKey: .pastEventDeleteThresholdDays) ?? 30
         pastEventDeleteThresholdDays = max(1, min(365, rawEventThreshold))
         allowDeletingAttendeeEvents = try container.decodeIfPresent(Bool.self, forKey: .allowDeletingAttendeeEvents) ?? false
+        showCompletedItemsInCalendar = try container.decodeIfPresent(Bool.self, forKey: .showCompletedItemsInCalendar) ?? false
         overdueTaskBehavior = try container.decodeIfPresent(OverdueTaskBehavior.self, forKey: .overdueTaskBehavior) ?? .showAll
         completedTaskBehavior = try container.decodeIfPresent(CompletedTaskBehavior.self, forKey: .completedTaskBehavior) ?? .showAll
         let rawTaskThreshold = try container.decodeIfPresent(Int.self, forKey: .completedTaskDeleteThresholdDays) ?? 30
