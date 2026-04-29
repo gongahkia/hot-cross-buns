@@ -51,6 +51,7 @@ final class AppModel {
     var pendingStoreFilterKey: String?
     // Populated on first launch-time check; DiagnosticsView surfaces.
     private(set) var keychainHealth: KeychainHealth = .unknown
+    private(set) var customOAuthClientConfiguration: GoogleOAuthClientConfiguration?
     // Days between this launch and the previous launch's wall-clock,
     // computed once in loadInitialState. Surfaced in AppStatusBanner
     // alongside the .syncing state so users see "5 days since last
@@ -157,6 +158,7 @@ final class AppModel {
         self.notificationScheduler = notificationScheduler
         self.spotlightIndexer = spotlightIndexer
         self.settings = settings
+        self.customOAuthClientConfiguration = authService.customOAuthClientConfiguration
         self.pastCleanupCoordinator = PastCleanupCoordinator(model: self)
     }
 
@@ -194,6 +196,7 @@ final class AppModel {
         // the Keychain is locked/denied the restore will fail generically;
         // the probe lets us surface a specific reason in Diagnostics.
         keychainHealth = KeychainProbe.run()
+        customOAuthClientConfiguration = authService.customOAuthClientConfiguration
         if keychainHealth == .denied {
             AppLogger.warn("keychain inaccessible at launch", category: .auth)
         }
@@ -267,6 +270,32 @@ final class AppModel {
             } else {
                 authState = .failed(error.localizedDescription)
             }
+        }
+    }
+
+    func saveCustomOAuthClientConfiguration(clientID: String, clientSecret: String?) {
+        do {
+            let saved = try authService.saveCustomOAuthClientConfiguration(clientID: clientID, clientSecret: clientSecret)
+            customOAuthClientConfiguration = saved
+            if account?.authProvider == .customDesktopOAuth {
+                account = nil
+                authState = .signedOut
+                syncState = .idle
+                Task { await saveCurrentState() }
+            }
+        } catch {
+            authState = .failed(error.localizedDescription)
+        }
+    }
+
+    func clearCustomOAuthClientConfiguration() {
+        authService.clearCustomOAuthClientConfiguration()
+        customOAuthClientConfiguration = nil
+        if account?.authProvider == .customDesktopOAuth {
+            account = nil
+            authState = .signedOut
+            syncState = .idle
+            Task { await saveCurrentState() }
         }
     }
 

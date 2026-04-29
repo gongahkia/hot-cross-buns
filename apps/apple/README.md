@@ -45,14 +45,25 @@ The app uses the native Google Sign-In SDK and requests these Google scopes duri
 - `https://www.googleapis.com/auth/tasks`
 - `https://www.googleapis.com/auth/calendar`
 
-Create a Google Cloud OAuth client for macOS, then provide these build settings locally:
+Hot Cross Buns does not run a hosted OAuth proxy. Each source build should use a Google Cloud OAuth client owned by the person or organization using that build. Create a Google Cloud OAuth client for macOS, then provide these build settings locally:
 
 - `GOOGLE_MACOS_CLIENT_ID`
 - `GOOGLE_MACOS_REVERSED_CLIENT_ID`
 
 The committed defaults are intentionally blank in `Configuration/GoogleOAuth.xcconfig`, and that file optionally includes the ignored `Configuration/GoogleOAuth.local.xcconfig` when present. Use `Configuration/GoogleOAuth.example.xcconfig` as the template for your local override and do not commit real OAuth client IDs. You can also pass values directly to `xcodebuild` if you prefer.
 
-Public DMGs are packaged locally. Before running the local release commands, create `Configuration/GoogleOAuth.local.xcconfig` with `GOOGLE_MACOS_CLIENT_ID` and `GOOGLE_MACOS_REVERSED_CLIENT_ID` so the uploaded app can use the production Google OAuth client.
+Setup checklist:
+
+1. Create a Google Cloud project.
+2. Enable the Google Tasks API and Google Calendar API.
+3. Configure the Google Auth platform / OAuth consent screen. For personal Gmail use, choose `External` and add yourself as a test user while setting up.
+4. Create an iOS/macOS OAuth client for bundle ID `com.gongahkia.hotcrossbuns.mac`.
+5. Copy the client ID and reversed client ID into `Configuration/GoogleOAuth.local.xcconfig`.
+6. Rebuild the app.
+
+For ongoing personal use, publish the OAuth app to `In production` after setup. Google's `Testing` publishing status issues refresh tokens that expire after 7 days for the Tasks and Calendar scopes. An unverified personal production client may still show Google's warning screen, but it avoids using the maintainer's Google Cloud project and avoids the testing-mode seven-day refresh-token expiry.
+
+Public DMGs are packaged locally. Do not upload a public DMG with a private personal OAuth client unless you intend to complete Google's verification path for that client. A build without OAuth values can still launch, but Google sign-in remains disabled until the user rebuilds with their own values.
 
 ```bash
 xcodebuild \
