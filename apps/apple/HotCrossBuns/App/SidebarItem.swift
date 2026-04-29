@@ -69,6 +69,7 @@ extension Notification.Name {
     // on whether the task currently has a due date.
     static let hcbRevealTaskInStore = Notification.Name("hcb.reveal.task.in.store")
     static let hcbRevealEventInCalendar = Notification.Name("hcb.reveal.event.in.calendar")
+    static let hcbClipboardMessage = Notification.Name("hcb.clipboard.message")
     // Posted by the "Settings…" menu command + ⌘,; AppDelegate opens the
     // detached Settings window in response.
     static let hcbOpenSettingsWindow = Notification.Name("hcb.open.settings.window")

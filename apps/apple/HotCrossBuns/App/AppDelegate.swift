@@ -56,6 +56,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         let menu = NSMenu()
 
+        if let overdueCount = appModel?.todaySnapshot.overdueCount, overdueCount > 0 {
+            let noun = overdueCount == 1 ? "task" : "tasks"
+            let item = NSMenuItem(title: "\(overdueCount) overdue \(noun)", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+            menu.addItem(.separator())
+        }
+
         let newTask = NSMenuItem(title: "New Task", action: #selector(dockNewTask), keyEquivalent: "")
         newTask.target = self
         menu.addItem(newTask)

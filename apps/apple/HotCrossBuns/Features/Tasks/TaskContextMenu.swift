@@ -100,6 +100,7 @@ struct TaskContextMenu: View {
             let taskURL = HCBDeepLinkBuilder.taskURL(for: task)
             Button("Copy Link") {
                 copyToPasteboard(taskURL.absoluteString)
+                postCopyToast("Task link copied to clipboard.")
             }
             ShareLink(item: taskURL) {
                 Text("Share Link…")
@@ -107,6 +108,7 @@ struct TaskContextMenu: View {
             Button("Copy as Markdown") {
                 let markdown = TaskMarkdownExporter.markdown(for: task, taskListTitle: listTitle)
                 copyToPasteboard(markdown)
+                postCopyToast("Task Markdown copied to clipboard.")
             }
         }
 
@@ -125,5 +127,9 @@ struct TaskContextMenu: View {
     private func copyToPasteboard(_ value: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(value, forType: .string)
+    }
+
+    private func postCopyToast(_ message: String) {
+        NotificationCenter.default.post(name: .hcbClipboardMessage, object: message)
     }
 }

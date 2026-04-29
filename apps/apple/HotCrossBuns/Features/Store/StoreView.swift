@@ -649,11 +649,18 @@ struct NotesView: View {
                         description: Text("Sign in to see undated tasks here.")
                     )
                 } else if undatedTasks.isEmpty {
-                    ContentUnavailableView(
-                        "No notes",
-                        systemImage: "note.text",
-                        description: Text("Tasks without a due date show up here. Use the + button to capture a quick thought.")
-                    )
+                    ContentUnavailableView {
+                        Label("No notes", systemImage: "note.text")
+                    } description: {
+                        Text("Tasks without a due date show up here.")
+                    } actions: {
+                        Button {
+                            router?.present(.quickCreateNote(listID: nil))
+                        } label: {
+                            Label("Create Note", systemImage: "plus")
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
                 } else {
                     kanbanContent
                 }

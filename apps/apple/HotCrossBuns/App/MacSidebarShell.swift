@@ -70,6 +70,7 @@ struct MacSidebarShell: View {
     @State private var appCommandActions = AppCommandActions()
     @State private var appShortcutMonitor: Any?
     @State private var deepLinkErrorMessage: String?
+    @State private var clipboardToastMessage: String?
     // Leader-key chord state (§6.9). `nil` = inactive; non-nil = collecting
     // keys after a ⌘K press. timeoutTask cancels the collecting state after
     // 3s of inactivity so a stray leader press doesn't lock out single-key
@@ -139,6 +140,13 @@ struct MacSidebarShell: View {
             }
             .overlay {
                 BulkResultToast(
+                    message: $clipboardToastMessage,
+                    successTitle: "Copied",
+                    successSymbol: "doc.on.clipboard"
+                )
+            }
+            .overlay {
+                BulkResultToast(
                     message: Binding(
                         get: { updater.toastState?.message },
                         set: { newValue in
@@ -186,6 +194,9 @@ struct MacSidebarShell: View {
                 guard let eventID = note.object as? CalendarEventMirror.ID else { return }
                 selection = .calendar
                 tabRouter.router(for: sidebarItemKey(.calendar)).present(.editEvent(eventID))
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .hcbClipboardMessage)) { note in
+                clipboardToastMessage = (note.object as? String) ?? "Copied to clipboard."
             }
             .onDisappear {
                 uninstallAppShortcutMonitor()
@@ -262,16 +273,7 @@ struct MacSidebarShell: View {
                     handlePendingAppIntentRoute()
                 }
             }
-            .onOpenURL { url in
-                // Deep-link scheme is routed to HCBDeepLinkRouter; everything
-                // else (primarily the Google OAuth redirect) stays on the
-                // existing auth path so sign-in is never intercepted.
-                if url.scheme?.lowercased() == HCBDeepLinkRouter.scheme {
-                    handleDeepLink(url)
-                } else {
-                    model.handleAuthRedirect(url)
-                }
-            }
+            .onOpenURL(perform: handleIncomingURL)
             .onContinueUserActivity(CSSearchableItemActionType) { userActivity in
                 handleSpotlightActivity(userActivity)
             }
@@ -297,6 +299,17 @@ struct MacSidebarShell: View {
         case .customFilter(let f):
             selection = .store
             model.pendingStoreFilterKey = "custom:\(f.id.uuidString)"
+        }
+    }
+
+    private func handleIncomingURL(_ url: URL) {
+        // Deep-link scheme is routed to HCBDeepLinkRouter; everything else
+        // (primarily the Google OAuth redirect) stays on the existing auth
+        // path so sign-in is never intercepted.
+        if url.scheme?.lowercased() == HCBDeepLinkRouter.scheme {
+            handleDeepLink(url)
+        } else {
+            model.handleAuthRedirect(url)
         }
     }
 
@@ -378,6 +391,10 @@ struct MacSidebarShell: View {
             }
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
+            if model.settings.cacheEncryptionEnabled {
+                Divider()
+                encryptedCacheFooter
+            }
         }
         .frame(
             minWidth: sidebarMinWidth,
@@ -385,6 +402,26 @@ struct MacSidebarShell: View {
             maxWidth: sidebarMaxWidth,
             alignment: .topLeading
         )
+    }
+
+    private var encryptedCacheFooter: some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Cache encrypted")
+                    .hcbFont(.caption, weight: .semibold)
+                Text("Locks when Mac locks")
+                    .hcbFont(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        } icon: {
+            Image(systemName: "lock.fill")
+                .foregroundStyle(AppColor.moss)
+        }
+        .labelStyle(.titleAndIcon)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .hcbScaledPadding(.horizontal, 14)
+        .hcbScaledPadding(.vertical, 10)
+        .help("Local cache encryption uses a key stored in macOS Keychain. There is no separate app idle timer; access follows your Mac lock state.")
     }
 
     @ViewBuilder
