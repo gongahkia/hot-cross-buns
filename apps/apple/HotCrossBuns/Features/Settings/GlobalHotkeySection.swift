@@ -3,6 +3,7 @@ import SwiftUI
 
 struct GlobalHotkeySection: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.globalHotkeyConfigurator) private var globalHotkeyConfigurator
     @State private var isRecording = false
 
     var body: some View {
@@ -133,11 +134,7 @@ struct GlobalHotkeySection: View {
     }
 
     private func configure(enabled: Bool, binding: GlobalHotkeyBinding) -> GlobalHotkeyRegistrationState {
-        guard let delegate = NSApp.delegate as? AppDelegate else {
-            return .failed("Hotkey registration is unavailable right now.")
-        }
-        delegate.appModel = model
-        return delegate.configureGlobalHotkey(enabled: enabled, binding: binding)
+        globalHotkeyConfigurator(enabled: enabled, binding: binding, model: model)
     }
 }
 
