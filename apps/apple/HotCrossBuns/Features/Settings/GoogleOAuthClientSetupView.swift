@@ -36,6 +36,7 @@ struct GoogleOAuthClientSetupView: View {
                     setupStep("For daily use without weekly re-consent, publish the OAuth app to In production.")
                 }
                 .hcbScaledPadding(.top, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             TextField("Desktop OAuth client ID", text: $clientID)
@@ -88,15 +89,15 @@ struct GoogleOAuthClientSetupView: View {
     }
 
     private func setupStep(_ text: String) -> some View {
-        Label {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Circle()
+                .fill(Color.secondary)
+                .frame(width: 4, height: 4)
             Text(text)
-                .foregroundStyle(.secondary)
-        } icon: {
-            Image(systemName: "circle.fill")
-                .font(.system(size: 5))
                 .foregroundStyle(.secondary)
         }
         .hcbFont(.caption)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func loadExistingConfiguration() {
