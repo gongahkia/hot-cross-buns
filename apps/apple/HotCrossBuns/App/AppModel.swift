@@ -12,6 +12,7 @@ final class AppModel {
     private let cacheStore: LocalCacheStore
     private let notificationScheduler: LocalNotificationScheduler
     private let spotlightIndexer: SpotlightIndexer
+    private let loginItemController: LoginItemController
 
     private(set) var account: GoogleAccount?
     // Default to .authenticating (not .signedOut) so the pre-loadInitialState
@@ -52,6 +53,8 @@ final class AppModel {
     // Populated on first launch-time check; DiagnosticsView surfaces.
     private(set) var keychainHealth: KeychainHealth = .unknown
     private(set) var customOAuthClientConfiguration: GoogleOAuthClientConfiguration?
+    private(set) var opensAtLogin: Bool = false
+    private(set) var loginItemError: String?
     // Days between this launch and the previous launch's wall-clock,
     // computed once in loadInitialState. Surfaced in AppStatusBanner
     // alongside the .syncing state so users see "5 days since last
@@ -152,6 +155,7 @@ final class AppModel {
         cacheStore: LocalCacheStore,
         notificationScheduler: LocalNotificationScheduler = LocalNotificationScheduler(),
         spotlightIndexer: SpotlightIndexer = SpotlightIndexer(),
+        loginItemController: LoginItemController = LoginItemController(),
         settings: AppSettings = .default
     ) {
         self.authService = authService
@@ -161,8 +165,10 @@ final class AppModel {
         self.cacheStore = cacheStore
         self.notificationScheduler = notificationScheduler
         self.spotlightIndexer = spotlightIndexer
+        self.loginItemController = loginItemController
         self.settings = settings
         self.customOAuthClientConfiguration = authService.customOAuthClientConfiguration
+        self.opensAtLogin = loginItemController.isEnabled
         self.pastCleanupCoordinator = PastCleanupCoordinator(model: self)
     }
 
@@ -2026,6 +2032,21 @@ final class AppModel {
         guard settings != next else { return }
         settings = next
         scheduleCacheSave()
+    }
+
+    func refreshOpenAtLoginStatus() {
+        opensAtLogin = loginItemController.isEnabled
+    }
+
+    func setOpenAtLogin(_ isEnabled: Bool) {
+        loginItemError = nil
+        do {
+            try loginItemController.setEnabled(isEnabled)
+            opensAtLogin = loginItemController.isEnabled
+        } catch {
+            opensAtLogin = loginItemController.isEnabled
+            loginItemError = error.localizedDescription
+        }
     }
 
     // Per-tab list filters. Nil = inherit the global selectedTaskListIDs.

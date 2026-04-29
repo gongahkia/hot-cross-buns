@@ -134,6 +134,8 @@ struct SettingsView: View {
 
             KeybindingsSection()
 
+            OpenAtLoginSection()
+
             Section("Mac surfaces") {
                 Toggle("Menu bar extra", isOn: menuBarExtraBinding)
                 Picker("Menu bar panel", selection: menuBarStyleBinding) {

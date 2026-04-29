@@ -165,6 +165,8 @@ private struct GeneralTab: View {
                 )
             }
 
+            OpenAtLoginSection()
+
             if model.account != nil {
                 Section("Sync") {
                     Picker("Mode", selection: syncModeBinding) {
