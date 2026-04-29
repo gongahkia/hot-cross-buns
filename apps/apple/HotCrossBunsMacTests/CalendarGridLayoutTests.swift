@@ -105,4 +105,79 @@ final class CalendarGridLayoutTests: XCTestCase {
         XCTAssertEqual(byID["a"]?.columnCount, 1)
         XCTAssertEqual(byID["b"]?.columnCount, 1)
     }
+
+    func testPerformanceEventsByDayLargeWindow() {
+        let start = day(2026, 1, 1)
+        let end = day(2026, 12, 31)
+        let events = makeYearEventCorpus(startingAt: start)
+        var bucketCount = 0
+
+        measure(metrics: [XCTClockMetric()]) {
+            let buckets = CalendarGridLayout.eventsByDay(events, from: start, to: end, calendar: calendar)
+            bucketCount = buckets.count
+        }
+        XCTAssertGreaterThan(bucketCount, 0)
+    }
+
+    func testPerformanceMonthBandsDenseWeek() {
+        let week = CalendarGridLayout.weekDays(containing: day(2026, 4, 15), calendar: calendar)
+        let weekStart = week[0]
+        let events = (0..<260).map { index in
+            let startOffset = index % 7
+            let span = min(6 - startOffset, 1 + (index % 4))
+            let start = calendar.date(byAdding: .day, value: startOffset, to: weekStart)!
+            let end = calendar.date(byAdding: .day, value: span + 1, to: start)!
+            return event(id: "band-\(index)", start: start, end: end, allDay: true)
+        }
+        var bandCount = 0
+
+        measure(metrics: [XCTClockMetric()]) {
+            let bands = CalendarGridLayout.monthBands(for: week, events: events, calendar: calendar)
+            bandCount = bands.count
+        }
+        XCTAssertGreaterThan(bandCount, 0)
+    }
+
+    func testPerformanceDayLayoutDenseOverlap() {
+        let events = (0..<420).map { index in
+            let start = day(
+                2026,
+                4,
+                20,
+                hour: 8 + (index % 8),
+                minute: (index % 4) * 15
+            )
+            let end = calendar.date(byAdding: .minute, value: 90, to: start)!
+            return event(id: "overlap-\(index)", start: start, end: end)
+        }
+        var laidOutCount = 0
+
+        measure(metrics: [XCTClockMetric()]) {
+            let laidOut = CalendarGridLayout.layout(eventsInDay: events, calendar: calendar)
+            laidOutCount = laidOut.count
+        }
+        XCTAssertEqual(laidOutCount, events.count)
+    }
+
+    private func makeYearEventCorpus(startingAt start: Date) -> [CalendarEventMirror] {
+        var events: [CalendarEventMirror] = []
+        for dayOffset in 0..<365 {
+            guard let date = calendar.date(byAdding: .day, value: dayOffset, to: start) else { continue }
+            for slot in 0..<4 {
+                let eventStart = calendar.date(byAdding: .hour, value: 8 + (slot * 2), to: date)!
+                let eventEnd = calendar.date(byAdding: .minute, value: 45, to: eventStart)!
+                events.append(event(id: "timed-\(dayOffset)-\(slot)", start: eventStart, end: eventEnd))
+            }
+            if dayOffset % 5 == 0 {
+                let eventEnd = calendar.date(byAdding: .day, value: 3, to: date)!
+                events.append(event(id: "span-\(dayOffset)", start: date, end: eventEnd, allDay: true))
+            }
+            if dayOffset % 11 == 0 {
+                let eventStart = calendar.date(byAdding: .hour, value: 19, to: date)!
+                let eventEnd = calendar.date(byAdding: .hour, value: 2, to: eventStart)!
+                events.append(event(id: "evening-\(dayOffset)", start: eventStart, end: eventEnd))
+            }
+        }
+        return events
+    }
 }

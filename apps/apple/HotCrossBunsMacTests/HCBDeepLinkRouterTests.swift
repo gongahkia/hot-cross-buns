@@ -36,6 +36,11 @@ final class HCBDeepLinkRouterTests: XCTestCase {
         if case .success = route("hotcrossbuns://") { XCTFail("should have failed") }
     }
 
+    func testOpenAppRoute() throws {
+        let action = try route("hotcrossbuns://open").get()
+        XCTAssertEqual(action, .openApp)
+    }
+
     // MARK: - task
 
     func testOpenTask() throws {

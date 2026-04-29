@@ -197,28 +197,31 @@ private enum OAuthLoopbackPage {
     case failure(String)
 
     var html: String {
-        let isSuccess: Bool
         let eyebrow: String
         let title: String
         let message: String
         let symbol: String
         let accent: String
+        let actionMarkup: String
+        let actionHint: String
 
         switch self {
         case .success:
-            isSuccess = true
             eyebrow = "Google account connected"
-            title = "Sign-in finished"
-            message = "You can close this tab and return to Hot Cross Buns. Sync will continue in the app."
-            symbol = "OK"
+            title = "You're ready to sync"
+            message = "Hot Cross Buns has received Google's sign-in response. Return to the app to finish loading your tasks and calendar."
+            symbol = "✓"
             accent = "#e86f3d"
+            actionMarkup = #"<a class="primary-action" href="hotcrossbuns://open">Return to Hot Cross Buns</a>"#
+            actionHint = "If the browser stays open, close this tab manually. The app already received the sign-in result."
         case .failure(let body):
-            isSuccess = false
             eyebrow = "Google sign-in did not finish"
             title = "Connection stopped"
             message = body
             symbol = "!"
             accent = "#d45858"
+            actionMarkup = #"<span class="manual-action">Close this tab manually.</span>"#
+            actionHint = "Return to Hot Cross Buns and try connecting Google again from Settings."
         }
 
         return """
@@ -228,108 +231,208 @@ private enum OAuthLoopbackPage {
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <title>Hot Cross Buns</title>
-          <style>
-            :root {
-              color-scheme: light dark;
-              --bg: #f6f1ea;
-              --panel: rgba(255, 255, 255, 0.82);
-              --ink: #272422;
-              --muted: #716a63;
-              --line: rgba(39, 36, 34, 0.12);
-              --accent: \(accent);
-            }
-            @media (prefers-color-scheme: dark) {
-              :root {
-                --bg: #211f1c;
-                --panel: rgba(52, 50, 45, 0.84);
-                --ink: #f2eee8;
-                --muted: #bbb2a8;
-                --line: rgba(242, 238, 232, 0.12);
-              }
-            }
-            * { box-sizing: border-box; }
-            body {
-              min-height: 100vh;
-              margin: 0;
-              display: grid;
-              place-items: center;
-              padding: 32px;
-              background: var(--bg);
-              color: var(--ink);
-              font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
-              line-height: 1.45;
-            }
-            main {
-              width: min(560px, 100%);
-              padding: 28px;
-              border: 1px solid var(--line);
-              border-radius: 8px;
-              background: var(--panel);
-              box-shadow: 0 24px 80px rgba(0, 0, 0, 0.16);
-              backdrop-filter: blur(20px);
-            }
-            .mark {
-              width: 48px;
-              height: 48px;
-              display: grid;
-              place-items: center;
-              border-radius: 8px;
-              background: var(--accent);
-              color: white;
-              font-size: 18px;
-              font-weight: 800;
-              margin-bottom: 18px;
-            }
-            .eyebrow {
-              margin: 0 0 6px;
-              color: var(--accent);
-              font-size: 13px;
-              font-weight: 700;
-              letter-spacing: 0;
-              text-transform: uppercase;
-            }
-            h1 {
-              margin: 0;
-              font-size: clamp(30px, 6vw, 44px);
-              line-height: 1.05;
-              letter-spacing: 0;
-            }
-            p {
-              margin: 14px 0 0;
-              color: var(--muted);
-              font-size: 17px;
-            }
-            .footer {
-              margin-top: 24px;
-              padding-top: 18px;
-              border-top: 1px solid var(--line);
-              font-size: 14px;
-              color: var(--muted);
-            }
-            button {
-              margin-top: 22px;
-              border: 0;
-              border-radius: 8px;
-              padding: 10px 14px;
-              background: var(--accent);
-              color: white;
-              font: inherit;
-              font-weight: 700;
-              cursor: pointer;
-            }
-          </style>
-        </head>
-        <body>
-          <main>
-            <div class="mark" aria-hidden="true">\(symbol)</div>
-            <p class="eyebrow">\(Self.escape(eyebrow))</p>
-            <h1>\(Self.escape(title))</h1>
-            <p>\(Self.escape(message))</p>
-            \(isSuccess ? #"<button onclick="window.close()">Close tab</button>"# : "")
-            <div class="footer">Hot Cross Buns is listening only on this temporary local callback while sign-in completes.</div>
-          </main>
-        </body>
-        </html>
+                  <style>
+                    :root {
+                      color-scheme: light dark;
+                      --bg: #f7f3ed;
+                      --panel: rgba(255, 255, 255, 0.88);
+                      --panel-strong: #fffdf9;
+                      --ink: #272422;
+                      --muted: #716a63;
+                      --line: rgba(39, 36, 34, 0.12);
+                      --accent: \(accent);
+                      --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+                    }
+                    @media (prefers-color-scheme: dark) {
+                      :root {
+                        --bg: #1f1d1a;
+                        --panel: rgba(48, 46, 41, 0.9);
+                        --panel-strong: #302e29;
+                        --ink: #f2eee8;
+                        --muted: #bbb2a8;
+                        --line: rgba(242, 238, 232, 0.12);
+                      }
+                    }
+                    * { box-sizing: border-box; }
+                    body {
+                      min-height: 100vh;
+                      margin: 0;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      padding: clamp(24px, 5vw, 72px);
+                      background:
+                        radial-gradient(circle at 22% 18%, var(--accent-soft), transparent 34%),
+                        linear-gradient(135deg, var(--bg), color-mix(in srgb, var(--bg) 88%, var(--accent) 12%));
+                      color: var(--ink);
+                      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+                      line-height: 1.45;
+                    }
+                    main {
+                      width: min(840px, 100%);
+                      min-height: 420px;
+                      display: grid;
+                      grid-template-columns: minmax(0, 1.25fr) minmax(260px, 0.75fr);
+                      overflow: hidden;
+                      border: 1px solid var(--line);
+                      border-radius: 18px;
+                      background: var(--panel);
+                      box-shadow: 0 28px 90px rgba(0, 0, 0, 0.18);
+                      backdrop-filter: blur(24px);
+                    }
+                    section {
+                      padding: clamp(32px, 5vw, 56px);
+                    }
+                    aside {
+                      display: flex;
+                      flex-direction: column;
+                      justify-content: space-between;
+                      gap: 24px;
+                      padding: clamp(28px, 4vw, 42px);
+                      border-left: 1px solid var(--line);
+                      background: color-mix(in srgb, var(--panel-strong) 88%, var(--accent) 12%);
+                    }
+                    .mark {
+                      width: 56px;
+                      height: 56px;
+                      display: grid;
+                      place-items: center;
+                      border-radius: 16px;
+                      background: var(--accent);
+                      color: white;
+                      font-size: 30px;
+                      font-weight: 800;
+                      margin-bottom: 26px;
+                    }
+                    .eyebrow {
+                      margin: 0 0 6px;
+                      color: var(--accent);
+                      font-size: 12px;
+                      font-weight: 700;
+                      letter-spacing: 0;
+                      text-transform: uppercase;
+                    }
+                    h1 {
+                      margin: 0;
+                      max-width: 12ch;
+                      font-size: clamp(40px, 7vw, 64px);
+                      line-height: 0.98;
+                      letter-spacing: 0;
+                    }
+                    p {
+                      max-width: 48ch;
+                      margin: 20px 0 0;
+                      color: var(--muted);
+                      font-size: 17px;
+                    }
+                    .primary-action {
+                      display: inline-block;
+                      margin-top: 30px;
+                      border: 0;
+                      border-radius: 8px;
+                      padding: 12px 16px;
+                      background: var(--accent);
+                      color: white;
+                      font: inherit;
+                      font-weight: 700;
+                      text-decoration: none;
+                      cursor: pointer;
+                    }
+                    .manual-action {
+                      display: inline-block;
+                      margin-top: 30px;
+                      color: var(--accent);
+                      font-weight: 800;
+                    }
+                    .action-hint {
+                      max-width: 42ch;
+                      margin-top: 12px;
+                      font-size: 14px;
+                    }
+                    .app-name {
+                      display: flex;
+                      align-items: center;
+                      gap: 10px;
+                      color: var(--ink);
+                      font-size: 15px;
+                      font-weight: 800;
+                    }
+                    .bun {
+                      width: 34px;
+                      height: 34px;
+                      display: grid;
+                      place-items: center;
+                      border-radius: 10px;
+                      background: var(--accent);
+                      color: white;
+                      font-weight: 900;
+                    }
+                    .next {
+                      display: grid;
+                      gap: 12px;
+                      margin: 0;
+                      padding: 0;
+                      list-style: none;
+                    }
+                    .next li {
+                      display: flex;
+                      gap: 10px;
+                      align-items: flex-start;
+                      color: var(--muted);
+                      font-size: 14px;
+                    }
+                    .dot {
+                      width: 8px;
+                      height: 8px;
+                      flex: 0 0 auto;
+                      margin-top: 6px;
+                      border-radius: 999px;
+                      background: var(--accent);
+                    }
+                    .footer {
+                      margin: 0;
+                      padding-top: 18px;
+                      border-top: 1px solid var(--line);
+                      color: var(--muted);
+                      font-size: 13px;
+                    }
+                    @media (max-width: 760px) {
+                      main {
+                        min-height: 0;
+                        grid-template-columns: 1fr;
+                      }
+                      aside {
+                        border-left: 0;
+                        border-top: 1px solid var(--line);
+                      }
+                      h1 {
+                        max-width: none;
+                      }
+                    }
+                  </style>
+                </head>
+                <body>
+                  <main>
+                    <section>
+                      <div class="mark" aria-hidden="true">\(symbol)</div>
+                      <p class="eyebrow">\(Self.escape(eyebrow))</p>
+                      <h1>\(Self.escape(title))</h1>
+                      <p>\(Self.escape(message))</p>
+                      \(actionMarkup)
+                      <p class="action-hint">\(Self.escape(actionHint))</p>
+                    </section>
+                    <aside>
+                      <div class="app-name"><span class="bun">H</span><span>Hot Cross Buns</span></div>
+                      <ul class="next">
+                        <li><span class="dot"></span><span>Your OAuth token is stored in the macOS Keychain.</span></li>
+                        <li><span class="dot"></span><span>Tasks and Calendar sync continue inside the app.</span></li>
+                        <li><span class="dot"></span><span>This local callback listener closes after sign-in completes.</span></li>
+                      </ul>
+                      <p class="footer">This page was served from localhost by Hot Cross Buns. It is not a hosted service.</p>
+                    </aside>
+                  </main>
+                </body>
+                </html>
         """
     }
 
