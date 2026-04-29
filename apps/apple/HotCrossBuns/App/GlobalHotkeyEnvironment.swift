@@ -1,9 +1,9 @@
 import SwiftUI
 
-@MainActor
 struct GlobalHotkeyConfigurator {
-    var configure: (Bool, GlobalHotkeyBinding, AppModel) -> GlobalHotkeyRegistrationState
+    var configure: @MainActor (Bool, GlobalHotkeyBinding, AppModel) -> GlobalHotkeyRegistrationState
 
+    @MainActor
     func callAsFunction(
         enabled: Bool,
         binding: GlobalHotkeyBinding,
@@ -14,14 +14,12 @@ struct GlobalHotkeyConfigurator {
 }
 
 private struct GlobalHotkeyConfiguratorKey: EnvironmentKey {
-    @MainActor
     static let defaultValue = GlobalHotkeyConfigurator { _, _, _ in
         .failed("Hotkey registration is unavailable right now.")
     }
 }
 
 extension EnvironmentValues {
-    @MainActor
     var globalHotkeyConfigurator: GlobalHotkeyConfigurator {
         get { self[GlobalHotkeyConfiguratorKey.self] }
         set { self[GlobalHotkeyConfiguratorKey.self] = newValue }
