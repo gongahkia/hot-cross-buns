@@ -314,6 +314,23 @@ actor LocalCacheStore {
     func cacheFilePath() -> String? {
         fileURL?.path
     }
+
+    func cacheFootprintBytes() -> Int64 {
+        [
+            fileURL,
+            eventsFileURL,
+            saltURL
+        ]
+        .compactMap { $0 }
+        .reduce(Int64(0)) { partial, url in
+            partial + Self.fileSize(at: url)
+        }
+    }
+
+    private static func fileSize(at url: URL) -> Int64 {
+        guard let values = try? url.resourceValues(forKeys: [.fileSizeKey]) else { return 0 }
+        return Int64(values.fileSize ?? 0)
+    }
 }
 
 private extension LocalCacheStore {

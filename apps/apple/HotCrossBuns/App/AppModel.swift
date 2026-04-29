@@ -3239,6 +3239,12 @@ final class AppModel {
         await cacheStore.cacheFilePath() ?? "In-memory cache only"
     }
 
+    func cacheFootprintDescription() async -> String {
+        let bytes = await cacheStore.cacheFootprintBytes()
+        guard bytes > 0 else { return "No local cache file found" }
+        return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
     func diagnosticSummary(cachePath: String) -> String {
         let accountLabel = account?.displayName ?? authState.title
         let lastSync = lastSuccessfulSyncAt?.formatted(date: .abbreviated, time: .standard) ?? "Never"
