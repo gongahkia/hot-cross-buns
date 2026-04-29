@@ -35,6 +35,7 @@ struct HotCrossBunsApp: App {
                 .environment(appModel)
                 .environment(updater)
                 .environment(networkMonitor)
+                .environment(\.globalHotkeyConfigurator, globalHotkeyConfigurator)
                 .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
                 .hcbScaledFrame(minWidth: 900, minHeight: 600)
                 .dockBadge(
@@ -63,6 +64,7 @@ struct HotCrossBunsApp: App {
                 .environment(appModel)
                 .environment(updater)
                 .environment(networkMonitor)
+                .environment(\.globalHotkeyConfigurator, globalHotkeyConfigurator)
                 .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
         }
         .windowResizability(.contentMinSize)
@@ -123,5 +125,12 @@ struct HotCrossBunsApp: App {
         }
         .defaultSize(width: 520, height: 360)
         .windowResizability(.contentMinSize)
+    }
+
+    private var globalHotkeyConfigurator: GlobalHotkeyConfigurator {
+        GlobalHotkeyConfigurator { enabled, binding, model in
+            appDelegate.appModel = model
+            return appDelegate.configureGlobalHotkey(enabled: enabled, binding: binding)
+        }
     }
 }
