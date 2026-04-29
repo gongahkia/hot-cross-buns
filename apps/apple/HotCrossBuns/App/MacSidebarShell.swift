@@ -64,7 +64,7 @@ struct MacSidebarShell: View {
     @State private var sidebarVisibility: NavigationSplitViewVisibility = .all
     @State private var tabRouter = TabRouter()
     @State private var isPresentingOnboarding = false
-    @State private var isPresentingCommandPalette = false
+    @State private var commandPalettePanelController = CommandPalettePanelController()
     @State private var isPresentingInsertTemplate = false
     @State private var isPresentingInsertEventTemplate = false // §6.13b
     @State private var appCommandActions = AppCommandActions()
@@ -120,17 +120,6 @@ struct MacSidebarShell: View {
                 OnboardingView()
                     .environment(model)
                     .withHCBAppearance(model.settings)
-            }
-            .sheet(isPresented: $isPresentingCommandPalette) {
-                // Merged palette — actions *and* entity search (tasks, notes,
-                // events, lists, calendars, saved filters). The old ⌘O
-                // switcher was folded in here so there's one surface.
-                CommandPaletteView(
-                    commands: commandPaletteCommands,
-                    onSelectEntity: routeQuickSwitcherEntity
-                )
-                .environment(model)
-                .withHCBAppearance(model.settings)
             }
             .sheet(isPresented: $isPresentingInsertTemplate) {
                 InsertTaskTemplateSheet()
@@ -338,7 +327,7 @@ struct MacSidebarShell: View {
             presentSheet(.addEvent, on: .calendar)
         case .search(let query):
             model.pendingPaletteQuery = query
-            isPresentingCommandPalette = true
+            presentCommandPalette()
         }
     }
 
@@ -489,7 +478,7 @@ struct MacSidebarShell: View {
         }
         appCommandActions.openSettingsWindow = { openSettings() }
         appCommandActions.openDiagnostics = { presentSheet(.diagnostics, on: selection) }
-        appCommandActions.openCommandPalette = { isPresentingCommandPalette = true }
+        appCommandActions.openCommandPalette = { presentCommandPalette() }
         appCommandActions.openHelp = { openWindow(id: "help") }
         appCommandActions.openHistory = { openWindow(id: "history") }
         appCommandActions.printToday = { TodayPrinter.print(model: model) }
@@ -498,6 +487,17 @@ struct MacSidebarShell: View {
         appCommandActions.zoomIn = { performZoomIn() }
         appCommandActions.zoomOut = { performZoomOut() }
         appCommandActions.zoomReset = { performZoomReset() }
+    }
+
+    private func presentCommandPalette() {
+        // Merged palette — actions *and* entity search (tasks, notes, events,
+        // lists, calendars, saved filters). Presenting it as a lightweight
+        // panel avoids the modal sheet animation on every Cmd-P.
+        commandPalettePanelController.present(
+            model: model,
+            commands: commandPaletteCommands,
+            onSelectEntity: routeQuickSwitcherEntity
+        )
     }
 
     private enum ICSRange {

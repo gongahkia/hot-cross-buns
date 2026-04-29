@@ -96,7 +96,7 @@
     <div class="section-head end">
       <p class="eyebrow">Made with keyboard users in mind</p>
       <h2>Do things at the<br><em>speed of thought</em>.</h2>
-      <p class="lede">Core shortcuts stay single-key. Calendar views get their own lane. The leader key handles secondary actions without pushing everything into one menu.</p>
+      <p class="lede">Core shortcuts stay single-key. Calendar views get their own lane. Global quick capture and the command palette open as lightweight panels instead of slow modal surfaces.</p>
     </div>
   </div>
 
@@ -124,6 +124,7 @@
     <div class="key-col">
       <h4>Capture</h4>
       <dl>
+        <div><dt><kbd>⇧</kbd><kbd>⌘</kbd><kbd>Space</kbd></dt><dd>global quick add</dd></div>
         <div><dt><kbd>⌘</kbd><kbd>N</kbd></dt><dd>new task</dd></div>
         <div><dt><kbd>⌘</kbd><kbd>⇧</kbd><kbd>N</kbd></dt><dd>new note</dd></div>
         <div><dt><kbd>⌘</kbd><kbd>⇧</kbd><kbd>E</kbd></dt><dd>new event</dd></div>
@@ -269,10 +270,28 @@
 	<section id="updates" class="updates">
   <div class="updates-head">
     <p class="eyebrow">Changelog</p>
-    <h2>Latest changes in <em>v0.1.3</em>.</h2>
+    <h2>Latest changes in <em>v0.2.0</em>.</h2>
   </div>
 
   <div class="updates-list">
+    <article class="update-entry">
+      <div class="update-meta">
+        <h3>v0.2.0</h3>
+        <p>29 Apr 2026</p>
+      </div>
+      <div class="update-copy">
+        <ul>
+          <li>Added runtime Google Cloud Desktop OAuth setup, so downloaded DMGs can connect through the user&apos;s own Google Cloud project without rebuilding the app.</li>
+          <li>Updated onboarding and settings copy for the two supported OAuth paths: downloaded DMG with runtime OAuth, or source build with an embedded native client.</li>
+          <li>Added a global quick-capture panel for tasks, events, and notes, now centered on the active screen.</li>
+          <li>Moved the command palette to a lightweight floating panel and deferred heavier search indexing so <kbd>⌘</kbd><kbd>P</kbd> opens faster.</li>
+          <li>Improved calendar month performance by caching visible task and event layout work.</li>
+          <li>Made task completion controls inside calendar overflow popovers actually mark tasks done.</li>
+          <li>Added an Open at Login setting and polished the browser success page after Google sign-in.</li>
+        </ul>
+      </div>
+    </article>
+
     <article class="update-entry">
       <div class="update-meta">
         <h3>v0.1.3</h3>

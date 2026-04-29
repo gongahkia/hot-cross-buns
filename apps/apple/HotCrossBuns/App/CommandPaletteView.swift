@@ -128,6 +128,7 @@ struct CommandPaletteView: View {
 
     let commands: [CommandPaletteCommand]
     let onSelectEntity: (QuickSwitcherEntity) -> Void
+    var onClose: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -155,17 +156,25 @@ struct CommandPaletteView: View {
             }
         }
         .onAppear {
-            rebuildCachedEntitiesIfNeeded()
             // Honour any deep-link-staged query: hotcrossbuns://search?q=… sets
             // model.pendingPaletteQuery before toggling the palette open. Clear
             // after consuming so a subsequent manual open starts blank.
+            let stagedQuery = model.pendingPaletteQuery
             if let staged = model.pendingPaletteQuery, staged.isEmpty == false {
                 query = staged
                 entityResultsQuery = staged
-                entityResults = entityItems(forQuery: staged.trimmingCharacters(in: .whitespacesAndNewlines))
                 model.pendingPaletteQuery = nil
             }
             isSearchFocused = true
+            Task { @MainActor in
+                await Task.yield()
+                rebuildCachedEntitiesIfNeeded()
+                if let staged = stagedQuery?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   staged.isEmpty == false {
+                    entityResults = entityItems(forQuery: staged)
+                }
+                isSearchFocused = true
+            }
         }
         .onChange(of: snapshotKey) { _, _ in
             rebuildCachedEntitiesIfNeeded()
@@ -203,6 +212,7 @@ struct CommandPaletteView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .presentationBackground(.clear)
         .hcbScaledPadding(14)
+        .onExitCommand(perform: closePalette)
     }
 
     private var trimmedQuery: String {
@@ -424,9 +434,9 @@ struct CommandPaletteView: View {
     }
 
     private func select(_ item: PaletteItem) {
-        dismiss()
-        // Defer execution so sheet dismissal animation doesn't fight
-        // downstream navigation / sheet presentation.
+        closePalette()
+        // Defer execution so panel/sheet teardown doesn't fight downstream
+        // navigation / sheet presentation.
         Task { @MainActor in
             switch item {
             case .command(let command):
@@ -434,6 +444,14 @@ struct CommandPaletteView: View {
                 command.action()
             case .entity(let entity): onSelectEntity(entity)
             }
+        }
+    }
+
+    private func closePalette() {
+        if let onClose {
+            onClose()
+        } else {
+            dismiss()
         }
     }
 

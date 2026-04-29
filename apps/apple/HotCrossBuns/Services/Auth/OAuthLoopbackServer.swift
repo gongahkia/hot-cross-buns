@@ -134,17 +134,26 @@ final class OAuthLoopbackServer: @unchecked Sendable {
         )
 
         if let error = callback.error {
-            writeResponse(to: clientFD, status: "400 Bad Request", body: "Google sign-in was cancelled or denied: \(error)")
+            writeResponse(
+                to: clientFD,
+                status: "400 Bad Request",
+                page: .failure("Google sign-in was cancelled or denied: \(error)")
+            )
         } else {
-            writeResponse(to: clientFD, status: "200 OK", body: "Google sign-in finished. You can return to Hot Cross Buns.")
+            writeResponse(to: clientFD, status: "200 OK", page: .success)
         }
         resume(returning: callback)
     }
 
     private func writeResponse(to fd: Int32, status: String, body: String) {
-        let html = """
-        <!doctype html><html><head><meta charset="utf-8"><title>Hot Cross Buns</title></head><body><h1>\(body)</h1></body></html>
-        """
+        let page: OAuthLoopbackPage = status.hasPrefix("2")
+            ? .success
+            : .failure(body)
+        writeResponse(to: fd, status: status, page: page)
+    }
+
+    private func writeResponse(to fd: Int32, status: String, page: OAuthLoopbackPage) {
+        let html = page.html
         let response = """
         HTTP/1.1 \(status)\r
         Content-Type: text/html; charset=utf-8\r
@@ -180,5 +189,156 @@ final class OAuthLoopbackServer: @unchecked Sendable {
             pendingError = error
             lock.unlock()
         }
+    }
+}
+
+private enum OAuthLoopbackPage {
+    case success
+    case failure(String)
+
+    var html: String {
+        let isSuccess: Bool
+        let eyebrow: String
+        let title: String
+        let message: String
+        let symbol: String
+        let accent: String
+
+        switch self {
+        case .success:
+            isSuccess = true
+            eyebrow = "Google account connected"
+            title = "Sign-in finished"
+            message = "You can close this tab and return to Hot Cross Buns. Sync will continue in the app."
+            symbol = "OK"
+            accent = "#e86f3d"
+        case .failure(let body):
+            isSuccess = false
+            eyebrow = "Google sign-in did not finish"
+            title = "Connection stopped"
+            message = body
+            symbol = "!"
+            accent = "#d45858"
+        }
+
+        return """
+        <!doctype html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Hot Cross Buns</title>
+          <style>
+            :root {
+              color-scheme: light dark;
+              --bg: #f6f1ea;
+              --panel: rgba(255, 255, 255, 0.82);
+              --ink: #272422;
+              --muted: #716a63;
+              --line: rgba(39, 36, 34, 0.12);
+              --accent: \(accent);
+            }
+            @media (prefers-color-scheme: dark) {
+              :root {
+                --bg: #211f1c;
+                --panel: rgba(52, 50, 45, 0.84);
+                --ink: #f2eee8;
+                --muted: #bbb2a8;
+                --line: rgba(242, 238, 232, 0.12);
+              }
+            }
+            * { box-sizing: border-box; }
+            body {
+              min-height: 100vh;
+              margin: 0;
+              display: grid;
+              place-items: center;
+              padding: 32px;
+              background: var(--bg);
+              color: var(--ink);
+              font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+              line-height: 1.45;
+            }
+            main {
+              width: min(560px, 100%);
+              padding: 28px;
+              border: 1px solid var(--line);
+              border-radius: 8px;
+              background: var(--panel);
+              box-shadow: 0 24px 80px rgba(0, 0, 0, 0.16);
+              backdrop-filter: blur(20px);
+            }
+            .mark {
+              width: 48px;
+              height: 48px;
+              display: grid;
+              place-items: center;
+              border-radius: 8px;
+              background: var(--accent);
+              color: white;
+              font-size: 18px;
+              font-weight: 800;
+              margin-bottom: 18px;
+            }
+            .eyebrow {
+              margin: 0 0 6px;
+              color: var(--accent);
+              font-size: 13px;
+              font-weight: 700;
+              letter-spacing: 0;
+              text-transform: uppercase;
+            }
+            h1 {
+              margin: 0;
+              font-size: clamp(30px, 6vw, 44px);
+              line-height: 1.05;
+              letter-spacing: 0;
+            }
+            p {
+              margin: 14px 0 0;
+              color: var(--muted);
+              font-size: 17px;
+            }
+            .footer {
+              margin-top: 24px;
+              padding-top: 18px;
+              border-top: 1px solid var(--line);
+              font-size: 14px;
+              color: var(--muted);
+            }
+            button {
+              margin-top: 22px;
+              border: 0;
+              border-radius: 8px;
+              padding: 10px 14px;
+              background: var(--accent);
+              color: white;
+              font: inherit;
+              font-weight: 700;
+              cursor: pointer;
+            }
+          </style>
+        </head>
+        <body>
+          <main>
+            <div class="mark" aria-hidden="true">\(symbol)</div>
+            <p class="eyebrow">\(Self.escape(eyebrow))</p>
+            <h1>\(Self.escape(title))</h1>
+            <p>\(Self.escape(message))</p>
+            \(isSuccess ? #"<button onclick="window.close()">Close tab</button>"# : "")
+            <div class="footer">Hot Cross Buns is listening only on this temporary local callback while sign-in completes.</div>
+          </main>
+        </body>
+        </html>
+        """
+    }
+
+    private static func escape(_ string: String) -> String {
+        string
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&#39;")
     }
 }

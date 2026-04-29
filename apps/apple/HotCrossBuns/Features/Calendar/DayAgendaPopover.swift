@@ -152,29 +152,29 @@ struct DayAgendaPopover: View {
 
     @ViewBuilder
     private func taskRow(_ task: TaskMirror) -> some View {
-        Button {
-            isPresented_dismiss()
-            router?.present(.editTask(task.id))
-        } label: {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .hcbFontSystem(size: 12)
-                    .foregroundStyle(task.isCompleted ? AppColor.moss : AppColor.ember)
-                    .padding(.top, 2)
+        HStack(alignment: .top, spacing: 8) {
+            CalendarTaskCheckbox(task: task, size: 12)
+                .padding(.top, 2)
+
+            Button {
+                isPresented_dismiss()
+                router?.present(.editTask(task.id))
+            } label: {
                 Text(task.title)
                     .hcbFont(.caption)
                     .foregroundStyle(AppColor.ink)
                     .strikethrough(task.isCompleted, color: .secondary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
-                Spacer(minLength: 0)
             }
+            .buttonStyle(.plain)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-            .padding(.vertical, 4)
-            .padding(.horizontal, 6)
+
+            Spacer(minLength: 0)
         }
-        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .padding(.vertical, 4)
+        .padding(.horizontal, 6)
     }
 
     // MARK: - Helpers

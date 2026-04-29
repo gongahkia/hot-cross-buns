@@ -76,7 +76,7 @@ private struct IntroDetailsView: View {
                     introPoint(
                         icon: "lock.fill",
                         title: "Bring your own Google access",
-                        body: "Hot Cross Buns has no backend. The OAuth client is embedded by whoever builds the app, tokens stay in your Mac Keychain, and sync goes directly to Google's APIs."
+                        body: "Hot Cross Buns has no backend. Downloaded builds can use your own Google Cloud Desktop OAuth client, source builds can embed one at build time, and tokens stay in your Mac Keychain."
                     )
                     introPoint(
                         icon: "exclamationmark.shield",
