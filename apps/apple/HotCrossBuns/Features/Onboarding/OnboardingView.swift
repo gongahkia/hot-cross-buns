@@ -355,11 +355,14 @@ private struct SourceSelectionCard: View {
                         .foregroundStyle(.secondary)
                 } else if model.taskLists.isEmpty && model.calendars.isEmpty {
                     if case .syncing = model.syncState {
-                        Label("Loading from Google…", systemImage: "arrow.triangle.2.circlepath")
-                            .hcbFont(.footnote)
-                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Label("Loading from Google…", systemImage: "arrow.triangle.2.circlepath")
+                            Text("First load can take 10-30 seconds on larger Google accounts.")
+                        }
+                        .hcbFont(.footnote)
+                        .foregroundStyle(.secondary)
                     } else {
-                        Text("No lists or calendars yet. Tap Refresh above, or create a list in Google Tasks and try again.")
+                        Text("No lists or calendars yet. Tap Refresh above, then give Google up to 30 seconds on larger accounts. You can also create a list in Google Tasks and try again.")
                             .hcbFont(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -496,7 +499,7 @@ private struct FinishOnboardingCard: View {
             .buttonStyle(.borderedProminent)
             .tint(model.account == nil ? AppColor.ember : AppColor.moss)
             if model.account == nil {
-                Text("You can connect Google later from Settings — we'll just show empty states until you do.")
+                Text("Hot Cross Buns cannot store tasks, events, or notes until a Google account is connected. You can connect later from Settings, but the app will be read-only empty setup until then.")
                     .hcbFont(.caption)
                     .foregroundStyle(.secondary)
             }
