@@ -102,7 +102,7 @@ You should only need to do that once per Mac.
 
 - `apps/apple` is the canonical product. Older Tauri and self-hosted sync-server work has been removed from the active repo path.
 - Google Tasks and Google Calendar are the source of truth.
-- Google OAuth is bring-your-own-client for source builds. The app has no Hot Cross Buns backend or shared proxy; whoever builds the app embeds their own Google Cloud OAuth client.
+- Google OAuth is bring-your-own-client. Downloaded DMGs can use a user-supplied Google Cloud Desktop OAuth client at runtime; source builds can still embed a native Google Sign-In client.
 - The website and installer both target the stable latest-release DMG alias: `HotCrossBuns-macOS.dmg`.
 - The in-app updater checks GitHub Releases for newer DMGs and guides the user through a manual replace.
 - The public path is a real unsigned DMG release flow, not a signed/notarized consumer release.
@@ -175,15 +175,19 @@ xcodebuild -project HotCrossBuns.xcodeproj -scheme HotCrossBunsMac -destination 
 scripts/package-macos-dmg.sh
 ```
 
-To run the app locally from Xcode with Google sign-in enabled, copy `apps/apple/Configuration/GoogleOAuth.example.xcconfig` to `apps/apple/Configuration/GoogleOAuth.local.xcconfig` and fill in your own values. The committed `apps/apple/Configuration/GoogleOAuth.xcconfig` provides blank CI-safe defaults and includes the local override when present.
-
 **Google Cloud OAuth setup**
+
+Downloaded DMGs do not need to be rebuilt for personal Google sync:
 
 1. Create a Google Cloud project.
 2. Enable the Google Tasks API and Google Calendar API.
 3. Configure the Google Auth platform / OAuth consent screen. For a personal Gmail account, choose `External`; add your Google account as a test user while setting up.
-4. Create an iOS/macOS OAuth client for bundle ID `com.gongahkia.hotcrossbuns.mac`.
-5. Put the generated values in `apps/apple/Configuration/GoogleOAuth.local.xcconfig`:
+4. Create a `Desktop app` OAuth client.
+5. Open Hot Cross Buns, paste the desktop client ID and optional client secret into the Google OAuth client setup card, then click Connect Google.
+
+For personal day-to-day use, set the OAuth app publishing status to `In production` after setup. Google's testing status issues refresh tokens that expire after 7 days for the Tasks and Calendar scopes, so staying in testing means periodic re-consent.
+
+To embed a native Google Sign-In client in a source build instead, copy `apps/apple/Configuration/GoogleOAuth.example.xcconfig` to `apps/apple/Configuration/GoogleOAuth.local.xcconfig` and fill in your own iOS/macOS OAuth client values. The committed `apps/apple/Configuration/GoogleOAuth.xcconfig` provides blank CI-safe defaults and includes the local override when present.
 
 ```xcconfig
 GOOGLE_MACOS_CLIENT_ID = your-client-id.apps.googleusercontent.com
@@ -191,15 +195,13 @@ GOOGLE_MACOS_REVERSED_CLIENT_ID = com.googleusercontent.apps.your-reversed-clien
 GOOGLE_MAPS_EMBED_API_KEY =
 ```
 
-6. Rebuild the app from Xcode or `xcodebuild`.
-
-For personal day-to-day use, set the OAuth app publishing status to `In production` after setup. Google's testing status issues refresh tokens that expire after 7 days for the Tasks and Calendar scopes, so staying in testing means periodic re-consent. Do not distribute a build that embeds your personal OAuth client for other people's accounts.
+Do not distribute a build that embeds your personal native OAuth client for other people's accounts.
 
 ## Release Flow
 
 - Build release DMGs locally; this repository no longer uses GitHub Actions to package macOS releases.
 - Personal release builds may use `apps/apple/Configuration/GoogleOAuth.local.xcconfig` with `GOOGLE_MACOS_CLIENT_ID` and `GOOGLE_MACOS_REVERSED_CLIENT_ID`.
-- Public release builds should not embed a private personal OAuth client unless you intend to complete Google's public OAuth verification path for that client.
+- Public release builds can omit embedded OAuth values because users can add their own Desktop OAuth client at runtime. Only embed a shared production OAuth client if you intend to complete Google's public OAuth verification path for that client.
 - `GOOGLE_MAPS_EMBED_API_KEY` is optional. When omitted, the app falls back to MapKit instead of the embedded Google Maps iframe.
 - Upload the versioned DMG, stable `HotCrossBuns-macOS.dmg` alias, and matching `.sha256` files to GitHub Releases.
 - The website download button, one-line installer, and in-app updater all target the stable latest-release asset.

@@ -87,7 +87,7 @@
 
     <article class="doc-card">
       <h2>OAuth client ownership</h2>
-      <p>Source builds are intended to use your own Google Cloud OAuth client. The OAuth client ID is embedded in the Mac app at build time, and the app talks directly to Google APIs with the account you connect. Do not use another person's OAuth client unless you trust that build and consent screen.</p>
+      <p>Hot Cross Buns is intended to use a Google Cloud OAuth client controlled by the person or organization using the app. Downloaded DMGs can store a user-supplied Desktop OAuth client in the macOS Keychain and use a localhost browser redirect for sign-in. Source builds can also embed a native Google Sign-In client at build time. Do not use another person's OAuth client unless you trust that build and consent screen.</p>
     </article>
 
     <article class="doc-card">

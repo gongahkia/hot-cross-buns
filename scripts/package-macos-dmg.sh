@@ -110,12 +110,7 @@ check_release_preflight() {
   local release_failures=()
   local release_warnings=()
   local client_id
-  local strict_release_checks=0
   local require_google_oauth="${REQUIRE_GOOGLE_OAUTH_FOR_RELEASE:-0}"
-
-  if [[ -n "$CODE_SIGN_IDENTITY" || "$NOTARIZE" == "1" ]]; then
-    strict_release_checks=1
-  fi
 
   if [[ ! -f "$info_plist" ]]; then
     echo "Release preflight failed: missing app Info.plist at $info_plist" >&2
@@ -125,10 +120,10 @@ check_release_preflight() {
   client_id="$(plist_value "$info_plist" "GIDClientID")"
 
   if is_missing_release_value "$client_id" "your-macos-oauth-client-id.apps.googleusercontent.com"; then
-    if [[ "$strict_release_checks" == "1" || "$require_google_oauth" == "1" ]]; then
+    if [[ "$require_google_oauth" == "1" ]]; then
       release_failures+=("Google OAuth client ID is missing or unresolved in the built app")
     else
-      release_warnings+=("Google OAuth client ID is missing or unresolved in the built app")
+      release_warnings+=("Embedded Google OAuth client ID is missing or unresolved; runtime Desktop OAuth setup will still work")
     fi
   fi
 
@@ -144,17 +139,12 @@ check_release_preflight() {
   echo "Release preflight found missing distribution configuration:" >&2
   printf '  - %s\n' "${release_failures[@]}" >&2
 
-  if [[ "$strict_release_checks" == "1" ]]; then
-    echo "Refusing to package a signed/notarized DMG until release credentials are embedded." >&2
-    exit 1
-  fi
-
   if [[ "$require_google_oauth" == "1" ]]; then
     echo "Refusing to package a tag release until Google OAuth credentials are embedded." >&2
     exit 1
   fi
 
-  echo "Continuing because this is an unsigned local package. Set CODE_SIGN_IDENTITY or NOTARIZE=1 to enforce these checks." >&2
+  echo "Continuing because runtime Desktop OAuth setup does not require embedded OAuth credentials." >&2
 }
 
 APP_PATH="$(resolve_app_path "$DERIVED_DATA_PATH/Build/Products/$CONFIGURATION")"

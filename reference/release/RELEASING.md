@@ -10,7 +10,9 @@ The old GitHub Actions DMG release workflow was removed intentionally. The local
 
 ### Google Sign-In Release Config
 
-Personal DMGs can embed a real macOS OAuth client owned by the person using the build:
+Public DMGs can ship without embedded OAuth values because users can add their own Google Cloud `Desktop app` OAuth client in Settings at runtime.
+
+Personal or turnkey DMGs can still embed a real macOS OAuth client owned by the person using the build:
 
 1. Create a macOS OAuth client for bundle ID `com.gongahkia.hotcrossbuns.mac`.
 2. Put the values in the ignored local config file:
@@ -26,7 +28,7 @@ EOF
 3. Verify the packaged app's `Info.plist` does not contain unresolved `$(...)` placeholders before shipping.
 4. For personal daily use, keep the Google OAuth app set to external/in production so refresh tokens are not forced to expire after 7 days.
 
-Do not upload a public DMG with a private personal OAuth client unless you intend to complete Google's public OAuth verification path for that client. A public source-first release can omit OAuth values; users then rebuild from source with their own Google Cloud project before connecting Google.
+Do not upload a public DMG with a private personal embedded OAuth client unless you intend to complete Google's public OAuth verification path for that client.
 
 ### Local Tooling
 
@@ -118,7 +120,7 @@ VERSION=dev ./scripts/package-macos-dmg.sh
 bash scripts/smoke-test-dmg.sh build/apple/HotCrossBuns-dev-macOS.dmg
 ```
 
-The resulting DMG is written to `build/apple/`. The packaging script auto-detects `Hot Cross Buns.app` in DerivedData and refuses tag releases when Google OAuth values are missing or unresolved.
+The resulting DMG is written to `build/apple/`. Runtime Desktop OAuth setup means a public DMG does not need embedded Google OAuth values, but if you intentionally build with embedded values, verify the packaged app's `Info.plist` does not contain unresolved `$(...)` placeholders.
 
 ## Notes For Future Agents
 
