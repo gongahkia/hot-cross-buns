@@ -30,6 +30,7 @@ struct OnboardingView: View {
 
     private var setupBody: some View {
         Form {
+            Section { GoogleCloudSetupCard() }
             Section { ConnectGoogleCard() }
             Section { SyncPreferenceCard() }
             SourceSelectionCard()
@@ -74,8 +75,8 @@ private struct IntroDetailsView: View {
                     )
                     introPoint(
                         icon: "lock.fill",
-                        title: "No extra servers",
-                        body: "We don't run a backend. Your OAuth token stays in the Keychain; sync goes directly to Google's APIs. Disconnecting Google in Settings wipes local state."
+                        title: "Bring your own Google access",
+                        body: "Hot Cross Buns has no backend. The OAuth client is embedded by whoever builds the app, tokens stay in your Mac Keychain, and sync goes directly to Google's APIs."
                     )
                     introPoint(
                         icon: "exclamationmark.shield",
@@ -122,7 +123,7 @@ private struct FirstLaunchWarningsCard: View {
                 .hcbFont(.headline)
                 .foregroundStyle(AppColor.ink)
 
-            Text("Unsigned DMGs and Google OAuth verification can show scary system copy. If you downloaded Hot Cross Buns from the official GitHub release, these are the one-time approval paths to expect.")
+            Text("Unsigned DMGs and personal Google OAuth clients can show scary system copy. If you built Hot Cross Buns yourself or downloaded it from a trusted release, these are the approval paths to expect.")
                 .hcbFont(.subheadline)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -141,7 +142,7 @@ private struct FirstLaunchWarningsCard: View {
                 GoogleUnverifiedWarningPreview()
             }
 
-            Text("For Google, click Advanced, then Go to Hot Cross Buns only if you trust the app and downloaded it from the official release page. This screen should disappear once Google completes app verification.")
+            Text("For Google, click Advanced, then Go to Hot Cross Buns only if you trust the app and the OAuth project is yours. Personal unverified OAuth clients can keep showing this warning.")
                 .hcbFont(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -261,12 +262,23 @@ private struct ConnectGoogleCard: View {
                 connectButton
                 scopeFootnote
             case .signedOut:
-                Text("Sign in once to grant access. Hot Cross Buns asks for Google Tasks + Calendar only — no Gmail, Drive, or contacts.")
-                    .foregroundStyle(.secondary)
+                if isOAuthConfigured {
+                    Text("Sign in once to grant access. Hot Cross Buns asks for Google Tasks + Calendar only — no Gmail, Drive, or contacts.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("This build is missing a Google OAuth client ID. Follow the Google Cloud setup above, rebuild the app, then connect your account.")
+                        .foregroundStyle(.red)
+                }
                 connectButton
                 scopeFootnote
             }
         }
+    }
+
+    private var isOAuthConfigured: Bool {
+        GoogleAuthService.isConfigured(
+            clientID: Bundle.main.object(forInfoDictionaryKey: "GIDClientID") as? String
+        )
     }
 
     private var connectButton: some View {
@@ -280,12 +292,76 @@ private struct ConnectGoogleCard: View {
         }
         .buttonStyle(.borderedProminent)
         .tint(AppColor.ember)
+        .disabled(isOAuthConfigured == false)
     }
 
     private var scopeFootnote: some View {
         Text("Tokens stay in your Mac Keychain. Disconnecting in Settings wipes local state.")
             .hcbFont(.caption)
             .foregroundStyle(.secondary)
+    }
+}
+
+private struct GoogleCloudSetupCard: View {
+    private var isOAuthConfigured: Bool {
+        GoogleAuthService.isConfigured(
+            clientID: Bundle.main.object(forInfoDictionaryKey: "GIDClientID") as? String
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Google Cloud setup", systemImage: isOAuthConfigured ? "checkmark.shield.fill" : "key.fill")
+                .hcbFont(.headline)
+                .foregroundStyle(isOAuthConfigured ? AppColor.moss : AppColor.ink)
+
+            if isOAuthConfigured {
+                Text(statusText)
+                    .hcbFont(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text(statusText)
+                    .hcbFont(.footnote)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            DisclosureGroup("Use your own OAuth client") {
+                VStack(alignment: .leading, spacing: 10) {
+                    setupStep("Create a Google Cloud project and enable the Google Tasks API and Google Calendar API.")
+                    setupStep("Configure the Google Auth platform. For a personal Gmail account, use External. Add yourself as a test user while setting up.")
+                    setupStep("Create an iOS/macOS OAuth client for bundle ID com.gongahkia.hotcrossbuns.mac.")
+                    setupStep("Copy the client ID and reversed client ID into apps/apple/Configuration/GoogleOAuth.local.xcconfig, then rebuild from Xcode.")
+                    setupStep("For long-lived refresh tokens, publish the OAuth app to In production. Testing mode refresh tokens expire after 7 days for Tasks and Calendar scopes.")
+                }
+                .hcbScaledPadding(.top, 8)
+            }
+
+            Text("Do not ship a build that embeds your personal OAuth client for other people's accounts. Each self-hosted user should build with their own Google Cloud project.")
+                .hcbFont(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var statusText: String {
+        if isOAuthConfigured {
+            return "This build contains a Google OAuth client. Make sure it belongs to the person or organization using this app."
+        }
+        return "Google sign-in is disabled in this build because no OAuth client is embedded."
+    }
+
+    private func setupStep(_ text: String) -> some View {
+        Label {
+            Text(text)
+                .foregroundStyle(.secondary)
+        } icon: {
+            Image(systemName: "circle.fill")
+                .font(.system(size: 5))
+                .foregroundStyle(.secondary)
+        }
+        .hcbFont(.caption)
     }
 }
 

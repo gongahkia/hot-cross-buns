@@ -7,19 +7,46 @@ import Observation
 @Observable
 final class GoogleAuthService {
     private let bundle: Bundle
+    private let customOAuthService: CustomGoogleOAuthService
     private let requiredScopes = [GoogleScope.tasks, GoogleScope.calendar]
 
-    init(bundle: Bundle = .main) {
+    init(bundle: Bundle = .main, customOAuthService: CustomGoogleOAuthService = CustomGoogleOAuthService()) {
         self.bundle = bundle
+        self.customOAuthService = customOAuthService
     }
 
     var isConfigured: Bool {
-        Self.isConfigured(clientID: clientID)
+        Self.isConfigured(clientID: clientID) || customOAuthService.isConfigured
+    }
+
+    var customOAuthClientConfiguration: GoogleOAuthClientConfiguration? {
+        customOAuthService.clientConfiguration
+    }
+
+    func saveCustomOAuthClientConfiguration(clientID: String, clientSecret: String?) throws -> GoogleOAuthClientConfiguration {
+        try customOAuthService.saveClientConfiguration(
+            GoogleOAuthClientConfiguration(clientID: clientID, clientSecret: clientSecret)
+        )
+    }
+
+    func clearCustomOAuthClientConfiguration() {
+        customOAuthService.clearClientConfiguration()
     }
 
     func restorePreviousSignIn() async throws -> GoogleAccount? {
         guard isConfigured else {
             AppLogger.warn("restore skipped: OAuth not configured", category: .auth)
+            return nil
+        }
+
+        if customOAuthService.isConfigured,
+           let account = try await customOAuthService.restorePreviousSignIn() {
+            AppLogger.info("restore custom OAuth: success", category: .auth, metadata: ["email": Self.redact(account.email)])
+            return account
+        }
+
+        guard Self.isConfigured(clientID: clientID) else {
+            AppLogger.info("restore skipped: embedded OAuth not configured", category: .auth)
             return nil
         }
 
@@ -77,6 +104,10 @@ final class GoogleAuthService {
             throw GoogleAuthError.notConfigured
         }
 
+        if customOAuthService.isConfigured {
+            return try await customOAuthService.signIn()
+        }
+
         if let currentUser = GIDSignIn.sharedInstance.currentUser {
             AppLogger.info("signIn: reusing current user", category: .auth)
             return try await accountWithRequiredScopes(for: currentUser)
@@ -132,10 +163,16 @@ final class GoogleAuthService {
     }
 
     func signOut() {
+        customOAuthService.clearTokenSet()
         GIDSignIn.sharedInstance.signOut()
     }
 
     func disconnect() async throws {
+        if customOAuthService.isConfigured {
+            customOAuthService.clearTokenSet()
+            return
+        }
+
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             GIDSignIn.sharedInstance.disconnect { error in
                 if let error {
@@ -210,7 +247,8 @@ final class GoogleAuthService {
             id: userID ?? email,
             email: email,
             displayName: displayName ?? email,
-            grantedScopes: Set(grantedScopes ?? [])
+            grantedScopes: Set(grantedScopes ?? []),
+            authProvider: .embeddedGoogleSignIn
         )
     }
 
@@ -245,7 +283,7 @@ enum GoogleAuthError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .notConfigured:
-            "This build of Hot Cross Buns isn't configured for Google sign-in. Install an official release or contact the developer for a configured build."
+            "This build of Hot Cross Buns isn't configured for Google sign-in. Build it with your own Google Cloud OAuth client, then try connecting again."
         case .noPresentationAnchor:
             "Couldn't find a window to open the Google sign-in sheet. Focus Hot Cross Buns and try again."
         case .noCurrentUser:
@@ -279,8 +317,14 @@ enum GoogleTokenRefreshError: LocalizedError {
 }
 
 struct GoogleSignInAccessTokenProvider: AccessTokenProviding {
+    private let customOAuthService = CustomGoogleOAuthService()
+
     @MainActor
     func accessToken() async throws -> String {
+        if let customToken = try await customOAuthService.accessToken() {
+            return customToken
+        }
+
         guard let user = GIDSignIn.sharedInstance.currentUser else {
             AppLogger.warn("accessToken: no current user", category: .auth)
             throw GoogleTokenRefreshError.noCurrentUser

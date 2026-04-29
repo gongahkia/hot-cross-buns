@@ -10,7 +10,7 @@ The old GitHub Actions DMG release workflow was removed intentionally. The local
 
 ### Google Sign-In Release Config
 
-Public DMGs must embed a real macOS OAuth client in the built app:
+Personal DMGs can embed a real macOS OAuth client owned by the person using the build:
 
 1. Create a macOS OAuth client for bundle ID `com.gongahkia.hotcrossbuns.mac`.
 2. Put the values in the ignored local config file:
@@ -24,7 +24,9 @@ EOF
 ```
 
 3. Verify the packaged app's `Info.plist` does not contain unresolved `$(...)` placeholders before shipping.
-4. Keep the Google OAuth app set to external/in production for public users.
+4. For personal daily use, keep the Google OAuth app set to external/in production so refresh tokens are not forced to expire after 7 days.
+
+Do not upload a public DMG with a private personal OAuth client unless you intend to complete Google's public OAuth verification path for that client. A public source-first release can omit OAuth values; users then rebuild from source with their own Google Cloud project before connecting Google.
 
 ### Local Tooling
 
