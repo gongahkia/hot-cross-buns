@@ -71,6 +71,10 @@ struct MacSidebarShell: View {
     @State private var appShortcutMonitor: Any?
     @State private var deepLinkErrorMessage: String?
     @State private var clipboardToastMessage: String?
+    @State private var settingsTransferMessage: String?
+    @State private var settingsTransferIsWarning = false
+    @State private var settingsImportPreview: SettingsImportPreview?
+    @State private var pendingSettingsImport: SettingsTransferBundle?
     // Leader-key chord state (§6.9). `nil` = inactive; non-nil = collecting
     // keys after a ⌘K press. timeoutTask cancels the collecting state after
     // 3s of inactivity so a stray leader press doesn't lock out single-key
@@ -132,6 +136,20 @@ struct MacSidebarShell: View {
                     .environment(model)
                     .withHCBAppearance(model.settings)
             }
+            .confirmationDialog(
+                "Import Settings?",
+                item: $settingsImportPreview,
+                titleVisibility: .visible
+            ) { preview in
+                Button("Import Settings", role: preview.changeCount == 0 ? nil : .destructive) {
+                    applyPendingSettingsImport()
+                }
+                Button("Cancel", role: .cancel) {
+                    pendingSettingsImport = nil
+                }
+            } message: { preview in
+                Text(preview.message)
+            }
             .overlay {
                 UndoToast()
             }
@@ -143,6 +161,15 @@ struct MacSidebarShell: View {
                     message: $clipboardToastMessage,
                     successTitle: "Copied",
                     successSymbol: "doc.on.clipboard"
+                )
+            }
+            .overlay {
+                BulkResultToast(
+                    message: $settingsTransferMessage,
+                    isWarning: settingsTransferIsWarning,
+                    successTitle: "Settings transfer complete",
+                    warningTitle: "Settings transfer failed",
+                    successSymbol: "gearshape.fill"
                 )
             }
             .overlay {
@@ -521,6 +548,8 @@ struct MacSidebarShell: View {
         appCommandActions.printToday = { TodayPrinter.print(model: model) }
         appCommandActions.exportDayICS = { exportICS(range: .day) }
         appCommandActions.exportWeekICS = { exportICS(range: .week) }
+        appCommandActions.exportSettings = { exportSettings() }
+        appCommandActions.importSettings = { importSettings() }
         appCommandActions.zoomIn = { performZoomIn() }
         appCommandActions.zoomOut = { performZoomOut() }
         appCommandActions.zoomReset = { performZoomReset() }
@@ -572,6 +601,52 @@ struct MacSidebarShell: View {
         if panel.runModal() == .OK, let url = panel.url {
             try? ics.data(using: .utf8)?.write(to: url)
         }
+    }
+
+    private func exportSettings() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "Hot Cross Buns Settings.json"
+        panel.allowedContentTypes = [.json]
+        panel.canCreateDirectories = true
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            let data = try SettingsTransferBundle.encode(model.settingsExportBundle())
+            try data.write(to: url, options: [.atomic])
+            settingsTransferIsWarning = false
+            settingsTransferMessage = "Settings exported to \(url.lastPathComponent)."
+        } catch {
+            settingsTransferIsWarning = true
+            settingsTransferMessage = error.localizedDescription
+        }
+    }
+
+    private func importSettings() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            let data = try Data(contentsOf: url)
+            let bundle = try SettingsTransferBundle.decode(data)
+            pendingSettingsImport = bundle
+            settingsImportPreview = model.previewSettingsImport(bundle)
+        } catch {
+            settingsTransferIsWarning = true
+            settingsTransferMessage = error.localizedDescription
+        }
+    }
+
+    private func applyPendingSettingsImport() {
+        guard let pendingSettingsImport else { return }
+        model.applySettingsImport(pendingSettingsImport)
+        self.pendingSettingsImport = nil
+        settingsTransferIsWarning = false
+        settingsTransferMessage = "Settings imported."
     }
 
     private func performZoomIn() {
