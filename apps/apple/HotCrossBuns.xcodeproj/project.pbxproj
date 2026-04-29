@@ -120,6 +120,7 @@
 		870B6E741963A990B14961F4 /* ForecastBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2316DAFF7860DC61BD91AF52 /* ForecastBuilderTests.swift */; };
 		8794B1B9554FAEC8B6C4D07E /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB5F4EB983E593C181231248 /* AppLogger.swift */; };
 		880402797CE64EBB95F67CBE /* SharedInboxItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = E082142928EB9001E39C6CA1 /* SharedInboxItem.swift */; };
+		8936A2BFA8B5BFA9AD841105 /* HCBDeepLinkBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 892217A78B3DF20F47A2E611 /* HCBDeepLinkBuilder.swift */; };
 		893CB0337F19B9BB670828DC /* ColorTagMatchPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A50310DEBE007A0508A6907 /* ColorTagMatchPolicy.swift */; };
 		8ACF2515B426287642261EC1 /* MarkdownHighlighter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DBBBAB47C6578BBCC5A1170 /* MarkdownHighlighter.swift */; };
 		8B428AEF6A3CEF5EA9D7D20E /* GoogleMapsConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 679D4851E75DBE60257686A7 /* GoogleMapsConfig.swift */; };
@@ -364,6 +365,7 @@
 		85D5CDB76149A63DCE082991 /* HCBDeepLinkRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HCBDeepLinkRouterTests.swift; sourceTree = "<group>"; };
 		865A5F75E0D2C3ACB690C7A6 /* KeychainHealth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHealth.swift; sourceTree = "<group>"; };
 		88FB5A6B5626CA82F91766D0 /* ReviewBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewBuilder.swift; sourceTree = "<group>"; };
+		892217A78B3DF20F47A2E611 /* HCBDeepLinkBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HCBDeepLinkBuilder.swift; sourceTree = "<group>"; };
 		892DDFFD7ECD0890E98DEC1C /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		89EA3416048E26FDC6F7B0BC /* Exporters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Exporters.swift; sourceTree = "<group>"; };
 		8A6422563D35AC92FBC1BFEC /* LocalCacheStoreSplitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCacheStoreSplitTests.swift; sourceTree = "<group>"; };
@@ -715,6 +717,7 @@
 				052D85C55BFE31785899E623 /* GlobalHotkeyEnvironment.swift */,
 				AEC733C8BC2C07D4E58D7E31 /* GlobalQuickCapturePanelController.swift */,
 				ADE27E86E215DA78273F2839 /* HCBChord.swift */,
+				892217A78B3DF20F47A2E611 /* HCBDeepLinkBuilder.swift */,
 				203E4B8B99B16857BB9E1C19 /* HCBDeepLinkRouter.swift */,
 				BA90C3B9D57FCA2A8C27B206 /* HCBShortcuts.swift */,
 				AE5B824BD3DB57E2FA17ECE2 /* HotCrossBunsApp.swift */,
@@ -1318,6 +1321,7 @@
 				2F2435D0A0AD7F53377DAA06 /* HCBCacheCrypto.swift in Sources */,
 				6CC0289227C39CE602E5B1F3 /* HCBCacheKeychain.swift in Sources */,
 				3EE99B0A05D5C339CF2DC37A /* HCBChord.swift in Sources */,
+				8936A2BFA8B5BFA9AD841105 /* HCBDeepLinkBuilder.swift in Sources */,
 				6C767E7BC697FE433BF5AAA2 /* HCBDeepLinkRouter.swift in Sources */,
 				D553CCEF7C978404187F1049 /* HCBSettingsWindow.swift in Sources */,
 				03DDA60B71A6CF24C09880A6 /* HCBShortcuts.swift in Sources */,

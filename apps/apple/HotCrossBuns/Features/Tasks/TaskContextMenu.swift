@@ -96,10 +96,18 @@ struct TaskContextMenu: View {
             }
         }
 
-        Button("Copy as Markdown") {
-            let markdown = TaskMarkdownExporter.markdown(for: task, taskListTitle: listTitle)
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(markdown, forType: .string)
+        Menu("Share…") {
+            let taskURL = HCBDeepLinkBuilder.taskURL(for: task)
+            Button("Copy Link") {
+                copyToPasteboard(taskURL.absoluteString)
+            }
+            ShareLink(item: taskURL) {
+                Text("Share Link…")
+            }
+            Button("Copy as Markdown") {
+                let markdown = TaskMarkdownExporter.markdown(for: task, taskListTitle: listTitle)
+                copyToPasteboard(markdown)
+            }
         }
 
         if model.duplicateIndex.groupKey(for: task.id) != nil {
@@ -112,5 +120,10 @@ struct TaskContextMenu: View {
             Divider()
             Button("Delete", role: .destructive, action: onDelete)
         }
+    }
+
+    private func copyToPasteboard(_ value: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(value, forType: .string)
     }
 }

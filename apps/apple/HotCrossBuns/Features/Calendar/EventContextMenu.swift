@@ -73,10 +73,21 @@ struct EventContextMenu: View {
         }
 
         Menu("Share…") {
+            let eventURL = HCBDeepLinkBuilder.eventURL(for: event)
+            Button("Copy Link") {
+                copyToPasteboard(eventURL.absoluteString)
+            }
+            ShareLink(item: eventURL) {
+                Text("Share Link…")
+            }
+            if let googleEventURL {
+                Button("Copy Google Calendar Link") {
+                    copyToPasteboard(googleEventURL.absoluteString)
+                }
+            }
             Button("Copy as Markdown") {
                 let markdown = EventMarkdownExporter.markdown(for: event, calendarTitle: calendarTitle)
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(markdown, forType: .string)
+                copyToPasteboard(markdown)
             }
             Button("Export .ics…") {
                 exportICS()
@@ -87,6 +98,16 @@ struct EventContextMenu: View {
             Divider()
             Button("Delete", role: .destructive, action: onDelete)
         }
+    }
+
+    private var googleEventURL: URL? {
+        guard let htmlLink = event.htmlLink else { return nil }
+        return URL(string: htmlLink)
+    }
+
+    private func copyToPasteboard(_ value: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(value, forType: .string)
     }
 
     private func move(to calendarID: CalendarListMirror.ID) async {
