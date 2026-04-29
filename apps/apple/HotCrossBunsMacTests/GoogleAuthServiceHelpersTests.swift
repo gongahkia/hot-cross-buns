@@ -25,6 +25,7 @@ final class GoogleAuthServiceHelpersTests: XCTestCase {
         XCTAssertEqual(account.id, "person@example.com")
         XCTAssertEqual(account.displayName, "person@example.com")
         XCTAssertEqual(account.grantedScopes, [GoogleScope.tasks])
+        XCTAssertEqual(account.authProvider, .embeddedGoogleSignIn)
 
         XCTAssertThrowsError(
             try GoogleAuthService.buildAccount(
@@ -112,5 +113,20 @@ final class GoogleAuthServiceHelpersTests: XCTestCase {
 
         XCTAssertTrue(GoogleAuthService.isUserCancellation(error))
         XCTAssertFalse(GoogleAuthService.isUserCancellation(NSError(domain: "other", code: 1)))
+    }
+
+    func testCustomOAuthClientConfigurationNormalizesAndValidates() {
+        let valid = GoogleOAuthClientConfiguration(
+            clientID: "  abc.apps.googleusercontent.com  ",
+            clientSecret: "  secret  "
+        ).normalized
+
+        XCTAssertTrue(valid.isValid)
+        XCTAssertEqual(valid.clientID, "abc.apps.googleusercontent.com")
+        XCTAssertEqual(valid.clientSecret, "secret")
+
+        let invalid = GoogleOAuthClientConfiguration(clientID: "not-a-google-client", clientSecret: "")
+        XCTAssertFalse(invalid.normalized.isValid)
+        XCTAssertNil(invalid.normalized.clientSecret)
     }
 }
