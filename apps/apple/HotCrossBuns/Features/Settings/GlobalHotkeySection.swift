@@ -50,6 +50,7 @@ struct GlobalHotkeySection: View {
                 .hcbFont(.footnote)
                 .foregroundStyle(.secondary)
         }
+        .onAppear(perform: refreshRegistrationState)
     }
 
     private var enabledBinding: Binding<Bool> {
@@ -121,6 +122,14 @@ struct GlobalHotkeySection: View {
                 model.setGlobalHotkeyRegistrationState(.failed(message))
             }
         }
+    }
+
+    private func refreshRegistrationState() {
+        let state = configure(
+            enabled: model.settings.enableGlobalHotkey,
+            binding: model.settings.globalHotkeyBinding
+        )
+        model.setGlobalHotkeyRegistrationState(state)
     }
 
     private func configure(enabled: Bool, binding: GlobalHotkeyBinding) -> GlobalHotkeyRegistrationState {
