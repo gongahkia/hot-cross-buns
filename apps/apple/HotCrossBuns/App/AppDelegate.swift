@@ -4,6 +4,8 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let globalHotkey = GlobalHotkey()
     let menuBarStatusController = HCBMenuBarStatusController()
+    var appModel: AppModel?
+    private let quickCapturePanelController = GlobalQuickCapturePanelController()
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         // Register as the Services provider so the selector declared in
@@ -114,7 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func triggerGlobalQuickAdd() {
-        AppIntentHandoff.save(.addTask)
-        NSApp.activate(ignoringOtherApps: true)
+        guard let appModel else { return }
+        quickCapturePanelController.present(model: appModel)
     }
 }

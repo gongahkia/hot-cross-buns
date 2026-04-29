@@ -32,6 +32,7 @@
 		15F071FA91ACB9AEB3DF3D09 /* OfflineQueuePayloadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16A980BF4A880C22BC900697 /* OfflineQueuePayloadTests.swift */; };
 		175E8A1E61094F77AF6AAF45 /* PerSurfaceFontSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A29E4EA796CF06BFCDDDEE8F /* PerSurfaceFontSection.swift */; };
 		1A0E75ED9924EC602590FEBA /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB15E1D3EF730B024771A746 /* SettingsView.swift */; };
+		1AD6ED436FF3293F2E92EA86 /* GlobalQuickCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC78F7FE886BB4780A14229A /* GlobalQuickCaptureView.swift */; };
 		1B7F6F790CF80AF97AB3E65C /* HotCrossBunsIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF84D26BB3BD8AD0DB3337B8 /* HotCrossBunsIntents.swift */; };
 		1D14CFF9E1E31D6FC0995EAA /* ISO8601DateFormatter+Google.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B5A02F709EC80DD855D2C87 /* ISO8601DateFormatter+Google.swift */; };
 		1D5AAB0DDD1DA8BD51016E71 /* UndoToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5810826FCEA91EE340801C40 /* UndoToast.swift */; };
@@ -65,6 +66,7 @@
 		3F724984C1A0D2DBF278DD8E /* GoogleOAuthClientSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80A153811A78936A8F31094F /* GoogleOAuthClientSetupView.swift */; };
 		423A2928A33D4C5387CC339B /* ColorSchemes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C23CE545813F082C04B501C8 /* ColorSchemes.swift */; };
 		4280BF87BB4B06F1B807DA7B /* FuzzySearcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFBEA7BC0A7653E6A4022AB1 /* FuzzySearcher.swift */; };
+		442E84D81E061F7C55991111 /* GlobalQuickCapturePanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC733C8BC2C07D4E58D7E31 /* GlobalQuickCapturePanelController.swift */; };
 		4432C7D64B74B022D0A6FA52 /* AdvancedSearchMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEEF278EC506750047BC6B9C /* AdvancedSearchMatcher.swift */; };
 		46D517DF3CCDC62A677E30B0 /* StoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B73A839AA07E6C98129ED4BB /* StoreView.swift */; };
 		486292178C2C7163A0C8C45E /* QueryDSLTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E10912879943FB239566EB /* QueryDSLTests.swift */; };
@@ -389,6 +391,7 @@
 		ADE27E86E215DA78273F2839 /* HCBChord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HCBChord.swift; sourceTree = "<group>"; };
 		ADEF77C927632A04783BF515 /* LocationFullView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationFullView.swift; sourceTree = "<group>"; };
 		AE5B824BD3DB57E2FA17ECE2 /* HotCrossBunsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotCrossBunsApp.swift; sourceTree = "<group>"; };
+		AEC733C8BC2C07D4E58D7E31 /* GlobalQuickCapturePanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalQuickCapturePanelController.swift; sourceTree = "<group>"; };
 		AEEF278EC506750047BC6B9C /* AdvancedSearchMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedSearchMatcher.swift; sourceTree = "<group>"; };
 		AF08213B82A11D35A48E9669 /* RouterPath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouterPath.swift; sourceTree = "<group>"; };
 		AF46AED18B8659500C9FDDB8 /* CalendarEventColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventColor.swift; sourceTree = "<group>"; };
@@ -448,6 +451,7 @@
 		E7E237D56DC5E422A168E311 /* EventHoverPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventHoverPreview.swift; sourceTree = "<group>"; };
 		E9EE90AE73008CDCBB548450 /* GoToDateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoToDateSheet.swift; sourceTree = "<group>"; };
 		EC34E08C7F6A754ACBE7ED0C /* DiagnosticBundleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticBundleTests.swift; sourceTree = "<group>"; };
+		EC78F7FE886BB4780A14229A /* GlobalQuickCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalQuickCaptureView.swift; sourceTree = "<group>"; };
 		EDB9F19FB93CB9C7FEC4EF32 /* LocationMapPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationMapPreview.swift; sourceTree = "<group>"; };
 		EF455BE4BA241A0C46869EF5 /* RecurrenceRuleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceRuleTests.swift; sourceTree = "<group>"; };
 		F03D73411CAA330A1556C797 /* TagExtractorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagExtractorTests.swift; sourceTree = "<group>"; };
@@ -605,6 +609,7 @@
 		465BD077CDBE181E6068BEBE /* QuickAdd */ = {
 			isa = PBXGroup;
 			children = (
+				EC78F7FE886BB4780A14229A /* GlobalQuickCaptureView.swift */,
 				451F7A551BAF39DA361383F4 /* NaturalLanguageTaskParser.swift */,
 				55AAE7CA5D31D859ABD20A52 /* QuickAddEventView.swift */,
 				FDB427444279DD0F8E4B2281 /* QuickAddView.swift */,
@@ -702,6 +707,7 @@
 				8FF54DB319263C6A1FD8A97D /* CommandPaletteView.swift */,
 				FFBEA7BC0A7653E6A4022AB1 /* FuzzySearcher.swift */,
 				F5BB15E1D51900AFA2203B2D /* GlobalHotkey.swift */,
+				AEC733C8BC2C07D4E58D7E31 /* GlobalQuickCapturePanelController.swift */,
 				ADE27E86E215DA78273F2839 /* HCBChord.swift */,
 				203E4B8B99B16857BB9E1C19 /* HCBDeepLinkRouter.swift */,
 				BA90C3B9D57FCA2A8C27B206 /* HCBShortcuts.swift */,
@@ -1289,6 +1295,8 @@
 				4280BF87BB4B06F1B807DA7B /* FuzzySearcher.swift in Sources */,
 				26F27A606CAB73AC71A858D5 /* GlobalHotkey.swift in Sources */,
 				4EBE176BAF2495405965A5F4 /* GlobalHotkeySection.swift in Sources */,
+				442E84D81E061F7C55991111 /* GlobalQuickCapturePanelController.swift in Sources */,
+				1AD6ED436FF3293F2E92EA86 /* GlobalQuickCaptureView.swift in Sources */,
 				64E4A1BA0CF04097F8D1C9CB /* GoToDateSheet.swift in Sources */,
 				8CF3F07B84CA27F8F2DEF4A8 /* GoogleAPITransport.swift in Sources */,
 				C22F4B23E5FBAB647FF3F156 /* GoogleAccount.swift in Sources */,
