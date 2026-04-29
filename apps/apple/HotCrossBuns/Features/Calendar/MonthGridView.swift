@@ -72,6 +72,8 @@ struct MonthGridView: View {
     // events, producing ~50ms stalls per pixel moved.
     @State private var cachedFiltered: [CalendarEventMirror] = []
     @State private var cachedByDay: [Date: [CalendarEventMirror]] = [:]
+    @State private var cachedBandsByWeek: [Date: [CalendarGridLayout.MonthBand]] = [:]
+    @State private var cachedTasksByDay: [Date: [TaskMirror]] = [:]
     @State private var cachedGridKey: String = ""
     // Rolling window of week-start dates rendered by the ScrollView. Rebuilt
     // by buildWindow() when the anchor lands outside the current window.
@@ -132,8 +134,9 @@ struct MonthGridView: View {
                         ForEach(weekStarts, id: \.self) { weekStart in
                             weekRow(
                                 for: weekStart,
-                                filtered: cachedFiltered,
-                                byDay: cachedByDay
+                                bands: cachedBandsByWeek[weekStart] ?? [],
+                                byDay: cachedByDay,
+                                tasksByDay: cachedTasksByDay
                             )
                             .frame(height: fixedRowHeight)
                             .id(weekStart)
@@ -235,12 +238,19 @@ struct MonthGridView: View {
         // dataRevision replaces the prior model.events.count fingerprint —
         // renames / reschedules / recolors with unchanged total count now
         // bust the cache correctly.
-        return "\(selectedIds)|\(searchQuery)|\(windowKey)|\(model.dataRevision)"
+        return "\(selectedIds)|\(visibleTaskListKey)|\(searchQuery)|\(windowKey)|\(model.dataRevision)"
     }
 
     private var windowKey: String {
         guard let first = weekStarts.first else { return "empty" }
         return "\(Int(first.timeIntervalSince1970))-\(weekStarts.count)"
+    }
+
+    private var visibleTaskListKey: String {
+        if model.settings.hasConfiguredTaskListSelection {
+            return model.settings.selectedTaskListIDs.sorted().joined(separator: ",")
+        }
+        return model.taskLists.map(\.id).sorted().joined(separator: ",")
     }
 
     private var monthWindowPreferenceKey: String {
@@ -273,6 +283,42 @@ struct MonthGridView: View {
             to: last,
             calendar: calendar
         )
+        cachedBandsByWeek = buildBandsByWeek(filtered: filtered)
+        cachedTasksByDay = buildTasksByDay(from: first, to: last)
+    }
+
+    private func buildBandsByWeek(filtered: [CalendarEventMirror]) -> [Date: [CalendarGridLayout.MonthBand]] {
+        var bandsByWeek: [Date: [CalendarGridLayout.MonthBand]] = [:]
+        for weekStart in weekStarts {
+            let days = weekDays(startingAt: weekStart)
+            let weekEnd = calendar.date(byAdding: .day, value: 7, to: weekStart) ?? weekStart
+            let weekEvents = filtered.filter { event in
+                event.startDate < weekEnd && event.endDate > weekStart
+            }
+            bandsByWeek[weekStart] = CalendarGridLayout.monthBands(for: days, events: weekEvents, calendar: calendar)
+        }
+        return bandsByWeek
+    }
+
+    private func buildTasksByDay(from rangeStart: Date, to rangeEnd: Date) -> [Date: [TaskMirror]] {
+        let visibleLists: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
+            ? model.settings.selectedTaskListIDs
+            : Set(model.taskLists.map(\.id))
+        var tasksByDay: [Date: [TaskMirror]] = [:]
+        var cursor = calendar.startOfDay(for: rangeStart)
+        let last = calendar.startOfDay(for: rangeEnd)
+        while cursor <= last {
+            let key = cursor.timeIntervalSinceReferenceDate
+            let tasks = (model.tasksByDueDate[key] ?? [])
+                .compactMap { model.task(id: $0) }
+                .filter { visibleLists.contains($0.taskListID) }
+            if tasks.isEmpty == false {
+                tasksByDay[cursor] = tasks
+            }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+        }
+        return tasksByDay
     }
 
     private func monthKey(for date: Date) -> String {
@@ -342,6 +388,10 @@ struct MonthGridView: View {
             cursor = next
         }
         return out
+    }
+
+    private func weekDays(startingAt weekStart: Date) -> [Date] {
+        (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: weekStart) }
     }
 
     private func isDateInWindow(_ date: Date) -> Bool {
@@ -487,20 +537,11 @@ struct MonthGridView: View {
 
     private func weekRow(
         for weekStart: Date,
-        filtered: [CalendarEventMirror],
-        byDay: [Date: [CalendarEventMirror]]
+        bands: [CalendarGridLayout.MonthBand],
+        byDay: [Date: [CalendarEventMirror]],
+        tasksByDay: [Date: [TaskMirror]]
     ) -> some View {
-        let days = (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: weekStart) }
-        // Pre-narrow to events that actually cross this week before calling
-        // monthBands. At 17k events filtered, monthBands internally sorts +
-        // runs O(n × lanes) per call — without this guard the per-scroll
-        // cost scales with the full month corpus even though each week only
-        // contains ~0.5-2% of events.
-        let weekEnd = calendar.date(byAdding: .day, value: 7, to: weekStart) ?? weekStart
-        let weekEvents = filtered.filter { event in
-            event.startDate < weekEnd && event.endDate > weekStart
-        }
-        let bands = CalendarGridLayout.monthBands(for: days, events: weekEvents, calendar: calendar)
+        let days = weekDays(startingAt: weekStart)
 
         return GeometryReader { geo in
             let cellWidth = geo.size.width / CGFloat(max(days.count, 1))
@@ -508,7 +549,7 @@ struct MonthGridView: View {
                 HStack(spacing: 0) {
                     ForEach(Array(days.enumerated()), id: \.element) { col, day in
                         let cellBandReserve = bandReserve(for: col, bands: bands)
-                        monthCell(day: day, bandReserve: cellBandReserve, byDay: byDay)
+                        monthCell(day: day, bandReserve: cellBandReserve, byDay: byDay, tasksByDay: tasksByDay)
                             .frame(maxWidth: .infinity, minHeight: fixedRowHeight, maxHeight: fixedRowHeight, alignment: .top)
                             .clipped() // stop per-cell VStack overflow (day number + bandReserve + 2 events + 2 tasks + "+N more" can exceed fixedRowHeight) from bleeding into the next week row
                     }
@@ -732,23 +773,17 @@ struct MonthGridView: View {
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
-    private func tasksForDay(_ day: Date) -> [TaskMirror] {
-        let dayStart = calendar.startOfDay(for: day)
-        let key = dayStart.timeIntervalSinceReferenceDate
-        let visibleLists: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
-            ? model.settings.selectedTaskListIDs
-            : Set(model.taskLists.map(\.id))
-        return (model.tasksByDueDate[key] ?? [])
-            .compactMap { model.task(id: $0) }
-            .filter { visibleLists.contains($0.taskListID) }
-    }
-
-    private func monthCell(day: Date, bandReserve: CGFloat, byDay: [Date: [CalendarEventMirror]]) -> some View {
+    private func monthCell(
+        day: Date,
+        bandReserve: CGFloat,
+        byDay: [Date: [CalendarEventMirror]],
+        tasksByDay: [Date: [TaskMirror]]
+    ) -> some View {
         let dayStart = calendar.startOfDay(for: day)
         let allEventsToday = byDay[dayStart] ?? []
         // Bands render in the overlay; per-cell shows only timed single-day events.
         let events = allEventsToday.filter { CalendarGridLayout.isBandEvent($0, calendar: calendar) == false }
-        let tasks = tasksForDay(day)
+        let tasks = tasksByDay[dayStart] ?? []
         // +N more counts the hidden band events too so users see them accounted for.
         let hiddenBandEvents = max(0, allEventsToday.count - events.count - visibleBandCount(for: dayStart, in: day, allEventsToday: allEventsToday))
         let rowStride = laneHeight + laneSpacing

@@ -2,22 +2,30 @@ import AppKit
 import SwiftUI
 
 @MainActor
-final class GlobalQuickCapturePanelController: NSObject, NSWindowDelegate {
+final class CommandPalettePanelController: NSObject, NSWindowDelegate {
     private var panel: NSPanel?
 
-    func present(model: AppModel) {
+    func present(
+        model: AppModel,
+        commands: [CommandPaletteCommand],
+        onSelectEntity: @escaping (QuickSwitcherEntity) -> Void
+    ) {
         close()
 
-        let content = GlobalQuickCaptureView { [weak self] in
-            self?.close()
-        }
+        let content = CommandPaletteView(
+            commands: commands,
+            onSelectEntity: onSelectEntity,
+            onClose: { [weak self] in
+                self?.close()
+            }
+        )
         .environment(model)
         .withHCBAppearance(model.settings)
         .hcbPreferredColorScheme(model.settings)
 
         let hostingController = NSHostingController(rootView: content)
-        let size = NSSize(width: 620, height: 232)
-        let panel = HCBGlobalQuickCapturePanel(
+        let size = NSSize(width: 648, height: 448)
+        let panel = HCBCommandPalettePanel(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
             backing: .buffered,
@@ -67,7 +75,7 @@ final class GlobalQuickCapturePanelController: NSObject, NSWindowDelegate {
     }
 }
 
-private final class HCBGlobalQuickCapturePanel: NSPanel {
+private final class HCBCommandPalettePanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 }

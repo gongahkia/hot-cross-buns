@@ -186,6 +186,7 @@
 		C3DFA8E26F161309235094CE /* MockURLProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5959B85AC017728D7F460355 /* MockURLProtocol.swift */; };
 		C41F7F38C17AC47EAA0F6517 /* SpotlightIndexerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCB11FE7D6BC9E0309D80F0B /* SpotlightIndexerTests.swift */; };
 		C4CE2CF3ABC9504B9FFF898E /* ConversionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45D846EE7A564ED968072B3E /* ConversionSheet.swift */; };
+		C6FCC074127F4EE09538F689 /* CommandPalettePanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EEFF7D128C1CEAC536841BF /* CommandPalettePanelController.swift */; };
 		CCFA60589BEC192C6B812D39 /* CalendarDropComputerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE4271884E414A0922884E1 /* CalendarDropComputerTests.swift */; };
 		CDE181FCDB04EB34924DF98B /* SyncSchedulerTombstonePurgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A15AB7A557A7163BEA80ECC /* SyncSchedulerTombstonePurgeTests.swift */; };
 		CF1E70E970213C9400BBB1AB /* EncryptionSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 923D7E147E63ED13484B24AA /* EncryptionSection.swift */; };
@@ -336,6 +337,7 @@
 		5CDBE097FFF4A48F2BCDE315 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
 		5DBBBAB47C6578BBCC5A1170 /* MarkdownHighlighter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownHighlighter.swift; sourceTree = "<group>"; };
 		5E7CCAAA53D6C1875F338A5B /* CalendarGridLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarGridLayoutTests.swift; sourceTree = "<group>"; };
+		5EEFF7D128C1CEAC536841BF /* CommandPalettePanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPalettePanelController.swift; sourceTree = "<group>"; };
 		62B7E28F16E7ED3A3AF854DC /* CacheSchemaMigrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheSchemaMigrator.swift; sourceTree = "<group>"; };
 		6366F53ACB2CE1B4D522E41D /* DockBadgeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockBadgeController.swift; sourceTree = "<group>"; };
 		679D4851E75DBE60257686A7 /* GoogleMapsConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleMapsConfig.swift; sourceTree = "<group>"; };
@@ -706,6 +708,7 @@
 				9B80F522C53466505A421ECE /* AppDelegate.swift */,
 				25AD254487BE0AE26B9D81B8 /* AppIntentHandoff.swift */,
 				892DDFFD7ECD0890E98DEC1C /* AppModel.swift */,
+				5EEFF7D128C1CEAC536841BF /* CommandPalettePanelController.swift */,
 				8FF54DB319263C6A1FD8A97D /* CommandPaletteView.swift */,
 				FFBEA7BC0A7653E6A4022AB1 /* FuzzySearcher.swift */,
 				F5BB15E1D51900AFA2203B2D /* GlobalHotkey.swift */,
@@ -1267,6 +1270,7 @@
 				AAFBB17984DC3CD66994302E /* ColorTagBindingsSection.swift in Sources */,
 				893CB0337F19B9BB670828DC /* ColorTagMatchPolicy.swift in Sources */,
 				DECD71E149F07A0AFAB64AB9 /* ColorTagResolver.swift in Sources */,
+				C6FCC074127F4EE09538F689 /* CommandPalettePanelController.swift in Sources */,
 				2520B85F92EAE261CAEE3A4B /* CommandPaletteView.swift in Sources */,
 				9304E230B950CAA96B423A7E /* CompletionSoundLibrary.swift in Sources */,
 				DBF273FA0B4784A7DF941496 /* CompletionSoundPlayer.swift in Sources */,
@@ -1545,7 +1549,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COMPILATION_CACHE_ENABLE_CACHING = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = Q2J4QWZLR7;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1561,7 +1565,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1.2;
+				MARKETING_VERSION = 0.2.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1662,7 +1666,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COMPILATION_CACHE_ENABLE_CACHING = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = Q2J4QWZLR7;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1684,7 +1688,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1.2;
+				MARKETING_VERSION = 0.2.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

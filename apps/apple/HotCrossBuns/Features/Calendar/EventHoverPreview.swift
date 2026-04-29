@@ -241,17 +241,22 @@ struct CalendarTaskCheckbox: View {
     let task: TaskMirror
     var size: CGFloat = 10
 
+    private var currentTask: TaskMirror {
+        model.task(id: task.id) ?? task
+    }
+
     var body: some View {
         Button {
+            let task = currentTask
             Task { await model.setTaskCompleted(!task.isCompleted, task: task) }
         } label: {
-            Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+            Image(systemName: currentTask.isCompleted ? "checkmark.circle.fill" : "circle")
                 .hcbFontSystem(size: size)
-                .foregroundStyle(task.isCompleted ? AppColor.moss : AppColor.ember)
+                .foregroundStyle(currentTask.isCompleted ? AppColor.moss : AppColor.ember)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(task.isCompleted ? "Reopen task" : "Complete task")
+        .help(currentTask.isCompleted ? "Reopen task" : "Complete task")
     }
 }
 

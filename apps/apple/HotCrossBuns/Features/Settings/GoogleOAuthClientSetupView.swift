@@ -21,7 +21,7 @@ struct GoogleOAuthClientSetupView: View {
                 }
             }
 
-            Text("Use this when you want a downloaded DMG to connect through your own Google Cloud project instead of a client embedded by the maintainer.")
+            Text("Downloaded DMGs can sync through your own Google Cloud project. Set this up once, then Hot Cross Buns keeps the OAuth client and refresh token in your Mac Keychain for normal future launches.")
                 .hcbFont(.footnote)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -31,9 +31,10 @@ struct GoogleOAuthClientSetupView: View {
                     setupStep("Create a Google Cloud project.")
                     setupStep("Enable the Google Tasks API and Google Calendar API.")
                     setupStep("Configure the Google Auth platform. For personal Gmail use, choose External and add yourself while testing.")
-                    setupStep("Create a Desktop app OAuth client.")
-                    setupStep("Paste the desktop client ID below. If Google shows a client secret, paste it too.")
-                    setupStep("For daily use without weekly re-consent, publish the OAuth app to In production.")
+                    setupStep("In Clients, create a new OAuth client with application type Desktop app. Do not reuse the iOS/macOS client used for source builds.")
+                    setupStep("Paste the Desktop app client ID below. If Google shows a client secret, paste it too.")
+                    setupStep("Click Save OAuth Client, then Connect Google, and approve the browser consent flow.")
+                    setupStep("For daily use without weekly re-consent, publish the OAuth app to In production after setup.")
                 }
                 .hcbScaledPadding(.top, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
