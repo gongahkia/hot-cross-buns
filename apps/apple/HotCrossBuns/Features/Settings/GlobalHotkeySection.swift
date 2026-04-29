@@ -46,7 +46,7 @@ struct GlobalHotkeySection: View {
             Label(model.globalHotkeyRegistrationState.message, systemImage: statusIcon)
                 .hcbFont(.footnote)
                 .foregroundStyle(statusColor)
-            Text("This is a system-wide shortcut for quick task capture. If the combo is already reserved, Hot Cross Buns keeps your previous working shortcut instead of silently dropping it.")
+            Text("This is a system-wide shortcut for the floating quick-capture panel. If the combo is already reserved, Hot Cross Buns keeps your previous working shortcut instead of silently dropping it.")
                 .hcbFont(.footnote)
                 .foregroundStyle(.secondary)
         }
@@ -127,6 +127,7 @@ struct GlobalHotkeySection: View {
         guard let delegate = NSApp.delegate as? AppDelegate else {
             return .failed("Hotkey registration is unavailable right now.")
         }
+        delegate.appModel = model
         return delegate.configureGlobalHotkey(enabled: enabled, binding: binding)
     }
 }

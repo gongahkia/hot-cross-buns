@@ -206,6 +206,7 @@ struct MacSidebarShell: View {
             }
             .onChange(of: model.settings.enableGlobalHotkey) { _, newValue in
                 guard let delegate = NSApp.delegate as? AppDelegate else { return }
+                delegate.appModel = model
                 let state = delegate.configureGlobalHotkey(
                     enabled: newValue,
                     binding: model.settings.globalHotkeyBinding
@@ -214,6 +215,7 @@ struct MacSidebarShell: View {
             }
             .onChange(of: model.settings.globalHotkeyBinding) { _, newValue in
                 guard let delegate = NSApp.delegate as? AppDelegate else { return }
+                delegate.appModel = model
                 let state = delegate.configureGlobalHotkey(
                     enabled: model.settings.enableGlobalHotkey,
                     binding: newValue
@@ -464,6 +466,7 @@ struct MacSidebarShell: View {
 
     private func configureGlobalHotkey() {
         guard let delegate = NSApp.delegate as? AppDelegate else { return }
+        delegate.appModel = model
         let state = delegate.configureGlobalHotkey(
             enabled: model.settings.enableGlobalHotkey,
             binding: model.settings.globalHotkeyBinding
