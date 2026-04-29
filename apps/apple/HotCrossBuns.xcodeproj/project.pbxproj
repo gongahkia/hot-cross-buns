@@ -95,6 +95,7 @@
 		6C767E7BC697FE433BF5AAA2 /* HCBDeepLinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 203E4B8B99B16857BB9E1C19 /* HCBDeepLinkRouter.swift */; };
 		6CC0289227C39CE602E5B1F3 /* HCBCacheKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = C52D7AE4A4A66334A5044478 /* HCBCacheKeychain.swift */; };
 		6CE0FA0BAA2C73E9FB792410 /* HistoryEntryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B73877CFD2F56A8ABE37036B /* HistoryEntryRow.swift */; };
+		6D5ADD20176181609E0559A6 /* SettingsTransferBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2002D7708472ABD091154D2C /* SettingsTransferBundle.swift */; };
 		7092CA5C7D2C3A052185B566 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC9C2158939F77166D48250B /* DesignTokens.swift */; };
 		718D9F745F2817A8139B00C0 /* DiagnosticBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD5F8A89100AE1891AD53FA3 /* DiagnosticBundle.swift */; };
 		71EA6FF162806AFA0CADB908 /* HelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FC2AADAC806017C13510FCB /* HelpView.swift */; };
@@ -225,6 +226,7 @@
 		F8A2CD7C0F938252E975C021 /* LoginItemController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3140D743D55592477DF37F51 /* LoginItemController.swift */; };
 		F8BA863DB51480D6B9ADEBE9 /* FuzzySearcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A49B39BEE4E940882B8C2AC5 /* FuzzySearcherTests.swift */; };
 		FA524DC3AE098023C142AF71 /* SubtaskDragPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20B9299699F46BFF95D48B7 /* SubtaskDragPayload.swift */; };
+		FA69E7E381F46591070D6AEE /* SettingsTransferBundleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F3A5DD7FC6F7E9395CEBCA2 /* SettingsTransferBundleTests.swift */; };
 		FAF5552BD86281508DDFA800 /* CompletionSoundSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F2825131BCE1BE98DDD8C0C /* CompletionSoundSettings.swift */; };
 		FC53C77C9D94EA2806AAEEA1 /* OAuthLoopbackServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4D2E410DA5D28FF58E31C3C /* OAuthLoopbackServer.swift */; };
 		FDE80870553452D646C4BB0B /* GoogleAuthServiceHelpersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D24467042376D053D9781314 /* GoogleAuthServiceHelpersTests.swift */; };
@@ -291,6 +293,7 @@
 		1B0DFDCF8E31CE997881CE68 /* TaskDrawerPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDrawerPanel.swift; sourceTree = "<group>"; };
 		1CD03A9C296FAC6BEBC942B0 /* HotCrossBunsShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HotCrossBunsShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		1D137D2E12066C5E9B77CEDA /* EventBulkActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventBulkActionBar.swift; sourceTree = "<group>"; };
+		2002D7708472ABD091154D2C /* SettingsTransferBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTransferBundle.swift; sourceTree = "<group>"; };
 		203E4B8B99B16857BB9E1C19 /* HCBDeepLinkRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HCBDeepLinkRouter.swift; sourceTree = "<group>"; };
 		22DB41A975AB784A9EBDD654 /* CalendarEventInstanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventInstanceTests.swift; sourceTree = "<group>"; };
 		22EC7CE0BFC4074C6B02F03B /* UndoAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoAction.swift; sourceTree = "<group>"; };
@@ -373,6 +376,7 @@
 		8BFD977211942ADB9C88E1CF /* GoogleTaskDueDateFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleTaskDueDateFormatterTests.swift; sourceTree = "<group>"; };
 		8D28DC41B5549CBBC446FEC9 /* KeybindingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeybindingsSection.swift; sourceTree = "<group>"; };
 		8DCF05B74EEF0CEFC2A45B56 /* macos-open-anyway-warning.jpeg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = "macos-open-anyway-warning.jpeg"; sourceTree = "<group>"; };
+		8F3A5DD7FC6F7E9395CEBCA2 /* SettingsTransferBundleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTransferBundleTests.swift; sourceTree = "<group>"; };
 		8FF54DB319263C6A1FD8A97D /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteView.swift; sourceTree = "<group>"; };
 		9062C2E730F1E70F0DCBDADA /* RecurrenceEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceEditor.swift; sourceTree = "<group>"; };
 		923D7E147E63ED13484B24AA /* EncryptionSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EncryptionSection.swift; sourceTree = "<group>"; };
@@ -840,6 +844,7 @@
 				E24E974EA5B94188A538989B /* RecurrenceUntilRewriterTests.swift */,
 				8127C3548EA95EFE65DEFC21 /* ReleaseConfigGateTests.swift */,
 				2902AF84DDE381956C0D149E /* ReviewBuilderTests.swift */,
+				8F3A5DD7FC6F7E9395CEBCA2 /* SettingsTransferBundleTests.swift */,
 				D8AF38F4F743ECB0079BDD30 /* SmartListFilterTests.swift */,
 				5958F04B434E20A3436A5CC0 /* SpotlightIdentifierTests.swift */,
 				FCB11FE7D6BC9E0309D80F0B /* SpotlightIndexerTests.swift */,
@@ -918,6 +923,7 @@
 				FC17D333E0AC22B77270A396 /* GoogleAccount.swift */,
 				92693B262B5B6DCDFF44F752 /* PastCleanupBehaviors.swift */,
 				52C304D2E832B788B8FAF20E /* RecurrenceRule.swift */,
+				2002D7708472ABD091154D2C /* SettingsTransferBundle.swift */,
 				1622469DA249EE1B10188D98 /* Snapshots.swift */,
 				46640F8301E1D6444BE62A73 /* SyncModels.swift */,
 				E60A02AA0EB32C0C012F2AF0 /* TagExtractor.swift */,
@@ -1381,6 +1387,7 @@
 				B3FD5B5CFC0A25BB3A2D0F19 /* RecurrenceUntilRewriter.swift in Sources */,
 				84DA071F41D735D2217D9544 /* ReviewBuilder.swift in Sources */,
 				9D509BB5F19F366E80487377 /* RouterPath.swift in Sources */,
+				6D5ADD20176181609E0559A6 /* SettingsTransferBundle.swift in Sources */,
 				1A0E75ED9924EC602590FEBA /* SettingsView.swift in Sources */,
 				880402797CE64EBB95F67CBE /* SharedInboxItem.swift in Sources */,
 				B38730DBE9FD19E383B35D92 /* SidebarItem.swift in Sources */,
@@ -1461,6 +1468,7 @@
 				B3700FF9237085BF5E14CCE8 /* RecurrenceUntilRewriterTests.swift in Sources */,
 				69B576B38783EF27E236A00E /* ReleaseConfigGateTests.swift in Sources */,
 				3B7E0CB45C3A8F28831C31C5 /* ReviewBuilderTests.swift in Sources */,
+				FA69E7E381F46591070D6AEE /* SettingsTransferBundleTests.swift in Sources */,
 				823DFA52ED02235FC5C1F640 /* SmartListFilterTests.swift in Sources */,
 				90318AA2282A7731DA05F9F5 /* SpotlightIdentifierTests.swift in Sources */,
 				C41F7F38C17AC47EAA0F6517 /* SpotlightIndexerTests.swift in Sources */,

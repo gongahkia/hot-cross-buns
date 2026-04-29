@@ -2034,6 +2034,126 @@ final class AppModel {
         scheduleCacheSave()
     }
 
+    func settingsExportBundle() -> SettingsTransferBundle {
+        SettingsTransferBundle(settings: settings)
+    }
+
+    func previewSettingsImport(_ bundle: SettingsTransferBundle) -> SettingsImportPreview {
+        let next = settingsForImport(bundle.settings)
+        return SettingsImportPreview(
+            changeCount: settingsImportChangeCount(from: settings, to: next),
+            summaries: settingsImportSummaries(from: settings, to: next),
+            excludedFields: bundle.excludedFields
+        )
+    }
+
+    func applySettingsImport(_ bundle: SettingsTransferBundle) {
+        let next = settingsForImport(bundle.settings)
+        guard settings != next else { return }
+        settings = next
+        rebuildSnapshots()
+        scheduleCacheSave()
+    }
+
+    private func settingsForImport(_ imported: AppSettings) -> AppSettings {
+        var next = imported
+        // Encryption enablement is tied to this Mac's Keychain key. Importing
+        // the flag without the key would leave the UI claiming encryption is
+        // active while the cache store cannot encrypt/decrypt with that key.
+        next.cacheEncryptionEnabled = settings.cacheEncryptionEnabled
+        return next
+    }
+
+    private func settingsImportChangeCount(from current: AppSettings, to next: AppSettings) -> Int {
+        [
+            current.syncMode != next.syncMode,
+            current.selectedCalendarIDs != next.selectedCalendarIDs,
+            current.selectedTaskListIDs != next.selectedTaskListIDs,
+            current.shortcutOverrides != next.shortcutOverrides,
+            current.hiddenSidebarItems != next.hiddenSidebarItems,
+            current.hiddenCalendarViewModes != next.hiddenCalendarViewModes,
+            current.customFilters != next.customFilters,
+            current.taskTemplates != next.taskTemplates,
+            current.eventTemplates != next.eventTemplates,
+            current.colorSchemeID != next.colorSchemeID,
+            current.uiLayoutScale != next.uiLayoutScale,
+            current.uiTextSizePoints != next.uiTextSizePoints,
+            current.uiFontName != next.uiFontName,
+            current.perSurfaceFontOverrides != next.perSurfaceFontOverrides,
+            current.menuBarStyle != next.menuBarStyle,
+            current.showMenuBarExtra != next.showMenuBarExtra,
+            current.showMenuBarBadge != next.showMenuBarBadge,
+            current.showDockBadge != next.showDockBadge,
+            current.enableGlobalHotkey != next.enableGlobalHotkey,
+            current.globalHotkeyBinding != next.globalHotkeyBinding,
+            current.enableLocalNotifications != next.enableLocalNotifications,
+            current.pastEventBehavior != next.pastEventBehavior,
+            current.overdueTaskBehavior != next.overdueTaskBehavior,
+            current.completedTaskBehavior != next.completedTaskBehavior,
+            current.showCompletedItemsInCalendar != next.showCompletedItemsInCalendar,
+            current.historyVisibleLimit != next.historyVisibleLimit,
+            current.historyStorageCap != next.historyStorageCap
+        ].filter { $0 }.count
+    }
+
+    private func settingsImportSummaries(from current: AppSettings, to next: AppSettings) -> [String] {
+        var summaries: [String] = []
+
+        if current.colorSchemeID != next.colorSchemeID
+            || current.uiLayoutScale != next.uiLayoutScale
+            || current.uiTextSizePoints != next.uiTextSizePoints
+            || current.uiFontName != next.uiFontName
+            || current.perSurfaceFontOverrides != next.perSurfaceFontOverrides {
+            summaries.append("Appearance, font, layout, or theme preferences will change.")
+        }
+        if current.shortcutOverrides != next.shortcutOverrides
+            || current.enableGlobalHotkey != next.enableGlobalHotkey
+            || current.globalHotkeyBinding != next.globalHotkeyBinding {
+            summaries.append("Keyboard shortcut and global hotkey settings will change.")
+        }
+        if current.syncMode != next.syncMode
+            || current.selectedCalendarIDs != next.selectedCalendarIDs
+            || current.selectedTaskListIDs != next.selectedTaskListIDs
+            || current.hasConfiguredCalendarSelection != next.hasConfiguredCalendarSelection
+            || current.hasConfiguredTaskListSelection != next.hasConfiguredTaskListSelection {
+            summaries.append("Sync mode, calendar visibility, or task-list visibility will change.")
+        }
+        if current.customFilters != next.customFilters {
+            summaries.append("Custom filters will change from \(current.customFilters.count) to \(next.customFilters.count).")
+        }
+        if current.taskTemplates != next.taskTemplates || current.eventTemplates != next.eventTemplates {
+            summaries.append("Templates will change from \(current.taskTemplates.count + current.eventTemplates.count) to \(next.taskTemplates.count + next.eventTemplates.count).")
+        }
+        if current.menuBarStyle != next.menuBarStyle
+            || current.showMenuBarExtra != next.showMenuBarExtra
+            || current.showMenuBarBadge != next.showMenuBarBadge
+            || current.showDockBadge != next.showDockBadge
+            || current.hiddenSidebarItems != next.hiddenSidebarItems
+            || current.hiddenCalendarViewModes != next.hiddenCalendarViewModes {
+            summaries.append("Menu bar, Dock badge, sidebar, or calendar view visibility will change.")
+        }
+        if current.enableLocalNotifications != next.enableLocalNotifications
+            || current.enableTaskCompletionSound != next.enableTaskCompletionSound
+            || current.enableEventCompletionSound != next.enableEventCompletionSound
+            || current.taskCompletionSoundChoice != next.taskCompletionSoundChoice
+            || current.eventCompletionSoundChoice != next.eventCompletionSoundChoice {
+            summaries.append("Reminder and completion sound preferences will change.")
+        }
+        if current.pastEventBehavior != next.pastEventBehavior
+            || current.overdueTaskBehavior != next.overdueTaskBehavior
+            || current.completedTaskBehavior != next.completedTaskBehavior
+            || current.showCompletedItemsInCalendar != next.showCompletedItemsInCalendar {
+            summaries.append("Calendar cleanup and completed-item visibility preferences will change.")
+        }
+        if current.historyVisibleLimit != next.historyVisibleLimit
+            || current.historyStorageCap != next.historyStorageCap
+            || current.historyCategoryFilters != next.historyCategoryFilters {
+            summaries.append("History window preferences will change.")
+        }
+
+        return summaries
+    }
+
     func refreshOpenAtLoginStatus() {
         opensAtLogin = loginItemController.isEnabled
     }

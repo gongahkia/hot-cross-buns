@@ -23,6 +23,8 @@ final class AppCommandActions {
     var printToday: () -> Void = {}
     var exportDayICS: () -> Void = {}
     var exportWeekICS: () -> Void = {}
+    var exportSettings: () -> Void = {}
+    var importSettings: () -> Void = {}
     var zoomIn: () -> Void = {}
     var zoomOut: () -> Void = {}
     var zoomReset: () -> Void = {}
@@ -193,6 +195,11 @@ struct AppCommands: Commands {
             Button("Export Day as .ics…") { actions?.exportDayICS() }
                 .disabled(actions == nil)
             Button("Export Week as .ics…") { actions?.exportWeekICS() }
+                .disabled(actions == nil)
+            Divider()
+            Button("Export Settings…") { actions?.exportSettings() }
+                .disabled(actions == nil)
+            Button("Import Settings…") { actions?.importSettings() }
                 .disabled(actions == nil)
         }
 
