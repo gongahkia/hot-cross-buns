@@ -62,6 +62,7 @@
 		3E796CFC3C8917CD171472AC /* GoogleTaskDueDateFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BFD977211942ADB9C88E1CF /* GoogleTaskDueDateFormatterTests.swift */; };
 		3EE99B0A05D5C339CF2DC37A /* HCBChord.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADE27E86E215DA78273F2839 /* HCBChord.swift */; };
 		3F1DE97236A01242A75FAEF9 /* AdvancedSearchQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7469A7E227891C69E6A7BCC1 /* AdvancedSearchQuery.swift */; };
+		3F724984C1A0D2DBF278DD8E /* GoogleOAuthClientSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80A153811A78936A8F31094F /* GoogleOAuthClientSetupView.swift */; };
 		423A2928A33D4C5387CC339B /* ColorSchemes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C23CE545813F082C04B501C8 /* ColorSchemes.swift */; };
 		4280BF87BB4B06F1B807DA7B /* FuzzySearcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFBEA7BC0A7653E6A4022AB1 /* FuzzySearcher.swift */; };
 		4432C7D64B74B022D0A6FA52 /* AdvancedSearchMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEEF278EC506750047BC6B9C /* AdvancedSearchMatcher.swift */; };
@@ -166,6 +167,7 @@
 		B4007C7CDFB8A24313A04A5F /* GoogleMapsConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E5EC5EF558326D415F76B1 /* GoogleMapsConfigTests.swift */; };
 		B63D287732D4657D498E55CD /* AppearanceSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB531053D620E337F1946147 /* AppearanceSection.swift */; };
 		B7A300DA4BA17F92E0BE9FEB /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = B0DACBB900FC888B11AAC6CD /* Localizable.xcstrings */; };
+		B80819248EC01271EBC5B924 /* CustomGoogleOAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3454272854A0928C306945E /* CustomGoogleOAuthService.swift */; };
 		B961C661A38D5CE2845E6580 /* NaturalLanguageTaskParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B3C9FACB76521CB9850BC84 /* NaturalLanguageTaskParserTests.swift */; };
 		B9D9962B30CA73EFBD0719AD /* HCBSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06F2696FD874FEEBAEB421DC /* HCBSurface.swift */; };
 		BC1B43B0C73F002D0EA83908 /* KanbanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AD899D7DA4173441D6AF8D4 /* KanbanView.swift */; };
@@ -217,6 +219,7 @@
 		F8BA863DB51480D6B9ADEBE9 /* FuzzySearcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A49B39BEE4E940882B8C2AC5 /* FuzzySearcherTests.swift */; };
 		FA524DC3AE098023C142AF71 /* SubtaskDragPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20B9299699F46BFF95D48B7 /* SubtaskDragPayload.swift */; };
 		FAF5552BD86281508DDFA800 /* CompletionSoundSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F2825131BCE1BE98DDD8C0C /* CompletionSoundSettings.swift */; };
+		FC53C77C9D94EA2806AAEEA1 /* OAuthLoopbackServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4D2E410DA5D28FF58E31C3C /* OAuthLoopbackServer.swift */; };
 		FDE80870553452D646C4BB0B /* GoogleAuthServiceHelpersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D24467042376D053D9781314 /* GoogleAuthServiceHelpersTests.swift */; };
 		FE216A2BBE372EE6C0DD54FD /* ConversionMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A59BC37092CD2A812114D355 /* ConversionMapperTests.swift */; };
 /* End PBXBuildFile section */
@@ -342,6 +345,7 @@
 		7E1914111389946DFA7D57E1 /* LocalNotificationSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNotificationSchedulerTests.swift; sourceTree = "<group>"; };
 		7FC293FBF1818802ED9D013A /* StoreViewMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreViewMode.swift; sourceTree = "<group>"; };
 		7FC2AADAC806017C13510FCB /* HelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
+		80A153811A78936A8F31094F /* GoogleOAuthClientSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleOAuthClientSetupView.swift; sourceTree = "<group>"; };
 		8127C3548EA95EFE65DEFC21 /* ReleaseConfigGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseConfigGateTests.swift; sourceTree = "<group>"; };
 		81B6DCD044EB92F7793567B7 /* NaturalLanguageEventParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NaturalLanguageEventParser.swift; sourceTree = "<group>"; };
 		835C22A6F8FF88C02CDD31B6 /* SystemCrashReportReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemCrashReportReader.swift; sourceTree = "<group>"; };
@@ -406,6 +410,7 @@
 		C17A2CA31D4325F3BF696AD8 /* QueryDSL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryDSL.swift; sourceTree = "<group>"; };
 		C23CE545813F082C04B501C8 /* ColorSchemes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorSchemes.swift; sourceTree = "<group>"; };
 		C278E1866E172AB8336C2125 /* GlobalHotkeySection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotkeySection.swift; sourceTree = "<group>"; };
+		C4D2E410DA5D28FF58E31C3C /* OAuthLoopbackServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthLoopbackServer.swift; sourceTree = "<group>"; };
 		C52D7AE4A4A66334A5044478 /* HCBCacheKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HCBCacheKeychain.swift; sourceTree = "<group>"; };
 		C7927086C6D7ED52806C839E /* DayAgendaPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayAgendaPopover.swift; sourceTree = "<group>"; };
 		C9947809DE2CC9C0058C3BA2 /* OptimisticWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimisticWriterTests.swift; sourceTree = "<group>"; };
@@ -447,6 +452,7 @@
 		F2263C896865029DCEC3A53B /* CalendarHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarHomeView.swift; sourceTree = "<group>"; };
 		F2DAF9EC4D904A84E8BC06FC /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		F2EDEC1CEE956716394335F3 /* DraggedTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DraggedTask.swift; sourceTree = "<group>"; };
+		F3454272854A0928C306945E /* CustomGoogleOAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomGoogleOAuthService.swift; sourceTree = "<group>"; };
 		F43D5EFAF4A4D7E38BBCF472 /* EventContextMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventContextMenu.swift; sourceTree = "<group>"; };
 		F51F65CDD611063E476A60A9 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		F5B1547C4C575DC04A139FD0 /* AppModelEventsByCalendarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModelEventsByCalendarTests.swift; sourceTree = "<group>"; };
@@ -837,8 +843,10 @@
 		925C270356E32422F9A8BDF9 /* Auth */ = {
 			isa = PBXGroup;
 			children = (
+				F3454272854A0928C306945E /* CustomGoogleOAuthService.swift */,
 				CD3E985540BFEBDABB373283 /* GoogleAuthService.swift */,
 				865A5F75E0D2C3ACB690C7A6 /* KeychainHealth.swift */,
+				C4D2E410DA5D28FF58E31C3C /* OAuthLoopbackServer.swift */,
 			);
 			path = Auth;
 			sourceTree = "<group>";
@@ -1068,6 +1076,7 @@
 				5CDBE097FFF4A48F2BCDE315 /* DiagnosticsView.swift */,
 				923D7E147E63ED13484B24AA /* EncryptionSection.swift */,
 				C278E1866E172AB8336C2125 /* GlobalHotkeySection.swift */,
+				80A153811A78936A8F31094F /* GoogleOAuthClientSetupView.swift */,
 				322421AFC97A807AACB1057B /* HCBSettingsWindow.swift */,
 				E0F94A52DF81C406B97107BD /* HistorySection.swift */,
 				8D28DC41B5549CBBC446FEC9 /* KeybindingsSection.swift */,
@@ -1253,6 +1262,7 @@
 				31AF912F0C07426A97089C29 /* CrashReporter.swift in Sources */,
 				F544AFBC74E117992DB58913 /* CustomFilter.swift in Sources */,
 				76FE748A00BF7565093EB3C2 /* CustomFiltersSection.swift in Sources */,
+				B80819248EC01271EBC5B924 /* CustomGoogleOAuthService.swift in Sources */,
 				ACCC7BDB814D873A2EE5DFC7 /* DayAgendaPopover.swift in Sources */,
 				1EB09DC829E32132539C4C0E /* DayGridView.swift in Sources */,
 				9D78958B97CA82C8F51F677D /* DeepLinkErrorToast.swift in Sources */,
@@ -1279,6 +1289,7 @@
 				DB349B0AB6AD7E665A85B0BB /* GoogleAuthService.swift in Sources */,
 				277CAF0A19ABD1F6844B943E /* GoogleCalendarClient.swift in Sources */,
 				8B428AEF6A3CEF5EA9D7D20E /* GoogleMapsConfig.swift in Sources */,
+				3F724984C1A0D2DBF278DD8E /* GoogleOAuthClientSetupView.swift in Sources */,
 				B3F746B7B5C48FF0EE0D5378 /* GoogleTasksClient.swift in Sources */,
 				AAD5E2AC3B28CD1FE0A15AAE /* GuestsSection.swift in Sources */,
 				7B40B5F28634337136A7E5DA /* HCBAppearance.swift in Sources */,
@@ -1323,6 +1334,7 @@
 				025714D0F603A7346F61A495 /* NaturalLanguageTaskParser.swift in Sources */,
 				3D213BE8FAC38B7A5EA94EEB /* NetworkMonitor.swift in Sources */,
 				BFA45D24358F6B2E8F93D30B /* NotesViewMode.swift in Sources */,
+				FC53C77C9D94EA2806AAEEA1 /* OAuthLoopbackServer.swift in Sources */,
 				827C84F1E10F6B534F590F1B /* OnboardingView.swift in Sources */,
 				D6CEEB629BAA00D100C52E52 /* OptimisticWriter.swift in Sources */,
 				9D6382244372C23C7D0D91DE /* PastCleanupBehaviors.swift in Sources */,

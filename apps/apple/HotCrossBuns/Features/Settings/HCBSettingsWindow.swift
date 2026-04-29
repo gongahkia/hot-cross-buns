@@ -151,10 +151,15 @@ private struct GeneralTab: View {
 
     var body: some View {
         Form {
+            Section("Google OAuth client") {
+                GoogleOAuthClientSetupView()
+            }
+
             Section("Google account") {
                 AccountStatusView(
                     authState: model.authState,
                     account: model.account,
+                    canConnect: model.isGoogleAuthConfigured,
                     connect: { Task { await model.connectGoogleAccount() } },
                     disconnect: { Task { await model.disconnectGoogleAccount() } }
                 )

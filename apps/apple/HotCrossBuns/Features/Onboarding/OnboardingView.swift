@@ -30,7 +30,7 @@ struct OnboardingView: View {
 
     private var setupBody: some View {
         Form {
-            Section { GoogleCloudSetupCard() }
+            Section { GoogleOAuthClientSetupView() }
             Section { ConnectGoogleCard() }
             Section { SyncPreferenceCard() }
             SourceSelectionCard()
@@ -276,7 +276,7 @@ private struct ConnectGoogleCard: View {
     }
 
     private var isOAuthConfigured: Bool {
-        GoogleAuthService.isConfigured(
+        model.customOAuthClientConfiguration != nil || GoogleAuthService.isConfigured(
             clientID: Bundle.main.object(forInfoDictionaryKey: "GIDClientID") as? String
         )
     }
@@ -299,69 +299,6 @@ private struct ConnectGoogleCard: View {
         Text("Tokens stay in your Mac Keychain. Disconnecting in Settings wipes local state.")
             .hcbFont(.caption)
             .foregroundStyle(.secondary)
-    }
-}
-
-private struct GoogleCloudSetupCard: View {
-    private var isOAuthConfigured: Bool {
-        GoogleAuthService.isConfigured(
-            clientID: Bundle.main.object(forInfoDictionaryKey: "GIDClientID") as? String
-        )
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Google Cloud setup", systemImage: isOAuthConfigured ? "checkmark.shield.fill" : "key.fill")
-                .hcbFont(.headline)
-                .foregroundStyle(isOAuthConfigured ? AppColor.moss : AppColor.ink)
-
-            if isOAuthConfigured {
-                Text(statusText)
-                    .hcbFont(.footnote)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                Text(statusText)
-                    .hcbFont(.footnote)
-                    .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            DisclosureGroup("Use your own OAuth client") {
-                VStack(alignment: .leading, spacing: 10) {
-                    setupStep("Create a Google Cloud project and enable the Google Tasks API and Google Calendar API.")
-                    setupStep("Configure the Google Auth platform. For a personal Gmail account, use External. Add yourself as a test user while setting up.")
-                    setupStep("Create an iOS/macOS OAuth client for bundle ID com.gongahkia.hotcrossbuns.mac.")
-                    setupStep("Copy the client ID and reversed client ID into apps/apple/Configuration/GoogleOAuth.local.xcconfig, then rebuild from Xcode.")
-                    setupStep("For long-lived refresh tokens, publish the OAuth app to In production. Testing mode refresh tokens expire after 7 days for Tasks and Calendar scopes.")
-                }
-                .hcbScaledPadding(.top, 8)
-            }
-
-            Text("Do not ship a build that embeds your personal OAuth client for other people's accounts. Each self-hosted user should build with their own Google Cloud project.")
-                .hcbFont(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private var statusText: String {
-        if isOAuthConfigured {
-            return "This build contains a Google OAuth client. Make sure it belongs to the person or organization using this app."
-        }
-        return "Google sign-in is disabled in this build because no OAuth client is embedded."
-    }
-
-    private func setupStep(_ text: String) -> some View {
-        Label {
-            Text(text)
-                .foregroundStyle(.secondary)
-        } icon: {
-            Image(systemName: "circle.fill")
-                .font(.system(size: 5))
-                .foregroundStyle(.secondary)
-        }
-        .hcbFont(.caption)
     }
 }
 
