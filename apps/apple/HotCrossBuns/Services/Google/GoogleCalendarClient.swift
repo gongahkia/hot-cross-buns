@@ -283,6 +283,7 @@ private struct GoogleEventDTO: Decodable, Sendable {
     var etag: String?
     var updated: Date?
     var conferenceData: GoogleConferenceDataDTO?
+    var htmlLink: String?
     var colorId: String?
     var extendedProperties: GoogleEventExtendedPropertiesDTO?
 
@@ -348,6 +349,7 @@ private struct GoogleEventDTO: Decodable, Sendable {
             attendeeEmails: attendeeList.compactMap(\.email),
             attendeeResponses: attendeeResponses,
             meetLink: conferenceData?.meetLink ?? "",
+            htmlLink: htmlLink,
             colorId: colorId,
             hcbTaskID: hcbTaskID
         )

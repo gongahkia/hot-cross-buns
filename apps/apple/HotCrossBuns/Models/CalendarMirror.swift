@@ -67,6 +67,7 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
     var attendeeEmails: [String]
     var attendeeResponses: [CalendarEventAttendee]
     var meetLink: String
+    var htmlLink: String?
     var colorId: String?
     // HCB-only metadata stored in Google's native `extendedProperties.private`
     // bag. `private` is HCB-only — other Google clients don't render it —
@@ -94,6 +95,7 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         attendeeEmails: [String] = [],
         attendeeResponses: [CalendarEventAttendee] = [],
         meetLink: String = "",
+        htmlLink: String? = nil,
         colorId: String? = nil,
         hcbTaskID: String? = nil
     ) {
@@ -114,6 +116,7 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         self.attendeeEmails = attendeeEmails
         self.attendeeResponses = attendeeResponses
         self.meetLink = meetLink
+        self.htmlLink = htmlLink
         self.colorId = colorId
         self.hcbTaskID = hcbTaskID
     }
@@ -136,6 +139,7 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         case attendeeEmails
         case attendeeResponses
         case meetLink
+        case htmlLink
         case colorId
         case hcbTaskID
     }
@@ -159,6 +163,7 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         attendeeEmails = try container.decodeIfPresent([String].self, forKey: .attendeeEmails) ?? []
         attendeeResponses = try container.decodeIfPresent([CalendarEventAttendee].self, forKey: .attendeeResponses) ?? []
         meetLink = try container.decodeIfPresent(String.self, forKey: .meetLink) ?? ""
+        htmlLink = try container.decodeIfPresent(String.self, forKey: .htmlLink)
         colorId = try container.decodeIfPresent(String.self, forKey: .colorId)
         hcbTaskID = try container.decodeIfPresent(String.self, forKey: .hcbTaskID)
     }

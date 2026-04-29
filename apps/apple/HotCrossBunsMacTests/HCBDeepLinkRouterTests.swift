@@ -43,6 +43,13 @@ final class HCBDeepLinkRouterTests: XCTestCase {
         XCTAssertEqual(action, .openTask(id: "abc123"))
     }
 
+    func testBuiltTaskLinkRoundTrips() throws {
+        let url = HCBDeepLinkBuilder.taskURL(id: "task_abc-123")
+        let action = try HCBDeepLinkRouter.route(url, now: now, calendar: calendar).get()
+        XCTAssertEqual(url.absoluteString, "hotcrossbuns://task/task_abc-123")
+        XCTAssertEqual(action, .openTask(id: "task_abc-123"))
+    }
+
     func testOpenTaskMissingId() {
         XCTAssertTrue(route("hotcrossbuns://task").isFailure)
         XCTAssertTrue(route("hotcrossbuns://task/").isFailure)
@@ -58,6 +65,13 @@ final class HCBDeepLinkRouterTests: XCTestCase {
     func testOpenEvent() throws {
         let action = try route("hotcrossbuns://event/evt_xyz").get()
         XCTAssertEqual(action, .openEvent(id: "evt_xyz"))
+    }
+
+    func testBuiltEventLinkRoundTrips() throws {
+        let url = HCBDeepLinkBuilder.eventURL(id: "evt_xyz-123")
+        let action = try HCBDeepLinkRouter.route(url, now: now, calendar: calendar).get()
+        XCTAssertEqual(url.absoluteString, "hotcrossbuns://event/evt_xyz-123")
+        XCTAssertEqual(action, .openEvent(id: "evt_xyz-123"))
     }
 
     func testOpenEventMissingId() {
