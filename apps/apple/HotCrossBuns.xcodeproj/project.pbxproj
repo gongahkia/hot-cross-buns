@@ -80,6 +80,7 @@
 		532307C515FAB37584D4B968 /* ExporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A247BD19F3FCC74244C279E /* ExporterTests.swift */; };
 		538765B3D8C24FF163A7FB79 /* DuplicateIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E0559A8D3FFE9C8765064F7 /* DuplicateIndex.swift */; };
 		53E6931013FCFB5C1A0858EE /* UndoAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22EC7CE0BFC4074C6B02F03B /* UndoAction.swift */; };
+		544D58C739821D0804A7721E /* GlobalHotkeyEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 052D85C55BFE31785899E623 /* GlobalHotkeyEnvironment.swift */; };
 		5799529EE7641C550A7EBC2F /* MarkdownLiveEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEB5FC8D64F589CCFA37D0F0 /* MarkdownLiveEditor.swift */; };
 		57C28D13661010694743BE77 /* PastCleanupFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA27E7B048E0458EA4A20B22 /* PastCleanupFilter.swift */; };
 		5830CFCD82341AAC6053C5D4 /* HistoryWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2E722E12E1EF9A6B8C14338 /* HistoryWindow.swift */; };
@@ -266,6 +267,7 @@
 		04200A166E83F915A6DECF28 /* CrashReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReporter.swift; sourceTree = "<group>"; };
 		049BF64AB830949A8FF5F454 /* ConversionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversionService.swift; sourceTree = "<group>"; };
 		049F4CDAC1343692B257156B /* SyncScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncScheduler.swift; sourceTree = "<group>"; };
+		052D85C55BFE31785899E623 /* GlobalHotkeyEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotkeyEnvironment.swift; sourceTree = "<group>"; };
 		06F2696FD874FEEBAEB421DC /* HCBSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HCBSurface.swift; sourceTree = "<group>"; };
 		0854A71DD603264D078FB733 /* MonthGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthGridView.swift; sourceTree = "<group>"; };
 		09882AE6212AFABA6285AACF /* GoogleTasksClientTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleTasksClientTransportTests.swift; sourceTree = "<group>"; };
@@ -707,6 +709,7 @@
 				8FF54DB319263C6A1FD8A97D /* CommandPaletteView.swift */,
 				FFBEA7BC0A7653E6A4022AB1 /* FuzzySearcher.swift */,
 				F5BB15E1D51900AFA2203B2D /* GlobalHotkey.swift */,
+				052D85C55BFE31785899E623 /* GlobalHotkeyEnvironment.swift */,
 				AEC733C8BC2C07D4E58D7E31 /* GlobalQuickCapturePanelController.swift */,
 				ADE27E86E215DA78273F2839 /* HCBChord.swift */,
 				203E4B8B99B16857BB9E1C19 /* HCBDeepLinkRouter.swift */,
@@ -1294,6 +1297,7 @@
 				9ABDB68F86970E1A10FE8184 /* ForecastBuilder.swift in Sources */,
 				4280BF87BB4B06F1B807DA7B /* FuzzySearcher.swift in Sources */,
 				26F27A606CAB73AC71A858D5 /* GlobalHotkey.swift in Sources */,
+				544D58C739821D0804A7721E /* GlobalHotkeyEnvironment.swift in Sources */,
 				4EBE176BAF2495405965A5F4 /* GlobalHotkeySection.swift in Sources */,
 				442E84D81E061F7C55991111 /* GlobalQuickCapturePanelController.swift in Sources */,
 				1AD6ED436FF3293F2E92EA86 /* GlobalQuickCaptureView.swift in Sources */,
