@@ -177,6 +177,10 @@ scripts/package-macos-dmg.sh
 
 **Google Cloud OAuth setup**
 
+There are two supported Google OAuth paths.
+
+**Path A: downloaded DMG + runtime Desktop OAuth**
+
 Downloaded DMGs do not need to be rebuilt for personal Google sync:
 
 1. Create a Google Cloud project.
@@ -186,6 +190,8 @@ Downloaded DMGs do not need to be rebuilt for personal Google sync:
 5. Open Hot Cross Buns, paste the desktop client ID and optional client secret into the Google OAuth client setup card, then click Connect Google.
 
 For personal day-to-day use, set the OAuth app publishing status to `In production` after setup. Google's testing status issues refresh tokens that expire after 7 days for the Tasks and Calendar scopes, so staying in testing means periodic re-consent.
+
+**Path B: source build + embedded native Google Sign-In**
 
 To embed a native Google Sign-In client in a source build instead, copy `apps/apple/Configuration/GoogleOAuth.example.xcconfig` to `apps/apple/Configuration/GoogleOAuth.local.xcconfig` and fill in your own iOS/macOS OAuth client values. The committed `apps/apple/Configuration/GoogleOAuth.xcconfig` provides blank CI-safe defaults and includes the local override when present.
 
