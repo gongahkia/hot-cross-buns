@@ -281,24 +281,7 @@ struct MacSidebarShell: View {
                 await runNearRealtimeSyncLoop()
             }
             .onChange(of: scenePhase) { _, newPhase in
-                if newPhase == .background || newPhase == .inactive {
-                    // Force any in-flight debounced cache write to disk before
-                    // the OS may suspend or terminate us.
-                    Task { await model.flushPendingCacheSave() }
-                    return
-                }
-                guard newPhase == .active else { return }
-                // Coming back to the foreground is an implicit "try again."
-                // Clear any persistent-failure pause so the near-realtime
-                // loop re-runs and the next refresh actually hits Google.
-                model.resumeSync()
-                if model.consumePendingSharedItems() {
-                    presentSheet(.quickAddTask, on: .store)
-                }
-                Task {
-                    await model.refreshForCurrentSyncMode()
-                    handlePendingAppIntentRoute()
-                }
+                handleScenePhaseChange(newPhase)
             }
             .onOpenURL(perform: handleIncomingURL)
             .onContinueUserActivity(CSSearchableItemActionType) { userActivity in
@@ -326,6 +309,26 @@ struct MacSidebarShell: View {
         case .customFilter(let f):
             selection = .store
             model.pendingStoreFilterKey = "custom:\(f.id.uuidString)"
+        }
+    }
+
+    private func handleScenePhaseChange(_ newPhase: ScenePhase) {
+        switch newPhase {
+        case .background, .inactive:
+            // Force any in-flight debounced cache write to disk before the OS may suspend or terminate us.
+            Task { await model.flushPendingCacheSave() }
+        case .active:
+            // Coming back to the foreground is an implicit "try again."
+            model.resumeSync()
+            if model.consumePendingSharedItems() {
+                presentSheet(.quickAddTask, on: .store)
+            }
+            Task {
+                await model.refreshForCurrentSyncMode()
+                handlePendingAppIntentRoute()
+            }
+        @unknown default:
+            break
         }
     }
 
