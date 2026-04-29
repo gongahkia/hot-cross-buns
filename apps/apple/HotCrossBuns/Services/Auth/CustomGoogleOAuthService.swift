@@ -1,6 +1,7 @@
 import AppKit
 import CryptoKit
 import Foundation
+import Security
 
 struct GoogleOAuthClientConfiguration: Codable, Hashable, Sendable {
     var clientID: String
@@ -75,8 +76,7 @@ enum CustomGoogleOAuthError: LocalizedError, Equatable {
     }
 }
 
-@MainActor
-final class CustomGoogleOAuthService {
+final class CustomGoogleOAuthService: @unchecked Sendable {
     private let urlSession: URLSession
     private let callbackTimeoutNanoseconds: UInt64 = 120_000_000_000
     private let requiredScopes = [
@@ -127,6 +127,7 @@ final class CustomGoogleOAuthService {
         return tokenSet.account
     }
 
+    @MainActor
     func signIn() async throws -> GoogleAccount {
         guard let config = clientConfiguration?.normalized else {
             throw CustomGoogleOAuthError.clientNotConfigured
@@ -135,7 +136,7 @@ final class CustomGoogleOAuthService {
             throw CustomGoogleOAuthError.invalidClientID
         }
 
-        let server = try OAuthLoopbackServer()
+        let server = OAuthLoopbackServer()
         let redirectURI = try server.start()
         defer { server.stop() }
 

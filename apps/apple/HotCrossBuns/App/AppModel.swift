@@ -140,6 +140,10 @@ final class AppModel {
         syncCheckpoints.compactMap(\.lastSuccessfulSyncAt).max()
     }
 
+    var isGoogleAuthConfigured: Bool {
+        authService.isConfigured
+    }
+
     init(
         authService: GoogleAuthService,
         tasksClient: GoogleTasksClient,

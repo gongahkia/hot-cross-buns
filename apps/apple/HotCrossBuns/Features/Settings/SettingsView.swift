@@ -1,4 +1,3 @@
-import GoogleSignInSwift
 import SwiftUI
 
 struct SettingsView: View {
@@ -11,10 +10,15 @@ struct SettingsView: View {
 
     var body: some View {
         List {
+            Section("Google OAuth client") {
+                GoogleOAuthClientSetupView()
+            }
+
             Section("Google account") {
                 AccountStatusView(
                     authState: model.authState,
                     account: model.account,
+                    canConnect: model.isGoogleAuthConfigured,
                     connect: {
                         Task {
                             await model.connectGoogleAccount()
@@ -336,6 +340,7 @@ extension View {
 struct AccountStatusView: View {
     let authState: AuthState
     let account: GoogleAccount?
+    let canConnect: Bool
     let connect: () -> Void
     let disconnect: () -> Void
 
@@ -366,6 +371,9 @@ struct AccountStatusView: View {
                 Text(scopeSummary(for: account))
                     .hcbFont(.footnote)
                     .foregroundStyle(.secondary)
+                Text("Auth provider: \(account.authProvider.title)")
+                    .hcbFont(.caption)
+                    .foregroundStyle(.secondary)
 
                 Button(role: .destructive, action: disconnect) {
                     Text("Disconnect Google")
@@ -373,9 +381,19 @@ struct AccountStatusView: View {
                 }
                 .buttonStyle(.bordered)
             } else {
-                GoogleSignInButton(action: connect)
+                Button(action: connect) {
+                    Label("Connect Google", systemImage: "person.crop.circle.badge.plus")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(AppColor.ember)
                     .hcbScaledFrame(maxWidth: 320, alignment: .leading)
-                    .disabled(isAuthenticating)
+                    .disabled(isAuthenticating || canConnect == false)
+                if canConnect == false {
+                    Text("Save a desktop OAuth client above, or build the app with an embedded Google Sign-In client.")
+                        .hcbFont(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .hcbScaledPadding(.vertical, 6)
