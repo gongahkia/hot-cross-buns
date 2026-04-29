@@ -340,11 +340,15 @@ extension View {
 }
 
 struct AccountStatusView: View {
+    @Environment(AppModel.self) private var model
     let authState: AuthState
     let account: GoogleAccount?
     let canConnect: Bool
     let connect: () -> Void
     let disconnect: () -> Void
+
+    @State private var isConfirmingDisconnect = false
+    @State private var cacheFootprint = "Calculating..."
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -377,7 +381,9 @@ struct AccountStatusView: View {
                     .hcbFont(.caption)
                     .foregroundStyle(.secondary)
 
-                Button(role: .destructive, action: disconnect) {
+                Button(role: .destructive) {
+                    isConfirmingDisconnect = true
+                } label: {
                     Text("Disconnect Google")
                         .frame(maxWidth: .infinity)
                 }
@@ -399,6 +405,19 @@ struct AccountStatusView: View {
             }
         }
         .hcbScaledPadding(.vertical, 6)
+        .task(id: disconnectImpactID) {
+            cacheFootprint = await model.cacheFootprintDescription()
+        }
+        .confirmationDialog(
+            "Disconnect Google?",
+            isPresented: $isConfirmingDisconnect,
+            titleVisibility: .visible
+        ) {
+            Button("Disconnect Google", role: .destructive, action: disconnect)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(disconnectConfirmationMessage)
+        }
     }
 
     private var isAuthenticating: Bool {
@@ -421,6 +440,52 @@ struct AccountStatusView: View {
         case .signedOut:
             "person.crop.circle.badge.plus"
         }
+    }
+
+    private var disconnectImpactID: String {
+        [
+            account?.id ?? "signed-out",
+            String(model.pendingMutations.count),
+            String(model.conflictedMutationCount),
+            String(model.quarantinedMutationCount),
+            String(model.invalidPayloadMutationCount)
+        ].joined(separator: ":")
+    }
+
+    private var disconnectConfirmationMessage: String {
+        let pendingCount = model.pendingMutations.count
+        let pendingNoun = pendingCount == 1 ? "queued local write" : "queued local writes"
+        var lines = [
+            "This signs out \(account?.displayName ?? "this Google account") on this Mac and stops syncing until you connect again.",
+            "Google Tasks and Calendar data in your Google account will not be deleted.",
+            "Local cache on disk: \(cacheFootprint).",
+            "Pending sync work: \(pendingCount) \(pendingNoun)."
+        ]
+
+        let flagged = disconnectFlaggedMutationSummary
+        if flagged.isEmpty == false {
+            lines.append("Needs attention: \(flagged).")
+        }
+
+        if pendingCount > 0 {
+            lines.append("Queued writes remain local, but they cannot reach Google while disconnected.")
+        }
+
+        return lines.joined(separator: "\n\n")
+    }
+
+    private var disconnectFlaggedMutationSummary: String {
+        var parts: [String] = []
+        if model.conflictedMutationCount > 0 {
+            parts.append("\(model.conflictedMutationCount) conflict\(model.conflictedMutationCount == 1 ? "" : "s")")
+        }
+        if model.quarantinedMutationCount > 0 {
+            parts.append("\(model.quarantinedMutationCount) quarantined")
+        }
+        if model.invalidPayloadMutationCount > 0 {
+            parts.append("\(model.invalidPayloadMutationCount) invalid")
+        }
+        return parts.joined(separator: ", ")
     }
 
     private func scopeSummary(for account: GoogleAccount) -> String {
