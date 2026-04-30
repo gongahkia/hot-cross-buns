@@ -4,6 +4,7 @@ import SwiftUI
 // routes are silent; this surfaces typos and malformed scripts so a user
 // firing a deep link isn't left wondering why nothing happened.
 struct DeepLinkErrorToast: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var message: String?
     // Auto-dismiss after this delay. Longer than UndoToast (6s) since the
     // message is diagnostic text the user may want to read in full.
@@ -14,7 +15,7 @@ struct DeepLinkErrorToast: View {
             Spacer(minLength: 0)
             if let message {
                 content(message: message)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(HCBMotion.transition(.move(edge: .bottom).combined(with: .opacity), reduceMotion: reduceMotion))
                     .task(id: message) {
                         try? await Task.sleep(for: dismissAfter)
                         // Guard — another error may have replaced this one; don't clobber.
@@ -22,7 +23,7 @@ struct DeepLinkErrorToast: View {
                     }
             }
         }
-        .animation(.easeOut(duration: 0.16), value: message)
+        .animation(HCBMotion.animation(.easeOut(duration: 0.16), reduceMotion: reduceMotion), value: message)
         .allowsHitTesting(message != nil)
     }
 
