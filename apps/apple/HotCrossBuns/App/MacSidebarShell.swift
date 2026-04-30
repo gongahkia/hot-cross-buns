@@ -640,7 +640,7 @@ struct MacSidebarShell: View {
             selection = item
         }
         appCommandActions.openSettingsWindow = { openSettings() }
-        appCommandActions.openDiagnostics = { presentSheet(.diagnostics, on: selection) }
+        appCommandActions.openDiagnostics = { openWindow(id: "diagnostics") }
         appCommandActions.openCommandPalette = { presentCommandPalette() }
         appCommandActions.openHelp = { openWindow(id: "help") }
         appCommandActions.openHistory = { openWindow(id: "history") }
@@ -942,7 +942,7 @@ struct MacSidebarShell: View {
                 shortcut: "Cmd+Option+D",
                 keywords: ["diagnostics", "recovery", "errors", "health"]
             ) {
-                presentSheet(.diagnostics, on: selection)
+                openWindow(id: "diagnostics")
             },
             CommandPaletteCommand(
                 id: "go-calendar",

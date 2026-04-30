@@ -42,6 +42,10 @@ struct HotCrossBunsApp: App {
                     overdueCount: appModel.todaySnapshot.overdueCount,
                     enabled: appModel.settings.showDockBadge
                 )
+                .overlay {
+                    WindowSessionRestorer(settings: appModel.settings)
+                }
+                .hcbWindowRestoration(.main, settings: appModel.settings)
         }
         .defaultSize(width: 1100, height: 720)
         .windowResizability(.contentMinSize)
@@ -73,6 +77,7 @@ struct HotCrossBunsApp: App {
             HelpView()
                 .environment(appModel)
                 .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
+                .hcbWindowRestoration(.help, settings: appModel.settings)
         }
         .defaultSize(width: 720, height: 620)
         .windowResizability(.contentMinSize)
@@ -82,6 +87,7 @@ struct HotCrossBunsApp: App {
             HistoryWindow()
                 .environment(appModel)
                 .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
+                .hcbWindowRestoration(.history, settings: appModel.settings)
         }
         .defaultSize(width: 760, height: 560)
         .windowResizability(.contentMinSize)
@@ -92,8 +98,20 @@ struct HotCrossBunsApp: App {
                 .withHCBAppearance(appModel.settings)
                 .hcbPreferredColorScheme(appModel.settings)
                 .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
+                .hcbWindowRestoration(.syncIssues, settings: appModel.settings)
         }
         .defaultSize(width: 760, height: 620)
+        .windowResizability(.contentMinSize)
+
+        Window("Diagnostics and Recovery", id: "diagnostics") {
+            DiagnosticsView()
+                .environment(appModel)
+                .withHCBAppearance(appModel.settings)
+                .hcbPreferredColorScheme(appModel.settings)
+                .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
+                .hcbWindowRestoration(.diagnostics, settings: appModel.settings)
+        }
+        .defaultSize(width: 860, height: 680)
         .windowResizability(.contentMinSize)
 
         Window("Review Duplicates", id: "duplicate-review") {

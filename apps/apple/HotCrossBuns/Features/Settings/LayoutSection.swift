@@ -14,7 +14,36 @@ struct LayoutSection: View {
             monthScrollBlock
             Divider()
             quickCreateBlock
+            Divider()
+            windowStateBlock
         }
+    }
+
+    private var windowStateBlock: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Windows")
+                .hcbFont(.subheadline, weight: .medium)
+            Toggle(isOn: restoreWindowStateBinding) {
+                Label("Restore previous session", systemImage: "macwindow.on.rectangle")
+            }
+            Text("Reopens Help, History, Sync Issues, and Diagnostics after relaunch, and restores saved window positions.")
+                .hcbFont(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var restoreWindowStateBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.restoreWindowStateEnabled },
+            set: { newValue in
+                var next = model.settings
+                next.restoreWindowStateEnabled = newValue
+                model.updateSettings(next)
+                if newValue == false {
+                    WindowRestorationStore.shared.clearOpenWindows()
+                }
+            }
+        )
     }
 
     private var quickCreateBlock: some View {

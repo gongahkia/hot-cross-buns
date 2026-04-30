@@ -196,6 +196,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var showDetailedMenuBar: Bool
     var showMenuBarBadge: Bool
     var showDockBadge: Bool
+    var restoreWindowStateEnabled: Bool
     var enableGlobalHotkey: Bool
     var globalHotkeyBinding: GlobalHotkeyBinding
     var customFilters: [CustomFilterDefinition]
@@ -294,6 +295,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         showDetailedMenuBar: Bool = false,
         showMenuBarBadge: Bool = true,
         showDockBadge: Bool = true,
+        restoreWindowStateEnabled: Bool = true,
         enableGlobalHotkey: Bool = true,
         globalHotkeyBinding: GlobalHotkeyBinding = .defaultQuickAdd,
         customFilters: [CustomFilterDefinition] = [],
@@ -363,6 +365,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.showDetailedMenuBar = showDetailedMenuBar
         self.showMenuBarBadge = showMenuBarBadge
         self.showDockBadge = showDockBadge
+        self.restoreWindowStateEnabled = restoreWindowStateEnabled
         self.enableGlobalHotkey = enableGlobalHotkey
         self.globalHotkeyBinding = globalHotkeyBinding
         self.customFilters = customFilters
@@ -434,6 +437,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case showDetailedMenuBar
         case showMenuBarBadge
         case showDockBadge
+        case restoreWindowStateEnabled
         case enableGlobalHotkey
         case globalHotkeyBinding
         case customFilters
@@ -515,6 +519,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         showDetailedMenuBar = try container.decodeIfPresent(Bool.self, forKey: .showDetailedMenuBar) ?? false
         showMenuBarBadge = try container.decodeIfPresent(Bool.self, forKey: .showMenuBarBadge) ?? true
         showDockBadge = try container.decodeIfPresent(Bool.self, forKey: .showDockBadge) ?? true
+        restoreWindowStateEnabled = try container.decodeIfPresent(Bool.self, forKey: .restoreWindowStateEnabled) ?? true
         enableGlobalHotkey = try container.decodeIfPresent(Bool.self, forKey: .enableGlobalHotkey) ?? true
         globalHotkeyBinding = try container.decodeIfPresent(GlobalHotkeyBinding.self, forKey: .globalHotkeyBinding) ?? .defaultQuickAdd
         customFilters = try container.decodeIfPresent([CustomFilterDefinition].self, forKey: .customFilters) ?? []
