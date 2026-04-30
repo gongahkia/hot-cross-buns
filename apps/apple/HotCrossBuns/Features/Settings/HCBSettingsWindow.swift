@@ -527,6 +527,7 @@ private struct AdvancedTab: View {
 
             PerTabListFilterSection()
 
+            LocalBackupSection()
             EncryptionSection()
             HistorySection()
             CustomFiltersSection()

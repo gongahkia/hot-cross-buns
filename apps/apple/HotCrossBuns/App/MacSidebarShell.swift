@@ -272,6 +272,7 @@ struct MacSidebarShell: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
+            .loadingOverlay(model.loadingOverlay)
             .animation(.easeOut(duration: 0.16), value: chordKeys)
             .focusedSceneValue(\.appCommandActions, appCommandActions)
             .onAppear(perform: handleShellAppear)
@@ -305,7 +306,7 @@ struct MacSidebarShell: View {
                 uninstallAppShortcutMonitor()
             }
             .onChange(of: model.settings.colorSchemeID, initial: true) { _, newID in
-                HCBColorSchemeStore.current = HCBColorScheme.scheme(id: newID) ?? .notion
+                HCBColorSchemeStore.current = HCBColorScheme.scheme(id: newID, customSchemes: model.settings.customColorSchemes) ?? .notion
             }
             .onChange(of: model.settings.enableGlobalHotkey) { _, newValue in
                 guard let delegate = NSApp.delegate as? AppDelegate else { return }
@@ -586,7 +587,7 @@ struct MacSidebarShell: View {
 
     private func handleShellAppear() {
         selection = SidebarItem(rawValue: storedSelection) ?? .calendar
-        HCBColorSchemeStore.current = HCBColorScheme.scheme(id: model.settings.colorSchemeID) ?? .notion
+        HCBColorSchemeStore.current = HCBColorScheme.scheme(id: model.settings.colorSchemeID, customSchemes: model.settings.customColorSchemes) ?? .notion
         // Pre-refactor builds persisted `hiddenSidebarItems` with a single
         // "store" entry meaning "Store (tasks+notes)". The split maps that
         // to the new paired set so a user who explicitly hid the old tab

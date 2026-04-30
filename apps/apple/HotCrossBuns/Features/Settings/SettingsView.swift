@@ -130,6 +130,8 @@ struct SettingsView: View {
 
             LayoutSection()
 
+            LocalBackupSection()
+
             EncryptionSection()
 
             KeybindingsSection()

@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct AppearanceSection: View {
     @Environment(AppModel.self) private var model
@@ -6,6 +7,9 @@ struct AppearanceSection: View {
     @AppStorage(HCBBaseColorSchemePreference.storageKey) private var baseColorSchemePreference: String = ""
     @State private var fontQuery: String = ""
     @State private var availableFonts: [String] = []
+    @State private var editingCustomScheme: HCBCustomColorScheme?
+    @State private var exportedScheme: HCBColorSchemeDocument?
+    @State private var isImportingScheme = false
 
     var body: some View {
         Section("Appearance") {
@@ -23,6 +27,33 @@ struct AppearanceSection: View {
             }
             coerceThemeToBaseColourScheme()
         }
+        .sheet(item: $editingCustomScheme) { scheme in
+            CustomColorSchemeEditor(draft: scheme) { updated in
+                model.upsertCustomColorScheme(updated)
+            }
+            .withHCBAppearance(model.settings)
+            .hcbPreferredColorScheme(model.settings)
+        }
+        .fileExporter(
+            isPresented: Binding(
+                get: { exportedScheme != nil },
+                set: { if $0 == false { exportedScheme = nil } }
+            ),
+            document: exportedScheme ?? HCBColorSchemeDocument(scheme: HCBCustomColorScheme(copying: .notion)),
+            contentType: .json,
+            defaultFilename: exportedScheme?.scheme.title.replacingOccurrences(of: " ", with: "-").lowercased()
+        ) { _ in
+            exportedScheme = nil
+        }
+        .fileImporter(isPresented: $isImportingScheme, allowedContentTypes: [.json]) { result in
+            guard case .success(let url) = result else { return }
+            guard url.startAccessingSecurityScopedResource() else { return }
+            defer { url.stopAccessingSecurityScopedResource() }
+            if let data = try? Data(contentsOf: url),
+               let scheme = try? JSONDecoder().decode(HCBCustomColorScheme.self, from: data) {
+                model.upsertCustomColorScheme(scheme)
+            }
+        }
         .onChange(of: effectiveThemeIsDark) { _, _ in
             coerceThemeToBaseColourScheme()
         }
@@ -34,6 +65,9 @@ struct AppearanceSection: View {
             Divider()
                 .hcbScaledPadding(.vertical, 10)
             themeRow
+            Divider()
+                .hcbScaledPadding(.vertical, 10)
+            customThemeRow
         }
     }
 
@@ -94,6 +128,47 @@ struct AppearanceSection: View {
         }
     }
 
+    private var customThemeRow: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 18) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Custom themes")
+                        .hcbFont(.body, weight: .semibold)
+                    Text("Create palettes with the editor, import a JSON theme, or export one to share.")
+                        .hcbFont(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 16)
+                Button("Import") { isImportingScheme = true }
+                Button("New from current") {
+                    editingCustomScheme = model.duplicateCurrentColorSchemeForEditing()
+                }
+            }
+
+            if model.settings.customColorSchemes.isEmpty {
+                Text("No custom themes yet.")
+                    .hcbFont(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(model.settings.customColorSchemes) { custom in
+                    HStack(spacing: 10) {
+                        ColorSchemeSwatch(scheme: custom.colorScheme())
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(custom.title)
+                            Text(custom.isDark ? "Dark" : "Light")
+                                .hcbFont(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Edit") { editingCustomScheme = custom }
+                        Button("Export") { exportedScheme = HCBColorSchemeDocument(scheme: custom) }
+                        Button("Delete", role: .destructive) { model.deleteCustomColorScheme(id: custom.id) }
+                    }
+                }
+            }
+        }
+    }
+
     private var baseColourSchemeBinding: Binding<HCBBaseColorSchemePreference> {
         Binding(
             get: {
@@ -122,7 +197,7 @@ struct AppearanceSection: View {
     }
 
     private var filteredThemes: [HCBColorScheme] {
-        HCBColorScheme.all.filter { $0.isDark == effectiveThemeIsDark }
+        HCBColorScheme.all(including: model.settings.customColorSchemes).filter { $0.isDark == effectiveThemeIsDark }
     }
 
     private var defaultTheme: HCBColorScheme {
@@ -140,7 +215,7 @@ struct AppearanceSection: View {
             targetIsDark = systemColorScheme == .dark
         }
 
-        guard HCBColorScheme.scheme(id: model.settings.colorSchemeID)?.isDark != targetIsDark else { return }
+        guard HCBColorScheme.scheme(id: model.settings.colorSchemeID, customSchemes: model.settings.customColorSchemes)?.isDark != targetIsDark else { return }
         let replacement = HCBColorScheme.all.first { $0.isDark == targetIsDark } ?? HCBColorScheme.notion
         model.setColorSchemeID(replacement.id)
     }
