@@ -5,6 +5,8 @@ struct GlobalHotkeySection: View {
     @Environment(AppModel.self) private var model
     @Environment(\.globalHotkeyConfigurator) private var globalHotkeyConfigurator
     @State private var isRecording = false
+    @State private var permissionPrimer: PermissionPrimer?
+    @State private var shouldEnableAfterAccessibilityGrant = false
 
     var body: some View {
         Section("Global hotkey") {
@@ -52,6 +54,19 @@ struct GlobalHotkeySection: View {
                 .foregroundStyle(.secondary)
         }
         .onAppear(perform: refreshRegistrationState)
+        .sheet(item: $permissionPrimer) { primer in
+            PermissionPrimerView(primer: primer) {
+                permissionPrimer = nil
+                _ = GlobalHotkeyAccessibilityPermission.isTrusted(prompt: true)
+                HotCrossBunsSystemSettings.open(HotCrossBunsSystemSettings.accessibilityURL)
+            } onCancel: {
+                shouldEnableAfterAccessibilityGrant = false
+                permissionPrimer = nil
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            enableIfAccessibilityWasGranted()
+        }
     }
 
     private var enabledBinding: Binding<Bool> {
@@ -59,15 +74,9 @@ struct GlobalHotkeySection: View {
             get: { model.settings.enableGlobalHotkey },
             set: { newValue in
                 if newValue {
-                    let state = configure(enabled: true, binding: model.settings.globalHotkeyBinding)
-                    switch state {
-                    case .ready:
-                        model.setEnableGlobalHotkey(true)
-                    case .disabled, .failed:
-                        model.setEnableGlobalHotkey(false)
-                    }
-                    model.setGlobalHotkeyRegistrationState(state)
+                    requestEnableGlobalHotkey()
                 } else {
+                    shouldEnableAfterAccessibilityGrant = false
                     model.setEnableGlobalHotkey(false)
                     let state = configure(enabled: false, binding: model.settings.globalHotkeyBinding)
                     model.setGlobalHotkeyRegistrationState(state)
@@ -82,6 +91,8 @@ struct GlobalHotkeySection: View {
             "keyboard"
         case .ready:
             "checkmark.circle"
+        case .needsAccessibilityPermission:
+            "lock.trianglebadge.exclamationmark"
         case .failed:
             "exclamationmark.triangle"
         }
@@ -93,7 +104,7 @@ struct GlobalHotkeySection: View {
             .secondary
         case .ready:
             AppColor.moss
-        case .failed:
+        case .needsAccessibilityPermission, .failed:
             AppColor.ember
         }
     }
@@ -114,6 +125,11 @@ struct GlobalHotkeySection: View {
         case .ready:
             model.setGlobalHotkeyBinding(binding)
             model.setGlobalHotkeyRegistrationState(state)
+        case .needsAccessibilityPermission:
+            shouldEnableAfterAccessibilityGrant = true
+            permissionPrimer = .accessibility
+            model.setEnableGlobalHotkey(false)
+            model.setGlobalHotkeyRegistrationState(.needsAccessibilityPermission)
         case .failed(let message):
             if model.settings.enableGlobalHotkey {
                 _ = configure(enabled: true, binding: previous)
@@ -131,10 +147,40 @@ struct GlobalHotkeySection: View {
             binding: model.settings.globalHotkeyBinding
         )
         model.setGlobalHotkeyRegistrationState(state)
+        if state == .needsAccessibilityPermission {
+            model.setEnableGlobalHotkey(false)
+        }
     }
 
     private func configure(enabled: Bool, binding: GlobalHotkeyBinding) -> GlobalHotkeyRegistrationState {
         globalHotkeyConfigurator(enabled: enabled, binding: binding, model: model)
+    }
+
+    private func requestEnableGlobalHotkey() {
+        guard GlobalHotkeyAccessibilityPermission.isTrusted(prompt: false) else {
+            shouldEnableAfterAccessibilityGrant = true
+            permissionPrimer = .accessibility
+            model.setEnableGlobalHotkey(false)
+            model.setGlobalHotkeyRegistrationState(.needsAccessibilityPermission)
+            return
+        }
+
+        let state = configure(enabled: true, binding: model.settings.globalHotkeyBinding)
+        switch state {
+        case .ready:
+            model.setEnableGlobalHotkey(true)
+        case .disabled, .needsAccessibilityPermission, .failed:
+            model.setEnableGlobalHotkey(false)
+        }
+        model.setGlobalHotkeyRegistrationState(state)
+    }
+
+    private func enableIfAccessibilityWasGranted() {
+        guard shouldEnableAfterAccessibilityGrant,
+              GlobalHotkeyAccessibilityPermission.isTrusted(prompt: false)
+        else { return }
+        shouldEnableAfterAccessibilityGrant = false
+        requestEnableGlobalHotkey()
     }
 }
 

@@ -6,6 +6,7 @@ struct PermissionPrimer: Identifiable, Equatable {
     let eyebrow: String
     let title: String
     let message: String
+    let systemPromptLead: String
     let systemPromptTitle: String
     let bullets: [String]
     let continueTitle: String
@@ -16,6 +17,7 @@ struct PermissionPrimer: Identifiable, Equatable {
         eyebrow: "Before macOS asks",
         title: "Allow local reminders on this Mac",
         message: "Hot Cross Buns uses macOS notifications only for device-local task and event reminders. Nothing new is sent to Google when this is on.",
+        systemPromptLead: "You’ll see a macOS dialog next",
         systemPromptTitle: "\"Hot Cross Buns\" Would Like to Send You Notifications",
         bullets: [
             "Task reminders fire on this Mac using your app-wide reminder rule.",
@@ -25,10 +27,27 @@ struct PermissionPrimer: Identifiable, Equatable {
         continueTitle: "Continue to macOS Prompt",
         systemImage: "bell.badge.fill"
     )
+
+    static let accessibility = PermissionPrimer(
+        id: "accessibility",
+        eyebrow: "System permission needed",
+        title: "Allow the global quick-add hotkey",
+        message: "macOS only delivers system-wide keyboard shortcuts to apps that are allowed in Accessibility settings.",
+        systemPromptLead: "You’ll open System Settings next",
+        systemPromptTitle: "Privacy & Security > Accessibility > Hot Cross Buns",
+        bullets: [
+            "The permission is used only for the global quick-add hotkey.",
+            "Hot Cross Buns does not inspect other apps' content or keystrokes.",
+            "If you leave it off, the app stays usable and the global hotkey remains disabled."
+        ],
+        continueTitle: "Open Accessibility Settings",
+        systemImage: "keyboard.badge.eye"
+    )
 }
 
 enum HotCrossBunsSystemSettings {
     static let notificationsURL = URL(string: "x-apple.systempreferences:com.apple.preference.notifications?id=com.gongahkia.hotcrossbuns.mac")
+    static let accessibilityURL = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
 
     static func open(_ url: URL?) {
         guard let url else { return }
@@ -63,7 +82,7 @@ struct PermissionPrimerView: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                Text("You’ll see a macOS dialog next")
+                Text(primer.systemPromptLead)
                     .hcbFont(.headline)
                 VStack(alignment: .leading, spacing: 8) {
                     Text(primer.systemPromptTitle)

@@ -293,6 +293,9 @@ struct MacSidebarShell: View {
                     enabled: newValue,
                     binding: model.settings.globalHotkeyBinding
                 )
+                if newValue == false, model.globalHotkeyRegistrationState == .needsAccessibilityPermission {
+                    return
+                }
                 model.setGlobalHotkeyRegistrationState(state)
             }
             .onChange(of: model.settings.globalHotkeyBinding) { _, newValue in
@@ -585,6 +588,9 @@ struct MacSidebarShell: View {
             binding: model.settings.globalHotkeyBinding
         )
         model.setGlobalHotkeyRegistrationState(state)
+        if state == .needsAccessibilityPermission {
+            model.setEnableGlobalHotkey(false)
+        }
     }
 
     private func configureCommandActions() {
