@@ -51,6 +51,12 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
     }
 
     @MainActor
+    func navigationHelp(shortcutOverrides: [String: HCBKeyBinding] = [:]) -> String {
+        let binding = hcbEffectiveBinding(shortcutCommand, overrides: shortcutOverrides)
+        return "Jump to \(title) (\(binding.displayLabel))"
+    }
+
+    @MainActor
     @ViewBuilder
     func makeContentView(router: RouterPath) -> some View {
         // router injected via custom EnvironmentKey (non-observing). Consumers
