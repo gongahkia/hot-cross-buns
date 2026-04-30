@@ -8,6 +8,8 @@ struct QuickAddEventView: View {
     @State private var input: String = ""
     @State private var parsed: ParsedQuickAddEvent = ParsedQuickAddEvent(summary: "", startDate: nil, endDate: nil, location: nil, isAllDay: false, matchedTokens: [])
     @State private var selectedCalendarID: CalendarListMirror.ID?
+    @State private var autoAppliedCalendarTag: String?
+    @State private var userManuallyPickedCalendar = false
     @State private var isSubmitting = false
     @State private var errorMessage: String?
     @FocusState private var focusedField: Bool
@@ -97,6 +99,9 @@ struct QuickAddEventView: View {
             if let color = matchedEventColor {
                 chip(icon: "circle.fill", text: color.title, tint: colorTint(color))
             }
+            if let calendar = matchedCalendar {
+                chip(icon: "calendar.circle", text: calendar.summary, tint: Color(hex: calendar.colorHex))
+            }
             if let loc = parsed.location, loc.isEmpty == false {
                 chip(icon: "mappin.and.ellipse", text: loc, tint: AppColor.blue)
             }
@@ -108,7 +113,11 @@ struct QuickAddEventView: View {
     private var calendarPicker: some View {
         Picker("Calendar", selection: Binding(
             get: { selectedCalendarID ?? defaultCalendarID },
-            set: { selectedCalendarID = $0 }
+            set: { newValue in
+                selectedCalendarID = newValue
+                userManuallyPickedCalendar = true
+                autoAppliedCalendarTag = nil
+            }
         )) {
             ForEach(model.calendars) { cal in
                 Text(cal.summary).tag(Optional(cal.id))
@@ -142,6 +151,7 @@ struct QuickAddEventView: View {
 
     private func reparse(_ text: String) {
         parsed = NaturalLanguageEventParser().parse(text)
+        applyCalendarTagAutoSelection()
         if selectedCalendarID == nil, let id = defaultCalendarID {
             selectedCalendarID = id
         }
@@ -174,6 +184,28 @@ struct QuickAddEventView: View {
         return CalendarEventColor.from(colorId: colorId)
     }
 
+    private var calendarTagResolution: CalendarTagResolver.Resolution? {
+        CalendarTagResolver.resolve(title: parsed.summary, calendars: model.calendarSnapshot.selectedCalendars)
+            ?? CalendarTagResolver.resolve(title: parsed.summary, calendars: model.calendars)
+    }
+
+    private var matchedCalendar: CalendarListMirror? {
+        calendarTagResolution?.calendar
+    }
+
+    private func applyCalendarTagAutoSelection() {
+        guard userManuallyPickedCalendar == false else { return }
+        if let resolution = calendarTagResolution {
+            if selectedCalendarID != resolution.calendar.id {
+                selectedCalendarID = resolution.calendar.id
+            }
+            autoAppliedCalendarTag = resolution.matchedTag
+        } else if autoAppliedCalendarTag != nil {
+            selectedCalendarID = defaultCalendarID
+            autoAppliedCalendarTag = nil
+        }
+    }
+
     private func colorTint(_ color: CalendarEventColor) -> Color {
         if let hex = color.hex { return Color(hex: hex) }
         return AppColor.ember
@@ -185,8 +217,10 @@ struct QuickAddEventView: View {
 
     private func summaryForSubmission() -> String {
         let raw = parsed.summary.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let tag = colorTagResolution?.matchedTag else { return raw }
-        let stripped = ColorTagResolver.stripTag(tag, from: raw)
+        var stripped = raw
+        for tag in [colorTagResolution?.matchedTag, autoAppliedCalendarTag].compactMap({ $0 }) {
+            stripped = ColorTagResolver.stripTag(tag, from: stripped)
+        }
         return stripped.isEmpty ? raw : stripped
     }
 

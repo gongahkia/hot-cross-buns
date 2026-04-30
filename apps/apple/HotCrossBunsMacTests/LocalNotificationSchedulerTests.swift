@@ -170,6 +170,65 @@ final class LocalNotificationSchedulerTests: XCTestCase {
         XCTAssertTrue(center.didRequestAuthorization)
     }
 
+    @MainActor
+    func testAppModelRequestEnableLocalNotificationsTurnsSettingOnWhenAuthorized() async {
+        let center = FakeUserNotificationCenter()
+        center.currentAuthorizationStatus = .notDetermined
+        center.authorizationRequestResult = true
+        let scheduler = LocalNotificationScheduler(notificationCenter: center)
+        let model = makeModel(
+            notificationScheduler: scheduler,
+            settings: AppSettings(
+                syncMode: .manual,
+                selectedCalendarIDs: [],
+                selectedTaskListIDs: [],
+                enableLocalNotifications: false
+            )
+        )
+
+        let outcome = await model.requestEnableLocalNotifications()
+
+        XCTAssertEqual(outcome, .authorized)
+        XCTAssertTrue(center.didRequestAuthorization)
+        XCTAssertTrue(model.settings.enableLocalNotifications)
+    }
+
+    @MainActor
+    func testAppModelRequestEnableLocalNotificationsDenialTurnsSettingOffAndClearsRequests() async {
+        let center = FakeUserNotificationCenter()
+        center.currentAuthorizationStatus = .notDetermined
+        center.authorizationRequestResult = false
+        center.pendingRequests = [
+            makePendingRequest(identifier: "hot-cross-buns.task.existing"),
+            makePendingRequest(identifier: "hot-cross-buns.event.existing"),
+            makePendingRequest(identifier: "other.app.existing")
+        ]
+        let scheduler = LocalNotificationScheduler(notificationCenter: center)
+        let model = makeModel(
+            notificationScheduler: scheduler,
+            settings: AppSettings(
+                syncMode: .manual,
+                selectedCalendarIDs: [],
+                selectedTaskListIDs: [],
+                enableLocalNotifications: true
+            )
+        )
+
+        let outcome = await model.requestEnableLocalNotifications()
+
+        XCTAssertEqual(outcome, .denied)
+        XCTAssertTrue(center.didRequestAuthorization)
+        XCTAssertFalse(model.settings.enableLocalNotifications)
+        XCTAssertEqual(center.removedPendingIdentifiers, [
+            "hot-cross-buns.task.existing",
+            "hot-cross-buns.event.existing"
+        ])
+        XCTAssertEqual(center.removedDeliveredIdentifiers, [
+            "hot-cross-buns.task.existing",
+            "hot-cross-buns.event.existing"
+        ])
+    }
+
     private var referenceDate: Date {
         var components = DateComponents()
         components.year = 2026
@@ -243,6 +302,28 @@ final class LocalNotificationSchedulerTests: XCTestCase {
             identifier: identifier,
             content: content,
             trigger: UNTimeIntervalNotificationTrigger(timeInterval: 60, repeats: false)
+        )
+    }
+
+    @MainActor
+    private func makeModel(
+        notificationScheduler: LocalNotificationScheduler,
+        settings: AppSettings
+    ) -> AppModel {
+        let transport = GoogleAPITransport(
+            baseURL: URL(string: "https://www.googleapis.com")!,
+            tokenProvider: StaticAccessTokenProvider(token: "test-token")
+        )
+        let tasksClient = GoogleTasksClient(transport: transport)
+        let calendarClient = GoogleCalendarClient(transport: transport)
+        return AppModel(
+            authService: GoogleAuthService(),
+            tasksClient: tasksClient,
+            calendarClient: calendarClient,
+            syncScheduler: SyncScheduler(tasksClient: tasksClient, calendarClient: calendarClient),
+            cacheStore: LocalCacheStore(fileURL: nil),
+            notificationScheduler: notificationScheduler,
+            settings: settings
         )
     }
 }

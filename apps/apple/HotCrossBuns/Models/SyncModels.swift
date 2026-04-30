@@ -191,6 +191,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var taskCompletionSoundChoice: CompletionSoundChoice
     var eventCompletionSoundChoice: CompletionSoundChoice
     var hasCompletedOnboarding: Bool
+    var hasSeenFeatureTour: Bool
     var showMenuBarExtra: Bool
     var showDetailedMenuBar: Bool
     var showMenuBarBadge: Bool
@@ -283,6 +284,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         taskCompletionSoundChoice: CompletionSoundChoice = .defaultTask,
         eventCompletionSoundChoice: CompletionSoundChoice = .defaultEvent,
         hasCompletedOnboarding: Bool = false,
+        hasSeenFeatureTour: Bool = false,
         showMenuBarExtra: Bool = true,
         showDetailedMenuBar: Bool = false,
         showMenuBarBadge: Bool = true,
@@ -346,6 +348,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.taskCompletionSoundChoice = taskCompletionSoundChoice
         self.eventCompletionSoundChoice = eventCompletionSoundChoice
         self.hasCompletedOnboarding = hasCompletedOnboarding
+        self.hasSeenFeatureTour = hasSeenFeatureTour
         self.showMenuBarExtra = showMenuBarExtra
         self.showDetailedMenuBar = showDetailedMenuBar
         self.showMenuBarBadge = showMenuBarBadge
@@ -411,6 +414,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case taskCompletionSoundChoice
         case eventCompletionSoundChoice
         case hasCompletedOnboarding
+        case hasSeenFeatureTour
         case showMenuBarExtra
         case showDetailedMenuBar
         case showMenuBarBadge
@@ -486,6 +490,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         taskCompletionSoundChoice = try container.decodeIfPresent(CompletionSoundChoice.self, forKey: .taskCompletionSoundChoice) ?? .defaultTask
         eventCompletionSoundChoice = try container.decodeIfPresent(CompletionSoundChoice.self, forKey: .eventCompletionSoundChoice) ?? .defaultEvent
         hasCompletedOnboarding = try container.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? false
+        hasSeenFeatureTour = try container.decodeIfPresent(Bool.self, forKey: .hasSeenFeatureTour) ?? false
         showMenuBarExtra = try container.decodeIfPresent(Bool.self, forKey: .showMenuBarExtra) ?? true
         showDetailedMenuBar = try container.decodeIfPresent(Bool.self, forKey: .showDetailedMenuBar) ?? false
         showMenuBarBadge = try container.decodeIfPresent(Bool.self, forKey: .showMenuBarBadge) ?? true

@@ -209,3 +209,36 @@ final class NaturalLanguageTaskParserTests: XCTestCase {
         XCTAssertEqual(result.dueDate, day(2026, 4, 27))
     }
 }
+
+final class CalendarTagResolverTests: XCTestCase {
+    func testResolvesCalendarByHashtagSummary() {
+        let calendars = [
+            CalendarListMirror(id: "personal", summary: "Personal", colorHex: "#33b679", isSelected: true, accessRole: "owner"),
+            CalendarListMirror(id: "work", summary: "Work", colorHex: "#039be5", isSelected: true, accessRole: "owner")
+        ]
+
+        let resolution = CalendarTagResolver.resolve(title: "Planning sync #work tomorrow", calendars: calendars)
+
+        XCTAssertEqual(resolution?.calendar.id, "work")
+        XCTAssertEqual(resolution?.matchedTag, "work")
+    }
+
+    func testCalendarTagKeyIgnoresSpacesCaseAndPunctuation() {
+        let calendars = [
+            CalendarListMirror(id: "school", summary: "School Runs", colorHex: "#f6bf26", isSelected: true, accessRole: "owner")
+        ]
+
+        let resolution = CalendarTagResolver.resolve(title: "Pickup #school-runs", calendars: calendars)
+
+        XCTAssertEqual(resolution?.calendar.id, "school")
+        XCTAssertEqual(CalendarTagResolver.tagKey(for: "School Runs"), "schoolruns")
+    }
+
+    func testCalendarTagResolverPreservesUnmatchedTags() {
+        let calendars = [
+            CalendarListMirror(id: "work", summary: "Work", colorHex: "#039be5", isSelected: true, accessRole: "owner")
+        ]
+
+        XCTAssertNil(CalendarTagResolver.resolve(title: "Planning #personal", calendars: calendars))
+    }
+}

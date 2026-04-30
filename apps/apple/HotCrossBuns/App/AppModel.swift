@@ -2735,7 +2735,7 @@ final class AppModel {
         settings.enableLocalNotifications = isEnabled
         Task {
             scheduleCacheSave()
-            await synchronizeLocalNotifications(requestAuthorization: isEnabled)
+            await runNotificationSync(requestAuthorization: isEnabled)
         }
     }
 
@@ -2745,12 +2745,12 @@ final class AppModel {
         case .authorized:
             settings.enableLocalNotifications = true
             scheduleCacheSave()
-            await synchronizeLocalNotifications(requestAuthorization: false)
+            await runNotificationSync(requestAuthorization: false)
             return .authorized
         case .denied, .notDetermined:
             settings.enableLocalNotifications = false
             scheduleCacheSave()
-            await synchronizeLocalNotifications(requestAuthorization: false)
+            await runNotificationSync(requestAuthorization: false)
             return .denied
         }
     }
@@ -2786,6 +2786,15 @@ final class AppModel {
 
     func resetOnboarding() {
         settings.hasCompletedOnboarding = false
+        settings.hasSeenFeatureTour = false
+        Task {
+            scheduleCacheSave()
+        }
+    }
+
+    func markFeatureTourSeen() {
+        guard settings.hasSeenFeatureTour == false else { return }
+        settings.hasSeenFeatureTour = true
         Task {
             scheduleCacheSave()
         }

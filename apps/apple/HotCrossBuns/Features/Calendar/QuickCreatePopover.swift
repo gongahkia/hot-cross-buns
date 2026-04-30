@@ -45,6 +45,8 @@ struct QuickCreatePopover: View {
     @State private var autoAppliedTaskListTag: String? = nil
     @State private var userManuallyPickedTaskList: Bool = false
     @State private var selectedCalendarID: CalendarListMirror.ID?
+    @State private var autoAppliedCalendarTag: String? = nil
+    @State private var userManuallyPickedCalendar: Bool = false
     @State private var isSaving = false
     @FocusState private var summaryFocused: Bool
     // Outer compact fallback — only honoured when
@@ -182,13 +184,16 @@ struct QuickCreatePopover: View {
         }
         .onChange(of: summary) { _, newValue in
             applyColorTagAutoColor(title: newValue)
+            applyCalendarTagAutoSelection(title: newValue)
             applyTaskListAutoSelection(title: newValue)
         }
         .onChange(of: mode) { _, newValue in
             if newValue == .task {
                 applyTaskListAutoSelection(title: summary)
+                autoAppliedCalendarTag = nil
             } else {
                 autoAppliedTaskListTag = nil
+                applyCalendarTagAutoSelection(title: summary)
             }
         }
     }
@@ -229,6 +234,24 @@ struct QuickCreatePopover: View {
         }
     }
 
+    private func applyCalendarTagAutoSelection(title: String) {
+        guard mode == .event, userManuallyPickedCalendar == false else { return }
+        if let resolution = calendarTagResolution(in: title) {
+            if selectedCalendarID != resolution.calendar.id {
+                selectedCalendarID = resolution.calendar.id
+            }
+            autoAppliedCalendarTag = resolution.matchedTag
+        } else if autoAppliedCalendarTag != nil {
+            selectedCalendarID = model.calendarSnapshot.selectedCalendars.first?.id ?? model.calendars.first?.id
+            autoAppliedCalendarTag = nil
+        }
+    }
+
+    private func calendarTagResolution(in title: String) -> CalendarTagResolver.Resolution? {
+        CalendarTagResolver.resolve(title: title, calendars: model.calendarSnapshot.selectedCalendars)
+            ?? CalendarTagResolver.resolve(title: title, calendars: model.calendars)
+    }
+
     private func taskListTagMatch(in title: String) -> TaskListTagMatch? {
         let tags = TagExtractor.tags(in: title)
         guard tags.isEmpty == false else { return nil }
@@ -259,6 +282,12 @@ struct QuickCreatePopover: View {
         selectedListID = id
         userManuallyPickedTaskList = true
         autoAppliedTaskListTag = nil
+    }
+
+    private func selectCalendarManually(_ id: CalendarListMirror.ID) {
+        selectedCalendarID = id
+        userManuallyPickedCalendar = true
+        autoAppliedCalendarTag = nil
     }
 
     private var effectiveExpanded: Bool {
@@ -814,7 +843,7 @@ struct QuickCreatePopover: View {
         case .event, .birthday:
             Menu {
                 ForEach(model.calendars) { cal in
-                    Button(cal.summary) { selectedCalendarID = cal.id }
+                    Button(cal.summary) { selectCalendarManually(cal.id) }
                 }
             } label: {
                 Label(currentCalendarTitle, systemImage: "calendar.circle")
@@ -964,11 +993,12 @@ struct QuickCreatePopover: View {
     private func submissionTitle(from rawTitle: String) -> String {
         switch mode {
         case .event:
-            // Strip the color-binding tag that won — and only that one —
-            // so Google sees a clean title with colorId carrying the
-            // intent. Losing tags and unmatched tags stay in the title.
-            guard let tag = autoAppliedTag else { return rawTitle }
-            let stripped = ColorTagResolver.stripTag(tag, from: rawTitle)
+            // Strip routing tags that drove implicit color/calendar choices
+            // so Google receives the clean event title.
+            var stripped = rawTitle
+            for tag in [autoAppliedTag, autoAppliedCalendarTag].compactMap({ $0 }) {
+                stripped = ColorTagResolver.stripTag(tag, from: stripped)
+            }
             return stripped.isEmpty ? rawTitle : stripped
         case .task:
             // `#ListName` is a routing hint for quick task/note creation,

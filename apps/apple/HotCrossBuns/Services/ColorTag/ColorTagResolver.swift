@@ -70,3 +70,42 @@ enum ColorTagResolver {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
+
+// Routes event quick-create text to a Google calendar when a #tag matches
+// the calendar name. This lets users model custom colour schemes the way
+// Google Calendar does: create separate calendars, give them colours, then
+// use tags like #work or #school while capturing events.
+enum CalendarTagResolver {
+    struct Resolution: Equatable {
+        let calendar: CalendarListMirror
+        let matchedTag: String
+    }
+
+    static func resolve(title: String, calendars: [CalendarListMirror]) -> Resolution? {
+        let tags = TagExtractor.tags(in: title)
+        guard tags.isEmpty == false else { return nil }
+
+        let index = calendars.reduce(into: [String: CalendarListMirror]()) { result, calendar in
+            let key = tagKey(for: calendar.summary)
+            guard key.isEmpty == false, result[key] == nil else { return }
+            result[key] = calendar
+        }
+        guard index.isEmpty == false else { return nil }
+
+        for tag in tags {
+            if let calendar = index[tagKey(for: tag)] {
+                return Resolution(calendar: calendar, matchedTag: tag)
+            }
+        }
+        return nil
+    }
+
+    static func tagKey(for value: String) -> String {
+        value
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .unicodeScalars
+            .filter { CharacterSet.alphanumerics.contains($0) }
+            .map(String.init)
+            .joined()
+    }
+}
