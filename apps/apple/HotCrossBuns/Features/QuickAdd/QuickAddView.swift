@@ -16,6 +16,7 @@ struct QuickAddView: View {
     @State private var selectedTaskListID: TaskListMirror.ID?
     @State private var isSubmitting = false
     @State private var errorMessage: String?
+    @State private var isGrammarExpanded = false
     @FocusState private var focusedField: Bool
 
     var body: some View {
@@ -40,6 +41,10 @@ struct QuickAddView: View {
                     RoundedRectangle(cornerRadius: 16)
                         .strokeBorder(AppColor.cardStroke, lineWidth: 0.8)
                 )
+
+            if isGrammarExpanded {
+                grammarReference
+            }
 
             previewStrip
 
@@ -114,6 +119,16 @@ struct QuickAddView: View {
             Text(noteMode ? "New Note" : "New Task")
                 .hcbFont(.headline)
             Spacer(minLength: 0)
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isGrammarExpanded.toggle()
+                }
+            } label: {
+                Image(systemName: isGrammarExpanded ? "info.circle.fill" : "info.circle")
+            }
+            .buttonStyle(.borderless)
+            .help(isGrammarExpanded ? "Hide quick-add grammar" : "Show quick-add grammar")
+            .accessibilityLabel(isGrammarExpanded ? "Hide quick-add grammar" : "Show quick-add grammar")
             Text("Return to add, Esc to cancel")
                 .hcbFont(.caption2)
                 .foregroundStyle(.secondary)
@@ -168,6 +183,29 @@ struct QuickAddView: View {
         .pickerStyle(.menu)
         .fixedSize()
         .labelsHidden()
+    }
+
+    private var grammarReference: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(NaturalLanguageTaskParser.helpEntries) { entry in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(entry.title)
+                        .hcbFont(.caption, weight: .semibold)
+                    Text(entry.examples.joined(separator: "  ·  "))
+                        .hcbFont(.caption)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+        .hcbScaledPadding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(AppColor.cardStroke, lineWidth: 0.8)
+        )
+        .transition(.opacity.combined(with: .move(edge: .top)))
     }
 
     private func chip(icon: String, text: String, tint: Color) -> some View {

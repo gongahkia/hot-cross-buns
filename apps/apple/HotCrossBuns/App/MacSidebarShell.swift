@@ -162,6 +162,7 @@ struct MacSidebarShell: View {
     @State private var settingsTransferIsWarning = false
     @State private var settingsImportPreview: SettingsImportPreview?
     @State private var pendingSettingsImport: SettingsTransferBundle?
+    @State private var isPresentingFeatureTour = false
     // Leader-key chord state (§6.9). `nil` = inactive; non-nil = collecting
     // keys after a ⌘K press. timeoutTask cancels the collecting state after
     // 3s of inactivity so a stray leader press doesn't lock out single-key
@@ -213,6 +214,23 @@ struct MacSidebarShell: View {
                     .environment(model)
                     .withHCBAppearance(model.settings)
             }
+            .sheet(
+                isPresented: $isPresentingFeatureTour,
+                onDismiss: { model.markFeatureTourSeen() }
+            ) {
+                FeatureTourView(
+                    dismiss: {
+                        isPresentingFeatureTour = false
+                        model.markFeatureTourSeen()
+                    },
+                    openHelp: {
+                        isPresentingFeatureTour = false
+                        model.markFeatureTourSeen()
+                        openWindow(id: "help")
+                    }
+                )
+                .withHCBAppearance(model.settings)
+            }
             .sheet(isPresented: $isPresentingInsertTemplate) {
                 InsertTaskTemplateSheet()
                     .environment(model)
@@ -257,6 +275,9 @@ struct MacSidebarShell: View {
             .animation(.easeOut(duration: 0.16), value: chordKeys)
             .focusedSceneValue(\.appCommandActions, appCommandActions)
             .onAppear(perform: handleShellAppear)
+            .onChange(of: model.settings.hasCompletedOnboarding) { _, _ in
+                presentFeatureTourIfNeeded()
+            }
             .onReceive(NotificationCenter.default.publisher(for: .hcbOpenStoreTab)) { _ in
                 selection = .store
             }
@@ -578,6 +599,15 @@ struct MacSidebarShell: View {
         configureCommandActions()
         configureGlobalHotkey()
         installAppShortcutMonitor()
+        presentFeatureTourIfNeeded()
+    }
+
+    private func presentFeatureTourIfNeeded() {
+        guard model.settings.hasCompletedOnboarding,
+              model.settings.hasSeenFeatureTour == false,
+              isPresentingOnboarding == false
+        else { return }
+        isPresentingFeatureTour = true
     }
 
     private func configureGlobalHotkey() {
@@ -1019,6 +1049,15 @@ struct MacSidebarShell: View {
                 Image(systemName: item.systemImage)
             }
         }
+        .help(sidebarHelp(for: item))
+    }
+
+    private func sidebarHelp(for item: SidebarItem) -> String {
+        let binding = hcbEffectiveBinding(
+            item.shortcutCommand,
+            overrides: model.settings.shortcutOverrides
+        )
+        return "Jump to \(item.title) (\(binding.displayLabel))"
     }
 
     private func sidebarItemKey(_ item: SidebarItem) -> String {
@@ -1120,6 +1159,109 @@ struct MacSidebarShell: View {
                 selection = .calendar
             }
         }
+    }
+}
+
+private struct FeatureTourView: View {
+    let dismiss: () -> Void
+    let openHelp: () -> Void
+
+    private let items: [FeatureTourItem] = [
+        FeatureTourItem(
+            title: "Quick add",
+            detail: "Capture tasks with dates and list hints, or notes without leaving the keyboard.",
+            systemImage: "plus.circle.fill"
+        ),
+        FeatureTourItem(
+            title: "Calendar surfaces",
+            detail: "Move between agenda, day, week, month, year, and multi-day views from the Calendar toolbar.",
+            systemImage: "calendar"
+        ),
+        FeatureTourItem(
+            title: "Tasks and notes",
+            detail: "Dated items stay in Tasks; undated items stay in Notes, with per-tab list filters in Settings.",
+            systemImage: "checklist"
+        ),
+        FeatureTourItem(
+            title: "Command palette",
+            detail: "Open app actions, switch views, and route common workflows from one searchable panel.",
+            systemImage: "command.circle"
+        ),
+        FeatureTourItem(
+            title: "Sync issues",
+            detail: "Review conflicts, invalid queued writes, and deferred reminders from the status banner or Sync Issues window.",
+            systemImage: "exclamationmark.arrow.triangle.2.circlepath"
+        ),
+        FeatureTourItem(
+            title: "Templates and filters",
+            detail: "Save reusable task/event templates and custom task filters from Settings.",
+            systemImage: "slider.horizontal.3"
+        )
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: "sparkles")
+                    .hcbFont(.title2)
+                    .foregroundStyle(AppColor.ember)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Tips")
+                        .hcbFont(.title3, weight: .semibold)
+                    Text("A few useful surfaces to try first.")
+                        .hcbFont(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(items) { item in
+                    FeatureTourRow(item: item)
+                }
+            }
+
+            HStack {
+                Button("Open Help", action: openHelp)
+                    .buttonStyle(.bordered)
+                Spacer()
+                Button("Done", action: dismiss)
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .hcbScaledPadding(24)
+        .frame(minWidth: 500, idealWidth: 560)
+        .appBackground()
+    }
+}
+
+private struct FeatureTourItem: Identifiable {
+    var title: String
+    var detail: String
+    var systemImage: String
+
+    var id: String { title }
+}
+
+private struct FeatureTourRow: View {
+    let item: FeatureTourItem
+
+    var body: some View {
+        Label {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.title)
+                    .hcbFont(.subheadline, weight: .semibold)
+                Text(item.detail)
+                    .hcbFont(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } icon: {
+            Image(systemName: item.systemImage)
+                .foregroundStyle(AppColor.moss)
+                .frame(width: 22)
+        }
+        .labelStyle(.titleAndIcon)
     }
 }
 

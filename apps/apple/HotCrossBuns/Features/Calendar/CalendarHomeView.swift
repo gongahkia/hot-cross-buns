@@ -1325,7 +1325,7 @@ struct AddEventSheet: View {
                 .onChange(of: quickCreateText) { _, newValue in
                     parsedPreview = newValue.isEmpty ? nil : NaturalLanguageEventParser().parse(newValue)
                 }
-            if let preview = parsedPreview, preview.hasParsedMetadata || quickCreateColorTagResolution(for: preview) != nil {
+            if let preview = parsedPreview, preview.hasParsedMetadata || quickCreateColorTagResolution(for: preview) != nil || quickCreateCalendarTagResolution(for: preview) != nil {
                 HStack(spacing: 6) {
                     ForEach(Array(preview.matchedTokens.enumerated()), id: \.offset) { _, token in
                         Text(token.display)
@@ -1342,6 +1342,14 @@ struct AddEventSheet: View {
                             .hcbScaledPadding(.vertical, 2)
                             .background(Capsule().fill(quickCreateColorTint(color).opacity(0.15)))
                             .foregroundStyle(quickCreateColorTint(color))
+                    }
+                    if let calendar = quickCreateCalendarTagResolution(for: preview)?.calendar {
+                        Text(calendar.summary)
+                            .hcbFont(.caption, weight: .medium)
+                            .hcbScaledPadding(.horizontal, 6)
+                            .hcbScaledPadding(.vertical, 2)
+                            .background(Capsule().fill(Color(hex: calendar.colorHex).opacity(0.15)))
+                            .foregroundStyle(Color(hex: calendar.colorHex))
                     }
                     Spacer(minLength: 0)
                     Button("Apply") { applyQuickCreate() }
@@ -1730,6 +1738,9 @@ struct AddEventSheet: View {
         if let color = quickCreateEventColor(for: parsed) {
             eventColor = color
         }
+        if let calendar = quickCreateCalendarTagResolution(for: parsed)?.calendar {
+            selectedCalendarID = calendar.id
+        }
         if let loc = parsed.location { location = loc }
         if let start = parsed.startDate {
             startDate = start
@@ -1756,6 +1767,11 @@ struct AddEventSheet: View {
         return CalendarEventColor.from(colorId: colorId)
     }
 
+    private func quickCreateCalendarTagResolution(for parsed: ParsedQuickAddEvent) -> CalendarTagResolver.Resolution? {
+        CalendarTagResolver.resolve(title: parsed.summary, calendars: model.calendarSnapshot.selectedCalendars)
+            ?? CalendarTagResolver.resolve(title: parsed.summary, calendars: model.calendars)
+    }
+
     private func quickCreateColorTint(_ color: CalendarEventColor) -> Color {
         if let hex = color.hex { return Color(hex: hex) }
         return AppColor.blue
@@ -1763,8 +1779,13 @@ struct AddEventSheet: View {
 
     private func quickCreateSummaryForSubmission(_ parsed: ParsedQuickAddEvent) -> String {
         let raw = parsed.summary.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let tag = quickCreateColorTagResolution(for: parsed)?.matchedTag else { return raw }
-        let stripped = ColorTagResolver.stripTag(tag, from: raw)
+        var stripped = raw
+        for tag in [
+            quickCreateColorTagResolution(for: parsed)?.matchedTag,
+            quickCreateCalendarTagResolution(for: parsed)?.matchedTag
+        ].compactMap({ $0 }) {
+            stripped = ColorTagResolver.stripTag(tag, from: stripped)
+        }
         return stripped.isEmpty ? raw : stripped
     }
 

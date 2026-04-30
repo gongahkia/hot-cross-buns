@@ -34,6 +34,14 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
+    var shortcutCommand: HCBShortcutCommand {
+        switch self {
+        case .calendar: .goToCalendar
+        case .store: .goToStore
+        case .notes: .goToNotes
+        }
+    }
+
     // Every tab is user-hideable. The Layout section enforces that at least
     // one remains visible.
     var isHideable: Bool {
