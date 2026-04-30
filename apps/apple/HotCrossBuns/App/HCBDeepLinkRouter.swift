@@ -84,34 +84,34 @@ enum HCBDeepLinkRouter {
     static let maxIdLength = 256
     static let helpRoutes: [HelpRoute] = [
         HelpRoute(
-            title: "Open app",
+            title: String(localized: "Open app"),
             example: "hotcrossbuns://open",
-            summary: "Activates Hot Cross Buns without changing the current view."
+            summary: String(localized: "Activates Hot Cross Buns without changing the current view.")
         ),
         HelpRoute(
-            title: "Open task",
+            title: String(localized: "Open task"),
             example: "hotcrossbuns://task/abc123",
-            summary: "Opens a specific task in the Tasks surface."
+            summary: String(localized: "Opens a specific task in the Tasks surface.")
         ),
         HelpRoute(
-            title: "Open event",
+            title: String(localized: "Open event"),
             example: "hotcrossbuns://event/evt_456",
-            summary: "Opens a specific calendar event in Calendar."
+            summary: String(localized: "Opens a specific calendar event in Calendar.")
         ),
         HelpRoute(
-            title: "Prefill task",
+            title: String(localized: "Prefill task"),
             example: "hotcrossbuns://new/task?title=Email%20rent&due=tmr&list=personal&tags=bills,urgent",
-            summary: "Stages a new-task sheet with title, due date, list hint, and tags."
+            summary: String(localized: "Stages a new-task sheet with title, due date, list hint, and tags.")
         ),
         HelpRoute(
-            title: "Prefill event",
+            title: String(localized: "Prefill event"),
             example: "hotcrossbuns://new/event?title=Standup&start=2026-04-25T09:00&end=2026-04-25T09:30&location=Zoom",
-            summary: "Stages a new-event sheet with start, end, calendar, all-day, and location fields."
+            summary: String(localized: "Stages a new-event sheet with start, end, calendar, all-day, and location fields.")
         ),
         HelpRoute(
-            title: "Search",
+            title: String(localized: "Search"),
             example: "hotcrossbuns://search?q=kind:note%20tag:deep",
-            summary: "Opens the command palette with a staged search query."
+            summary: String(localized: "Opens the command palette with a staged search query.")
         )
     ]
 

@@ -34,24 +34,24 @@ struct NaturalLanguageEventParser: Sendable {
 
     static let helpEntries: [HelpEntry] = [
         HelpEntry(
-            title: "Start times",
+            title: String(localized: "Start times"),
             examples: ["3pm", "3:30pm", "from 2pm to 4pm", "noon", "midnight"],
-            summary: "Understands single times, ranges, and keyword anchors like noon or midnight."
+            summary: String(localized: "Understands single times, ranges, and keyword anchors like noon or midnight.")
         ),
         HelpEntry(
-            title: "Durations",
+            title: String(localized: "Durations"),
             examples: ["for 45m", "for 1h 30m", "half hour", "quarter hour"],
-            summary: "Expands a start time into an end time when no explicit end is given."
+            summary: String(localized: "Expands a start time into an end time when no explicit end is given.")
         ),
         HelpEntry(
-            title: "Day anchors",
+            title: String(localized: "Day anchors"),
             examples: ["today", "tomorrow", "next fri", "weekend"],
-            summary: "Accepts relative day words and weekday phrases for all-day or timed events."
+            summary: String(localized: "Accepts relative day words and weekday phrases for all-day or timed events.")
         ),
         HelpEntry(
-            title: "Locations",
+            title: String(localized: "Locations"),
             examples: ["@Office", "at Cafe"],
-            summary: "Extracts a location from @place or 'at place' syntax."
+            summary: String(localized: "Extracts a location from @place or 'at place' syntax.")
         )
     ]
 
