@@ -148,6 +148,7 @@ struct KanbanView: View {
 private struct KanbanColumnView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let column: KanbanColumn
     let mode: KanbanColumnMode
     let taskList: TaskListMirror?
@@ -251,7 +252,7 @@ private struct KanbanColumnView: View {
 
     private var completedDisclosure: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.16)) {
+            HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeInOut(duration: 0.16)) {
                 isCompletedExpanded.toggle()
             }
         } label: {
@@ -403,11 +404,16 @@ private struct KanbanCompletedTaskRowView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(completedTaskAccessibilityLabel)
     }
 
     private var completedText: String {
         guard let completedAt = task.completedAt else { return "Completed" }
         return "Completed: \(completedAt.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))"
+    }
+
+    private var completedTaskAccessibilityLabel: String {
+        "Completed task: \(TagExtractor.stripped(from: task.title)), \(completedText)"
     }
 }
 
@@ -458,6 +464,7 @@ private struct KanbanCardView: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(taskAccessibilityLabel)
     }
 
     private var duplicateBadge: some View {
@@ -487,11 +494,13 @@ private struct KanbanCardView: View {
                         .hcbScaledPadding(.vertical, 1)
                         .background(Capsule().fill(AppColor.blue.opacity(0.15)))
                         .foregroundStyle(AppColor.blue)
+                        .accessibilityLabel("Tag \(tag)")
                 }
                 if tags.count > 4 {
                     Text("+\(tags.count - 4)")
                         .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
+                        .accessibilityLabel("\(tags.count - 4) more tags")
                 }
             }
         }
@@ -542,5 +551,19 @@ private struct KanbanCardView: View {
         if startOfDue < startOfToday { return AppColor.ember }
         if startOfDue == startOfToday { return AppColor.moss }
         return .secondary
+    }
+
+    private var taskAccessibilityLabel: String {
+        var parts = [task.isCompleted ? "Completed task" : "Task", TagExtractor.stripped(from: task.title)]
+        if let due = task.dueDate {
+            parts.append("due \(dueDateBadge(due))")
+        }
+        if let listName = model.taskLists.first(where: { $0.id == task.taskListID })?.title {
+            parts.append("list \(listName)")
+        }
+        if tags.isEmpty == false {
+            parts.append("tags \(tags.joined(separator: ", "))")
+        }
+        return parts.joined(separator: ", ")
     }
 }

@@ -3,6 +3,7 @@ import SwiftUI
 
 struct QuickAddEventView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(AppModel.self) private var model
 
     @State private var input: String = ""
@@ -86,7 +87,7 @@ struct QuickAddEventView: View {
                 .hcbFont(.headline)
             Spacer(minLength: 0)
             Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
+                HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeInOut(duration: 0.18)) {
                     isGrammarExpanded.toggle()
                 }
             } label: {
