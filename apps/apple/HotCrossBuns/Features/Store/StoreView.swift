@@ -19,6 +19,7 @@ import SwiftUI
 struct StoreView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var selection: Set<TaskMirror.ID> = []
     @State private var isInspectorPresented = true
@@ -223,11 +224,11 @@ struct StoreView: View {
                     onFinished: handleBulkResult
                 )
                 .hcbScaledPadding(.bottom, 16)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(HCBMotion.transition(.move(edge: .bottom).combined(with: .opacity), reduceMotion: reduceMotion))
             }
             BulkResultToast(message: $bulkResultMessage, isWarning: bulkResultIsWarning)
         }
-        .animation(.easeInOut(duration: 0.2), value: selection.count >= 2)
+        .animation(HCBMotion.animation(.easeInOut(duration: 0.2), reduceMotion: reduceMotion), value: selection.count >= 2)
     }
 
     // Tasks shown on the Tasks tab = dated, non-deleted, respecting the
@@ -856,6 +857,7 @@ struct NotesView: View {
 // target highlighting is scoped per-cell. Keeping it out of the parent
 // view avoids a full grid re-render on every dragEnter/Leave.
 private struct NoteCellWrapper: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let task: TaskMirror
     let draggingID: TaskMirror.ID?
     let onTap: () -> Void
@@ -870,10 +872,10 @@ private struct NoteCellWrapper: View {
                     RoundedRectangle(cornerRadius: 2)
                         .fill(AppColor.ember)
                         .frame(height: 2)
-                        .transition(.opacity)
+                        .transition(HCBMotion.transition(.opacity, reduceMotion: reduceMotion))
                 }
             }
-            .animation(.easeOut(duration: 0.16), value: isTargeted)
+            .animation(HCBMotion.animation(.easeOut(duration: 0.16), reduceMotion: reduceMotion), value: isTargeted)
             .draggable(DraggedTask(taskID: task.id, taskListID: task.taskListID, title: task.title)) {
                 NoteDragPreview(title: task.title)
                     .onAppear { onDragStart() }
@@ -891,6 +893,7 @@ private struct NoteCellWrapper: View {
 private struct NoteCard: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let task: TaskMirror
     let isDragging: Bool
     let onOpen: () -> Void
@@ -930,9 +933,10 @@ private struct NoteCard: View {
             )
             .shadow(color: Color.black.opacity(isDragging ? 0.08 : 0.0), radius: 6, y: 2)
             .scaleEffect(isDragging ? 0.98 : 1.0)
-            .animation(.easeOut(duration: 0.12), value: isDragging)
+            .animation(HCBMotion.animation(.easeOut(duration: 0.12), reduceMotion: reduceMotion), value: isDragging)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(noteAccessibilityLabel)
         .contextMenu {
             Button {
                 router?.present(.convertNoteToTask(task.id))
@@ -949,6 +953,15 @@ private struct NoteCard: View {
 
     private var listName: String {
         model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Unknown list"
+    }
+
+    private var noteAccessibilityLabel: String {
+        let title = TagExtractor.stripped(from: task.title)
+        let notes = task.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        if notes.isEmpty {
+            return "Note: \(title), list \(listName)"
+        }
+        return "Note: \(title), \(notes), list \(listName)"
     }
 }
 

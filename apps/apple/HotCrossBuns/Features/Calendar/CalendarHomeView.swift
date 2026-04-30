@@ -6,6 +6,7 @@ struct CalendarHomeView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
     @Environment(NetworkMonitor.self) private var networkMonitor
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedDate = Date()
     @SceneStorage("calendarGridMode") private var storedMode: String = CalendarGridMode.month.rawValue
     @State private var mode: CalendarGridMode = .month
@@ -158,10 +159,10 @@ struct CalendarHomeView: View {
                     events: selectedEvents
                 )
                 .hcbScaledPadding(.bottom, 16)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(HCBMotion.transition(.move(edge: .bottom).combined(with: .opacity), reduceMotion: reduceMotion))
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: selectedEventIDs.count >= 2)
+        .animation(HCBMotion.animation(.easeInOut(duration: 0.2), reduceMotion: reduceMotion), value: selectedEventIDs.count >= 2)
     }
 
     @ViewBuilder

@@ -3,6 +3,7 @@ import SwiftUI
 
 struct QuickAddView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(AppModel.self) private var model
 
     // Note mode reuses the task parser end-to-end — notes are undated
@@ -120,7 +121,7 @@ struct QuickAddView: View {
                 .hcbFont(.headline)
             Spacer(minLength: 0)
             Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
+                HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeInOut(duration: 0.18)) {
                     isGrammarExpanded.toggle()
                 }
             } label: {

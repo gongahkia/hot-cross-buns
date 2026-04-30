@@ -341,7 +341,7 @@ private struct HCBFontModifier: ViewModifier {
     // Literal size: style's reference size is scaled by (userBody / 13).
     // Picking 16 as body multiplies every semantic style by 16/13 ≈ 1.23.
     private var resolved: Font {
-        let scale = basePoints / HCBTextSize.defaultPoints
+        let scale = CGFloat(basePoints / HCBTextSize.defaultPoints)
         let size = style.referenceSize * scale * HCBTextSize.dynamicTypeScale(for: dynamicTypeSize)
         let base: Font
         if let family, family.isEmpty == false {
@@ -372,7 +372,7 @@ private struct HCBFontSystemModifier: ViewModifier {
     // them by the same body-size ratio so headings + icons follow the
     // user's chosen text size proportionally.
     private var resolved: Font {
-        let scale = basePoints / HCBTextSize.defaultPoints
+        let scale = CGFloat(basePoints / HCBTextSize.defaultPoints)
         let scaledSize = size * scale * HCBTextSize.dynamicTypeScale(for: dynamicTypeSize)
         if let family, family.isEmpty == false {
             return Font.custom(family, fixedSize: scaledSize).weight(weight)

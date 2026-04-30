@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct WeekGridView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var anchorDate: Date
     var searchQuery: String = ""
     @Binding var selectedEventIDs: Set<String>
@@ -749,7 +750,7 @@ struct WeekGridView: View {
         }
         .frame(width: width)
         .offset(x: xOffset)
-        .animation(.easeOut(duration: 0.18), value: flashTimedSlot)
+        .animation(HCBMotion.animation(.easeOut(duration: 0.18), reduceMotion: reduceMotion), value: flashTimedSlot)
     }
 
     // Tap-only hit-test layer for each day column. Multi-day drag is now

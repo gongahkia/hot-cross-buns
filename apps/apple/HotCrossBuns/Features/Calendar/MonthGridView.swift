@@ -21,6 +21,7 @@ enum CalendarMonthScrollWindow {
 struct MonthGridView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(CalendarMonthScrollWindow.pastMonthsKey) private var configuredPastMonths = CalendarMonthScrollWindow.defaultPastMonths
     @AppStorage(CalendarMonthScrollWindow.futureMonthsKey) private var configuredFutureMonths = CalendarMonthScrollWindow.defaultFutureMonths
     @Binding var anchorDate: Date
@@ -411,7 +412,7 @@ struct MonthGridView: View {
         let target = firstVisibleWeekOfMonth(containing: anchorDate)
         guard weekStarts.contains(target) else { return }
         if animated {
-            withAnimation(.easeInOut(duration: 0.24)) {
+            HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeInOut(duration: 0.24)) {
                 proxy.scrollTo(target, anchor: .top)
             }
         } else {
@@ -440,7 +441,7 @@ struct MonthGridView: View {
         Task { @MainActor in
             await Task.yield()
             if animated {
-                withAnimation(.easeInOut(duration: 0.24)) {
+                HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeInOut(duration: 0.24)) {
                     proxy.scrollTo(target, anchor: anchor)
                 }
             } else {
@@ -900,10 +901,18 @@ struct MonthGridView: View {
             Rectangle()
                 .fill(Color.clear)
         )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(monthCellAccessibilityLabel(
+            day: day,
+            visibleEvents: Array(events.prefix(visibleEventCount)),
+            visibleTasks: Array(tasks.prefix(visibleTaskCount)),
+            hiddenEvents: hiddenEvents,
+            hiddenTasks: hiddenTasks
+        ))
         .overlay(
             Rectangle()
                 .fill(AppColor.ember.opacity(flashDay == dayStart ? 0.22 : 0))
-                .animation(.easeOut(duration: 0.18), value: flashDay)
+                .animation(HCBMotion.animation(.easeOut(duration: 0.18), reduceMotion: reduceMotion), value: flashDay)
         )
         .overlay(
             Rectangle()
@@ -1011,6 +1020,36 @@ struct MonthGridView: View {
             return "… \(event.summary)"
         }
         return "\(event.startDate.formatted(.dateTime.hour().minute())) \(event.summary)"
+    }
+
+    private func monthCellAccessibilityLabel(
+        day: Date,
+        visibleEvents: [CalendarEventMirror],
+        visibleTasks: [TaskMirror],
+        hiddenEvents: Int,
+        hiddenTasks: Int
+    ) -> String {
+        var parts = [day.formatted(.dateTime.weekday(.wide).month(.wide).day().year())]
+        if calendar.isDateInToday(day) {
+            parts.append("Today")
+        }
+        for event in visibleEvents {
+            parts.append("Event: \(eventLabel(event, in: day))")
+        }
+        for task in visibleTasks {
+            let state = task.isCompleted ? "completed task" : "task"
+            parts.append("\(state): \(TagExtractor.stripped(from: task.title))")
+        }
+        if hiddenEvents > 0 {
+            parts.append("\(hiddenEvents) more event\(hiddenEvents == 1 ? "" : "s")")
+        }
+        if hiddenTasks > 0 {
+            parts.append("\(hiddenTasks) more task\(hiddenTasks == 1 ? "" : "s")")
+        }
+        if parts.count == 1 {
+            parts.append("No visible events or tasks")
+        }
+        return parts.joined(separator: ", ")
     }
 
     private func dayLabel(for day: Date) -> String {

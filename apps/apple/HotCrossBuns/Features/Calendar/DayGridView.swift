@@ -3,6 +3,7 @@ import SwiftUI
 struct DayGridView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var anchorDate: Date
     var searchQuery: String = ""
 
@@ -166,7 +167,7 @@ struct DayGridView: View {
                                     .transition(.opacity)
                             }
                         }
-                        .animation(.easeOut(duration: 0.18), value: flashTimedSlot)
+                        .animation(HCBMotion.animation(.easeOut(duration: 0.18), reduceMotion: reduceMotion), value: flashTimedSlot)
                     GeometryReader { geo in
                         let laidOutEvents = CalendarGridLayout.layout(eventsInDay: timedEvents, calendar: calendar)
                         ForEach(Array(laidOutEvents.enumerated()), id: \.offset) { _, placed in
