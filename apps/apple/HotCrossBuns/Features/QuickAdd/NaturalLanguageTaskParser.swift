@@ -30,19 +30,19 @@ struct NaturalLanguageTaskParser: Sendable {
 
     static let helpEntries: [HelpEntry] = [
         HelpEntry(
-            title: "Relative dates",
+            title: String(localized: "Relative dates"),
             examples: ["tdy", "tnt", "tmr", "next monday", "in 3 days", "eom"],
-            summary: "Accepts today / tonight / tomorrow aliases, next-weekday phrases, relative offsets, and end-of-period shortcuts."
+            summary: String(localized: "Accepts today / tonight / tomorrow aliases, next-weekday phrases, relative offsets, and end-of-period shortcuts.")
         ),
         HelpEntry(
-            title: "Absolute dates",
+            title: String(localized: "Absolute dates"),
             examples: ["2026-04-25", "4/25", "Apr 25", "25 Apr"],
-            summary: "Parses ISO, numeric month-day, and month-name dates."
+            summary: String(localized: "Parses ISO, numeric month-day, and month-name dates.")
         ),
         HelpEntry(
-            title: "List hints",
+            title: String(localized: "List hints"),
             examples: ["#personal", "#deep-work"],
-            summary: "Maps a task to a task list hint without opening the full editor."
+            summary: String(localized: "Maps a task to a task list hint without opening the full editor.")
         )
     ]
 

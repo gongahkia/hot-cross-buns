@@ -31,17 +31,17 @@ enum HCBChordRegistry {
     // Hardcoded default bindings. Grouped by intent so the HUD can show
     // sensible sub-menus: "n" → new …, "g" → go to …
     static let defaults: [HCBChordBinding] = [
-        HCBChordBinding(sequence: ["n", "t"], command: .newTask, hint: "New Task"),
-        HCBChordBinding(sequence: ["n", "n"], command: .newNote, hint: "New Note"),
-        HCBChordBinding(sequence: ["n", "e"], command: .newEvent, hint: "New Event"),
-        HCBChordBinding(sequence: ["g", "t"], command: .goToStore, hint: "Go to Tasks"),
-        HCBChordBinding(sequence: ["g", "n"], command: .goToNotes, hint: "Go to Notes"),
-        HCBChordBinding(sequence: ["g", "c"], command: .goToCalendar, hint: "Go to Calendar"),
-        HCBChordBinding(sequence: ["g", "x"], command: .goToSettings, hint: "Go to Settings"),
-        HCBChordBinding(sequence: ["p"], command: .commandPalette, hint: "Command Palette"),
-        HCBChordBinding(sequence: ["r"], command: .refresh, hint: "Refresh Sync"),
-        HCBChordBinding(sequence: ["d"], command: .diagnostics, hint: "Diagnostics"),
-        HCBChordBinding(sequence: ["h"], command: .help, hint: "Help")
+        HCBChordBinding(sequence: ["n", "t"], command: .newTask, hint: String(localized: "New Task")),
+        HCBChordBinding(sequence: ["n", "n"], command: .newNote, hint: String(localized: "New Note")),
+        HCBChordBinding(sequence: ["n", "e"], command: .newEvent, hint: String(localized: "New Event")),
+        HCBChordBinding(sequence: ["g", "t"], command: .goToStore, hint: String(localized: "Go to Tasks")),
+        HCBChordBinding(sequence: ["g", "n"], command: .goToNotes, hint: String(localized: "Go to Notes")),
+        HCBChordBinding(sequence: ["g", "c"], command: .goToCalendar, hint: String(localized: "Go to Calendar")),
+        HCBChordBinding(sequence: ["g", "x"], command: .goToSettings, hint: String(localized: "Go to Settings")),
+        HCBChordBinding(sequence: ["p"], command: .commandPalette, hint: String(localized: "Command Palette")),
+        HCBChordBinding(sequence: ["r"], command: .refresh, hint: String(localized: "Refresh Sync")),
+        HCBChordBinding(sequence: ["d"], command: .diagnostics, hint: String(localized: "Diagnostics")),
+        HCBChordBinding(sequence: ["h"], command: .help, hint: String(localized: "Help"))
     ]
 }
 

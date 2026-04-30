@@ -1125,6 +1125,12 @@
     },
     "A Mac-native client for Google Tasks and Google Calendar.": {
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A Mac-native client for Google Tasks and Google Calendar."
+          }
+        },
         "ms": {
           "stringUnit": {
             "state": "translated",
@@ -1147,6 +1153,12 @@
     },
     "A Mac-native planner on top of Google Tasks and Google Calendar.": {
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A Mac-native planner on top of Google Tasks and Google Calendar."
+          }
+        },
         "ms": {
           "stringUnit": {
             "state": "translated",
@@ -1185,6 +1197,118 @@
           "stringUnit": {
             "state": "translated",
             "value": "全天"
+          }
+        }
+      }
+    },
+    "Absolute dates": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Absolute dates"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tarikh mutlak"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "முழுமையான தேதிகள்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "绝对日期"
+          }
+        }
+      }
+    },
+    "Accepts relative day words and weekday phrases for all-day or timed events.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accepts relative day words and weekday phrases for all-day or timed events."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menerima perkataan hari relatif dan frasa hari kerja untuk acara sepanjang hari atau bermasa."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "அனைத்து நாள் அல்லது நேர நிகழ்வுகளுக்கான தொடர்புடைய நாள் வார்த்தைகள் மற்றும் வார நாள் சொற்றொடர்களை ஏற்றுக்கொள்கிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接受全天或定时事件的相对日期单词和工作日短语。"
+          }
+        }
+      }
+    },
+    "Accepts today / tonight / tomorrow aliases, next-weekday phrases, relative offsets, and end-of-period shortcuts.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accepts today / tonight / tomorrow aliases, next-weekday phrases, relative offsets, and end-of-period shortcuts."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menerima alias hari ini / malam ini / esok, frasa hari minggu depan, offset relatif dan pintasan akhir tempoh."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "இன்று / இன்றிரவு / நாளை மாற்றுப்பெயர்கள், அடுத்த வார சொற்றொடர்கள், தொடர்புடைய ஆஃப்செட்டுகள் மற்றும் காலத்தின் இறுதிக் குறுக்குவழிகளை ஏற்கும்."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接受今天/今晚/明天别名、下周短语、相对偏移量和期末快捷方式。"
+          }
+        }
+      }
+    },
+    "Activates Hot Cross Buns without changing the current view.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activates Hot Cross Buns without changing the current view."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktifkan Hot Cross Buns tanpa mengubah paparan semasa."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "தற்போதைய காட்சியை மாற்றாமல் ஹாட் கிராஸ் பன்ஸை செயல்படுத்துகிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "激活热十字面包而不更改当前视图。"
           }
         }
       }
@@ -1265,6 +1389,90 @@
           "stringUnit": {
             "state": "translated",
             "value": "添加任务"
+          }
+        }
+      }
+    },
+    "Adding ⭐ to a task title shows as a real star emoji in Google Tasks everywhere.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adding ⭐ to a task title shows as a real star emoji in Google Tasks everywhere."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menambahkan ⭐ pada tajuk tugasan menunjukkan sebagai emoji bintang sebenar dalam Tugasan Google di mana-mana sahaja."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "பணியின் தலைப்பில் ⭐ஐச் சேர்ப்பது, எல்லா இடங்களிலும் Google Tasks இல் உண்மையான நட்சத்திர ஈமோஜியாகக் காண்பிக்கப்படும்."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在任务标题中添加 ⭐ 在 Google Tasks 中会显示为真正的星星表情符号。"
+          }
+        }
+      }
+    },
+    "Adjusts interface scale without changing data.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adjusts interface scale without changing data."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Laraskan skala antara muka tanpa mengubah data."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "தரவை மாற்றாமல் இடைமுக அளவை சரிசெய்கிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "调整界面比例而不更改数据。"
+          }
+        }
+      }
+    },
+    "Adjusts subtask hierarchy.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adjusts subtask hierarchy."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Melaraskan hierarki subtugas."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "துணைப் பணி படிநிலையை சரிசெய்கிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "调整子任务层次结构。"
           }
         }
       }
@@ -1612,6 +1820,34 @@
         }
       }
     },
+    "Capture": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capture"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tangkap"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "பிடிப்பு"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "捕获"
+          }
+        }
+      }
+    },
     "Choose separate sounds for tasks and events, preview them before selecting, or import your own audio. Imported sounds are copied into Hot Cross Buns so playback keeps working even if the original file moves.": {
       "localizations": {
         "ms": {
@@ -1678,6 +1914,34 @@
         }
       }
     },
+    "Chord System": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chord System"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sistem Kord"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "நாண் அமைப்பு"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "和弦系统"
+          }
+        }
+      }
+    },
     "Clear day. Nothing scheduled.": {
       "localizations": {
         "ms": {
@@ -1696,6 +1960,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "晴天。没什么安排。"
+          }
+        }
+      }
+    },
+    "Clears checkpoints and refetches everything.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clears checkpoints and refetches everything."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Membersihkan pusat pemeriksaan dan mengambil semula segala-galanya."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "சோதனைச் சாவடிகளை அழிக்கிறது மற்றும் எல்லாவற்றையும் திரும்பப் பெறுகிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除检查点并重新获取所有内容。"
           }
         }
       }
@@ -1766,6 +2058,62 @@
         }
       }
     },
+    "Command Palette": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Command Palette"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Palet Perintah"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "கட்டளை தட்டு"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命令面板"
+          }
+        }
+      }
+    },
+    "Command palette": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Command palette"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Palet arahan"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "கட்டளை தட்டு"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命令面板"
+          }
+        }
+      }
+    },
     "Commands are available immediately.": {
       "localizations": {
         "ms": {
@@ -1784,6 +2132,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "命令立即可用。"
+          }
+        }
+      }
+    },
+    "Commits inspector edits and closes the sheet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Commits inspector edits and closes the sheet."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Melakukan suntingan pemeriksa dan menutup helaian."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "இன்ஸ்பெக்டர் திருத்தங்களைச் செய்து தாளை மூடுகிறார்."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提交检查员编辑并关闭工作表。"
           }
         }
       }
@@ -1850,6 +2226,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "已完成 (%@)"
+          }
+        }
+      }
+    },
+    "Completed tasks show a short Undo toast at the bottom of the window.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Completed tasks show a short Undo toast at the bottom of the window."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tugasan yang telah selesai menunjukkan roti bakar Undo pendek di bahagian bawah tetingkap."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "முடிக்கப்பட்ட பணிகள் சாளரத்தின் அடிப்பகுதியில் ஒரு சிறிய அன்டூ டோஸ்டைக் காட்டுகின்றன."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已完成的任务会在窗口底部显示一个简短的撤消提示。"
           }
         }
       }
@@ -2140,6 +2544,62 @@
         }
       }
     },
+    "Creates a copy of the current task.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creates a copy of the current task."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mencipta salinan tugasan semasa."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "தற்போதைய பணியின் நகலை உருவாக்குகிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "创建当前任务的副本。"
+          }
+        }
+      }
+    },
+    "Creates appear instantly and show an icloud-slash glyph until Google accepts them.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creates appear instantly and show an icloud-slash glyph until Google accepts them."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ciptaan muncul serta-merta dan tunjukkan mesin glif slash icloud sehingga Google menerimanya."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "உருவாக்குதல்கள் உடனடியாகத் தோன்றி, கூகுள் ஏற்றுக்கொள்ளும் வரை ஐக்லவுட்-ஸ்லாஷ் க்ளிஃப்பைக் காண்பிக்கும்."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "创建的内容会立即出现并显示 icloud 斜杠字形，直到 Google 接受它们。"
+          }
+        }
+      }
+    },
     "Currently %@": {
       "localizations": {
         "ms": {
@@ -2272,6 +2732,62 @@
         }
       }
     },
+    "Day anchors": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Day anchors"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sauh hari"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "நாள் அறிவிப்பாளர்கள்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日间主播"
+          }
+        }
+      }
+    },
+    "Deep Links": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deep Links"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pautan Dalam"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ஆழமான இணைப்புகள்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "深层链接"
+          }
+        }
+      }
+    },
     "Deep link error": {
       "localizations": {
         "ms": {
@@ -2360,6 +2876,62 @@
         }
       }
     },
+    "Delete task": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete task"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Padam tugasan"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "பணியை நீக்கு"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除任务"
+          }
+        }
+      }
+    },
+    "Deletes the focused task from the inspector or list selection.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deletes the focused task from the inspector or list selection."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Memadamkan tugas yang difokuskan daripada pemeriksa atau pemilihan senarai."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "இன்ஸ்பெக்டர் அல்லது பட்டியல் தேர்விலிருந்து கவனம் செலுத்திய பணியை நீக்குகிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从检查器或列表选择中删除焦点任务。"
+          }
+        }
+      }
+    },
     "Deleting an event with other attendees may remove it from their calendars and send cancellations. Proceed carefully.": {
       "localizations": {
         "ms": {
@@ -2382,6 +2954,34 @@
         }
       }
     },
+    "Detached macOS settings window.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detached macOS settings window."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tetingkap tetapan macOS terpisah."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "பிரிக்கப்பட்ட macOS அமைப்புகள் சாளரம்."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分离的 macOS 设置窗口。"
+          }
+        }
+      }
+    },
     "Details: %@": {
       "localizations": {
         "ms": {
@@ -2400,6 +3000,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "详细信息：%@"
+          }
+        }
+      }
+    },
+    "Diagnostics": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diagnostics"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diagnostik"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "நோய் கண்டறிதல்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "诊断"
           }
         }
       }
@@ -2558,6 +3186,62 @@
         }
       }
     },
+    "Drag a task from the drawer onto a day column to create a 60-minute event back-linked to the task.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag a task from the drawer onto a day column to create a 60-minute event back-linked to the task."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seret tugasan daripada laci ke lajur hari untuk mencipta acara 60 minit yang dipautkan kembali kepada tugasan itu."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "பணியுடன் மீண்டும் இணைக்கப்பட்ட 60 நிமிட நிகழ்வை உருவாக்க, டிராயரில் இருந்து ஒரு நாள் நெடுவரிசையில் ஒரு பணியை இழுக்கவும்."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将任务从抽屉拖到日期列上，以创建反向链接到该任务的 60 分钟事件。"
+          }
+        }
+      }
+    },
+    "Drag an existing event to reschedule it while preserving duration and 15-minute snapping.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag an existing event to reschedule it while preserving duration and 15-minute snapping."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seret acara sedia ada untuk menjadualkannya semula sambil mengekalkan tempoh dan pengambilan 15 minit."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "கால அளவு மற்றும் 15 நிமிட ஸ்னாப்பிங்கைப் பாதுகாக்கும் போது, ​​ஏற்கனவே உள்ள நிகழ்வை மீண்டும் திட்டமிட இழுக்கவும்."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拖动现有事件以重新安排它，同时保留持续时间和 15 分钟的捕捉。"
+          }
+        }
+      }
+    },
     "Drop here": {
       "localizations": {
         "ms": {
@@ -2598,6 +3282,62 @@
           "stringUnit": {
             "state": "translated",
             "value": "拖放到日历上即可移动："
+          }
+        }
+      }
+    },
+    "Duplicate task": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duplicate task"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tugasan pendua"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "நகல் பணி"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重复任务"
+          }
+        }
+      }
+    },
+    "Durations": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durations"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tempoh masa"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "கால அளவுகள்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "持续时间"
           }
         }
       }
@@ -2730,6 +3470,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "事件"
+          }
+        }
+      }
+    },
+    "Event quick-add: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Event quick-add: %1$@"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tambah pantas acara: %@"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "நிகழ்வு விரைவாகச் சேர்: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "事件快速添加：%@"
           }
         }
       }
@@ -2932,6 +3700,62 @@
         }
       }
     },
+    "Expands a start time into an end time when no explicit end is given.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expands a start time into an end time when no explicit end is given."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mengembangkan masa mula kepada masa tamat apabila tiada pengakhiran yang jelas diberikan."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "வெளிப்படையான முடிவு எதுவும் வழங்கப்படாதபோது தொடக்க நேரத்தை இறுதி நேரமாக விரிவுபடுத்துகிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当没有给出明确的结束时，将开始时间扩展为结束时间。"
+          }
+        }
+      }
+    },
+    "Extracts a location from @place or 'at place' syntax.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Extracts a location from @place or 'at place' syntax."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mengekstrak lokasi daripada sintaks @place atau 'at place'."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "@place அல்லது 'at place' தொடரியலில் இருந்து இருப்பிடத்தைப் பிரித்தெடுக்கிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从 @place 或“at place”语法中提取位置。"
+          }
+        }
+      }
+    },
     "Finish step 1 first — your task lists and calendars will appear here once Google is connected.": {
       "localizations": {
         "ms": {
@@ -3020,6 +3844,34 @@
         }
       }
     },
+    "Focus search": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Focus search"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fokus carian"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "கவனம் தேடல்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "焦点搜索"
+          }
+        }
+      }
+    },
     "For Google, click Advanced, then Go to Hot Cross Buns only if you trust the app and the OAuth project is yours. Personal unverified OAuth clients can keep showing this warning.": {
       "localizations": {
         "ms": {
@@ -3038,6 +3890,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "对于 Google，单击“高级”，然后仅当您信任该应用程序且 OAuth 项目属于您时才转到“Hot Cross Buns”。未经验证的个人 OAuth 客户端可能会继续显示此警告。"
+          }
+        }
+      }
+    },
+    "Force full resync": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Force full resync"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paksa penyegerakan semula penuh"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "முழு மறு ஒத்திசைவை கட்டாயப்படுத்தவும்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "强制完全重新同步"
           }
         }
       }
@@ -3104,6 +3984,174 @@
           "stringUnit": {
             "state": "translated",
             "value": "生成%@"
+          }
+        }
+      }
+    },
+    "Global quick-add from any app": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Global quick-add from any app"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tambah pantas global daripada mana-mana apl"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "எந்தவொரு பயன்பாட்டிலிருந்தும் உலகளாவிய விரைவான-சேர்ப்பு"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从任何应用程序进行全局快速添加"
+          }
+        }
+      }
+    },
+    "Go to Calendar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go to Calendar"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pergi ke Kalendar"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "காலெண்டருக்குச் செல்லவும்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前往日历"
+          }
+        }
+      }
+    },
+    "Go to Notes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go to Notes"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pergi ke Nota"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "குறிப்புகளுக்குச் செல்லவும்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转到注释"
+          }
+        }
+      }
+    },
+    "Go to Settings": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go to Settings"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pergi ke Tetapan"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "அமைப்புகளுக்குச் செல்லவும்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前往“设置”"
+          }
+        }
+      }
+    },
+    "Go to Tasks": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go to Tasks"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pergi ke Tugasan"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "பணிகளுக்குச் செல்லவும்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前往任务"
+          }
+        }
+      }
+    },
+    "Go to date": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go to date"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pergi ke tarikh"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "தேதிக்குச் செல்லுங்கள்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "去约会"
           }
         }
       }
@@ -3280,6 +4328,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "团体"
+          }
+        }
+      }
+    },
+    "Help": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Help"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tolong"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "உதவி"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "帮助"
           }
         }
       }
@@ -3482,6 +4558,34 @@
         }
       }
     },
+    "Indent / outdent": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indent / outdent"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indent / outden"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "உள்தள்ளல் / அவுட்டென்ட்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "缩进/取消缩进"
+          }
+        }
+      }
+    },
     "Inheriting global Task Lists visibility.": {
       "localizations": {
         "ms": {
@@ -3610,6 +4714,90 @@
           "stringUnit": {
             "state": "translated",
             "value": "从命令选项板实例化：“插入任务模板...”。 {{…}} 中的变量在创建任务之前展开；未知变量保持可见，因此拼写错误不会默默地删除值。"
+          }
+        }
+      }
+    },
+    "Jump one larger period": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jump one larger period"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lompat satu tempoh yang lebih besar"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ஒரு பெரிய காலத்தை தாவி"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跳转一个较大的周期"
+          }
+        }
+      }
+    },
+    "Jump to Calendar / Tasks": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jump to Calendar / Tasks"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lompat ke Kalendar / Tugasan"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "காலெண்டர் / பணிகளுக்கு செல்லவும்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跳转至日历/任务"
+          }
+        }
+      }
+    },
+    "Jump to today": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jump to today"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lompat ke hari ini"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "இன்று தாவி"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跳转到今天"
           }
         }
       }
@@ -3796,6 +4984,34 @@
         }
       }
     },
+    "Leader chords reuse the same command system as menus and shortcuts.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leader chords reuse the same command system as menus and shortcuts."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kord pemimpin menggunakan semula sistem arahan yang sama seperti menu dan pintasan."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "லீடர் கோர்ட்கள் மெனுக்கள் மற்றும் குறுக்குவழிகள் போன்ற அதே கட்டளை அமைப்பை மீண்டும் பயன்படுத்துகின்றன."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主奏和弦重复使用与菜单和快捷方式相同的命令系统。"
+          }
+        }
+      }
+    },
     "Leave empty for a one-off event. The \"RRULE:\" prefix is added automatically if missing.": {
       "localizations": {
         "ms": {
@@ -3880,6 +5096,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "列表"
+          }
+        }
+      }
+    },
+    "List hints": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "List hints"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Senaraikan petunjuk"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "பட்டியல் குறிப்புகள்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "列出提示"
           }
         }
       }
@@ -3972,6 +5216,34 @@
         }
       }
     },
+    "Locations": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Locations"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lokasi"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "இடங்கள்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地点"
+          }
+        }
+      }
+    },
     "Locks when Mac locks": {
       "localizations": {
         "ms": {
@@ -4060,6 +5332,62 @@
         }
       }
     },
+    "Maps a task to a task list hint without opening the full editor.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maps a task to a task list hint without opening the full editor."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Petakan tugas ke pembayang senarai tugas tanpa membuka editor penuh."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "முழு எடிட்டரைத் திறக்காமலேயே பணிப் பட்டியலின் குறிப்பிற்கு ஒரு பணியை வரைபடமாக்குகிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将任务映射到任务列表提示，而无需打开完整的编辑器。"
+          }
+        }
+      }
+    },
+    "Marks the focused task complete or open.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marks the focused task complete or open."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menandai tugas yang difokuskan selesai atau terbuka."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "கவனம் செலுத்திய பணி முடிந்தது அல்லது திறந்ததைக் குறிக்கிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将重点任务标记为已完成或未完成。"
+          }
+        }
+      }
+    },
     "Matched by exact title and notes. Jump to a sibling to compare, delete this one, or dismiss if it's a false positive.": {
       "localizations": {
         "ms": {
@@ -4078,6 +5406,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "与准确的标题和注释相匹配。跳转到同级进行比较，删除该同级，或者如果是误报则忽略。"
+          }
+        }
+      }
+    },
+    "Month in week view, year in month view.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Month in week view, year in month view."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paparan bulan dalam minggu, paparan tahun dalam bulan."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "வாரத்தில் மாதம், மாதத்தின் பார்வை."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "周视图中的月视图、月视图中的年视图。"
           }
         }
       }
@@ -4176,6 +5532,174 @@
         }
       }
     },
+    "Moves focus to the calendar search field.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Moves focus to the calendar search field."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mengalihkan fokus ke medan carian kalendar."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "காலெண்டர் தேடல் புலத்திற்கு கவனம் செலுத்துகிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将焦点移至日历搜索字段。"
+          }
+        }
+      }
+    },
+    "Moves the visible calendar range.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Moves the visible calendar range."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mengalihkan julat kalendar yang boleh dilihat."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "தெரியும் காலண்டர் வரம்பை நகர்த்துகிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移动可见的日历范围。"
+          }
+        }
+      }
+    },
+    "Natural-language event capture.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Natural-language event capture."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tangkapan peristiwa dalam bahasa semula jadi."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "இயற்கை மொழி நிகழ்வு பிடிப்பு."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自然语言事件捕获。"
+          }
+        }
+      }
+    },
+    "Natural-language note capture.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Natural-language note capture."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tangkapan nota bahasa semula jadi."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "இயற்கை மொழி குறிப்பு பிடிப்பு."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自然语言笔记捕获。"
+          }
+        }
+      }
+    },
+    "Natural-language task capture.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Natural-language task capture."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tangkapan tugasan dalam bahasa semula jadi."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "இயற்கை மொழி பணி பிடிப்பு."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自然语言任务捕获。"
+          }
+        }
+      }
+    },
+    "Navigation": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Navigation"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Navigasi"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "வழிசெலுத்தல்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导航"
+          }
+        }
+      }
+    },
     "Never": {
       "localizations": {
         "ms": {
@@ -4200,6 +5724,12 @@
     },
     "New Event": {
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Event"
+          }
+        },
         "ms": {
           "stringUnit": {
             "state": "translated",
@@ -4242,6 +5772,62 @@
         }
       }
     },
+    "New Note": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Note"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nota Baharu"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "புதிய குறிப்பு"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新笔记"
+          }
+        }
+      }
+    },
+    "New Task": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Task"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tugas Baru"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "புதிய பணி"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新任务"
+          }
+        }
+      }
+    },
     "New Task List": {
       "localizations": {
         "ms": {
@@ -4264,6 +5850,90 @@
         }
       }
     },
+    "New event": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New event"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acara baru"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "புதிய நிகழ்வு"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新活动"
+          }
+        }
+      }
+    },
+    "New note": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New note"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nota baru"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "புதிய குறிப்பு"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新笔记"
+          }
+        }
+      }
+    },
+    "New task": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New task"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tugas baru"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "புதிய பணி"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新任务"
+          }
+        }
+      }
+    },
     "Next 7 days": {
       "localizations": {
         "ms": {
@@ -4282,6 +5952,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "未来 7 天"
+          }
+        }
+      }
+    },
+    "No Help Matches": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Help Matches"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiada Bantuan Padanan"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "உதவி பொருத்தங்கள் இல்லை"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有帮助匹配"
           }
         }
       }
@@ -4660,6 +6358,34 @@
         }
       }
     },
+    "Notes are undated tasks. They still sync through Google Tasks.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notes are undated tasks. They still sync through Google Tasks."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nota adalah tugas tanpa tarikh. Mereka masih menyegerakkan melalui Google Tasks."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "குறிப்புகள் தேதியிடப்படாத பணிகள். அவை இன்னும் Google Tasks மூலம் ஒத்திசைக்கப்படுகின்றன."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "注释是未注明日期的任务。他们仍然通过 Google Tasks 同步。"
+          }
+        }
+      }
+    },
     "Notes include location: %@": {
       "localizations": {
         "ms": {
@@ -4902,6 +6628,118 @@
         }
       }
     },
+    "Open Settings window": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Settings window"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buka tetingkap Tetapan"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "அமைப்புகள் சாளரத்தைத் திறக்கவும்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开设置窗口"
+          }
+        }
+      }
+    },
+    "Open app": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open app"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buka apl"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "பயன்பாட்டைத் திறக்கவும்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开应用程序"
+          }
+        }
+      }
+    },
+    "Open event": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open event"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acara terbuka"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "திறந்த நிகழ்வு"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开放活动"
+          }
+        }
+      }
+    },
+    "Open task": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open task"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tugas terbuka"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "பணியைத் திறக்கவும்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开放任务"
+          }
+        }
+      }
+    },
     "Opening Google Sign-In…": {
       "localizations": {
         "ms": {
@@ -4920,6 +6758,146 @@
           "stringUnit": {
             "state": "translated",
             "value": "打开 Google 登录..."
+          }
+        }
+      }
+    },
+    "Opens a specific calendar event in Calendar.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens a specific calendar event in Calendar."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Membuka acara kalendar tertentu dalam Kalendar."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "காலெண்டரில் குறிப்பிட்ட காலண்டர் நிகழ்வைத் திறக்கும்."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在日历中打开特定的日历事件。"
+          }
+        }
+      }
+    },
+    "Opens a specific task in the Tasks surface.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens a specific task in the Tasks surface."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Membuka tugasan tertentu dalam permukaan Tugasan."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "பணிகள் மேற்பரப்பில் ஒரு குறிப்பிட்ட பணியைத் திறக்கும்."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在任务界面中打开特定任务。"
+          }
+        }
+      }
+    },
+    "Opens quick capture anywhere on your Mac.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens quick capture anywhere on your Mac."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Membuka tangkapan pantas di mana-mana sahaja pada Mac anda."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "உங்கள் Mac இல் எங்கும் விரைவான படப்பிடிப்பைத் திறக்கும்."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Mac 上的任何位置打开快速捕捉。"
+          }
+        }
+      }
+    },
+    "Opens the command palette with a staged search query.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens the command palette with a staged search query."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Membuka palet arahan dengan pertanyaan carian berperingkat."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "கட்டப்பட்ட தேடல் வினவலுடன் கட்டளைத் தட்டுகளைத் திறக்கிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开带有分阶段搜索查询的命令选项板。"
+          }
+        }
+      }
+    },
+    "Opens the date-jump sheet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens the date-jump sheet."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Membuka helaian lompat tarikh."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "தேதி தாளை திறக்கிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开日期跳转表。"
           }
         }
       }
@@ -4964,6 +6942,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "覆盖特定表面的全局字体+大小。设置保留在本地，并且永远不会触及 Google 数据。未设置的曲面继承上面的全局外观值。"
+          }
+        }
+      }
+    },
+    "Parses ISO, numeric month-day, and month-name dates.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parses ISO, numeric month-day, and month-name dates."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menghuraikan tarikh ISO, bulan-bulan angka dan nama bulan."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ஐஎஸ்ஓ, எண் மாத-நாள் மற்றும் மாத-பெயர் தேதிகளை பாகுபடுத்துகிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解析 ISO、数字月日和月份名称日期。"
           }
         }
       }
@@ -5056,6 +7062,62 @@
         }
       }
     },
+    "Prefill event": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prefill event"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acara praisi"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "முன் நிரப்பு நிகழ்வு"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预填活动"
+          }
+        }
+      }
+    },
+    "Prefill task": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prefill task"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tugasan praisi"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "முன் நிரப்புதல் பணி"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预填任务"
+          }
+        }
+      }
+    },
     "Press keys…": {
       "localizations": {
         "ms": {
@@ -5074,6 +7136,90 @@
           "stringUnit": {
             "state": "translated",
             "value": "按键..."
+          }
+        }
+      }
+    },
+    "Preview DMG blocked by macOS? Open Hot Cross Buns once, then go to System Settings > Privacy & Security and click Open Anyway.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview DMG blocked by macOS? Open Hot Cross Buns once, then go to System Settings > Privacy & Security and click Open Anyway."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pratonton DMG disekat oleh macOS? Buka Hot Cross Buns sekali, kemudian pergi ke Tetapan Sistem > Privasi & Keselamatan dan klik Buka Bagaimanapun."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MacOS ஆல் DMG தடுக்கப்பட்டதா? Hot Cross Buns ஐ ஒருமுறை திறந்து, பின்னர் கணினி அமைப்புகள் > தனியுரிமை & பாதுகாப்பு என்பதற்குச் சென்று எப்படியும் திற என்பதைக் கிளிக் செய்யவும்."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预览 DMG 被 macOS 阻止？打开 Hot Cross Buns 一次，然后转到系统设置 > 隐私和安全，然后单击仍然打开。"
+          }
+        }
+      }
+    },
+    "Preview DMGs do not auto-update in place. Install newer builds from the GitHub Releases page when one is published.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview DMGs do not auto-update in place. Install newer builds from the GitHub Releases page when one is published."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pratonton DMG tidak dikemas kini secara automatik di tempatnya. Pasang binaan yang lebih baharu daripada halaman Keluaran GitHub apabila ia diterbitkan."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "முன்னோட்டம் DMGகள் தானாக புதுப்பிக்கப்படாது. கிட்ஹப் வெளியீடுகள் பக்கத்திலிருந்து புதிய உருவாக்கங்களை நிறுவவும்."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预览 DMG 不会就地自动更新。发布版本后，从 GitHub 版本页面安装较新的版本。"
+          }
+        }
+      }
+    },
+    "Previous / next period": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previous / next period"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tempoh sebelumnya / seterusnya"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "முந்தைய / அடுத்த காலம்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上一期/下一期"
           }
         }
       }
@@ -5172,6 +7318,34 @@
         }
       }
     },
+    "Quick-Add Grammar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick-Add Grammar"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tambah Cepat Tatabahasa"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "இலக்கணத்தை விரைவாகச் சேர்க்கவும்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快速添加语法"
+          }
+        }
+      }
+    },
     "Recent Commands": {
       "localizations": {
         "ms": {
@@ -5223,6 +7397,34 @@
         }
       }
     },
+    "Refresh Sync": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh Sync"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Muat semula Penyegerakan"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ஒத்திசைவைப் புதுப்பிக்கவும்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刷新同步"
+          }
+        }
+      }
+    },
     "Refresh after connecting Google to load calendars.": {
       "localizations": {
         "ms": {
@@ -5267,6 +7469,34 @@
         }
       }
     },
+    "Refresh sync": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh sync"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Muat semula penyegerakan"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ஒத்திசைவைப் புதுப்பிக்கவும்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刷新同步"
+          }
+        }
+      }
+    },
     "Refresh to load your task lists.": {
       "localizations": {
         "ms": {
@@ -5289,6 +7519,34 @@
         }
       }
     },
+    "Relative dates": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relative dates"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tarikh relatif"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "உறவினர் தேதிகள்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相对日期"
+          }
+        }
+      }
+    },
     "Release Notes": {
       "localizations": {
         "ms": {
@@ -5307,6 +7565,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "发行说明"
+          }
+        }
+      }
+    },
+    "Reminders, repeat rules, guests, and duplicate review all live in the inspector flow.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reminders, repeat rules, guests, and duplicate review all live in the inspector flow."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Peringatan, peraturan ulangan, tetamu dan ulasan pendua semuanya ada dalam aliran pemeriksa."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "நினைவூட்டல்கள், மீண்டும் விதிகள், விருந்தினர்கள் மற்றும் நகல் மதிப்பாய்வு அனைத்தும் இன்ஸ்பெக்டர் ஓட்டத்தில் நேரலை."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提醒、重复规则、客人和重复审核都存在于检查员流程中。"
           }
         }
       }
@@ -5465,6 +7751,34 @@
         }
       }
     },
+    "Returns to today in the active calendar mode.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Returns to today in the active calendar mode."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kembali ke hari ini dalam mod kalendar aktif."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "செயலில் உள்ள காலண்டர் பயன்முறையில் இன்று திரும்பும்."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在活动日历模式下返回到今天。"
+          }
+        }
+      }
+    },
     "Review sync attention items without changing the underlying replay model.": {
       "localizations": {
         "ms": {
@@ -5531,6 +7845,62 @@
         }
       }
     },
+    "Runs a foreground sync immediately.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Runs a foreground sync immediately."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menjalankan penyegerakan latar depan serta-merta."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "முன்புற ஒத்திசைவை உடனடியாக இயக்குகிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即运行前台同步。"
+          }
+        }
+      }
+    },
+    "Runs commands and searches tasks, notes, events, lists, calendars, and saved filters.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Runs commands and searches tasks, notes, events, lists, calendars, and saved filters."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menjalankan arahan dan mencari tugas, nota, acara, senarai, kalendar dan penapis yang disimpan."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "கட்டளைகளை இயக்குகிறது மற்றும் பணிகள், குறிப்புகள், நிகழ்வுகள், பட்டியல்கள், காலெண்டர்கள் மற்றும் சேமித்த வடிப்பான்களைத் தேடுகிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行命令并搜索任务、注释、事件、列表、日历和保存的过滤器。"
+          }
+        }
+      }
+    },
     "Save a desktop OAuth client above, or build the app with an embedded Google Sign-In client.": {
       "localizations": {
         "ms": {
@@ -5549,6 +7919,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "保存上面的桌面 OAuth 客户端，或使用嵌入式 Google 登录客户端构建应用程序。"
+          }
+        }
+      }
+    },
+    "Save and close": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save and close"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Simpan dan tutup"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "சேமித்து மூடவும்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存并关闭"
           }
         }
       }
@@ -5637,6 +8035,62 @@
           "stringUnit": {
             "state": "translated",
             "value": "向上滚动以加载上个月"
+          }
+        }
+      }
+    },
+    "Search": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cari"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "தேடு"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索"
+          }
+        }
+      }
+    },
+    "Search help": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search help"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cari bantuan"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "தேடல் உதவி"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索帮助"
           }
         }
       }
@@ -5839,6 +8293,62 @@
         }
       }
     },
+    "Shows or hides the read-only inspector surface.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shows or hides the read-only inspector surface."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menunjukkan atau menyembunyikan permukaan pemeriksa baca sahaja."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "படிக்க மட்டுமேயான இன்ஸ்பெக்டர் மேற்பரப்பைக் காட்டுகிறது அல்லது மறைக்கிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示或隐藏只读检查器表面。"
+          }
+        }
+      }
+    },
+    "Shows or hides the week drawer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shows or hides the week drawer."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menunjukkan atau menyembunyikan laci minggu."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "வாரம் டிராயரைக் காட்டுகிறது அல்லது மறைக்கிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示或隐藏周抽屉。"
+          }
+        }
+      }
+    },
     "Sidebar tabs": {
       "localizations": {
         "ms": {
@@ -5901,6 +8411,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "登录后可在此处查看未注明日期的任务。"
+          }
+        }
+      }
+    },
+    "Sign-in disabled? This build is missing Google sign-in credentials. Install an official release or use a configured local build.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign-in disabled? This build is missing Google sign-in credentials. Install an official release or use a configured local build."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Log masuk dilumpuhkan? Binaan ini tiada bukti kelayakan log masuk Google. Pasang keluaran rasmi atau gunakan binaan tempatan yang dikonfigurasikan."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "உள்நுழைவு முடக்கப்பட்டதா? இந்தக் கட்டமைப்பில் Google உள்நுழைவுச் சான்றுகள் இல்லை. அதிகாரப்பூர்வ வெளியீட்டை நிறுவவும் அல்லது உள்ளமைக்கப்பட்ட உள்ளூர் கட்டமைப்பைப் பயன்படுத்தவும்."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录已禁用？此版本缺少 Google 登录凭据。安装官方版本或使用配置的本地版本。"
           }
         }
       }
@@ -6027,6 +8565,118 @@
         }
       }
     },
+    "Something weird? Settings > Diagnostics and Recovery exports state and recent logs.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Something weird? Settings > Diagnostics and Recovery exports state and recent logs."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesuatu yang pelik? Tetapan > Diagnostik dan Pemulihan eksport keadaan dan log terkini."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ஏதாவது விசித்திரமா? அமைப்புகள் > கண்டறிதல் மற்றும் மீட்பு நிலை மற்றும் சமீபத்திய பதிவுகளை ஏற்றுமதி செய்கிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有什么奇怪的吗？设置 > 诊断和恢复导出状态和最近的日志。"
+          }
+        }
+      }
+    },
+    "Stages a new-event sheet with start, end, calendar, all-day, and location fields.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stages a new-event sheet with start, end, calendar, all-day, and location fields."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Peringkat helaian acara baharu dengan medan mula, tamat, kalendar, sepanjang hari dan lokasi."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "தொடக்கம், முடிவு, நாள்காட்டி, நாள் முழுவதும் மற்றும் இருப்பிடப் புலங்களுடன் புதிய நிகழ்வுத் தாளை உருவாக்குகிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂存包含开始、结束、日历、全天和位置字段的新事件表。"
+          }
+        }
+      }
+    },
+    "Stages a new-task sheet with title, due date, list hint, and tags.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stages a new-task sheet with title, due date, list hint, and tags."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Peringkat helaian tugas baharu dengan tajuk, tarikh tamat tempoh, pembayang senarai dan teg."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "தலைப்பு, நிலுவைத் தேதி, பட்டியல் குறிப்பு மற்றும் குறிச்சொற்கள் கொண்ட புதிய-பணி தாளை கட்டமைக்கிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂存一个包含标题、截止日期、列表提示和标签的新任务表。"
+          }
+        }
+      }
+    },
+    "Start times": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start times"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Masa mula"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "தொடக்க நேரங்கள்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始时间"
+          }
+        }
+      }
+    },
     "Starts": {
       "localizations": {
         "ms": {
@@ -6122,6 +8772,34 @@
         }
       }
     },
+    "Stuck sync? Use Sync menu > Force Full Resync or open Sync Issues to inspect conflicts, invalid payloads, and deferred reminders.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stuck sync? Use Sync menu > Force Full Resync or open Sync Issues to inspect conflicts, invalid payloads, and deferred reminders."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penyegerakan tersekat? Gunakan menu Penyegerakan > Paksa Segerak Semula Penuh atau buka Isu Penyegerakan untuk memeriksa konflik, muatan tidak sah dan peringatan tertunda."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ஒத்திசைவு சிக்கியுள்ளதா? முரண்பாடுகள், தவறான பேலோடுகள் மற்றும் ஒத்திவைக்கப்பட்ட நினைவூட்டல்களை ஆய்வு செய்ய ஒத்திசைவு மெனு > ஃபோர்ஸ் ஃபுல் ரிசின்க் அல்லது ஓபன் ஒத்திசைவுச் சிக்கல்களைப் பயன்படுத்தவும்."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步卡住了？使用“同步”菜单 >“强制完全重新同步”或打开“同步问题”来检查冲突、无效负载和延迟提醒。"
+          }
+        }
+      }
+    },
     "Summary: %@": {
       "localizations": {
         "ms": {
@@ -6140,6 +8818,62 @@
           "stringUnit": {
             "state": "translated",
             "value": "摘要：%@"
+          }
+        }
+      }
+    },
+    "Switches the main sidebar surface immediately.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switches the main sidebar surface immediately."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menukar permukaan bar sisi utama dengan segera."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "பிரதான பக்கப்பட்டியின் மேற்பரப்பை உடனடியாக மாற்றுகிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立即切换主侧边栏表面。"
+          }
+        }
+      }
+    },
+    "Sync Behavior": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sync Behavior"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gelagat Penyegerakan"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ஒத்திசைவு நடத்தை"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步行为"
           }
         }
       }
@@ -6166,6 +8900,34 @@
         }
       }
     },
+    "Task Editor": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Task Editor"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editor Tugas"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "பணி ஆசிரியர்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务编辑器"
+          }
+        }
+      }
+    },
     "Task list": {
       "localizations": {
         "ms": {
@@ -6184,6 +8946,62 @@
           "stringUnit": {
             "state": "translated",
             "value": "任务清单"
+          }
+        }
+      }
+    },
+    "Task quick-add parses due-date aliases and list hints, eg. 'email rent receipt tmr #personal'.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Task quick-add parses due-date aliases and list hints, eg. 'email rent receipt tmr #personal'."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tambah pantas tugasan menghuraikan alias tarikh akhir dan pembayang senarai, cth. 'emel resit sewa tmr #personal'."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "டாஸ்க் விரைவு-சேர் பாகுபடுத்தும் இறுதி தேதி மாற்றுப்பெயர்கள் மற்றும் பட்டியல் குறிப்புகள், எ.கா. 'மின்னஞ்சல் வாடகை ரசீது டிஎம்ஆர் #தனிப்பட்டம்'."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务快速添加解析截止日期别名并列出提示，例如。 “通过电子邮件发送租金收据 tmr #personal”。"
+          }
+        }
+      }
+    },
+    "Task quick-add: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Task quick-add: %1$@"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tambah cepat tugas: %@"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "பணி விரைவு-சேர்: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务快速添加：%@"
           }
         }
       }
@@ -6250,6 +9068,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有截止日期的任务会显示在此处。"
+          }
+        }
+      }
+    },
+    "Tasks, notes, smart filters, stale-list review, and saved custom filters all live here.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tasks, notes, smart filters, stale-list review, and saved custom filters all live here."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tugasan, nota, penapis pintar, semakan senarai lapuk dan penapis tersuai yang disimpan semuanya ada di sini."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "பணிகள், குறிப்புகள், ஸ்மார்ட் ஃபில்டர்கள், பழைய பட்டியல் மதிப்பாய்வு மற்றும் சேமித்த தனிப்பயன் வடிப்பான்கள் அனைத்தும் இங்கே உள்ளன."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务、注释、智能过滤器、过时列表审查和保存的自定义过滤器都在这里。"
           }
         }
       }
@@ -6386,6 +9232,34 @@
         }
       }
     },
+    "The toolbar filter menu switches between All / Overdue / Today / Next 7 / No Date / Notes / Stale Lists / saved custom filters.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The toolbar filter menu switches between All / Overdue / Today / Next 7 / No Date / Notes / Stale Lists / saved custom filters."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menu penapis bar alat bertukar antara Semua / Tertunggak / Hari Ini / 7 Seterusnya / Tiada Tarikh / Nota / Senarai Lapuk / penapis tersuai yang disimpan."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "கருவிப்பட்டி வடிகட்டி மெனு அனைத்தும் / காலாவதி / இன்று / அடுத்த 7 / தேதி இல்லை / குறிப்புகள் / பழைய பட்டியல்கள் / சேமிக்கப்பட்ட தனிப்பயன் வடிப்பான்களுக்கு இடையே மாறுகிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "工具栏过滤器菜单在“全部”/“过期”/“今天”/“下一个 7”/“无日期”/“注释”/“过时列表”/“已保存的自定义过滤器”之间切换。"
+          }
+        }
+      }
+    },
     "Themes": {
       "localizations": {
         "ms": {
@@ -6404,6 +9278,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "主题"
+          }
+        }
+      }
+    },
+    "There's no separate backend. OAuth tokens stay in the Keychain. Disconnect in Settings to wipe local state.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There's no separate backend. OAuth tokens stay in the Keychain. Disconnect in Settings to wipe local state."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiada bahagian belakang yang berasingan. Token OAuth kekal dalam Rantai Kunci. Putuskan sambungan dalam Tetapan untuk memadam keadaan setempat."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "தனி பின்தளம் இல்லை. OAuth டோக்கன்கள் கீசெயினில் இருக்கும். உள்ளூர் நிலையை அழிக்க, அமைப்புகளில் இணைப்பைத் துண்டிக்கவும்."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有单独的后端。 OAuth 令牌保留在钥匙串中。在“设置”中断开连接以擦除本地状态。"
           }
         }
       }
@@ -6811,6 +9713,90 @@
         }
       }
     },
+    "Toggle complete": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle complete"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Togol selesai"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "நிலைமாற்றம் முடிந்தது"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换完成"
+          }
+        }
+      }
+    },
+    "Toggle schedule drawer in week view": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle schedule drawer in week view"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Togol laci jadual dalam paparan minggu"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "வாரக் காட்சியில் அட்டவணை டிராயரை நிலைமாற்று"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在周视图中切换日程抽屉"
+          }
+        }
+      }
+    },
+    "Toggle task inspector": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle task inspector"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Togol pemeriksa tugas"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "பணி ஆய்வாளரை மாற்றவும்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换任务检查器"
+          }
+        }
+      }
+    },
     "Tokens stay in your Mac Keychain. Disconnecting in Settings wipes local state.": {
       "localizations": {
         "ms": {
@@ -6851,6 +9837,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "行程时间和附件通过 google.com 同步，但不会通过 Google Calendar API 公开 - 创建后从 Web UI 添加它们。"
+          }
+        }
+      }
+    },
+    "Troubleshooting": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Troubleshooting"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menyelesaikan masalah"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "சரிசெய்தல்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "故障排除"
           }
         }
       }
@@ -6901,6 +9915,12 @@
     },
     "Try searching for sync, chords, deep links, notes, or quick-add.": {
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try searching for sync, chords, deep links, notes, or quick-add."
+          }
+        },
         "ms": {
           "stringUnit": {
             "state": "translated",
@@ -6965,6 +9985,34 @@
         }
       }
     },
+    "Understands single times, ranges, and keyword anchors like noon or midnight.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Understands single times, ranges, and keyword anchors like noon or midnight."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Memahami masa tunggal, julat dan sauh kata kunci seperti tengah hari atau tengah malam."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "மதியம் அல்லது நள்ளிரவு போன்ற ஒற்றை நேரங்கள், வரம்புகள் மற்றும் முக்கிய வார்த்தை அறிவிப்பாளர்களைப் புரிந்துகொள்கிறது."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "了解单一时间、范围和关键字锚点，例如中午或午夜。"
+          }
+        }
+      }
+    },
     "Unsigned DMGs and personal Google OAuth clients can show scary system copy. If you built Hot Cross Buns yourself or downloaded it from a trusted release, these are the approval paths to expect.": {
       "localizations": {
         "ms": {
@@ -7005,6 +10053,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "更新了%@"
+          }
+        }
+      }
+    },
+    "Updates send If-Match etags so conflicts can be reviewed instead of silently overwritten.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates send If-Match etags so conflicts can be reviewed instead of silently overwritten."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kemas kini menghantar etags If-Match supaya konflik boleh disemak dan bukannya ditimpa secara senyap."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "புதுப்பிப்புகள் If-Match etagகளை அனுப்புகின்றன, எனவே முரண்பாடுகளை அமைதியாக மேலெழுதுவதற்குப் பதிலாக மதிப்பாய்வு செய்யலாம்."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新会发送 If-Match etag，以便可以查看冲突，而不是默默地覆盖。"
           }
         }
       }
@@ -7147,6 +10223,34 @@
         }
       }
     },
+    "What Hot Cross Buns Is": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What Hot Cross Buns Is"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apa Itu Hot Cross Buns"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ஹாட் கிராஸ் பன்ஸ் என்றால் என்ன"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "什么是热十字面包"
+          }
+        }
+      }
+    },
     "When the query field is non-empty, the fields below are ignored. Invalid queries match nothing — your tasks aren't modified.": {
       "localizations": {
         "ms": {
@@ -7257,6 +10361,34 @@
         }
       }
     },
+    "Your data lives in Google. Edits in Gmail, the Calendar web UI, or your phone round-trip here.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your data lives in Google. Edits in Gmail, the Calendar web UI, or your phone round-trip here."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Data anda berada dalam Google. Pengeditan dalam Gmail, UI web Kalendar atau telefon anda pergi balik di sini."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "உங்கள் தரவு Google இல் உள்ளது. Gmail, Calendar இணைய UI அல்லது உங்கள் ஃபோன் சுற்றுப்பயணத்தில் திருத்தங்கள் இங்கே."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您的数据存储在 Google 中。在 Gmail、日历 Web UI 或手机往返中进行编辑。"
+          }
+        }
+      }
+    },
     "You’ll see a macOS dialog next": {
       "localizations": {
         "ms": {
@@ -7275,6 +10407,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "接下来您将看到一个 macOS 对话框"
+          }
+        }
+      }
+    },
+    "Zoom in / out / reset": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoom in / out / reset"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zum masuk / keluar / tetapkan semula"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "பெரிதாக்கவும் / வெளியேறவும் / மீட்டமைக்கவும்"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "放大/缩小/重置"
           }
         }
       }
