@@ -1054,11 +1054,7 @@ struct MacSidebarShell: View {
     }
 
     private func sidebarHelp(for item: SidebarItem) -> String {
-        let binding = hcbEffectiveBinding(
-            item.shortcutCommand,
-            overrides: model.settings.shortcutOverrides
-        )
-        return "Jump to \(item.title) (\(binding.displayLabel))"
+        item.navigationHelp(shortcutOverrides: model.settings.shortcutOverrides)
     }
 
     private func sidebarItemKey(_ item: SidebarItem) -> String {

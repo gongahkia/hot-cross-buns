@@ -12,6 +12,7 @@ struct QuickAddEventView: View {
     @State private var userManuallyPickedCalendar = false
     @State private var isSubmitting = false
     @State private var errorMessage: String?
+    @State private var isGrammarExpanded = false
     @FocusState private var focusedField: Bool
 
     var body: some View {
@@ -25,6 +26,8 @@ struct QuickAddEventView: View {
                 .focused($focusedField)
                 .onSubmit { Task { await submit() } }
                 .onChange(of: input) { _, newValue in reparse(newValue) }
+                .accessibilityLabel("Event summary with optional date, time, duration, location, calendar, and color")
+                .accessibilityHint("Type an event summary. Phrases like tomorrow 1pm, for 45 min, at Philz, calendar tags, and color tags are parsed.")
                 .hcbScaledPadding(14)
                 .background(
                     RoundedRectangle(cornerRadius: 16)
@@ -34,6 +37,10 @@ struct QuickAddEventView: View {
                     RoundedRectangle(cornerRadius: 16)
                         .strokeBorder(AppColor.cardStroke, lineWidth: 0.8)
                 )
+
+            if isGrammarExpanded {
+                grammarReference
+            }
 
             previewStrip
 
@@ -78,6 +85,16 @@ struct QuickAddEventView: View {
             Text("New Event")
                 .hcbFont(.headline)
             Spacer(minLength: 0)
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isGrammarExpanded.toggle()
+                }
+            } label: {
+                Image(systemName: isGrammarExpanded ? "info.circle.fill" : "info.circle")
+            }
+            .buttonStyle(.borderless)
+            .help(isGrammarExpanded ? "Hide quick-add grammar" : "Show quick-add grammar")
+            .accessibilityLabel(isGrammarExpanded ? "Hide quick-add grammar" : "Show quick-add grammar")
             Text("Return to add, Esc to cancel")
                 .hcbFont(.caption2)
                 .foregroundStyle(.secondary)
@@ -126,6 +143,29 @@ struct QuickAddEventView: View {
         .pickerStyle(.menu)
         .fixedSize()
         .labelsHidden()
+    }
+
+    private var grammarReference: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(NaturalLanguageEventParser.helpEntries) { entry in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(entry.title)
+                        .hcbFont(.caption, weight: .semibold)
+                    Text(entry.examples.joined(separator: "  ·  "))
+                        .hcbFont(.caption)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+        .hcbScaledPadding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(AppColor.cardStroke, lineWidth: 0.8)
+        )
+        .transition(.opacity.combined(with: .move(edge: .top)))
     }
 
     private func chip(icon: String, text: String, tint: Color) -> some View {
