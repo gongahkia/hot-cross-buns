@@ -201,16 +201,29 @@ enum GoogleAPIError: LocalizedError, Equatable {
         return false
     }
 
+    var responseBody: String? {
+        switch self {
+        case .httpStatus(_, let body), .invalidPayload(let body):
+            body
+        default:
+            nil
+        }
+    }
+
     private func statusMessage(status: Int, body: String?) -> String {
         let baseMessage = switch status {
         case 401:
             "Your Google session expired. Reconnect in Settings to keep syncing."
+        case 403 where Self.isQuotaBody(body):
+            "Google API quota is exhausted for this account or OAuth project. Automatic retry won't help until Google resets quota; check the Google Cloud quota page for the Calendar and Tasks APIs."
         case 403:
             "Google denied access. Reconnect in Settings so you can re-grant the Tasks + Calendar permissions."
         case 404:
             "That item isn't on Google anymore — it may have been deleted on another device. Refresh to get the latest state."
         case 410:
             "Google's sync window expired. Force Full Resync in Diagnostics to rebuild from scratch."
+        case 429 where Self.isQuotaBody(body):
+            "Google API quota is exhausted for this account or OAuth project. Automatic retry won't help until Google resets quota; check the Google Cloud quota page for the Calendar and Tasks APIs."
         case 429:
             "Google is rate-limiting Hot Cross Buns. It'll retry automatically in a minute or two."
         case 500...599:
@@ -233,11 +246,21 @@ enum GoogleAPIError: LocalizedError, Equatable {
         }
         return baseMessage + " " + body.prefix(180)
     }
+
+    static func isQuotaBody(_ body: String?) -> Bool {
+        guard let lower = body?.lowercased() else { return false }
+        return lower.contains("quotaexceeded")
+            || lower.contains("dailylimitexceeded")
+            || lower.contains("usage limits")
+            || lower.contains("quota exceeded")
+            || lower.contains("daily limit")
+    }
 }
 
 enum SyncFailureKind: Equatable, Sendable {
     case offline
     case rateLimited
+    case quotaExceeded
     case serviceUnavailable
     case authRequired
     case invalidPayload
@@ -265,6 +288,9 @@ enum SyncFailureKind: Equatable, Sendable {
         case .invalidPayload:
             return .invalidPayload
         case .httpStatus(let status, _):
+            if GoogleAPIError.isQuotaBody(apiError.responseBody) {
+                return .quotaExceeded
+            }
             switch status {
             case 401, 403:
                 return .authRequired

@@ -15,6 +15,7 @@ struct AppStatusBanner: View {
     // relaunch. Used to render an "N days since last open — fetching" row
     // during .syncing so a long-absence cold launch isn't a silent freeze.
     var daysSinceLastLaunch: Int? = nil
+    var syncScope: SyncScopeSummary? = nil
     var openSyncIssues: (() -> Void)? = nil
     let retry: () -> Void
     let dismiss: () -> Void
@@ -81,9 +82,17 @@ struct AppStatusBanner: View {
 
     private var infoContext: InfoContext? {
         guard case .syncing = syncState else { return nil }
+        guard let title = Self.syncingInfoTitle(daysSinceLastLaunch: daysSinceLastLaunch, syncScope: syncScope) else { return nil }
+        return InfoContext(title: title)
+    }
+
+    static func syncingInfoTitle(daysSinceLastLaunch: Int?, syncScope: SyncScopeSummary?) -> String? {
         guard let days = daysSinceLastLaunch, days >= 1 else { return nil }
         let suffix = days == 1 ? "day" : "days"
-        return InfoContext(title: "\(days) \(suffix) since last open — fetching from Google…")
+        if let scope = syncScope, scope.hasScope {
+            return "\(days) \(suffix) since last open — fetching roughly \(scope.copy) from Google…"
+        }
+        return "\(days) \(suffix) since last open — fetching tasks and events from Google…"
     }
 
     private var failureContext: FailureContext? {
@@ -225,8 +234,14 @@ struct AppStatusBanner: View {
         case .rateLimited:
             return (
                 isPaused ? "Sync paused after rate limiting" : "Google is rate-limiting requests",
-                "Hot Cross Buns will retry automatically. Your local changes are safe.",
+                "Hot Cross Buns will retry automatically in the current backoff window, usually about 1-2 minutes. Your local changes are safe.",
                 isPaused ? "pause.circle" : "speedometer"
+            )
+        case .quotaExceeded:
+            return (
+                isPaused ? "Sync paused because Google quota is exhausted" : "Google API quota is exhausted",
+                "Automatic retry will not help until Google resets quota. Check the Google Cloud quota pages for the Calendar and Tasks APIs, or switch to Manual sync to reduce usage.",
+                isPaused ? "pause.circle" : "gauge.with.dots.needle.67percent"
             )
         case .serviceUnavailable:
             return (
@@ -263,6 +278,21 @@ private struct FailureContext {
 
 private struct InfoContext {
     var title: String
+}
+
+struct SyncScopeSummary: Equatable, Sendable {
+    var tasks: Int
+    var events: Int
+
+    var hasScope: Bool {
+        tasks > 0 || events > 0
+    }
+
+    var copy: String {
+        let taskPart = "\(tasks) task\(tasks == 1 ? "" : "s")"
+        let eventPart = "\(events) event\(events == 1 ? "" : "s")"
+        return "\(taskPart) and \(eventPart)"
+    }
 }
 
 #Preview {

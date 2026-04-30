@@ -358,7 +358,10 @@ extension GoogleAPIError {
         switch self {
         case .preconditionFailed, .invalidURL, .invalidResponse, .invalidPayload:
             return false
-        case .httpStatus(let status, _):
+        case .httpStatus(let status, let body):
+            if GoogleAPIError.isQuotaBody(body) {
+                return false
+            }
             return status == 429 || (500...599).contains(status)
         }
     }

@@ -153,6 +153,7 @@ final class OfflineQueuePayloadTests: XCTestCase {
         XCTAssertTrue(GoogleAPIError.httpStatus(500, nil).isTransient)
         XCTAssertTrue(GoogleAPIError.httpStatus(503, nil).isTransient)
         XCTAssertTrue(GoogleAPIError.httpStatus(599, nil).isTransient)
+        XCTAssertFalse(GoogleAPIError.httpStatus(429, #"{"error":{"reason":"quotaExceeded"}}"#).isTransient)
         XCTAssertFalse(GoogleAPIError.invalidPayload(nil).isTransient)
         XCTAssertFalse(GoogleAPIError.httpStatus(400, nil).isTransient)
         XCTAssertFalse(GoogleAPIError.httpStatus(401, nil).isTransient)
@@ -165,6 +166,10 @@ final class OfflineQueuePayloadTests: XCTestCase {
 
     func testSyncFailureKindClassification() {
         XCTAssertEqual(SyncFailureKind.classify(GoogleAPIError.httpStatus(429, nil)), .rateLimited)
+        XCTAssertEqual(
+            SyncFailureKind.classify(GoogleAPIError.httpStatus(403, #"{"error":{"reason":"quotaExceeded"}}"#)),
+            .quotaExceeded
+        )
         XCTAssertEqual(SyncFailureKind.classify(GoogleAPIError.httpStatus(503, nil)), .serviceUnavailable)
         XCTAssertEqual(SyncFailureKind.classify(GoogleAPIError.invalidPayload(nil)), .invalidPayload)
         XCTAssertEqual(
@@ -195,7 +200,19 @@ final class OfflineQueuePayloadTests: XCTestCase {
         )
 
         XCTAssertEqual(copy.title, "Google is rate-limiting requests")
-        XCTAssertEqual(copy.message, "Hot Cross Buns will retry automatically. Your local changes are safe.")
+        XCTAssertEqual(copy.message, "Hot Cross Buns will retry automatically in the current backoff window, usually about 1-2 minutes. Your local changes are safe.")
+    }
+
+    func testSyncFailureCopyUsesQuotaMessaging() {
+        let copy = AppStatusBanner.syncFailureCopy(
+            fallbackMessage: "ignored",
+            isPaused: true,
+            failureKind: .quotaExceeded,
+            networkReachability: .online
+        )
+
+        XCTAssertEqual(copy.title, "Sync paused because Google quota is exhausted")
+        XCTAssertTrue(copy.message.contains("Automatic retry will not help"))
     }
 
     func testSyncFailureCopyUsesServiceUnavailableMessaging() {
@@ -208,5 +225,15 @@ final class OfflineQueuePayloadTests: XCTestCase {
 
         XCTAssertEqual(copy.title, "Google Calendar or Tasks is briefly unavailable")
         XCTAssertEqual(copy.message, "Hot Cross Buns will retry automatically as soon as the service recovers.")
+    }
+
+    func testFirstSyncBannerIncludesScopeWhenAvailable() {
+        XCTAssertEqual(
+            AppStatusBanner.syncingInfoTitle(
+                daysSinceLastLaunch: 3,
+                syncScope: SyncScopeSummary(tasks: 12, events: 7)
+            ),
+            "3 days since last open — fetching roughly 12 tasks and 7 events from Google…"
+        )
     }
 }
