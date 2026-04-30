@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
+    @Environment(\.openWindow) private var openWindow
     @State private var permissionPrimer: PermissionPrimer?
     @State private var showLocalNotificationsInfo = false
     @State private var showNotificationsDeniedAlert = false
@@ -70,7 +71,7 @@ struct SettingsView: View {
                     .buttonStyle(.plain)
 
                     Button {
-                        router?.present(.diagnostics)
+                        openWindow(id: "diagnostics")
                     } label: {
                         Label("Diagnostics and recovery", systemImage: "stethoscope")
                             .frame(maxWidth: .infinity, alignment: .leading)

@@ -20,6 +20,7 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
         XCTAssertTrue(settings.showMenuBarExtra, "legacy caches should opt into the menu bar extra by default")
         XCTAssertFalse(settings.showDetailedMenuBar, "legacy caches should default to compact menu bar panel")
         XCTAssertTrue(settings.showDockBadge, "legacy caches should opt into the dock badge by default")
+        XCTAssertTrue(settings.restoreWindowStateEnabled, "legacy caches should restore prior window sessions by default")
         XCTAssertEqual(settings.globalHotkeyBinding, .defaultQuickAdd)
     }
 
@@ -32,6 +33,7 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
             showMenuBarExtra: false,
             showDetailedMenuBar: true,
             showDockBadge: false,
+            restoreWindowStateEnabled: false,
             globalHotkeyBinding: GlobalHotkeyBinding(
                 keyCode: UInt32(kVK_ANSI_K),
                 key: .char("k"),
@@ -45,6 +47,7 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
         XCTAssertFalse(decoded.showMenuBarExtra)
         XCTAssertTrue(decoded.showDetailedMenuBar)
         XCTAssertFalse(decoded.showDockBadge)
+        XCTAssertFalse(decoded.restoreWindowStateEnabled)
         XCTAssertEqual(decoded.globalHotkeyBinding.displayLabel, "⇧⌘K")
     }
 }
