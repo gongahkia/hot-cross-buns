@@ -65,7 +65,9 @@ actor LocalBackupService {
             throw CocoaError(.fileNoSuchFile)
         }
         try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        NSWorkspace.shared.activateFileViewerSelecting([directoryURL])
+        Task { @MainActor in
+            NSWorkspace.shared.activateFileViewerSelecting([directoryURL])
+        }
     }
 
     private func pruneBackups(keeping retentionCount: Int) throws {

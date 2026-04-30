@@ -47,8 +47,12 @@ struct AppearanceSection: View {
         }
         .fileImporter(isPresented: $isImportingScheme, allowedContentTypes: [.json]) { result in
             guard case .success(let url) = result else { return }
-            guard url.startAccessingSecurityScopedResource() else { return }
-            defer { url.stopAccessingSecurityScopedResource() }
+            let shouldStopAccess = url.startAccessingSecurityScopedResource()
+            defer {
+                if shouldStopAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
             if let data = try? Data(contentsOf: url),
                let scheme = try? JSONDecoder().decode(HCBCustomColorScheme.self, from: data) {
                 model.upsertCustomColorScheme(scheme)
