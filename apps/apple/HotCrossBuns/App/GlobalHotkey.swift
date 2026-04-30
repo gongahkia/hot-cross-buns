@@ -1,9 +1,11 @@
 import AppKit
+import ApplicationServices
 import Carbon.HIToolbox
 
 enum GlobalHotkeyRegistrationState: Equatable {
     case disabled
     case ready(String)
+    case needsAccessibilityPermission
     case failed(String)
 
     var message: String {
@@ -12,6 +14,8 @@ enum GlobalHotkeyRegistrationState: Equatable {
             "The global quick-add hotkey is off."
         case .ready(let label):
             "Ready on this Mac: \(label)"
+        case .needsAccessibilityPermission:
+            "Accessibility permission is required before the global quick-add hotkey can work."
         case .failed(let message):
             message
         }
@@ -36,6 +40,13 @@ enum GlobalHotkeyRegistrationError: LocalizedError, Equatable {
             return .alreadyInUse
         }
         return .system(status)
+    }
+}
+
+enum GlobalHotkeyAccessibilityPermission {
+    static func isTrusted(prompt: Bool = false) -> Bool {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: prompt] as CFDictionary
+        return AXIsProcessTrustedWithOptions(options)
     }
 }
 

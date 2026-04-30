@@ -111,6 +111,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return .disabled
         }
 
+        guard GlobalHotkeyAccessibilityPermission.isTrusted(prompt: false) else {
+            globalHotkey.uninstall()
+            return .needsAccessibilityPermission
+        }
+
         globalHotkey.action = { [weak self] in
             self?.triggerGlobalQuickAdd()
         }
