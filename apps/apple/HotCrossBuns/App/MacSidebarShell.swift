@@ -202,6 +202,7 @@ struct MacSidebarShell: View {
                     syncFailureKind: model.syncFailureKind,
                     networkReachability: networkMonitor.reachability,
                     daysSinceLastLaunch: model.daysSinceLastLaunch,
+                    syncScope: SyncScopeSummary(tasks: model.tasks.count, events: model.events.count),
                     openSyncIssues: { openWindow(id: "sync-issues") },
                     retry: {
                         model.resumeSync()

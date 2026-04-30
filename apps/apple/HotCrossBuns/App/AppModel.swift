@@ -2960,6 +2960,7 @@ final class AppModel {
     // into quarantine and stops auto-replaying. The user can retry or discard
     // from DiagnosticsView.
     private func markMutationTransientFailure(_ mutationID: PendingMutation.ID, error: Error) {
+        syncFailureKind = SyncFailureKind.classify(error)
         guard let idx = pendingMutations.firstIndex(where: { $0.id == mutationID }) else { return }
         pendingMutations[idx].attemptCount += 1
         pendingMutations[idx].lastAttemptAt = Date()
@@ -3012,6 +3013,7 @@ final class AppModel {
     // via "Keep my change" (forceOverwriteConflictedMutation — re-issues the
     // write without etag) or "Discard" (clearPendingMutation).
     private func markMutationConflict(_ mutationID: PendingMutation.ID, error: Error) {
+        syncFailureKind = SyncFailureKind.classify(error)
         guard let idx = pendingMutations.firstIndex(where: { $0.id == mutationID }) else { return }
         pendingMutations[idx].lastAttemptAt = Date()
         pendingMutations[idx].lastErrorSummary = "Server changed underneath — choose whose change wins."
@@ -3026,6 +3028,7 @@ final class AppModel {
     }
 
     private func markMutationInvalidPayload(_ mutationID: PendingMutation.ID, error: GoogleAPIError) {
+        syncFailureKind = SyncFailureKind.classify(error)
         guard let idx = pendingMutations.firstIndex(where: { $0.id == mutationID }) else { return }
         pendingMutations[idx].lastAttemptAt = Date()
         pendingMutations[idx].lastErrorSummary = "Invalid payload — Google rejected this queued write. Copy the payload, fix the source data, then retry."
@@ -3437,11 +3440,17 @@ final class AppModel {
         mutationCount = max(0, mutationCount - 1)
         if let error {
             lastMutationError = error.localizedDescription
+            syncFailureKind = SyncFailureKind.classify(error)
+            if syncFailureKind == .authRequired {
+                authState = .failed(error.localizedDescription)
+            }
             var meta: [String: String] = ["error": String(describing: error)]
             if case let GoogleAPIError.httpStatus(status, _) = error {
                 meta["status"] = String(status)
             }
             AppLogger.warn("mutation failed", category: .mutation, metadata: meta)
+        } else if mutationCount == 0 {
+            syncFailureKind = nil
         }
     }
 

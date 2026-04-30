@@ -27,7 +27,10 @@ struct BackoffPolicy: Sendable {
             return false
         }
 
-        if case .httpStatus(let status, _) = apiError {
+        if case .httpStatus(let status, let body) = apiError {
+            if GoogleAPIError.isQuotaBody(body) {
+                return false
+            }
             return status == 429 || (500...599).contains(status)
         }
 
