@@ -489,6 +489,14 @@ final class AppModel {
         )
         upsert(optimisticTask)
 
+        let undoAction = override?(optimisticTask) ?? .taskCreate(snapshot: optimisticTask)
+        guard settings.cloudSyncTargets.syncsTasks else {
+            recordUndo(undoAction)
+            scheduleCacheSave()
+            await synchronizeLocalNotifications()
+            return true
+        }
+
         do {
             let payload = PendingTaskCreatePayload(
                 localID: localID,
@@ -507,7 +515,6 @@ final class AppModel {
             return false
         }
 
-        let undoAction = override?(optimisticTask) ?? .taskCreate(snapshot: optimisticTask)
         recordUndo(undoAction)
         Task { await replayPendingMutations() }
         return true
@@ -554,7 +561,26 @@ final class AppModel {
     func moveTaskToList(_ task: TaskMirror, toTaskListID: TaskListMirror.ID) async -> Bool {
         guard task.taskListID != toTaskListID else { return true }
         guard requireAccount(mutationDescription: "moving tasks") else { return false }
-        guard requirePersisted(task.id) else { return false }
+        if settings.cloudSyncTargets.syncsTasks {
+            guard requirePersisted(task.id) else { return false }
+        }
+
+        guard settings.cloudSyncTargets.syncsTasks else {
+            let moved = applyLocalTaskMove(task, toTaskListID: toTaskListID, parentID: nil, previousSiblingID: nil)
+            let fromListTitle = taskLists.first(where: { $0.id == task.taskListID })?.title ?? task.taskListID
+            let toListTitle = taskLists.first(where: { $0.id == toTaskListID })?.title ?? toTaskListID
+            recordUndo(.taskMove(
+                taskID: moved.id,
+                fromListID: task.taskListID,
+                toListID: toTaskListID,
+                title: task.title,
+                fromListTitle: fromListTitle,
+                toListTitle: toListTitle
+            ))
+            scheduleCacheSave()
+            await synchronizeLocalNotifications()
+            return true
+        }
 
         beginMutation()
         // Track the inserted destination task separately so we can compensate
@@ -623,7 +649,9 @@ final class AppModel {
 
     func indentTask(_ task: TaskMirror) async -> Bool {
         guard requireAccount(mutationDescription: "indenting tasks") else { return false }
-        guard requirePersisted(task.id) else { return false }
+        if settings.cloudSyncTargets.syncsTasks {
+            guard requirePersisted(task.id) else { return false }
+        }
         guard TaskHierarchy.canIndent(task, within: tasks) else {
             lastMutationError = "This task can't be indented."
             return false
@@ -631,6 +659,12 @@ final class AppModel {
         guard let sibling = TaskHierarchy.precedingSibling(of: task, in: tasks) else {
             lastMutationError = "Indent needs a task above it in the same list."
             return false
+        }
+
+        guard settings.cloudSyncTargets.syncsTasks else {
+            _ = applyLocalTaskMove(task, toTaskListID: task.taskListID, parentID: sibling.id, previousSiblingID: nil)
+            scheduleCacheSave()
+            return true
         }
 
         beginMutation()
@@ -656,8 +690,21 @@ final class AppModel {
     // the subtask drag-reorder UI.
     func reorderTask(_ task: TaskMirror, afterSiblingID previousSiblingID: TaskMirror.ID?) async -> Bool {
         guard requireAccount(mutationDescription: "reordering tasks") else { return false }
-        guard requirePersisted(task.id) else { return false }
+        if settings.cloudSyncTargets.syncsTasks {
+            guard requirePersisted(task.id) else { return false }
+        }
         if let previousSiblingID, previousSiblingID == task.id { return false }
+
+        guard settings.cloudSyncTargets.syncsTasks else {
+            _ = applyLocalTaskMove(
+                task,
+                toTaskListID: task.taskListID,
+                parentID: task.parentID,
+                previousSiblingID: previousSiblingID
+            )
+            scheduleCacheSave()
+            return true
+        }
 
         beginMutation()
         do {
@@ -679,10 +726,18 @@ final class AppModel {
 
     func outdentTask(_ task: TaskMirror) async -> Bool {
         guard requireAccount(mutationDescription: "outdenting tasks") else { return false }
-        guard requirePersisted(task.id) else { return false }
+        if settings.cloudSyncTargets.syncsTasks {
+            guard requirePersisted(task.id) else { return false }
+        }
         guard TaskHierarchy.canOutdent(task) else {
             lastMutationError = "This task isn't nested."
             return false
+        }
+
+        guard settings.cloudSyncTargets.syncsTasks else {
+            _ = applyLocalTaskMove(task, toTaskListID: task.taskListID, parentID: nil, previousSiblingID: task.parentID)
+            scheduleCacheSave()
+            return true
         }
 
         beginMutation()
@@ -714,6 +769,23 @@ final class AppModel {
             return false
         }
 
+        guard settings.cloudSyncTargets.syncsTasks else {
+            let taskList = TaskListMirror(
+                id: "local-task-list-\(UUID().uuidString)",
+                title: trimmedTitle,
+                updatedAt: Date(),
+                etag: nil
+            )
+            upsert(taskList)
+
+            if settings.hasConfiguredTaskListSelection {
+                settings.selectedTaskListIDs.insert(taskList.id)
+            }
+
+            scheduleCacheSave()
+            return true
+        }
+
         beginMutation()
         do {
             let taskList = try await tasksClient.insertTaskList(title: trimmedTitle)
@@ -743,6 +815,16 @@ final class AppModel {
             return false
         }
 
+        guard settings.cloudSyncTargets.syncsTasks else {
+            var updatedTaskList = taskList
+            updatedTaskList.title = trimmedTitle
+            updatedTaskList.updatedAt = Date()
+            updatedTaskList.etag = nil
+            upsert(updatedTaskList)
+            scheduleCacheSave()
+            return true
+        }
+
         beginMutation()
         do {
             let updatedTaskList = try await tasksClient.updateTaskList(
@@ -762,6 +844,17 @@ final class AppModel {
     @discardableResult
     func clearCompletedTasks(in taskListID: TaskListMirror.ID) async -> Int {
         guard requireAccount(mutationDescription: "clearing completed tasks") else { return 0 }
+
+        guard settings.cloudSyncTargets.syncsTasks else {
+            let affected = tasks.filter { $0.taskListID == taskListID && $0.isCompleted }
+            for task in affected {
+                removeTask(id: task.id)
+            }
+            scheduleCacheSave()
+            await synchronizeLocalNotifications()
+            return affected.count
+        }
+
         // Drain any pending delete/completion mutations targeting this list
         // first so the batch clear doesn't race with them — otherwise a
         // queued delete can replay against a task Google has already
@@ -792,6 +885,13 @@ final class AppModel {
             return false
         }
 
+        guard settings.cloudSyncTargets.syncsTasks else {
+            removeTaskList(id: taskList.id)
+            scheduleCacheSave()
+            await synchronizeLocalNotifications()
+            return true
+        }
+
         beginMutation()
         do {
             try await tasksClient.deleteTaskList(taskListID: taskList.id)
@@ -815,7 +915,9 @@ final class AppModel {
         guard requireAccount(mutationDescription: "updating tasks") else {
             return false
         }
-        guard requirePersisted(task.id) else { return false }
+        if settings.cloudSyncTargets.syncsTasks {
+            guard requirePersisted(task.id) else { return false }
+        }
 
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -830,6 +932,13 @@ final class AppModel {
         optimistic.notes = trimmedNotes
         optimistic.dueDate = dueDate
         upsert(optimistic)
+
+        guard settings.cloudSyncTargets.syncsTasks else {
+            scheduleCacheSave()
+            await synchronizeLocalNotifications()
+            recordUndo(.taskEdit(priorSnapshot: originalTask))
+            return true
+        }
 
         beginMutation()
         do {
@@ -881,7 +990,9 @@ final class AppModel {
         guard requireAccount(mutationDescription: "updating tasks") else {
             return false
         }
-        guard requirePersisted(task.id) else { return false }
+        if settings.cloudSyncTargets.syncsTasks {
+            guard requirePersisted(task.id) else { return false }
+        }
 
         // Optimistic local update so the UI flips immediately. Snapshot the
         // prior state so we can revert on terminal failure.
@@ -909,6 +1020,12 @@ final class AppModel {
         ))
         if isCompleted {
             CompletionSoundPlayer.play(.taskCompleted, settings: settings)
+        }
+
+        guard settings.cloudSyncTargets.syncsTasks else {
+            scheduleCacheSave()
+            await synchronizeLocalNotifications()
+            return true
         }
 
         beginMutation()
@@ -1241,6 +1358,13 @@ final class AppModel {
         let originalTask = task
         removeTask(id: task.id)
 
+        guard settings.cloudSyncTargets.syncsTasks else {
+            scheduleCacheSave()
+            await synchronizeLocalNotifications()
+            recordUndo(.taskDelete(snapshot: originalTask))
+            return true
+        }
+
         beginMutation()
         do {
             try await tasksClient.deleteTask(taskListID: task.taskListID, taskID: task.id, ifMatch: task.etag)
@@ -1332,6 +1456,13 @@ final class AppModel {
         )
         upsert(optimisticEvent)
 
+        guard settings.cloudSyncTargets.syncsEvents else {
+            recordUndo(.eventCreate(snapshot: optimisticEvent))
+            scheduleCacheSave()
+            await synchronizeLocalNotifications()
+            return true
+        }
+
         do {
             let payload = PendingEventCreatePayload(
                 localID: localID,
@@ -1391,7 +1522,9 @@ final class AppModel {
         guard requireAccount(mutationDescription: "updating events") else {
             return false
         }
-        guard requirePersisted(event.id) else { return false }
+        if settings.cloudSyncTargets.syncsEvents {
+            guard requirePersisted(event.id) else { return false }
+        }
 
         let trimmedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedSummary.isEmpty == false else {
@@ -1415,6 +1548,27 @@ final class AppModel {
         // case. Cross-calendar moves and series-wide edits need server round-
         // trip semantics, so we keep the old state visible until confirmed.
         let originalEvent = event
+        guard settings.cloudSyncTargets.syncsEvents else {
+            var localEvent = event
+            localEvent.calendarID = calendarID
+            localEvent.summary = trimmedSummary
+            localEvent.details = trimmedDetails
+            localEvent.startDate = startDate
+            localEvent.endDate = endDate
+            localEvent.isAllDay = isAllDay
+            localEvent.location = trimmedLocation
+            localEvent.recurrence = effectiveRecurrence
+            localEvent.attendeeEmails = cleanedEmails
+            localEvent.reminderMinutes = reminderMinutes.map { [$0] } ?? []
+            localEvent.colorId = colorId
+            localEvent.hcbTaskID = hcbTaskID ?? event.hcbTaskID
+            upsert(localEvent)
+            scheduleCacheSave()
+            await synchronizeLocalNotifications()
+            recordUndo(.eventEdit(priorSnapshot: originalEvent))
+            return true
+        }
+
         let canQueue = scope == .thisOccurrence && calendarID == event.calendarID
         if canQueue {
             var optimistic = event
@@ -1559,6 +1713,12 @@ final class AppModel {
         // without waiting on Google's 200.
         recordUndo(.eventDismissed(snapshot: originalEvent))
         CompletionSoundPlayer.play(.eventDismissed, settings: settings)
+        guard settings.cloudSyncTargets.syncsEvents else {
+            scheduleCacheSave()
+            await synchronizeLocalNotifications()
+            return true
+        }
+
         beginMutation()
         do {
             let targetID = event.id
@@ -1614,6 +1774,30 @@ final class AppModel {
         let canQueue = scope == .thisOccurrence
         if canQueue {
             removeEvent(id: event.id)
+        }
+
+        guard settings.cloudSyncTargets.syncsEvents else {
+            switch scope {
+            case .thisOccurrence:
+                if canQueue == false {
+                    removeEvent(id: event.id)
+                }
+            case .thisAndFollowing:
+                let seriesID = CalendarEventInstance.seriesID(from: event.id)
+                events.removeAll {
+                    CalendarEventInstance.seriesID(from: $0.id) == seriesID
+                        && $0.startDate >= event.startDate
+                }
+                scheduleRebuildSnapshots()
+            case .allInSeries:
+                let seriesID = CalendarEventInstance.seriesID(from: event.id)
+                events.removeAll { CalendarEventInstance.seriesID(from: $0.id) == seriesID }
+                scheduleRebuildSnapshots()
+            }
+            scheduleCacheSave()
+            await synchronizeLocalNotifications()
+            if canQueue { recordUndo(.eventDelete(snapshot: originalEvent)) }
+            return true
         }
 
         beginMutation()
@@ -1700,6 +1884,25 @@ final class AppModel {
         settings.syncMode = mode
         Task {
             scheduleCacheSave()
+        }
+    }
+
+    func setCloudSyncTarget(_ target: CloudSyncTarget, enabled: Bool) {
+        var targets = settings.cloudSyncTargets
+        if enabled {
+            targets.insert(target)
+        } else {
+            targets.remove(target)
+        }
+        guard targets != settings.cloudSyncTargets else { return }
+        settings.cloudSyncTargets = targets
+        scheduleCacheSave()
+
+        if enabled {
+            Task {
+                await replayPendingMutations()
+                await refreshNow()
+            }
         }
     }
 
@@ -2938,7 +3141,9 @@ final class AppModel {
             // via Diagnostics) and mutations whose backoff window hasn't
             // elapsed yet (we'll pick them up on a later call).
             let snapshot = pendingMutations.filter {
-                processedIDs.contains($0.id) == false && $0.isReadyToReplay(now: now, policy: policy)
+                processedIDs.contains($0.id) == false
+                    && settings.cloudSyncTargets.allows($0.resourceType)
+                    && $0.isReadyToReplay(now: now, policy: policy)
             }
             guard snapshot.isEmpty == false else { break }
             for mutation in snapshot {
@@ -3049,6 +3254,10 @@ final class AppModel {
         guard let mutation = pendingMutations.first(where: { $0.id == id }),
               mutation.isConflict
         else { return false }
+        guard settings.cloudSyncTargets.allows(mutation.resourceType) else {
+            lastMutationError = "This queued write is being kept local because its cloud sync surface is disabled in Settings."
+            return false
+        }
         do {
             switch (mutation.resourceType, mutation.action) {
             case (.task, .update):
@@ -3482,6 +3691,14 @@ final class AppModel {
         await cacheStore.cacheFilePath() ?? "In-memory cache only"
     }
 
+    func openLocalCacheFolder() async {
+        guard let path = await cacheStore.cacheFilePath() else { return }
+        let url = URL(fileURLWithPath: path)
+        await MainActor.run {
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        }
+    }
+
     func cacheFootprintDescription() async -> String {
         let bytes = await cacheStore.cacheFootprintBytes()
         guard bytes > 0 else { return "No local cache file found" }
@@ -3720,6 +3937,46 @@ final class AppModel {
         apply(.preview)
         authState = .signedIn(.preview)
         syncState = .synced(at: Date())
+    }
+
+    private func applyLocalTaskMove(
+        _ task: TaskMirror,
+        toTaskListID: TaskListMirror.ID,
+        parentID: TaskMirror.ID?,
+        previousSiblingID: TaskMirror.ID?
+    ) -> TaskMirror {
+        var moved = task
+        moved.taskListID = toTaskListID
+        moved.parentID = parentID
+        moved.updatedAt = Date()
+
+        var siblings = TaskHierarchy.sortByPosition(tasks.filter {
+            $0.id != task.id
+                && $0.taskListID == toTaskListID
+                && $0.parentID == parentID
+                && $0.isDeleted == false
+        })
+
+        let insertionIndex: Int
+        if let previousSiblingID,
+           let previousIndex = siblings.firstIndex(where: { $0.id == previousSiblingID }) {
+            insertionIndex = siblings.index(after: previousIndex)
+        } else {
+            insertionIndex = 0
+        }
+
+        siblings.insert(moved, at: min(insertionIndex, siblings.count))
+        for (index, sibling) in siblings.enumerated() {
+            var ranked = sibling
+            ranked.position = String(format: "%06d", index + 1)
+            ranked.updatedAt = ranked.id == moved.id ? moved.updatedAt : ranked.updatedAt
+            upsert(ranked)
+            if ranked.id == moved.id {
+                moved = ranked
+            }
+        }
+
+        return moved
     }
 
     private func upsert(_ task: TaskMirror) {

@@ -41,6 +41,56 @@ enum SyncMode: String, CaseIterable, Identifiable, Codable, Sendable {
     }
 }
 
+enum CloudSyncTarget: String, CaseIterable, Identifiable, Codable, Hashable, Sendable {
+    case tasks
+    case events
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .tasks:
+            "Tasks and notes"
+        case .events:
+            "Calendar events"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .tasks:
+            "checklist"
+        case .events:
+            "calendar"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .tasks:
+            "Google Tasks lists, tasks, notes, and queued task writes."
+        case .events:
+            "Google Calendar lists, events, and queued event writes."
+        }
+    }
+
+    static let all: Set<CloudSyncTarget> = Set(allCases)
+}
+
+extension Set where Element == CloudSyncTarget {
+    var syncsTasks: Bool { contains(.tasks) }
+    var syncsEvents: Bool { contains(.events) }
+
+    func allows(_ resourceType: SyncResourceType) -> Bool {
+        switch resourceType {
+        case .task, .taskList:
+            syncsTasks
+        case .event, .calendar:
+            syncsEvents
+        }
+    }
+}
+
 enum SyncState: Equatable, Sendable {
     case idle
     case syncing(startedAt: Date)
@@ -181,6 +231,7 @@ enum PendingMutationAction: String, Hashable, Codable, Sendable {
 
 struct AppSettings: Hashable, Codable, Sendable {
     var syncMode: SyncMode
+    var cloudSyncTargets: Set<CloudSyncTarget>
     var selectedCalendarIDs: Set<CalendarListMirror.ID>
     var selectedTaskListIDs: Set<TaskListMirror.ID>
     var hasConfiguredCalendarSelection: Bool
@@ -280,6 +331,7 @@ struct AppSettings: Hashable, Codable, Sendable {
 
     init(
         syncMode: SyncMode,
+        cloudSyncTargets: Set<CloudSyncTarget> = CloudSyncTarget.all,
         selectedCalendarIDs: Set<CalendarListMirror.ID>,
         selectedTaskListIDs: Set<TaskListMirror.ID>,
         hasConfiguredCalendarSelection: Bool = false,
@@ -350,6 +402,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         lastDailyLocalBackupAt: Date? = nil
     ) {
         self.syncMode = syncMode
+        self.cloudSyncTargets = cloudSyncTargets
         self.selectedCalendarIDs = selectedCalendarIDs
         self.selectedTaskListIDs = selectedTaskListIDs
         self.hasConfiguredCalendarSelection = hasConfiguredCalendarSelection
@@ -422,6 +475,7 @@ struct AppSettings: Hashable, Codable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case syncMode
+        case cloudSyncTargets
         case selectedCalendarIDs
         case selectedTaskListIDs
         case hasConfiguredCalendarSelection
@@ -504,6 +558,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         syncMode = try container.decodeIfPresent(SyncMode.self, forKey: .syncMode) ?? .balanced
+        cloudSyncTargets = try container.decodeIfPresent(Set<CloudSyncTarget>.self, forKey: .cloudSyncTargets) ?? CloudSyncTarget.all
         selectedCalendarIDs = try container.decodeIfPresent(Set<CalendarListMirror.ID>.self, forKey: .selectedCalendarIDs) ?? []
         selectedTaskListIDs = try container.decodeIfPresent(Set<TaskListMirror.ID>.self, forKey: .selectedTaskListIDs) ?? []
         hasConfiguredCalendarSelection = try container.decodeIfPresent(Bool.self, forKey: .hasConfiguredCalendarSelection) ?? false

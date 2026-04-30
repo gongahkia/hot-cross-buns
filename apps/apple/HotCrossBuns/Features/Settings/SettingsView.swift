@@ -131,6 +131,8 @@ struct SettingsView: View {
 
             LayoutSection()
 
+            DataControlSection()
+
             LocalBackupSection()
 
             EncryptionSection()

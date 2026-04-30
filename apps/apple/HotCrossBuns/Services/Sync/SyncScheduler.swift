@@ -25,31 +25,36 @@ actor SyncScheduler {
 
         let syncStartedAt = Date()
         let checkpointIndex = indexCheckpoints(baseState.syncCheckpoints)
-        let taskLists = try await tasksClient.listTaskLists()
-        let calendars = try await calendarClient.listCalendars()
-        let selectedCalendarIDs = resolvedSelectedCalendarIDs(
-            calendars: calendars,
-            settings: baseState.settings
-        )
-        let selectedTaskListIDs = resolvedSelectedTaskListIDs(
-            taskLists: taskLists,
-            settings: baseState.settings
-        )
-        let selectedTaskLists = taskLists.filter { selectedTaskListIDs.contains($0.id) }
+        let syncTargets = baseState.settings.cloudSyncTargets
+        let shouldSyncTasks = syncTargets.syncsTasks
+        let shouldSyncEvents = syncTargets.syncsEvents
+        let taskLists = shouldSyncTasks ? try await tasksClient.listTaskLists() : baseState.taskLists
+        let calendars = shouldSyncEvents ? try await calendarClient.listCalendars() : baseState.calendars
+        let selectedCalendarIDs = shouldSyncEvents
+            ? resolvedSelectedCalendarIDs(calendars: calendars, settings: baseState.settings)
+            : baseState.settings.selectedCalendarIDs
+        let selectedTaskListIDs = shouldSyncTasks
+            ? resolvedSelectedTaskListIDs(taskLists: taskLists, settings: baseState.settings)
+            : baseState.settings.selectedTaskListIDs
+        let selectedTaskLists = shouldSyncTasks ? taskLists.filter { selectedTaskListIDs.contains($0.id) } : []
 
-        async let loadedTasks = listTasks(
-            for: selectedTaskLists,
-            accountID: accountID,
-            checkpointIndex: checkpointIndex,
-            syncStartedAt: syncStartedAt
-        )
-        async let loadedEvents = listEvents(
-            for: calendars,
-            selectedCalendarIDs: selectedCalendarIDs,
-            accountID: accountID,
-            checkpointIndex: checkpointIndex,
-            syncStartedAt: syncStartedAt
-        )
+        async let loadedTasks = shouldSyncTasks
+            ? listTasks(
+                for: selectedTaskLists,
+                accountID: accountID,
+                checkpointIndex: checkpointIndex,
+                syncStartedAt: syncStartedAt
+            )
+            : []
+        async let loadedEvents = shouldSyncEvents
+            ? listEvents(
+                for: calendars,
+                selectedCalendarIDs: selectedCalendarIDs,
+                accountID: accountID,
+                checkpointIndex: checkpointIndex,
+                syncStartedAt: syncStartedAt
+            )
+            : []
 
         let taskResults = try await loadedTasks
         let eventResults = try await loadedEvents
@@ -57,25 +62,35 @@ actor SyncScheduler {
 
         var settings = baseState.settings
         settings.syncMode = mode
-        settings.selectedCalendarIDs = selectedCalendarIDs
-        settings.selectedTaskListIDs = selectedTaskListIDs
-        settings.hasConfiguredCalendarSelection = baseState.settings.hasConfiguredCalendarSelection
-            || baseState.settings.selectedCalendarIDs.isEmpty == false
-            || selectedCalendarIDs.isEmpty == false
-        settings.hasConfiguredTaskListSelection = baseState.settings.hasConfiguredTaskListSelection
-            || baseState.settings.selectedTaskListIDs.isEmpty == false
-            || selectedTaskListIDs.isEmpty == false
+        if shouldSyncEvents {
+            settings.selectedCalendarIDs = selectedCalendarIDs
+            settings.hasConfiguredCalendarSelection = baseState.settings.hasConfiguredCalendarSelection
+                || baseState.settings.selectedCalendarIDs.isEmpty == false
+                || selectedCalendarIDs.isEmpty == false
+        }
+        if shouldSyncTasks {
+            settings.selectedTaskListIDs = selectedTaskListIDs
+            settings.hasConfiguredTaskListSelection = baseState.settings.hasConfiguredTaskListSelection
+                || baseState.settings.selectedTaskListIDs.isEmpty == false
+                || selectedTaskListIDs.isEmpty == false
+        }
 
         return CachedAppState(
             account: baseState.account,
             taskLists: taskLists,
-            tasks: mergeTasks(existing: baseState.tasks, results: taskResults),
+            tasks: shouldSyncTasks
+                ? mergeTasks(existing: baseState.tasks, results: taskResults)
+                : baseState.tasks,
             calendars: calendars.map { calendar in
                 var calendar = calendar
-                calendar.isSelected = selectedCalendarIDs.contains(calendar.id)
+                if shouldSyncEvents {
+                    calendar.isSelected = selectedCalendarIDs.contains(calendar.id)
+                }
                 return calendar
             },
-            events: mergeEvents(existing: baseState.events, results: eventResults, retentionDaysBack: settings.eventRetentionDaysBack, now: syncStartedAt),
+            events: shouldSyncEvents
+                ? mergeEvents(existing: baseState.events, results: eventResults, retentionDaysBack: settings.eventRetentionDaysBack, now: syncStartedAt)
+                : baseState.events,
             settings: settings,
             syncCheckpoints: mergeCheckpoints(
                 existing: baseState.syncCheckpoints,
