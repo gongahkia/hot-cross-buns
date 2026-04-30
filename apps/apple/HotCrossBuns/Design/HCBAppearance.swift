@@ -39,6 +39,45 @@ enum HCBTextSize {
     static func clamp(_ points: Double) -> Double {
         max(minPoints, min(points, maxPoints))
     }
+
+    static func dynamicTypeScale(for size: DynamicTypeSize) -> CGFloat {
+        switch size {
+        case .xSmall: 0.82
+        case .small: 0.90
+        case .medium: 0.96
+        case .large: 1.00
+        case .xLarge: 1.12
+        case .xxLarge: 1.24
+        case .xxxLarge: 1.36
+        case .accessibility1: 1.52
+        case .accessibility2: 1.68
+        case .accessibility3: 1.84
+        case .accessibility4: 2.00
+        case .accessibility5: 2.18
+        @unknown default: 1.00
+        }
+    }
+}
+
+enum HCBMotion {
+    static func animation(_ animation: Animation?, reduceMotion: Bool) -> Animation? {
+        reduceMotion ? nil : animation
+    }
+
+    static func transition(_ transition: AnyTransition, reduceMotion: Bool) -> AnyTransition {
+        reduceMotion ? .opacity : transition
+    }
+
+    static func perform<Result>(
+        reduceMotion: Bool,
+        animation: Animation?,
+        _ updates: () throws -> Result
+    ) rethrows -> Result {
+        if reduceMotion {
+            return try updates()
+        }
+        return try withAnimation(animation, updates)
+    }
 }
 
 private struct HCBLayoutScaleKey: EnvironmentKey {
@@ -173,6 +212,14 @@ extension View {
     func hcbFontSystem(size: CGFloat, weight: Font.Weight = .regular, design: Font.Design = .default) -> some View {
         modifier(HCBFontSystemModifier(size: size, weight: weight, design: design))
     }
+
+    func hcbMotionAnimation<Value: Equatable>(_ animation: Animation?, value: Value) -> some View {
+        modifier(HCBMotionAnimationModifier(animation: animation, value: value))
+    }
+
+    func hcbMotionTransition(_ transition: AnyTransition) -> some View {
+        modifier(HCBMotionTransitionModifier(transition: transition))
+    }
 }
 
 enum HCBFontStyle {
@@ -283,6 +330,7 @@ private struct HCBScaledFlexibleFrameModifier: ViewModifier {
 private struct HCBFontModifier: ViewModifier {
     @Environment(\.hcbFontFamily) private var family
     @Environment(\.hcbTextSizePoints) private var basePoints
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let style: HCBFontStyle
     let weight: Font.Weight?
 
@@ -294,7 +342,7 @@ private struct HCBFontModifier: ViewModifier {
     // Picking 16 as body multiplies every semantic style by 16/13 ≈ 1.23.
     private var resolved: Font {
         let scale = basePoints / HCBTextSize.defaultPoints
-        let size = style.referenceSize * scale
+        let size = style.referenceSize * scale * HCBTextSize.dynamicTypeScale(for: dynamicTypeSize)
         let base: Font
         if let family, family.isEmpty == false {
             base = .custom(family, fixedSize: size)
@@ -311,6 +359,7 @@ private struct HCBFontModifier: ViewModifier {
 private struct HCBFontSystemModifier: ViewModifier {
     @Environment(\.hcbFontFamily) private var family
     @Environment(\.hcbTextSizePoints) private var basePoints
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let size: CGFloat
     let weight: Font.Weight
     let design: Font.Design
@@ -324,11 +373,30 @@ private struct HCBFontSystemModifier: ViewModifier {
     // user's chosen text size proportionally.
     private var resolved: Font {
         let scale = basePoints / HCBTextSize.defaultPoints
-        let scaledSize = size * scale
+        let scaledSize = size * scale * HCBTextSize.dynamicTypeScale(for: dynamicTypeSize)
         if let family, family.isEmpty == false {
             return Font.custom(family, fixedSize: scaledSize).weight(weight)
         }
         return .system(size: scaledSize, weight: weight, design: design)
+    }
+}
+
+private struct HCBMotionAnimationModifier<Value: Equatable>: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let animation: Animation?
+    let value: Value
+
+    func body(content: Content) -> some View {
+        content.animation(HCBMotion.animation(animation, reduceMotion: reduceMotion), value: value)
+    }
+}
+
+private struct HCBMotionTransitionModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let transition: AnyTransition
+
+    func body(content: Content) -> some View {
+        content.transition(HCBMotion.transition(transition, reduceMotion: reduceMotion))
     }
 }
 

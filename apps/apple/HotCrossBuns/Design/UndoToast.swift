@@ -2,13 +2,14 @@ import SwiftUI
 
 struct UndoToast: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack {
             Spacer(minLength: 0)
             if let action = model.undoable {
                 content(action: action)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(HCBMotion.transition(.move(edge: .bottom).combined(with: .opacity), reduceMotion: reduceMotion))
                     .task(id: model.undoActionToken) {
                         try? await Task.sleep(for: .seconds(6))
                         if model.undoable == action {
@@ -17,7 +18,7 @@ struct UndoToast: View {
                     }
             }
         }
-        .animation(.easeOut(duration: 0.16), value: model.undoActionToken)
+        .animation(HCBMotion.animation(.easeOut(duration: 0.16), reduceMotion: reduceMotion), value: model.undoActionToken)
         .allowsHitTesting(model.undoable != nil)
     }
 

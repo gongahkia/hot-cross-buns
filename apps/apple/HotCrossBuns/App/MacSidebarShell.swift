@@ -119,6 +119,7 @@ struct MacSidebarShell: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openSettings) private var openSettings
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @SceneStorage("sidebarSelection") private var storedSelection: String = SidebarItem.calendar.rawValue
 
     private let layoutScaleMin: Double = 0.80
@@ -177,8 +178,8 @@ struct MacSidebarShell: View {
             detail
         }
         .navigationSplitViewStyle(.balanced)
-        .animation(.easeInOut(duration: 0.12), value: layoutZoomScale)
-        .animation(.easeInOut(duration: 0.12), value: textSizePoints)
+        .animation(HCBMotion.animation(.easeInOut(duration: 0.12), reduceMotion: reduceMotion), value: layoutZoomScale)
+        .animation(HCBMotion.animation(.easeInOut(duration: 0.12), reduceMotion: reduceMotion), value: textSizePoints)
     }
 
     var body: some View {
@@ -269,11 +270,11 @@ struct MacSidebarShell: View {
                         hints: HCBChordMatcher.hudHints(current: keys, in: HCBChordRegistry.defaults)
                     )
                     .hcbScaledPadding(18)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(HCBMotion.transition(.move(edge: .bottom).combined(with: .opacity), reduceMotion: reduceMotion))
                 }
             }
             .loadingOverlay(model.loadingOverlay)
-            .animation(.easeOut(duration: 0.16), value: chordKeys)
+            .animation(HCBMotion.animation(.easeOut(duration: 0.16), reduceMotion: reduceMotion), value: chordKeys)
             .focusedSceneValue(\.appCommandActions, appCommandActions)
             .onAppear(perform: handleShellAppear)
             .onChange(of: model.settings.hasCompletedOnboarding) { _, _ in

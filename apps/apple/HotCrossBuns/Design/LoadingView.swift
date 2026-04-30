@@ -35,6 +35,7 @@ struct LoadingView: View {
 }
 
 struct LoadingOverlayModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let state: LoadingOverlayState?
 
     func body(content: Content) -> some View {
@@ -42,10 +43,10 @@ struct LoadingOverlayModifier: ViewModifier {
             .overlay {
                 if let state {
                     LoadingView(message: state.message)
-                        .transition(.opacity)
+                        .hcbMotionTransition(.opacity)
                 }
             }
-            .animation(.easeInOut(duration: 0.18), value: state)
+            .animation(HCBMotion.animation(.easeInOut(duration: 0.18), reduceMotion: reduceMotion), value: state)
     }
 }
 

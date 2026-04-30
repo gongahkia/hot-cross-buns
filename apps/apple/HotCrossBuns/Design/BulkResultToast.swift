@@ -7,6 +7,7 @@ import SwiftUI
 // Auto-dismisses after 7s; tap the × to dismiss early. Non-blocking — the
 // toast is informational only and doesn't trap keyboard focus.
 struct BulkResultToast: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var message: String?
     var isWarning: Bool = false
     var successTitle: String = "Bulk action complete"
@@ -20,14 +21,14 @@ struct BulkResultToast: View {
             Spacer(minLength: 0)
             if let message {
                 content(message: message)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(HCBMotion.transition(.move(edge: .bottom).combined(with: .opacity), reduceMotion: reduceMotion))
                     .task(id: message) {
                         try? await Task.sleep(for: dismissAfter)
                         if self.message == message { self.message = nil }
                     }
             }
         }
-        .animation(.easeOut(duration: 0.16), value: message)
+        .animation(HCBMotion.animation(.easeOut(duration: 0.16), reduceMotion: reduceMotion), value: message)
         .allowsHitTesting(message != nil)
     }
 
