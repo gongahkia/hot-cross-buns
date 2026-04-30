@@ -2,6 +2,10 @@ import Foundation
 import Observation
 import AppKit
 
+struct LoadingOverlayState: Equatable, Sendable {
+    var message: String
+}
+
 @MainActor
 @Observable
 final class AppModel {
@@ -13,6 +17,7 @@ final class AppModel {
     private let notificationScheduler: LocalNotificationScheduler
     private let spotlightIndexer: SpotlightIndexer
     private let loginItemController: LoginItemController
+    private let localBackupService: LocalBackupService
 
     private(set) var account: GoogleAccount?
     // Default to .authenticating (not .signedOut) so the pre-loadInitialState
@@ -65,6 +70,8 @@ final class AppModel {
     private(set) var lastMutationError: String?
     private(set) var globalHotkeyRegistrationState: GlobalHotkeyRegistrationState = .disabled
     private(set) var syncFailureKind: SyncFailureKind?
+    private(set) var loadingOverlay: LoadingOverlayState?
+    private(set) var localBackupSummary: LocalBackupService.BackupSummary?
     private(set) var taskLists: [TaskListMirror] = []
     private(set) var tasks: [TaskMirror] = []
     private(set) var calendars: [CalendarListMirror] = []
@@ -156,6 +163,7 @@ final class AppModel {
         notificationScheduler: LocalNotificationScheduler = LocalNotificationScheduler(),
         spotlightIndexer: SpotlightIndexer = SpotlightIndexer(),
         loginItemController: LoginItemController = LoginItemController(),
+        localBackupService: LocalBackupService = LocalBackupService(),
         settings: AppSettings = .default
     ) {
         self.authService = authService
@@ -166,6 +174,7 @@ final class AppModel {
         self.notificationScheduler = notificationScheduler
         self.spotlightIndexer = spotlightIndexer
         self.loginItemController = loginItemController
+        self.localBackupService = localBackupService
         self.settings = settings
         self.customOAuthClientConfiguration = authService.customOAuthClientConfiguration
         self.opensAtLogin = loginItemController.isEnabled
@@ -201,6 +210,8 @@ final class AppModel {
     }
 
     func loadInitialState() async {
+        loadingOverlay = LoadingOverlayState(message: "Loading your workspace…")
+        defer { loadingOverlay = nil }
         recordLaunchAndComputeDaysSinceLast()
         // Probe Keychain before anything that would touch GIDSignIn. If
         // the Keychain is locked/denied the restore will fail generically;
@@ -218,6 +229,8 @@ final class AppModel {
         }
         let cachedState = await cacheStore.loadCachedState()
         apply(cachedState)
+        localBackupSummary = await localBackupService.summary()
+        await runDailyLocalBackupIfNeeded()
         if settings.auditLogEncryptionEnabled,
            let key = cachedCacheKey,
            let salt = await cacheStore.currentSalt() {
@@ -373,6 +386,8 @@ final class AppModel {
         let started = Date()
         AppLogger.info("refresh start", category: .sync, metadata: ["mode": settings.syncMode.rawValue])
         syncState = .syncing(startedAt: started)
+        loadingOverlay = LoadingOverlayState(message: "Refreshing Google data…")
+        defer { loadingOverlay = nil }
         syncFailureKind = nil
         await replayPendingMutations()
         do {
@@ -391,6 +406,7 @@ final class AppModel {
             // anyway but unnecessary refetch is wasteful.)
             await saveCurrentState()
             await synchronizeLocalNotifications()
+            await runDailyLocalBackupIfNeeded()
             let duration = Int(Date().timeIntervalSince(started) * 1000)
             AppLogger.info("refresh succeeded", category: .sync, metadata: [
                 "ms": String(duration),
@@ -2343,9 +2359,75 @@ final class AppModel {
 
     func setColorSchemeID(_ id: String) {
         guard settings.colorSchemeID != id else { return }
-        guard HCBColorScheme.scheme(id: id) != nil else { return }
+        guard HCBColorScheme.scheme(id: id, customSchemes: settings.customColorSchemes) != nil else { return }
         settings.colorSchemeID = id
+        HCBColorSchemeStore.current = HCBColorScheme.scheme(id: id, customSchemes: settings.customColorSchemes) ?? .notion
         scheduleCacheSave()
+    }
+
+    func upsertCustomColorScheme(_ scheme: HCBCustomColorScheme, select: Bool = true) {
+        var normalized = scheme
+        normalized.title = normalized.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Custom theme" : normalized.title
+        if let index = settings.customColorSchemes.firstIndex(where: { $0.id == normalized.id }) {
+            settings.customColorSchemes[index] = normalized
+        } else {
+            settings.customColorSchemes.append(normalized)
+        }
+        if select {
+            settings.colorSchemeID = normalized.id
+            HCBColorSchemeStore.current = normalized.colorScheme()
+        }
+        scheduleCacheSave()
+    }
+
+    func deleteCustomColorScheme(id: String) {
+        guard settings.customColorSchemes.contains(where: { $0.id == id }) else { return }
+        settings.customColorSchemes.removeAll { $0.id == id }
+        if settings.colorSchemeID == id {
+            let replacement = HCBColorScheme.all.first { $0.isDark == HCBColorSchemeStore.current.isDark } ?? .notion
+            settings.colorSchemeID = replacement.id
+            HCBColorSchemeStore.current = replacement
+        }
+        scheduleCacheSave()
+    }
+
+    func duplicateCurrentColorSchemeForEditing() -> HCBCustomColorScheme {
+        let base = HCBColorScheme.scheme(id: settings.colorSchemeID, customSchemes: settings.customColorSchemes) ?? .notion
+        return HCBCustomColorScheme(copying: base)
+    }
+
+    func setDailyLocalBackupEnabled(_ enabled: Bool) {
+        guard settings.dailyLocalBackupEnabled != enabled else { return }
+        settings.dailyLocalBackupEnabled = enabled
+        scheduleCacheSave()
+        if enabled {
+            Task { await runDailyLocalBackupNow() }
+        }
+    }
+
+    func setDailyLocalBackupRetentionCount(_ count: Int) {
+        let clamped = max(1, min(90, count))
+        guard settings.dailyLocalBackupRetentionCount != clamped else { return }
+        settings.dailyLocalBackupRetentionCount = clamped
+        scheduleCacheSave()
+    }
+
+    @discardableResult
+    func runDailyLocalBackupNow() async -> Bool {
+        await runDailyLocalBackupIfNeeded(force: true)
+    }
+
+    func refreshLocalBackupSummary() async {
+        localBackupSummary = await localBackupService.summary()
+    }
+
+    func openLocalBackupFolder() async {
+        do {
+            try await localBackupService.openBackupDirectoryInFinder()
+            localBackupSummary = await localBackupService.summary()
+        } catch {
+            AppLogger.warn("backup folder open failed", category: .cache, metadata: ["error": String(describing: error)])
+        }
     }
 
     func setShortcutBinding(_ command: HCBShortcutCommand, binding: HCBKeyBinding?) {
@@ -3514,7 +3596,7 @@ final class AppModel {
         settings = state.settings
         syncCheckpoints = state.syncCheckpoints
         pendingMutations = state.pendingMutations
-        HCBColorSchemeStore.current = HCBColorScheme.scheme(id: settings.colorSchemeID) ?? .notion
+        HCBColorSchemeStore.current = HCBColorScheme.scheme(id: settings.colorSchemeID, customSchemes: settings.customColorSchemes) ?? .notion
         HCBShortcutStorage.persist(settings.shortcutOverrides)
         autoIncludeNewTaskLists()
         rebuildSnapshots()
@@ -3769,6 +3851,34 @@ final class AppModel {
             syncCheckpoints: syncCheckpoints,
             pendingMutations: pendingMutations
         )
+    }
+
+    @discardableResult
+    private func runDailyLocalBackupIfNeeded(force: Bool = false, now: Date = Date()) async -> Bool {
+        guard force || settings.dailyLocalBackupEnabled else { return false }
+        if force == false,
+           let last = settings.lastDailyLocalBackupAt,
+           Calendar.current.isDate(last, inSameDayAs: now) {
+            return false
+        }
+
+        do {
+            _ = try await localBackupService.writeBackup(
+                state: currentCachedState(),
+                now: now,
+                retentionCount: settings.dailyLocalBackupRetentionCount
+            )
+            settings.lastDailyLocalBackupAt = now
+            localBackupSummary = await localBackupService.summary()
+            scheduleCacheSave()
+            return true
+        } catch {
+            AppLogger.warn("daily local backup failed", category: .cache, metadata: [
+                "error": String(describing: error)
+            ])
+            localBackupSummary = await localBackupService.summary()
+            return false
+        }
     }
 
     // Synchronous flush. Use only from explicit-flush sites (logout,

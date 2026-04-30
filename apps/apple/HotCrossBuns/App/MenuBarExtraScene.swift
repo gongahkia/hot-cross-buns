@@ -632,7 +632,7 @@ struct MenuBarExtraContent: View {
         .hcbPreferredColorScheme(model.settings)
         .hcbSurface(.menuBar) // §6.11 per-surface font override
         .onChange(of: model.settings.colorSchemeID, initial: true) { _, newID in
-            HCBColorSchemeStore.current = HCBColorScheme.scheme(id: newID) ?? .notion
+            HCBColorSchemeStore.current = HCBColorScheme.scheme(id: newID, customSchemes: model.settings.customColorSchemes) ?? .notion
         }
     }
 }

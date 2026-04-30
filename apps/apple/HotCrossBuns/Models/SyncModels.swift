@@ -206,6 +206,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var uiTextSizePoints: Double // literal body-text point size (9–24), drives every semantic style
     var uiFontName: String? // PostScript name, nil for system
     var colorSchemeID: String // identifier into HCBColorScheme.all
+    var customColorSchemes: [HCBCustomColorScheme] // user-authored palettes, exportable with settings
     var shortcutOverrides: [String: HCBKeyBinding] // HCBShortcutCommand.rawValue → binding
     var hiddenSidebarItems: Set<String> // SidebarItem.rawValues user has hidden (Settings never hidable)
     var hiddenCalendarViewModes: Set<String> // CalendarGridMode.rawValues user has hidden from Calendar picker
@@ -272,6 +273,9 @@ struct AppSettings: Hashable, Codable, Sendable {
     var historyVisibleLimit: Int           // N most recent entries shown in window (default 50)
     var historyStorageCap: Int             // total entries retained on disk (default 5000, ceiling 50000)
     var historyCategoryFilters: Set<String> // "create"|"edit"|"delete"|"complete"|"duplicate"|"move"|"clipboard"|"restore"|"bulk"|"sync"|"other"
+    var dailyLocalBackupEnabled: Bool
+    var dailyLocalBackupRetentionCount: Int
+    var lastDailyLocalBackupAt: Date?
 
     init(
         syncMode: SyncMode,
@@ -300,6 +304,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         uiTextSizePoints: Double = 13.0,
         uiFontName: String? = nil,
         colorSchemeID: String = "notion",
+        customColorSchemes: [HCBCustomColorScheme] = [],
         shortcutOverrides: [String: HCBKeyBinding] = [:],
         hiddenSidebarItems: Set<String> = [],
         hiddenCalendarViewModes: Set<String> = [],
@@ -337,7 +342,10 @@ struct AppSettings: Hashable, Codable, Sendable {
         dismissedDuplicateGroups: Set<String> = [],
         historyVisibleLimit: Int = 50,
         historyStorageCap: Int = 5000,
-        historyCategoryFilters: Set<String> = ["create", "edit", "delete", "complete", "duplicate", "move", "clipboard", "restore", "bulk", "other"]
+        historyCategoryFilters: Set<String> = ["create", "edit", "delete", "complete", "duplicate", "move", "clipboard", "restore", "bulk", "other"],
+        dailyLocalBackupEnabled: Bool = false,
+        dailyLocalBackupRetentionCount: Int = 14,
+        lastDailyLocalBackupAt: Date? = nil
     ) {
         self.syncMode = syncMode
         self.selectedCalendarIDs = selectedCalendarIDs
@@ -365,6 +373,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.uiTextSizePoints = uiTextSizePoints
         self.uiFontName = uiFontName
         self.colorSchemeID = colorSchemeID
+        self.customColorSchemes = customColorSchemes
         self.shortcutOverrides = shortcutOverrides
         self.hiddenSidebarItems = hiddenSidebarItems
         self.hiddenCalendarViewModes = hiddenCalendarViewModes
@@ -403,6 +412,9 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.historyVisibleLimit = max(1, min(MutationAuditLog.absoluteCeiling, historyVisibleLimit))
         self.historyStorageCap = max(1, min(MutationAuditLog.absoluteCeiling, historyStorageCap))
         self.historyCategoryFilters = historyCategoryFilters
+        self.dailyLocalBackupEnabled = dailyLocalBackupEnabled
+        self.dailyLocalBackupRetentionCount = max(1, min(90, dailyLocalBackupRetentionCount))
+        self.lastDailyLocalBackupAt = lastDailyLocalBackupAt
     }
 
     enum CodingKeys: String, CodingKey {
@@ -432,6 +444,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case uiTextSizePoints
         case uiFontName
         case colorSchemeID
+        case customColorSchemes
         case shortcutOverrides
         case hiddenSidebarItems
         case hiddenCalendarViewModes
@@ -470,6 +483,9 @@ struct AppSettings: Hashable, Codable, Sendable {
         case historyVisibleLimit
         case historyStorageCap
         case historyCategoryFilters
+        case dailyLocalBackupEnabled
+        case dailyLocalBackupRetentionCount
+        case lastDailyLocalBackupAt
     }
 
     // Legacy key (0-6 ladder) read via dynamic CodingKey so it stays out of
@@ -533,6 +549,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         }
         uiFontName = try container.decodeIfPresent(String.self, forKey: .uiFontName)
         colorSchemeID = try container.decodeIfPresent(String.self, forKey: .colorSchemeID) ?? "notion"
+        customColorSchemes = try container.decodeIfPresent([HCBCustomColorScheme].self, forKey: .customColorSchemes) ?? []
         shortcutOverrides = try container.decodeIfPresent([String: HCBKeyBinding].self, forKey: .shortcutOverrides) ?? [:]
         hiddenSidebarItems = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenSidebarItems) ?? []
         hiddenCalendarViewModes = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenCalendarViewModes) ?? []
@@ -580,6 +597,10 @@ struct AppSettings: Hashable, Codable, Sendable {
         historyStorageCap = max(1, min(MutationAuditLog.absoluteCeiling, rawCap))
         historyCategoryFilters = try container.decodeIfPresent(Set<String>.self, forKey: .historyCategoryFilters)
             ?? ["create", "edit", "delete", "complete", "duplicate", "move", "clipboard", "restore", "bulk", "other"]
+        dailyLocalBackupEnabled = try container.decodeIfPresent(Bool.self, forKey: .dailyLocalBackupEnabled) ?? false
+        let rawBackupRetention = try container.decodeIfPresent(Int.self, forKey: .dailyLocalBackupRetentionCount) ?? 14
+        dailyLocalBackupRetentionCount = max(1, min(90, rawBackupRetention))
+        lastDailyLocalBackupAt = try container.decodeIfPresent(Date.self, forKey: .lastDailyLocalBackupAt)
     }
 
     enum MenuBarStyle: String, Codable, Hashable, Sendable, CaseIterable {

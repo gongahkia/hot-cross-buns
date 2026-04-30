@@ -65,6 +65,81 @@ struct HCBColorScheme: Identifiable, Hashable, Sendable {
         var swiftColor: Color {
             Color(red: red, green: green, blue: blue).opacity(alpha)
         }
+
+        var hexString: String {
+            let r = Int((max(0, min(1, red)) * 255).rounded())
+            let g = Int((max(0, min(1, green)) * 255).rounded())
+            let b = Int((max(0, min(1, blue)) * 255).rounded())
+            return String(format: "#%02X%02X%02X", r, g, b)
+        }
+    }
+}
+
+struct HCBCustomColorScheme: Identifiable, Hashable, Codable, Sendable {
+    var id: String
+    var title: String
+    var isDark: Bool
+    var emberHex: String
+    var mossHex: String
+    var blueHex: String
+    var inkHex: String
+    var creamHex: String
+    var cardStrokeHex: String
+
+    init(
+        id: String = "custom:\(UUID().uuidString)",
+        title: String,
+        isDark: Bool,
+        emberHex: String,
+        mossHex: String,
+        blueHex: String,
+        inkHex: String,
+        creamHex: String,
+        cardStrokeHex: String
+    ) {
+        self.id = id.hasPrefix("custom:") ? id : "custom:\(id)"
+        self.title = title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Custom theme" : title
+        self.isDark = isDark
+        self.emberHex = Self.normalizedHex(emberHex, fallback: "#E9552F")
+        self.mossHex = Self.normalizedHex(mossHex, fallback: "#3C7255")
+        self.blueHex = Self.normalizedHex(blueHex, fallback: "#1677FF")
+        self.inkHex = Self.normalizedHex(inkHex, fallback: isDark ? "#F4F1EC" : "#1B1E24")
+        self.creamHex = Self.normalizedHex(creamHex, fallback: isDark ? "#171A21" : "#FCF4E4")
+        self.cardStrokeHex = Self.normalizedHex(cardStrokeHex, fallback: isDark ? "#30343D" : "#DFD3BF")
+    }
+
+    init(copying scheme: HCBColorScheme, title: String? = nil) {
+        self.init(
+            title: title ?? "\(scheme.title) copy",
+            isDark: scheme.isDark,
+            emberHex: scheme.ember.hexString,
+            mossHex: scheme.moss.hexString,
+            blueHex: scheme.blue.hexString,
+            inkHex: scheme.ink.hexString,
+            creamHex: scheme.cream.hexString,
+            cardStrokeHex: scheme.cardStroke.hexString
+        )
+    }
+
+    func colorScheme() -> HCBColorScheme {
+        HCBColorScheme(
+            id: id,
+            title: title,
+            isDark: isDark,
+            ember: .init(emberHex),
+            moss: .init(mossHex),
+            blue: .init(blueHex),
+            ink: .init(inkHex),
+            cream: .init(creamHex),
+            cardStroke: .init(cardStrokeHex)
+        )
+    }
+
+    static func normalizedHex(_ value: String, fallback: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let raw = trimmed.hasPrefix("#") ? String(trimmed.dropFirst()) : trimmed
+        guard raw.count == 6, raw.allSatisfy(\.isHexDigit) else { return fallback }
+        return "#\(raw.uppercased())"
     }
 }
 
@@ -598,6 +673,14 @@ extension HCBColorScheme {
 
     static func scheme(id: String) -> HCBColorScheme? {
         all.first { $0.id == id }
+    }
+
+    static func all(including customSchemes: [HCBCustomColorScheme]) -> [HCBColorScheme] {
+        all + customSchemes.map { $0.colorScheme() }
+    }
+
+    static func scheme(id: String, customSchemes: [HCBCustomColorScheme]) -> HCBColorScheme? {
+        all.first { $0.id == id } ?? customSchemes.first { $0.id == id }?.colorScheme()
     }
 }
 

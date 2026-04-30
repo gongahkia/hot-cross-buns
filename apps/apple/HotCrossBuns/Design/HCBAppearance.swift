@@ -26,7 +26,7 @@ enum HCBBaseColorSchemePreference: String, CaseIterable, Identifiable {
     }
 
     static func fallback(for settings: AppSettings) -> HCBBaseColorSchemePreference {
-        HCBColorScheme.scheme(id: settings.colorSchemeID)?.isDark == true ? .dark : .light
+        HCBColorScheme.scheme(id: settings.colorSchemeID, customSchemes: settings.customColorSchemes)?.isDark == true ? .dark : .light
     }
 }
 
