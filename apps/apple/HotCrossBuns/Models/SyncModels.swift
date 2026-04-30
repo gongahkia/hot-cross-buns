@@ -215,6 +215,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var hiddenStoreViewModes: Set<String>
     var perSurfaceFontOverrides: [String: HCBSurfaceFontOverride] // HCBSurface.rawValue → override
     var cacheEncryptionEnabled: Bool // §6.12 — whether LocalCacheStore should encrypt at rest
+    var auditLogEncryptionEnabled: Bool // whether MutationAuditLog should encrypt history at rest
     var taskTemplates: [TaskTemplate] // §6.13 — local-only task templates with variable expansion
     var eventRetentionDaysBack: Int // §7.02 — drop events with endDate older than (now - N days) during sync merge; 0 = keep forever
     var collapsedTaskListIDs: Set<TaskListMirror.ID> // §7.01 — task-list section IDs the user has folded shut in StoreView
@@ -305,6 +306,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         hiddenStoreViewModes: Set<String> = [],
         perSurfaceFontOverrides: [String: HCBSurfaceFontOverride] = [:],
         cacheEncryptionEnabled: Bool = false,
+        auditLogEncryptionEnabled: Bool = false,
         taskTemplates: [TaskTemplate] = [],
         eventRetentionDaysBack: Int = 365,
         collapsedTaskListIDs: Set<TaskListMirror.ID> = [],
@@ -369,6 +371,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.hiddenStoreViewModes = hiddenStoreViewModes
         self.perSurfaceFontOverrides = perSurfaceFontOverrides
         self.cacheEncryptionEnabled = cacheEncryptionEnabled
+        self.auditLogEncryptionEnabled = auditLogEncryptionEnabled
         self.taskTemplates = taskTemplates
         self.eventRetentionDaysBack = eventRetentionDaysBack
         self.collapsedTaskListIDs = collapsedTaskListIDs
@@ -435,6 +438,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case hiddenStoreViewModes
         case perSurfaceFontOverrides
         case cacheEncryptionEnabled
+        case auditLogEncryptionEnabled
         case taskTemplates
         case eventRetentionDaysBack
         case collapsedTaskListIDs
@@ -535,6 +539,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         hiddenStoreViewModes = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenStoreViewModes) ?? []
         perSurfaceFontOverrides = try container.decodeIfPresent([String: HCBSurfaceFontOverride].self, forKey: .perSurfaceFontOverrides) ?? [:]
         cacheEncryptionEnabled = try container.decodeIfPresent(Bool.self, forKey: .cacheEncryptionEnabled) ?? false
+        auditLogEncryptionEnabled = try container.decodeIfPresent(Bool.self, forKey: .auditLogEncryptionEnabled) ?? false
         taskTemplates = try container.decodeIfPresent([TaskTemplate].self, forKey: .taskTemplates) ?? []
         eventRetentionDaysBack = try container.decodeIfPresent(Int.self, forKey: .eventRetentionDaysBack) ?? 365
         collapsedTaskListIDs = try container.decodeIfPresent(Set<TaskListMirror.ID>.self, forKey: .collapsedTaskListIDs) ?? []
