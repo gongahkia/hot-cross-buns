@@ -82,11 +82,6 @@ struct HCBColorSchemeDocument: FileDocument {
 }
 
 private extension Color {
-    init(hex: String) {
-        let rgb = HCBColorScheme.RGB(hex)
-        self.init(red: rgb.red, green: rgb.green, blue: rgb.blue)
-    }
-
     var hcbHexString: String {
         let color = NSColor(self).usingColorSpace(.sRGB) ?? .controlAccentColor
         let r = Int((max(0, min(1, color.redComponent)) * 255).rounded())
