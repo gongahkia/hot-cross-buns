@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 // Append-only ledger of user-originated mutations. Separate from
 // AppLogger (which captures general debug info) because this is the
@@ -61,6 +62,27 @@ actor MutationAuditLog {
     private var retentionLimit: Int = 5000
     private var buffer: [MutationAuditEntry] = []
     private var hasLoaded = false
+    private let storageURL: URL?
+    private var encryptionKey: SymmetricKey?
+    private var encryptionSalt: Data?
+    private var encryptionEnabled = false
+
+    init(fileURL: URL? = MutationAuditLog.fileURL()) {
+        storageURL = fileURL
+    }
+
+    func configureEncryption(enabled: Bool, key: SymmetricKey?, salt: Data?) {
+        if hasLoaded == false, enabled || key != nil {
+            encryptionKey = key ?? encryptionKey
+            ensureLoaded()
+        }
+        encryptionEnabled = enabled
+        encryptionKey = enabled ? key : nil
+        encryptionSalt = enabled ? salt : nil
+        if hasLoaded {
+            rewriteEntireFile()
+        }
+    }
 
     func setRetentionLimit(_ limit: Int) {
         retentionLimit = max(1, min(Self.absoluteCeiling, limit))
@@ -125,11 +147,24 @@ actor MutationAuditLog {
         if hasLoaded { return }
         hasLoaded = true
         guard
-            let url = Self.fileURL(),
+            let url = storageURL,
             FileManager.default.fileExists(atPath: url.path),
             let data = try? Data(contentsOf: url),
             data.isEmpty == false
         else { return }
+        if let envelope = try? JSONDecoder().decode(EncryptedEnvelope.self, from: data) {
+            guard let key = encryptionKey else {
+                AppLogger.warn("audit log is encrypted but no key is available", category: .cache)
+                return
+            }
+            do {
+                let plaintext = try HCBCacheCrypto.decrypt(envelope.encryptedV2, key: key)
+                buffer = Self.decodeJSONL(plaintext)
+            } catch {
+                AppLogger.warn("audit log decrypt failed", category: .cache, metadata: ["error": String(describing: error)])
+            }
+            return
+        }
         // Back-compat: legacy v1 format wrote the whole buffer as a JSON array.
         // New v2 format is JSONL (one entry per line, O(1) append on record).
         // Detect v1 by leading '[' and rewrite once into v2 on next persist.
@@ -140,6 +175,13 @@ actor MutationAuditLog {
             }
             return
         }
+        buffer = Self.decodeJSONL(data)
+        if encryptionEnabled {
+            rewriteEntireFile()
+        }
+    }
+
+    private static func decodeJSONL(_ data: Data) -> [MutationAuditEntry] {
         let decoder = JSONDecoder()
         var decoded: [MutationAuditEntry] = []
         decoded.reserveCapacity(4096)
@@ -162,7 +204,7 @@ actor MutationAuditLog {
                 }
             }
         }
-        buffer = decoded
+        return decoded
     }
 
     // Shared encoder instance — reused across every record() call so we
@@ -178,7 +220,11 @@ actor MutationAuditLog {
     // "re-encode the entire buffer on every record" hot path that turned
     // a user-facing mutation into a ~1 MB atomic disk write.
     private func persistLastEntry() {
-        guard let url = Self.fileURL(), let entry = buffer.last else { return }
+        guard encryptionEnabled == false else {
+            rewriteEntireFile()
+            return
+        }
+        guard let url = storageURL, let entry = buffer.last else { return }
         do {
             try FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(),
@@ -201,23 +247,43 @@ actor MutationAuditLog {
     // Used for deletes, retention trims, clears, and the v1→v2 migration.
     // A full rewrite is O(n) but these are rare compared to append.
     private func rewriteEntireFile() {
-        guard let url = Self.fileURL() else { return }
+        guard let url = storageURL else { return }
         do {
             try FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(),
                 withIntermediateDirectories: true
             )
-            var data = Data()
-            data.reserveCapacity(buffer.count * 256)
-            for entry in buffer {
-                let line = try Self.entryEncoder.encode(entry)
-                data.append(line)
-                data.append(UInt8(ascii: "\n"))
+            let plaintext = try encodedJSONL()
+            let data: Data
+            if encryptionEnabled {
+                guard let key = encryptionKey, let salt = encryptionSalt else {
+                    AppLogger.warn("audit log encryption enabled without key", category: .cache)
+                    return
+                }
+                let blob = try HCBCacheCrypto.encrypt(plaintext, key: key, salt: salt)
+                data = try JSONEncoder().encode(EncryptedEnvelope(encryptedV2: blob))
+            } else {
+                data = plaintext
             }
             try data.write(to: url, options: [.atomic])
         } catch {
             AppLogger.warn("audit log rewrite failed", category: .cache, metadata: ["error": String(describing: error)])
         }
+    }
+
+    private func encodedJSONL() throws -> Data {
+        var data = Data()
+        data.reserveCapacity(buffer.count * 256)
+        for entry in buffer {
+            let line = try Self.entryEncoder.encode(entry)
+            data.append(line)
+            data.append(UInt8(ascii: "\n"))
+        }
+        return data
+    }
+
+    private struct EncryptedEnvelope: Codable {
+        let encryptedV2: HCBCacheCrypto.EncryptedBlob
     }
 
     static func fileURL() -> URL? {
