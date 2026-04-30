@@ -21,10 +21,17 @@ struct EncryptionSection: View {
     }
 
     var body: some View {
-        Section("Local cache encryption") {
+        Section("Local privacy encryption") {
             Toggle(isOn: toggleBinding) {
                 Label("Encrypt local cache", systemImage: model.settings.cacheEncryptionEnabled ? "lock.fill" : "lock.open")
             }
+            HStack {
+                Label("Encrypt history audit log", systemImage: model.settings.auditLogEncryptionEnabled ? "clock.badge.checkmark" : "clock.badge.exclamationmark")
+                Spacer()
+                Text(model.settings.auditLogEncryptionEnabled ? "On" : "Off")
+                    .foregroundStyle(model.settings.auditLogEncryptionEnabled ? AppColor.moss : .secondary)
+            }
+            .hcbFont(.footnote)
             if model.settings.cacheEncryptionEnabled {
                 Button {
                     sheet = .change
@@ -38,7 +45,7 @@ struct EncryptionSection: View {
                     .hcbFont(.footnote)
                     .foregroundStyle(.secondary)
             }
-            Text("Encrypts the local JSON mirror + offline mutation queue with AES-256-GCM. Google remains the source of truth — re-signing-in always restores task and event data. Forgetting the passphrase means any unsynced offline mutations are lost; synced Google data is not.")
+            Text("Encrypts the local JSON mirror, offline mutation queue, and history audit log with AES-256-GCM. Google remains the source of truth — re-signing-in always restores task and event data. Forgetting the passphrase means any unsynced offline mutations and encrypted history are lost; synced Google data is not.")
                 .hcbFont(.footnote)
                 .foregroundStyle(.secondary)
         }
@@ -50,7 +57,7 @@ struct EncryptionSection: View {
                     onSubmit: { new, _ in
                         Task {
                             let ok = await model.enableCacheEncryption(passphrase: new)
-                            statusMessage = ok ? "Encryption enabled. Cache rewritten." : (model.lastMutationError ?? "Could not enable.")
+                            statusMessage = ok ? "Encryption enabled. Cache and history log rewritten." : (model.lastMutationError ?? "Could not enable.")
                             sheet = nil
                         }
                     },
@@ -62,7 +69,7 @@ struct EncryptionSection: View {
                     onSubmit: { current, _ in
                         Task {
                             let ok = await model.disableCacheEncryption(currentPassphrase: current)
-                            statusMessage = ok ? "Encryption disabled. Cache rewritten as plaintext." : (model.lastMutationError ?? "Could not disable.")
+                            statusMessage = ok ? "Encryption disabled. Cache and history log rewritten as plaintext." : (model.lastMutationError ?? "Could not disable.")
                             sheet = nil
                         }
                     },
@@ -74,7 +81,7 @@ struct EncryptionSection: View {
                     onSubmit: { current, next in
                         Task {
                             let ok = await model.changeCachePassphrase(from: current, to: next)
-                            statusMessage = ok ? "Passphrase changed. Cache re-encrypted." : (model.lastMutationError ?? "Could not change passphrase.")
+                            statusMessage = ok ? "Passphrase changed. Cache and history log re-encrypted." : (model.lastMutationError ?? "Could not change passphrase.")
                             sheet = nil
                         }
                     },

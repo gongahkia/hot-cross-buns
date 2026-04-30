@@ -63,4 +63,45 @@ final class HCBCacheCryptoTests: XCTestCase {
         )
         XCTAssertThrowsError(try HCBCacheCrypto.decrypt(bumped, key: key))
     }
+
+    func testMutationAuditLogEncryptsAtRestAndReloads() async throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let fileURL = directory.appending(path: "audit.log")
+        let salt = HCBCacheCrypto.randomSalt()
+        let key = try HCBCacheCrypto.deriveKey(passphrase: "history", salt: salt, iterations: 10_000)
+
+        let log = MutationAuditLog(fileURL: fileURL)
+        await log.configureEncryption(enabled: true, key: key, salt: salt)
+        await log.record(kind: "task.create", resourceID: "task-1", summary: "Private dentist appointment")
+
+        let raw = try Data(contentsOf: fileURL)
+        XCTAssertFalse(String(decoding: raw, as: UTF8.self).contains("Private dentist appointment"))
+        XCTAssertTrue(String(decoding: raw, as: UTF8.self).contains("encryptedV2"))
+
+        let reloader = MutationAuditLog(fileURL: fileURL)
+        await reloader.configureEncryption(enabled: true, key: key, salt: salt)
+        let entries = await reloader.recentEntries(limit: 10)
+        XCTAssertEqual(entries.map(\.summary), ["Private dentist appointment"])
+    }
+
+    func testMutationAuditLogMigratesPlaintextWhenEncryptionEnabled() async throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let fileURL = directory.appending(path: "audit.log")
+        let salt = HCBCacheCrypto.randomSalt()
+        let key = try HCBCacheCrypto.deriveKey(passphrase: "history", salt: salt, iterations: 10_000)
+
+        let plaintext = MutationAuditLog(fileURL: fileURL)
+        await plaintext.record(kind: "event.update", resourceID: "event-1", summary: "Plaintext title")
+
+        let encrypted = MutationAuditLog(fileURL: fileURL)
+        await encrypted.configureEncryption(enabled: true, key: key, salt: salt)
+        let entries = await encrypted.recentEntries(limit: 10)
+
+        XCTAssertEqual(entries.map(\.summary), ["Plaintext title"])
+        let raw = try Data(contentsOf: fileURL)
+        XCTAssertFalse(String(decoding: raw, as: UTF8.self).contains("Plaintext title"))
+        XCTAssertTrue(String(decoding: raw, as: UTF8.self).contains("encryptedV2"))
+    }
 }

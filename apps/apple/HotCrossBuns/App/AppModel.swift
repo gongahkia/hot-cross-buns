@@ -212,11 +212,19 @@ final class AppModel {
         }
         // §6.12 — if the cache is encrypted and we have a cached key in
         // Keychain, install it on the store before the first read.
-        if let key = HCBCacheKeychain.load() {
+        let cachedCacheKey = HCBCacheKeychain.load()
+        if let key = cachedCacheKey {
             await cacheStore.setEncryptionKey(key)
         }
         let cachedState = await cacheStore.loadCachedState()
         apply(cachedState)
+        if settings.auditLogEncryptionEnabled,
+           let key = cachedCacheKey,
+           let salt = await cacheStore.currentSalt() {
+            await MutationAuditLog.shared.configureEncryption(enabled: true, key: key, salt: salt)
+        } else {
+            await MutationAuditLog.shared.configureEncryption(enabled: false, key: nil, salt: nil)
+        }
         // If we have a cached account, optimistically show signed-in while
         // restoreGoogleSession runs. If not, stay in .authenticating — don't
         // flip to .signedOut prematurely; restoreGoogleSession will do that
@@ -1908,6 +1916,8 @@ final class AppModel {
             try HCBCacheKeychain.save(key)
             await cacheStore.setEncryptionKey(key)
             settings.cacheEncryptionEnabled = true
+            settings.auditLogEncryptionEnabled = true
+            await MutationAuditLog.shared.configureEncryption(enabled: true, key: key, salt: salt)
             scheduleCacheSave() // triggers a save that will now encrypt
             return true
         } catch {
@@ -1934,8 +1944,10 @@ final class AppModel {
             lastMutationError = "Could not rewrite cache as plaintext: \(error)"
             return false
         }
+        await MutationAuditLog.shared.configureEncryption(enabled: false, key: HCBCacheKeychain.load(), salt: nil)
         HCBCacheKeychain.clear()
         settings.cacheEncryptionEnabled = false
+        settings.auditLogEncryptionEnabled = false
         await saveCurrentState()
         return true
     }
@@ -1985,6 +1997,9 @@ final class AppModel {
             }
             try HCBCacheKeychain.save(newKey)
             await cacheStore.setEncryptionKey(newKey)
+            if settings.auditLogEncryptionEnabled {
+                await MutationAuditLog.shared.configureEncryption(enabled: true, key: newKey, salt: newSalt)
+            }
             scheduleCacheSave() // re-encrypt with the new key
             return true
         } catch {
@@ -2061,6 +2076,7 @@ final class AppModel {
         // the flag without the key would leave the UI claiming encryption is
         // active while the cache store cannot encrypt/decrypt with that key.
         next.cacheEncryptionEnabled = settings.cacheEncryptionEnabled
+        next.auditLogEncryptionEnabled = settings.auditLogEncryptionEnabled
         return next
     }
 
