@@ -198,24 +198,29 @@ struct DataControlSection: View {
 
     private func importPreviewedArchive() {
         guard let preview = portableImportPreview else { return }
-        defer { portableImportPreview = nil }
+        portableImportPreview = nil
 
-        do {
-            let summary = try model.importPortableArchive(from: preview.archiveURL)
-            exportIsWarning = summary.missingBundledAttachmentCount > 0 || summary.corruptBundledAttachmentCount > 0 || summary.skippedPointerCount > 0
-            exportMessage = "Imported \(summary.importedTaskCount) task\(summary.importedTaskCount == 1 ? "" : "s"), \(summary.importedEventCount) event\(summary.importedEventCount == 1 ? "" : "s"), and relinked \(summary.importedAttachmentCount) bundled attachment\(summary.importedAttachmentCount == 1 ? "" : "s")."
-            if summary.missingBundledAttachmentCount > 0 {
-                exportMessage?.append(" \(summary.missingBundledAttachmentCount) bundled attachment\(summary.missingBundledAttachmentCount == 1 ? " was" : "s were") missing.")
+        Task {
+            do {
+                let summary = try await model.importPortableArchive(from: preview.archiveURL)
+                exportIsWarning = summary.missingBundledAttachmentCount > 0 || summary.corruptBundledAttachmentCount > 0 || summary.skippedPointerCount > 0
+                exportMessage = "Imported \(summary.importedTaskCount) task\(summary.importedTaskCount == 1 ? "" : "s"), \(summary.importedEventCount) event\(summary.importedEventCount == 1 ? "" : "s"), and relinked \(summary.importedAttachmentCount) bundled attachment\(summary.importedAttachmentCount == 1 ? "" : "s")."
+                if let backupURL = summary.preImportBackupURL {
+                    exportMessage?.append(" Pre-import backup: \(backupURL.lastPathComponent).")
+                }
+                if summary.missingBundledAttachmentCount > 0 {
+                    exportMessage?.append(" \(summary.missingBundledAttachmentCount) bundled attachment\(summary.missingBundledAttachmentCount == 1 ? " was" : "s were") missing.")
+                }
+                if summary.corruptBundledAttachmentCount > 0 {
+                    exportMessage?.append(" \(summary.corruptBundledAttachmentCount) bundled attachment\(summary.corruptBundledAttachmentCount == 1 ? " failed" : "s failed") integrity checks.")
+                }
+                if summary.skippedPointerCount > 0 {
+                    exportMessage?.append(" \(summary.skippedPointerCount) original pointer\(summary.skippedPointerCount == 1 ? "" : "s") could not be bundled by the exporting Mac.")
+                }
+            } catch {
+                exportIsWarning = true
+                exportMessage = "Import did not run: \(error.localizedDescription)"
             }
-            if summary.corruptBundledAttachmentCount > 0 {
-                exportMessage?.append(" \(summary.corruptBundledAttachmentCount) bundled attachment\(summary.corruptBundledAttachmentCount == 1 ? " failed" : "s failed") integrity checks.")
-            }
-            if summary.skippedPointerCount > 0 {
-                exportMessage?.append(" \(summary.skippedPointerCount) original pointer\(summary.skippedPointerCount == 1 ? "" : "s") could not be bundled by the exporting Mac.")
-            }
-        } catch {
-            exportIsWarning = true
-            exportMessage = error.localizedDescription
         }
     }
 

@@ -205,6 +205,7 @@ struct PortableImportSummary: Equatable, Sendable {
     var missingBundledAttachmentCount: Int
     var corruptBundledAttachmentCount: Int
     var skippedPointerCount: Int
+    var preImportBackupURL: URL?
 }
 
 struct PortableExportManifest: Codable, Equatable, Sendable {
@@ -373,7 +374,8 @@ enum PortableExportArchive {
                 importedAttachmentCount: replacementByOriginalURL.count,
                 missingBundledAttachmentCount: missingBundledAttachmentCount,
                 corruptBundledAttachmentCount: corruptBundledAttachmentCount,
-                skippedPointerCount: manifest.skippedPointers.count
+                skippedPointerCount: manifest.skippedPointers.count,
+                preImportBackupURL: nil
             )
         )
     }

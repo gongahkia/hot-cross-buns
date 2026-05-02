@@ -2326,10 +2326,18 @@ final class AppModel {
     }
 
     @discardableResult
-    func importPortableArchive(from archiveURL: URL) throws -> PortableImportSummary {
+    func importPortableArchive(from archiveURL: URL) async throws -> PortableImportSummary {
+        let backupURL = try await localBackupService.writeBackup(
+            state: currentCachedState(),
+            now: Date(),
+            retentionCount: max(settings.dailyLocalBackupRetentionCount, 14)
+        )
         let result = try PortableExportArchive.importState(from: archiveURL)
         applyImportedState(result.state)
-        return result.summary
+        localBackupSummary = await localBackupService.summary()
+        var summary = result.summary
+        summary.preImportBackupURL = backupURL
+        return summary
     }
 
     func localAttachmentDiagnostics(includeHealthy: Bool = false) -> [LocalAttachmentDiagnostic] {
