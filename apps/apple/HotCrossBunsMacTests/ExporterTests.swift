@@ -292,4 +292,52 @@ final class ExporterTests: XCTestCase {
         XCTAssertEqual(diff.events.removedItems.map(\.currentTitle), ["Planning"])
         XCTAssertFalse(diff.settingsWillChange)
     }
+
+    @MainActor
+    func testAppModelPortableImportWritesPreImportBackupBeforeReplacingState() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "hcb-portable-backup-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let exportURL = root.appending(path: "archive.hcbexport", directoryHint: .isDirectory)
+        let backupURL = root.appending(path: "Backups", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let incomingState = CachedAppState(
+            account: nil,
+            taskLists: [],
+            tasks: [makeTask(id: "imported", title: "Imported")],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        _ = try PortableExportArchive.write(state: incomingState, to: exportURL)
+        let model = makeModel(localBackupService: LocalBackupService(directoryURL: backupURL))
+
+        let summary = try await model.importPortableArchive(from: exportURL)
+
+        let preImportBackupURL = try XCTUnwrap(summary.preImportBackupURL)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: preImportBackupURL.path))
+        XCTAssertEqual(model.tasks.map(\.id), ["imported"])
+        XCTAssertEqual(model.localBackupSummary?.backupCount, 1)
+    }
+
+    @MainActor
+    private func makeModel(localBackupService: LocalBackupService) -> AppModel {
+        let transport = GoogleAPITransport(
+            baseURL: URL(string: "https://www.googleapis.com")!,
+            tokenProvider: StaticAccessTokenProvider(token: "test-token")
+        )
+        let tasksClient = GoogleTasksClient(transport: transport)
+        let calendarClient = GoogleCalendarClient(transport: transport)
+        return AppModel(
+            authService: GoogleAuthService(),
+            tasksClient: tasksClient,
+            calendarClient: calendarClient,
+            syncScheduler: SyncScheduler(tasksClient: tasksClient, calendarClient: calendarClient),
+            cacheStore: LocalCacheStore(fileURL: nil),
+            localBackupService: localBackupService
+        )
+    }
 }
