@@ -175,12 +175,26 @@ struct PortableImportDiff: Equatable, Sendable {
 }
 
 struct PortableImportResourceDiff: Equatable, Sendable {
-    var added: Int
-    var removed: Int
-    var changed: Int
+    var addedItems: [PortableImportDiffItem]
+    var removedItems: [PortableImportDiffItem]
+    var changedItems: [PortableImportDiffItem]
+
+    var added: Int { addedItems.count }
+    var removed: Int { removedItems.count }
+    var changed: Int { changedItems.count }
 
     var hasChanges: Bool {
         added > 0 || removed > 0 || changed > 0
+    }
+}
+
+struct PortableImportDiffItem: Identifiable, Equatable, Sendable {
+    var id: String
+    var currentTitle: String?
+    var incomingTitle: String?
+
+    var displayTitle: String {
+        incomingTitle ?? currentTitle ?? id
     }
 }
 
@@ -372,10 +386,10 @@ enum PortableExportArchive {
 
     private static func diff(from current: CachedAppState, to incoming: CachedAppState) -> PortableImportDiff {
         PortableImportDiff(
-            tasks: resourceDiff(current: current.tasks, incoming: incoming.tasks, id: \.id),
-            events: resourceDiff(current: current.events, incoming: incoming.events, id: \.id),
-            calendars: resourceDiff(current: current.calendars, incoming: incoming.calendars, id: \.id),
-            taskLists: resourceDiff(current: current.taskLists, incoming: incoming.taskLists, id: \.id),
+            tasks: resourceDiff(current: current.tasks, incoming: incoming.tasks, id: \.id, title: \.title),
+            events: resourceDiff(current: current.events, incoming: incoming.events, id: \.id, title: \.summary),
+            calendars: resourceDiff(current: current.calendars, incoming: incoming.calendars, id: \.id, title: \.summary),
+            taskLists: resourceDiff(current: current.taskLists, incoming: incoming.taskLists, id: \.id, title: \.title),
             settingsWillChange: current.settings != incoming.settings,
             pendingMutationCount: incoming.pendingMutations.count
         )
@@ -384,7 +398,8 @@ enum PortableExportArchive {
     private static func resourceDiff<Value: Equatable>(
         current: [Value],
         incoming: [Value],
-        id: (Value) -> String
+        id: (Value) -> String,
+        title: (Value) -> String
     ) -> PortableImportResourceDiff {
         let currentByID = Dictionary(current.map { (id($0), $0) }, uniquingKeysWith: { _, latest in latest })
         let incomingByID = Dictionary(incoming.map { (id($0), $0) }, uniquingKeysWith: { _, latest in latest })
@@ -392,10 +407,39 @@ enum PortableExportArchive {
         let incomingIDs = Set(incomingByID.keys)
         let sharedIDs = currentIDs.intersection(incomingIDs)
         return PortableImportResourceDiff(
-            added: incomingIDs.subtracting(currentIDs).count,
-            removed: currentIDs.subtracting(incomingIDs).count,
-            changed: sharedIDs.filter { currentByID[$0] != incomingByID[$0] }.count
+            addedItems: incomingIDs.subtracting(currentIDs)
+                .compactMap { itemID in
+                    incomingByID[itemID].map { PortableImportDiffItem(id: itemID, currentTitle: nil, incomingTitle: title($0)) }
+                }
+                .sorted(by: diffItemSort),
+            removedItems: currentIDs.subtracting(incomingIDs)
+                .compactMap { itemID in
+                    currentByID[itemID].map { PortableImportDiffItem(id: itemID, currentTitle: title($0), incomingTitle: nil) }
+                }
+                .sorted(by: diffItemSort),
+            changedItems: sharedIDs
+                .filter { currentByID[$0] != incomingByID[$0] }
+                .compactMap { itemID in
+                    guard let currentValue = currentByID[itemID],
+                          let incomingValue = incomingByID[itemID] else {
+                        return nil
+                    }
+                    return PortableImportDiffItem(
+                        id: itemID,
+                        currentTitle: title(currentValue),
+                        incomingTitle: title(incomingValue)
+                    )
+                }
+                .sorted(by: diffItemSort)
         )
+    }
+
+    private static func diffItemSort(_ lhs: PortableImportDiffItem, _ rhs: PortableImportDiffItem) -> Bool {
+        let titleCompare = lhs.displayTitle.localizedCaseInsensitiveCompare(rhs.displayTitle)
+        if titleCompare == .orderedSame {
+            return lhs.id < rhs.id
+        }
+        return titleCompare == .orderedAscending
     }
 
     private static func rewriteLocalPointers(in state: inout CachedAppState, replacements: [String: URL]) {

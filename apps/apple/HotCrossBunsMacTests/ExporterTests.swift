@@ -281,9 +281,15 @@ final class ExporterTests: XCTestCase {
         XCTAssertEqual(diff.tasks.added, 1)
         XCTAssertEqual(diff.tasks.removed, 1)
         XCTAssertEqual(diff.tasks.changed, 1)
+        XCTAssertEqual(diff.tasks.addedItems.map(\.incomingTitle), ["Added"])
+        XCTAssertEqual(diff.tasks.removedItems.map(\.currentTitle), ["Removed"])
+        XCTAssertEqual(diff.tasks.changedItems.first?.currentTitle, "Old title")
+        XCTAssertEqual(diff.tasks.changedItems.first?.incomingTitle, "New title")
         XCTAssertEqual(diff.events.added, 1)
         XCTAssertEqual(diff.events.removed, 1)
         XCTAssertEqual(diff.events.changed, 0)
+        XCTAssertEqual(diff.events.addedItems.map(\.incomingTitle), ["Planning"])
+        XCTAssertEqual(diff.events.removedItems.map(\.currentTitle), ["Planning"])
         XCTAssertFalse(diff.settingsWillChange)
     }
 }
