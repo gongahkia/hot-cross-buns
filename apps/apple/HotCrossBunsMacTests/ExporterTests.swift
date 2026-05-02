@@ -37,9 +37,15 @@ final class ExporterTests: XCTestCase {
         )
     }
 
-    private func makeTask(title: String = "Pay rent", notes: String = "ACH", due: Date? = nil, completed: Bool = false) -> TaskMirror {
+    private func makeTask(
+        id: String = "t1",
+        title: String = "Pay rent",
+        notes: String = "ACH",
+        due: Date? = nil,
+        completed: Bool = false
+    ) -> TaskMirror {
         TaskMirror(
-            id: "t1",
+            id: id,
             taskListID: "L1",
             parentID: nil,
             title: title,
@@ -232,5 +238,52 @@ final class ExporterTests: XCTestCase {
         XCTAssertEqual(imported.summary.corruptBundledAttachmentCount, 1)
         let importedAttachment = try XCTUnwrap(LocalFileAttachment.parseAll(in: imported.state.tasks[0].notes).first)
         XCTAssertEqual(importedAttachment.url, source)
+    }
+
+    func testPortableImportPreviewReportsDryRunDiffAgainstCurrentState() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "hcb-portable-diff-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let exportURL = root.appending(path: "archive.hcbexport", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let currentState = CachedAppState(
+            account: nil,
+            taskLists: [],
+            tasks: [
+                makeTask(id: "changed", title: "Old title"),
+                makeTask(id: "removed", title: "Removed")
+            ],
+            calendars: [],
+            events: [makeEvent(id: "removed-event")],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        let incomingState = CachedAppState(
+            account: nil,
+            taskLists: [],
+            tasks: [
+                makeTask(id: "changed", title: "New title"),
+                makeTask(id: "added", title: "Added")
+            ],
+            calendars: [],
+            events: [makeEvent(id: "added-event")],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        _ = try PortableExportArchive.write(state: incomingState, to: exportURL)
+
+        let preview = try PortableExportArchive.previewImport(from: exportURL, comparingTo: currentState)
+        let diff = try XCTUnwrap(preview.diff)
+
+        XCTAssertEqual(diff.tasks.added, 1)
+        XCTAssertEqual(diff.tasks.removed, 1)
+        XCTAssertEqual(diff.tasks.changed, 1)
+        XCTAssertEqual(diff.events.added, 1)
+        XCTAssertEqual(diff.events.removed, 1)
+        XCTAssertEqual(diff.events.changed, 0)
+        XCTAssertFalse(diff.settingsWillChange)
     }
 }

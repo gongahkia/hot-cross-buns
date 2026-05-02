@@ -2299,7 +2299,7 @@ final class AppModel {
     }
 
     func previewPortableImport(from archiveURL: URL) throws -> PortableImportPreview {
-        try PortableExportArchive.previewImport(from: archiveURL)
+        try PortableExportArchive.previewImport(from: archiveURL, comparingTo: currentCachedState())
     }
 
     @discardableResult
