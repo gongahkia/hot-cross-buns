@@ -11,6 +11,7 @@ struct DiagnosticsView: View {
     @State private var lastCrash: String?
     @State private var systemCrashReports: [SystemCrashReport] = []
     @State private var notificationSummary: NotificationScheduleSummary?
+    @State private var performanceDiagnostics: PerformanceDiagnosticsSnapshot?
     @State private var logEntries: [LogEntry] = []
     @State private var logLevelFilter: LogLevel = .info
     @State private var logCopiedAt: Date?
@@ -51,6 +52,7 @@ struct DiagnosticsView: View {
                     switch tab {
                     case .overview:
                         statusSection
+                        performanceSection
                         localDataSection
                         selectionsSection
                         if notificationSummary != nil { reminderScheduleSection }
@@ -88,6 +90,7 @@ struct DiagnosticsView: View {
                 lastCrash = CrashReporter.readLastCrash()
                 systemCrashReports = SystemCrashReportReader.recentReports(limit: 5)
                 notificationSummary = await model.notificationScheduleSummary()
+                performanceDiagnostics = await model.performanceDiagnosticsSnapshot()
                 auditEntries = await MutationAuditLog.shared.recentEntries(limit: 100)
                 refreshLogs()
             }
@@ -171,6 +174,29 @@ struct DiagnosticsView: View {
             DiagnosticRow(label: "Events", value: model.events.count.formatted())
             DiagnosticRow(label: "Sync checkpoints", value: model.syncCheckpoints.count.formatted())
             DiagnosticRow(label: "Pending writes", value: model.pendingMutations.count.formatted())
+        }
+    }
+
+    @ViewBuilder
+    private var performanceSection: some View {
+        if let performanceDiagnostics {
+            Section("Performance") {
+                if let nearRealtime = performanceDiagnostics.nearRealtime {
+                    DiagnosticRow(label: "Next poll cadence", value: "\(nearRealtime.delaySeconds.formatted(.number.precision(.fractionLength(1))))s")
+                    DiagnosticRow(label: "Poll attempt", value: nearRealtime.attempt.formatted())
+                    DiagnosticRow(label: "Poll conditions", value: pollConditionsText(nearRealtime))
+                    DiagnosticRow(label: "Poll sample", value: nearRealtime.recordedAt.formatted(date: .omitted, time: .standard))
+                } else {
+                    DiagnosticRow(label: "Near-realtime poll", value: "No sample yet")
+                }
+
+                let integrations = performanceDiagnostics.integrations
+                DiagnosticRow(label: "Notifications sync", value: durationText(integrations.notificationDurationMilliseconds, updatedAt: integrations.notificationUpdatedAt))
+                DiagnosticRow(label: "Spotlight sync", value: durationText(integrations.spotlight.durationMilliseconds, updatedAt: integrations.spotlight.updatedAt))
+                DiagnosticRow(label: "Spotlight indexed", value: "\(integrations.spotlight.indexedTaskCount) task\(integrations.spotlight.indexedTaskCount == 1 ? "" : "s"), \(integrations.spotlight.indexedEventCount) event\(integrations.spotlight.indexedEventCount == 1 ? "" : "s")")
+                DiagnosticRow(label: "Spotlight removed", value: integrations.spotlight.deletedItemCount.formatted())
+                DiagnosticRow(label: "Spotlight mode", value: integrations.spotlight.rebuiltDomains ? "Full rebuild" : "Incremental")
+            }
         }
     }
 
@@ -512,6 +538,23 @@ struct DiagnosticsView: View {
         }
 
         return date.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private func durationText(_ milliseconds: Double?, updatedAt: Date?) -> String {
+        guard let milliseconds, let updatedAt else { return "No sample yet" }
+        return "\(milliseconds.formatted(.number.precision(.fractionLength(1)))) ms at \(updatedAt.formatted(date: .omitted, time: .standard))"
+    }
+
+    private func pollConditionsText(_ diagnostics: NearRealtimePollDiagnostics) -> String {
+        var parts: [String] = []
+        parts.append(diagnostics.isMainWindowFocused ? "focused" : "unfocused")
+        if diagnostics.isNetworkConstrained {
+            parts.append("constrained")
+        }
+        if diagnostics.isLowPowerModeEnabled {
+            parts.append("low power")
+        }
+        return parts.joined(separator: ", ")
     }
 
     private var selectedTaskListText: String {

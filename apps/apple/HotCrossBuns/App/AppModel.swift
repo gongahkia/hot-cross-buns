@@ -28,6 +28,26 @@ enum LocalAttachmentRepairError: LocalizedError {
     }
 }
 
+struct NearRealtimePollDiagnostics: Equatable, Sendable {
+    var recordedAt: Date
+    var delaySeconds: Double
+    var attempt: Int
+    var isNetworkConstrained: Bool
+    var isLowPowerModeEnabled: Bool
+    var isMainWindowFocused: Bool
+}
+
+struct LocalIntegrationDiagnostics: Equatable, Sendable {
+    var notificationUpdatedAt: Date?
+    var notificationDurationMilliseconds: Double?
+    var spotlight: SpotlightIndexingSummary
+}
+
+struct PerformanceDiagnosticsSnapshot: Equatable, Sendable {
+    var nearRealtime: NearRealtimePollDiagnostics?
+    var integrations: LocalIntegrationDiagnostics
+}
+
 @MainActor
 @Observable
 final class AppModel {
@@ -40,6 +60,9 @@ final class AppModel {
     private let spotlightIndexer: SpotlightIndexer
     private let loginItemController: LoginItemController
     private let localBackupService: LocalBackupService
+    @ObservationIgnored private var nearRealtimePollDiagnostics: NearRealtimePollDiagnostics?
+    @ObservationIgnored private var notificationDiagnosticUpdatedAt: Date?
+    @ObservationIgnored private var notificationDiagnosticDurationMilliseconds: Double?
 
     private(set) var account: GoogleAccount?
     // Default to .authenticating (not .signedOut) so the pre-loadInitialState
@@ -4334,6 +4357,34 @@ final class AppModel {
         await notificationScheduler.lastSummary
     }
 
+    func recordNearRealtimePollDiagnostic(
+        delaySeconds: Double,
+        attempt: Int,
+        isNetworkConstrained: Bool,
+        isLowPowerModeEnabled: Bool,
+        isMainWindowFocused: Bool
+    ) {
+        nearRealtimePollDiagnostics = NearRealtimePollDiagnostics(
+            recordedAt: Date(),
+            delaySeconds: delaySeconds,
+            attempt: attempt,
+            isNetworkConstrained: isNetworkConstrained,
+            isLowPowerModeEnabled: isLowPowerModeEnabled,
+            isMainWindowFocused: isMainWindowFocused
+        )
+    }
+
+    func performanceDiagnosticsSnapshot() async -> PerformanceDiagnosticsSnapshot {
+        PerformanceDiagnosticsSnapshot(
+            nearRealtime: nearRealtimePollDiagnostics,
+            integrations: LocalIntegrationDiagnostics(
+                notificationUpdatedAt: notificationDiagnosticUpdatedAt,
+                notificationDurationMilliseconds: notificationDiagnosticDurationMilliseconds,
+                spotlight: await spotlightIndexer.summary()
+            )
+        )
+    }
+
     // Notification + Spotlight debounce handles. Kept @ObservationIgnored
     // so cancel/re-assign doesn't invalidate observing views.
     @ObservationIgnored private var notificationDebounce: Task<Void, Never>?
@@ -4368,6 +4419,7 @@ final class AppModel {
     private func runNotificationSync(requestAuthorization: Bool) async {
         // Snapshot on main actor at fire time — reflects the latest state
         // regardless of how many mutations piled up during the debounce.
+        let started = Date()
         let tasksNow = tasks
         let eventsNow = events
         let settingsNow = settings
@@ -4378,6 +4430,8 @@ final class AppModel {
             requestAuthorization: requestAuthorization
         )
         lastNotificationScheduleSummary = await notificationScheduler.lastSummary
+        notificationDiagnosticUpdatedAt = Date()
+        notificationDiagnosticDurationMilliseconds = Date().timeIntervalSince(started) * 1000
     }
 
     private func normalizedCompletionSoundChoice(
