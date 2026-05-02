@@ -1104,6 +1104,13 @@ struct MacSidebarShell: View {
                 isLowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
                 isMainWindowFocused: isMainWindowFocused
             )
+            model.recordNearRealtimePollDiagnostic(
+                delaySeconds: Self.seconds(in: delay),
+                attempt: attempt,
+                isNetworkConstrained: networkMonitor.reachability == .constrained,
+                isLowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
+                isMainWindowFocused: isMainWindowFocused
+            )
             do {
                 try await Task.sleep(for: delay)
             } catch {
@@ -1150,6 +1157,11 @@ struct MacSidebarShell: View {
                 selection = .calendar
             }
         }
+    }
+
+    private static func seconds(in duration: Duration) -> Double {
+        let components = duration.components
+        return Double(components.seconds) + Double(components.attoseconds) / 1_000_000_000_000_000_000
     }
 }
 

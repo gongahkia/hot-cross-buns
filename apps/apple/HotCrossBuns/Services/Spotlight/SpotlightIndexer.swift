@@ -10,6 +10,17 @@ protocol SpotlightIndexing {
 
 extension CSSearchableIndex: SpotlightIndexing {}
 
+struct SpotlightIndexingSummary: Equatable, Sendable {
+    var updatedAt: Date?
+    var durationMilliseconds: Double?
+    var indexedTaskCount: Int
+    var indexedEventCount: Int
+    var deletedItemCount: Int
+    var rebuiltDomains: Bool
+    var trackedTaskCount: Int
+    var trackedEventCount: Int
+}
+
 actor SpotlightIndexer {
     static let taskDomain = "com.gongahkia.hotcrossbuns.tasks"
     static let eventDomain = "com.gongahkia.hotcrossbuns.events"
@@ -20,12 +31,27 @@ actor SpotlightIndexer {
     private var didPrimeDomains = false
     private var taskFingerprints: [String: Int] = [:]
     private var eventFingerprints: [String: Int] = [:]
+    private var lastSummary = SpotlightIndexingSummary(
+        updatedAt: nil,
+        durationMilliseconds: nil,
+        indexedTaskCount: 0,
+        indexedEventCount: 0,
+        deletedItemCount: 0,
+        rebuiltDomains: false,
+        trackedTaskCount: 0,
+        trackedEventCount: 0
+    )
 
     init(index: SpotlightIndexing = CSSearchableIndex.default()) {
         self.index = index
     }
 
+    func summary() -> SpotlightIndexingSummary {
+        lastSummary
+    }
+
     func update(tasks: [TaskMirror], events: [CalendarEventMirror]) async {
+        let started = Date()
         let activeTasks = tasks
             .filter { $0.isDeleted == false }
         let activeEvents = events
@@ -40,15 +66,22 @@ actor SpotlightIndexer {
                 didPrimeDomains = true
                 taskFingerprints = nextTaskFingerprints
                 eventFingerprints = nextEventFingerprints
+                recordSummary(
+                    started: started,
+                    indexedTaskCount: activeTasks.count,
+                    indexedEventCount: activeEvents.count,
+                    deletedItemCount: 0,
+                    rebuiltDomains: true
+                )
                 return
             }
 
-            try await deleteRemovedItems(
+            let removedTaskCount = try await deleteRemovedItems(
                 previous: taskFingerprints,
                 next: nextTaskFingerprints,
                 urlPrefix: Self.taskURLScheme
             )
-            try await deleteRemovedItems(
+            let removedEventCount = try await deleteRemovedItems(
                 previous: eventFingerprints,
                 next: nextEventFingerprints,
                 urlPrefix: Self.eventURLScheme
@@ -64,6 +97,13 @@ actor SpotlightIndexer {
             }
             taskFingerprints = nextTaskFingerprints
             eventFingerprints = nextEventFingerprints
+            recordSummary(
+                started: started,
+                indexedTaskCount: changedTasks.count,
+                indexedEventCount: changedEvents.count,
+                deletedItemCount: removedTaskCount + removedEventCount,
+                rebuiltDomains: false
+            )
         } catch {
             // Spotlight is best-effort; ignore indexing failures rather than surface to the user.
         }
@@ -75,6 +115,16 @@ actor SpotlightIndexer {
             didPrimeDomains = false
             taskFingerprints = [:]
             eventFingerprints = [:]
+            lastSummary = SpotlightIndexingSummary(
+                updatedAt: Date(),
+                durationMilliseconds: nil,
+                indexedTaskCount: 0,
+                indexedEventCount: 0,
+                deletedItemCount: 0,
+                rebuiltDomains: true,
+                trackedTaskCount: 0,
+                trackedEventCount: 0
+            )
         } catch {
             // best effort
         }
@@ -86,10 +136,30 @@ actor SpotlightIndexer {
         try await index.indexSearchableItems(items)
     }
 
-    private func deleteRemovedItems(previous: [String: Int], next: [String: Int], urlPrefix: String) async throws {
+    private func deleteRemovedItems(previous: [String: Int], next: [String: Int], urlPrefix: String) async throws -> Int {
         let removed = previous.keys.filter { next[$0] == nil }.map { urlPrefix + $0 }
-        guard removed.isEmpty == false else { return }
+        guard removed.isEmpty == false else { return 0 }
         try await index.deleteSearchableItems(withIdentifiers: removed)
+        return removed.count
+    }
+
+    private func recordSummary(
+        started: Date,
+        indexedTaskCount: Int,
+        indexedEventCount: Int,
+        deletedItemCount: Int,
+        rebuiltDomains: Bool
+    ) {
+        lastSummary = SpotlightIndexingSummary(
+            updatedAt: Date(),
+            durationMilliseconds: Date().timeIntervalSince(started) * 1000,
+            indexedTaskCount: indexedTaskCount,
+            indexedEventCount: indexedEventCount,
+            deletedItemCount: deletedItemCount,
+            rebuiltDomains: rebuiltDomains,
+            trackedTaskCount: taskFingerprints.count,
+            trackedEventCount: eventFingerprints.count
+        )
     }
 
     nonisolated private static func taskFingerprint(_ task: TaskMirror) -> Int {
