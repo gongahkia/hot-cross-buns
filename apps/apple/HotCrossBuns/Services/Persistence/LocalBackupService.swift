@@ -34,7 +34,7 @@ actor LocalBackupService {
 
         try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         let stamp = Self.filenameFormatter.string(from: now)
-        let destination = directoryURL.appending(path: "hot-cross-buns-\(stamp).json")
+        let destination = uniqueBackupURL(in: directoryURL, stamp: stamp)
         let envelope = BackupEnvelope(
             formatVersion: 1,
             createdAt: now,
@@ -43,6 +43,16 @@ actor LocalBackupService {
         )
         try Self.encoder.encode(envelope).write(to: destination, options: [.atomic])
         try pruneBackups(keeping: retentionCount)
+        return destination
+    }
+
+    private func uniqueBackupURL(in directoryURL: URL, stamp: String) -> URL {
+        var destination = directoryURL.appending(path: "hot-cross-buns-\(stamp).json")
+        var suffix = 2
+        while fileManager.fileExists(atPath: destination.path) {
+            destination = directoryURL.appending(path: "hot-cross-buns-\(stamp)-\(suffix).json")
+            suffix += 1
+        }
         return destination
     }
 

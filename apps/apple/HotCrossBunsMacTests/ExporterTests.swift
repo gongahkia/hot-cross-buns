@@ -14,6 +14,7 @@ final class ExporterTests: XCTestCase {
 
     private func makeEvent(
         id: String = "evt-1",
+        calendarID: String = "primary",
         summary: String = "Planning",
         details: String = "Sprint review",
         start: Date? = nil,
@@ -23,7 +24,7 @@ final class ExporterTests: XCTestCase {
     ) -> CalendarEventMirror {
         CalendarEventMirror(
             id: id,
-            calendarID: "primary",
+            calendarID: calendarID,
             summary: summary,
             details: details,
             startDate: start ?? day(2026, 4, 18, hour: 14),
@@ -39,6 +40,7 @@ final class ExporterTests: XCTestCase {
 
     private func makeTask(
         id: String = "t1",
+        taskListID: String = "L1",
         title: String = "Pay rent",
         notes: String = "ACH",
         due: Date? = nil,
@@ -46,7 +48,7 @@ final class ExporterTests: XCTestCase {
     ) -> TaskMirror {
         TaskMirror(
             id: id,
-            taskListID: "L1",
+            taskListID: taskListID,
             parentID: nil,
             title: title,
             notes: notes,
@@ -293,6 +295,56 @@ final class ExporterTests: XCTestCase {
         XCTAssertFalse(diff.settingsWillChange)
     }
 
+    func testPortableExportCanFilterTaskListsCalendarsAndFutureEvents() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "hcb-portable-filter-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let exportURL = root.appending(path: "archive.hcbexport", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let cutoff = day(2026, 4, 18)
+        let state = CachedAppState(
+            account: nil,
+            taskLists: [
+                TaskListMirror(id: "keep-list", title: "Keep", updatedAt: nil, etag: nil),
+                TaskListMirror(id: "drop-list", title: "Drop", updatedAt: nil, etag: nil)
+            ],
+            tasks: [
+                makeTask(id: "keep-task", taskListID: "keep-list"),
+                makeTask(id: "drop-task", taskListID: "drop-list")
+            ],
+            calendars: [
+                CalendarListMirror(id: "keep-cal", summary: "Keep", colorHex: "#fff", isSelected: true, accessRole: "owner"),
+                CalendarListMirror(id: "drop-cal", summary: "Drop", colorHex: "#000", isSelected: true, accessRole: "owner")
+            ],
+            events: [
+                makeEvent(id: "keep-event", calendarID: "keep-cal", start: day(2026, 4, 20), end: day(2026, 4, 20, hour: 1)),
+                makeEvent(id: "past-event", calendarID: "keep-cal", start: day(2026, 4, 1), end: day(2026, 4, 1, hour: 1)),
+                makeEvent(id: "drop-event", calendarID: "drop-cal", start: day(2026, 4, 20), end: day(2026, 4, 20, hour: 1))
+            ],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+
+        _ = try PortableExportArchive.write(
+            state: state,
+            to: exportURL,
+            options: PortableExportOptions(
+                taskListIDs: ["keep-list"],
+                calendarIDs: ["keep-cal"],
+                eventsStartingAtOrAfter: cutoff
+            )
+        )
+
+        let preview = try PortableExportArchive.previewImport(from: exportURL)
+
+        XCTAssertEqual(preview.taskListCount, 1)
+        XCTAssertEqual(preview.taskCount, 1)
+        XCTAssertEqual(preview.calendarCount, 1)
+        XCTAssertEqual(preview.eventCount, 1)
+    }
+
     @MainActor
     func testAppModelPortableImportWritesPreImportBackupBeforeReplacingState() async throws {
         let root = FileManager.default.temporaryDirectory
@@ -321,6 +373,56 @@ final class ExporterTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: preImportBackupURL.path))
         XCTAssertEqual(model.tasks.map(\.id), ["imported"])
         XCTAssertEqual(model.localBackupSummary?.backupCount, 1)
+    }
+
+    @MainActor
+    func testAppModelPortableImportCanPreserveUnselectedSections() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "hcb-portable-partial-import-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let firstExportURL = root.appending(path: "first.hcbexport", directoryHint: .isDirectory)
+        let secondExportURL = root.appending(path: "second.hcbexport", directoryHint: .isDirectory)
+        let backupURL = root.appending(path: "Backups", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let firstState = CachedAppState(
+            account: nil,
+            taskLists: [],
+            tasks: [makeTask(id: "old-task", title: "Old")],
+            calendars: [],
+            events: [makeEvent(id: "kept-event", summary: "Keep")],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        let secondState = CachedAppState(
+            account: nil,
+            taskLists: [],
+            tasks: [makeTask(id: "new-task", title: "New")],
+            calendars: [],
+            events: [makeEvent(id: "new-event", summary: "New")],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        _ = try PortableExportArchive.write(state: firstState, to: firstExportURL)
+        _ = try PortableExportArchive.write(state: secondState, to: secondExportURL)
+        let model = makeModel(localBackupService: LocalBackupService(directoryURL: backupURL))
+
+        _ = try await model.importPortableArchive(from: firstExportURL)
+        _ = try await model.importPortableArchive(
+            from: secondExportURL,
+            options: PortableImportOptions(
+                includeTasks: true,
+                includeEvents: false,
+                includeSettings: false,
+                includeSyncMetadata: false
+            )
+        )
+
+        XCTAssertEqual(model.tasks.map(\.id), ["new-task"])
+        XCTAssertEqual(model.events.map(\.id), ["kept-event"])
+        XCTAssertEqual(model.localBackupSummary?.backupCount, 2)
     }
 
     @MainActor

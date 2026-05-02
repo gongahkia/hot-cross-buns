@@ -11,6 +11,9 @@ struct DataControlSection: View {
     @State private var portableImportPreview: PortableImportPreview?
     @State private var isShowingAttachmentRepair = false
     @State private var isShowingPortableImportDetails = false
+    @State private var exportSelectedTaskListsOnly = false
+    @State private var exportSelectedCalendarsOnly = false
+    @State private var exportFutureEventsOnly = false
 
     var body: some View {
         Section("Data control") {
@@ -58,9 +61,9 @@ struct DataControlSection: View {
                 PortableImportDetailsSheet(
                     preview: portableImportPreview,
                     onCancel: { isShowingPortableImportDetails = false },
-                    onImport: {
+                    onImport: { options in
                         isShowingPortableImportDetails = false
-                        importPreviewedArchive()
+                        importPreviewedArchive(options: options)
                     }
                 )
             }
@@ -126,6 +129,9 @@ struct DataControlSection: View {
             } label: {
                 Label("Export portable archive...", systemImage: "shippingbox")
             }
+            Toggle("Only selected task lists", isOn: $exportSelectedTaskListsOnly)
+            Toggle("Only selected calendars", isOn: $exportSelectedCalendarsOnly)
+            Toggle("Only future/current events", isOn: $exportFutureEventsOnly)
             Button {
                 previewPortableImport()
             } label: {
@@ -167,7 +173,7 @@ struct DataControlSection: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         do {
-            let summary = try model.exportPortableArchive(to: url)
+            let summary = try model.exportPortableArchive(to: url, options: portableExportOptions())
             exportIsWarning = summary.skippedAttachmentCount > 0
             exportMessage = "Exported \(summary.copiedAttachmentCount) attachment pointer\(summary.copiedAttachmentCount == 1 ? "" : "s") to \(summary.directoryURL.lastPathComponent)."
             if summary.skippedAttachmentCount > 0 {
@@ -196,15 +202,15 @@ struct DataControlSection: View {
         }
     }
 
-    private func importPreviewedArchive() {
+    private func importPreviewedArchive(options: PortableImportOptions = .all) {
         guard let preview = portableImportPreview else { return }
         portableImportPreview = nil
 
         Task {
             do {
-                let summary = try await model.importPortableArchive(from: preview.archiveURL)
+                let summary = try await model.importPortableArchive(from: preview.archiveURL, options: options)
                 exportIsWarning = summary.missingBundledAttachmentCount > 0 || summary.corruptBundledAttachmentCount > 0 || summary.skippedPointerCount > 0
-                exportMessage = "Imported \(summary.importedTaskCount) task\(summary.importedTaskCount == 1 ? "" : "s"), \(summary.importedEventCount) event\(summary.importedEventCount == 1 ? "" : "s"), and relinked \(summary.importedAttachmentCount) bundled attachment\(summary.importedAttachmentCount == 1 ? "" : "s")."
+                exportMessage = "Imported \(importSummaryScope(options)) and relinked \(summary.importedAttachmentCount) bundled attachment\(summary.importedAttachmentCount == 1 ? "" : "s")."
                 if let backupURL = summary.preImportBackupURL {
                     exportMessage?.append(" Pre-import backup: \(backupURL.lastPathComponent).")
                 }
@@ -255,6 +261,27 @@ struct DataControlSection: View {
         "\(label) +\(diff.added) -\(diff.removed) changed \(diff.changed)"
     }
 
+    private func portableExportOptions() -> PortableExportOptions {
+        PortableExportOptions(
+            taskListIDs: exportSelectedTaskListsOnly && model.settings.hasConfiguredTaskListSelection
+                ? model.settings.selectedTaskListIDs
+                : nil,
+            calendarIDs: exportSelectedCalendarsOnly && model.settings.hasConfiguredCalendarSelection
+                ? model.settings.selectedCalendarIDs
+                : nil,
+            eventsStartingAtOrAfter: exportFutureEventsOnly ? Date() : nil
+        )
+    }
+
+    private func importSummaryScope(_ options: PortableImportOptions) -> String {
+        var parts: [String] = []
+        if options.includeTasks { parts.append("tasks") }
+        if options.includeEvents { parts.append("events") }
+        if options.includeSettings { parts.append("settings") }
+        if options.includeSyncMetadata { parts.append("sync metadata") }
+        return parts.isEmpty ? "no data sections" : parts.joined(separator: ", ")
+    }
+
     private static func dateStamp() -> String {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
@@ -267,7 +294,11 @@ struct DataControlSection: View {
 private struct PortableImportDetailsSheet: View {
     let preview: PortableImportPreview
     let onCancel: () -> Void
-    let onImport: () -> Void
+    let onImport: (PortableImportOptions) -> Void
+    @State private var includeTasks = true
+    @State private var includeEvents = true
+    @State private var includeSettings = true
+    @State private var includeSyncMetadata = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -283,7 +314,9 @@ private struct PortableImportDetailsSheet: View {
                 Spacer()
                 Button("Cancel", action: onCancel)
                     .keyboardShortcut(.cancelAction)
-                Button(role: .destructive, action: onImport) {
+                Button(role: .destructive) {
+                    onImport(importOptions)
+                } label: {
                     Label("Replace local data", systemImage: "square.and.arrow.down")
                 }
                 .keyboardShortcut(.defaultAction)
@@ -291,6 +324,7 @@ private struct PortableImportDetailsSheet: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
+                    importSectionFilters
                     importAttachmentSummary
 
                     if let diff = preview.diff {
@@ -323,6 +357,32 @@ private struct PortableImportDetailsSheet: View {
         }
         .hcbScaledPadding(20)
         .frame(minWidth: 720, minHeight: 520)
+    }
+
+    private var importOptions: PortableImportOptions {
+        PortableImportOptions(
+            includeTasks: includeTasks,
+            includeEvents: includeEvents,
+            includeSettings: includeSettings,
+            includeSyncMetadata: includeSyncMetadata
+        )
+    }
+
+    private var importSectionFilters: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Import sections")
+                .hcbFont(.subheadline, weight: .medium)
+            Toggle("Tasks and task lists", isOn: $includeTasks)
+            Toggle("Events and calendars", isOn: $includeEvents)
+            Toggle("Settings", isOn: $includeSettings)
+            Toggle("Sync metadata and queued mutations", isOn: $includeSyncMetadata)
+            Text("Unchecked sections are preserved from this Mac. A pre-import backup is written before any selected section is replaced.")
+                .hcbFont(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .hcbScaledPadding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private var importAttachmentSummary: some View {
