@@ -421,10 +421,54 @@ private struct HCBDebugBodyProbeModifier: ViewModifier {
 }
 
 #if DEBUG
+struct HCBDebugBodyProbeCount: Identifiable, Equatable, Sendable {
+    var name: String
+    var count: Int
+
+    var id: String { name }
+}
+
+enum HCBDebugBodyProbeRecorder {
+    static var isEnabled: Bool {
+        ProcessInfo.processInfo.environment["HCB_BODY_PROBE"] == "1"
+    }
+
+    private static let queue = DispatchQueue(label: "com.gongahkia.hotcrossbuns.body-probe")
+    private nonisolated(unsafe) static var counts: [String: Int] = [:]
+
+    static func record(_ name: String) {
+        guard isEnabled else { return }
+        queue.async {
+            counts[name, default: 0] += 1
+        }
+    }
+
+    static func snapshot() -> [HCBDebugBodyProbeCount] {
+        guard isEnabled else { return [] }
+        return queue.sync {
+            counts
+                .map { HCBDebugBodyProbeCount(name: $0.key, count: $0.value) }
+                .sorted {
+                    if $0.count == $1.count {
+                        return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+                    }
+                    return $0.count > $1.count
+                }
+        }
+    }
+
+    static func reset() {
+        queue.async {
+            counts = [:]
+        }
+    }
+}
+
 private struct HCBDebugBodyProbeEmitter: View {
     let name: String
 
     var body: some View {
+        let _ = HCBDebugBodyProbeRecorder.record(name)
         let _ = AppLogger.debug("view body evaluated", category: .perf, metadata: ["view": name])
         Color.clear
             .frame(width: 0, height: 0)

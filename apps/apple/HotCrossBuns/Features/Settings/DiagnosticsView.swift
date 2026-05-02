@@ -12,6 +12,9 @@ struct DiagnosticsView: View {
     @State private var systemCrashReports: [SystemCrashReport] = []
     @State private var notificationSummary: NotificationScheduleSummary?
     @State private var performanceDiagnostics: PerformanceDiagnosticsSnapshot?
+    #if DEBUG
+    @State private var bodyProbeCounts: [HCBDebugBodyProbeCount] = []
+    #endif
     @State private var logEntries: [LogEntry] = []
     @State private var logLevelFilter: LogLevel = .info
     @State private var logCopiedAt: Date?
@@ -53,6 +56,7 @@ struct DiagnosticsView: View {
                     case .overview:
                         statusSection
                         performanceSection
+                        bodyProbeSection
                         localDataSection
                         selectionsSection
                         if notificationSummary != nil { reminderScheduleSection }
@@ -91,6 +95,7 @@ struct DiagnosticsView: View {
                 systemCrashReports = SystemCrashReportReader.recentReports(limit: 5)
                 notificationSummary = await model.notificationScheduleSummary()
                 performanceDiagnostics = await model.performanceDiagnosticsSnapshot()
+                refreshBodyProbeCounts()
                 auditEntries = await MutationAuditLog.shared.recentEntries(limit: 100)
                 refreshLogs()
             }
@@ -198,6 +203,42 @@ struct DiagnosticsView: View {
                 DiagnosticRow(label: "Spotlight mode", value: integrations.spotlight.rebuiltDomains ? "Full rebuild" : "Incremental")
             }
         }
+    }
+
+    @ViewBuilder
+    private var bodyProbeSection: some View {
+        #if DEBUG
+        if HCBDebugBodyProbeRecorder.isEnabled {
+            Section("SwiftUI body probe") {
+                HStack {
+                    Text("Counts are collected only while HCB_BODY_PROBE=1 is set.")
+                        .hcbFont(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        refreshBodyProbeCounts()
+                    } label: {
+                        Label("Refresh", systemImage: "arrow.clockwise")
+                    }
+                    Button {
+                        HCBDebugBodyProbeRecorder.reset()
+                        refreshBodyProbeCounts()
+                    } label: {
+                        Label("Reset", systemImage: "trash")
+                    }
+                }
+                if bodyProbeCounts.isEmpty {
+                    Text("No probed views have rendered yet.")
+                        .hcbFont(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(bodyProbeCounts.prefix(20)) { count in
+                        DiagnosticRow(label: count.name, value: count.count.formatted())
+                    }
+                }
+            }
+        }
+        #endif
     }
 
     @ViewBuilder
@@ -555,6 +596,12 @@ struct DiagnosticsView: View {
             parts.append("low power")
         }
         return parts.joined(separator: ", ")
+    }
+
+    private func refreshBodyProbeCounts() {
+        #if DEBUG
+        bodyProbeCounts = HCBDebugBodyProbeRecorder.snapshot()
+        #endif
     }
 
     private var selectedTaskListText: String {
