@@ -76,6 +76,7 @@ final class SpotlightIndexerTests: XCTestCase {
             [SpotlightIndexer.taskDomain],
             [SpotlightIndexer.eventDomain]
         ])
+        XCTAssertEqual(index.deletedIdentifierCalls, [])
         XCTAssertEqual(index.indexedBatches.count, 2)
         XCTAssertEqual(index.indexedBatches[0].count, 1)
         XCTAssertEqual(index.indexedBatches[1].count, 1)
@@ -104,6 +105,66 @@ final class SpotlightIndexerTests: XCTestCase {
         await indexer.removeAll()
 
         XCTAssertEqual(index.deletedDomainCalls, [[SpotlightIndexer.taskDomain, SpotlightIndexer.eventDomain]])
+    }
+
+    func testUpdateAfterInitialPrimeIndexesOnlyChangedItemsAndDeletesRemovedItems() async {
+        let index = FakeSpotlightIndex()
+        let indexer = SpotlightIndexer(index: index)
+
+        let task = TaskMirror(
+            id: "task-1",
+            taskListID: "tasks",
+            parentID: nil,
+            title: "Ship build",
+            notes: "Check release notes",
+            status: .needsAction,
+            dueDate: Date(timeIntervalSince1970: 1_714_000_000),
+            completedAt: nil,
+            isDeleted: false,
+            isHidden: false,
+            position: nil,
+            etag: nil,
+            updatedAt: Date(timeIntervalSince1970: 1_714_000_100)
+        )
+        let event = CalendarEventMirror(
+            id: "event-1",
+            calendarID: "calendar",
+            summary: "Planning review",
+            details: "Discuss launch",
+            startDate: Date(timeIntervalSince1970: 1_714_003_600),
+            endDate: Date(timeIntervalSince1970: 1_714_007_200),
+            isAllDay: false,
+            status: .confirmed,
+            recurrence: [],
+            etag: nil,
+            updatedAt: Date(timeIntervalSince1970: 1_714_000_200),
+            reminderMinutes: [],
+            usedDefaultReminders: false,
+            location: "Room 1"
+        )
+
+        await indexer.update(tasks: [task], events: [event])
+        index.resetCalls()
+
+        await indexer.update(tasks: [task], events: [event])
+        XCTAssertEqual(index.deletedDomainCalls, [])
+        XCTAssertEqual(index.deletedIdentifierCalls, [])
+        XCTAssertEqual(index.indexedBatches, [])
+
+        var changedTask = task
+        changedTask.notes = "Updated release notes"
+        await indexer.update(tasks: [changedTask], events: [event])
+        XCTAssertEqual(index.deletedDomainCalls, [])
+        XCTAssertEqual(index.deletedIdentifierCalls, [])
+        XCTAssertEqual(index.indexedBatches.count, 1)
+        XCTAssertEqual(index.indexedBatches[0].map(\.uniqueIdentifier), [SpotlightIndexer.taskURLScheme + "task-1"])
+
+        index.resetCalls()
+        var cancelledEvent = event
+        cancelledEvent.status = .cancelled
+        await indexer.update(tasks: [changedTask], events: [cancelledEvent])
+        XCTAssertEqual(index.deletedIdentifierCalls, [[SpotlightIndexer.eventURLScheme + "event-1"]])
+        XCTAssertEqual(index.indexedBatches, [])
     }
 
     func testTaskAndEventTextContentIncludeUsefulPreviewFields() {
@@ -157,13 +218,24 @@ final class SpotlightIndexerTests: XCTestCase {
 
 private final class FakeSpotlightIndex: SpotlightIndexing {
     var deletedDomainCalls: [[String]] = []
+    var deletedIdentifierCalls: [[String]] = []
     var indexedBatches: [[CSSearchableItem]] = []
 
     func deleteSearchableItems(withDomainIdentifiers domainIdentifiers: [String]) async throws {
         deletedDomainCalls.append(domainIdentifiers)
     }
 
+    func deleteSearchableItems(withIdentifiers identifiers: [String]) async throws {
+        deletedIdentifierCalls.append(identifiers)
+    }
+
     func indexSearchableItems(_ items: [CSSearchableItem]) async throws {
         indexedBatches.append(items)
+    }
+
+    func resetCalls() {
+        deletedDomainCalls = []
+        deletedIdentifierCalls = []
+        indexedBatches = []
     }
 }

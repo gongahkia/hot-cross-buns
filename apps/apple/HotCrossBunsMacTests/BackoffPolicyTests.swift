@@ -53,4 +53,64 @@ final class BackoffPolicyTests: XCTestCase {
         XCTAssertFalse(policy.shouldBackoff(from: GoogleAPIError.httpStatus(404, nil)))
         XCTAssertFalse(policy.shouldBackoff(from: GoogleAPIError.invalidURL))
     }
+
+    func testNearRealtimeCadenceSlowsWhenWindowIsUnfocused() {
+        let policy = BackoffPolicy(
+            baseDelay: .seconds(90),
+            maxDelay: .seconds(600),
+            jitter: .seconds(0),
+            maxAttempts: 4
+        )
+
+        let delay = NearRealtimePollingCadence.delay(
+            policy: policy,
+            attempt: 0,
+            isNetworkConstrained: false,
+            isLowPowerModeEnabled: false,
+            isMainWindowFocused: false,
+            randomSource: { 0 }
+        )
+
+        XCTAssertEqual(delay, .seconds(180))
+    }
+
+    func testNearRealtimeCadenceUsesFourTimesBackoffForLowPower() {
+        let policy = BackoffPolicy(
+            baseDelay: .seconds(90),
+            maxDelay: .seconds(600),
+            jitter: .seconds(0),
+            maxAttempts: 4
+        )
+
+        let delay = NearRealtimePollingCadence.delay(
+            policy: policy,
+            attempt: 0,
+            isNetworkConstrained: false,
+            isLowPowerModeEnabled: true,
+            isMainWindowFocused: true,
+            randomSource: { 0 }
+        )
+
+        XCTAssertEqual(delay, .seconds(360))
+    }
+
+    func testNearRealtimeCadenceClampsAdjustedDelayToMax() {
+        let policy = BackoffPolicy(
+            baseDelay: .seconds(200),
+            maxDelay: .seconds(600),
+            jitter: .seconds(0),
+            maxAttempts: 4
+        )
+
+        let delay = NearRealtimePollingCadence.delay(
+            policy: policy,
+            attempt: 2,
+            isNetworkConstrained: true,
+            isLowPowerModeEnabled: false,
+            isMainWindowFocused: false,
+            randomSource: { 0 }
+        )
+
+        XCTAssertEqual(delay, .seconds(600))
+    }
 }

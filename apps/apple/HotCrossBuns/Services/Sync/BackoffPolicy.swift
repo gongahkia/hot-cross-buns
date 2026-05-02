@@ -38,6 +38,35 @@ struct BackoffPolicy: Sendable {
     }
 }
 
+enum NearRealtimePollingCadence {
+    private static let backgroundedWindowMultiplier = 2
+    private static let energySavingMultiplier = 4
+
+    static func delay(
+        policy: BackoffPolicy = .nearRealtime,
+        attempt: Int,
+        isNetworkConstrained: Bool,
+        isLowPowerModeEnabled: Bool,
+        isMainWindowFocused: Bool,
+        randomSource: @Sendable () -> Double = { Double.random(in: 0...1) }
+    ) -> Duration {
+        let baseDelay = attempt == 0
+            ? policy.baseDelay
+            : policy.delay(forAttempt: attempt, randomSource: randomSource)
+
+        var multiplier = 1
+        if isMainWindowFocused == false {
+            multiplier = max(multiplier, backgroundedWindowMultiplier)
+        }
+        if isNetworkConstrained || isLowPowerModeEnabled {
+            multiplier = max(multiplier, energySavingMultiplier)
+        }
+
+        let adjusted = baseDelay * multiplier
+        return adjusted > policy.maxDelay ? policy.maxDelay : adjusted
+    }
+}
+
 private extension Duration {
     static func * (lhs: Duration, rhs: Int) -> Duration {
         guard rhs > 0 else { return .zero }
