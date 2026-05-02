@@ -212,21 +212,33 @@ struct MarkdownLiveEditor: NSViewRepresentable {
     var baseFont: NSFont
     var theme: MarkdownHighlightTheme
     var onFocusChange: ((Bool) -> Void)?
+    var onPasteAttachments: (() -> Bool)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let scroll = NSTextView.scrollableTextView()
+        let scroll = NSScrollView()
         scroll.hasVerticalScroller = true
         scroll.hasHorizontalScroller = false
         scroll.autohidesScrollers = true
         scroll.drawsBackground = false
         scroll.borderType = .noBorder
 
-        guard let tv = scroll.documentView as? NSTextView else { return scroll }
+        let textStorage = NSTextStorage()
+        let layoutManager = NSLayoutManager()
+        textStorage.addLayoutManager(layoutManager)
+        let textContainer = NSTextContainer(containerSize: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
+        textContainer.widthTracksTextView = true
+        textContainer.heightTracksTextView = false
+        layoutManager.addTextContainer(textContainer)
+
+        let tv = AttachmentPasteTextView(frame: .zero, textContainer: textContainer)
         tv.delegate = context.coordinator
+        tv.handleAttachmentPaste = { [weak coordinator = context.coordinator] in
+            coordinator?.parent.onPasteAttachments?() ?? false
+        }
         tv.isRichText = false
         tv.isEditable = true
         tv.isSelectable = true
@@ -238,6 +250,13 @@ struct MarkdownLiveEditor: NSViewRepresentable {
         tv.insertionPointColor = theme.accentColor
         tv.usesAdaptiveColorMappingForDarkAppearance = false
         tv.usesFindBar = true
+        tv.minSize = NSSize(width: 0, height: minHeight)
+        tv.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        tv.isVerticallyResizable = true
+        tv.isHorizontallyResizable = false
+        tv.autoresizingMask = [.width]
+        tv.textContainer?.containerSize = NSSize(width: scroll.contentSize.width, height: CGFloat.greatestFiniteMagnitude)
+        tv.textContainer?.widthTracksTextView = true
         tv.isAutomaticQuoteSubstitutionEnabled = false
         tv.isAutomaticDashSubstitutionEnabled = false
         tv.isAutomaticTextReplacementEnabled = false
@@ -254,12 +273,18 @@ struct MarkdownLiveEditor: NSViewRepresentable {
         }
         context.coordinator.placeholderLabel = attachPlaceholder(to: tv)
         updatePlaceholderVisibility(coordinator: context.coordinator, isEmpty: text.isEmpty)
+        scroll.documentView = tv
         return scroll
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         guard let tv = nsView.documentView as? NSTextView else { return }
         context.coordinator.parent = self
+        if let tv = tv as? AttachmentPasteTextView {
+            tv.handleAttachmentPaste = { [weak coordinator = context.coordinator] in
+                coordinator?.parent.onPasteAttachments?() ?? false
+            }
+        }
         tv.insertionPointColor = theme.accentColor
         if tv.font != baseFont {
             tv.font = baseFont
@@ -396,6 +421,26 @@ struct MarkdownLiveEditor: NSViewRepresentable {
                 textView.complete(nil)
             }
         }
+    }
+}
+
+private final class AttachmentPasteTextView: NSTextView {
+    var handleAttachmentPaste: (() -> Bool)?
+
+    override func paste(_ sender: Any?) {
+        if handleAttachmentPaste?() == true {
+            return
+        }
+        super.paste(sender)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if event.modifierFlags.contains(.control),
+           event.charactersIgnoringModifiers?.lowercased() == "v",
+           handleAttachmentPaste?() == true {
+            return
+        }
+        super.keyDown(with: event)
     }
 }
 

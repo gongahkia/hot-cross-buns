@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 // Edit surface for task notes and event descriptions. The underlying text
 // view is MarkdownLiveEditor, which renders markdown formatting live while
@@ -18,6 +19,10 @@ struct MarkdownEditor: View {
     var showInlinePreview: Bool = true
 
     @State private var isFocused: Bool = false
+    @State private var isImportingLocalImage = false
+    @State private var isImportingLocalFile = false
+    @State private var attachmentImportMessage: String?
+    @State private var isDropTargeted = false
 
     private var editorFontSize: CGFloat {
         let base = CGFloat(HCBTextSize.clamp(model.settings.uiTextSizePoints))
@@ -53,8 +58,34 @@ struct MarkdownEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             toolbar
+            if let attachmentImportMessage {
+                Label(attachmentImportMessage, systemImage: "exclamationmark.triangle")
+                    .hcbFont(.caption2)
+                    .foregroundStyle(.red)
+            }
             editor
         }
+        .fileImporter(
+            isPresented: $isImportingLocalImage,
+            allowedContentTypes: [.image],
+            allowsMultipleSelection: true,
+            onCompletion: handleLocalImageImport
+        )
+        .fileImporter(
+            isPresented: $isImportingLocalFile,
+            allowedContentTypes: [.data],
+            allowsMultipleSelection: true,
+            onCompletion: handleLocalFileImport
+        )
+        .onDrop(
+            of: [UTType.fileURL.identifier, UTType.image.identifier],
+            isTargeted: $isDropTargeted,
+            perform: handleAttachmentDrop
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(AppColor.blue.opacity(isDropTargeted ? 0.75 : 0), lineWidth: 1.2)
+        )
         // colorScheme is read so the view re-renders when the user flips
         // light/dark or swaps palette — NSTextView colors are pulled from
         // the scheme store on each update.
@@ -88,6 +119,14 @@ struct MarkdownEditor: View {
             toolbarButton(title: "🔗", systemImage: "link", help: "Link ([text](url))") {
                 insertAtEnd("[text](https://)")
             }
+            toolbarButton(title: "Image", systemImage: "photo.badge.plus", help: "Attach local image pointer") {
+                attachmentImportMessage = nil
+                isImportingLocalImage = true
+            }
+            toolbarButton(title: "File", systemImage: "paperclip", help: "Attach local file pointer") {
+                attachmentImportMessage = nil
+                isImportingLocalFile = true
+            }
             Spacer(minLength: 8)
             if trimmed.isEmpty == false {
                 Text("markdown")
@@ -116,7 +155,8 @@ struct MarkdownEditor: View {
             maxHeight: maxHeight,
             baseFont: baseNSFont,
             theme: theme,
-            onFocusChange: { focused in isFocused = focused }
+            onFocusChange: { focused in isFocused = focused },
+            onPasteAttachments: handleAttachmentPaste
         )
         .frame(minHeight: minHeight, maxHeight: maxHeight)
         .hcbScaledPadding(10)
@@ -151,6 +191,81 @@ struct MarkdownEditor: View {
         appendAddition(snippet)
     }
 
+    private func handleLocalImageImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            attachmentImportMessage = nil
+            var skipped = 0
+            let pointers = urls.compactMap { url -> String? in
+                guard url.isFileURL else {
+                    skipped += 1
+                    return nil
+                }
+                guard LocalAttachmentStore.isReadableImage(url) else {
+                    skipped += 1
+                    return nil
+                }
+                return LocalFileAttachment.markdownPointer(for: url, kind: .image)
+            }
+            guard pointers.isEmpty == false else {
+                attachmentImportMessage = "Choose a readable local image file."
+                return
+            }
+            appendBlock(pointers.joined(separator: "\n"))
+            if skipped > 0 {
+                attachmentImportMessage = "Skipped \(skipped) image file\(skipped == 1 ? "" : "s") that could not be opened."
+            }
+        case .failure(let error):
+            attachmentImportMessage = error.localizedDescription
+        }
+    }
+
+    private func handleLocalFileImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            attachmentImportMessage = nil
+            let pointers = urls
+                .filter(\.isFileURL)
+                .map { LocalFileAttachment.markdownPointer(for: $0, kind: .file) }
+            guard pointers.isEmpty == false else {
+                attachmentImportMessage = "Choose a local file."
+                return
+            }
+            appendBlock(pointers.joined(separator: "\n"))
+        case .failure(let error):
+            attachmentImportMessage = error.localizedDescription
+        }
+    }
+
+    private func handleAttachmentDrop(_ providers: [NSItemProvider]) -> Bool {
+        Task {
+            let block = await LocalAttachmentStore.pointerBlock(fromProviders: providers)
+            await MainActor.run {
+                guard block.isEmpty == false else {
+                    attachmentImportMessage = "Drop a local file or image."
+                    return
+                }
+                attachmentImportMessage = nil
+                appendBlock(block)
+            }
+        }
+        return true
+    }
+
+    private func handleAttachmentPaste() -> Bool {
+        do {
+            guard let block = try LocalAttachmentStore.pointerBlockFromPasteboard(), block.isEmpty == false else {
+                return false
+            }
+            attachmentImportMessage = nil
+            appendBlock(block)
+            return true
+        } catch {
+            attachmentImportMessage = error.localizedDescription
+            return true
+        }
+    }
+
     private func appendAddition(_ addition: String) {
         if text.isEmpty {
             text = addition
@@ -158,6 +273,18 @@ struct MarkdownEditor: View {
             text.append(addition)
         } else {
             text.append(" \(addition)")
+        }
+    }
+
+    private func appendBlock(_ block: String) {
+        if text.isEmpty {
+            text = block
+        } else if text.hasSuffix("\n\n") {
+            text.append(block)
+        } else if text.hasSuffix("\n") {
+            text.append("\n\(block)")
+        } else {
+            text.append("\n\n\(block)")
         }
     }
 }
