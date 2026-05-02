@@ -10,6 +10,7 @@ struct DataControlSection: View {
     @State private var exportIsWarning = false
     @State private var portableImportPreview: PortableImportPreview?
     @State private var isShowingAttachmentRepair = false
+    @State private var isShowingPortableImportDetails = false
 
     var body: some View {
         Section("Data control") {
@@ -34,6 +35,9 @@ struct DataControlSection: View {
             ),
             titleVisibility: .visible
         ) {
+            Button("View import details...") {
+                isShowingPortableImportDetails = true
+            }
             Button("Replace local data with archive", role: .destructive) {
                 importPreviewedArchive()
             }
@@ -48,6 +52,18 @@ struct DataControlSection: View {
         .sheet(isPresented: $isShowingAttachmentRepair) {
             AttachmentRepairSheet()
                 .environment(model)
+        }
+        .sheet(isPresented: $isShowingPortableImportDetails) {
+            if let portableImportPreview {
+                PortableImportDetailsSheet(
+                    preview: portableImportPreview,
+                    onCancel: { isShowingPortableImportDetails = false },
+                    onImport: {
+                        isShowingPortableImportDetails = false
+                        importPreviewedArchive()
+                    }
+                )
+            }
         }
     }
 
@@ -240,6 +256,166 @@ struct DataControlSection: View {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyyMMdd-HHmmss"
         return formatter.string(from: Date())
+    }
+}
+
+private struct PortableImportDetailsSheet: View {
+    let preview: PortableImportPreview
+    let onCancel: () -> Void
+    let onImport: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Portable import details")
+                        .hcbFont(.title3, weight: .semibold)
+                    Text("Read-only dry run for \(preview.archiveURL.lastPathComponent)")
+                        .hcbFont(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer()
+                Button("Cancel", action: onCancel)
+                    .keyboardShortcut(.cancelAction)
+                Button(role: .destructive, action: onImport) {
+                    Label("Replace local data", systemImage: "square.and.arrow.down")
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    importAttachmentSummary
+
+                    if let diff = preview.diff {
+                        PortableImportResourceDiffSection(title: "Tasks", diff: diff.tasks)
+                        PortableImportResourceDiffSection(title: "Events", diff: diff.events)
+                        PortableImportResourceDiffSection(title: "Calendars", diff: diff.calendars)
+                        PortableImportResourceDiffSection(title: "Task lists", diff: diff.taskLists)
+                        if diff.settingsWillChange || diff.pendingMutationCount > 0 {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Other state")
+                                    .hcbFont(.subheadline, weight: .medium)
+                                if diff.settingsWillChange {
+                                    Label("Settings will be replaced. This Mac's encryption toggles are preserved.", systemImage: "gearshape")
+                                }
+                                if diff.pendingMutationCount > 0 {
+                                    Label("\(diff.pendingMutationCount) queued mutation\(diff.pendingMutationCount == 1 ? "" : "s") will be imported.", systemImage: "arrow.triangle.2.circlepath")
+                                }
+                            }
+                            .hcbScaledPadding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+                        }
+                    } else {
+                        Text("No current-state comparison was available for this preview.")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .hcbScaledPadding(20)
+        .frame(minWidth: 720, minHeight: 520)
+    }
+
+    private var importAttachmentSummary: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Attachments")
+                .hcbFont(.subheadline, weight: .medium)
+            Label("\(preview.bundledAttachmentCount) bundled attachment\(preview.bundledAttachmentCount == 1 ? "" : "s") will be copied and relinked when reachable.", systemImage: "paperclip")
+            if preview.missingBundledAttachmentCount > 0 {
+                Label("\(preview.missingBundledAttachmentCount) bundled attachment\(preview.missingBundledAttachmentCount == 1 ? " is" : "s are") missing.", systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.red)
+            }
+            if preview.corruptBundledAttachmentCount > 0 {
+                Label("\(preview.corruptBundledAttachmentCount) bundled attachment\(preview.corruptBundledAttachmentCount == 1 ? " fails" : "s fail") integrity checks.", systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.red)
+            }
+            if preview.skippedPointerCount > 0 {
+                Label("\(preview.skippedPointerCount) pointer\(preview.skippedPointerCount == 1 ? "" : "s") were skipped by the exporting Mac.", systemImage: "minus.circle")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .hcbScaledPadding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+private struct PortableImportResourceDiffSection: View {
+    let title: String
+    let diff: PortableImportResourceDiff
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title)
+                    .hcbFont(.subheadline, weight: .medium)
+                Spacer()
+                Text("+\(diff.added) -\(diff.removed) changed \(diff.changed)")
+                    .hcbFont(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if diff.hasChanges {
+                PortableImportDiffGroup(title: "Added", systemImage: "plus.circle", items: diff.addedItems)
+                PortableImportDiffGroup(title: "Removed", systemImage: "minus.circle", items: diff.removedItems)
+                PortableImportDiffGroup(title: "Changed", systemImage: "pencil.circle", items: diff.changedItems, showsTitleTransition: true)
+            } else {
+                Text("No changes.")
+                    .hcbFont(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .hcbScaledPadding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+private struct PortableImportDiffGroup: View {
+    let title: String
+    let systemImage: String
+    let items: [PortableImportDiffItem]
+    var showsTitleTransition = false
+
+    var body: some View {
+        if items.isEmpty == false {
+            VStack(alignment: .leading, spacing: 4) {
+                Label(title, systemImage: systemImage)
+                    .hcbFont(.caption, weight: .medium)
+                    .foregroundStyle(.secondary)
+                ForEach(items.prefix(40)) { item in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(label(for: item))
+                            .hcbFont(.caption)
+                            .lineLimit(1)
+                        Text(item.id)
+                            .hcbFont(.caption2)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                            .lineLimit(1)
+                    }
+                }
+                if items.count > 40 {
+                    Text("\(items.count - 40) more not shown.")
+                        .hcbFont(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func label(for item: PortableImportDiffItem) -> String {
+        if showsTitleTransition,
+           let current = item.currentTitle,
+           let incoming = item.incomingTitle,
+           current != incoming {
+            return "\(current) -> \(incoming)"
+        }
+        return item.displayTitle
     }
 }
 
