@@ -143,6 +143,23 @@ struct PortableExportSummary: Equatable, Sendable {
     var skippedAttachmentCount: Int
 }
 
+struct PortableExportOptions: Equatable, Sendable {
+    var taskListIDs: Set<String>?
+    var calendarIDs: Set<String>?
+    var eventsStartingAtOrAfter: Date?
+
+    static let all = PortableExportOptions()
+}
+
+struct PortableImportOptions: Equatable, Sendable {
+    var includeTasks: Bool = true
+    var includeEvents: Bool = true
+    var includeSettings: Bool = true
+    var includeSyncMetadata: Bool = true
+
+    static let all = PortableImportOptions()
+}
+
 struct PortableImportPreview: Equatable, Sendable {
     var archiveURL: URL
     var taskCount: Int
@@ -234,11 +251,16 @@ struct PortableExportManifest: Codable, Equatable, Sendable {
 }
 
 enum PortableExportArchive {
-    static func write(state: CachedAppState, to directoryURL: URL) throws -> PortableExportSummary {
+    static func write(
+        state: CachedAppState,
+        to directoryURL: URL,
+        options: PortableExportOptions = .all
+    ) throws -> PortableExportSummary {
         if FileManager.default.fileExists(atPath: directoryURL.path) {
             throw PortableExportError.destinationAlreadyExists
         }
 
+        let state = filteredState(state, options: options)
         try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         let attachmentsURL = directoryURL.appending(path: "Attachments", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: attachmentsURL, withIntermediateDirectories: true)
@@ -384,6 +406,22 @@ enum PortableExportArchive {
         let taskAttachments = state.tasks.flatMap { LocalFileAttachment.parseAll(in: $0.notes) }
         let eventAttachments = state.events.flatMap { LocalFileAttachment.parseAll(in: $0.details) }
         return taskAttachments + eventAttachments
+    }
+
+    private static func filteredState(_ state: CachedAppState, options: PortableExportOptions) -> CachedAppState {
+        var next = state
+        if let taskListIDs = options.taskListIDs {
+            next.taskLists = state.taskLists.filter { taskListIDs.contains($0.id) }
+            next.tasks = state.tasks.filter { taskListIDs.contains($0.taskListID) }
+        }
+        if let calendarIDs = options.calendarIDs {
+            next.calendars = state.calendars.filter { calendarIDs.contains($0.id) }
+            next.events = state.events.filter { calendarIDs.contains($0.calendarID) }
+        }
+        if let eventsStartingAtOrAfter = options.eventsStartingAtOrAfter {
+            next.events = next.events.filter { $0.endDate >= eventsStartingAtOrAfter }
+        }
+        return next
     }
 
     private static func diff(from current: CachedAppState, to incoming: CachedAppState) -> PortableImportDiff {

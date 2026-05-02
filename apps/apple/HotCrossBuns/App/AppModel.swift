@@ -2317,8 +2317,8 @@ final class AppModel {
         SettingsTransferBundle(settings: settings)
     }
 
-    func exportPortableArchive(to directoryURL: URL) throws -> PortableExportSummary {
-        try PortableExportArchive.write(state: currentCachedState(), to: directoryURL)
+    func exportPortableArchive(to directoryURL: URL, options: PortableExportOptions = .all) throws -> PortableExportSummary {
+        try PortableExportArchive.write(state: currentCachedState(), to: directoryURL, options: options)
     }
 
     func previewPortableImport(from archiveURL: URL) throws -> PortableImportPreview {
@@ -2326,14 +2326,17 @@ final class AppModel {
     }
 
     @discardableResult
-    func importPortableArchive(from archiveURL: URL) async throws -> PortableImportSummary {
+    func importPortableArchive(
+        from archiveURL: URL,
+        options: PortableImportOptions = .all
+    ) async throws -> PortableImportSummary {
         let backupURL = try await localBackupService.writeBackup(
             state: currentCachedState(),
             now: Date(),
             retentionCount: max(settings.dailyLocalBackupRetentionCount, 14)
         )
         let result = try PortableExportArchive.importState(from: archiveURL)
-        applyImportedState(result.state)
+        applyImportedState(result.state, options: options)
         localBackupSummary = await localBackupService.summary()
         var summary = result.summary
         summary.preImportBackupURL = backupURL
@@ -2417,15 +2420,23 @@ final class AppModel {
         scheduleCacheSave()
     }
 
-    private func applyImportedState(_ imported: CachedAppState) {
-        account = imported.account
-        taskLists = imported.taskLists
-        tasks = imported.tasks
-        calendars = imported.calendars
-        events = imported.events
-        settings = settingsForImport(imported.settings)
-        syncCheckpoints = imported.syncCheckpoints
-        pendingMutations = imported.pendingMutations
+    private func applyImportedState(_ imported: CachedAppState, options: PortableImportOptions = .all) {
+        if options.includeSyncMetadata {
+            account = imported.account
+            syncCheckpoints = imported.syncCheckpoints
+            pendingMutations = imported.pendingMutations
+        }
+        if options.includeTasks {
+            taskLists = imported.taskLists
+            tasks = imported.tasks
+        }
+        if options.includeEvents {
+            calendars = imported.calendars
+            events = imported.events
+        }
+        if options.includeSettings {
+            settings = settingsForImport(imported.settings)
+        }
         rebuildSnapshots()
         scheduleCacheSave()
     }
