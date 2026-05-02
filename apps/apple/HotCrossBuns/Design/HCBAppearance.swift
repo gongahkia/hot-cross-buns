@@ -220,6 +220,10 @@ extension View {
     func hcbMotionTransition(_ transition: AnyTransition) -> some View {
         modifier(HCBMotionTransitionModifier(transition: transition))
     }
+
+    func hcbDebugBodyProbe(_ name: String) -> some View {
+        modifier(HCBDebugBodyProbeModifier(name: name))
+    }
 }
 
 enum HCBFontStyle {
@@ -399,6 +403,35 @@ private struct HCBMotionTransitionModifier: ViewModifier {
         content.transition(HCBMotion.transition(transition, reduceMotion: reduceMotion))
     }
 }
+
+private struct HCBDebugBodyProbeModifier: ViewModifier {
+    let name: String
+
+    func body(content: Content) -> some View {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["HCB_BODY_PROBE"] == "1" {
+            content.background(HCBDebugBodyProbeEmitter(name: name))
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
+    }
+}
+
+#if DEBUG
+private struct HCBDebugBodyProbeEmitter: View {
+    let name: String
+
+    var body: some View {
+        let _ = AppLogger.debug("view body evaluated", category: .perf, metadata: ["view": name])
+        Color.clear
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+    }
+}
+#endif
 
 // Installed-font enumeration for the Settings picker.
 enum HCBInstalledFonts {

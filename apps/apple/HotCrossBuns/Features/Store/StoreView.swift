@@ -43,6 +43,7 @@ struct StoreView: View {
     var body: some View {
         content
             .hcbSurface(.taskList)
+            .hcbDebugBodyProbe("StoreView")
             .appBackground()
             .navigationTitle("Hot Cross Buns")
             .focusedSceneValue(\.storeCommandActions, storeCommandActions)
