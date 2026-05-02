@@ -22,6 +22,30 @@ final class MarkdownHTMLTests: XCTestCase {
         XCTAssertEqual(html, "See <a href=\"https://example.com\">docs</a>")
     }
 
+    func testLocalImagePointerTranspilesAsCalendarLink() {
+        let url = URL(fileURLWithPath: "/Users/example/Pictures/launch plan (v1).png")
+        let pointer = LocalFileAttachment.markdownPointer(for: url, kind: .image)
+        let html = MarkdownHTML.markdownToCalendarHTML(pointer)
+
+        XCTAssertEqual(
+            html,
+            #"<a href="file:///Users/example/Pictures/launch%20plan%20%28v1%29.png">Local image: launch plan (v1).png</a>"#
+        )
+        XCTAssertEqual(MarkdownHTML.calendarHTMLToMarkdown(html), pointer)
+    }
+
+    func testLocalFilePointerTranspilesAsCalendarLink() {
+        let url = URL(fileURLWithPath: "/Users/example/Documents/spec.pdf")
+        let pointer = LocalFileAttachment.markdownPointer(for: url, kind: .file)
+        let html = MarkdownHTML.markdownToCalendarHTML(pointer)
+
+        XCTAssertEqual(
+            html,
+            #"<a href="file:///Users/example/Documents/spec.pdf">Local file: spec.pdf</a>"#
+        )
+        XCTAssertEqual(MarkdownHTML.calendarHTMLToMarkdown(html), pointer)
+    }
+
     func testBulletedList() {
         let html = MarkdownHTML.markdownToCalendarHTML("- first\n- second")
         XCTAssertEqual(html, "<ul><li>first</li><li>second</li></ul>")
@@ -89,5 +113,25 @@ final class MarkdownHTMLTests: XCTestCase {
     func testEmptyStringRoundTrip() {
         XCTAssertEqual(MarkdownHTML.markdownToCalendarHTML(""), "")
         XCTAssertEqual(MarkdownHTML.calendarHTMLToMarkdown(""), "")
+    }
+
+    func testLocalImagePointerParsesFileURL() throws {
+        let url = URL(fileURLWithPath: "/Users/example/Pictures/diagram.png")
+        let pointer = LocalFileAttachment.markdownPointer(for: url, kind: .image)
+        let parsed = try XCTUnwrap(LocalFileAttachment.parseMarkdownLine(pointer))
+
+        XCTAssertEqual(parsed.kind, .image)
+        XCTAssertEqual(parsed.displayName, "diagram.png")
+        XCTAssertEqual(parsed.url.path, url.path)
+    }
+
+    func testLocalFilePointerParsesFileURL() throws {
+        let url = URL(fileURLWithPath: "/Users/example/Documents/brief.pdf")
+        let pointer = LocalFileAttachment.markdownPointer(for: url, kind: .file)
+        let parsed = try XCTUnwrap(LocalFileAttachment.parseMarkdownLine(pointer))
+
+        XCTAssertEqual(parsed.kind, .file)
+        XCTAssertEqual(parsed.displayName, "brief.pdf")
+        XCTAssertEqual(parsed.url.path, url.path)
     }
 }

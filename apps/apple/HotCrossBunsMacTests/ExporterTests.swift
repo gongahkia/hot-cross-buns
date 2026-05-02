@@ -109,4 +109,128 @@ final class ExporterTests: XCTestCase {
         let ics = EventICSExporter.ics(for: makeEvent())
         XCTAssertTrue(ics.contains("\r\n"))
     }
+
+    func testPortableExportBundlesReachablePointersAndSkipsMissingOnes() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "hcb-portable-export-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let source = root.appending(path: "source.txt")
+        let exportURL = root.appending(path: "archive.hcbexport", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try "hello".data(using: .utf8)?.write(to: source)
+
+        let missing = root.appending(path: "missing.txt")
+        let notes = [
+            LocalFileAttachment.markdownPointer(for: source, kind: .file),
+            LocalFileAttachment.markdownPointer(for: missing, kind: .file)
+        ].joined(separator: "\n")
+        let state = CachedAppState(
+            account: nil,
+            taskLists: [],
+            tasks: [makeTask(notes: notes)],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+
+        let summary = try PortableExportArchive.write(state: state, to: exportURL)
+
+        XCTAssertEqual(summary.copiedAttachmentCount, 1)
+        XCTAssertEqual(summary.skippedAttachmentCount, 1)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: exportURL.appending(path: "hot-cross-buns-state.json").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: exportURL.appending(path: "Attachments/source.txt").path))
+
+        let manifestData = try Data(contentsOf: exportURL.appending(path: "manifest.json"))
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let manifest = try decoder.decode(PortableExportManifest.self, from: manifestData)
+        XCTAssertEqual(manifest.attachments.count, 1)
+        XCTAssertEqual(manifest.attachments.first?.byteCount, 5)
+        XCTAssertNotNil(manifest.attachments.first?.sha256)
+        XCTAssertEqual(manifest.skippedPointers, [missing.absoluteString])
+    }
+
+    func testPortableImportCopiesBundledAttachmentsAndRewritesPointers() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "hcb-portable-import-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let source = root.appending(path: "source.txt")
+        let exportURL = root.appending(path: "archive.hcbexport", directoryHint: .isDirectory)
+        let importedAttachmentsURL = root.appending(path: "ImportedAttachments", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try "hello".data(using: .utf8)?.write(to: source)
+
+        let pointer = LocalFileAttachment.markdownPointer(displayName: "Original display", url: source, kind: .file)
+        let state = CachedAppState(
+            account: nil,
+            taskLists: [],
+            tasks: [makeTask(notes: pointer)],
+            calendars: [],
+            events: [makeEvent(details: pointer)],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        _ = try PortableExportArchive.write(state: state, to: exportURL)
+
+        let preview = try PortableExportArchive.previewImport(from: exportURL)
+        XCTAssertEqual(preview.bundledAttachmentCount, 1)
+        XCTAssertEqual(preview.missingBundledAttachmentCount, 0)
+        XCTAssertEqual(preview.corruptBundledAttachmentCount, 0)
+
+        let imported = try PortableExportArchive.importState(
+            from: exportURL,
+            attachmentsDirectoryURL: importedAttachmentsURL
+        )
+
+        XCTAssertEqual(imported.summary.importedAttachmentCount, 1)
+        XCTAssertEqual(imported.summary.missingBundledAttachmentCount, 0)
+        XCTAssertEqual(imported.summary.corruptBundledAttachmentCount, 0)
+        let taskAttachment = try XCTUnwrap(LocalFileAttachment.parseAll(in: imported.state.tasks[0].notes).first)
+        let eventAttachment = try XCTUnwrap(LocalFileAttachment.parseAll(in: imported.state.events[0].details).first)
+        XCTAssertEqual(taskAttachment.displayName, "Original display")
+        XCTAssertEqual(taskAttachment.url.deletingLastPathComponent(), importedAttachmentsURL)
+        XCTAssertEqual(eventAttachment.url, taskAttachment.url)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: taskAttachment.url.path))
+    }
+
+    func testPortableImportSkipsBundledAttachmentWithChecksumMismatch() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "hcb-portable-corrupt-import-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let source = root.appending(path: "source.txt")
+        let exportURL = root.appending(path: "archive.hcbexport", directoryHint: .isDirectory)
+        let importedAttachmentsURL = root.appending(path: "ImportedAttachments", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try "hello".data(using: .utf8)?.write(to: source)
+
+        let pointer = LocalFileAttachment.markdownPointer(for: source, kind: .file)
+        let state = CachedAppState(
+            account: nil,
+            taskLists: [],
+            tasks: [makeTask(notes: pointer)],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        _ = try PortableExportArchive.write(state: state, to: exportURL)
+        try "tampered".data(using: .utf8)?.write(to: exportURL.appending(path: "Attachments/source.txt"), options: [.atomic])
+
+        let preview = try PortableExportArchive.previewImport(from: exportURL)
+        XCTAssertEqual(preview.corruptBundledAttachmentCount, 1)
+
+        let imported = try PortableExportArchive.importState(
+            from: exportURL,
+            attachmentsDirectoryURL: importedAttachmentsURL
+        )
+
+        XCTAssertEqual(imported.summary.importedAttachmentCount, 0)
+        XCTAssertEqual(imported.summary.corruptBundledAttachmentCount, 1)
+        let importedAttachment = try XCTUnwrap(LocalFileAttachment.parseAll(in: imported.state.tasks[0].notes).first)
+        XCTAssertEqual(importedAttachment.url, source)
+    }
 }

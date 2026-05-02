@@ -6,6 +6,28 @@ struct LoadingOverlayState: Equatable, Sendable {
     var message: String
 }
 
+struct LocalAttachmentDiagnostic: Identifiable, Equatable {
+    var id: String
+    var sourceKind: String
+    var sourceTitle: String
+    var sourceID: String
+    var attachmentKind: LocalFileAttachment.Kind
+    var displayName: String
+    var url: URL
+    var health: LocalAttachmentHealth
+}
+
+enum LocalAttachmentRepairError: LocalizedError {
+    case replacementUnavailable(LocalAttachmentHealth)
+
+    var errorDescription: String? {
+        switch self {
+        case .replacementUnavailable(let health):
+            return "The selected replacement is \(health.repairLabel.lowercased()). Choose a readable file."
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class AppModel {
@@ -2272,6 +2294,81 @@ final class AppModel {
         SettingsTransferBundle(settings: settings)
     }
 
+    func exportPortableArchive(to directoryURL: URL) throws -> PortableExportSummary {
+        try PortableExportArchive.write(state: currentCachedState(), to: directoryURL)
+    }
+
+    func previewPortableImport(from archiveURL: URL) throws -> PortableImportPreview {
+        try PortableExportArchive.previewImport(from: archiveURL)
+    }
+
+    @discardableResult
+    func importPortableArchive(from archiveURL: URL) throws -> PortableImportSummary {
+        let result = try PortableExportArchive.importState(from: archiveURL)
+        applyImportedState(result.state)
+        return result.summary
+    }
+
+    func localAttachmentDiagnostics(includeHealthy: Bool = false) -> [LocalAttachmentDiagnostic] {
+        var diagnostics: [LocalAttachmentDiagnostic] = []
+        for task in tasks {
+            for attachment in LocalFileAttachment.parseAll(in: task.notes) {
+                appendAttachmentDiagnostic(
+                    attachment,
+                    sourceKind: "Task",
+                    sourceTitle: task.title,
+                    sourceID: task.id,
+                    includeHealthy: includeHealthy,
+                    into: &diagnostics
+                )
+            }
+        }
+        for event in events {
+            for attachment in LocalFileAttachment.parseAll(in: event.details) {
+                appendAttachmentDiagnostic(
+                    attachment,
+                    sourceKind: "Event",
+                    sourceTitle: event.summary,
+                    sourceID: event.id,
+                    includeHealthy: includeHealthy,
+                    into: &diagnostics
+                )
+            }
+        }
+        return diagnostics
+    }
+
+    @discardableResult
+    func relinkLocalAttachment(originalURL: URL, replacementURL: URL, kind: LocalFileAttachment.Kind) throws -> Int {
+        let replacementHealth = LocalFileAttachment(kind: kind, displayName: replacementURL.lastPathComponent, url: replacementURL).health
+        guard replacementHealth.isAvailable else {
+            throw LocalAttachmentRepairError.replacementUnavailable(replacementHealth)
+        }
+
+        let replacements = [originalURL.absoluteString: replacementURL]
+        var updatedFieldCount = 0
+        for index in tasks.indices {
+            let next = LocalFileAttachment.rewritePointers(in: tasks[index].notes, replacing: replacements)
+            if next != tasks[index].notes {
+                tasks[index].notes = next
+                updatedFieldCount += 1
+            }
+        }
+        for index in events.indices {
+            let next = LocalFileAttachment.rewritePointers(in: events[index].details, replacing: replacements)
+            if next != events[index].details {
+                events[index].details = next
+                updatedFieldCount += 1
+            }
+        }
+
+        if updatedFieldCount > 0 {
+            rebuildSnapshots()
+            scheduleCacheSave()
+        }
+        return updatedFieldCount
+    }
+
     func previewSettingsImport(_ bundle: SettingsTransferBundle) -> SettingsImportPreview {
         let next = settingsForImport(bundle.settings)
         return SettingsImportPreview(
@@ -2287,6 +2384,41 @@ final class AppModel {
         settings = next
         rebuildSnapshots()
         scheduleCacheSave()
+    }
+
+    private func applyImportedState(_ imported: CachedAppState) {
+        account = imported.account
+        taskLists = imported.taskLists
+        tasks = imported.tasks
+        calendars = imported.calendars
+        events = imported.events
+        settings = settingsForImport(imported.settings)
+        syncCheckpoints = imported.syncCheckpoints
+        pendingMutations = imported.pendingMutations
+        rebuildSnapshots()
+        scheduleCacheSave()
+    }
+
+    private func appendAttachmentDiagnostic(
+        _ attachment: LocalFileAttachment,
+        sourceKind: String,
+        sourceTitle: String,
+        sourceID: String,
+        includeHealthy: Bool,
+        into diagnostics: inout [LocalAttachmentDiagnostic]
+    ) {
+        let health = attachment.health
+        guard includeHealthy || health.isAvailable == false else { return }
+        diagnostics.append(LocalAttachmentDiagnostic(
+            id: "\(sourceKind)-\(sourceID)-\(attachment.url.absoluteString)",
+            sourceKind: sourceKind,
+            sourceTitle: sourceTitle,
+            sourceID: sourceID,
+            attachmentKind: attachment.kind,
+            displayName: attachment.displayName,
+            url: attachment.url,
+            health: health
+        ))
     }
 
     private func settingsForImport(_ imported: AppSettings) -> AppSettings {

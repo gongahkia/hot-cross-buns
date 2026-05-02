@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 enum TaskMarkdownExporter {
@@ -133,5 +134,332 @@ enum EventICSExporter {
             .replacingOccurrences(of: ";", with: "\\;")
             .replacingOccurrences(of: ",", with: "\\,")
             .replacingOccurrences(of: "\n", with: "\\n")
+    }
+}
+
+struct PortableExportSummary: Equatable, Sendable {
+    var directoryURL: URL
+    var copiedAttachmentCount: Int
+    var skippedAttachmentCount: Int
+}
+
+struct PortableImportPreview: Equatable, Sendable {
+    var archiveURL: URL
+    var taskCount: Int
+    var eventCount: Int
+    var calendarCount: Int
+    var taskListCount: Int
+    var bundledAttachmentCount: Int
+    var missingBundledAttachmentCount: Int
+    var corruptBundledAttachmentCount: Int
+    var skippedPointerCount: Int
+}
+
+struct PortableImportSummary: Equatable, Sendable {
+    var importedTaskCount: Int
+    var importedEventCount: Int
+    var importedAttachmentCount: Int
+    var missingBundledAttachmentCount: Int
+    var corruptBundledAttachmentCount: Int
+    var skippedPointerCount: Int
+}
+
+struct PortableExportManifest: Codable, Equatable, Sendable {
+    static let currentFormatVersion = 1
+
+    struct Attachment: Codable, Equatable, Sendable {
+        var kind: String
+        var displayName: String
+        var originalURL: String
+        var bundledRelativePath: String
+        var sha256: String?
+        var byteCount: Int?
+    }
+
+    var formatVersion: Int = currentFormatVersion
+    var exportedAt: Date = Date()
+    var appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+    var stateFile: String = "hot-cross-buns-state.json"
+    var attachmentDirectory: String = "Attachments"
+    var attachments: [Attachment]
+    var skippedPointers: [String]
+    var notes: [String] = [
+        "hot-cross-buns-state.json preserves settings, tasks, notes, events, calendars, sync checkpoints, pending mutations, and original local pointer text.",
+        "Attachments contains reachable local files referenced by Local image/file pointers. Missing, unreadable, and corrupted image pointers are listed in skippedPointers."
+    ]
+}
+
+enum PortableExportArchive {
+    static func write(state: CachedAppState, to directoryURL: URL) throws -> PortableExportSummary {
+        if FileManager.default.fileExists(atPath: directoryURL.path) {
+            throw PortableExportError.destinationAlreadyExists
+        }
+
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        let attachmentsURL = directoryURL.appending(path: "Attachments", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: attachmentsURL, withIntermediateDirectories: true)
+
+        let attachments = collectAttachments(in: state)
+        var copied: [PortableExportManifest.Attachment] = []
+        var skipped: [String] = []
+        var copiedByOriginalURL: [String: String] = [:]
+
+        for attachment in attachments {
+            let original = attachment.url.absoluteString
+            if let existingRelativePath = copiedByOriginalURL[original] {
+                copied.append(.init(
+                    kind: attachment.kind.rawValue,
+                    displayName: attachment.displayName,
+                    originalURL: original,
+                    bundledRelativePath: existingRelativePath,
+                    sha256: copied.first(where: { $0.originalURL == original })?.sha256,
+                    byteCount: copied.first(where: { $0.originalURL == original })?.byteCount
+                ))
+                continue
+            }
+
+            guard attachment.canExportOrDownload else {
+                skipped.append(original)
+                continue
+            }
+
+            let didStartAccessing = attachment.url.startAccessingSecurityScopedResource()
+            defer {
+                if didStartAccessing {
+                    attachment.url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            let destination = LocalAttachmentStore.uniqueURL(
+                in: attachmentsURL,
+                preferredName: attachment.url.lastPathComponent
+            )
+            do {
+                try FileManager.default.copyItem(at: attachment.url, to: destination)
+                let metadata = try fileIntegrityMetadata(for: destination)
+                let relativePath = "Attachments/\(destination.lastPathComponent)"
+                copiedByOriginalURL[original] = relativePath
+                copied.append(.init(
+                    kind: attachment.kind.rawValue,
+                    displayName: attachment.displayName,
+                    originalURL: original,
+                    bundledRelativePath: relativePath,
+                    sha256: metadata.sha256,
+                    byteCount: metadata.byteCount
+                ))
+            } catch {
+                skipped.append(original)
+            }
+        }
+
+        let stateData = try JSONEncoder.portableExport.encode(state)
+        try stateData.write(to: directoryURL.appending(path: "hot-cross-buns-state.json"), options: [.atomic])
+
+        let manifest = PortableExportManifest(attachments: copied, skippedPointers: skipped)
+        let manifestData = try JSONEncoder.portableExport.encode(manifest)
+        try manifestData.write(to: directoryURL.appending(path: "manifest.json"), options: [.atomic])
+
+        return PortableExportSummary(
+            directoryURL: directoryURL,
+            copiedAttachmentCount: copied.count,
+            skippedAttachmentCount: skipped.count
+        )
+    }
+
+    static func previewImport(from archiveURL: URL) throws -> PortableImportPreview {
+        let manifest = try readManifest(from: archiveURL)
+        let state = try readState(from: archiveURL, manifest: manifest)
+        let uniqueBundledAttachments = uniqueBundledAttachmentCount(in: manifest, archiveURL: archiveURL)
+        return PortableImportPreview(
+            archiveURL: archiveURL,
+            taskCount: state.tasks.count,
+            eventCount: state.events.count,
+            calendarCount: state.calendars.count,
+            taskListCount: state.taskLists.count,
+            bundledAttachmentCount: uniqueBundledAttachments.total,
+            missingBundledAttachmentCount: uniqueBundledAttachments.missing,
+            corruptBundledAttachmentCount: uniqueBundledAttachments.corrupt,
+            skippedPointerCount: manifest.skippedPointers.count
+        )
+    }
+
+    static func importState(
+        from archiveURL: URL,
+        attachmentsDirectoryURL: URL? = LocalAttachmentStore.attachmentsDirectoryURL
+    ) throws -> (state: CachedAppState, summary: PortableImportSummary) {
+        guard let attachmentsDirectoryURL else {
+            throw AttachmentError.attachmentsDirectoryUnavailable
+        }
+        let manifest = try readManifest(from: archiveURL)
+        var state = try readState(from: archiveURL, manifest: manifest)
+        try FileManager.default.createDirectory(at: attachmentsDirectoryURL, withIntermediateDirectories: true)
+
+        var replacementByOriginalURL: [String: URL] = [:]
+        var missingBundledAttachmentCount = 0
+        var corruptBundledAttachmentCount = 0
+
+        for attachment in manifest.attachments {
+            guard replacementByOriginalURL[attachment.originalURL] == nil else { continue }
+            guard let source = bundledAttachmentURL(for: attachment, in: archiveURL),
+                  FileManager.default.fileExists(atPath: source.path),
+                  FileManager.default.isReadableFile(atPath: source.path) else {
+                missingBundledAttachmentCount += 1
+                continue
+            }
+            guard bundledAttachmentPassesIntegrityCheck(source, manifestAttachment: attachment) else {
+                corruptBundledAttachmentCount += 1
+                continue
+            }
+
+            let destination = LocalAttachmentStore.uniqueURL(
+                in: attachmentsDirectoryURL,
+                preferredName: source.lastPathComponent
+            )
+            try FileManager.default.copyItem(at: source, to: destination)
+            replacementByOriginalURL[attachment.originalURL] = destination
+        }
+
+        rewriteLocalPointers(in: &state, replacements: replacementByOriginalURL)
+
+        return (
+            state,
+            PortableImportSummary(
+                importedTaskCount: state.tasks.count,
+                importedEventCount: state.events.count,
+                importedAttachmentCount: replacementByOriginalURL.count,
+                missingBundledAttachmentCount: missingBundledAttachmentCount,
+                corruptBundledAttachmentCount: corruptBundledAttachmentCount,
+                skippedPointerCount: manifest.skippedPointers.count
+            )
+        )
+    }
+
+    private static func collectAttachments(in state: CachedAppState) -> [LocalFileAttachment] {
+        let taskAttachments = state.tasks.flatMap { LocalFileAttachment.parseAll(in: $0.notes) }
+        let eventAttachments = state.events.flatMap { LocalFileAttachment.parseAll(in: $0.details) }
+        return taskAttachments + eventAttachments
+    }
+
+    private static func rewriteLocalPointers(in state: inout CachedAppState, replacements: [String: URL]) {
+        guard replacements.isEmpty == false else { return }
+        state.tasks = state.tasks.map { task in
+            var next = task
+            next.notes = LocalFileAttachment.rewritePointers(in: task.notes, replacing: replacements)
+            return next
+        }
+        state.events = state.events.map { event in
+            var next = event
+            next.details = LocalFileAttachment.rewritePointers(in: event.details, replacing: replacements)
+            return next
+        }
+    }
+
+    private static func readManifest(from archiveURL: URL) throws -> PortableExportManifest {
+        let manifestURL = archiveURL.appending(path: "manifest.json")
+        guard FileManager.default.fileExists(atPath: manifestURL.path) else {
+            throw PortableExportError.invalidArchive
+        }
+        let data = try Data(contentsOf: manifestURL)
+        let manifest = try JSONDecoder.portableExport.decode(PortableExportManifest.self, from: data)
+        guard manifest.formatVersion == PortableExportManifest.currentFormatVersion else {
+            throw PortableExportError.unsupportedArchiveVersion(manifest.formatVersion)
+        }
+        return manifest
+    }
+
+    private static func readState(from archiveURL: URL, manifest: PortableExportManifest) throws -> CachedAppState {
+        let stateURL = archiveURL.appending(path: manifest.stateFile)
+        guard FileManager.default.fileExists(atPath: stateURL.path) else {
+            throw PortableExportError.invalidArchive
+        }
+        let data = try Data(contentsOf: stateURL)
+        return try JSONDecoder.portableExport.decode(CachedAppState.self, from: data)
+    }
+
+    private static func uniqueBundledAttachmentCount(in manifest: PortableExportManifest, archiveURL: URL) -> (total: Int, missing: Int, corrupt: Int) {
+        var seen: Set<String> = []
+        var missing = 0
+        var corrupt = 0
+        for attachment in manifest.attachments {
+            guard seen.insert(attachment.originalURL).inserted else { continue }
+            guard let source = bundledAttachmentURL(for: attachment, in: archiveURL),
+                  FileManager.default.fileExists(atPath: source.path),
+                  FileManager.default.isReadableFile(atPath: source.path) else {
+                missing += 1
+                continue
+            }
+            if bundledAttachmentPassesIntegrityCheck(source, manifestAttachment: attachment) == false {
+                corrupt += 1
+            }
+        }
+        return (seen.count, missing, corrupt)
+    }
+
+    private static func bundledAttachmentURL(for attachment: PortableExportManifest.Attachment, in archiveURL: URL) -> URL? {
+        guard bundledRelativePathIsSafe(attachment.bundledRelativePath) else { return nil }
+        return archiveURL.appending(path: attachment.bundledRelativePath)
+    }
+
+    private static func bundledRelativePathIsSafe(_ relativePath: String) -> Bool {
+        guard relativePath.isEmpty == false,
+              relativePath.hasPrefix("/") == false,
+              relativePath.contains("../") == false,
+              relativePath.contains("/..") == false else {
+            return false
+        }
+        return true
+    }
+
+    private static func bundledAttachmentPassesIntegrityCheck(_ url: URL, manifestAttachment: PortableExportManifest.Attachment) -> Bool {
+        guard manifestAttachment.sha256 != nil || manifestAttachment.byteCount != nil else { return true }
+        guard let metadata = try? fileIntegrityMetadata(for: url) else { return false }
+        if let byteCount = manifestAttachment.byteCount, metadata.byteCount != byteCount {
+            return false
+        }
+        if let sha256 = manifestAttachment.sha256, metadata.sha256 != sha256 {
+            return false
+        }
+        return true
+    }
+
+    private static func fileIntegrityMetadata(for url: URL) throws -> (sha256: String, byteCount: Int) {
+        let data = try Data(contentsOf: url)
+        let digest = SHA256.hash(data: data)
+        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        return (hex, data.count)
+    }
+}
+
+enum PortableExportError: LocalizedError, Equatable {
+    case destinationAlreadyExists
+    case invalidArchive
+    case unsupportedArchiveVersion(Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .destinationAlreadyExists:
+            return "Choose a new export name. A file or folder already exists at that location."
+        case .invalidArchive:
+            return "This does not look like a valid Hot Cross Buns portable archive."
+        case .unsupportedArchiveVersion(let version):
+            return "This portable archive uses format version \(version), which this build cannot import."
+        }
+    }
+}
+
+private extension JSONEncoder {
+    static var portableExport: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return encoder
+    }
+}
+
+private extension JSONDecoder {
+    static var portableExport: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
     }
 }
