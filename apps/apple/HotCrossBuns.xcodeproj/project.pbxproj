@@ -89,6 +89,7 @@
 		5830CFCD82341AAC6053C5D4 /* HistoryWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2E722E12E1EF9A6B8C14338 /* HistoryWindow.swift */; };
 		5BBDE6D66EBF10AFEFFA71F9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B80F522C53466505A421ECE /* AppDelegate.swift */; };
 		5C9E280691B2F3198FF32835 /* SmartListFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18883C2377F57F108328C03 /* SmartListFilter.swift */; };
+		5F3A7AC605BABA4F8AA15034 /* DisconnectImpactSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2D8817EA22134F837C416DC /* DisconnectImpactSummary.swift */; };
 		61E276C2555F3F36F976E697 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CDBE097FFF4A48F2BCDE315 /* DiagnosticsView.swift */; };
 		63F95290D2E706E05C1A9029 /* LocationFullView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADEF77C927632A04783BF515 /* LocationFullView.swift */; };
 		64E4A1BA0CF04097F8D1C9CB /* GoToDateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9EE90AE73008CDCBB548450 /* GoToDateSheet.swift */; };
@@ -490,6 +491,7 @@
 		F18883C2377F57F108328C03 /* SmartListFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartListFilter.swift; sourceTree = "<group>"; };
 		F208F2F11C1BCF5C5B9317FA /* ColorTagResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorTagResolver.swift; sourceTree = "<group>"; };
 		F2263C896865029DCEC3A53B /* CalendarHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarHomeView.swift; sourceTree = "<group>"; };
+		F2D8817EA22134F837C416DC /* DisconnectImpactSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisconnectImpactSummary.swift; sourceTree = "<group>"; };
 		F2DAF9EC4D904A84E8BC06FC /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		F2EDEC1CEE956716394335F3 /* DraggedTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DraggedTask.swift; sourceTree = "<group>"; };
 		F3454272854A0928C306945E /* CustomGoogleOAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomGoogleOAuthService.swift; sourceTree = "<group>"; };
@@ -1132,6 +1134,7 @@
 				0F4517375C8E849B9FBA844C /* CustomFiltersSection.swift */,
 				C625B41CA6E31576972086A7 /* DataControlSection.swift */,
 				5CDBE097FFF4A48F2BCDE315 /* DiagnosticsView.swift */,
+				F2D8817EA22134F837C416DC /* DisconnectImpactSummary.swift */,
 				923D7E147E63ED13484B24AA /* EncryptionSection.swift */,
 				C278E1866E172AB8336C2125 /* GlobalHotkeySection.swift */,
 				80A153811A78936A8F31094F /* GoogleOAuthClientSetupView.swift */,
@@ -1335,6 +1338,7 @@
 				7092CA5C7D2C3A052185B566 /* DesignTokens.swift in Sources */,
 				718D9F745F2817A8139B00C0 /* DiagnosticBundle.swift in Sources */,
 				61E276C2555F3F36F976E697 /* DiagnosticsView.swift in Sources */,
+				5F3A7AC605BABA4F8AA15034 /* DisconnectImpactSummary.swift in Sources */,
 				AC3FE199F79468DAA1B9D9EF /* DockBadgeController.swift in Sources */,
 				23DEF8936535B7AAA96AB9D9 /* DraggedTask.swift in Sources */,
 				538765B3D8C24FF163A7FB79 /* DuplicateIndex.swift in Sources */,
@@ -1608,7 +1612,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COMPILATION_CACHE_ENABLE_CACHING = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = Q2J4QWZLR7;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1624,7 +1628,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.2.0;
+				MARKETING_VERSION = 0.2.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1725,7 +1729,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COMPILATION_CACHE_ENABLE_CACHING = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = Q2J4QWZLR7;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1747,7 +1751,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.2.0;
+				MARKETING_VERSION = 0.2.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
