@@ -205,6 +205,18 @@ struct DataControlSection: View {
 
     private func importConfirmationMessage(for preview: PortableImportPreview) -> String {
         var message = "This will replace local cached Hot Cross Buns data with \(preview.taskCount) task\(preview.taskCount == 1 ? "" : "s"), \(preview.eventCount) event\(preview.eventCount == 1 ? "" : "s"), \(preview.calendarCount) calendar\(preview.calendarCount == 1 ? "" : "s"), and \(preview.taskListCount) task list\(preview.taskListCount == 1 ? "" : "s")."
+        if let diff = preview.diff {
+            message.append(" Dry run: \(diffLine("tasks", diff.tasks)); \(diffLine("events", diff.events)); \(diffLine("calendars", diff.calendars)); \(diffLine("task lists", diff.taskLists)).")
+            if diff.settingsWillChange {
+                message.append(" Settings will be replaced, with this Mac's encryption toggles preserved.")
+            }
+            if diff.pendingMutationCount > 0 {
+                message.append(" The archive contains \(diff.pendingMutationCount) queued mutation\(diff.pendingMutationCount == 1 ? "" : "s").")
+            }
+            if diff.hasChanges == false {
+                message.append(" No task, event, calendar, task-list, settings, or queued-mutation differences were detected.")
+            }
+        }
         message.append(" \(preview.bundledAttachmentCount) bundled attachment\(preview.bundledAttachmentCount == 1 ? "" : "s") will be copied into this Mac's attachment folder and relinked.")
         if preview.missingBundledAttachmentCount > 0 {
             message.append(" \(preview.missingBundledAttachmentCount) bundled attachment\(preview.missingBundledAttachmentCount == 1 ? " is" : "s are") missing from the archive.")
@@ -216,6 +228,10 @@ struct DataControlSection: View {
             message.append(" \(preview.skippedPointerCount) pointer\(preview.skippedPointerCount == 1 ? "" : "s") were already skipped during export because the original file was missing, unreadable, or corrupted.")
         }
         return message
+    }
+
+    private func diffLine(_ label: String, _ diff: PortableImportResourceDiff) -> String {
+        "\(label) +\(diff.added) -\(diff.removed) changed \(diff.changed)"
     }
 
     private static func dateStamp() -> String {

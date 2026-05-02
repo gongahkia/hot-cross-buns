@@ -153,6 +153,35 @@ struct PortableImportPreview: Equatable, Sendable {
     var missingBundledAttachmentCount: Int
     var corruptBundledAttachmentCount: Int
     var skippedPointerCount: Int
+    var diff: PortableImportDiff?
+}
+
+struct PortableImportDiff: Equatable, Sendable {
+    var tasks: PortableImportResourceDiff
+    var events: PortableImportResourceDiff
+    var calendars: PortableImportResourceDiff
+    var taskLists: PortableImportResourceDiff
+    var settingsWillChange: Bool
+    var pendingMutationCount: Int
+
+    var hasChanges: Bool {
+        tasks.hasChanges
+            || events.hasChanges
+            || calendars.hasChanges
+            || taskLists.hasChanges
+            || settingsWillChange
+            || pendingMutationCount > 0
+    }
+}
+
+struct PortableImportResourceDiff: Equatable, Sendable {
+    var added: Int
+    var removed: Int
+    var changed: Int
+
+    var hasChanges: Bool {
+        added > 0 || removed > 0 || changed > 0
+    }
 }
 
 struct PortableImportSummary: Equatable, Sendable {
@@ -266,7 +295,7 @@ enum PortableExportArchive {
         )
     }
 
-    static func previewImport(from archiveURL: URL) throws -> PortableImportPreview {
+    static func previewImport(from archiveURL: URL, comparingTo currentState: CachedAppState? = nil) throws -> PortableImportPreview {
         let manifest = try readManifest(from: archiveURL)
         let state = try readState(from: archiveURL, manifest: manifest)
         let uniqueBundledAttachments = uniqueBundledAttachmentCount(in: manifest, archiveURL: archiveURL)
@@ -279,7 +308,8 @@ enum PortableExportArchive {
             bundledAttachmentCount: uniqueBundledAttachments.total,
             missingBundledAttachmentCount: uniqueBundledAttachments.missing,
             corruptBundledAttachmentCount: uniqueBundledAttachments.corrupt,
-            skippedPointerCount: manifest.skippedPointers.count
+            skippedPointerCount: manifest.skippedPointers.count,
+            diff: currentState.map { diff(from: $0, to: state) }
         )
     }
 
@@ -338,6 +368,34 @@ enum PortableExportArchive {
         let taskAttachments = state.tasks.flatMap { LocalFileAttachment.parseAll(in: $0.notes) }
         let eventAttachments = state.events.flatMap { LocalFileAttachment.parseAll(in: $0.details) }
         return taskAttachments + eventAttachments
+    }
+
+    private static func diff(from current: CachedAppState, to incoming: CachedAppState) -> PortableImportDiff {
+        PortableImportDiff(
+            tasks: resourceDiff(current: current.tasks, incoming: incoming.tasks, id: \.id),
+            events: resourceDiff(current: current.events, incoming: incoming.events, id: \.id),
+            calendars: resourceDiff(current: current.calendars, incoming: incoming.calendars, id: \.id),
+            taskLists: resourceDiff(current: current.taskLists, incoming: incoming.taskLists, id: \.id),
+            settingsWillChange: current.settings != incoming.settings,
+            pendingMutationCount: incoming.pendingMutations.count
+        )
+    }
+
+    private static func resourceDiff<Value: Equatable>(
+        current: [Value],
+        incoming: [Value],
+        id: (Value) -> String
+    ) -> PortableImportResourceDiff {
+        let currentByID = Dictionary(current.map { (id($0), $0) }, uniquingKeysWith: { _, latest in latest })
+        let incomingByID = Dictionary(incoming.map { (id($0), $0) }, uniquingKeysWith: { _, latest in latest })
+        let currentIDs = Set(currentByID.keys)
+        let incomingIDs = Set(incomingByID.keys)
+        let sharedIDs = currentIDs.intersection(incomingIDs)
+        return PortableImportResourceDiff(
+            added: incomingIDs.subtracting(currentIDs).count,
+            removed: currentIDs.subtracting(incomingIDs).count,
+            changed: sharedIDs.filter { currentByID[$0] != incomingByID[$0] }.count
+        )
     }
 
     private static func rewriteLocalPointers(in state: inout CachedAppState, replacements: [String: URL]) {
