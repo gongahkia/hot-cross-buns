@@ -170,6 +170,7 @@ struct MacSidebarShell: View {
     // typing forever.
     @State private var chordKeys: [String]?
     @State private var chordTimeoutTask: Task<Void, Never>?
+    @State private var isMainWindowFocused = true
 
     private var shellCore: some View {
         NavigationSplitView(columnVisibility: $sidebarVisibility) {
@@ -347,6 +348,7 @@ struct MacSidebarShell: View {
             .modifier(UpdatePromptWindowObserver(sequence: updater.updatePromptSequence, openWindow: openWindow))
             .modifier(InstallGuideWindowObserver(sequence: updater.installGuideSequence, openWindow: openWindow))
             .modifier(ShellZoomObservers(zoomIn: performZoomIn, zoomOut: performZoomOut, zoomReset: performZoomReset))
+            .modifier(MainWindowFocusObserver(isFocused: $isMainWindowFocused))
             .task { await performInitialLoad() }
             .task { await updater.performAutomaticCheckIfNeeded() }
             .onChange(of: model.settings.hasCompletedOnboarding) { _, hasCompleted in
@@ -569,6 +571,7 @@ struct MacSidebarShell: View {
         [
             model.settings.syncMode.rawValue,
             scenePhase == .active ? "active" : "inactive",
+            isMainWindowFocused ? "focused" : "unfocused",
             model.account?.id ?? "signed-out"
         ].joined(separator: ":")
     }
@@ -1094,24 +1097,13 @@ struct MacSidebarShell: View {
                 // re-enter once reachability recovers.
                 return
             }
-            // Back off the near-realtime cadence when the user's environment
-            // signals we shouldn't be aggressive: constrained network
-            // (cellular / expensive / captive portal) and low-power mode
-            // both benefit from a slower poll. Still never slower than the
-            // policy's maxDelay; still faster than the app is in balanced
-            // sync mode.
-            let baseDelay: Duration = attempt == 0 ? policy.baseDelay : policy.delay(forAttempt: attempt)
-            let delay: Duration = {
-                let isConstrained = networkMonitor.reachability == .constrained
-                let isLowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
-                if isConstrained || isLowPower {
-                    // 4× slowdown caps out at policy.maxDelay so we never
-                    // go below the configured ceiling.
-                    let slowed = baseDelay * 4
-                    return min(slowed, policy.maxDelay)
-                }
-                return baseDelay
-            }()
+            let delay = NearRealtimePollingCadence.delay(
+                policy: policy,
+                attempt: attempt,
+                isNetworkConstrained: networkMonitor.reachability == .constrained,
+                isLowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
+                isMainWindowFocused: isMainWindowFocused
+            )
             do {
                 try await Task.sleep(for: delay)
             } catch {
@@ -1277,6 +1269,124 @@ private struct ShellZoomObservers: ViewModifier {
             .onReceive(NotificationCenter.default.publisher(for: .hcbZoomIn)) { _ in zoomIn() }
             .onReceive(NotificationCenter.default.publisher(for: .hcbZoomOut)) { _ in zoomOut() }
             .onReceive(NotificationCenter.default.publisher(for: .hcbZoomReset)) { _ in zoomReset() }
+    }
+}
+
+private struct MainWindowFocusObserver: ViewModifier {
+    @Binding var isFocused: Bool
+
+    func body(content: Content) -> some View {
+        content.background {
+            MainWindowFocusAccessor(isFocused: $isFocused)
+                .frame(width: 0, height: 0)
+        }
+    }
+}
+
+private struct MainWindowFocusAccessor: NSViewRepresentable {
+    @Binding var isFocused: Bool
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        context.coordinator.update(isFocused: $isFocused)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.update(isFocused: $isFocused)
+        DispatchQueue.main.async {
+            context.coordinator.attach(to: nsView.window)
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(isFocused: $isFocused)
+    }
+
+    final class Coordinator {
+        private var isFocused: Binding<Bool>
+        private weak var window: NSWindow?
+        private var observers: [NSObjectProtocol] = []
+
+        init(isFocused: Binding<Bool>) {
+            self.isFocused = isFocused
+        }
+
+        deinit {
+            removeObservers()
+        }
+
+        func update(isFocused: Binding<Bool>) {
+            self.isFocused = isFocused
+            refreshFocus()
+        }
+
+        func attach(to nextWindow: NSWindow?) {
+            guard let nextWindow else { return }
+            guard window !== nextWindow else {
+                refreshFocus()
+                return
+            }
+
+            removeObservers()
+            window = nextWindow
+
+            let center = NotificationCenter.default
+            observers = [
+                center.addObserver(
+                    forName: NSWindow.didBecomeKeyNotification,
+                    object: nextWindow,
+                    queue: .main
+                ) { [weak self] _ in
+                    self?.refreshFocus()
+                },
+                center.addObserver(
+                    forName: NSWindow.didResignKeyNotification,
+                    object: nextWindow,
+                    queue: .main
+                ) { [weak self] _ in
+                    self?.refreshFocus()
+                },
+                center.addObserver(
+                    forName: NSWindow.willCloseNotification,
+                    object: nextWindow,
+                    queue: .main
+                ) { [weak self] _ in
+                    self?.setFocus(false)
+                },
+                center.addObserver(
+                    forName: NSApplication.didBecomeActiveNotification,
+                    object: NSApp,
+                    queue: .main
+                ) { [weak self] _ in
+                    self?.refreshFocus()
+                },
+                center.addObserver(
+                    forName: NSApplication.didResignActiveNotification,
+                    object: NSApp,
+                    queue: .main
+                ) { [weak self] _ in
+                    self?.setFocus(false)
+                }
+            ]
+            refreshFocus()
+        }
+
+        private func refreshFocus() {
+            setFocus(NSApp.isActive && window?.isKeyWindow == true)
+        }
+
+        private func setFocus(_ value: Bool) {
+            guard isFocused.wrappedValue != value else { return }
+            isFocused.wrappedValue = value
+        }
+
+        private func removeObservers() {
+            for observer in observers {
+                NotificationCenter.default.removeObserver(observer)
+            }
+            observers.removeAll()
+        }
     }
 }
 

@@ -4,6 +4,7 @@ struct DayGridView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @Binding var anchorDate: Date
     var searchQuery: String = ""
 
@@ -11,6 +12,9 @@ struct DayGridView: View {
     private let hourStart = 0
     private let hourEnd = 24
     private let calendar = Calendar.current
+    private var calendarGridReduceMotion: Bool {
+        reduceMotion || scenePhase != .active || ProcessInfo.processInfo.isLowPowerModeEnabled
+    }
 
     @State private var timedDrag: TimedDrag?
     // Click-to-create feedback. Flashes a brief tint at the tapped hour
@@ -26,6 +30,7 @@ struct DayGridView: View {
         eventsColumn
             .frame(maxWidth: .infinity)
         .hcbScaledPadding(12)
+        .hcbDebugBodyProbe("DayGridView")
     }
 
     private var dayStart: Date { calendar.startOfDay(for: anchorDate) }
@@ -167,7 +172,7 @@ struct DayGridView: View {
                                     .transition(.opacity)
                             }
                         }
-                        .animation(HCBMotion.animation(.easeOut(duration: 0.18), reduceMotion: reduceMotion), value: flashTimedSlot)
+                        .animation(HCBMotion.animation(.easeOut(duration: 0.18), reduceMotion: calendarGridReduceMotion), value: flashTimedSlot)
                     GeometryReader { geo in
                         let laidOutEvents = CalendarGridLayout.layout(eventsInDay: timedEvents, calendar: calendar)
                         ForEach(Array(laidOutEvents.enumerated()), id: \.offset) { _, placed in

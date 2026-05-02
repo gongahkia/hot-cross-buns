@@ -6,6 +6,7 @@ struct WeekGridView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @Binding var anchorDate: Date
     var searchQuery: String = ""
     @Binding var selectedEventIDs: Set<String>
@@ -35,6 +36,9 @@ struct WeekGridView: View {
     private let taskRowHeight: CGFloat = 24
     private let taskRowSpacing: CGFloat = 2
     private let calendar = Calendar.current
+    private var calendarGridReduceMotion: Bool {
+        reduceMotion || scenePhase != .active || ProcessInfo.processInfo.isLowPowerModeEnabled
+    }
 
     @State private var allDayDrag: WeekDaySelection?
     @State private var timedDrag: TimedWeekDrag?
@@ -82,6 +86,7 @@ struct WeekGridView: View {
         }
         .onAppear { rebuildWeekCacheIfNeeded() }
         .onChange(of: currentWeekCacheKey) { _, _ in rebuildWeekCacheIfNeeded() }
+        .hcbDebugBodyProbe("WeekGridView")
     }
 
     // Fingerprints the inputs that make cachedTimedByDay valid. Cheap to
@@ -750,7 +755,7 @@ struct WeekGridView: View {
         }
         .frame(width: width)
         .offset(x: xOffset)
-        .animation(HCBMotion.animation(.easeOut(duration: 0.18), reduceMotion: reduceMotion), value: flashTimedSlot)
+        .animation(HCBMotion.animation(.easeOut(duration: 0.18), reduceMotion: calendarGridReduceMotion), value: flashTimedSlot)
     }
 
     // Tap-only hit-test layer for each day column. Multi-day drag is now

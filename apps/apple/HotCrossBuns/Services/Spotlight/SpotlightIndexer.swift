@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 protocol SpotlightIndexing {
     func deleteSearchableItems(withDomainIdentifiers domainIdentifiers: [String]) async throws
+    func deleteSearchableItems(withIdentifiers identifiers: [String]) async throws
     func indexSearchableItems(_ items: [CSSearchableItem]) async throws
 }
 
@@ -16,22 +17,53 @@ actor SpotlightIndexer {
     static let eventURLScheme = "hotcrossbuns://event/"
 
     private let index: SpotlightIndexing
+    private var didPrimeDomains = false
+    private var taskFingerprints: [String: Int] = [:]
+    private var eventFingerprints: [String: Int] = [:]
 
     init(index: SpotlightIndexing = CSSearchableIndex.default()) {
         self.index = index
     }
 
     func update(tasks: [TaskMirror], events: [CalendarEventMirror]) async {
-        let taskItems = tasks
+        let activeTasks = tasks
             .filter { $0.isDeleted == false }
-            .map(taskItem)
-        let eventItems = events
+        let activeEvents = events
             .filter { $0.status != .cancelled }
-            .map(eventItem)
+        let nextTaskFingerprints = Dictionary(uniqueKeysWithValues: activeTasks.map { ($0.id, Self.taskFingerprint($0)) })
+        let nextEventFingerprints = Dictionary(uniqueKeysWithValues: activeEvents.map { ($0.id, Self.eventFingerprint($0)) })
 
         do {
-            try await replace(items: taskItems, in: Self.taskDomain)
-            try await replace(items: eventItems, in: Self.eventDomain)
+            if didPrimeDomains == false {
+                try await replace(items: activeTasks.map(taskItem), in: Self.taskDomain)
+                try await replace(items: activeEvents.map(eventItem), in: Self.eventDomain)
+                didPrimeDomains = true
+                taskFingerprints = nextTaskFingerprints
+                eventFingerprints = nextEventFingerprints
+                return
+            }
+
+            try await deleteRemovedItems(
+                previous: taskFingerprints,
+                next: nextTaskFingerprints,
+                urlPrefix: Self.taskURLScheme
+            )
+            try await deleteRemovedItems(
+                previous: eventFingerprints,
+                next: nextEventFingerprints,
+                urlPrefix: Self.eventURLScheme
+            )
+
+            let changedTasks = activeTasks.filter { taskFingerprints[$0.id] != nextTaskFingerprints[$0.id] }
+            let changedEvents = activeEvents.filter { eventFingerprints[$0.id] != nextEventFingerprints[$0.id] }
+            if changedTasks.isEmpty == false {
+                try await index.indexSearchableItems(changedTasks.map(taskItem))
+            }
+            if changedEvents.isEmpty == false {
+                try await index.indexSearchableItems(changedEvents.map(eventItem))
+            }
+            taskFingerprints = nextTaskFingerprints
+            eventFingerprints = nextEventFingerprints
         } catch {
             // Spotlight is best-effort; ignore indexing failures rather than surface to the user.
         }
@@ -40,6 +72,9 @@ actor SpotlightIndexer {
     func removeAll() async {
         do {
             try await index.deleteSearchableItems(withDomainIdentifiers: [Self.taskDomain, Self.eventDomain])
+            didPrimeDomains = false
+            taskFingerprints = [:]
+            eventFingerprints = [:]
         } catch {
             // best effort
         }
@@ -49,6 +84,43 @@ actor SpotlightIndexer {
         try await index.deleteSearchableItems(withDomainIdentifiers: [domain])
         guard items.isEmpty == false else { return }
         try await index.indexSearchableItems(items)
+    }
+
+    private func deleteRemovedItems(previous: [String: Int], next: [String: Int], urlPrefix: String) async throws {
+        let removed = previous.keys.filter { next[$0] == nil }.map { urlPrefix + $0 }
+        guard removed.isEmpty == false else { return }
+        try await index.deleteSearchableItems(withIdentifiers: removed)
+    }
+
+    nonisolated private static func taskFingerprint(_ task: TaskMirror) -> Int {
+        var hasher = Hasher()
+        hasher.combine(task.id)
+        hasher.combine(task.title)
+        hasher.combine(task.notes)
+        hasher.combine(task.status)
+        hasher.combine(task.dueDate)
+        hasher.combine(task.completedAt)
+        hasher.combine(task.isHidden)
+        hasher.combine(task.etag)
+        hasher.combine(task.updatedAt)
+        return hasher.finalize()
+    }
+
+    nonisolated private static func eventFingerprint(_ event: CalendarEventMirror) -> Int {
+        var hasher = Hasher()
+        hasher.combine(event.id)
+        hasher.combine(event.summary)
+        hasher.combine(event.details)
+        hasher.combine(event.startDate)
+        hasher.combine(event.endDate)
+        hasher.combine(event.isAllDay)
+        hasher.combine(event.status)
+        hasher.combine(event.etag)
+        hasher.combine(event.updatedAt)
+        hasher.combine(event.location)
+        hasher.combine(event.attendeeEmails)
+        hasher.combine(event.meetLink)
+        return hasher.finalize()
     }
 
     nonisolated private func taskItem(_ task: TaskMirror) -> CSSearchableItem {

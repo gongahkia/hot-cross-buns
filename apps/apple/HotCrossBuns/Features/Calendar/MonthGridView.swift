@@ -22,12 +22,16 @@ struct MonthGridView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage(CalendarMonthScrollWindow.pastMonthsKey) private var configuredPastMonths = CalendarMonthScrollWindow.defaultPastMonths
     @AppStorage(CalendarMonthScrollWindow.futureMonthsKey) private var configuredFutureMonths = CalendarMonthScrollWindow.defaultFutureMonths
     @Binding var anchorDate: Date
     var searchQuery: String = ""
 
     private let calendar = Calendar.current
+    private var calendarGridReduceMotion: Bool {
+        reduceMotion || scenePhase != .active || ProcessInfo.processInfo.isLowPowerModeEnabled
+    }
     private let weekdaySymbols: [String] = {
         var cal = Calendar.current
         cal.locale = Locale.current
@@ -111,6 +115,7 @@ struct MonthGridView: View {
             Divider()
             continuousGrid
         }
+        .hcbDebugBodyProbe("MonthGridView")
     }
 
     // Replaces the paged month grid. A LazyVStack of week rows inside a
@@ -412,7 +417,7 @@ struct MonthGridView: View {
         let target = firstVisibleWeekOfMonth(containing: anchorDate)
         guard weekStarts.contains(target) else { return }
         if animated {
-            HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeInOut(duration: 0.24)) {
+            HCBMotion.perform(reduceMotion: calendarGridReduceMotion, animation: .easeInOut(duration: 0.24)) {
                 proxy.scrollTo(target, anchor: .top)
             }
         } else {
@@ -441,7 +446,7 @@ struct MonthGridView: View {
         Task { @MainActor in
             await Task.yield()
             if animated {
-                HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeInOut(duration: 0.24)) {
+                HCBMotion.perform(reduceMotion: calendarGridReduceMotion, animation: .easeInOut(duration: 0.24)) {
                     proxy.scrollTo(target, anchor: anchor)
                 }
             } else {
@@ -912,7 +917,7 @@ struct MonthGridView: View {
         .overlay(
             Rectangle()
                 .fill(AppColor.ember.opacity(flashDay == dayStart ? 0.22 : 0))
-                .animation(HCBMotion.animation(.easeOut(duration: 0.18), reduceMotion: reduceMotion), value: flashDay)
+                .animation(HCBMotion.animation(.easeOut(duration: 0.18), reduceMotion: calendarGridReduceMotion), value: flashDay)
         )
         .overlay(
             Rectangle()
