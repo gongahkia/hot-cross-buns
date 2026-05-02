@@ -466,39 +466,14 @@ struct AccountStatusView: View {
     }
 
     private var disconnectConfirmationMessage: String {
-        let pendingCount = model.pendingMutations.count
-        let pendingNoun = pendingCount == 1 ? "queued local write" : "queued local writes"
-        var lines = [
-            "This signs out \(account?.displayName ?? "this Google account") on this Mac and stops syncing until you connect again.",
-            "Google Tasks and Calendar data in your Google account will not be deleted.",
-            "Local cache on disk: \(cacheFootprint).",
-            "Pending sync work: \(pendingCount) \(pendingNoun)."
-        ]
-
-        let flagged = disconnectFlaggedMutationSummary
-        if flagged.isEmpty == false {
-            lines.append("Needs attention: \(flagged).")
-        }
-
-        if pendingCount > 0 {
-            lines.append("Queued writes remain local, but they cannot reach Google while disconnected.")
-        }
-
-        return lines.joined(separator: "\n\n")
-    }
-
-    private var disconnectFlaggedMutationSummary: String {
-        var parts: [String] = []
-        if model.conflictedMutationCount > 0 {
-            parts.append("\(model.conflictedMutationCount) conflict\(model.conflictedMutationCount == 1 ? "" : "s")")
-        }
-        if model.quarantinedMutationCount > 0 {
-            parts.append("\(model.quarantinedMutationCount) quarantined")
-        }
-        if model.invalidPayloadMutationCount > 0 {
-            parts.append("\(model.invalidPayloadMutationCount) invalid")
-        }
-        return parts.joined(separator: ", ")
+        DisconnectImpactSummary(
+            accountName: account?.displayName ?? "this Google account",
+            cacheFootprint: cacheFootprint,
+            pendingMutationCount: model.pendingMutations.count,
+            conflictedMutationCount: model.conflictedMutationCount,
+            quarantinedMutationCount: model.quarantinedMutationCount,
+            invalidPayloadMutationCount: model.invalidPayloadMutationCount
+        ).confirmationMessage
     }
 
     private func scopeSummary(for account: GoogleAccount) -> String {
