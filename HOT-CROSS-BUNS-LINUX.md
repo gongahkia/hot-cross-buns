@@ -146,6 +146,10 @@ All `Codable` Swift structs become `#[derive(Serialize, Deserialize)]` Rust stru
 | Inline edit, bulk ops | Same affordances; bulk via multi-selection on `ListView`. |
 | Search (`FuzzySearcher`) | Port `FuzzySearcher` to Rust (it's a small algorithm); used by command palette + Store search. |
 | Custom filters | Port the rule struct + matcher; persist in cache. |
+| Natural language task parsing | Port `NaturalLanguageTaskParser` to Rust; parses free-text like "call mom tomorrow 3pm" into a structured task + due date. Used by the quick-add input row and command palette. |
+| Query DSL | Port the query rule struct + evaluator to Rust; drives SmartList predicates and advanced search. Persist saved queries in cache. |
+| Tag extraction | Port `TagExtractor`; strips `#tag` tokens from task titles and surfaces them as a filterable dimension in Store search and SmartList. |
+| SmartList | `adw::NavigationSplitView` sidebar entry per saved list; renders a filtered `gtk::ColumnView` driven by a stored Query DSL predicate. CRUD for saved lists in `$XDG_DATA_HOME/hot-cross-buns/cache.json` (same field as macOS). |
 
 ### 3.8 Calendar UI
 
@@ -254,7 +258,7 @@ Same surface as macOS Settings window. Implementation: `adw::PreferencesWindow` 
 
 ### 3.22 Tests
 
-Mirror the macOS test list (~20 suites). Use `cargo test`. For HTTP, fixtures captured from the macOS `GoogleAPITransport` integration tests should be the wire-format source of truth. For UI, `gtk4-rs` ships with a test harness; smoke-test critical widgets only.
+Mirror the macOS test list (~55 suites). Use `cargo test`. For HTTP, fixtures captured from the macOS `GoogleAPITransport` integration tests should be the wire-format source of truth. For UI, `gtk4-rs` ships with a test harness; smoke-test critical widgets only.
 
 ### 3.23 Build & release
 
@@ -272,6 +276,48 @@ Mirror the macOS test list (~20 suites). Use `cargo test`. For HTTP, fixtures ca
 | --- | --- |
 | `Info.plist`, `*.entitlements`, hardened runtime, sandbox | **Flatpak manifest** (`com.gongahkia.HotCrossBuns.json`) is the analogue. Permissions: `--share=network`, `--socket=fallback-x11`, `--socket=wayland`, `--talk-name=org.freedesktop.secrets`, `--talk-name=org.freedesktop.Notifications`, `--talk-name=org.kde.StatusNotifierWatcher`, `--filesystem=xdg-data/hot-cross-buns`, `--filesystem=xdg-config/hot-cross-buns`, `--device=dri` (for WebKit GPU). |
 | `GoogleOAuth.xcconfig` | `config.toml` checked into `apps/linux/Configuration/` with the same shape (client ID + reversed client ID + maps key). Local override file gitignored. |
+
+### 3.25 ICS import/export
+
+| macOS | Linux |
+| --- | --- |
+| `ICSImporter` / `ICSExporter` in `Services/ICS/`, triggered from `Features/Convert/` | Port to Rust using the `icalendar` crate. Expose as a menu action and D-Bus methods `ImportICS(path: String)` / `ExportICS(path: String)`. |
+| File picker via `NSOpenPanel` / `NSSavePanel` | `gtk::FileDialog` (GTK4 async file chooser). Default export path: `$XDG_DOWNLOAD_DIR`. |
+| Round-trip fidelity for recurrence, timezones, attendees | Same contract; `ICSImporterTests.swift` fixtures should be ported verbatim as Rust integration tests to verify cross-platform ICS compatibility. |
+
+### 3.26 Portable export / import
+
+| macOS | Linux |
+| --- | --- |
+| `Features/Export/` — exports full app state (tasks + events + notes + settings) to a versioned ZIP | Port `Exporter` to Rust using the `zip` crate. File picker via `gtk::FileDialog`; default to `$XDG_DOWNLOAD_DIR`. |
+| Pre-import dry-run diff showing what would change | Port the diff surface; render in an `adw::MessageDialog` with a scrollable `gtk::TextView`. |
+| Back up current data before import replacement | Same: write a dated snapshot to the rotating-snapshot pool before applying any import. |
+| Partial filters (import only tasks, only events, etc.) | Port the filter struct; present as `adw::CheckRow` items in a pre-import sheet. |
+
+`ExporterTests.swift` fixtures define the versioned ZIP schema and serve as the cross-platform format contract.
+
+### 3.27 Review
+
+| macOS | Linux |
+| --- | --- |
+| `Features/Review/` — reflection surface built by `ReviewBuilder` over completed tasks + events in a configurable time window | Port `ReviewBuilder` to Rust (pure function over cache data; no I/O). Render output in an `adw::NavigationPage` with a `gtk::ScrolledWindow` containing styled `gtk::Label` blocks or a read-only `sourceview5` buffer. |
+| Triggered from app menu or keyboard shortcut | Same: menu item + command palette entry + `.desktop` `Actions=` line. |
+| `ReviewBuilderTests.swift` covers output shape | Port fixtures to Rust; keep as a contract test. |
+
+### 3.28 Forecast
+
+| macOS | Linux |
+| --- | --- |
+| `Features/Forecast/` — forward-looking summary built by `ForecastBuilder` from upcoming tasks + events | Port `ForecastBuilder` to Rust (same pure-function shape as `ReviewBuilder`). Render in a dedicated `adw::NavigationPage`. |
+| Appears as a glanceable surface alongside Tasks and Calendar | Add as a fourth page in the main `adw::ViewSwitcher`. |
+| `ForecastBuilderTests.swift` covers output shape | Port fixtures to Rust; keep as a contract test. |
+
+### 3.29 Duplicates detection and merging
+
+| macOS | Linux |
+| --- | --- |
+| `Features/Duplicates/` + `Services/Duplicates/` — detects near-duplicate tasks/events; surfaces a review window for merge/dismiss | Port the duplicate-detection heuristic to Rust (candidate for `hcb-sync` or a dedicated `hcb-dedup` crate). Render the review list in an `adw::Dialog` with side-by-side `adw::ActionRow` pairs and merge / dismiss actions per pair. |
+| Runs as a background pass after each full sync | Same: spawn as a Tokio task post-sync; deliver results to the UI via `glib::MainContext::spawn_local`. |
 
 ---
 
