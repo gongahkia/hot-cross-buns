@@ -283,7 +283,7 @@ struct DayGridView: View {
         if let hex = CalendarEventColor.from(colorId: event.colorId).hex {
             return Color(hex: hex)
         }
-        guard let cal = model.calendars.first(where: { $0.id == event.calendarID }) else { return AppColor.blue }
-        return Color(hex: cal.colorHex)
+        guard let hex = model.calendarSnapshot.calendarColorHexByID[event.calendarID] else { return AppColor.blue }
+        return Color(hex: hex)
     }
 }
