@@ -2742,6 +2742,54 @@ final class AppModel {
         scheduleCacheSave()
     }
 
+    func setAppBackgroundTranslucencyEnabled(_ isEnabled: Bool) {
+        guard settings.appBackgroundTranslucencyEnabled != isEnabled else { return }
+        settings.appBackgroundTranslucencyEnabled = isEnabled
+        scheduleCacheSave()
+    }
+
+    func setAppBackgroundOpacity(_ opacity: Double) {
+        let clamped = max(0.35, min(1.0, opacity))
+        guard settings.appBackgroundOpacity != clamped else { return }
+        settings.appBackgroundOpacity = clamped
+        scheduleCacheSave()
+    }
+
+    func importCustomBackground(from sourceURL: URL) throws {
+        let didStartAccessing = sourceURL.startAccessingSecurityScopedResource()
+        defer {
+            if didStartAccessing {
+                sourceURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        let directory = try Self.customBackgroundDirectory()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let sourceExtension = sourceURL.pathExtension.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fileExtension = sourceExtension.isEmpty ? "background" : sourceExtension.lowercased()
+        let destinationURL = directory.appending(path: "custom-background.\(fileExtension)")
+
+        if let currentPath = settings.customBackgroundImagePath {
+            try? FileManager.default.removeItem(at: URL(filePath: currentPath))
+        }
+        try? FileManager.default.removeItem(at: destinationURL)
+        try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+
+        settings.customBackgroundImagePath = destinationURL.path
+        settings.appBackgroundTranslucencyEnabled = true
+        settings.appBackgroundOpacity = min(settings.appBackgroundOpacity, 0.82)
+        scheduleCacheSave()
+    }
+
+    func clearCustomBackground() {
+        if let currentPath = settings.customBackgroundImagePath {
+            try? FileManager.default.removeItem(at: URL(filePath: currentPath))
+        }
+        guard settings.customBackgroundImagePath != nil else { return }
+        settings.customBackgroundImagePath = nil
+        scheduleCacheSave()
+    }
+
     func upsertCustomColorScheme(_ scheme: HCBCustomColorScheme, select: Bool = true) {
         var normalized = scheme
         normalized.title = normalized.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Custom theme" : normalized.title
@@ -4291,6 +4339,19 @@ final class AppModel {
             syncCheckpoints: syncCheckpoints,
             pendingMutations: pendingMutations
         )
+    }
+
+    private static func customBackgroundDirectory() throws -> URL {
+        guard let appSupportURL = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        let appDirectoryName = Bundle.main.bundleIdentifier ?? "HotCrossBuns"
+        return appSupportURL
+            .appending(path: appDirectoryName, directoryHint: .isDirectory)
+            .appending(path: "Backgrounds", directoryHint: .isDirectory)
     }
 
     @discardableResult

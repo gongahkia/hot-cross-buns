@@ -10,10 +10,13 @@ struct AppearanceSection: View {
     @State private var editingCustomScheme: HCBCustomColorScheme?
     @State private var exportedScheme: HCBColorSchemeDocument?
     @State private var isImportingScheme = false
+    @State private var isImportingBackground = false
+    @State private var backgroundImportError: String?
 
     var body: some View {
         Section("Appearance") {
             colourPanel
+            backgroundPanel
             layoutScaleRow
             textSizeRow
             fontRow
@@ -58,6 +61,15 @@ struct AppearanceSection: View {
                 model.upsertCustomColorScheme(scheme)
             }
         }
+        .fileImporter(isPresented: $isImportingBackground, allowedContentTypes: [.image]) { result in
+            guard case .success(let url) = result else { return }
+            do {
+                try model.importCustomBackground(from: url)
+                backgroundImportError = nil
+            } catch {
+                backgroundImportError = error.localizedDescription
+            }
+        }
         .onChange(of: effectiveThemeIsDark) { _, _ in
             coerceThemeToBaseColourScheme()
         }
@@ -72,6 +84,76 @@ struct AppearanceSection: View {
             Divider()
                 .hcbScaledPadding(.vertical, 10)
             customThemeRow
+        }
+    }
+
+    private var backgroundPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Divider()
+                .hcbScaledPadding(.vertical, 10)
+            HStack(alignment: .center, spacing: 18) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Background")
+                        .hcbFont(.body, weight: .semibold)
+                    Text("Make the window translucent or place a local image behind app surfaces.")
+                        .hcbFont(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 16)
+                Toggle("Translucent", isOn: Binding(
+                    get: { model.settings.appBackgroundTranslucencyEnabled },
+                    set: { model.setAppBackgroundTranslucencyEnabled($0) }
+                ))
+                .toggleStyle(.switch)
+            }
+
+            if model.settings.appBackgroundTranslucencyEnabled || model.settings.customBackgroundImagePath != nil {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Surface opacity")
+                        Spacer()
+                        Text("\(Int(model.settings.appBackgroundOpacity * 100))%")
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                    Slider(
+                        value: Binding(
+                            get: { model.settings.appBackgroundOpacity },
+                            set: { model.setAppBackgroundOpacity($0) }
+                        ),
+                        in: 0.35...1.0,
+                        step: 0.05
+                    )
+                }
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    isImportingBackground = true
+                } label: {
+                    Label("Choose Image", systemImage: "photo")
+                }
+
+                if model.settings.customBackgroundImagePath != nil {
+                    Button("Remove Image", role: .destructive) {
+                        model.clearCustomBackground()
+                    }
+                }
+            }
+
+            if let path = model.settings.customBackgroundImagePath {
+                Text(URL(filePath: path).lastPathComponent)
+                    .hcbFont(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            if let backgroundImportError {
+                Text(backgroundImportError)
+                    .hcbFont(.caption2)
+                    .foregroundStyle(AppColor.ember)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 

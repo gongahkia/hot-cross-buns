@@ -88,6 +88,36 @@ private struct HCBFontFamilyKey: EnvironmentKey {
     static let defaultValue: String? = nil
 }
 
+struct HCBAppBackgroundConfiguration: Equatable {
+    var isTranslucent: Bool
+    var opacity: Double
+    var customImagePath: String?
+
+    static let standard = HCBAppBackgroundConfiguration(
+        isTranslucent: false,
+        opacity: 1.0,
+        customImagePath: nil
+    )
+
+    init(isTranslucent: Bool, opacity: Double, customImagePath: String?) {
+        self.isTranslucent = isTranslucent
+        self.opacity = max(0.35, min(1.0, opacity))
+        self.customImagePath = customImagePath
+    }
+
+    init(settings: AppSettings) {
+        self.init(
+            isTranslucent: settings.appBackgroundTranslucencyEnabled,
+            opacity: settings.appBackgroundOpacity,
+            customImagePath: settings.customBackgroundImagePath
+        )
+    }
+}
+
+private struct HCBAppBackgroundConfigurationKey: EnvironmentKey {
+    static let defaultValue: HCBAppBackgroundConfiguration = .standard
+}
+
 extension EnvironmentValues {
     var hcbLayoutScale: CGFloat {
         get { self[HCBLayoutScaleKey.self] }
@@ -97,6 +127,11 @@ extension EnvironmentValues {
     var hcbFontFamily: String? {
         get { self[HCBFontFamilyKey.self] }
         set { self[HCBFontFamilyKey.self] = newValue }
+    }
+
+    var hcbAppBackgroundConfiguration: HCBAppBackgroundConfiguration {
+        get { self[HCBAppBackgroundConfigurationKey.self] }
+        set { self[HCBAppBackgroundConfigurationKey.self] = newValue }
     }
 }
 
@@ -115,12 +150,14 @@ struct HCBAppearanceModifier: ViewModifier {
     let layoutScale: CGFloat
     let textSizePoints: Double
     let fontName: String?
+    let backgroundConfiguration: HCBAppBackgroundConfiguration
 
     func body(content: Content) -> some View {
         content
             .environment(\.hcbLayoutScale, layoutScale)
             .environment(\.hcbFontFamily, fontName)
             .environment(\.hcbTextSizePoints, textSizePoints)
+            .environment(\.hcbAppBackgroundConfiguration, backgroundConfiguration)
     }
 }
 
@@ -145,7 +182,8 @@ extension View {
         modifier(HCBAppearanceModifier(
             layoutScale: CGFloat(settings.uiLayoutScale),
             textSizePoints: HCBTextSize.clamp(settings.uiTextSizePoints),
-            fontName: settings.uiFontName
+            fontName: settings.uiFontName,
+            backgroundConfiguration: HCBAppBackgroundConfiguration(settings: settings)
         ))
     }
 
