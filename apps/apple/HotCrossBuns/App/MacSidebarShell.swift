@@ -276,6 +276,13 @@ struct MacSidebarShell: View {
                 }
             }
             .loadingOverlay(model.loadingOverlay)
+            .transaction { transaction in
+                if model.loadingOverlay != nil {
+                    transaction.animation = nil
+                } else if case .syncing = model.syncState {
+                    transaction.animation = nil
+                }
+            }
             .animation(HCBMotion.animation(.easeOut(duration: 0.16), reduceMotion: reduceMotion), value: chordKeys)
             .focusedSceneValue(\.appCommandActions, appCommandActions)
             .onAppear(perform: handleShellAppear)

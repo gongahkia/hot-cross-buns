@@ -34,6 +34,11 @@ struct CalendarHomeView: View {
             .hcbSurface(.calendarGrid) // §6.11 — covers day/week/month/year/agenda subtree
         }
         .appBackground()
+        .transaction { transaction in
+            if case .syncing = model.syncState {
+                transaction.animation = nil
+            }
+        }
         .focusedSceneValue(\.calendarCommandActions, calendarCommandActions)
         // Adding a .toolbar here serves two jobs: (a) provides the + button
         // for event/task quick-create parity with the Tasks and Notes tabs,
