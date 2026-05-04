@@ -48,6 +48,28 @@ enum LogCategory: String, Sendable, CaseIterable {
     case misc
 }
 
+enum HCBPerformanceTelemetry {
+    private static let enabledValue = "1"
+
+    static var isEnabled: Bool {
+        ProcessInfo.processInfo.environment["HCB_PERF_TELEMETRY"] == enabledValue
+    }
+
+    static func timestamp() -> UInt64 {
+        DispatchTime.now().uptimeNanoseconds
+    }
+
+    static func elapsedMilliseconds(since start: UInt64) -> String {
+        let elapsed = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+        return String(format: "%.2f", elapsed)
+    }
+
+    static func debug(_ message: String, metadata: [String: String] = [:]) {
+        guard isEnabled else { return }
+        AppLogger.debug(message, category: .perf, metadata: metadata)
+    }
+}
+
 struct LogEntry: Identifiable, Hashable, Sendable {
     let timestamp: Date
     let level: LogLevel

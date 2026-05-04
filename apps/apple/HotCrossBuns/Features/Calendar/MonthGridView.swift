@@ -168,6 +168,7 @@ struct MonthGridView: View {
         var weekSnapshots: [MonthWeekSnapshot]
         var eventSearchTextByID: [CalendarEventMirror.ID: String]
         var eventSearchRevision: UInt64
+        var buildDurationMilliseconds: String
     }
 
     var body: some View {
@@ -338,6 +339,7 @@ struct MonthGridView: View {
         let key = currentGridCacheKey
         guard key != cachedGridKey else { return }
         cachedGridKey = key
+        let requestedAt = HCBPerformanceTelemetry.timestamp()
         let visibleTaskListIDs: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
             ? model.settings.selectedTaskListIDs
             : Set(model.taskLists.map(\.id))
@@ -374,10 +376,21 @@ struct MonthGridView: View {
             cachedWeekSnapshots = result.weekSnapshots
             cachedEventSearchTextByID = result.eventSearchTextByID
             cachedEventSearchRevision = result.eventSearchRevision
+            HCBPerformanceTelemetry.debug(
+                "month grid cache rebuilt",
+                metadata: [
+                    "buildMs": result.buildDurationMilliseconds,
+                    "events": "\(result.filtered.count)",
+                    "tasks": "\(result.tasksByDay.values.reduce(0) { $0 + $1.count })",
+                    "totalMs": HCBPerformanceTelemetry.elapsedMilliseconds(since: requestedAt),
+                    "weeks": "\(result.weekSnapshots.count)"
+                ]
+            )
         }
     }
 
     private nonisolated static func buildMonthGridCache(_ payload: MonthGridCachePayload) -> MonthGridCacheResult {
+        let started = HCBPerformanceTelemetry.timestamp()
         let first = payload.weekStarts.first ?? payload.anchorDate
         let last = payload.weekStarts.last.flatMap {
             payload.calendar.date(byAdding: .day, value: 6, to: $0)
@@ -414,7 +427,8 @@ struct MonthGridView: View {
             tasksByDay: tasksByDay,
             weekSnapshots: weekSnapshots,
             eventSearchTextByID: filteredResult.eventSearchTextByID,
-            eventSearchRevision: payload.dataRevision
+            eventSearchRevision: payload.dataRevision,
+            buildDurationMilliseconds: HCBPerformanceTelemetry.elapsedMilliseconds(since: started)
         )
     }
 
@@ -848,6 +862,14 @@ struct MonthGridView: View {
         if monthKey(for: midDay) != monthKey(for: anchorDate) {
             skipNextScrollSync = true
             anchorDate = midDay
+            HCBPerformanceTelemetry.debug(
+                "month scroll anchor changed",
+                metadata: [
+                    "anchor": monthKey(for: midDay),
+                    "weekIndex": "\(index)",
+                    "weeks": "\(weekStarts.count)"
+                ]
+            )
         }
     }
 
