@@ -79,6 +79,7 @@ struct MonthGridView: View {
     @State private var cachedByDay: [Date: [CalendarEventMirror]] = [:]
     @State private var cachedBandsByWeek: [Date: [CalendarGridLayout.MonthBand]] = [:]
     @State private var cachedTasksByDay: [Date: [TaskMirror]] = [:]
+    @State private var cachedWeekSnapshots: [MonthWeekSnapshot] = []
     @State private var cachedGridKey: String = ""
     // Rolling window of week-start dates rendered by the ScrollView. Rebuilt
     // by buildWindow() when the anchor lands outside the current window.
@@ -109,6 +110,24 @@ struct MonthGridView: View {
         }
     }
 
+    private struct MonthDaySnapshot: Identifiable, Equatable {
+        var day: Date
+        var dayStart: Date
+        var allEvents: [CalendarEventMirror]
+        var timedEvents: [CalendarEventMirror]
+        var tasks: [TaskMirror]
+
+        var id: Date { dayStart }
+    }
+
+    private struct MonthWeekSnapshot: Identifiable, Equatable {
+        var weekStart: Date
+        var days: [MonthDaySnapshot]
+        var bands: [CalendarGridLayout.MonthBand]
+
+        var id: Date { weekStart }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             weekdayHeader
@@ -137,15 +156,10 @@ struct MonthGridView: View {
                         previousMonthLoader(proxy: proxy)
                             .frame(height: previousMonthLoaderHeight)
 
-                        ForEach(weekStarts, id: \.self) { weekStart in
-                            weekRow(
-                                for: weekStart,
-                                bands: cachedBandsByWeek[weekStart] ?? [],
-                                byDay: cachedByDay,
-                                tasksByDay: cachedTasksByDay
-                            )
+                        ForEach(cachedWeekSnapshots) { weekSnapshot in
+                            weekRow(snapshot: weekSnapshot)
                             .frame(height: fixedRowHeight)
-                            .id(weekStart)
+                            .id(weekSnapshot.weekStart)
                         }
 
                         nextMonthLoader(proxy: proxy)
@@ -291,6 +305,11 @@ struct MonthGridView: View {
         )
         cachedBandsByWeek = buildBandsByWeek(byDay: cachedByDay)
         cachedTasksByDay = buildTasksByDay(from: first, to: last)
+        cachedWeekSnapshots = buildWeekSnapshots(
+            byDay: cachedByDay,
+            bandsByWeek: cachedBandsByWeek,
+            tasksByDay: cachedTasksByDay
+        )
     }
 
     private func buildBandsByWeek(byDay: [Date: [CalendarEventMirror]]) -> [Date: [CalendarGridLayout.MonthBand]] {
@@ -308,6 +327,31 @@ struct MonthGridView: View {
             bandsByWeek[weekStart] = CalendarGridLayout.monthBands(for: days, events: weekEvents, calendar: calendar)
         }
         return bandsByWeek
+    }
+
+    private func buildWeekSnapshots(
+        byDay: [Date: [CalendarEventMirror]],
+        bandsByWeek: [Date: [CalendarGridLayout.MonthBand]],
+        tasksByDay: [Date: [TaskMirror]]
+    ) -> [MonthWeekSnapshot] {
+        weekStarts.map { weekStart in
+            let snapshots = weekDays(startingAt: weekStart).map { day in
+                let dayStart = calendar.startOfDay(for: day)
+                let allEvents = byDay[dayStart] ?? []
+                return MonthDaySnapshot(
+                    day: day,
+                    dayStart: dayStart,
+                    allEvents: allEvents,
+                    timedEvents: allEvents.filter { CalendarGridLayout.isBandEvent($0, calendar: calendar) == false },
+                    tasks: tasksByDay[dayStart] ?? []
+                )
+            }
+            return MonthWeekSnapshot(
+                weekStart: weekStart,
+                days: snapshots,
+                bands: bandsByWeek[weekStart] ?? []
+            )
+        }
     }
 
     private func buildTasksByDay(from rangeStart: Date, to rangeEnd: Date) -> [Date: [TaskMirror]] {
@@ -561,26 +605,20 @@ struct MonthGridView: View {
         .hcbScaledPadding(.vertical, 8)
     }
 
-    private func weekRow(
-        for weekStart: Date,
-        bands: [CalendarGridLayout.MonthBand],
-        byDay: [Date: [CalendarEventMirror]],
-        tasksByDay: [Date: [TaskMirror]]
-    ) -> some View {
-        let days = weekDays(startingAt: weekStart)
-
+    private func weekRow(snapshot: MonthWeekSnapshot) -> some View {
+        let days = snapshot.days.map(\.day)
         return GeometryReader { geo in
             let cellWidth = geo.size.width / CGFloat(max(days.count, 1))
             ZStack(alignment: .topLeading) {
                 HStack(spacing: 0) {
-                    ForEach(Array(days.enumerated()), id: \.element) { col, day in
-                        let cellBandReserve = bandReserve(for: col, bands: bands)
-                        monthCell(day: day, bandReserve: cellBandReserve, byDay: byDay, tasksByDay: tasksByDay)
+                    ForEach(Array(snapshot.days.enumerated()), id: \.element.id) { col, daySnapshot in
+                        let cellBandReserve = bandReserve(for: col, bands: snapshot.bands)
+                        monthCell(snapshot: daySnapshot, bandReserve: cellBandReserve)
                             .frame(maxWidth: .infinity, minHeight: fixedRowHeight, maxHeight: fixedRowHeight, alignment: .top)
                             .clipped() // stop per-cell VStack overflow (day number + bandReserve + 2 events + 2 tasks + "+N more" can exceed fixedRowHeight) from bleeding into the next week row
                     }
                 }
-                bandOverlay(bands: bands, cellWidth: cellWidth)
+                bandOverlay(bands: snapshot.bands, cellWidth: cellWidth)
                 monthBoundaryOverlay(days: days, cellWidth: cellWidth)
             }
         }
@@ -799,17 +837,12 @@ struct MonthGridView: View {
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
-    private func monthCell(
-        day: Date,
-        bandReserve: CGFloat,
-        byDay: [Date: [CalendarEventMirror]],
-        tasksByDay: [Date: [TaskMirror]]
-    ) -> some View {
-        let dayStart = calendar.startOfDay(for: day)
-        let allEventsToday = byDay[dayStart] ?? []
-        // Bands render in the overlay; per-cell shows only timed single-day events.
-        let events = allEventsToday.filter { CalendarGridLayout.isBandEvent($0, calendar: calendar) == false }
-        let tasks = tasksByDay[dayStart] ?? []
+    private func monthCell(snapshot: MonthDaySnapshot, bandReserve: CGFloat) -> some View {
+        let day = snapshot.day
+        let dayStart = snapshot.dayStart
+        let allEventsToday = snapshot.allEvents
+        let events = snapshot.timedEvents
+        let tasks = snapshot.tasks
         // +N more counts the hidden band events too so users see them accounted for.
         let hiddenBandEvents = max(0, allEventsToday.count - events.count - visibleBandCount(for: dayStart, in: day, allEventsToday: allEventsToday))
         let rowStride = laneHeight + laneSpacing
