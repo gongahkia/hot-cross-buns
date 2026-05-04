@@ -139,6 +139,7 @@ final class AppModel {
     // tasks only. Mirrors eventsByDay so grids skip the tasks.filter per
     // cell render without retaining duplicate task mirrors.
     private(set) var tasksByDueDate: [TimeInterval: [TaskMirror.ID]] = [:]
+    private(set) var visibleTaskListIDs: Set<TaskListMirror.ID> = []
     private(set) var taskSections: [TaskListSectionSnapshot] = []
     private(set) var todaySnapshot: TodaySnapshot = .empty
     private(set) var calendarSnapshot: CalendarSnapshot = .empty
@@ -4561,7 +4562,7 @@ final class AppModel {
         // before its next line (apply() after sync, init bootstrap).
         snapshotRebuildPending = false
         let started = ContinuousClock.now
-        let visibleTaskListIDs = settings.hasConfiguredTaskListSelection
+        visibleTaskListIDs = settings.hasConfiguredTaskListSelection
             ? settings.selectedTaskListIDs
             : Set(taskLists.map(\.id))
         let visibleTaskLists = taskLists.filter { visibleTaskListIDs.contains($0.id) }

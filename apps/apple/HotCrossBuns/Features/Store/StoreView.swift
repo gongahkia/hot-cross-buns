@@ -348,10 +348,7 @@ struct StoreView: View {
         if model.settings.hasConfiguredTasksTabSelection {
             return model.settings.tasksTabSelectedListIDs
         }
-        if model.settings.hasConfiguredTaskListSelection {
-            return model.settings.selectedTaskListIDs
-        }
-        return Set(model.taskLists.map(\.id))
+        return model.visibleTaskListIDs
     }
 
     private func renameCurrentList(_ list: TaskListMirror) async {
@@ -807,10 +804,7 @@ struct NotesView: View {
         if model.settings.hasConfiguredNotesTabSelection {
             return model.settings.notesTabSelectedListIDs
         }
-        if model.settings.hasConfiguredTaskListSelection {
-            return model.settings.selectedTaskListIDs
-        }
-        return Set(model.taskLists.map(\.id))
+        return model.visibleTaskListIDs
     }
 
     private var undatedTasks: [TaskMirror] {

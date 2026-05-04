@@ -45,11 +45,13 @@ struct TodaySnapshot: Equatable, Sendable {
 
 struct CalendarSnapshot: Equatable, Sendable {
     var selectedCalendars: [CalendarListMirror]
+    var selectedCalendarIDs: Set<CalendarListMirror.ID>
     var upcomingEvents: [CalendarEventMirror]
     var calendarColorHexByID: [CalendarListMirror.ID: String]
 
     static let empty = CalendarSnapshot(
         selectedCalendars: [],
+        selectedCalendarIDs: [],
         upcomingEvents: [],
         calendarColorHexByID: [:]
     )
@@ -71,6 +73,7 @@ struct CalendarSnapshot: Equatable, Sendable {
 
         return CalendarSnapshot(
             selectedCalendars: selectedCalendars,
+            selectedCalendarIDs: selectedIDs,
             upcomingEvents: upcomingEvents,
             calendarColorHexByID: Dictionary(uniqueKeysWithValues: calendars.map { ($0.id, $0.colorHex) })
         )
