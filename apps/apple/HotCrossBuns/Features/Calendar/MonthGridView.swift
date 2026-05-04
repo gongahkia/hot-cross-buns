@@ -799,8 +799,10 @@ struct MonthGridView: View {
             let (from, to) = sel.normalized
             let fromStart = calendar.startOfDay(for: from)
             let toStart = calendar.startOfDay(for: to)
+            let highlightRows = dragHighlightRowRange(fromStart: fromStart, toStart: toStart)
             ZStack(alignment: .topLeading) {
-                ForEach(Array(weekStarts.enumerated()), id: \.element) { index, weekStart in
+                ForEach(Array(highlightRows), id: \.self) { index in
+                    let weekStart = weekStarts[index]
                     let weekDays = (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: weekStart) }
                     if let (colStart, colEnd) = rowRange(weekDays, fromStart: fromStart, toStart: toStart) {
                         let left = CGFloat(colStart) * cellWidth
@@ -818,6 +820,18 @@ struct MonthGridView: View {
                 }
             }
         }
+    }
+
+    private func dragHighlightRowRange(fromStart: Date, toStart: Date) -> Range<Int> {
+        guard let firstWeek = weekStarts.first, weekStarts.isEmpty == false else { return 0..<0 }
+        let firstSelectionWeek = startOfWeek(for: fromStart)
+        let lastSelectionWeek = startOfWeek(for: toStart)
+        let firstIndex = calendar.dateComponents([.day], from: firstWeek, to: firstSelectionWeek).day.map { $0 / 7 } ?? 0
+        let lastIndex = calendar.dateComponents([.day], from: firstWeek, to: lastSelectionWeek).day.map { $0 / 7 } ?? 0
+        let lower = max(0, min(firstIndex, lastIndex))
+        let upper = min(weekStarts.count - 1, max(firstIndex, lastIndex))
+        guard lower <= upper else { return 0..<0 }
+        return lower..<(upper + 1)
     }
 
     private func monthBoundaryOverlay(days: [Date], cellWidth: CGFloat) -> some View {
