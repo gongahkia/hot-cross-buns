@@ -104,6 +104,7 @@ struct MonthGridView: View {
     @State private var isLoadingNextMonth: Bool = false
     @State private var windowFirstMonthStart: Date = Date()
     @State private var windowLastMonthStart: Date = Date()
+    @State private var lastObservedScrollOffset: CGFloat = .nan
 
     private struct DragSelection: Equatable {
         var start: Date
@@ -289,6 +290,8 @@ struct MonthGridView: View {
                     scheduleScrollToAnchor(proxy: proxy, animated: false)
                 }
                 .onPreferenceChange(ScrollOffsetKey.self) { offset in
+                    guard lastObservedScrollOffset.isNaN || abs(offset - lastObservedScrollOffset) >= 8 else { return }
+                    lastObservedScrollOffset = offset
                     let centerY = offset + outerGeo.size.height / 2
                     updateAnchorFromScroll(centerY: centerY)
                 }
