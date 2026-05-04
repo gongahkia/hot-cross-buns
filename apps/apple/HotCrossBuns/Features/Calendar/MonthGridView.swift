@@ -76,9 +76,9 @@ struct MonthGridView: View {
     // drag tick ran the filteredEvents + eventsByDay pipelines over 17k+
     // events, producing ~50ms stalls per pixel moved.
     @State private var cachedFiltered: [CalendarEventMirror] = []
-    @State private var cachedByDay: [Date: [CalendarEventMirror]] = [:]
+    @State private var cachedByDay: [TimeInterval: [CalendarEventMirror]] = [:]
     @State private var cachedBandsByWeek: [Date: [CalendarGridLayout.MonthBand]] = [:]
-    @State private var cachedTasksByDay: [Date: [TaskMirror]] = [:]
+    @State private var cachedTasksByDay: [TimeInterval: [TaskMirror]] = [:]
     @State private var cachedWeekSnapshots: [MonthWeekSnapshot] = []
     @State private var cachedGridKey: String = ""
     @State private var gridCacheBuildTask: Task<Void, Never>?
@@ -114,6 +114,7 @@ struct MonthGridView: View {
     private struct MonthDaySnapshot: Identifiable, Equatable, Sendable {
         var day: Date
         var dayStart: Date
+        var dayStartKey: TimeInterval
         var allEvents: [CalendarEventMirror]
         var timedEvents: [CalendarEventMirror]
         var tasks: [TaskMirror]
@@ -146,9 +147,9 @@ struct MonthGridView: View {
     private struct MonthGridCacheResult: Sendable {
         var key: String
         var filtered: [CalendarEventMirror]
-        var byDay: [Date: [CalendarEventMirror]]
+        var byDay: [TimeInterval: [CalendarEventMirror]]
         var bandsByWeek: [Date: [CalendarGridLayout.MonthBand]]
-        var tasksByDay: [Date: [TaskMirror]]
+        var tasksByDay: [TimeInterval: [TaskMirror]]
         var weekSnapshots: [MonthWeekSnapshot]
     }
 
@@ -358,7 +359,7 @@ struct MonthGridView: View {
             payload.calendar.date(byAdding: .day, value: 6, to: $0)
         } ?? first
         let filtered = filteredEvents(payload: payload, from: first, to: last)
-        let byDay = CalendarGridLayout.eventsByDay(
+        let byDay = eventsByDayKey(
             filtered,
             from: first,
             to: last,
@@ -421,9 +422,43 @@ struct MonthGridView: View {
         }
     }
 
+    private nonisolated static func eventsByDayKey(
+        _ events: [CalendarEventMirror],
+        from rangeStart: Date,
+        to rangeEnd: Date,
+        calendar: Calendar
+    ) -> [TimeInterval: [CalendarEventMirror]] {
+        let startOfRange = calendar.startOfDay(for: rangeStart)
+        let endOfRange = calendar.startOfDay(for: rangeEnd)
+        var bucket: [TimeInterval: [CalendarEventMirror]] = [:]
+
+        for event in events where event.status != .cancelled {
+            let eventStartDay = calendar.startOfDay(for: event.startDate)
+            let inclusiveEndDay = CalendarGridLayout.eventEndDay(event: event, calendar: calendar)
+            let firstDay = max(eventStartDay, startOfRange)
+            let lastDay = min(inclusiveEndDay, endOfRange)
+            guard firstDay <= lastDay else { continue }
+
+            var cursor = firstDay
+            while cursor <= lastDay {
+                bucket[dayKey(for: cursor, calendar: calendar), default: []].append(event)
+                guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+                cursor = next
+            }
+        }
+
+        for key in bucket.keys {
+            bucket[key]?.sort { lhs, rhs in
+                if lhs.isAllDay != rhs.isAllDay { return lhs.isAllDay && rhs.isAllDay == false }
+                return lhs.startDate < rhs.startDate
+            }
+        }
+        return bucket
+    }
+
     private nonisolated static func buildBandsByWeek(
         weekStarts: [Date],
-        byDay: [Date: [CalendarEventMirror]],
+        byDay: [TimeInterval: [CalendarEventMirror]],
         calendar: Calendar
     ) -> [Date: [CalendarGridLayout.MonthBand]] {
         var bandsByWeek: [Date: [CalendarGridLayout.MonthBand]] = [:]
@@ -432,8 +467,8 @@ struct MonthGridView: View {
             var seen: Set<CalendarEventMirror.ID> = []
             var weekEvents: [CalendarEventMirror] = []
             for day in days {
-                let dayStart = calendar.startOfDay(for: day)
-                for event in byDay[dayStart] ?? [] where seen.insert(event.id).inserted {
+                let dayStartKey = dayKey(for: day, calendar: calendar)
+                for event in byDay[dayStartKey] ?? [] where seen.insert(event.id).inserted {
                     weekEvents.append(event)
                 }
             }
@@ -444,21 +479,23 @@ struct MonthGridView: View {
 
     private nonisolated static func buildWeekSnapshots(
         weekStarts: [Date],
-        byDay: [Date: [CalendarEventMirror]],
+        byDay: [TimeInterval: [CalendarEventMirror]],
         bandsByWeek: [Date: [CalendarGridLayout.MonthBand]],
-        tasksByDay: [Date: [TaskMirror]],
+        tasksByDay: [TimeInterval: [TaskMirror]],
         calendar: Calendar
     ) -> [MonthWeekSnapshot] {
         weekStarts.map { weekStart in
             let snapshots = weekDays(startingAt: weekStart, calendar: calendar).map { day in
                 let dayStart = calendar.startOfDay(for: day)
-                let allEvents = byDay[dayStart] ?? []
+                let dayStartKey = dayKey(for: dayStart, calendar: calendar)
+                let allEvents = byDay[dayStartKey] ?? []
                 return MonthDaySnapshot(
                     day: day,
                     dayStart: dayStart,
+                    dayStartKey: dayStartKey,
                     allEvents: allEvents,
                     timedEvents: allEvents.filter { CalendarGridLayout.isBandEvent($0, calendar: calendar) == false },
-                    tasks: tasksByDay[dayStart] ?? []
+                    tasks: tasksByDay[dayStartKey] ?? []
                 )
             }
             return MonthWeekSnapshot(
@@ -473,18 +510,18 @@ struct MonthGridView: View {
         payload: MonthGridCachePayload,
         from rangeStart: Date,
         to rangeEnd: Date
-    ) -> [Date: [TaskMirror]] {
+    ) -> [TimeInterval: [TaskMirror]] {
         let taskByID = Dictionary(uniqueKeysWithValues: payload.tasks.map { ($0.id, $0) })
-        var tasksByDay: [Date: [TaskMirror]] = [:]
+        var tasksByDay: [TimeInterval: [TaskMirror]] = [:]
         var cursor = payload.calendar.startOfDay(for: rangeStart)
         let last = payload.calendar.startOfDay(for: rangeEnd)
         while cursor <= last {
-            let key = cursor.timeIntervalSinceReferenceDate
+            let key = dayKey(for: cursor, calendar: payload.calendar)
             let tasks = (payload.tasksByDueDate[key] ?? [])
                 .compactMap { taskByID[$0] }
                 .filter { payload.visibleTaskListIDs.contains($0.taskListID) }
             if tasks.isEmpty == false {
-                tasksByDay[cursor] = tasks
+                tasksByDay[key] = tasks
             }
             guard let next = payload.calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
             cursor = next
@@ -494,6 +531,10 @@ struct MonthGridView: View {
 
     private nonisolated static func weekDays(startingAt weekStart: Date, calendar: Calendar) -> [Date] {
         (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: weekStart) }
+    }
+
+    private nonisolated static func dayKey(for date: Date, calendar: Calendar) -> TimeInterval {
+        calendar.startOfDay(for: date).timeIntervalSinceReferenceDate
     }
 
     private func monthKey(for date: Date) -> String {
