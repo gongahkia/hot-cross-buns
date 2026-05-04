@@ -316,12 +316,12 @@ struct MonthGridView: View {
         "\(CalendarMonthScrollWindow.clampedPast(configuredPastMonths))|\(CalendarMonthScrollWindow.clampedFuture(configuredFutureMonths))"
     }
 
-    // Flash the tapped cell for ~220ms. Used on monthCell click-to-create
+    // Flash the tapped cell briefly. Used on monthCell click-to-create
     // so the user sees a visual acknowledgement before the popover paints.
     private func flashCell(_ day: Date) {
         flashDay = day
         Task {
-            try? await Task.sleep(for: .milliseconds(220))
+            try? await Task.sleep(for: .milliseconds(140))
             // Task inherits MainActor from the enclosing SwiftUI View;
             // no explicit hop needed.
             if flashDay == day { flashDay = nil }
@@ -723,7 +723,7 @@ struct MonthGridView: View {
         let target = firstVisibleWeekOfMonth(containing: anchorDate)
         guard weekStarts.contains(target) else { return }
         if animated {
-            HCBMotion.perform(reduceMotion: calendarGridReduceMotion, animation: .easeInOut(duration: 0.24)) {
+            HCBMotion.perform(reduceMotion: calendarGridReduceMotion, animation: .easeOut(duration: 0.16)) {
                 proxy.scrollTo(target, anchor: .top)
             }
         } else {
@@ -752,7 +752,7 @@ struct MonthGridView: View {
         Task { @MainActor in
             await Task.yield()
             if animated {
-                HCBMotion.perform(reduceMotion: calendarGridReduceMotion, animation: .easeInOut(duration: 0.24)) {
+                HCBMotion.perform(reduceMotion: calendarGridReduceMotion, animation: .easeOut(duration: 0.16)) {
                     proxy.scrollTo(target, anchor: anchor)
                 }
             } else {
@@ -765,7 +765,7 @@ struct MonthGridView: View {
         guard didPerformInitialScroll, isLoadingPreviousMonth == false, let firstWeek = weekStarts.first else { return }
         isLoadingPreviousMonth = true
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(180))
+            try? await Task.sleep(for: .milliseconds(90))
             let previousMonth = calendar.date(byAdding: .month, value: -1, to: windowFirstMonthStart) ?? windowFirstMonthStart
             let newWeeks = weeks(from: previousMonth, through: previousMonth).filter { $0 < firstWeek }
             if newWeeks.isEmpty == false {
@@ -783,7 +783,7 @@ struct MonthGridView: View {
         guard didPerformInitialScroll, isLoadingNextMonth == false, let lastWeek = weekStarts.last else { return }
         isLoadingNextMonth = true
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(180))
+            try? await Task.sleep(for: .milliseconds(90))
             let nextMonth = calendar.date(byAdding: .month, value: 1, to: windowLastMonthStart) ?? windowLastMonthStart
             let newWeeks = weeks(from: nextMonth, through: nextMonth).filter { $0 > lastWeek }
             if newWeeks.isEmpty == false {
@@ -1185,7 +1185,7 @@ struct MonthGridView: View {
         .overlay(
             Rectangle()
                 .fill(AppColor.ember.opacity(flashDay == dayStart ? 0.22 : 0))
-                .animation(HCBMotion.animation(.easeOut(duration: 0.18), reduceMotion: calendarGridReduceMotion), value: flashDay)
+                .animation(HCBMotion.animation(.easeOut(duration: 0.12), reduceMotion: calendarGridReduceMotion), value: flashDay)
         )
         .overlay(
             Rectangle()
