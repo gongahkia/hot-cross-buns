@@ -323,7 +323,7 @@ private struct PortableImportDetailsSheet: View {
             }
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
+                LazyVStack(alignment: .leading, spacing: 12) {
                     importSectionFilters
                     importAttachmentSummary
 
