@@ -81,6 +81,7 @@ struct MonthGridView: View {
     @State private var cachedTasksByDay: [Date: [TaskMirror]] = [:]
     @State private var cachedWeekSnapshots: [MonthWeekSnapshot] = []
     @State private var cachedGridKey: String = ""
+    @State private var gridCacheBuildTask: Task<Void, Never>?
     // Rolling window of week-start dates rendered by the ScrollView. Rebuilt
     // by buildWindow() when the anchor lands outside the current window.
     @State private var weekStarts: [Date] = []
@@ -110,7 +111,7 @@ struct MonthGridView: View {
         }
     }
 
-    private struct MonthDaySnapshot: Identifiable, Equatable {
+    private struct MonthDaySnapshot: Identifiable, Equatable, Sendable {
         var day: Date
         var dayStart: Date
         var allEvents: [CalendarEventMirror]
@@ -120,12 +121,35 @@ struct MonthGridView: View {
         var id: Date { dayStart }
     }
 
-    private struct MonthWeekSnapshot: Identifiable, Equatable {
+    private struct MonthWeekSnapshot: Identifiable, Equatable, Sendable {
         var weekStart: Date
         var days: [MonthDaySnapshot]
         var bands: [CalendarGridLayout.MonthBand]
 
         var id: Date { weekStart }
+    }
+
+    private struct MonthGridCachePayload: Sendable {
+        var key: String
+        var anchorDate: Date
+        var weekStarts: [Date]
+        var selectedCalendarIDs: Set<CalendarListMirror.ID>
+        var visibleTaskListIDs: Set<TaskListMirror.ID>
+        var searchQuery: String
+        var eventsByDay: [TimeInterval: [CalendarEventMirror.ID]]
+        var tasksByDueDate: [TimeInterval: [TaskMirror.ID]]
+        var events: [CalendarEventMirror]
+        var tasks: [TaskMirror]
+        var calendar: Calendar
+    }
+
+    private struct MonthGridCacheResult: Sendable {
+        var key: String
+        var filtered: [CalendarEventMirror]
+        var byDay: [Date: [CalendarEventMirror]]
+        var bandsByWeek: [Date: [CalendarGridLayout.MonthBand]]
+        var tasksByDay: [Date: [TaskMirror]]
+        var weekSnapshots: [MonthWeekSnapshot]
     }
 
     var body: some View {
@@ -135,6 +159,9 @@ struct MonthGridView: View {
             continuousGrid
         }
         .hcbDebugBodyProbe("MonthGridView")
+        .onDisappear {
+            gridCacheBuildTask?.cancel()
+        }
     }
 
     // Replaces the paged month grid. A LazyVStack of week rows inside a
@@ -293,29 +320,115 @@ struct MonthGridView: View {
         let key = currentGridCacheKey
         guard key != cachedGridKey else { return }
         cachedGridKey = key
-        let first = weekStarts.first ?? anchorDate
-        let last = weekStarts.last.flatMap { calendar.date(byAdding: .day, value: 6, to: $0) } ?? first
-        let filtered = filteredEvents(from: first, to: last)
-        cachedFiltered = filtered
-        cachedByDay = CalendarGridLayout.eventsByDay(
+        let visibleTaskListIDs: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
+            ? model.settings.selectedTaskListIDs
+            : Set(model.taskLists.map(\.id))
+        let payload = MonthGridCachePayload(
+            key: key,
+            anchorDate: anchorDate,
+            weekStarts: weekStarts,
+            selectedCalendarIDs: Set(model.calendarSnapshot.selectedCalendars.map(\.id)),
+            visibleTaskListIDs: visibleTaskListIDs,
+            searchQuery: searchQuery,
+            eventsByDay: model.eventsByDay,
+            tasksByDueDate: model.tasksByDueDate,
+            events: model.events,
+            tasks: model.tasks,
+            calendar: calendar
+        )
+
+        gridCacheBuildTask?.cancel()
+        gridCacheBuildTask = Task { @MainActor in
+            let result = await Task.detached(priority: .userInitiated) {
+                Self.buildMonthGridCache(payload)
+            }.value
+
+            guard Task.isCancelled == false, result.key == cachedGridKey else { return }
+            cachedFiltered = result.filtered
+            cachedByDay = result.byDay
+            cachedBandsByWeek = result.bandsByWeek
+            cachedTasksByDay = result.tasksByDay
+            cachedWeekSnapshots = result.weekSnapshots
+        }
+    }
+
+    private nonisolated static func buildMonthGridCache(_ payload: MonthGridCachePayload) -> MonthGridCacheResult {
+        let first = payload.weekStarts.first ?? payload.anchorDate
+        let last = payload.weekStarts.last.flatMap {
+            payload.calendar.date(byAdding: .day, value: 6, to: $0)
+        } ?? first
+        let filtered = filteredEvents(payload: payload, from: first, to: last)
+        let byDay = CalendarGridLayout.eventsByDay(
             filtered,
             from: first,
             to: last,
-            calendar: calendar
+            calendar: payload.calendar
         )
-        cachedBandsByWeek = buildBandsByWeek(byDay: cachedByDay)
-        cachedTasksByDay = buildTasksByDay(from: first, to: last)
-        cachedWeekSnapshots = buildWeekSnapshots(
-            byDay: cachedByDay,
-            bandsByWeek: cachedBandsByWeek,
-            tasksByDay: cachedTasksByDay
+        let bandsByWeek = buildBandsByWeek(
+            weekStarts: payload.weekStarts,
+            byDay: byDay,
+            calendar: payload.calendar
+        )
+        let tasksByDay = buildTasksByDay(payload: payload, from: first, to: last)
+        let weekSnapshots = buildWeekSnapshots(
+            weekStarts: payload.weekStarts,
+            byDay: byDay,
+            bandsByWeek: bandsByWeek,
+            tasksByDay: tasksByDay,
+            calendar: payload.calendar
+        )
+        return MonthGridCacheResult(
+            key: payload.key,
+            filtered: filtered,
+            byDay: byDay,
+            bandsByWeek: bandsByWeek,
+            tasksByDay: tasksByDay,
+            weekSnapshots: weekSnapshots
         )
     }
 
-    private func buildBandsByWeek(byDay: [Date: [CalendarEventMirror]]) -> [Date: [CalendarGridLayout.MonthBand]] {
+    private nonisolated static func filteredEvents(
+        payload: MonthGridCachePayload,
+        from rangeStart: Date,
+        to rangeEnd: Date
+    ) -> [CalendarEventMirror] {
+        let eventByID = Dictionary(uniqueKeysWithValues: payload.events.map { ($0.id, $0) })
+        let q = payload.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        var seen: Set<CalendarEventMirror.ID> = []
+        var out: [CalendarEventMirror] = []
+        var cursor = payload.calendar.startOfDay(for: rangeStart)
+        let last = payload.calendar.startOfDay(for: rangeEnd)
+        while cursor <= last {
+            let key = cursor.timeIntervalSinceReferenceDate
+            for eventID in payload.eventsByDay[key] ?? [] where seen.insert(eventID).inserted {
+                guard let event = eventByID[eventID],
+                      payload.selectedCalendarIDs.contains(event.calendarID) else { continue }
+                if q.isEmpty
+                    || event.summary.localizedCaseInsensitiveContains(q)
+                    || event.details.localizedCaseInsensitiveContains(q)
+                    || event.location.localizedCaseInsensitiveContains(q) {
+                    out.append(event)
+                }
+            }
+            guard let next = payload.calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+        }
+
+        return out.sorted { lhs, rhs in
+            if lhs.startDate != rhs.startDate { return lhs.startDate < rhs.startDate }
+            return lhs.id < rhs.id
+        }
+    }
+
+    private nonisolated static func buildBandsByWeek(
+        weekStarts: [Date],
+        byDay: [Date: [CalendarEventMirror]],
+        calendar: Calendar
+    ) -> [Date: [CalendarGridLayout.MonthBand]] {
         var bandsByWeek: [Date: [CalendarGridLayout.MonthBand]] = [:]
         for weekStart in weekStarts {
-            let days = weekDays(startingAt: weekStart)
+            let days = weekDays(startingAt: weekStart, calendar: calendar)
             var seen: Set<CalendarEventMirror.ID> = []
             var weekEvents: [CalendarEventMirror] = []
             for day in days {
@@ -329,13 +442,15 @@ struct MonthGridView: View {
         return bandsByWeek
     }
 
-    private func buildWeekSnapshots(
+    private nonisolated static func buildWeekSnapshots(
+        weekStarts: [Date],
         byDay: [Date: [CalendarEventMirror]],
         bandsByWeek: [Date: [CalendarGridLayout.MonthBand]],
-        tasksByDay: [Date: [TaskMirror]]
+        tasksByDay: [Date: [TaskMirror]],
+        calendar: Calendar
     ) -> [MonthWeekSnapshot] {
         weekStarts.map { weekStart in
-            let snapshots = weekDays(startingAt: weekStart).map { day in
+            let snapshots = weekDays(startingAt: weekStart, calendar: calendar).map { day in
                 let dayStart = calendar.startOfDay(for: day)
                 let allEvents = byDay[dayStart] ?? []
                 return MonthDaySnapshot(
@@ -354,25 +469,31 @@ struct MonthGridView: View {
         }
     }
 
-    private func buildTasksByDay(from rangeStart: Date, to rangeEnd: Date) -> [Date: [TaskMirror]] {
-        let visibleLists: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
-            ? model.settings.selectedTaskListIDs
-            : Set(model.taskLists.map(\.id))
+    private nonisolated static func buildTasksByDay(
+        payload: MonthGridCachePayload,
+        from rangeStart: Date,
+        to rangeEnd: Date
+    ) -> [Date: [TaskMirror]] {
+        let taskByID = Dictionary(uniqueKeysWithValues: payload.tasks.map { ($0.id, $0) })
         var tasksByDay: [Date: [TaskMirror]] = [:]
-        var cursor = calendar.startOfDay(for: rangeStart)
-        let last = calendar.startOfDay(for: rangeEnd)
+        var cursor = payload.calendar.startOfDay(for: rangeStart)
+        let last = payload.calendar.startOfDay(for: rangeEnd)
         while cursor <= last {
             let key = cursor.timeIntervalSinceReferenceDate
-            let tasks = (model.tasksByDueDate[key] ?? [])
-                .compactMap { model.task(id: $0) }
-                .filter { visibleLists.contains($0.taskListID) }
+            let tasks = (payload.tasksByDueDate[key] ?? [])
+                .compactMap { taskByID[$0] }
+                .filter { payload.visibleTaskListIDs.contains($0.taskListID) }
             if tasks.isEmpty == false {
                 tasksByDay[cursor] = tasks
             }
-            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            guard let next = payload.calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
             cursor = next
         }
         return tasksByDay
+    }
+
+    private nonisolated static func weekDays(startingAt weekStart: Date, calendar: Calendar) -> [Date] {
+        (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: weekStart) }
     }
 
     private func monthKey(for date: Date) -> String {
@@ -556,40 +677,6 @@ struct MonthGridView: View {
         if monthKey(for: midDay) != monthKey(for: anchorDate) {
             skipNextScrollSync = true
             anchorDate = midDay
-        }
-    }
-
-    private func filteredEvents(from rangeStart: Date, to rangeEnd: Date) -> [CalendarEventMirror] {
-        // Reads the model's pre-bucketed day index so month scrolling only
-        // considers events inside the rendered window. The previous path walked
-        // every selected-calendar event, then re-filtered that corpus per week;
-        // large future calendars made downward scroll-window extension janky.
-        let selectedCalendarIDs = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
-        let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-
-        var seen: Set<CalendarEventMirror.ID> = []
-        var out: [CalendarEventMirror] = []
-        var cursor = calendar.startOfDay(for: rangeStart)
-        let last = calendar.startOfDay(for: rangeEnd)
-        while cursor <= last {
-            let key = cursor.timeIntervalSinceReferenceDate
-            for eventID in model.eventsByDay[key] ?? [] where seen.insert(eventID).inserted {
-                guard let event = model.event(id: eventID),
-                      selectedCalendarIDs.contains(event.calendarID) else { continue }
-                if q.isEmpty
-                    || event.summary.localizedCaseInsensitiveContains(q)
-                    || event.details.localizedCaseInsensitiveContains(q)
-                    || event.location.localizedCaseInsensitiveContains(q) {
-                    out.append(event)
-                }
-            }
-            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
-            cursor = next
-        }
-
-        return out.sorted { lhs, rhs in
-            if lhs.startDate != rhs.startDate { return lhs.startDate < rhs.startDate }
-            return lhs.id < rhs.id
         }
     }
 

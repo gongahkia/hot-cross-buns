@@ -104,7 +104,7 @@ enum CalendarGridLayout {
         return calendar.startOfDay(for: event.endDate)
     }
 
-    struct MonthBand: Identifiable, Equatable {
+    struct MonthBand: Identifiable, Equatable, Sendable {
         let event: CalendarEventMirror
         let startColumn: Int // inclusive 0..6 within week
         let endColumn: Int   // inclusive 0..6 within week
