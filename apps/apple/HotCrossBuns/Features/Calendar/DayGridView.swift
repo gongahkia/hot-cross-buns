@@ -222,10 +222,7 @@ struct DayGridView: View {
     }
 
     private func hourLabel(_ hour: Int) -> String {
-        var comps = DateComponents()
-        comps.hour = hour
-        guard let date = calendar.date(from: comps) else { return "" }
-        return date.formatted(.dateTime.hour())
+        CalendarHourLabelCache.label(for: hour)
     }
 
     private func eventTile(_ placed: CalendarGridLayout.LaidOutEvent, availableWidth: CGFloat) -> some View {
