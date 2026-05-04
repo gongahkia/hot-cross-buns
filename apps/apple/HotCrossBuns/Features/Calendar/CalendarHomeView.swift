@@ -162,7 +162,7 @@ struct CalendarHomeView: View {
                 .transition(HCBMotion.transition(.move(edge: .bottom).combined(with: .opacity), reduceMotion: reduceMotion))
             }
         }
-        .animation(HCBMotion.animation(.easeInOut(duration: 0.2), reduceMotion: reduceMotion), value: selectedEventIDs.count >= 2)
+        .animation(HCBMotion.animation(.easeOut(duration: 0.12), reduceMotion: reduceMotion), value: selectedEventIDs.count >= 2)
     }
 
     @ViewBuilder

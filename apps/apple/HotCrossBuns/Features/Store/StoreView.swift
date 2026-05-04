@@ -229,7 +229,7 @@ struct StoreView: View {
             }
             BulkResultToast(message: $bulkResultMessage, isWarning: bulkResultIsWarning)
         }
-        .animation(HCBMotion.animation(.easeInOut(duration: 0.2), reduceMotion: reduceMotion), value: selection.count >= 2)
+        .animation(HCBMotion.animation(.easeOut(duration: 0.12), reduceMotion: reduceMotion), value: selection.count >= 2)
     }
 
     // Tasks shown on the Tasks tab = dated, non-deleted, respecting the

@@ -259,6 +259,9 @@ struct AppSettings: Hashable, Codable, Sendable {
     var uiFontName: String? // PostScript name, nil for system
     var colorSchemeID: String // identifier into HCBColorScheme.all
     var customColorSchemes: [HCBCustomColorScheme] // user-authored palettes, exportable with settings
+    var appBackgroundTranslucencyEnabled: Bool // true = clear NSWindow + translucent app fill
+    var appBackgroundOpacity: Double // 0.35-1.0, applied to the app fill over desktop/custom image
+    var customBackgroundImagePath: String? // copied image in Application Support, nil = theme/window background
     var shortcutOverrides: [String: HCBKeyBinding] // HCBShortcutCommand.rawValue → binding
     var hiddenSidebarItems: Set<String> // SidebarItem.rawValues user has hidden (Settings never hidable)
     var hiddenCalendarViewModes: Set<String> // CalendarGridMode.rawValues user has hidden from Calendar picker
@@ -359,6 +362,9 @@ struct AppSettings: Hashable, Codable, Sendable {
         uiFontName: String? = nil,
         colorSchemeID: String = "notion",
         customColorSchemes: [HCBCustomColorScheme] = [],
+        appBackgroundTranslucencyEnabled: Bool = false,
+        appBackgroundOpacity: Double = 1.0,
+        customBackgroundImagePath: String? = nil,
         shortcutOverrides: [String: HCBKeyBinding] = [:],
         hiddenSidebarItems: Set<String> = [],
         hiddenCalendarViewModes: Set<String> = [],
@@ -430,6 +436,10 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.uiFontName = uiFontName
         self.colorSchemeID = colorSchemeID
         self.customColorSchemes = customColorSchemes
+        self.appBackgroundTranslucencyEnabled = appBackgroundTranslucencyEnabled
+        self.appBackgroundOpacity = max(0.35, min(1.0, appBackgroundOpacity))
+        let normalizedBackgroundPath = customBackgroundImagePath?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.customBackgroundImagePath = (normalizedBackgroundPath?.isEmpty ?? true) ? nil : normalizedBackgroundPath
         self.shortcutOverrides = shortcutOverrides
         self.hiddenSidebarItems = hiddenSidebarItems
         self.hiddenCalendarViewModes = hiddenCalendarViewModes
@@ -503,6 +513,9 @@ struct AppSettings: Hashable, Codable, Sendable {
         case uiFontName
         case colorSchemeID
         case customColorSchemes
+        case appBackgroundTranslucencyEnabled
+        case appBackgroundOpacity
+        case customBackgroundImagePath
         case shortcutOverrides
         case hiddenSidebarItems
         case hiddenCalendarViewModes
@@ -610,6 +623,15 @@ struct AppSettings: Hashable, Codable, Sendable {
         uiFontName = try container.decodeIfPresent(String.self, forKey: .uiFontName)
         colorSchemeID = try container.decodeIfPresent(String.self, forKey: .colorSchemeID) ?? "notion"
         customColorSchemes = try container.decodeIfPresent([HCBCustomColorScheme].self, forKey: .customColorSchemes) ?? []
+        appBackgroundTranslucencyEnabled = try container.decodeIfPresent(Bool.self, forKey: .appBackgroundTranslucencyEnabled) ?? false
+        let rawBackgroundOpacity = try container.decodeIfPresent(Double.self, forKey: .appBackgroundOpacity) ?? 1.0
+        appBackgroundOpacity = max(0.35, min(1.0, rawBackgroundOpacity))
+        if let rawBackgroundPath = try container.decodeIfPresent(String.self, forKey: .customBackgroundImagePath) {
+            let trimmed = rawBackgroundPath.trimmingCharacters(in: .whitespacesAndNewlines)
+            customBackgroundImagePath = trimmed.isEmpty ? nil : trimmed
+        } else {
+            customBackgroundImagePath = nil
+        }
         shortcutOverrides = try container.decodeIfPresent([String: HCBKeyBinding].self, forKey: .shortcutOverrides) ?? [:]
         hiddenSidebarItems = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenSidebarItems) ?? []
         hiddenCalendarViewModes = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenCalendarViewModes) ?? []

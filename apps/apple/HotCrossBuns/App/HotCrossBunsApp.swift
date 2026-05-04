@@ -76,6 +76,8 @@ struct HotCrossBunsApp: App {
         Window("Hot Cross Buns Help", id: "help") {
             HelpView()
                 .environment(appModel)
+                .withHCBAppearance(appModel.settings)
+                .hcbPreferredColorScheme(appModel.settings)
                 .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
                 .hcbWindowRestoration(.help, settings: appModel.settings)
         }
@@ -86,6 +88,8 @@ struct HotCrossBunsApp: App {
         Window("History", id: "history") {
             HistoryWindow()
                 .environment(appModel)
+                .withHCBAppearance(appModel.settings)
+                .hcbPreferredColorScheme(appModel.settings)
                 .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
                 .hcbWindowRestoration(.history, settings: appModel.settings)
         }
