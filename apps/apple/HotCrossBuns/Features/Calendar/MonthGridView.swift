@@ -303,7 +303,7 @@ struct MonthGridView: View {
     // O(selectedCalendars) — and triggers a rebuild only on real changes,
     // skipping every drag-induced body re-eval.
     private var currentGridCacheKey: String {
-        let selectedIds = model.calendarSnapshot.selectedCalendars.map(\.id).sorted().joined(separator: ",")
+        let selectedIds = model.calendarSnapshot.selectedCalendarIDs.sorted().joined(separator: ",")
         // dataRevision replaces the prior model.events.count fingerprint —
         // renames / reschedules / recolors with unchanged total count now
         // bust the cache correctly.
@@ -316,10 +316,7 @@ struct MonthGridView: View {
     }
 
     private var visibleTaskListKey: String {
-        if model.settings.hasConfiguredTaskListSelection {
-            return model.settings.selectedTaskListIDs.sorted().joined(separator: ",")
-        }
-        return model.taskLists.map(\.id).sorted().joined(separator: ",")
+        model.visibleTaskListIDs.sorted().joined(separator: ",")
     }
 
     private var monthWindowPreferenceKey: String {
@@ -343,15 +340,12 @@ struct MonthGridView: View {
         guard key != cachedGridKey else { return }
         cachedGridKey = key
         let requestedAt = HCBPerformanceTelemetry.timestamp()
-        let visibleTaskListIDs: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
-            ? model.settings.selectedTaskListIDs
-            : Set(model.taskLists.map(\.id))
         let payload = MonthGridCachePayload(
             key: key,
             anchorDate: anchorDate,
             weekStarts: weekStarts,
-            selectedCalendarIDs: Set(model.calendarSnapshot.selectedCalendars.map(\.id)),
-            visibleTaskListIDs: visibleTaskListIDs,
+            selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
+            visibleTaskListIDs: model.visibleTaskListIDs,
             searchQuery: searchQuery,
             eventsByDay: model.eventsByDay,
             tasksByDueDate: model.tasksByDueDate,

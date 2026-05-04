@@ -42,7 +42,7 @@ struct DayGridView: View {
     private var visibleEvents: [CalendarEventMirror] {
         let now = Date()
         let key = dayStart.timeIntervalSinceReferenceDate
-        let selectedIDs = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
+        let selectedIDs = model.calendarSnapshot.selectedCalendarIDs
         let bucket = (model.eventsByDay[key] ?? []).compactMap { model.event(id: $0) }
         let filtered = bucket.filter { event in
             selectedIDs.contains(event.calendarID)

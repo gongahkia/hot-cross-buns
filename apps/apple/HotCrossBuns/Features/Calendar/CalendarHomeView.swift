@@ -650,7 +650,7 @@ struct CalendarHomeView: View {
         // the full event corpus once) instead of re-iterating on every body
         // eval. Apply calendar-selection filter per lookup; sort per day.
         guard range.isEmpty == false else { return [:] }
-        let selectedIDs = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
+        let selectedIDs = model.calendarSnapshot.selectedCalendarIDs
         var bucket: [Date: [CalendarEventMirror]] = [:]
         for day in range {
             let key = day.timeIntervalSinceReferenceDate
@@ -670,9 +670,7 @@ struct CalendarHomeView: View {
         // Use model.tasksByDueDate IDs; rebuildSnapshots already walks tasks
         // once and applies the completed-item calendar setting. We only need
         // to filter to the visible task-list set and sort alphabetically per day.
-        let visibleLists: Set<TaskListMirror.ID> = model.settings.hasConfiguredTaskListSelection
-            ? model.settings.selectedTaskListIDs
-            : Set(model.taskLists.map(\.id))
+        let visibleLists = model.visibleTaskListIDs
         var bucket: [Date: [TaskMirror]] = [:]
         for day in range {
             let key = day.timeIntervalSinceReferenceDate
@@ -751,7 +749,7 @@ struct CalendarHomeView: View {
         let calendar = Calendar.current
         let startOfDay = calendar.startOfDay(for: date)
         let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay
-        let selectedCalendarIDs = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
+        let selectedCalendarIDs = model.calendarSnapshot.selectedCalendarIDs
 
         return model.events
             .filter { event in

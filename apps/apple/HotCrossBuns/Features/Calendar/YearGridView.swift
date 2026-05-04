@@ -28,7 +28,7 @@ struct YearGridView: View {
     // cover, so we only need to project counts for days within this year
     // and filter by selected calendars.
     private var eventsByDay: [Date: Int] {
-        let selected = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
+        let selected = model.calendarSnapshot.selectedCalendarIDs
         guard let yearStart = calendar.date(from: DateComponents(year: year, month: 1, day: 1)),
               let yearEnd = calendar.date(from: DateComponents(year: year + 1, month: 1, day: 1)) else {
             return [:]

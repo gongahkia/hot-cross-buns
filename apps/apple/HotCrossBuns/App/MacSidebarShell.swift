@@ -689,7 +689,7 @@ struct MacSidebarShell: View {
             rangeEnd = cal.date(byAdding: .day, value: 7, to: rangeStart) ?? rangeStart
             suggestedFilename = "hot-cross-buns-week-\(rangeStart.formatted(.iso8601.year().month().day())).ics"
         }
-        let selected = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
+        let selected = model.calendarSnapshot.selectedCalendarIDs
         let events = model.events
             .filter { selected.contains($0.calendarID) }
             .filter { $0.status != .cancelled }

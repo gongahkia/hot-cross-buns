@@ -93,7 +93,7 @@ struct WeekGridView: View {
     // compute and triggers a real rebuild only when the user changes
     // calendars, search, week, or when sync lands new events.
     private var currentWeekCacheKey: String {
-        let selectedIds = model.calendarSnapshot.selectedCalendars.map(\.id).sorted().joined(separator: ",")
+        let selectedIds = model.calendarSnapshot.selectedCalendarIDs.sorted().joined(separator: ",")
         let start = weekDays.first.map { "\($0.timeIntervalSinceReferenceDate)" } ?? ""
         // dataRevision replaces event-count fingerprint so edits that keep
         // the count unchanged still invalidate the cache. See MonthGridView.
@@ -141,9 +141,7 @@ struct WeekGridView: View {
         let key = dayStart.timeIntervalSinceReferenceDate
         // model.tasksByDueDate is prebuilt in rebuildSnapshots across ALL
         // lists — intersect with the user's visible list selection here.
-        let visibleLists = model.settings.hasConfiguredTaskListSelection
-            ? model.settings.selectedTaskListIDs
-            : Set(model.taskLists.map(\.id))
+        let visibleLists = model.visibleTaskListIDs
         let bucket = (model.tasksByDueDate[key] ?? []).compactMap { model.task(id: $0) }
         return bucket
             .filter { visibleLists.contains($0.taskListID) }

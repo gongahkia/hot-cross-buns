@@ -639,14 +639,12 @@ struct MenuBarExtraContent: View {
 
 private extension AppModel {
     var menuBarSelectedCalendarIDs: Set<CalendarListMirror.ID> {
-        let selected = Set(calendarSnapshot.selectedCalendars.map(\.id))
+        let selected = calendarSnapshot.selectedCalendarIDs
         return selected.isEmpty ? Set(calendars.map(\.id)) : selected
     }
 
     var menuBarVisibleTaskListIDs: Set<TaskListMirror.ID> {
-        settings.hasConfiguredTaskListSelection
-            ? settings.selectedTaskListIDs
-            : Set(taskLists.map(\.id))
+        visibleTaskListIDs
     }
 
     func menuBarEvents(on day: Date) -> [CalendarEventMirror] {
