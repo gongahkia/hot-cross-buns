@@ -119,7 +119,7 @@ private struct CustomFilterEditor: View {
         NavigationStack {
             VStack(spacing: 0) {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
+                    LazyVStack(alignment: .leading, spacing: 20) {
                         SettingsSheetSection("Filter") {
                             SettingsSheetRow("Name") {
                                 TextField("", text: $draft.name)

@@ -169,7 +169,7 @@ private struct TaskTemplateEditor: View {
         NavigationStack {
             VStack(spacing: 0) {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
+                    LazyVStack(alignment: .leading, spacing: 20) {
                         SettingsSheetSection("Template") {
                             SettingsSheetRow("Name") {
                                 TextField("", text: $draft.name)
@@ -251,7 +251,7 @@ private struct EventTemplateEditor: View {
         NavigationStack {
             VStack(spacing: 0) {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
+                    LazyVStack(alignment: .leading, spacing: 20) {
                         SettingsSheetSection("Template") {
                             SettingsSheetRow("Name") {
                                 TextField("", text: $draft.name)
