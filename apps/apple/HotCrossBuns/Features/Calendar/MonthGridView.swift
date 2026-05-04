@@ -115,9 +115,15 @@ struct MonthGridView: View {
         var day: Date
         var dayStart: Date
         var dayStartKey: TimeInterval
+        var dayLabel: String
+        var accessibilityDateLabel: String
+        var isToday: Bool
         var allEvents: [CalendarEventMirror]
         var timedEvents: [CalendarEventMirror]
         var tasks: [TaskMirror]
+        var eventLabels: [CalendarEventMirror.ID: String]
+        var eventAccessibilityLabels: [CalendarEventMirror.ID: String]
+        var taskAccessibilityLabels: [TaskMirror.ID: String]
 
         var id: Date { dayStart }
     }
@@ -127,6 +133,7 @@ struct MonthGridView: View {
         var days: [MonthDaySnapshot]
         var bands: [CalendarGridLayout.MonthBand]
         var bandReserves: [CGFloat]
+        var bandAccessibilityLabels: [String: String]
 
         var id: Date { weekStart }
     }
@@ -506,9 +513,28 @@ struct MonthGridView: View {
                     day: day,
                     dayStart: dayStart,
                     dayStartKey: dayStartKey,
+                    dayLabel: dayLabel(for: day, calendar: calendar),
+                    accessibilityDateLabel: accessibilityDateLabel(for: day),
+                    isToday: calendar.isDateInToday(day),
                     allEvents: allEvents,
                     timedEvents: allEvents.filter { CalendarGridLayout.isBandEvent($0, calendar: calendar) == false },
-                    tasks: tasksByDay[dayStartKey] ?? []
+                    tasks: tasksByDay[dayStartKey] ?? [],
+                    eventLabels: Dictionary(
+                        uniqueKeysWithValues: allEvents.map { event in
+                            (event.id, eventLabel(event, in: day, calendar: calendar))
+                        }
+                    ),
+                    eventAccessibilityLabels: Dictionary(
+                        uniqueKeysWithValues: allEvents.map { event in
+                            (event.id, "\(event.summary) on \(accessibilityDateLabel(for: day))")
+                        }
+                    ),
+                    taskAccessibilityLabels: Dictionary(
+                        uniqueKeysWithValues: (tasksByDay[dayStartKey] ?? []).map { task in
+                            let state = task.isCompleted ? "completed task" : "task"
+                            return (task.id, "\(state): \(TagExtractor.stripped(from: task.title))")
+                        }
+                    )
                 )
             }
             let bands = bandsByWeek[weekStart] ?? []
@@ -521,9 +547,19 @@ struct MonthGridView: View {
                     laneHeight: laneHeight,
                     laneSpacing: laneSpacing,
                     maxVisibleLanes: maxVisibleLanes
-                )
+                ),
+                bandAccessibilityLabels: bandAccessibilityLabels(for: bands)
             )
         }
+    }
+
+    private nonisolated static func bandAccessibilityLabels(for bands: [CalendarGridLayout.MonthBand]) -> [String: String] {
+        Dictionary(uniqueKeysWithValues: bands.map { band in
+            (
+                band.id,
+                "\(band.event.summary) \(band.event.startDate.formatted(date: .abbreviated, time: .omitted)) - \(band.event.endDate.formatted(date: .abbreviated, time: .omitted))"
+            )
+        })
     }
 
     private nonisolated static func bandReserves(
@@ -578,6 +614,27 @@ struct MonthGridView: View {
 
     private nonisolated static func dayKey(for date: Date, calendar: Calendar) -> TimeInterval {
         calendar.startOfDay(for: date).timeIntervalSinceReferenceDate
+    }
+
+    private nonisolated static func eventLabel(_ event: CalendarEventMirror, in day: Date, calendar: Calendar) -> String {
+        if event.isAllDay { return event.summary }
+        let start = calendar.startOfDay(for: event.startDate)
+        let dayStart = calendar.startOfDay(for: day)
+        if start < dayStart {
+            return "... \(event.summary)"
+        }
+        return "\(event.startDate.formatted(.dateTime.hour().minute())) \(event.summary)"
+    }
+
+    private nonisolated static func dayLabel(for day: Date, calendar: Calendar) -> String {
+        if calendar.component(.day, from: day) == 1 {
+            return day.formatted(.dateTime.month(.abbreviated).day().year())
+        }
+        return "\(calendar.component(.day, from: day))"
+    }
+
+    private nonisolated static func accessibilityDateLabel(for day: Date) -> String {
+        day.formatted(.dateTime.weekday(.wide).month(.wide).day().year())
     }
 
     private func monthKey(for date: Date) -> String {
@@ -789,7 +846,11 @@ struct MonthGridView: View {
                             .clipped() // stop per-cell VStack overflow (day number + bandReserve + 2 events + 2 tasks + "+N more" can exceed fixedRowHeight) from bleeding into the next week row
                     }
                 }
-                bandOverlay(bands: snapshot.bands, cellWidth: cellWidth)
+                bandOverlay(
+                    bands: snapshot.bands,
+                    accessibilityLabels: snapshot.bandAccessibilityLabels,
+                    cellWidth: cellWidth
+                )
                 monthBoundaryOverlay(days: days, cellWidth: cellWidth)
             }
         }
@@ -965,7 +1026,11 @@ struct MonthGridView: View {
         return nil
     }
 
-    private func bandOverlay(bands: [CalendarGridLayout.MonthBand], cellWidth: CGFloat) -> some View {
+    private func bandOverlay(
+        bands: [CalendarGridLayout.MonthBand],
+        accessibilityLabels: [String: String],
+        cellWidth: CGFloat
+    ) -> some View {
         let dayNumberReserve: CGFloat = 24 // matches the hcbScaledPadding(6) + day-number row height
         return ZStack(alignment: .topLeading) {
             ForEach(bands) { band in
@@ -983,7 +1048,7 @@ struct MonthGridView: View {
                             )
                             .foregroundStyle(AppColor.ink)
                     }
-                    .accessibilityLabel("\(band.event.summary) \(band.event.startDate.formatted(date: .abbreviated, time: .omitted)) – \(band.event.endDate.formatted(date: .abbreviated, time: .omitted))")
+                    .accessibilityLabel(accessibilityLabels[band.id] ?? band.event.summary)
                     .frame(width: cellWidth * CGFloat(band.endColumn - band.startColumn + 1) - 4)
                     .offset(
                         x: cellWidth * CGFloat(band.startColumn) + 2,
@@ -1028,15 +1093,15 @@ struct MonthGridView: View {
         let hiddenTasks = max(0, tasks.count - visibleTaskCount)
         return VStack(alignment: .leading, spacing: 3) {
             HStack {
-                Text(dayLabel(for: day))
+                Text(snapshot.dayLabel)
                     .hcbFont(.caption, weight: .semibold)
-                    .foregroundStyle(dayNumberColor(for: day))
+                    .foregroundStyle(dayNumberColor(isToday: snapshot.isToday))
                     .lineLimit(1)
                     .hcbScaledPadding(.horizontal, 6)
                     .hcbScaledPadding(.vertical, 2)
                     .background(
                         Capsule()
-                            .fill(calendar.isDateInToday(day) ? AppColor.ember.opacity(0.25) : .clear)
+                            .fill(snapshot.isToday ? AppColor.ember.opacity(0.25) : .clear)
                     )
                 Spacer(minLength: 0)
             }
@@ -1045,7 +1110,7 @@ struct MonthGridView: View {
             }
             ForEach(events.prefix(visibleEventCount), id: \.id) { event in
                 CalendarEventPreviewButton(event: event) {
-                    Text(eventLabel(event, in: day))
+                    Text(snapshot.eventLabels[event.id] ?? event.summary)
                         .hcbFont(.caption2)
                         .lineLimit(1)
                         .hcbScaledPadding(.horizontal, 6)
@@ -1057,7 +1122,7 @@ struct MonthGridView: View {
                         )
                         .foregroundStyle(AppColor.ink)
                 }
-                .accessibilityLabel("\(event.summary) on \(day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))")
+                .accessibilityLabel(snapshot.eventAccessibilityLabels[event.id] ?? event.summary)
                 .draggable(DraggedEvent(
                     eventID: event.id,
                     calendarID: event.calendarID,
@@ -1111,7 +1176,7 @@ struct MonthGridView: View {
         )
         .accessibilityElement(children: .combine)
         .accessibilityLabel(monthCellAccessibilityLabel(
-            day: day,
+            snapshot: snapshot,
             visibleEvents: Array(events.prefix(visibleEventCount)),
             visibleTasks: Array(tasks.prefix(visibleTaskCount)),
             hiddenEvents: hiddenEvents,
@@ -1221,32 +1286,25 @@ struct MonthGridView: View {
     }
 
     private func eventLabel(_ event: CalendarEventMirror, in day: Date) -> String {
-        if event.isAllDay { return event.summary }
-        let start = calendar.startOfDay(for: event.startDate)
-        let dayStart = calendar.startOfDay(for: day)
-        if start < dayStart {
-            return "… \(event.summary)"
-        }
-        return "\(event.startDate.formatted(.dateTime.hour().minute())) \(event.summary)"
+        Self.eventLabel(event, in: day, calendar: calendar)
     }
 
     private func monthCellAccessibilityLabel(
-        day: Date,
+        snapshot: MonthDaySnapshot,
         visibleEvents: [CalendarEventMirror],
         visibleTasks: [TaskMirror],
         hiddenEvents: Int,
         hiddenTasks: Int
     ) -> String {
-        var parts = [day.formatted(.dateTime.weekday(.wide).month(.wide).day().year())]
-        if calendar.isDateInToday(day) {
+        var parts = [snapshot.accessibilityDateLabel]
+        if snapshot.isToday {
             parts.append("Today")
         }
         for event in visibleEvents {
-            parts.append("Event: \(eventLabel(event, in: day))")
+            parts.append("Event: \(snapshot.eventLabels[event.id] ?? eventLabel(event, in: snapshot.day))")
         }
         for task in visibleTasks {
-            let state = task.isCompleted ? "completed task" : "task"
-            parts.append("\(state): \(TagExtractor.stripped(from: task.title))")
+            parts.append(snapshot.taskAccessibilityLabels[task.id] ?? task.title)
         }
         if hiddenEvents > 0 {
             parts.append("\(hiddenEvents) more event\(hiddenEvents == 1 ? "" : "s")")
@@ -1260,15 +1318,8 @@ struct MonthGridView: View {
         return parts.joined(separator: ", ")
     }
 
-    private func dayLabel(for day: Date) -> String {
-        if calendar.component(.day, from: day) == 1 {
-            return day.formatted(.dateTime.month(.abbreviated).day().year())
-        }
-        return "\(calendar.component(.day, from: day))"
-    }
-
-    private func dayNumberColor(for day: Date) -> Color {
-        if calendar.isDateInToday(day) { return AppColor.ember }
+    private func dayNumberColor(isToday: Bool) -> Color {
+        if isToday { return AppColor.ember }
         return AppColor.ink
     }
 
