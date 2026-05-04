@@ -1330,7 +1330,7 @@ private struct MainWindowFocusAccessor: NSViewRepresentable {
 
         func update(isFocused: Binding<Bool>) {
             self.isFocused = isFocused
-            refreshFocus()
+            scheduleFocusRefresh()
         }
 
         func attach(to nextWindow: NSWindow?) {
@@ -1381,7 +1381,13 @@ private struct MainWindowFocusAccessor: NSViewRepresentable {
                     self?.setFocus(false)
                 }
             ]
-            refreshFocus()
+            scheduleFocusRefresh()
+        }
+
+        private func scheduleFocusRefresh() {
+            DispatchQueue.main.async { [weak self] in
+                self?.refreshFocus()
+            }
         }
 
         private func refreshFocus() {
