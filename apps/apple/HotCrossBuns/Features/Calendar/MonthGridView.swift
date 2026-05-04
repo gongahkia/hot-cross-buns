@@ -126,6 +126,7 @@ struct MonthGridView: View {
         var weekStart: Date
         var days: [MonthDaySnapshot]
         var bands: [CalendarGridLayout.MonthBand]
+        var bandReserves: [CGFloat]
 
         var id: Date { weekStart }
     }
@@ -142,6 +143,9 @@ struct MonthGridView: View {
         var events: [CalendarEventMirror]
         var tasks: [TaskMirror]
         var calendar: Calendar
+        var laneHeight: CGFloat
+        var laneSpacing: CGFloat
+        var maxVisibleLanes: Int
     }
 
     private struct MonthGridCacheResult: Sendable {
@@ -335,7 +339,10 @@ struct MonthGridView: View {
             tasksByDueDate: model.tasksByDueDate,
             events: model.events,
             tasks: model.tasks,
-            calendar: calendar
+            calendar: calendar,
+            laneHeight: laneHeight,
+            laneSpacing: laneSpacing,
+            maxVisibleLanes: maxVisibleLanes
         )
 
         gridCacheBuildTask?.cancel()
@@ -376,7 +383,10 @@ struct MonthGridView: View {
             byDay: byDay,
             bandsByWeek: bandsByWeek,
             tasksByDay: tasksByDay,
-            calendar: payload.calendar
+            calendar: payload.calendar,
+            laneHeight: payload.laneHeight,
+            laneSpacing: payload.laneSpacing,
+            maxVisibleLanes: payload.maxVisibleLanes
         )
         return MonthGridCacheResult(
             key: payload.key,
@@ -482,7 +492,10 @@ struct MonthGridView: View {
         byDay: [TimeInterval: [CalendarEventMirror]],
         bandsByWeek: [Date: [CalendarGridLayout.MonthBand]],
         tasksByDay: [TimeInterval: [TaskMirror]],
-        calendar: Calendar
+        calendar: Calendar,
+        laneHeight: CGFloat,
+        laneSpacing: CGFloat,
+        maxVisibleLanes: Int
     ) -> [MonthWeekSnapshot] {
         weekStarts.map { weekStart in
             let snapshots = weekDays(startingAt: weekStart, calendar: calendar).map { day in
@@ -498,11 +511,41 @@ struct MonthGridView: View {
                     tasks: tasksByDay[dayStartKey] ?? []
                 )
             }
+            let bands = bandsByWeek[weekStart] ?? []
             return MonthWeekSnapshot(
                 weekStart: weekStart,
                 days: snapshots,
-                bands: bandsByWeek[weekStart] ?? []
+                bands: bands,
+                bandReserves: bandReserves(
+                    for: bands,
+                    laneHeight: laneHeight,
+                    laneSpacing: laneSpacing,
+                    maxVisibleLanes: maxVisibleLanes
+                )
             )
+        }
+    }
+
+    private nonisolated static func bandReserves(
+        for bands: [CalendarGridLayout.MonthBand],
+        laneHeight: CGFloat,
+        laneSpacing: CGFloat,
+        maxVisibleLanes: Int
+    ) -> [CGFloat] {
+        var highestVisibleLanes = Array(repeating: -1, count: 7)
+        for band in bands where band.lane < maxVisibleLanes {
+            let lower = max(0, band.startColumn)
+            let upper = min(6, band.endColumn)
+            guard lower <= upper else { continue }
+            for column in lower...upper {
+                highestVisibleLanes[column] = max(highestVisibleLanes[column], band.lane)
+            }
+        }
+        return highestVisibleLanes.map { lane in
+            guard lane >= 0 else { return 0 }
+            return CGFloat(lane + 1) * laneHeight
+                + CGFloat(lane) * laneSpacing
+                + 4
         }
     }
 
@@ -740,7 +783,7 @@ struct MonthGridView: View {
             ZStack(alignment: .topLeading) {
                 HStack(spacing: 0) {
                     ForEach(Array(snapshot.days.enumerated()), id: \.element.id) { col, daySnapshot in
-                        let cellBandReserve = bandReserve(for: col, bands: snapshot.bands)
+                        let cellBandReserve = snapshot.bandReserves.indices.contains(col) ? snapshot.bandReserves[col] : 0
                         monthCell(snapshot: daySnapshot, bandReserve: cellBandReserve)
                             .frame(maxWidth: .infinity, minHeight: fixedRowHeight, maxHeight: fixedRowHeight, alignment: .top)
                             .clipped() // stop per-cell VStack overflow (day number + bandReserve + 2 events + 2 tasks + "+N more" can exceed fixedRowHeight) from bleeding into the next week row
@@ -752,21 +795,6 @@ struct MonthGridView: View {
         }
         .frame(height: fixedRowHeight)
         .clipped() // defense-in-depth: also clip the row itself so band overlays can't leak out
-    }
-
-    private func bandReserve(for column: Int, bands: [CalendarGridLayout.MonthBand]) -> CGFloat {
-        let highestVisibleLane = bands
-            .filter { band in
-                column >= band.startColumn
-                    && column <= band.endColumn
-                    && band.lane < maxVisibleLanes
-            }
-            .map(\.lane)
-            .max()
-        guard let highestVisibleLane else { return 0 }
-        return CGFloat(highestVisibleLane + 1) * laneHeight
-            + CGFloat(highestVisibleLane) * laneSpacing
-            + 4
     }
 
     private func previousMonthLoader(proxy: ScrollViewProxy) -> some View {
