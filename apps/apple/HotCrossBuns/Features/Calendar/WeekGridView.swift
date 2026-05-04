@@ -53,7 +53,17 @@ struct WeekGridView: View {
     // selection-lag on large calendars.
     @State private var cachedTimedByDay: [Date: [CalendarEventMirror]] = [:]
     @State private var cachedAllDaySpans: [AllDaySpan] = []
+    @State private var cachedWeekDayLabels: [WeekDayLabelSnapshot] = []
     @State private var cachedWeekKey: String = ""
+
+    private struct WeekDayLabelSnapshot: Identifiable, Equatable {
+        var day: Date
+        var weekday: String
+        var dayNumber: String
+        var isToday: Bool
+
+        var id: Date { day }
+    }
 
     private struct WeekDaySelection: Equatable {
         var startCol: Int
@@ -106,6 +116,7 @@ struct WeekGridView: View {
         cachedWeekKey = key
         cachedTimedByDay = bucketTimedEventsByDay()
         cachedAllDaySpans = layoutAllDaySpans()
+        cachedWeekDayLabels = buildWeekDayLabels()
     }
 
     private var weekDays: [Date] {
@@ -166,27 +177,39 @@ struct WeekGridView: View {
     }
 
     private var weekHeader: some View {
-        HStack(spacing: 0) {
+        let dayLabels = cachedWeekDayLabels.isEmpty ? buildWeekDayLabels() : cachedWeekDayLabels
+        return HStack(spacing: 0) {
             Text("")
                 .hcbScaledFrame(width: 54)
-            ForEach(weekDays, id: \.self) { day in
+            ForEach(dayLabels) { label in
                 VStack(spacing: 2) {
-                    Text(day.formatted(.dateTime.weekday(.abbreviated)))
+                    Text(label.weekday)
                         .hcbFont(.caption, weight: .semibold)
                         .foregroundStyle(.secondary)
-                    Text(day.formatted(.dateTime.day()))
-                        .font(.title3.weight(isToday(day) ? .bold : .regular))
-                        .foregroundStyle(isToday(day) ? AppColor.ember : AppColor.ink)
+                    Text(label.dayNumber)
+                        .font(.title3.weight(label.isToday ? .bold : .regular))
+                        .foregroundStyle(label.isToday ? AppColor.ember : AppColor.ink)
                         .hcbScaledFrame(width: 30, height: 30)
                         .background(
                             Circle()
-                                .fill(isToday(day) ? AppColor.ember.opacity(0.15) : .clear)
+                                .fill(label.isToday ? AppColor.ember.opacity(0.15) : .clear)
                         )
                 }
                 .frame(maxWidth: .infinity)
             }
         }
         .hcbScaledPadding(.vertical, 10)
+    }
+
+    private func buildWeekDayLabels() -> [WeekDayLabelSnapshot] {
+        weekDays.map { day in
+            WeekDayLabelSnapshot(
+                day: day,
+                weekday: day.formatted(.dateTime.weekday(.abbreviated)),
+                dayNumber: day.formatted(.dateTime.day()),
+                isToday: isToday(day)
+            )
+        }
     }
 
     private struct AllDaySpan: Identifiable {
@@ -920,9 +943,7 @@ struct WeekGridView: View {
     }
 
     private func labelForHour(_ hour: Int) -> String {
-        let components = DateComponents(hour: hour)
-        let date = calendar.date(from: components) ?? Date()
-        return date.formatted(.dateTime.hour())
+        CalendarHourLabelCache.label(for: hour)
     }
 
     private func calendarColor(for event: CalendarEventMirror) -> Color {
@@ -932,5 +953,20 @@ struct WeekGridView: View {
         }
         guard let hex = model.calendarSnapshot.calendarColorHexByID[event.calendarID] else { return AppColor.blue }
         return Color(hex: hex)
+    }
+}
+
+enum CalendarHourLabelCache {
+    private static let labels: [Int: String] = {
+        var calendar = Calendar.current
+        calendar.locale = Locale.current
+        return Dictionary(uniqueKeysWithValues: (0..<24).map { hour in
+            let date = calendar.date(from: DateComponents(hour: hour)) ?? Date()
+            return (hour, date.formatted(.dateTime.hour()))
+        })
+    }()
+
+    static func label(for hour: Int) -> String {
+        labels[hour] ?? ""
     }
 }
