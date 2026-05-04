@@ -270,10 +270,31 @@
 	<section id="updates" class="updates">
   <div class="updates-head">
     <p class="eyebrow">Changelog</p>
-    <h2>Latest changes in <em>v0.2.1</em>.</h2>
+    <h2>Latest changes in <em>v0.2.2</em>.</h2>
   </div>
 
   <div class="updates-list">
+    <article class="update-entry">
+      <div class="update-meta">
+        <h3>v0.2.2</h3>
+        <p>4 May 2026</p>
+      </div>
+      <div class="update-copy">
+        <ul>
+          <li>Added translucent app backgrounds, so the main window and app surfaces can sit more lightly on the desktop.</li>
+          <li>Added custom app backgrounds, including image import, persistence, removal controls, and automatic downsampling so large images stay responsive.</li>
+          <li>Improved month calendar smoothness with cached render snapshots, stable day-interval cache keys, off-main cache building, and coalesced scroll updates.</li>
+          <li>Reduced calendar redraw work by precomputing visible calendar IDs, visible task-list IDs, event colors, search text, accessibility labels, and month band reserves.</li>
+          <li>Made week and day calendar views snappier by caching date and hour labels used during repeated layout passes.</li>
+          <li>Shortened month-view animations and suppressed broad app animations during bulk refresh or sync, so transitions feel tighter under load.</li>
+          <li>Lazy-loaded heavier settings sheet content to avoid paying for offscreen controls before users need them.</li>
+          <li>Added opt-in month performance telemetry for local profiling without adding noisy user-facing logs.</li>
+          <li>Fixed a SwiftUI focus-state update warning by deferring main-window focus refreshes outside the representable update pass.</li>
+          <li>Cleaned up deprecated task-list handling while keeping existing task and calendar workflows intact.</li>
+        </ul>
+      </div>
+    </article>
+
     <article class="update-entry">
       <div class="update-meta">
         <h3>v0.2.1</h3>
