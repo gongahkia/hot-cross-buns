@@ -1,6 +1,8 @@
 import Foundation
 import Observation
 import AppKit
+import ImageIO
+import UniformTypeIdentifiers
 
 struct LoadingOverlayState: Equatable, Sendable {
     var message: String
@@ -2766,15 +2768,18 @@ final class AppModel {
 
         let directory = try Self.customBackgroundDirectory()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let sourceExtension = sourceURL.pathExtension.trimmingCharacters(in: .whitespacesAndNewlines)
-        let fileExtension = sourceExtension.isEmpty ? "background" : sourceExtension.lowercased()
-        let destinationURL = directory.appending(path: "custom-background.\(fileExtension)")
+        let destinationURL = directory.appending(path: "custom-background.jpg")
 
         if let currentPath = settings.customBackgroundImagePath {
             try? FileManager.default.removeItem(at: URL(filePath: currentPath))
         }
+        if let oldBackgrounds = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) {
+            for url in oldBackgrounds where url.lastPathComponent.hasPrefix("custom-background.") {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
         try? FileManager.default.removeItem(at: destinationURL)
-        try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+        try Self.writeDownsampledCustomBackground(from: sourceURL, to: destinationURL)
 
         settings.customBackgroundImagePath = destinationURL.path
         settings.appBackgroundTranslucencyEnabled = true
@@ -4353,6 +4358,35 @@ final class AppModel {
         return appSupportURL
             .appending(path: appDirectoryName, directoryHint: .isDirectory)
             .appending(path: "Backgrounds", directoryHint: .isDirectory)
+    }
+
+    private static func writeDownsampledCustomBackground(from sourceURL: URL, to destinationURL: URL) throws {
+        guard let source = CGImageSourceCreateWithURL(sourceURL as CFURL, nil) else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        let thumbnailOptions: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: 2_400
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions as CFDictionary) else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        guard let destination = CGImageDestinationCreateWithURL(
+            destinationURL as CFURL,
+            UTType.jpeg.identifier as CFString,
+            1,
+            nil
+        ) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        let properties: [CFString: Any] = [
+            kCGImageDestinationLossyCompressionQuality: 0.86
+        ]
+        CGImageDestinationAddImage(destination, image, properties as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
     }
 
     @discardableResult
