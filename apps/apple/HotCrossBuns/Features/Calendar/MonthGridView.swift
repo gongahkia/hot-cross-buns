@@ -126,6 +126,7 @@ struct MonthGridView: View {
         var tasks: [TaskMirror]
         var eventLabels: [CalendarEventMirror.ID: String]
         var eventAccessibilityLabels: [CalendarEventMirror.ID: String]
+        var eventColorHexes: [CalendarEventMirror.ID: String]
         var taskAccessibilityLabels: [TaskMirror.ID: String]
 
         var id: Date { dayStart }
@@ -137,6 +138,7 @@ struct MonthGridView: View {
         var bands: [CalendarGridLayout.MonthBand]
         var bandReserves: [CGFloat]
         var bandAccessibilityLabels: [String: String]
+        var bandColorHexes: [String: String]
 
         var id: Date { weekStart }
     }
@@ -154,6 +156,7 @@ struct MonthGridView: View {
         var tasks: [TaskMirror]
         var dataRevision: UInt64
         var eventSearchTextByID: [CalendarEventMirror.ID: String]
+        var calendarColorHexByID: [CalendarListMirror.ID: String]
         var calendar: Calendar
         var laneHeight: CGFloat
         var laneSpacing: CGFloat
@@ -353,6 +356,7 @@ struct MonthGridView: View {
             tasks: model.tasks,
             dataRevision: model.dataRevision,
             eventSearchTextByID: cachedEventSearchRevision == model.dataRevision ? cachedEventSearchTextByID : [:],
+            calendarColorHexByID: model.calendarSnapshot.calendarColorHexByID,
             calendar: calendar,
             laneHeight: laneHeight,
             laneSpacing: laneSpacing,
@@ -414,7 +418,8 @@ struct MonthGridView: View {
             calendar: payload.calendar,
             laneHeight: payload.laneHeight,
             laneSpacing: payload.laneSpacing,
-            maxVisibleLanes: payload.maxVisibleLanes
+            maxVisibleLanes: payload.maxVisibleLanes,
+            calendarColorHexByID: payload.calendarColorHexByID
         )
         return MonthGridCacheResult(
             key: payload.key,
@@ -543,7 +548,8 @@ struct MonthGridView: View {
         calendar: Calendar,
         laneHeight: CGFloat,
         laneSpacing: CGFloat,
-        maxVisibleLanes: Int
+        maxVisibleLanes: Int,
+        calendarColorHexByID: [CalendarListMirror.ID: String]
     ) -> [MonthWeekSnapshot] {
         weekStarts.map { weekStart in
             let snapshots = weekDays(startingAt: weekStart, calendar: calendar).map { day in
@@ -570,6 +576,12 @@ struct MonthGridView: View {
                             (event.id, "\(event.summary) on \(accessibilityDateLabel(for: day))")
                         }
                     ),
+                    eventColorHexes: Dictionary(
+                        uniqueKeysWithValues: allEvents.compactMap { event in
+                            resolvedEventColorHex(event, calendarColorHexByID: calendarColorHexByID)
+                                .map { (event.id, $0) }
+                        }
+                    ),
                     taskAccessibilityLabels: Dictionary(
                         uniqueKeysWithValues: (tasksByDay[dayStartKey] ?? []).map { task in
                             let state = task.isCompleted ? "completed task" : "task"
@@ -589,9 +601,22 @@ struct MonthGridView: View {
                     laneSpacing: laneSpacing,
                     maxVisibleLanes: maxVisibleLanes
                 ),
-                bandAccessibilityLabels: bandAccessibilityLabels(for: bands)
+                bandAccessibilityLabels: bandAccessibilityLabels(for: bands),
+                bandColorHexes: Dictionary(
+                    uniqueKeysWithValues: bands.compactMap { band in
+                        resolvedEventColorHex(band.event, calendarColorHexByID: calendarColorHexByID)
+                            .map { (band.id, $0) }
+                    }
+                )
             )
         }
+    }
+
+    private nonisolated static func resolvedEventColorHex(
+        _ event: CalendarEventMirror,
+        calendarColorHexByID: [CalendarListMirror.ID: String]
+    ) -> String? {
+        CalendarEventColor.from(colorId: event.colorId).hex ?? calendarColorHexByID[event.calendarID]
     }
 
     private nonisolated static func bandAccessibilityLabels(for bands: [CalendarGridLayout.MonthBand]) -> [String: String] {
@@ -898,6 +923,7 @@ struct MonthGridView: View {
                 bandOverlay(
                     bands: snapshot.bands,
                     accessibilityLabels: snapshot.bandAccessibilityLabels,
+                    colorHexes: snapshot.bandColorHexes,
                     cellWidth: cellWidth
                 )
                 monthBoundaryOverlay(days: days, cellWidth: cellWidth)
@@ -1078,6 +1104,7 @@ struct MonthGridView: View {
     private func bandOverlay(
         bands: [CalendarGridLayout.MonthBand],
         accessibilityLabels: [String: String],
+        colorHexes: [String: String],
         cellWidth: CGFloat
     ) -> some View {
         let dayNumberReserve: CGFloat = 24 // matches the hcbScaledPadding(6) + day-number row height
@@ -1093,7 +1120,7 @@ struct MonthGridView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(
                                 RoundedRectangle(cornerRadius: 4)
-                                    .fill(calendarColor(for: band.event).opacity(0.25))
+                                    .fill(calendarColor(hex: colorHexes[band.id]).opacity(0.25))
                             )
                             .foregroundStyle(AppColor.ink)
                     }
@@ -1113,7 +1140,7 @@ struct MonthGridView: View {
                             .hcbFont(.caption)
                             .hcbScaledPadding(.horizontal, 8)
                             .hcbScaledPadding(.vertical, 4)
-                            .background(Capsule().fill(calendarColor(for: band.event).opacity(0.35)))
+                            .background(Capsule().fill(calendarColor(hex: colorHexes[band.id]).opacity(0.35)))
                     }
                 }
             }
@@ -1167,7 +1194,7 @@ struct MonthGridView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(
                             RoundedRectangle(cornerRadius: 4)
-                                .fill(calendarColor(for: event).opacity(0.25))
+                                .fill(calendarColor(for: event, in: snapshot).opacity(0.25))
                         )
                         .foregroundStyle(AppColor.ink)
                 }
@@ -1182,7 +1209,7 @@ struct MonthGridView: View {
                         .hcbFont(.caption)
                         .hcbScaledPadding(.horizontal, 8)
                         .hcbScaledPadding(.vertical, 4)
-                        .background(Capsule().fill(calendarColor(for: event).opacity(0.35)))
+                        .background(Capsule().fill(calendarColor(for: event, in: snapshot).opacity(0.35)))
                 }
             }
             ForEach(tasks.prefix(visibleTaskCount)) { task in
@@ -1247,7 +1274,7 @@ struct MonthGridView: View {
                     day: dayStart,
                     events: allEventsToday,
                     tasks: tasks,
-                    calendarColor: calendarColor(for:)
+                    calendarColor: { event in calendarColor(for: event, in: snapshot) }
                 )
                 .padding(.horizontal, 4)
                 .padding(.bottom, 3)
@@ -1372,11 +1399,12 @@ struct MonthGridView: View {
         return AppColor.ink
     }
 
-    private func calendarColor(for event: CalendarEventMirror) -> Color {
-        if let hex = CalendarEventColor.from(colorId: event.colorId).hex {
-            return Color(hex: hex)
-        }
-        guard let hex = model.calendarSnapshot.calendarColorHexByID[event.calendarID] else { return AppColor.blue }
+    private func calendarColor(for event: CalendarEventMirror, in snapshot: MonthDaySnapshot) -> Color {
+        calendarColor(hex: snapshot.eventColorHexes[event.id])
+    }
+
+    private func calendarColor(hex: String?) -> Color {
+        guard let hex else { return AppColor.blue }
         return Color(hex: hex)
     }
 }
