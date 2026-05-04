@@ -81,6 +81,8 @@ struct MonthGridView: View {
     @State private var cachedTasksByDay: [TimeInterval: [TaskMirror]] = [:]
     @State private var cachedWeekSnapshots: [MonthWeekSnapshot] = []
     @State private var cachedGridKey: String = ""
+    @State private var cachedEventSearchTextByID: [CalendarEventMirror.ID: String] = [:]
+    @State private var cachedEventSearchRevision: UInt64 = 0
     @State private var gridCacheBuildTask: Task<Void, Never>?
     // Rolling window of week-start dates rendered by the ScrollView. Rebuilt
     // by buildWindow() when the anchor lands outside the current window.
@@ -149,6 +151,8 @@ struct MonthGridView: View {
         var tasksByDueDate: [TimeInterval: [TaskMirror.ID]]
         var events: [CalendarEventMirror]
         var tasks: [TaskMirror]
+        var dataRevision: UInt64
+        var eventSearchTextByID: [CalendarEventMirror.ID: String]
         var calendar: Calendar
         var laneHeight: CGFloat
         var laneSpacing: CGFloat
@@ -162,6 +166,8 @@ struct MonthGridView: View {
         var bandsByWeek: [Date: [CalendarGridLayout.MonthBand]]
         var tasksByDay: [TimeInterval: [TaskMirror]]
         var weekSnapshots: [MonthWeekSnapshot]
+        var eventSearchTextByID: [CalendarEventMirror.ID: String]
+        var eventSearchRevision: UInt64
     }
 
     var body: some View {
@@ -346,6 +352,8 @@ struct MonthGridView: View {
             tasksByDueDate: model.tasksByDueDate,
             events: model.events,
             tasks: model.tasks,
+            dataRevision: model.dataRevision,
+            eventSearchTextByID: cachedEventSearchRevision == model.dataRevision ? cachedEventSearchTextByID : [:],
             calendar: calendar,
             laneHeight: laneHeight,
             laneSpacing: laneSpacing,
@@ -364,6 +372,8 @@ struct MonthGridView: View {
             cachedBandsByWeek = result.bandsByWeek
             cachedTasksByDay = result.tasksByDay
             cachedWeekSnapshots = result.weekSnapshots
+            cachedEventSearchTextByID = result.eventSearchTextByID
+            cachedEventSearchRevision = result.eventSearchRevision
         }
     }
 
@@ -372,7 +382,8 @@ struct MonthGridView: View {
         let last = payload.weekStarts.last.flatMap {
             payload.calendar.date(byAdding: .day, value: 6, to: $0)
         } ?? first
-        let filtered = filteredEvents(payload: payload, from: first, to: last)
+        let filteredResult = filteredEvents(payload: payload, from: first, to: last)
+        let filtered = filteredResult.events
         let byDay = eventsByDayKey(
             filtered,
             from: first,
@@ -401,7 +412,9 @@ struct MonthGridView: View {
             byDay: byDay,
             bandsByWeek: bandsByWeek,
             tasksByDay: tasksByDay,
-            weekSnapshots: weekSnapshots
+            weekSnapshots: weekSnapshots,
+            eventSearchTextByID: filteredResult.eventSearchTextByID,
+            eventSearchRevision: payload.dataRevision
         )
     }
 
@@ -409,9 +422,10 @@ struct MonthGridView: View {
         payload: MonthGridCachePayload,
         from rangeStart: Date,
         to rangeEnd: Date
-    ) -> [CalendarEventMirror] {
+    ) -> (events: [CalendarEventMirror], eventSearchTextByID: [CalendarEventMirror.ID: String]) {
         let eventByID = Dictionary(uniqueKeysWithValues: payload.events.map { ($0.id, $0) })
-        let q = payload.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let q = normalizedSearchText(payload.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines))
+        var eventSearchTextByID = payload.eventSearchTextByID
 
         var seen: Set<CalendarEventMirror.ID> = []
         var out: [CalendarEventMirror] = []
@@ -422,10 +436,15 @@ struct MonthGridView: View {
             for eventID in payload.eventsByDay[key] ?? [] where seen.insert(eventID).inserted {
                 guard let event = eventByID[eventID],
                       payload.selectedCalendarIDs.contains(event.calendarID) else { continue }
-                if q.isEmpty
-                    || event.summary.localizedCaseInsensitiveContains(q)
-                    || event.details.localizedCaseInsensitiveContains(q)
-                    || event.location.localizedCaseInsensitiveContains(q) {
+                let matchesSearch: Bool
+                if q.isEmpty {
+                    matchesSearch = true
+                } else {
+                    let searchText = eventSearchTextByID[event.id] ?? normalizedEventSearchText(event)
+                    eventSearchTextByID[event.id] = searchText
+                    matchesSearch = searchText.contains(q)
+                }
+                if matchesSearch {
                     out.append(event)
                 }
             }
@@ -433,10 +452,21 @@ struct MonthGridView: View {
             cursor = next
         }
 
-        return out.sorted { lhs, rhs in
+        let sorted = out.sorted { lhs, rhs in
             if lhs.startDate != rhs.startDate { return lhs.startDate < rhs.startDate }
             return lhs.id < rhs.id
         }
+        return (sorted, eventSearchTextByID)
+    }
+
+    private nonisolated static func normalizedEventSearchText(_ event: CalendarEventMirror) -> String {
+        normalizedSearchText("\(event.summary)\n\(event.details)\n\(event.location)")
+    }
+
+    private nonisolated static func normalizedSearchText(_ text: String) -> String {
+        text
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
     }
 
     private nonisolated static func eventsByDayKey(
