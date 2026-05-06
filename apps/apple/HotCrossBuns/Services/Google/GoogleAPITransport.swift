@@ -264,6 +264,7 @@ enum SyncFailureKind: Equatable, Sendable {
     case serviceUnavailable
     case authRequired
     case invalidPayload
+    case notFound
     case other
 
     static func classify(_ error: Error) -> SyncFailureKind {
@@ -294,6 +295,8 @@ enum SyncFailureKind: Equatable, Sendable {
             switch status {
             case 401, 403:
                 return .authRequired
+            case 404:
+                return .notFound
             case 429:
                 return .rateLimited
             case 500...599:

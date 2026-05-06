@@ -276,7 +276,7 @@ struct UpdateAvailableWindow: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Install Guidance")
                 .font(.headline)
-            Text("Installing the new DMG replaces the app bundle only. Your settings, local cache, and history stay on this Mac because they live outside the app in UserDefaults and Application Support.")
+            Text("Installing the new DMG replaces the app bundle only. Hot Cross Buns cannot safely trash its own running app from the sandbox, so Finder still asks you to confirm Replace. Your settings, local cache, and history stay on this Mac because they live outside the app in UserDefaults and Application Support.")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if let status = detailedDownloadStatus {
@@ -337,8 +337,8 @@ struct InstallUpdateWindow: View {
                         )
                         installStep(
                             number: 2,
-                            title: "Replace the existing app",
-                            detail: "Drag the new Hot Cross Buns app into Applications and confirm Replace when macOS asks."
+                            title: "Replace the old app",
+                            detail: "Drag the new Hot Cross Buns app into Applications. When macOS asks, confirm Replace; this removes the old app bundle and keeps your settings."
                         )
                         installStep(
                             number: 3,
@@ -359,6 +359,16 @@ struct InstallUpdateWindow: View {
                         }
                         .buttonStyle(.bordered)
                         .disabled(updater.downloadState.phase != .ready)
+
+                        Button("Show Current App") {
+                            updater.revealCurrentAppInFinder()
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button("Quit to Finish Update") {
+                            updater.quitForUpdateInstall()
+                        }
+                        .buttonStyle(.bordered)
                     }
 
                     if let fileURL = updater.downloadState.fileURL {

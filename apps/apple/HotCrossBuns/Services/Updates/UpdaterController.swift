@@ -268,6 +268,14 @@ final class UpdaterController {
         NSWorkspace.shared.activateFileViewerSelecting([fileURL])
     }
 
+    func revealCurrentAppInFinder() {
+        NSWorkspace.shared.activateFileViewerSelecting([bundle.bundleURL])
+    }
+
+    func quitForUpdateInstall() {
+        NSApp.terminate(nil)
+    }
+
     func retryAvailableReleaseDownload() {
         Task {
             await downloadAvailableRelease(shouldPresentPrompt: true)
