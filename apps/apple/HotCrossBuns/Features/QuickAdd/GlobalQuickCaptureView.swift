@@ -282,9 +282,8 @@ struct GlobalQuickCaptureView: View {
     }
 
     private var resolvedTaskListName: String {
-        if let id = selectedTaskListID ?? defaultTaskListID,
-           let list = model.taskLists.first(where: { $0.id == id }) {
-            return list.title
+        if let id = selectedTaskListID ?? defaultTaskListID {
+            return model.taskListTitle(for: id, fallback: parsedTask.taskListHint ?? "")
         }
         return parsedTask.taskListHint ?? ""
     }

@@ -318,9 +318,21 @@ enum GoogleTokenRefreshError: LocalizedError {
 
 struct GoogleSignInAccessTokenProvider: AccessTokenProviding {
     private let customOAuthService = CustomGoogleOAuthService()
+    private let tokenCache = GoogleAccessTokenMemo(ttl: 30)
 
     @MainActor
     func accessToken() async throws -> String {
+        if let cached = await tokenCache.validToken() {
+            return cached
+        }
+
+        let token = try await freshAccessToken()
+        await tokenCache.store(token)
+        return token
+    }
+
+    @MainActor
+    private func freshAccessToken() async throws -> String {
         if let customToken = try await customOAuthService.accessToken() {
             return customToken
         }
@@ -337,5 +349,27 @@ struct GoogleSignInAccessTokenProvider: AccessTokenProviding {
             AppLogger.error("token refresh failed", category: .auth, metadata: ["error": String(describing: error)])
             throw GoogleTokenRefreshError.refreshFailed(error)
         }
+    }
+}
+
+private actor GoogleAccessTokenMemo {
+    private let ttl: TimeInterval
+    private var token: String?
+    private var expiresAt: Date?
+
+    init(ttl: TimeInterval) {
+        self.ttl = ttl
+    }
+
+    func validToken(now: Date = Date()) -> String? {
+        guard let token, let expiresAt, expiresAt > now else {
+            return nil
+        }
+        return token
+    }
+
+    func store(_ token: String, now: Date = Date()) {
+        self.token = token
+        self.expiresAt = now.addingTimeInterval(ttl)
     }
 }

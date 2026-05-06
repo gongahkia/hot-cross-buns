@@ -237,15 +237,7 @@ struct StoreView: View {
     // Completed tasks stay in the pool and render under each column's
     // disclosure section. Overdue hide mode still applies to open tasks.
     private var datedTasks: [TaskMirror] {
-        let now = Date()
-        return model.tasks.filter { task in
-            guard task.isDeleted == false,
-                  task.dueDate != nil,
-                  visibleTaskListIDs.contains(task.taskListID)
-            else { return false }
-            if model.settings.shouldHideOverdueTask(task, now: now) { return false }
-            return true
-        }
+        model.taskBoardSnapshot.datedTasks
     }
 
     private var selectedTasksFromModel: [TaskMirror] {
@@ -340,15 +332,6 @@ struct StoreView: View {
         } else {
             TaskInspectorEmptyState()
         }
-    }
-
-    private var visibleTaskListIDs: Set<TaskListMirror.ID> {
-        // Tasks-tab override wins; falls through to global list visibility
-        // if the user hasn't configured a per-tab filter.
-        if model.settings.hasConfiguredTasksTabSelection {
-            return model.settings.tasksTabSelectedListIDs
-        }
-        return model.visibleTaskListIDs
     }
 
     private func renameCurrentList(_ list: TaskListMirror) async {
@@ -523,7 +506,7 @@ struct TaskHoverPreview: View {
     }
 
     private var listName: String {
-        model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Unknown list"
+        model.taskListTitle(for: task.taskListID)
     }
 }
 
@@ -716,7 +699,7 @@ struct NotesView: View {
             }
         }
         .onAppear { rebuildOrder() }
-        .onChange(of: model.tasks) { _, _ in rebuildOrder() }
+        .onChange(of: model.dataRevision) { _, _ in rebuildOrder() }
     }
 
     private func createNewListFromNotes() async {
@@ -796,24 +779,8 @@ struct NotesView: View {
         )
     }
 
-    // MARK: - Filter resolution
-
-    // Per-tab filter takes precedence over the global list selection; if
-    // neither is configured, everything is visible.
-    private var visibleListIDs: Set<TaskListMirror.ID> {
-        if model.settings.hasConfiguredNotesTabSelection {
-            return model.settings.notesTabSelectedListIDs
-        }
-        return model.visibleTaskListIDs
-    }
-
     private var undatedTasks: [TaskMirror] {
-        let visible = visibleListIDs
-        return model.tasks.filter {
-            $0.isDeleted == false
-                && $0.dueDate == nil
-                && visible.contains($0.taskListID)
-        }
+        model.taskBoardSnapshot.undatedTasks
     }
 
     private var orderedTasks: [TaskMirror] {
@@ -947,7 +914,7 @@ private struct NoteCard: View {
     }
 
     private var listName: String {
-        model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Unknown list"
+        model.taskListTitle(for: task.taskListID)
     }
 
     private var noteAccessibilityLabel: String {

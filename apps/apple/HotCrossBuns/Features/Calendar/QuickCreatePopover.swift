@@ -904,7 +904,8 @@ struct QuickCreatePopover: View {
     // MARK: - Derived
 
     private var currentListTitle: String {
-        model.taskLists.first(where: { $0.id == selectedListID })?.title ?? "Inbox"
+        guard let selectedListID else { return "Inbox" }
+        return model.taskListTitle(for: selectedListID, fallback: "Inbox")
     }
 
     private var currentCalendarTitle: String {

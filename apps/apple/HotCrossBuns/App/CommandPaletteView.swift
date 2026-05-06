@@ -123,6 +123,7 @@ struct CommandPaletteView: View {
     // build is cheap; doing it per-keystroke for every match was the
     // hottest cost after entity rebuild.
     @State private var cachedLowercaseLabels: [String] = []
+    @State private var cachedLowercaseSearchBlobs: [String] = []
     @State private var entitiesSnapshotKey: String = ""
     @FocusState private var isSearchFocused: Bool
 
@@ -264,6 +265,11 @@ struct CommandPaletteView: View {
         for f in model.settings.customFilters { out.append(.customFilter(f)) }
         cachedEntities = out
         cachedLowercaseLabels = out.map { $0.label.lowercased() }
+        cachedLowercaseSearchBlobs = out.map { entity in
+            ([entity.label] + entity.keywords)
+                .joined(separator: "\n")
+                .lowercased()
+        }
     }
 
     // Merged ranked list. Behaviour:
@@ -348,8 +354,8 @@ struct CommandPaletteView: View {
             let lowered = freeText.lowercased()
             var hits: [QuickSwitcherEntity] = []
             hits.reserveCapacity(min(cachedEntities.count, 500))
-            for (idx, lowerLabel) in cachedLowercaseLabels.enumerated() {
-                if lowerLabel.contains(lowered) {
+            for (idx, lowerBlob) in cachedLowercaseSearchBlobs.enumerated() {
+                if lowerBlob.contains(lowered) {
                     hits.append(cachedEntities[idx])
                     if hits.count >= 500 { break }
                 }

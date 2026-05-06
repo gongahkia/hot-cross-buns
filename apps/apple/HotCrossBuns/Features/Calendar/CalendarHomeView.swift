@@ -718,7 +718,8 @@ struct CalendarHomeView: View {
                         .hcbFont(.subheadline)
                         .strikethrough(task.isCompleted)
                         .foregroundStyle(AppColor.ink)
-                    if let listTitle = model.taskLists.first(where: { $0.id == task.taskListID })?.title {
+                    let listTitle = model.taskListTitle(for: task.taskListID, fallback: "")
+                    if listTitle.isEmpty == false {
                         Text(listTitle)
                             .hcbFont(.caption2)
                             .foregroundStyle(.secondary)

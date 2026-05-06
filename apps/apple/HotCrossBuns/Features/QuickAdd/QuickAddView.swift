@@ -241,9 +241,8 @@ struct QuickAddView: View {
     }
 
     private var resolvedListName: String {
-        if let id = selectedTaskListID ?? defaultListID,
-           let list = model.taskLists.first(where: { $0.id == id }) {
-            return list.title
+        if let id = selectedTaskListID ?? defaultListID {
+            return model.taskListTitle(for: id, fallback: parsed.taskListHint ?? "")
         }
         return parsed.taskListHint ?? ""
     }

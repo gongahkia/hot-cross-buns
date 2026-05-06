@@ -17,7 +17,7 @@ struct TaskContextMenu: View {
     }
 
     private var listTitle: String? {
-        model.taskLists.first(where: { $0.id == task.taskListID })?.title
+        model.taskListTitle(for: task.taskListID, fallback: "")
     }
 
     private var duplicatePrimaryLabel: String {
