@@ -277,7 +277,7 @@
     <article class="update-entry">
       <div class="update-meta">
         <h3>v0.2.2</h3>
-        <p>4 May 2026</p>
+        <p>6 May 2026</p>
       </div>
       <div class="update-copy">
         <ul>
@@ -289,6 +289,8 @@
           <li>Shortened month-view animations and suppressed broad app animations during bulk refresh or sync, so transitions feel tighter under load.</li>
           <li>Lazy-loaded heavier settings sheet content to avoid paying for offscreen controls before users need them.</li>
           <li>Added opt-in month performance telemetry for local profiling without adding noisy user-facing logs.</li>
+          <li>Made Google 404 sync failures explicit: login succeeded, but a cached task list or calendar was missing, deleted, or tied to another Google account.</li>
+          <li>Improved update install guidance with current-app reveal, downloaded-DMG reveal, and a quit action before Finder replaces the old app bundle.</li>
           <li>Fixed a SwiftUI focus-state update warning by deferring main-window focus refreshes outside the representable update pass.</li>
           <li>Cleaned up deprecated task-list handling while keeping existing task and calendar workflows intact.</li>
         </ul>

@@ -172,6 +172,7 @@ final class OfflineQueuePayloadTests: XCTestCase {
         )
         XCTAssertEqual(SyncFailureKind.classify(GoogleAPIError.httpStatus(503, nil)), .serviceUnavailable)
         XCTAssertEqual(SyncFailureKind.classify(GoogleAPIError.invalidPayload(nil)), .invalidPayload)
+        XCTAssertEqual(SyncFailureKind.classify(GoogleAPIError.httpStatus(404, nil)), .notFound)
         XCTAssertEqual(
             SyncFailureKind.classify(URLError(.notConnectedToInternet)),
             .offline
@@ -225,6 +226,21 @@ final class OfflineQueuePayloadTests: XCTestCase {
 
         XCTAssertEqual(copy.title, "Google Calendar or Tasks is briefly unavailable")
         XCTAssertEqual(copy.message, "Hot Cross Buns will retry automatically as soon as the service recovers.")
+    }
+
+    func testSyncFailureCopyUsesNotFoundMessaging() {
+        let copy = AppStatusBanner.syncFailureCopy(
+            fallbackMessage: #"{"error":{"code":404,"message":"Not Found"}}"#,
+            isPaused: false,
+            failureKind: .notFound,
+            networkReachability: .online
+        )
+
+        XCTAssertEqual(copy.title, "Signed in, but Google couldn't find cached sync data")
+        XCTAssertTrue(copy.message.contains("Login worked"))
+        XCTAssertTrue(copy.message.contains("different Google account"))
+        XCTAssertTrue(copy.message.contains("Force Full Resync"))
+        XCTAssertFalse(copy.message.contains("\"error\""))
     }
 
     func testFirstSyncBannerIncludesScopeWhenAvailable() {

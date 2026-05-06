@@ -255,6 +255,12 @@ struct AppStatusBanner: View {
                 fallbackMessage,
                 "person.crop.circle.badge.exclamationmark"
             )
+        case .notFound:
+            return (
+                isPaused ? "Sync paused because cached Google data is missing" : "Signed in, but Google couldn't find cached sync data",
+                "Login worked. Google returned 404 while syncing a saved task list or calendar, usually because it was deleted or belongs to a different Google account. Try Retry once; if it repeats, open Settings > Diagnostics and run Force Full Resync.",
+                isPaused ? "pause.circle" : "tray.and.arrow.down"
+            )
         case .invalidPayload, .other:
             return (
                 isPaused ? "Sync paused — tap Retry when you're ready" : "Couldn't reach Google — try Refresh",
