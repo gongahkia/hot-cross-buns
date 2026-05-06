@@ -222,7 +222,7 @@ actor SyncScheduler {
         let startOfToday = Calendar.current.startOfDay(for: Date())
         let calendarClient = calendarClient
 
-        return try await withThrowingTaskGroup(of: CalendarSyncResult.self) { group in
+        return try await withThrowingTaskGroup(of: CalendarSyncResult?.self) { group in
             // Same sliding-window concurrency cap as listTasks.
             let idArray = Array(resolvedIDs)
             var iter = idArray.makeIterator()
@@ -247,12 +247,20 @@ actor SyncScheduler {
                         )
                         didFullSync = hadSyncToken == false
                     } catch GoogleAPIError.httpStatus(410, _) {
-                        page = try await calendarClient.listEvents(
-                            calendarID: calendarID,
-                            syncToken: nil,
-                            timeMin: startOfToday
-                        )
+                        do {
+                            page = try await calendarClient.listEvents(
+                                calendarID: calendarID,
+                                syncToken: nil,
+                                timeMin: startOfToday
+                            )
+                        } catch GoogleAPIError.httpStatus(404, _) {
+                            AppLogger.warn("calendar sync skipped: Google returned 404 for one selected calendar", category: .sync)
+                            return nil
+                        }
                         didFullSync = true
+                    } catch GoogleAPIError.httpStatus(404, _) {
+                        AppLogger.warn("calendar sync skipped: Google returned 404 for one selected calendar", category: .sync)
+                        return nil
                     }
 
                     let nextCheckpoint = SyncCheckpoint(
@@ -283,7 +291,9 @@ actor SyncScheduler {
 
             var results: [CalendarSyncResult] = []
             for try await result in group {
-                results.append(result)
+                if let result {
+                    results.append(result)
+                }
                 scheduleNext()
             }
             return results

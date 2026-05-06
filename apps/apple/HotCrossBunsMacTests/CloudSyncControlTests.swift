@@ -97,6 +97,34 @@ final class CloudSyncControlTests: XCTestCase {
         XCTAssertTrue(MockURLProtocol.capturedRequests.allSatisfy { $0.url?.path.hasPrefix("/tasks/") == false })
     }
 
+    func testSchedulerSkipsSingleMissingCalendarAndKeepsSyncingEvents() async throws {
+        var settings = AppSettings.default
+        settings.cloudSyncTargets = [.events]
+        settings.selectedCalendarIDs = ["cal", "missing-cal"]
+        settings.hasConfiguredCalendarSelection = true
+        let state = baseState(settings: settings)
+        MockURLProtocol.requestHandler = { request in
+            let path = try XCTUnwrap(request.url?.path)
+            XCTAssertFalse(path.hasPrefix("/tasks/"), "Tasks endpoints must not be called when Events sync is disabled")
+            if path == "/calendar/v3/users/me/calendarList" {
+                return Self.jsonResponse(for: request, body: Self.calendarListWithMissingJSON)
+            }
+            if path == "/calendar/v3/calendars/cal/events" {
+                return Self.jsonResponse(for: request, body: Self.eventsJSON)
+            }
+            if path == "/calendar/v3/calendars/missing-cal/events" {
+                return Self.jsonResponse(for: request, body: Self.notFoundJSON, statusCode: 404)
+            }
+            XCTFail("Unexpected path \(path)")
+            return Self.jsonResponse(for: request, body: #"{}"#, statusCode: 404)
+        }
+
+        let synced = try await makeScheduler().syncNow(mode: .balanced, baseState: state)
+
+        XCTAssertEqual(synced.events.map(\.id), ["remote-event"])
+        XCTAssertEqual(Set(synced.calendars.map(\.id)), ["cal", "missing-cal"])
+    }
+
     func testSchedulerLeavesEventsLocalWhenOnlyTasksSync() async throws {
         var settings = AppSettings.default
         settings.cloudSyncTargets = [.tasks]
@@ -224,6 +252,15 @@ final class CloudSyncControlTests: XCTestCase {
     }
     """
 
+    private static let calendarListWithMissingJSON = """
+    {
+      "items": [
+        {"id": "cal", "summary": "Work", "backgroundColor": "#000000", "selected": true, "accessRole": "owner", "etag": "cal-etag"},
+        {"id": "missing-cal", "summary": "Missing", "backgroundColor": "#666666", "selected": true, "accessRole": "reader", "etag": "missing-etag"}
+      ]
+    }
+    """
+
     private static let eventsJSON = """
     {
       "items": [
@@ -238,6 +275,16 @@ final class CloudSyncControlTests: XCTestCase {
         }
       ],
       "nextSyncToken": "next-token"
+    }
+    """
+
+    private static let notFoundJSON = """
+    {
+      "error": {
+        "code": 404,
+        "message": "Not Found",
+        "status": "NOT_FOUND"
+      }
     }
     """
 }

@@ -270,10 +270,24 @@
 	<section id="updates" class="updates">
   <div class="updates-head">
     <p class="eyebrow">Changelog</p>
-    <h2>Latest changes in <em>v0.2.2</em>.</h2>
+    <h2>Latest changes in <em>v0.2.3</em>.</h2>
   </div>
 
   <div class="updates-list">
+    <article class="update-entry">
+      <div class="update-meta">
+        <h3>v0.2.3</h3>
+        <p>6 May 2026</p>
+      </div>
+      <div class="update-copy">
+        <ul>
+          <li>Fixed Google Calendar sync so one selected calendar returning 404 no longer aborts the entire refresh.</li>
+          <li>Tasks, task lists, and other reachable calendars now keep syncing when Google reports a missing or inaccessible calendar.</li>
+          <li>Added a diagnostics log warning when a selected calendar is skipped because Google returned 404.</li>
+        </ul>
+      </div>
+    </article>
+
     <article class="update-entry">
       <div class="update-meta">
         <h3>v0.2.2</h3>
