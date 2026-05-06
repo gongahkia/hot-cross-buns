@@ -270,10 +270,24 @@
 	<section id="updates" class="updates">
   <div class="updates-head">
     <p class="eyebrow">Changelog</p>
-    <h2>Latest changes in <em>v0.2.3</em>.</h2>
+    <h2>Latest changes in <em>v0.2.4</em>.</h2>
   </div>
 
   <div class="updates-list">
+    <article class="update-entry">
+      <div class="update-meta">
+        <h3>v0.2.4</h3>
+        <p>6 May 2026</p>
+      </div>
+      <div class="update-copy">
+        <ul>
+          <li>Added stage-level Google sync logs for task-list, calendar-list, and calendar-events requests.</li>
+          <li>Calendar event failures now include the calendar name, redacted calendar ID, access role, HTTP status, and Google response body in Diagnostics logs.</li>
+          <li>Successful calendar event pulls now log event counts, making it easier to separate healthy calendars from broken Google Calendar resources.</li>
+        </ul>
+      </div>
+    </article>
+
     <article class="update-entry">
       <div class="update-meta">
         <h3>v0.2.3</h3>

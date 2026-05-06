@@ -28,8 +28,39 @@ actor SyncScheduler {
         let syncTargets = baseState.settings.cloudSyncTargets
         let shouldSyncTasks = syncTargets.syncsTasks
         let shouldSyncEvents = syncTargets.syncsEvents
-        let taskLists = shouldSyncTasks ? try await tasksClient.listTaskLists() : baseState.taskLists
-        let calendars = shouldSyncEvents ? try await calendarClient.listCalendars() : baseState.calendars
+        let taskLists: [TaskListMirror]
+        if shouldSyncTasks {
+            AppLogger.info("sync stage start", category: .sync, metadata: ["stage": "tasks.taskLists.list"])
+            do {
+                taskLists = try await tasksClient.listTaskLists()
+                AppLogger.info("sync stage succeeded", category: .sync, metadata: [
+                    "stage": "tasks.taskLists.list",
+                    "count": String(taskLists.count)
+                ])
+            } catch {
+                AppLogger.error("sync stage failed", category: .sync, metadata: Self.syncErrorMetadata(error, stage: "tasks.taskLists.list"))
+                throw error
+            }
+        } else {
+            taskLists = baseState.taskLists
+        }
+
+        let calendars: [CalendarListMirror]
+        if shouldSyncEvents {
+            AppLogger.info("sync stage start", category: .sync, metadata: ["stage": "calendar.calendarList.list"])
+            do {
+                calendars = try await calendarClient.listCalendars()
+                AppLogger.info("sync stage succeeded", category: .sync, metadata: [
+                    "stage": "calendar.calendarList.list",
+                    "count": String(calendars.count)
+                ])
+            } catch {
+                AppLogger.error("sync stage failed", category: .sync, metadata: Self.syncErrorMetadata(error, stage: "calendar.calendarList.list"))
+                throw error
+            }
+        } else {
+            calendars = baseState.calendars
+        }
         let selectedCalendarIDs = shouldSyncEvents
             ? resolvedSelectedCalendarIDs(calendars: calendars, settings: baseState.settings)
             : baseState.settings.selectedCalendarIDs
@@ -219,15 +250,17 @@ actor SyncScheduler {
         let resolvedIDs = selectedCalendarIDs.isEmpty
             ? Set(calendars.filter(\.isSelected).map(\.id))
             : selectedCalendarIDs
+        let selectedCalendars = calendars.filter { resolvedIDs.contains($0.id) }
         let startOfToday = Calendar.current.startOfDay(for: Date())
         let calendarClient = calendarClient
 
         return try await withThrowingTaskGroup(of: CalendarSyncResult?.self) { group in
             // Same sliding-window concurrency cap as listTasks.
-            let idArray = Array(resolvedIDs)
-            var iter = idArray.makeIterator()
+            var iter = selectedCalendars.makeIterator()
             func scheduleNext() {
-                guard let calendarID = iter.next() else { return }
+                guard let calendar = iter.next() else { return }
+                let calendarID = calendar.id
+                let baseMetadata = Self.calendarSyncMetadata(calendar)
                 let cp = checkpoint(
                     accountID: accountID,
                     resourceType: .calendar,
@@ -239,6 +272,7 @@ actor SyncScheduler {
                     let page: GoogleCalendarEventsPage
                     let didFullSync: Bool
 
+                    AppLogger.info("calendar events list start", category: .sync, metadata: baseMetadata)
                     do {
                         page = try await calendarClient.listEvents(
                             calendarID: calendarID,
@@ -253,14 +287,29 @@ actor SyncScheduler {
                                 syncToken: nil,
                                 timeMin: startOfToday
                             )
-                        } catch GoogleAPIError.httpStatus(404, _) {
-                            AppLogger.warn("calendar sync skipped: Google returned 404 for one selected calendar", category: .sync)
+                        } catch GoogleAPIError.httpStatus(404, let body) {
+                            AppLogger.warn(
+                                "calendar events list skipped",
+                                category: .sync,
+                                metadata: baseMetadata.merging(Self.syncErrorMetadata(GoogleAPIError.httpStatus(404, body), stage: "calendar.events.list")) { lhs, _ in lhs }
+                            )
                             return nil
                         }
                         didFullSync = true
-                    } catch GoogleAPIError.httpStatus(404, _) {
-                        AppLogger.warn("calendar sync skipped: Google returned 404 for one selected calendar", category: .sync)
+                    } catch GoogleAPIError.httpStatus(404, let body) {
+                        AppLogger.warn(
+                            "calendar events list skipped",
+                            category: .sync,
+                            metadata: baseMetadata.merging(Self.syncErrorMetadata(GoogleAPIError.httpStatus(404, body), stage: "calendar.events.list")) { lhs, _ in lhs }
+                        )
                         return nil
+                    } catch {
+                        AppLogger.error(
+                            "calendar events list failed",
+                            category: .sync,
+                            metadata: baseMetadata.merging(Self.syncErrorMetadata(error, stage: "calendar.events.list")) { lhs, _ in lhs }
+                        )
+                        throw error
                     }
 
                     let nextCheckpoint = SyncCheckpoint(
@@ -276,6 +325,10 @@ actor SyncScheduler {
                         tasksUpdatedMin: nil,
                         lastSuccessfulSyncAt: syncStartedAt
                     )
+                    AppLogger.info("calendar events list succeeded", category: .sync, metadata: baseMetadata.merging([
+                        "events": String(page.events.count),
+                        "fullSync": String(didFullSync)
+                    ]) { lhs, _ in lhs })
                     return CalendarSyncResult(
                         calendarID: calendarID,
                         events: page.events,
@@ -298,6 +351,44 @@ actor SyncScheduler {
             }
             return results
         }
+    }
+
+    private static func calendarSyncMetadata(_ calendar: CalendarListMirror) -> [String: String] {
+        [
+            "stage": "calendar.events.list",
+            "calendar": calendar.summary,
+            "calendarID": redactedIdentifier(calendar.id),
+            "accessRole": calendar.accessRole,
+            "googleSelected": String(calendar.isSelected)
+        ]
+    }
+
+    private static func syncErrorMetadata(_ error: Error, stage: String) -> [String: String] {
+        var metadata: [String: String] = [
+            "stage": stage,
+            "error": String(describing: error)
+        ]
+
+        if case let GoogleAPIError.httpStatus(status, body) = error {
+            metadata["status"] = String(status)
+            if let body, body.isEmpty == false {
+                metadata["body"] = String(body.prefix(500))
+            }
+        }
+
+        return metadata
+    }
+
+    private static func redactedIdentifier(_ value: String) -> String {
+        if let at = value.firstIndex(of: "@") {
+            let local = value[..<at]
+            let domain = value[value.index(after: at)...]
+            return "\(local.prefix(2))***@\(domain)"
+        }
+        if value.count <= 16 {
+            return value
+        }
+        return "\(value.prefix(8))...\(value.suffix(4))"
     }
 
     private func resolvedSelectedCalendarIDs(
