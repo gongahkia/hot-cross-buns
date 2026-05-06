@@ -99,6 +99,38 @@ struct TaskListSectionSnapshot: Identifiable, Equatable, Sendable {
     }
 }
 
+struct TaskBoardSnapshot: Equatable, Sendable {
+    var datedTasks: [TaskMirror]
+    var undatedTasks: [TaskMirror]
+
+    static let empty = TaskBoardSnapshot(datedTasks: [], undatedTasks: [])
+
+    static func build(
+        tasks: [TaskMirror],
+        tasksTabVisibleListIDs: Set<TaskListMirror.ID>,
+        notesTabVisibleListIDs: Set<TaskListMirror.ID>,
+        settings: AppSettings,
+        referenceDate: Date,
+        calendar: Calendar = .current
+    ) -> TaskBoardSnapshot {
+        var datedTasks: [TaskMirror] = []
+        var undatedTasks: [TaskMirror] = []
+
+        for task in tasks where task.isDeleted == false {
+            if task.dueDate != nil {
+                guard tasksTabVisibleListIDs.contains(task.taskListID) else { continue }
+                guard settings.shouldHideOverdueTask(task, now: referenceDate, calendar: calendar) == false else { continue }
+                datedTasks.append(task)
+            } else {
+                guard notesTabVisibleListIDs.contains(task.taskListID) else { continue }
+                undatedTasks.append(task)
+            }
+        }
+
+        return TaskBoardSnapshot(datedTasks: datedTasks, undatedTasks: undatedTasks)
+    }
+}
+
 struct CachedAppState: Codable, Sendable {
     // Bumped whenever the cache layout changes in a way that can't be
     // decoded field-by-field. CacheSchemaMigrator routes older decoded

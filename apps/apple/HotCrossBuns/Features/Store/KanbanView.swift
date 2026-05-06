@@ -90,7 +90,7 @@ struct KanbanView: View {
         // Column IDs under byList follow "list-<id>" — see KanbanGrouping.
         guard columnMode == .byList, column.id.hasPrefix("list-") else { return nil }
         let listID = String(column.id.dropFirst("list-".count))
-        return model.taskLists.first(where: { $0.id == listID })
+        return model.taskList(id: listID)
     }
 
     private var header: some View {
@@ -518,8 +518,8 @@ private struct KanbanCardView: View {
                 .hcbFont(.caption2)
                 .foregroundStyle(dueDateColor(due))
             }
-            let listName = model.taskLists.first(where: { $0.id == task.taskListID })?.title
-            if let listName {
+            let listName = model.taskListTitle(for: task.taskListID, fallback: "")
+            if listName.isEmpty == false {
                 Text(listName)
                     .hcbFont(.caption2)
                     .foregroundStyle(.secondary)
@@ -558,7 +558,8 @@ private struct KanbanCardView: View {
         if let due = task.dueDate {
             parts.append("due \(dueDateBadge(due))")
         }
-        if let listName = model.taskLists.first(where: { $0.id == task.taskListID })?.title {
+        let listName = model.taskListTitle(for: task.taskListID, fallback: "")
+        if listName.isEmpty == false {
             parts.append("list \(listName)")
         }
         if tags.isEmpty == false {

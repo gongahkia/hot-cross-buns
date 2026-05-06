@@ -133,7 +133,7 @@ struct CalendarTaskPreviewButton<Label: View>: View {
     @State private var snoozeCustomTask: TaskMirror?
 
     private var listName: String {
-        model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Unknown list"
+        model.taskListTitle(for: task.taskListID)
     }
 
     var body: some View {

@@ -217,11 +217,10 @@ struct AddTaskSheet: View {
     }
 
     private var selectedListTitle: String {
-        guard let id = selectedTaskListID,
-              let list = model.taskLists.first(where: { $0.id == id }) else {
+        guard let id = selectedTaskListID else {
             return "Select list"
         }
-        return list.title
+        return model.taskListTitle(for: id, fallback: "Select list")
     }
 
     private func createListInline() async {

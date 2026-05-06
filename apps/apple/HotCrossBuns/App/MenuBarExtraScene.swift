@@ -816,7 +816,7 @@ private struct DetailedMenuBarPanel: View {
     private func taskDayItemRow(_ task: TaskMirror) -> some View {
         dayItemRow(
             title: task.title,
-            subtitle: model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Tasks",
+            subtitle: model.taskListTitle(for: task.taskListID, fallback: "Tasks"),
             symbol: "checkmark.circle"
         )
         .contextMenu {

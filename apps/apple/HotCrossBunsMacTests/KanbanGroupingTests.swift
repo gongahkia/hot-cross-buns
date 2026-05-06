@@ -151,4 +151,48 @@ final class KanbanGroupingTests: XCTestCase {
         let total = cols.reduce(0) { $0 + $1.tasks.count }
         XCTAssertEqual(total, 1)
     }
+
+    func testTaskBoardSnapshotSeparatesDatedAndUndatedTasks() {
+        let datedVisible = task(id: "dated-visible", list: "L1", due: day(1))
+        let datedHiddenList = task(id: "dated-hidden-list", list: "L2", due: day(1))
+        let noteVisible = task(id: "note-visible", list: "L2")
+        let noteHiddenList = task(id: "note-hidden-list", list: "L1")
+
+        var settings = AppSettings.default
+        settings.hasConfiguredTasksTabSelection = true
+        settings.tasksTabSelectedListIDs = ["L1"]
+        settings.hasConfiguredNotesTabSelection = true
+        settings.notesTabSelectedListIDs = ["L2"]
+
+        let snapshot = TaskBoardSnapshot.build(
+            tasks: [datedVisible, datedHiddenList, noteVisible, noteHiddenList],
+            tasksTabVisibleListIDs: settings.tasksTabSelectedListIDs,
+            notesTabVisibleListIDs: settings.notesTabSelectedListIDs,
+            settings: settings,
+            referenceDate: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(snapshot.datedTasks.map(\.id), ["dated-visible"])
+        XCTAssertEqual(snapshot.undatedTasks.map(\.id), ["note-visible"])
+    }
+
+    func testTaskBoardSnapshotHidesOverdueTasksWhenConfigured() {
+        let overdue = task(id: "overdue", list: "L1", due: day(-1))
+        let today = task(id: "today", list: "L1", due: day(0))
+
+        var settings = AppSettings.default
+        settings.overdueTaskBehavior = .hide
+
+        let snapshot = TaskBoardSnapshot.build(
+            tasks: [overdue, today],
+            tasksTabVisibleListIDs: ["L1"],
+            notesTabVisibleListIDs: ["L1"],
+            settings: settings,
+            referenceDate: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(snapshot.datedTasks.map(\.id), ["today"])
+    }
 }

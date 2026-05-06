@@ -143,6 +143,7 @@ final class AppModel {
     private(set) var tasksByDueDate: [TimeInterval: [TaskMirror.ID]] = [:]
     private(set) var visibleTaskListIDs: Set<TaskListMirror.ID> = []
     private(set) var taskSections: [TaskListSectionSnapshot] = []
+    private(set) var taskBoardSnapshot: TaskBoardSnapshot = .empty
     private(set) var todaySnapshot: TodaySnapshot = .empty
     private(set) var calendarSnapshot: CalendarSnapshot = .empty
     // Cached during rebuildSnapshots so the sidebar badge doesn't have to
@@ -161,6 +162,7 @@ final class AppModel {
     // as the single source of truth.
     private(set) var taskListTitleByID: [TaskListMirror.ID: String] = [:]
     private(set) var calendarTitleByID: [CalendarListMirror.ID: String] = [:]
+    private(set) var taskChildrenByParentID: [TaskMirror.ID: [TaskMirror.ID]] = [:]
     // Monotonic counter bumped on every rebuildSnapshots pass — i.e. every
     // time the observable task/event/list/calendar state changes in a way a
     // downstream view might care about. Consumer views (MonthGrid, WeekGrid,
@@ -4021,6 +4023,15 @@ final class AppModel {
         return events[index]
     }
 
+    func taskList(id: TaskListMirror.ID) -> TaskListMirror? {
+        guard let index = taskListIndexByID[id],
+              taskLists.indices.contains(index),
+              taskLists[index].id == id else {
+            return taskLists.first { $0.id == id }
+        }
+        return taskLists[index]
+    }
+
     func taskListTitle(for id: TaskListMirror.ID, fallback: String = "Unknown list") -> String {
         taskListTitleByID[id] ?? fallback
     }
@@ -4031,6 +4042,10 @@ final class AppModel {
 
     func openTaskCount(forTaskListID id: TaskListMirror.ID) -> Int {
         taskListCompletionStats[id]?.openCount ?? 0
+    }
+
+    func children(of taskID: TaskMirror.ID) -> [TaskMirror] {
+        (taskChildrenByParentID[taskID] ?? []).compactMap { task(id: $0) }
     }
 
     private func apply(_ state: CachedAppState) {
@@ -4601,8 +4616,21 @@ final class AppModel {
             : Set(taskLists.map(\.id))
         let visibleTaskLists = taskLists.filter { visibleTaskListIDs.contains($0.id) }
         let visibleTasks = tasks.filter { visibleTaskListIDs.contains($0.taskListID) }
+        let tasksTabVisibleListIDs = settings.hasConfiguredTasksTabSelection
+            ? settings.tasksTabSelectedListIDs
+            : visibleTaskListIDs
+        let notesTabVisibleListIDs = settings.hasConfiguredNotesTabSelection
+            ? settings.notesTabSelectedListIDs
+            : visibleTaskListIDs
 
         taskSections = TaskListSectionSnapshot.build(taskLists: visibleTaskLists, tasks: visibleTasks)
+        taskBoardSnapshot = TaskBoardSnapshot.build(
+            tasks: tasks,
+            tasksTabVisibleListIDs: tasksTabVisibleListIDs,
+            notesTabVisibleListIDs: notesTabVisibleListIDs,
+            settings: settings,
+            referenceDate: referenceDate
+        )
         todaySnapshot = TodaySnapshot.build(tasks: visibleTasks, events: events, referenceDate: referenceDate)
         calendarSnapshot = CalendarSnapshot.build(calendars: calendars, events: events, referenceDate: referenceDate)
 
@@ -4654,12 +4682,6 @@ final class AppModel {
         // render. Tasks and Notes can override the global Task Lists
         // visibility independently, so their badges should follow the same
         // per-tab list scopes as their content panes.
-        let tasksTabVisibleListIDs = settings.hasConfiguredTasksTabSelection
-            ? settings.tasksTabSelectedListIDs
-            : visibleTaskListIDs
-        let notesTabVisibleListIDs = settings.hasConfiguredNotesTabSelection
-            ? settings.notesTabSelectedListIDs
-            : visibleTaskListIDs
         var dated = 0
         var undated = 0
         for task in tasks where task.isCompleted == false && task.isDeleted == false {
@@ -4685,6 +4707,7 @@ final class AppModel {
         taskListCompletionStats = stats
         taskListTitleByID = Dictionary(uniqueKeysWithValues: taskLists.map { ($0.id, $0.title) })
         calendarTitleByID = Dictionary(uniqueKeysWithValues: calendars.map { ($0.id, $0.summary) })
+        taskChildrenByParentID = buildTaskChildrenByParentID(tasks: tasks)
 
         // rebuild duplicate groups last (reads final tasks + dismissedGroupKeys)
         duplicateIndex = DuplicateIndex.build(
@@ -4712,6 +4735,17 @@ final class AppModel {
             "events": String(events.count),
             "visible_tasks": String(visibleTasks.count)
         ])
+    }
+
+    private func buildTaskChildrenByParentID(tasks: [TaskMirror]) -> [TaskMirror.ID: [TaskMirror.ID]] {
+        var grouped: [TaskMirror.ID: [TaskMirror]] = [:]
+        for task in tasks where task.isDeleted == false {
+            guard let parentID = task.parentID else { continue }
+            grouped[parentID, default: []].append(task)
+        }
+        return grouped.mapValues { children in
+            TaskHierarchy.sortByPosition(children).map(\.id)
+        }
     }
 
     // Public re-index helper for call sites that change dismissedDuplicateGroups but don't otherwise mutate tasks (avoids paying the full rebuildSnapshots cost).

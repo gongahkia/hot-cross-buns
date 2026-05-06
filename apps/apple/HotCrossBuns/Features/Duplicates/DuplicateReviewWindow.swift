@@ -143,7 +143,7 @@ private struct DuplicateGroupCard: View {
             ForEach(group.tasks, id: \.id) { task in
                 DuplicateTaskRow(
                     task: task,
-                    listTitle: model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Unknown list",
+                    listTitle: model.taskListTitle(for: task.taskListID),
                     onOpen: { onOpenTask(task.id) },
                     onDelete: { onDeleteTask(task) }
                 )

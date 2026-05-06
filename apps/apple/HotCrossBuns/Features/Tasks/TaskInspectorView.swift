@@ -172,7 +172,7 @@ struct TaskInspectorView: View {
 
     private var viewOnlyBody: some View {
         let strippedNotes = task.notes
-        let listTitle = model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Unknown list"
+        let listTitle = model.taskListTitle(for: task.taskListID)
         let subtasks = children
 
         return VStack(alignment: .leading, spacing: 14) {
@@ -458,7 +458,7 @@ struct TaskInspectorView: View {
             titleVisibility: .visible
         ) {
             if let newID = pendingMoveListID,
-               let target = model.taskLists.first(where: { $0.id == newID }) {
+               let target = model.taskList(id: newID) {
                 Button("Move to \(target.title)") {
                     Task {
                         _ = await model.moveTaskToList(task, toTaskListID: newID)
@@ -473,7 +473,7 @@ struct TaskInspectorView: View {
     }
 
     private var currentListTitle: String {
-        model.taskLists.first(where: { $0.id == task.taskListID })?.title ?? "Unknown list"
+        model.taskListTitle(for: task.taskListID)
     }
 
     private var actionButtons: some View {
@@ -544,16 +544,14 @@ struct TaskInspectorView: View {
     }
 
     private func copyAsMarkdown() {
-        let listTitle = model.taskLists.first(where: { $0.id == task.taskListID })?.title
+        let listTitle = model.taskListTitle(for: task.taskListID, fallback: "")
         let markdown = TaskMarkdownExporter.markdown(for: task, taskListTitle: listTitle)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(markdown, forType: .string)
     }
 
     private var children: [TaskMirror] {
-        TaskHierarchy.sortByPosition(
-            model.tasks.filter { $0.parentID == task.id && $0.isDeleted == false }
-        )
+        model.children(of: task.id)
     }
 
     private var isSubtask: Bool { task.parentID != nil }
