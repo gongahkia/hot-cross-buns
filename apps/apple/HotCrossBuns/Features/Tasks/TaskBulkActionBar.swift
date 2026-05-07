@@ -239,9 +239,13 @@ private struct TagInputSheet: View {
             }
             .navigationTitle(mode == .add ? "Add tag" : "Remove tag")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: onCancel) }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                        .keyboardShortcut(.cancelAction)
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Apply", action: apply)
+                        .keyboardShortcut(.defaultAction)
                         .disabled(sanitized.isEmpty)
                 }
             }
@@ -285,11 +289,15 @@ private struct CustomDueDateSheet: View {
             }
             .navigationTitle("Pick a due date")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: onCancel) }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                        .keyboardShortcut(.cancelAction)
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Apply") {
                         onPick(Calendar.current.startOfDay(for: date))
                     }
+                    .keyboardShortcut(.defaultAction)
                 }
             }
         }

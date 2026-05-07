@@ -52,6 +52,11 @@ struct TemplatesSection: View {
                         } label: {
                             Label("Edit", systemImage: "pencil")
                         }
+                        Button {
+                            model.duplicateTaskTemplate(template)
+                        } label: {
+                            Label("Duplicate", systemImage: "plus.square.on.square")
+                        }
                         Divider()
                         Button(role: .destructive) {
                             model.deleteTaskTemplate(template.id)
@@ -121,6 +126,11 @@ struct TemplatesSection: View {
                             eventEditor = template
                         } label: {
                             Label("Edit", systemImage: "pencil")
+                        }
+                        Button {
+                            model.duplicateEventTemplate(template)
+                        } label: {
+                            Label("Duplicate", systemImage: "plus.square.on.square")
                         }
                         Divider()
                         Button(role: .destructive) {

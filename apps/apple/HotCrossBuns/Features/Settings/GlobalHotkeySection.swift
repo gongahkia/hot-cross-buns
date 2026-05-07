@@ -31,6 +31,7 @@ struct GlobalHotkeySection: View {
                         isRecording = false
                     }
                     .buttonStyle(.borderless)
+                    .keyboardShortcut(.cancelAction)
                 } else {
                     Button(model.settings.globalHotkeyBinding.displayLabel) {
                         isRecording = true
