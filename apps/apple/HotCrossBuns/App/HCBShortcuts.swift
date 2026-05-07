@@ -375,6 +375,17 @@ func hcbConflictingCommands(
     }
 }
 
+struct HCBShortcutConflictState: Equatable {
+    var proposedBinding: HCBKeyBinding
+    var targetCommand: HCBShortcutCommand
+    var conflictingCommands: [HCBShortcutCommand]
+
+    var message: String {
+        let names = conflictingCommands.map(\.title).joined(separator: ", ")
+        return "\(proposedBinding.displayLabel) is already bound to \(names)."
+    }
+}
+
 extension View {
     // Apply a rebindable keyboard shortcut. Reads overrides from the env
     // and falls back to the command's default binding. Must be applied to

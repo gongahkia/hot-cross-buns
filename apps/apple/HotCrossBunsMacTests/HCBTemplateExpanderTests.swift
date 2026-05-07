@@ -129,4 +129,68 @@ final class HCBTemplateExpanderTests: XCTestCase {
         )
         XCTAssertEqual(t.requiredPrompts(), ["Owner"])
     }
+
+    func testDuplicatedTaskTemplateGetsNewIDCopyNameAndPreservesFields() {
+        let originalID = UUID()
+        let copyID = UUID()
+        let template = TaskTemplate(
+            id: originalID,
+            name: "Review",
+            title: "Weekly {{prompt:Topic}}",
+            notes: "Notes",
+            due: "{{+7d}}",
+            listIdOrTitle: "Work"
+        )
+
+        let copy = template.duplicated(id: copyID)
+
+        XCTAssertNotEqual(copy.id, template.id)
+        XCTAssertEqual(copy.id, copyID)
+        XCTAssertEqual(copy.name, "Review Copy")
+        XCTAssertEqual(copy.title, template.title)
+        XCTAssertEqual(copy.notes, template.notes)
+        XCTAssertEqual(copy.due, template.due)
+        XCTAssertEqual(copy.listIdOrTitle, template.listIdOrTitle)
+    }
+
+    func testDuplicatedEventTemplateGetsNewIDCopyNameAndPreservesFields() {
+        let originalID = UUID()
+        let copyID = UUID()
+        let template = EventTemplate(
+            id: originalID,
+            name: "Planning",
+            summary: "Plan {{prompt:Topic}}",
+            details: "Agenda",
+            location: "Room 4",
+            dateAnchor: "{{nextWeekday:mon}}",
+            timeAnchor: "09:30",
+            durationMinutes: 45,
+            isAllDay: false,
+            reminderMinutes: 10,
+            colorId: "5",
+            attendees: ["ada@example.com"],
+            addGoogleMeet: true,
+            recurrenceRule: "FREQ=WEEKLY",
+            calendarIdOrTitle: "Team"
+        )
+
+        let copy = template.duplicated(id: copyID)
+
+        XCTAssertNotEqual(copy.id, template.id)
+        XCTAssertEqual(copy.id, copyID)
+        XCTAssertEqual(copy.name, "Planning Copy")
+        XCTAssertEqual(copy.summary, template.summary)
+        XCTAssertEqual(copy.details, template.details)
+        XCTAssertEqual(copy.location, template.location)
+        XCTAssertEqual(copy.dateAnchor, template.dateAnchor)
+        XCTAssertEqual(copy.timeAnchor, template.timeAnchor)
+        XCTAssertEqual(copy.durationMinutes, template.durationMinutes)
+        XCTAssertEqual(copy.isAllDay, template.isAllDay)
+        XCTAssertEqual(copy.reminderMinutes, template.reminderMinutes)
+        XCTAssertEqual(copy.colorId, template.colorId)
+        XCTAssertEqual(copy.attendees, template.attendees)
+        XCTAssertEqual(copy.addGoogleMeet, template.addGoogleMeet)
+        XCTAssertEqual(copy.recurrenceRule, template.recurrenceRule)
+        XCTAssertEqual(copy.calendarIdOrTitle, template.calendarIdOrTitle)
+    }
 }

@@ -6,7 +6,7 @@ struct KeybindingsSection: View {
     @State private var selectedGroup: HCBShortcutGroup?
     @State private var query: String = ""
     @State private var recording: HCBShortcutCommand?
-    @State private var conflictMessage: String?
+    @State private var conflictState: HCBShortcutConflictState?
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -19,10 +19,8 @@ struct KeybindingsSection: View {
             VStack(alignment: .leading, spacing: 14) {
                 header
                 shortcutList
-                if let conflictMessage {
-                    Label(conflictMessage, systemImage: "exclamationmark.triangle")
-                        .hcbFont(.footnote)
-                        .foregroundStyle(.red)
+                if let conflictState {
+                    conflictRow(conflictState)
                 }
                 footer
             }
@@ -194,6 +192,7 @@ struct KeybindingsSection: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .keyboardShortcut(.cancelAction)
                 .help("Cancel recording")
             } else {
                 Button {
@@ -252,6 +251,37 @@ struct KeybindingsSection: View {
         }
     }
 
+    private func conflictRow(_ state: HCBShortcutConflictState) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(state.message, systemImage: "exclamationmark.triangle")
+                .hcbFont(.footnote)
+                .foregroundStyle(.red)
+            ForEach(state.conflictingCommands) { command in
+                HStack(spacing: 8) {
+                    Text(command.title)
+                        .hcbFont(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    Button("Show") {
+                        showConflictingCommand(command)
+                    }
+                    .buttonStyle(.borderless)
+                    Button("Reset conflicting shortcut") {
+                        resetConflictingShortcut(command, for: state)
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(model.settings.shortcutOverrides[command.rawValue] == nil)
+                    .help(model.settings.shortcutOverrides[command.rawValue] == nil
+                        ? "This command is using its default shortcut."
+                        : "Reset \(command.title) to its default shortcut.")
+                }
+            }
+        }
+        .hcbScaledPadding(10)
+        .background(AppColor.ember.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+    }
+
     private var filteredCommands: [HCBShortcutCommand] {
         let scoped = HCBShortcutCommand.allCases.filter { command in
             guard let selectedGroup else { return true }
@@ -281,12 +311,36 @@ struct KeybindingsSection: View {
             for: command,
             overrides: model.settings.shortcutOverrides
         )
-        if let first = conflicts.first {
-            conflictMessage = "\(newBinding.displayLabel) is already bound to \"\(first.title)\". Rebind or reset that one first."
+        if conflicts.isEmpty == false {
+            conflictState = HCBShortcutConflictState(
+                proposedBinding: newBinding,
+                targetCommand: command,
+                conflictingCommands: conflicts
+            )
         } else {
-            conflictMessage = nil
+            conflictState = nil
             model.setShortcutBinding(command, binding: newBinding)
         }
+    }
+
+    private func showConflictingCommand(_ command: HCBShortcutCommand) {
+        selectedGroup = command.group
+        query = command.title
+    }
+
+    private func resetConflictingShortcut(_ command: HCBShortcutCommand, for state: HCBShortcutConflictState) {
+        guard model.settings.shortcutOverrides[command.rawValue] != nil else { return }
+        model.setShortcutBinding(command, binding: nil)
+        let remaining = hcbConflictingCommands(
+            proposed: state.proposedBinding,
+            for: state.targetCommand,
+            overrides: model.settings.shortcutOverrides
+        )
+        conflictState = remaining.isEmpty ? nil : HCBShortcutConflictState(
+            proposedBinding: state.proposedBinding,
+            targetCommand: state.targetCommand,
+            conflictingCommands: remaining
+        )
     }
 }
 

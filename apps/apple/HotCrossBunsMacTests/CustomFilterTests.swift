@@ -73,4 +73,33 @@ final class CustomFilterTests: XCTestCase {
         XCTAssertTrue(filter.matches(task(id: "a", list: "L1"), now: now, calendar: calendar))
         XCTAssertFalse(filter.matches(task(id: "b", list: "L2"), now: now, calendar: calendar))
     }
+
+    func testDuplicatedFilterGetsNewIDCopyNameAndPreservesFields() {
+        let id = UUID()
+        let copyID = UUID()
+        let filter = CustomFilterDefinition(
+            id: id,
+            name: "Menu",
+            systemImage: "star",
+            dueWindow: .next7Days,
+            includeCompleted: true,
+            taskListIDs: ["L1", "L2"],
+            tagsAny: ["work", "deep"],
+            queryExpression: "tag:work",
+            pinnedToMenuBar: true
+        )
+
+        let copy = filter.duplicated(id: copyID)
+
+        XCTAssertNotEqual(copy.id, filter.id)
+        XCTAssertEqual(copy.id, copyID)
+        XCTAssertEqual(copy.name, "Menu Copy")
+        XCTAssertEqual(copy.systemImage, filter.systemImage)
+        XCTAssertEqual(copy.dueWindow, filter.dueWindow)
+        XCTAssertEqual(copy.includeCompleted, filter.includeCompleted)
+        XCTAssertEqual(copy.taskListIDs, filter.taskListIDs)
+        XCTAssertEqual(copy.tagsAny, filter.tagsAny)
+        XCTAssertEqual(copy.queryExpression, filter.queryExpression)
+        XCTAssertEqual(copy.pinnedToMenuBar, filter.pinnedToMenuBar)
+    }
 }

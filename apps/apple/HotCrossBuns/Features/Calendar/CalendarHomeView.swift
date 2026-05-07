@@ -1091,7 +1091,9 @@ struct AddEventSheet: View {
                     guard let existing = editingEvent, trimmed.isEmpty == false else { return }
                     model.saveAsEventTemplate(existing, name: trimmed)
                 }
+                .keyboardShortcut(.defaultAction)
                 Button("Cancel", role: .cancel) {}
+                    .keyboardShortcut(.cancelAction)
             } message: {
                 Text("Saves this event's summary, duration, reminders, attendees, and color as a reusable blueprint in Settings.")
             }

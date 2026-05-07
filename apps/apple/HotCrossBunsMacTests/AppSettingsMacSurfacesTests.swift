@@ -58,6 +58,35 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
         XCTAssertEqual(AppSettings.MenuBarIcon.allCases.count, 50)
     }
 
+    func testBackgroundOpacityPresetMapping() {
+        XCTAssertEqual(BackgroundOpacityPreset.subtle.opacity, 0.45)
+        XCTAssertEqual(BackgroundOpacityPreset.readable.opacity, 0.70)
+        XCTAssertEqual(BackgroundOpacityPreset.strong.opacity, 0.90)
+        XCTAssertEqual(BackgroundOpacityPreset(opacity: 0.45), .subtle)
+        XCTAssertEqual(BackgroundOpacityPreset(opacity: 0.70), .readable)
+        XCTAssertEqual(BackgroundOpacityPreset(opacity: 0.90), .strong)
+        XCTAssertNil(BackgroundOpacityPreset(opacity: 0.55))
+    }
+
+    @MainActor
+    func testShortcutConflictStateNamesConflictingCommands() {
+        let proposed = HCBShortcutCommand.refresh.defaultBinding
+        let conflicts = hcbConflictingCommands(
+            proposed: proposed,
+            for: .newTask,
+            overrides: [:]
+        )
+        let state = HCBShortcutConflictState(
+            proposedBinding: proposed,
+            targetCommand: .newTask,
+            conflictingCommands: conflicts
+        )
+
+        XCTAssertEqual(conflicts, [.refresh])
+        XCTAssertTrue(state.message.contains("Refresh Sync"))
+        XCTAssertTrue(state.message.contains(proposed.displayLabel))
+    }
+
     func testDisconnectImpactWarnsWithoutClaimingGoogleDeletion() {
         let summary = DisconnectImpactSummary(
             accountName: "Ada Lovelace",

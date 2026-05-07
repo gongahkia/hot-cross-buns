@@ -2127,6 +2127,13 @@ final class AppModel {
         scheduleCacheSave()
     }
 
+    @discardableResult
+    func duplicateTaskTemplate(_ template: TaskTemplate) -> TaskTemplate {
+        let copy = template.duplicated()
+        upsertTaskTemplate(copy)
+        return copy
+    }
+
     // Instantiates a task template: expands every field with the given
     // variable context, then creates a real Google Task via the existing
     // createTask path. Returns true on success. `prompts` maps the label of
@@ -2904,6 +2911,13 @@ final class AppModel {
         scheduleCacheSave()
     }
 
+    @discardableResult
+    func duplicateCustomFilter(_ filter: CustomFilterDefinition) -> CustomFilterDefinition {
+        let copy = filter.duplicated()
+        upsertCustomFilter(copy)
+        return copy
+    }
+
     func upsertEventTemplate(_ template: EventTemplate) {
         if let index = settings.eventTemplates.firstIndex(where: { $0.id == template.id }) {
             settings.eventTemplates[index] = template
@@ -2916,6 +2930,13 @@ final class AppModel {
     func deleteEventTemplate(_ id: EventTemplate.ID) {
         settings.eventTemplates.removeAll { $0.id == id }
         scheduleCacheSave()
+    }
+
+    @discardableResult
+    func duplicateEventTemplate(_ template: EventTemplate) -> EventTemplate {
+        let copy = template.duplicated()
+        upsertEventTemplate(copy)
+        return copy
     }
 
     // §6.13b — Instantiates an event template: expands every templated field

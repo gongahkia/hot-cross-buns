@@ -51,6 +51,11 @@ struct CustomFiltersSection: View {
                         } label: {
                             Label("Edit", systemImage: "pencil")
                         }
+                        Button {
+                            model.duplicateCustomFilter(filter)
+                        } label: {
+                            Label("Duplicate", systemImage: "plus.square.on.square")
+                        }
                         Divider()
                         Button(role: .destructive) {
                             model.deleteCustomFilter(filter.id)

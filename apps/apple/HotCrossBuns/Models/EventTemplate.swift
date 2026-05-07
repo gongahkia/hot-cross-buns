@@ -109,4 +109,24 @@ struct EventTemplate: Identifiable, Hashable, Codable, Sendable {
         }
         return out
     }
+
+    func duplicated(id: UUID = UUID()) -> EventTemplate {
+        EventTemplate(
+            id: id,
+            name: hcbCopyName(name),
+            summary: summary,
+            details: details,
+            location: location,
+            dateAnchor: dateAnchor,
+            timeAnchor: timeAnchor,
+            durationMinutes: durationMinutes,
+            isAllDay: isAllDay,
+            reminderMinutes: reminderMinutes,
+            colorId: colorId,
+            attendees: attendees,
+            addGoogleMeet: addGoogleMeet,
+            recurrenceRule: recurrenceRule,
+            calendarIdOrTitle: calendarIdOrTitle
+        )
+    }
 }

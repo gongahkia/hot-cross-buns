@@ -391,7 +391,7 @@ struct MenuBarIconPickerRow: View {
             Spacer(minLength: 16)
             MenuBarIconPickerLabel(icon: model.settings.menuBarIcon)
                 .foregroundStyle(.secondary)
-            Button("Change...") {
+            Button("Change…") {
                 isShowingGrid = true
             }
             .popover(isPresented: $isShowingGrid, arrowEdge: .bottom) {
@@ -408,24 +408,7 @@ struct MenuBarIconPickerRow: View {
                         model.setMenuBarIcon(icon)
                         isShowingGrid = false
                     } label: {
-                        VStack(spacing: 6) {
-                            MenuBarIconGlyph(icon: icon)
-                                .frame(width: 22, height: 22)
-                            Text(icon.gridTitle)
-                                .hcbFont(.caption2, weight: model.settings.menuBarIcon == icon ? .semibold : .regular)
-                                .multilineTextAlignment(.center)
-                                .lineLimit(2)
-                                .frame(height: 26)
-                        }
-                        .frame(width: 66, height: 62)
-                        .background(
-                            RoundedRectangle(cornerRadius: 7)
-                                .fill(model.settings.menuBarIcon == icon ? Color.accentColor.opacity(0.18) : Color.clear)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 7)
-                                .strokeBorder(model.settings.menuBarIcon == icon ? Color.accentColor : .separator.opacity(0.35), lineWidth: 1)
-                        )
+                        MenuBarIconGridCell(icon: icon, isSelected: model.settings.menuBarIcon == icon)
                     }
                     .buttonStyle(.plain)
                     .help(icon.title)
@@ -434,6 +417,36 @@ struct MenuBarIconPickerRow: View {
             .padding(12)
         }
         .frame(width: 410, height: 500)
+    }
+}
+
+private struct MenuBarIconGridCell: View {
+    let icon: AppSettings.MenuBarIcon
+    let isSelected: Bool
+
+    var body: some View {
+        VStack(spacing: 6) {
+            MenuBarIconGlyph(icon: icon)
+                .frame(width: 22, height: 22)
+            Text(icon.gridTitle)
+                .hcbFont(.caption2, weight: isSelected ? .semibold : .regular)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .frame(height: 26)
+        }
+        .frame(width: 66, height: 62)
+        .background(selectionBackground)
+        .overlay(selectionBorder)
+    }
+
+    private var selectionBackground: some View {
+        RoundedRectangle(cornerRadius: 7)
+            .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.clear)
+    }
+
+    private var selectionBorder: some View {
+        RoundedRectangle(cornerRadius: 7)
+            .strokeBorder(isSelected ? Color.accentColor : Color.secondary.opacity(0.35), lineWidth: 1)
     }
 }
 
