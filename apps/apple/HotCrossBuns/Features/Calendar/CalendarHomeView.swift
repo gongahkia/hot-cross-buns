@@ -7,6 +7,7 @@ struct CalendarHomeView: View {
     @Environment(\.routerPath) private var router
     @Environment(NetworkMonitor.self) private var networkMonitor
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.hcbAppBackgroundConfiguration) private var backgroundConfiguration
     @State private var selectedDate = Date()
     @SceneStorage("calendarGridMode") private var storedMode: String = CalendarGridMode.month.rawValue
     @State private var mode: CalendarGridMode = .month
@@ -248,7 +249,18 @@ struct CalendarHomeView: View {
         }
         .hcbScaledPadding(.horizontal, 16)
         .hcbScaledPadding(.vertical, 10)
+        .background {
+            if usesReadableCalendarChrome {
+                Rectangle()
+                    .fill(.regularMaterial)
+                    .overlay(AppColor.cream.opacity(0.24))
+            }
+        }
         .disabled(model.account == nil)
+    }
+
+    private var usesReadableCalendarChrome: Bool {
+        backgroundConfiguration.customImagePath != nil || backgroundConfiguration.isTranslucent
     }
 
     private var selectedEvents: [CalendarEventMirror] {
