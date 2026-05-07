@@ -1,0 +1,23 @@
+{
+  "documentId": "tables",
+  "title": "Tables",
+  "revisionId": "rev-tables",
+  "body": {
+    "content": [
+      {"startIndex":1,"endIndex":40,"table":{"tableRows":[
+        {"tableCells":[
+          {"content":[{"paragraph":{"elements":[{"textRun":{"content":"Name\n"}}]}}]},
+          {"content":[{"paragraph":{"elements":[{"textRun":{"content":"Score\n"}}]}}]}
+        ]},
+        {"tableCells":[
+          {"content":[{"paragraph":{"elements":[{"textRun":{"content":"Ada\n"}}]}}]},
+          {"content":[{"paragraph":{"elements":[{"textRun":{"content":"99\n"}}]}}]}
+        ]},
+        {"tableCells":[
+          {"content":[{"paragraph":{"elements":[{"textRun":{"content":"Bo\n"}}]}}]},
+          {"content":[{"paragraph":{"elements":[{"textRun":{"content":"42\n"}}]}}]}
+        ]}
+      ]}}
+    ]
+  }
+}

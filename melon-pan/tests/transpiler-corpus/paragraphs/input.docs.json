@@ -1,0 +1,12 @@
+{
+  "documentId": "paragraphs",
+  "title": "Paragraphs",
+  "revisionId": "rev-paragraphs",
+  "body": {
+    "content": [
+      {"startIndex":1,"endIndex":15,"paragraph":{"elements":[{"textRun":{"content":"First paragraph\n"}}]}},
+      {"startIndex":15,"endIndex":31,"paragraph":{"elements":[{"textRun":{"content":"Second paragraph\n"}}]}},
+      {"startIndex":31,"endIndex":54,"paragraph":{"elements":[{"textRun":{"content":"Third with two sentences. End.\n"}}]}}
+    ]
+  }
+}

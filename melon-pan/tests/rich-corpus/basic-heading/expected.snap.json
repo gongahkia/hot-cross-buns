@@ -1,0 +1,17 @@
+{
+  "documentId": "rich-basic-heading",
+  "title": "Rich Basic Heading",
+  "revisionId": "rev-rich-basic-1",
+  "schemaVersion": 1,
+  "paragraphs": [
+    {
+      "namedStyle": "Heading(1)",
+      "text": "Project brief\n"
+    },
+    {
+      "namedStyle": "NormalText",
+      "text": "Body text with emphasis.\n",
+      "firstRunBold": true
+    }
+  ]
+}

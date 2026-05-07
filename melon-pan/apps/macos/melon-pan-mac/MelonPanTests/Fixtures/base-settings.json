@@ -1,0 +1,14 @@
+{
+  "paletteKeybind": "Ctrl+P",
+  "saveKeybind": "Ctrl+S",
+  "searchMode": "Local cache first",
+  "colorScheme": "Default",
+  "customBackground": "#fbfaf7",
+  "customSidebar": "#f7f5f0",
+  "customAccent": "#3a342e",
+  "privacyLocalFirst": true,
+  "syncAutoPull": false,
+  "syncAutoPush": false,
+  "historySnapshots": true,
+  "autoCollapseSidebar": false
+}

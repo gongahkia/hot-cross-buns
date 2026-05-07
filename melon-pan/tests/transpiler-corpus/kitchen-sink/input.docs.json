@@ -1,0 +1,36 @@
+{
+  "documentId": "kitchen",
+  "title": "Kitchen Sink",
+  "revisionId": "rev-kitchen",
+  "body": {
+    "content": [
+      {"startIndex":1,"endIndex":13,"paragraph":{"paragraphStyle":{"namedStyleType":"HEADING_1"},"elements":[{"textRun":{"content":"Kitchen Sink\n"}}]}},
+      {"startIndex":13,"endIndex":50,"paragraph":{"elements":[
+        {"textRun":{"content":"This is ","textStyle":{}}},
+        {"textRun":{"content":"bold","textStyle":{"bold":true}}},
+        {"textRun":{"content":" with a ","textStyle":{}}},
+        {"textRun":{"content":"link","textStyle":{"link":{"url":"https://example.com"}}}},
+        {"textRun":{"content":".\n","textStyle":{}}}
+      ]}},
+      {"startIndex":50,"endIndex":58,"paragraph":{"bullet":{"listId":"u"},"elements":[{"textRun":{"content":"Item A\n"}}]}},
+      {"startIndex":58,"endIndex":66,"paragraph":{"bullet":{"listId":"u","nestingLevel":1},"elements":[{"textRun":{"content":"Item B\n"}}]}},
+      {"startIndex":66,"endIndex":67,"paragraph":{"elements":[{"horizontalRule":{}}]}},
+      {"startIndex":67,"endIndex":90,"table":{"tableRows":[
+        {"tableCells":[
+          {"content":[{"paragraph":{"elements":[{"textRun":{"content":"Col1\n"}}]}}]},
+          {"content":[{"paragraph":{"elements":[{"textRun":{"content":"Col2\n"}}]}}]}
+        ]},
+        {"tableCells":[
+          {"content":[{"paragraph":{"elements":[{"textRun":{"content":"v1\n"}}]}}]},
+          {"content":[{"paragraph":{"elements":[{"textRun":{"content":"v2\n"}}]}}]}
+        ]}
+      ]}}
+    ]
+  },
+  "lists": {
+    "u": {"listProperties":{"nestingLevels":[
+      {"glyphType":"GLYPH_TYPE_UNSPECIFIED"},
+      {"glyphType":"GLYPH_TYPE_UNSPECIFIED"}
+    ]}}
+  }
+}

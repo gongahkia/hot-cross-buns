@@ -1,0 +1,34 @@
+{
+  "documentId": "rich-basic-heading",
+  "title": "Rich Basic Heading",
+  "revisionId": "rev-rich-basic-1",
+  "body": {
+    "content": [
+      {
+        "startIndex": 1,
+        "endIndex": 20,
+        "paragraph": {
+          "paragraphStyle": { "namedStyleType": "HEADING_1" },
+          "elements": [
+            { "textRun": { "content": "Project brief\n" } }
+          ]
+        }
+      },
+      {
+        "startIndex": 20,
+        "endIndex": 45,
+        "paragraph": {
+          "paragraphStyle": { "namedStyleType": "NORMAL_TEXT" },
+          "elements": [
+            {
+              "textRun": {
+                "content": "Body text with emphasis.\n",
+                "textStyle": { "bold": true }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

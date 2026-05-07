@@ -1,0 +1,21 @@
+{
+  "comment" : {
+    "blocks" : [
+      {
+        "begin" : "{\\comment",
+        "end" : "}"
+      }
+    ],
+    "inlines" : [
+
+    ]
+  },
+  "indentation" : {
+    "blockDelimiters" : [
+      {
+        "begin" : "{",
+        "end" : "}"
+      }
+    ]
+  }
+}

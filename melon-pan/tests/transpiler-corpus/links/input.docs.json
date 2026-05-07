@@ -1,0 +1,16 @@
+{
+  "documentId": "links",
+  "title": "Links",
+  "revisionId": "rev-links",
+  "body": {
+    "content": [
+      {"startIndex":1,"endIndex":40,"paragraph":{"elements":[
+        {"textRun":{"content":"see ","textStyle":{}}},
+        {"textRun":{"content":"the docs","textStyle":{"link":{"url":"https://example.com/a"}}}},
+        {"textRun":{"content":" and ","textStyle":{}}},
+        {"textRun":{"content":"bold link","textStyle":{"bold":true,"link":{"url":"https://example.com/b"}}}},
+        {"textRun":{"content":"\n","textStyle":{}}}
+      ]}}
+    ]
+  }
+}

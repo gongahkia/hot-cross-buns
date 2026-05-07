@@ -1,0 +1,19 @@
+[package]
+name = "melon-pan-mac-runtime"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "macOS-specific runtime shim for Melon Pan: Keychain TokenStore, Application Support paths, NSWorkspace browser launcher."
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+melon-pan-core = { path = "../melon-pan-core" }
+melon-pan-runtime-shared = { path = "../melon-pan-runtime-shared" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Keychain access via Apple's Security.framework.
+security-framework = "3"

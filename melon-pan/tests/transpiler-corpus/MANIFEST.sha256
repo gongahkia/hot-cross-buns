@@ -1,0 +1,36 @@
+# Transpiler corpus pin.
+#
+# Every file under tests/transpiler-corpus/<case>/{input.docs.json,
+# expected.md} is hashed (SHA-256) and listed below in lexicographic
+# order. These byte-identical fixtures are the golden test surface for
+# the Rust transpiler.
+#
+# Update protocol when changing a fixture:
+#   1. Edit the fixture intentionally (commit the change).
+#   2. Run `cargo test -p melon-pan-core --test corpus_manifest` and
+#      copy the assertion failure's "expected" line into this file.
+#   3. Re-emit on the macOS / Windows ports and confirm they hash the
+#      same bytes; commit the manifest update with all three.
+#
+# Format: `<hex digest>  <relative path under tests/transpiler-corpus/>`
+# Lines starting with `#` are comments.
+0145109021417d73fd66ca2e2763132b0806233a4f4dc68d3cda96c2d8bf7d9e  horizontal-rule/expected.md
+170a1fac736441b6377238bb76e5514b928b50efed1ed58cacd8d8cfbe0833ff  images/input.docs.json
+259cd455023b6c2fd034ee794ca11e5cd8f377c74c0362a8f0b9af3e4f6e32eb  lists/input.docs.json
+314e06f6abaed0a0cacaf35f4a98bdd95a74fa6560599aa4dc8037e873a9e7ef  headings/input.docs.json
+38aedaf8b6a3b544284c29e01868e0aee3f89bcdc5e85766c0983f0e0e2bcc23  inline-styles/expected.md
+5b4d46cf0be1ff269648053abff79ca93c3c4f3992ee7a7ef446d1d16899b8e3  tables/input.docs.json
+6224b1d364c20c6dc64c5b57f5483f56144a23ff6dc157db63c2d570b76df68e  headings/expected.md
+62e0b7bb1875edd286269ced1339dd5ae0a1d35830910900bfa0203eb0a0c372  lists/expected.md
+66865a9b4dc6014efdfa44438c296cada72ce9880b7c8ebc261dbfb070b9dae6  images/expected.md
+7a6aef3abf3276549e462bb1c389269b4cc7b19e9efb33725ee68358df6bc70f  nested-lists/expected.md
+89486178a9655e4cca265e9f2d3c577893db28f58b2dc30620903c8e3b7f0e20  links/expected.md
+8e046a12c720943e7537576ab3ac310f3a322149e9c5a23bef67cb3d165643ca  links/input.docs.json
+9aed331bcc377888a5624c8f9f45edb099e2e55903bb6e112d0ea57f806ea756  tables/expected.md
+ad9cdab37ccf171aae7bcb49cfb2d3ba904d79be2eb1f3ed1440e1cfdbbec9eb  nested-lists/input.docs.json
+adcdb7099752ead559dc14ddd205cbfe53ba19c8d9e571638bfd90879fdc0de4  horizontal-rule/input.docs.json
+d6e3b85ac712d8fb4b2db95cbb3a3d8ac013d1bca4b7a2002a203b28ac18fce0  inline-styles/input.docs.json
+da7588bf11db2650f0d7e42dfd5d4238805ea731f304cbdc859537fba664748a  kitchen-sink/input.docs.json
+df55b1a96545bb47db9bfcd930bf9554ea63684d5ca229704295bfdb48855485  kitchen-sink/expected.md
+e2239e065e353bef3499f5a31c8501f0ceb29d525723528720734fe615b0480e  paragraphs/input.docs.json
+f3a6fd466c79e355447e2821664b23d4103c0f05f86a5822fc1472feb3b59a9a  paragraphs/expected.md

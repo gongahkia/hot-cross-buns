@@ -1,0 +1,18 @@
+[package]
+name = "melon-pan-runtime-shared"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+getrandom = "0.3"
+melon-pan-core = { path = "../melon-pan-core" }
+melon-pan-net = { path = "../melon-pan-net" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

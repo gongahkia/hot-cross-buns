@@ -1,0 +1,20 @@
+[package]
+name = "melon-pan-mac-ffi"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "C ABI surface for the macOS Swift shell to consume the Melon Pan shared runtime."
+
+[lib]
+name = "melon_pan_mac_ffi"
+path = "src/lib.rs"
+# Both crate-types: rlib for in-Rust tests, staticlib for Xcode to link
+# the resulting libmelon_pan_mac_ffi.a into the Swift app bundle.
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+melon-pan-core = { path = "../melon-pan-core" }
+melon-pan-runtime-shared = { path = "../melon-pan-runtime-shared" }
+melon-pan-mac-runtime = { path = "../melon-pan-mac-runtime" }

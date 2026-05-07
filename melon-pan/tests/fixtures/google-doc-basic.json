@@ -1,0 +1,46 @@
+{
+  "documentId": "doc-basic",
+  "title": "Basic Fixture",
+  "revisionId": "rev-basic",
+  "body": {
+    "content": [
+      {
+        "startIndex": 1,
+        "endIndex": 15,
+        "paragraph": {
+          "paragraphStyle": { "namedStyleType": "HEADING_1" },
+          "elements": [
+            { "textRun": { "content": "Fixture Title\n" } }
+          ]
+        }
+      },
+      {
+        "startIndex": 15,
+        "endIndex": 41,
+        "paragraph": {
+          "elements": [
+            { "textRun": { "content": "Hello ", "textStyle": {} } },
+            { "textRun": { "content": "Docs\n", "textStyle": { "bold": true, "link": { "url": "https://docs.google.com" } } } }
+          ]
+        }
+      },
+      {
+        "startIndex": 41,
+        "endIndex": 49,
+        "paragraph": {
+          "bullet": { "listId": "list1" },
+          "elements": [
+            { "textRun": { "content": "Bullet\n" } }
+          ]
+        }
+      }
+    ]
+  },
+  "lists": {
+    "list1": {
+      "listProperties": {
+        "nestingLevels": [ { "glyphType": "GLYPH_TYPE_UNSPECIFIED" } ]
+      }
+    }
+  }
+}

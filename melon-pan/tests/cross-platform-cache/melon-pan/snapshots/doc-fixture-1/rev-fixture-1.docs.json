@@ -1,0 +1,26 @@
+{
+  "documentId": "doc-fixture-1",
+  "title": "Cross-platform fixture",
+  "revisionId": "rev-fixture-1",
+  "body": {
+    "content": [
+      {
+        "startIndex": 1,
+        "endIndex": 25,
+        "paragraph": {
+          "paragraphStyle": { "namedStyleType": "HEADING_1" },
+          "elements": [
+            { "textRun": { "content": "Cross-platform fixture\n" } }
+          ]
+        }
+      },
+      {
+        "startIndex": 25,
+        "endIndex": 32,
+        "paragraph": {
+          "elements": [{ "textRun": { "content": "Body.\n" } }]
+        }
+      }
+    ]
+  }
+}

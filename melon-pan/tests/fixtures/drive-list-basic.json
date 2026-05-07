@@ -1,0 +1,27 @@
+{
+  "nextPageToken": "next-token",
+  "files": [
+    {
+      "id": "folder-1",
+      "name": "Projects",
+      "mimeType": "application/vnd.google-apps.folder",
+      "parents": ["root"],
+      "trashed": false
+    },
+    {
+      "id": "doc-basic",
+      "name": "Fixture Doc",
+      "mimeType": "application/vnd.google-apps.document",
+      "parents": ["folder-1"],
+      "modifiedTime": "2026-05-01T00:00:00Z",
+      "trashed": false
+    },
+    {
+      "id": "sheet-1",
+      "name": "Budget",
+      "mimeType": "application/vnd.google-apps.spreadsheet",
+      "parents": ["folder-1"],
+      "trashed": false
+    }
+  ]
+}
