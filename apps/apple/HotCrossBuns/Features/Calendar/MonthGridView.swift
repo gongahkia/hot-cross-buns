@@ -925,6 +925,13 @@ struct MonthGridView: View {
             }
         }
         .hcbScaledPadding(.vertical, 8)
+        .background {
+            if usesReadableMonthBackings {
+                Rectangle()
+                    .fill(.regularMaterial)
+                    .overlay(AppColor.cream.opacity(0.20))
+            }
+        }
     }
 
     private func weekRow(snapshot: MonthWeekSnapshot) -> some View {
