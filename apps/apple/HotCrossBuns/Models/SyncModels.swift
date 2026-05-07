@@ -246,6 +246,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var showMenuBarExtra: Bool
     var showDetailedMenuBar: Bool
     var showMenuBarBadge: Bool
+    var menuBarIcon: MenuBarIcon
     var showDockBadge: Bool
     var restoreWindowStateEnabled: Bool
     var enableGlobalHotkey: Bool
@@ -349,6 +350,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         showMenuBarExtra: Bool = true,
         showDetailedMenuBar: Bool = false,
         showMenuBarBadge: Bool = true,
+        menuBarIcon: MenuBarIcon = .buns,
         showDockBadge: Bool = true,
         restoreWindowStateEnabled: Bool = true,
         enableGlobalHotkey: Bool = true,
@@ -423,6 +425,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.showMenuBarExtra = showMenuBarExtra
         self.showDetailedMenuBar = showDetailedMenuBar
         self.showMenuBarBadge = showMenuBarBadge
+        self.menuBarIcon = menuBarIcon
         self.showDockBadge = showDockBadge
         self.restoreWindowStateEnabled = restoreWindowStateEnabled
         self.enableGlobalHotkey = enableGlobalHotkey
@@ -500,6 +503,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case showMenuBarExtra
         case showDetailedMenuBar
         case showMenuBarBadge
+        case menuBarIcon
         case showDockBadge
         case restoreWindowStateEnabled
         case enableGlobalHotkey
@@ -586,6 +590,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         showMenuBarExtra = try container.decodeIfPresent(Bool.self, forKey: .showMenuBarExtra) ?? true
         showDetailedMenuBar = try container.decodeIfPresent(Bool.self, forKey: .showDetailedMenuBar) ?? false
         showMenuBarBadge = try container.decodeIfPresent(Bool.self, forKey: .showMenuBarBadge) ?? true
+        menuBarIcon = try container.decodeIfPresent(MenuBarIcon.self, forKey: .menuBarIcon) ?? .buns
         showDockBadge = try container.decodeIfPresent(Bool.self, forKey: .showDockBadge) ?? true
         restoreWindowStateEnabled = try container.decodeIfPresent(Bool.self, forKey: .restoreWindowStateEnabled) ?? true
         enableGlobalHotkey = try container.decodeIfPresent(Bool.self, forKey: .enableGlobalHotkey) ?? true
@@ -704,6 +709,171 @@ struct AppSettings: Hashable, Codable, Sendable {
                 .compact
             default:
                 MenuBarStyle(rawValue: rawValue)
+            }
+        }
+    }
+
+    enum MenuBarIcon: String, Codable, Hashable, Sendable, CaseIterable, Identifiable {
+        case buns
+        case calendar
+        case calendarPlus
+        case calendarMinus
+        case calendarCircle
+        case checkCircle
+        case checkSquare
+        case checklist
+        case list
+        case listRectangle
+        case textCheck
+        case note
+        case document
+        case clipboard
+        case bookmark
+        case flag
+        case star
+        case bell
+        case clock
+        case timer
+        case hourglass
+        case alarm
+        case stopwatch
+        case sunrise
+        case sun
+        case moon
+        case cloud
+        case cloudSun
+        case umbrella
+        case sparkles
+        case flame
+        case bolt
+        case leaf
+        case drop
+        case heart
+        case crown
+        case rosette
+        case seal
+        case paperplane
+        case tray
+        case archiveBox
+        case shippingBox
+        case bag
+        case cart
+        case gift
+        case tag
+        case pin
+        case mapPin
+        case location
+        case house
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .buns: "Buns"
+            case .calendar: "Calendar"
+            case .calendarPlus: "Calendar Plus"
+            case .calendarMinus: "Calendar Minus"
+            case .calendarCircle: "Calendar Circle"
+            case .checkCircle: "Check Circle"
+            case .checkSquare: "Check Square"
+            case .checklist: "Checklist"
+            case .list: "List"
+            case .listRectangle: "List Panel"
+            case .textCheck: "Text Check"
+            case .note: "Note"
+            case .document: "Document"
+            case .clipboard: "Clipboard"
+            case .bookmark: "Bookmark"
+            case .flag: "Flag"
+            case .star: "Star"
+            case .bell: "Bell"
+            case .clock: "Clock"
+            case .timer: "Timer"
+            case .hourglass: "Hourglass"
+            case .alarm: "Alarm"
+            case .stopwatch: "Stopwatch"
+            case .sunrise: "Sunrise"
+            case .sun: "Sun"
+            case .moon: "Moon"
+            case .cloud: "Cloud"
+            case .cloudSun: "Cloud Sun"
+            case .umbrella: "Umbrella"
+            case .sparkles: "Sparkles"
+            case .flame: "Flame"
+            case .bolt: "Bolt"
+            case .leaf: "Leaf"
+            case .drop: "Drop"
+            case .heart: "Heart"
+            case .crown: "Crown"
+            case .rosette: "Rosette"
+            case .seal: "Seal"
+            case .paperplane: "Paper Plane"
+            case .tray: "Tray"
+            case .archiveBox: "Archive Box"
+            case .shippingBox: "Shipping Box"
+            case .bag: "Bag"
+            case .cart: "Cart"
+            case .gift: "Gift"
+            case .tag: "Tag"
+            case .pin: "Pin"
+            case .mapPin: "Map Pin"
+            case .location: "Location"
+            case .house: "House"
+            }
+        }
+
+        var systemImageName: String? {
+            switch self {
+            case .buns: nil
+            case .calendar: "calendar"
+            case .calendarPlus: "calendar.badge.plus"
+            case .calendarMinus: "calendar.badge.minus"
+            case .calendarCircle: "calendar.circle"
+            case .checkCircle: "checkmark.circle"
+            case .checkSquare: "checkmark.square"
+            case .checklist: "checklist"
+            case .list: "list.bullet"
+            case .listRectangle: "list.bullet.rectangle"
+            case .textCheck: "text.badge.checkmark"
+            case .note: "note.text"
+            case .document: "doc.text"
+            case .clipboard: "clipboard"
+            case .bookmark: "bookmark"
+            case .flag: "flag"
+            case .star: "star"
+            case .bell: "bell"
+            case .clock: "clock"
+            case .timer: "timer"
+            case .hourglass: "hourglass"
+            case .alarm: "alarm"
+            case .stopwatch: "stopwatch"
+            case .sunrise: "sunrise"
+            case .sun: "sun.max"
+            case .moon: "moon"
+            case .cloud: "cloud"
+            case .cloudSun: "cloud.sun"
+            case .umbrella: "umbrella"
+            case .sparkles: "sparkles"
+            case .flame: "flame"
+            case .bolt: "bolt"
+            case .leaf: "leaf"
+            case .drop: "drop"
+            case .heart: "heart"
+            case .crown: "crown"
+            case .rosette: "rosette"
+            case .seal: "seal"
+            case .paperplane: "paperplane"
+            case .tray: "tray"
+            case .archiveBox: "archivebox"
+            case .shippingBox: "shippingbox"
+            case .bag: "bag"
+            case .cart: "cart"
+            case .gift: "gift"
+            case .tag: "tag"
+            case .pin: "pin"
+            case .mapPin: "mappin"
+            case .location: "location"
+            case .house: "house"
             }
         }
     }

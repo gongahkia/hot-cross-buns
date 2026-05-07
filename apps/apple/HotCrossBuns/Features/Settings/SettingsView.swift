@@ -149,6 +149,14 @@ struct SettingsView: View {
                     }
                 }
                 .pickerStyle(.menu)
+                Picker("Menu bar icon", selection: menuBarIconBinding) {
+                    ForEach(AppSettings.MenuBarIcon.allCases) { icon in
+                        MenuBarIconPickerLabel(icon: icon)
+                            .tag(icon)
+                    }
+                }
+                .pickerStyle(.menu)
+                .disabled(model.settings.showMenuBarExtra == false)
                 Toggle("Menu bar badge for overdue tasks", isOn: menuBarBadgeBinding)
                     .disabled(model.settings.showMenuBarExtra == false)
                 Toggle("Dock badge for overdue tasks", isOn: dockBadgeBinding)
@@ -312,6 +320,13 @@ struct SettingsView: View {
         )
     }
 
+    private var menuBarIconBinding: Binding<AppSettings.MenuBarIcon> {
+        Binding(
+            get: { model.settings.menuBarIcon },
+            set: { model.setMenuBarIcon($0) }
+        )
+    }
+
     private var detailedMenuBarBinding: Binding<Bool> {
         Binding(
             get: { model.settings.showDetailedMenuBar },
@@ -345,6 +360,31 @@ struct SettingsView: View {
             get: { model.isTaskListSelected(id) },
             set: { _ in model.toggleTaskList(id) }
         )
+    }
+}
+
+struct MenuBarIconPickerLabel: View {
+    let icon: AppSettings.MenuBarIcon
+
+    var body: some View {
+        HStack(spacing: 8) {
+            menuBarIconImage
+                .frame(width: 16, height: 16)
+            Text(icon.title)
+        }
+    }
+
+    @ViewBuilder
+    private var menuBarIconImage: some View {
+        if let systemImageName = icon.systemImageName {
+            Image(systemName: systemImageName)
+                .symbolRenderingMode(.monochrome)
+        } else {
+            Image("MenuBarIcon")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+        }
     }
 }
 

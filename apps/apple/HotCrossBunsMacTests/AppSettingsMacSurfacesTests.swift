@@ -19,6 +19,7 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
 
         XCTAssertTrue(settings.showMenuBarExtra, "legacy caches should opt into the menu bar extra by default")
         XCTAssertFalse(settings.showDetailedMenuBar, "legacy caches should default to compact menu bar panel")
+        XCTAssertEqual(settings.menuBarIcon, .buns, "legacy caches should keep the original menu bar icon")
         XCTAssertTrue(settings.showDockBadge, "legacy caches should opt into the dock badge by default")
         XCTAssertTrue(settings.restoreWindowStateEnabled, "legacy caches should restore prior window sessions by default")
         XCTAssertEqual(settings.globalHotkeyBinding, .defaultQuickAdd)
@@ -32,6 +33,7 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
             enableLocalNotifications: true,
             showMenuBarExtra: false,
             showDetailedMenuBar: true,
+            menuBarIcon: .sparkles,
             showDockBadge: false,
             restoreWindowStateEnabled: false,
             globalHotkeyBinding: GlobalHotkeyBinding(
@@ -46,9 +48,14 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
 
         XCTAssertFalse(decoded.showMenuBarExtra)
         XCTAssertTrue(decoded.showDetailedMenuBar)
+        XCTAssertEqual(decoded.menuBarIcon, .sparkles)
         XCTAssertFalse(decoded.showDockBadge)
         XCTAssertFalse(decoded.restoreWindowStateEnabled)
         XCTAssertEqual(decoded.globalHotkeyBinding.displayLabel, "⇧⌘K")
+    }
+
+    func testMenuBarIconCatalogExposesUpToFiftyChoices() {
+        XCTAssertEqual(AppSettings.MenuBarIcon.allCases.count, 50)
     }
 
     func testDisconnectImpactWarnsWithoutClaimingGoogleDeletion() {

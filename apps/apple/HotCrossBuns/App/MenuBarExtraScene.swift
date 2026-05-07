@@ -25,6 +25,9 @@ private struct HCBMenuBarStatusControllerHost: View {
             .onChange(of: model.settings.showMenuBarBadge) { _, _ in
                 controller.refreshStatusItemImage()
             }
+            .onChange(of: model.settings.menuBarIcon) { _, _ in
+                controller.refreshStatusItemImage()
+            }
             .onChange(of: model.settings.colorSchemeID) { _, _ in
                 controller.configure(model: model)
             }
@@ -123,7 +126,9 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
     }
 
     private func statusImage(badgeCount: Int) -> NSImage? {
-        guard let image = NSImage(named: "MenuBarIcon")
+        let selectedIcon = model?.settings.menuBarIcon ?? .buns
+        guard let image = selectedIcon.nsStatusImage()
+            ?? NSImage(named: "MenuBarIcon")
             ?? NSImage(systemSymbolName: "calendar", accessibilityDescription: "Hot Cross Buns")
         else { return nil }
 
@@ -344,6 +349,15 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
 
     func menuDidClose(_ menu: NSMenu) {
         statusItem?.menu = nil
+    }
+}
+
+private extension AppSettings.MenuBarIcon {
+    func nsStatusImage() -> NSImage? {
+        if let systemImageName {
+            return NSImage(systemSymbolName: systemImageName, accessibilityDescription: title)
+        }
+        return NSImage(named: "MenuBarIcon")
     }
 }
 
