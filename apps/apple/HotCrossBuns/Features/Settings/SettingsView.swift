@@ -156,6 +156,8 @@ struct SettingsView: View {
 
             UpdatesSection()
 
+            AppVersionSection()
+
             Section("Calendars") {
                 Toggle("Show completed tasks and dismissed events in calendar views", isOn: showCompletedItemsInCalendarBinding)
                 if model.calendars.isEmpty {

@@ -13,7 +13,7 @@ struct HCBSettingsWindow: View {
     @Environment(UpdaterController.self) private var updater
     @Environment(\.openWindow) private var openWindow
     private enum Tab: String, CaseIterable, Identifiable {
-        case general, appearance, hotkeys, alerts, advanced
+        case general, appearance, hotkeys, alerts, advanced, about
         var id: String { rawValue }
 
         var title: String {
@@ -23,6 +23,7 @@ struct HCBSettingsWindow: View {
             case .hotkeys: "Hotkeys"
             case .alerts: "Alerts"
             case .advanced: "Advanced"
+            case .about: "About"
             }
         }
 
@@ -33,6 +34,7 @@ struct HCBSettingsWindow: View {
             case .hotkeys: "keyboard"
             case .alerts: "bell"
             case .advanced: "gearshape.2"
+            case .about: "info.circle"
             }
         }
     }
@@ -66,6 +68,10 @@ struct HCBSettingsWindow: View {
             AdvancedTab()
             .tabItem { Label("Advanced", systemImage: "gearshape.2") }
             .tag(Tab.advanced)
+
+            AboutTab()
+            .tabItem { Label("About", systemImage: "info.circle") }
+            .tag(Tab.about)
         }
         // Hotkeys needs a two-column settings surface, so the detached
         // settings window gets a wider default while remaining resizable.
@@ -117,6 +123,17 @@ struct HCBSettingsWindow: View {
         }
     }
 
+}
+
+// MARK: - About tab
+
+private struct AboutTab: View {
+    var body: some View {
+        Form {
+            AppVersionSection()
+        }
+        .formStyle(.grouped)
+    }
 }
 
 // MARK: - General tab
