@@ -1,8 +1,0 @@
-{
-  "stringDelimiters" : [
-    {
-      "begin" : "\"",
-      "end" : "\""
-    }
-  ]
-}

@@ -1,6 +1,0 @@
-- top
-
-  - middle
-
-    - deep
-
