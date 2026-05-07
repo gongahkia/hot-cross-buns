@@ -110,7 +110,7 @@ struct AppearanceSection: View {
             if model.settings.appBackgroundTranslucencyEnabled || model.settings.customBackgroundImagePath != nil {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        Text("Surface opacity")
+                        Text("App surface opacity")
                         Spacer()
                         Text("\(Int(model.settings.appBackgroundOpacity * 100))%")
                             .foregroundStyle(.secondary)
