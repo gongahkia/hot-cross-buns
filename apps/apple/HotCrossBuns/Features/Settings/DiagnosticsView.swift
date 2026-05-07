@@ -460,14 +460,9 @@ struct DiagnosticsView: View {
             Text("Last \(auditEntries.count) user mutations. Useful for reconstructing \"when did I do that?\" after the undo window has closed.")
                 .hcbFont(.caption)
                 .foregroundStyle(.secondary)
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 3) {
-                    ForEach(auditEntries) { entry in
-                        AuditEntryRow(entry: entry)
-                    }
-                }
+            ForEach(auditEntries) { entry in
+                AuditEntryRow(entry: entry)
             }
-            .hcbScaledFrame(maxHeight: 220)
         }
     }
 
@@ -494,14 +489,9 @@ struct DiagnosticsView: View {
                     .hcbFont(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 2) {
-                        ForEach(logEntries) { entry in
-                            LogEntryRow(entry: entry)
-                        }
-                    }
+                ForEach(logEntries) { entry in
+                    LogEntryRow(entry: entry)
                 }
-                .hcbScaledFrame(maxHeight: 220)
             }
             HStack {
                 Button {
