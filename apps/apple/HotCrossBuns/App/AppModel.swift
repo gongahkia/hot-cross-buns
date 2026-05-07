@@ -2785,7 +2785,7 @@ final class AppModel {
 
         settings.customBackgroundImagePath = destinationURL.path
         settings.appBackgroundTranslucencyEnabled = true
-        settings.appBackgroundOpacity = min(settings.appBackgroundOpacity, 0.82)
+        settings.appBackgroundOpacity = min(settings.appBackgroundOpacity, 0.55)
         scheduleCacheSave()
     }
 

@@ -137,7 +137,10 @@ struct AppBackground: ViewModifier {
 
     @ViewBuilder
     private var nestedBackground: some View {
-        if configuration.customImagePath != nil || configuration.isTranslucent {
+        if let path = configuration.customImagePath {
+            HCBBackgroundImage(path: path)
+            AppColor.cream.opacity(max(0.18, configuration.opacity * 0.62))
+        } else if configuration.isTranslucent {
             AppColor.cream.opacity(max(0.18, configuration.opacity * 0.62))
         } else {
             Color(nsColor: .windowBackgroundColor)

@@ -254,6 +254,7 @@ struct MonthGridView: View {
                             }
                     )
                 }
+                .scrollContentBackground(.hidden)
                 .coordinateSpace(name: scrollCoordinateSpace)
                 .onAppear {
                     // Sequence matters: weekStarts must be populated before
