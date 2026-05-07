@@ -130,6 +130,7 @@ struct HCBSettingsWindow: View {
 private struct AboutTab: View {
     var body: some View {
         Form {
+            UpdatesSection()
             AppVersionSection()
         }
         .formStyle(.grouped)
@@ -552,7 +553,6 @@ private struct AdvancedTab: View {
             HistorySection()
             CustomFiltersSection()
             TemplatesSection()
-            UpdatesSection()
         }
         .formStyle(.grouped)
     }

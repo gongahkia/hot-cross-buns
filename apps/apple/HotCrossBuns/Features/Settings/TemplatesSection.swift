@@ -20,6 +20,15 @@ struct TemplatesSection: View {
 
     private var taskTemplatesSection: some View {
         Section("Task templates") {
+            SettingsFeatureFlow(
+                systemImage: "doc.text",
+                title: "Task blueprint",
+                steps: [
+                    "Define reusable fields",
+                    "Fill variables on insert",
+                    "Create a real Google task"
+                ]
+            )
             if model.settings.taskTemplates.isEmpty {
                 Text("No templates yet. Create one to pre-fill title, notes, due, and list using variables like {{today}}, {{+7d}}, {{nextWeekday:mon}}, {{prompt:Owner}}, or {{clipboard}}.")
                     .hcbFont(.footnote)
@@ -95,6 +104,15 @@ struct TemplatesSection: View {
 
     private var eventTemplatesSection: some View {
         Section("Event templates") {
+            SettingsFeatureFlow(
+                systemImage: "calendar.badge.plus",
+                title: "Event blueprint",
+                steps: [
+                    "Define time and guests",
+                    "Fill variables on insert",
+                    "Create a real calendar event"
+                ]
+            )
             if model.settings.eventTemplates.isEmpty {
                 Text("No event templates yet. Create one to pre-fill title, time, location, attendees, and recurrence using variables like {{today}}, {{nextWeekday:mon}}, {{prompt:Topic}}.")
                     .hcbFont(.footnote)
@@ -207,6 +225,8 @@ private struct TaskTemplateEditor: View {
                             }
                         }
 
+                        TaskTemplateOutcomePreview(template: draft)
+
                         SettingsSheetSection("Variables") {
                             let prompts = draft.requiredPrompts()
                             if prompts.isEmpty == false {
@@ -240,7 +260,7 @@ private struct TaskTemplateEditor: View {
             }
             .navigationTitle("Task Template")
         }
-        .frame(width: 680, height: 560)
+        .frame(width: 680, height: 540)
     }
 }
 
@@ -383,6 +403,8 @@ private struct EventTemplateEditor: View {
                             }
                         }
 
+                        EventTemplateOutcomePreview(template: draft)
+
                         SettingsSheetSection("Variables") {
                             let prompts = draft.requiredPrompts()
                             if prompts.isEmpty == false {
@@ -416,7 +438,7 @@ private struct EventTemplateEditor: View {
             }
             .navigationTitle("Event Template")
         }
-        .frame(width: 760, height: 720)
+        .frame(width: 760, height: 640)
         .onAppear {
             attendeesRaw = draft.attendees.joined(separator: "\n")
         }
@@ -440,4 +462,77 @@ private struct EventTemplateEditor: View {
             set: { draft.calendarIdOrTitle = $0 }
         )
     }
+}
+
+private struct TaskTemplateOutcomePreview: View {
+    let template: TaskTemplate
+
+    var body: some View {
+        SettingsSheetSection("Outcome") {
+            HStack(spacing: 10) {
+                SettingsOutcomeCard(
+                    systemImage: "text.cursor",
+                    title: trimmed(template.title).isEmpty ? "Needs title" : trimmed(template.title),
+                    detail: "task title"
+                )
+                SettingsOutcomeCard(
+                    systemImage: "calendar",
+                    title: trimmed(template.due).isEmpty ? "No due date" : trimmed(template.due),
+                    detail: "due value"
+                )
+                SettingsOutcomeCard(
+                    systemImage: promptCount == 0 ? "checkmark.circle" : "questionmark.bubble",
+                    title: promptCount == 0 ? "No prompts" : "\(promptCount) prompt\(promptCount == 1 ? "" : "s")",
+                    detail: trimmed(template.listIdOrTitle).isEmpty ? "default list" : trimmed(template.listIdOrTitle)
+                )
+            }
+        }
+    }
+
+    private var promptCount: Int {
+        template.requiredPrompts().count
+    }
+}
+
+private struct EventTemplateOutcomePreview: View {
+    let template: EventTemplate
+
+    var body: some View {
+        SettingsSheetSection("Outcome") {
+            HStack(spacing: 10) {
+                SettingsOutcomeCard(
+                    systemImage: "calendar.badge.plus",
+                    title: trimmed(template.summary).isEmpty ? "Needs title" : trimmed(template.summary),
+                    detail: "\(template.durationMinutes) min\(template.isAllDay ? " all-day" : "")"
+                )
+                SettingsOutcomeCard(
+                    systemImage: template.attendees.isEmpty ? "person" : "person.2",
+                    title: guestTitle,
+                    detail: template.addGoogleMeet ? "Google Meet included" : "no Meet link"
+                )
+                SettingsOutcomeCard(
+                    systemImage: promptCount == 0 ? "checkmark.circle" : "questionmark.bubble",
+                    title: promptCount == 0 ? "No prompts" : "\(promptCount) prompt\(promptCount == 1 ? "" : "s")",
+                    detail: destinationTitle
+                )
+            }
+        }
+    }
+
+    private var guestTitle: String {
+        template.attendees.isEmpty ? "No guests" : "\(template.attendees.count) guest\(template.attendees.count == 1 ? "" : "s")"
+    }
+
+    private var destinationTitle: String {
+        let destination = trimmed(template.calendarIdOrTitle)
+        return destination.isEmpty ? "first writable calendar" : destination
+    }
+
+    private var promptCount: Int {
+        template.requiredPrompts().count
+    }
+}
+
+private func trimmed(_ value: String) -> String {
+    value.trimmingCharacters(in: .whitespacesAndNewlines)
 }
