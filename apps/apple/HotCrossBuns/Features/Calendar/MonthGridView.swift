@@ -22,6 +22,7 @@ struct MonthGridView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.hcbAppBackgroundConfiguration) private var backgroundConfiguration
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(CalendarMonthScrollWindow.pastMonthsKey) private var configuredPastMonths = CalendarMonthScrollWindow.defaultPastMonths
     @AppStorage(CalendarMonthScrollWindow.futureMonthsKey) private var configuredFutureMonths = CalendarMonthScrollWindow.defaultFutureMonths
@@ -53,6 +54,24 @@ struct MonthGridView: View {
     private let fixedRowHeight: CGFloat = 110
     private let previousMonthLoaderHeight: CGFloat = 34
     private let nextMonthLoaderHeight: CGFloat = 34
+    private var usesReadableMonthBackings: Bool {
+        backgroundConfiguration.customImagePath != nil || backgroundConfiguration.isTranslucent
+    }
+    private var monthCellBackingOpacity: Double {
+        usesReadableMonthBackings ? 0.68 : 0.04
+    }
+    private var monthCellStrokeOpacity: Double {
+        usesReadableMonthBackings ? 0.50 : 1.0
+    }
+    private var monthEventFillOpacity: Double {
+        usesReadableMonthBackings ? 0.36 : 0.25
+    }
+    private var monthTaskFillOpacity: Double {
+        usesReadableMonthBackings ? 0.26 : 0.15
+    }
+    private var monthTaskStrokeOpacity: Double {
+        usesReadableMonthBackings ? 0.50 : 0.35
+    }
     // Named coordinate space the drag gesture and the highlight overlay both
     // resolve into. Needs to wrap the LazyVStack so both gesture points and
     // overlay positioning share the same frame.
@@ -1121,7 +1140,7 @@ struct MonthGridView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(
                                 RoundedRectangle(cornerRadius: 4)
-                                    .fill(calendarColor(hex: colorHexes[band.id]).opacity(0.25))
+                                    .fill(calendarColor(hex: colorHexes[band.id]).opacity(monthEventFillOpacity))
                             )
                             .foregroundStyle(AppColor.ink)
                     }
@@ -1195,7 +1214,7 @@ struct MonthGridView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(
                             RoundedRectangle(cornerRadius: 4)
-                                .fill(calendarColor(for: event, in: snapshot).opacity(0.25))
+                                .fill(calendarColor(for: event, in: snapshot).opacity(monthEventFillOpacity))
                         )
                         .foregroundStyle(AppColor.ink)
                 }
@@ -1228,11 +1247,11 @@ struct MonthGridView: View {
                 .hcbScaledPadding(.vertical, 2)
                 .background(
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(AppColor.ember.opacity(0.15))
+                        .fill(AppColor.ember.opacity(monthTaskFillOpacity))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 4)
-                        .strokeBorder(AppColor.ember.opacity(0.35), lineWidth: 0.6)
+                        .strokeBorder(AppColor.ember.opacity(monthTaskStrokeOpacity), lineWidth: 0.6)
                 )
                 .foregroundStyle(AppColor.ink)
                 .strikethrough(task.isCompleted, color: .secondary)
@@ -1247,9 +1266,15 @@ struct MonthGridView: View {
         .hcbScaledPadding(.horizontal, 2)
         .hcbScaledPadding(.vertical, 4)
         .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background {
+            if usesReadableMonthBackings {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(.thinMaterial)
+            }
+        }
         .background(
-            Rectangle()
-                .fill(Color.clear)
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(AppColor.cream.opacity(monthCellBackingOpacity))
         )
         .accessibilityElement(children: .combine)
         .accessibilityLabel(monthCellAccessibilityLabel(
@@ -1260,13 +1285,13 @@ struct MonthGridView: View {
             hiddenTasks: hiddenTasks
         ))
         .overlay(
-            Rectangle()
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(AppColor.ember.opacity(flashDay == dayStart ? 0.22 : 0))
                 .animation(HCBMotion.animation(.easeOut(duration: 0.12), reduceMotion: calendarGridReduceMotion), value: flashDay)
         )
         .overlay(
-            Rectangle()
-                .strokeBorder(AppColor.cardStroke, lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .strokeBorder(AppColor.cardStroke.opacity(monthCellStrokeOpacity), lineWidth: 0.5)
         )
         .overlay(alignment: .bottomLeading) {
             if hiddenEvents + hiddenTasks > 0 {
