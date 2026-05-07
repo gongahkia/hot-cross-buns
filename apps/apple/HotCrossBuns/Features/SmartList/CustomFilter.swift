@@ -77,6 +77,20 @@ struct CustomFilterDefinition: Codable, Hashable, Identifiable, Sendable {
         return expr.isEmpty == false
     }
 
+    func duplicated(id: UUID = UUID()) -> CustomFilterDefinition {
+        CustomFilterDefinition(
+            id: id,
+            name: hcbCopyName(name),
+            systemImage: systemImage,
+            dueWindow: dueWindow,
+            includeCompleted: includeCompleted,
+            taskListIDs: taskListIDs,
+            tagsAny: tagsAny,
+            queryExpression: queryExpression,
+            pinnedToMenuBar: pinnedToMenuBar
+        )
+    }
+
     // Per-task match. Compiles DSL per call; callers on hot paths should use
     // `filter(_:now:calendar:taskLists:)` which compiles once.
     func matches(
@@ -158,4 +172,9 @@ struct CustomFilterDefinition: Codable, Hashable, Identifiable, Sendable {
             return startOfDue >= startOfToday && startOfDue < horizon
         }
     }
+}
+
+func hcbCopyName(_ name: String) -> String {
+    let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? "Copy" : "\(trimmed) Copy"
 }

@@ -196,4 +196,15 @@ struct TaskTemplate: Codable, Hashable, Identifiable, Sendable {
         }
         return out
     }
+
+    func duplicated(id: UUID = UUID()) -> TaskTemplate {
+        TaskTemplate(
+            id: id,
+            name: hcbCopyName(name),
+            title: title,
+            notes: notes,
+            due: due,
+            listIdOrTitle: listIdOrTitle
+        )
+    }
 }

@@ -363,12 +363,7 @@ private struct AlertsTab: View {
                         Text(style.title).tag(style)
                     }
                 }
-                Picker("Menu bar icon", selection: menuBarIconBinding) {
-                    ForEach(AppSettings.MenuBarIcon.allCases) { icon in
-                        MenuBarIconPickerLabel(icon: icon)
-                            .tag(icon)
-                    }
-                }
+                MenuBarIconPickerRow()
                 .disabled(model.settings.showMenuBarExtra == false)
                 Toggle("Menu bar badge for overdue tasks", isOn: menuBarBadgeBinding)
                     .disabled(model.settings.showMenuBarExtra == false)
@@ -446,13 +441,6 @@ private struct AlertsTab: View {
         Binding(
             get: { model.settings.showMenuBarBadge },
             set: { model.setShowMenuBarBadge($0) }
-        )
-    }
-
-    private var menuBarIconBinding: Binding<AppSettings.MenuBarIcon> {
-        Binding(
-            get: { model.settings.menuBarIcon },
-            set: { model.setMenuBarIcon($0) }
         )
     }
 

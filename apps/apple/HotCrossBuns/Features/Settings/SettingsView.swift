@@ -149,13 +149,7 @@ struct SettingsView: View {
                     }
                 }
                 .pickerStyle(.menu)
-                Picker("Menu bar icon", selection: menuBarIconBinding) {
-                    ForEach(AppSettings.MenuBarIcon.allCases) { icon in
-                        MenuBarIconPickerLabel(icon: icon)
-                            .tag(icon)
-                    }
-                }
-                .pickerStyle(.menu)
+                MenuBarIconPickerRow()
                 .disabled(model.settings.showMenuBarExtra == false)
                 Toggle("Menu bar badge for overdue tasks", isOn: menuBarBadgeBinding)
                     .disabled(model.settings.showMenuBarExtra == false)
@@ -320,13 +314,6 @@ struct SettingsView: View {
         )
     }
 
-    private var menuBarIconBinding: Binding<AppSettings.MenuBarIcon> {
-        Binding(
-            get: { model.settings.menuBarIcon },
-            set: { model.setMenuBarIcon($0) }
-        )
-    }
-
     private var detailedMenuBarBinding: Binding<Bool> {
         Binding(
             get: { model.settings.showDetailedMenuBar },
@@ -368,14 +355,18 @@ struct MenuBarIconPickerLabel: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            menuBarIconImage
+            MenuBarIconGlyph(icon: icon)
                 .frame(width: 16, height: 16)
             Text(icon.title)
         }
     }
+}
+
+struct MenuBarIconGlyph: View {
+    let icon: AppSettings.MenuBarIcon
 
     @ViewBuilder
-    private var menuBarIconImage: some View {
+    var body: some View {
         if let systemImageName = icon.systemImageName {
             Image(systemName: systemImageName)
                 .symbolRenderingMode(.monochrome)
@@ -384,6 +375,84 @@ struct MenuBarIconPickerLabel: View {
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
+        }
+    }
+}
+
+struct MenuBarIconPickerRow: View {
+    @Environment(AppModel.self) private var model
+    @State private var isShowingGrid = false
+
+    private let columns = Array(repeating: GridItem(.fixed(74), spacing: 8), count: 5)
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Text("Menu bar icon")
+            Spacer(minLength: 16)
+            MenuBarIconPickerLabel(icon: model.settings.menuBarIcon)
+                .foregroundStyle(.secondary)
+            Button("Change...") {
+                isShowingGrid = true
+            }
+            .popover(isPresented: $isShowingGrid, arrowEdge: .bottom) {
+                iconGrid
+            }
+        }
+    }
+
+    private var iconGrid: some View {
+        ScrollView {
+            LazyVGrid(columns: columns, spacing: 8) {
+                ForEach(AppSettings.MenuBarIcon.allCases) { icon in
+                    Button {
+                        model.setMenuBarIcon(icon)
+                        isShowingGrid = false
+                    } label: {
+                        VStack(spacing: 6) {
+                            MenuBarIconGlyph(icon: icon)
+                                .frame(width: 22, height: 22)
+                            Text(icon.gridTitle)
+                                .hcbFont(.caption2, weight: model.settings.menuBarIcon == icon ? .semibold : .regular)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                                .frame(height: 26)
+                        }
+                        .frame(width: 66, height: 62)
+                        .background(
+                            RoundedRectangle(cornerRadius: 7)
+                                .fill(model.settings.menuBarIcon == icon ? Color.accentColor.opacity(0.18) : Color.clear)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 7)
+                                .strokeBorder(model.settings.menuBarIcon == icon ? Color.accentColor : .separator.opacity(0.35), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .help(icon.title)
+                }
+            }
+            .padding(12)
+        }
+        .frame(width: 410, height: 500)
+    }
+}
+
+private extension AppSettings.MenuBarIcon {
+    var gridTitle: String {
+        switch self {
+        case .calendarPlus: "Cal +"
+        case .calendarMinus: "Cal -"
+        case .calendarCircle: "Cal O"
+        case .checkCircle: "Check O"
+        case .checkSquare: "Check Sq"
+        case .listRectangle: "List Box"
+        case .textCheck: "Text"
+        case .archiveBox: "Archive"
+        case .shippingBox: "Ship"
+        case .paperplane: "Plane"
+        case .cloudSun: "Cloud Sun"
+        case .mapPin: "Map Pin"
+        default: title
         }
     }
 }
