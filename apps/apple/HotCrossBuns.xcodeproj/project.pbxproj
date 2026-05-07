@@ -11,6 +11,7 @@
 		018B126DFE1CB3880ACADD4F /* LocationMapPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDB9F19FB93CB9C7FEC4EF32 /* LocationMapPreview.swift */; };
 		022E0EA4BE1699F339F0240E /* DiagnosticBundleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC34E08C7F6A754ACBE7ED0C /* DiagnosticBundleTests.swift */; };
 		025714D0F603A7346F61A495 /* NaturalLanguageTaskParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 451F7A551BAF39DA361383F4 /* NaturalLanguageTaskParser.swift */; };
+		02598EE66FEA1A5CDC12893D /* AppVersionSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A2BE751C144C19479D45966 /* AppVersionSection.swift */; };
 		03465E1F1734DE5270C3F7EE /* MarkdownHTML.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D029E6660BF1FF8C9C2E34E /* MarkdownHTML.swift */; };
 		03DDA60B71A6CF24C09880A6 /* HCBShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA90C3B9D57FCA2A8C27B206 /* HCBShortcuts.swift */; };
 		041DE1465AD215C7A592AE13 /* CalendarDropComputer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09D526E7EC054A5BAA2ED4E3 /* CalendarDropComputer.swift */; };
@@ -351,6 +352,7 @@
 		5810826FCEA91EE340801C40 /* UndoToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoToast.swift; sourceTree = "<group>"; };
 		5958F04B434E20A3436A5CC0 /* SpotlightIdentifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightIdentifierTests.swift; sourceTree = "<group>"; };
 		5959B85AC017728D7F460355 /* MockURLProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockURLProtocol.swift; sourceTree = "<group>"; };
+		5A2BE751C144C19479D45966 /* AppVersionSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersionSection.swift; sourceTree = "<group>"; };
 		5CDBE097FFF4A48F2BCDE315 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
 		5DBBBAB47C6578BBCC5A1170 /* MarkdownHighlighter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownHighlighter.swift; sourceTree = "<group>"; };
 		5E7CCAAA53D6C1875F338A5B /* CalendarGridLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarGridLayoutTests.swift; sourceTree = "<group>"; };
@@ -1128,6 +1130,7 @@
 			isa = PBXGroup;
 			children = (
 				BB531053D620E337F1946147 /* AppearanceSection.swift */,
+				5A2BE751C144C19479D45966 /* AppVersionSection.swift */,
 				FC5DE71D8B13AA02B81D24CD /* ColorTagBindingsSection.swift */,
 				BA67CCC0FD16CD50BF3BF5E7 /* CompletionSoundSection.swift */,
 				E3C2D7E54B993DACBD948BAD /* CustomColorSchemeEditor.swift */,
@@ -1302,6 +1305,7 @@
 				8794B1B9554FAEC8B6C4D07E /* AppLogger.swift in Sources */,
 				1D9C5B69B8A123DB5CA67B87 /* AppModel.swift in Sources */,
 				E219DD1B1AD052112F17BD50 /* AppStatusBanner.swift in Sources */,
+				02598EE66FEA1A5CDC12893D /* AppVersionSection.swift in Sources */,
 				B63D287732D4657D498E55CD /* AppearanceSection.swift in Sources */,
 				7F105DF2722D09956A81291D /* BackoffPolicy.swift in Sources */,
 				7AA65A861A8B2A58F45B8070 /* BulkResultToast.swift in Sources */,
@@ -1612,7 +1616,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COMPILATION_CACHE_ENABLE_CACHING = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = Q2J4QWZLR7;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1628,7 +1632,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.2.4;
+				MARKETING_VERSION = 0.2.5;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1729,7 +1733,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COMPILATION_CACHE_ENABLE_CACHING = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = Q2J4QWZLR7;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1751,7 +1755,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.2.4;
+				MARKETING_VERSION = 0.2.5;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
