@@ -15,6 +15,15 @@ struct CustomFiltersSection: View {
 
     var body: some View {
         Section("Custom Filters") {
+            SettingsFeatureFlow(
+                systemImage: "line.3.horizontal.decrease.circle",
+                title: "Saved filter",
+                steps: [
+                    "Pick matching rules",
+                    "Save a named filter",
+                    "Pin it to the menu bar when it should be one click away"
+                ]
+            )
             if model.settings.customFilters.isEmpty {
                 Text("No custom filters yet. Save a combination of due-window, list, star, and tag criteria — or a full DSL query — as a reusable sidebar entry.")
                     .hcbFont(.footnote)
@@ -141,12 +150,12 @@ private struct CustomFilterEditor: View {
                             }
                         }
 
-                    if draft.pinnedToMenuBar {
-                        Text("Appears as a section in the menu-bar popover with a match count and a short preview.")
-                            .hcbFont(.caption2)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
+                        FilterOutcomePreview(
+                            name: draft.name,
+                            matchCount: previewMatchCount,
+                            isPinned: draft.pinnedToMenuBar,
+                            usesDSL: usingDSL
+                        )
 
                         SettingsSheetSection("Query (advanced)") {
                             TextEditor(text: $queryText)
@@ -262,7 +271,7 @@ private struct CustomFilterEditor: View {
             }
             .navigationTitle("Filter")
         }
-        .frame(width: 720, height: 720)
+        .frame(width: 720, height: 640)
     }
 
     private var usingDSL: Bool {
@@ -316,6 +325,29 @@ private struct CustomFilterEditor: View {
         return count
     }
 
+    private var previewMatchCount: Int {
+        if let compileResult {
+            switch compileResult {
+            case .success(let query):
+                return matchCount(for: query)
+            case .failure:
+                return 0
+            }
+        }
+
+        var preview = draft
+        preview.tagsAny = parsedTags
+        preview.queryExpression = nil
+        return preview.filter(model.tasks, taskLists: model.taskLists).count
+    }
+
+    private var parsedTags: [String] {
+        tagsText
+            .split(whereSeparator: { $0.isWhitespace })
+            .map { String($0).trimmingCharacters(in: CharacterSet(charactersIn: "#")) }
+            .filter { $0.isEmpty == false }
+    }
+
     private func errorText(_ err: QueryCompileError) -> String {
         if err.position >= 0 {
             return "\(err.message) (at char \(err.position + 1))"
@@ -342,6 +374,96 @@ private struct CustomFilterEditor: View {
                 .foregroundStyle(.secondary)
             Spacer(minLength: 0)
         }
+    }
+}
+
+private struct FilterOutcomePreview: View {
+    let name: String
+    let matchCount: Int
+    let isPinned: Bool
+    let usesDSL: Bool
+
+    var body: some View {
+        SettingsSheetSection("Outcome") {
+            HStack(spacing: 10) {
+                SettingsOutcomeCard(
+                    systemImage: "number",
+                    title: "\(matchCount)",
+                    detail: "current match\(matchCount == 1 ? "" : "es")"
+                )
+                SettingsOutcomeCard(
+                    systemImage: isPinned ? "menubar.rectangle" : "rectangle.dashed",
+                    title: isPinned ? "Menu bar" : "Saved only",
+                    detail: isPinned ? "visible in quick access" : "available in settings"
+                )
+                SettingsOutcomeCard(
+                    systemImage: usesDSL ? "curlybraces" : "slider.horizontal.3",
+                    title: usesDSL ? "DSL query" : "Structured rules",
+                    detail: displayName
+                )
+            }
+        }
+    }
+
+    private var displayName: String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "unnamed filter" : trimmed
+    }
+}
+
+struct SettingsFeatureFlow: View {
+    let systemImage: String
+    let title: String
+    let steps: [String]
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: systemImage)
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 20)
+            Text(title)
+                .hcbFont(.caption, weight: .semibold)
+            ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                Image(systemName: "chevron.right")
+                    .hcbFont(.caption2, weight: .semibold)
+                    .foregroundStyle(.tertiary)
+                Text(step)
+                    .hcbFont(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+struct SettingsOutcomeCard: View {
+    let systemImage: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            Image(systemName: systemImage)
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .hcbFont(.caption, weight: .semibold)
+                    .lineLimit(1)
+                Text(detail)
+                    .hcbFont(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
+        .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
     }
 }
 
