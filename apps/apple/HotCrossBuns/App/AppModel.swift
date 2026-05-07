@@ -1980,6 +1980,14 @@ final class AppModel {
         scheduleCacheSave()
     }
 
+    func setMenuBarIcon(_ icon: AppSettings.MenuBarIcon) {
+        guard settings.menuBarIcon != icon else {
+            return
+        }
+        settings.menuBarIcon = icon
+        scheduleCacheSave()
+    }
+
     func setEnableGlobalHotkey(_ isEnabled: Bool) {
         guard settings.enableGlobalHotkey != isEnabled else { return }
         settings.enableGlobalHotkey = isEnabled
@@ -2495,6 +2503,7 @@ final class AppModel {
             current.uiFontName != next.uiFontName,
             current.perSurfaceFontOverrides != next.perSurfaceFontOverrides,
             current.menuBarStyle != next.menuBarStyle,
+            current.menuBarIcon != next.menuBarIcon,
             current.showMenuBarExtra != next.showMenuBarExtra,
             current.showMenuBarBadge != next.showMenuBarBadge,
             current.showDockBadge != next.showDockBadge,
@@ -2539,6 +2548,7 @@ final class AppModel {
             summaries.append("Templates will change from \(current.taskTemplates.count + current.eventTemplates.count) to \(next.taskTemplates.count + next.eventTemplates.count).")
         }
         if current.menuBarStyle != next.menuBarStyle
+            || current.menuBarIcon != next.menuBarIcon
             || current.showMenuBarExtra != next.showMenuBarExtra
             || current.showMenuBarBadge != next.showMenuBarBadge
             || current.showDockBadge != next.showDockBadge
