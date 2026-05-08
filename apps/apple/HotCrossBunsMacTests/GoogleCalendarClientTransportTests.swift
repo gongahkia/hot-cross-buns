@@ -159,6 +159,26 @@ final class GoogleCalendarClientTransportTests: XCTestCase {
         XCTAssertEqual(page.nextSyncToken, "full-sync")
     }
 
+    func testListEventsOmitsTimeMinForForeverFullSync() async throws {
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let queryItems = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let query = Dictionary(uniqueKeysWithValues: queryItems.map { ($0.name, $0.value ?? "") })
+            XCTAssertNil(query["syncToken"])
+            XCTAssertNil(query["timeMin"])
+            return (response, Data(#"{"items":[],"nextSyncToken":"full-sync"}"#.utf8))
+        }
+
+        let page = try await client.listEvents(calendarID: "primary", syncToken: nil, timeMin: nil)
+        XCTAssertEqual(page.events.count, 0)
+        XCTAssertEqual(page.nextSyncToken, "full-sync")
+    }
+
     func testInsertEventPostsConferenceReminderAttendeesAndExtendedProperties() async throws {
         var capturedBody = ""
         MockURLProtocol.requestHandler = { request in

@@ -17,6 +17,7 @@ import SwiftUI
 // + etag conflict + undo paths apply unchanged.
 struct KanbanView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.hcbAppBackgroundConfiguration) private var backgroundConfiguration
     let tasks: [TaskMirror]
     @Binding var columnMode: KanbanColumnMode
     @Binding var selection: Set<TaskMirror.ID>
@@ -33,6 +34,9 @@ struct KanbanView: View {
     var onCardTap: ((TaskMirror) -> Void)? = nil
 
     @State private var dropHighlightColumnID: String?
+    private var usesReadableTopBar: Bool {
+        backgroundConfiguration.customImagePath != nil || backgroundConfiguration.isTranslucent
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -113,6 +117,13 @@ struct KanbanView: View {
         }
         .hcbScaledPadding(.horizontal, 16)
         .hcbScaledPadding(.vertical, 10)
+        .background {
+            if usesReadableTopBar {
+                Rectangle()
+                    .fill(.regularMaterial)
+                    .overlay(AppColor.cream.opacity(0.24))
+            }
+        }
     }
 
     private var newListColumn: some View {

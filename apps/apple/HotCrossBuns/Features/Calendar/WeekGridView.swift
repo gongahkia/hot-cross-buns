@@ -7,6 +7,7 @@ struct WeekGridView: View {
     @Environment(\.routerPath) private var router
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.hcbAppBackgroundConfiguration) private var backgroundConfiguration
     @Binding var anchorDate: Date
     var searchQuery: String = ""
     @Binding var selectedEventIDs: Set<String>
@@ -38,6 +39,9 @@ struct WeekGridView: View {
     private let calendar = Calendar.current
     private var calendarGridReduceMotion: Bool {
         reduceMotion || scenePhase != .active || ProcessInfo.processInfo.isLowPowerModeEnabled
+    }
+    private var usesReadableCalendarBackings: Bool {
+        backgroundConfiguration.customImagePath != nil || backgroundConfiguration.isTranslucent
     }
 
     @State private var allDayDrag: WeekDaySelection?
@@ -94,9 +98,19 @@ struct WeekGridView: View {
                 timeGrid
             }
         }
+        .background { readableCalendarBackdrop }
         .onAppear { rebuildWeekCacheIfNeeded() }
         .onChange(of: currentWeekCacheKey) { _, _ in rebuildWeekCacheIfNeeded() }
         .hcbDebugBodyProbe("WeekGridView")
+    }
+
+    @ViewBuilder
+    private var readableCalendarBackdrop: some View {
+        if usesReadableCalendarBackings {
+            Rectangle()
+                .fill(AppColor.cardSurface.opacity(0.84))
+                .overlay(AppColor.cream.opacity(0.18))
+        }
     }
 
     // Fingerprints the inputs that make cachedTimedByDay valid. Cheap to

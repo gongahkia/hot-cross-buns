@@ -2109,6 +2109,25 @@ final class AppModel {
                 }
             }
         }
+        scheduleRebuildSnapshots()
+        scheduleCacheSave()
+    }
+
+    func setCompletedTaskRetentionDaysBack(_ days: Int) {
+        let clamped = max(0, min(days, 3650))
+        guard settings.completedTaskRetentionDaysBack != clamped else { return }
+        settings.completedTaskRetentionDaysBack = clamped
+        if clamped > 0,
+           let cutoff = Calendar.current.date(byAdding: .day, value: -clamped, to: Date()) {
+            tasks = tasks.filter { task in
+                if OptimisticID.isPending(task.id) { return true }
+                guard task.isCompleted else { return true }
+                if let completedAt = task.completedAt, completedAt >= cutoff { return true }
+                if let updatedAt = task.updatedAt, updatedAt >= cutoff { return true }
+                return false
+            }
+        }
+        scheduleRebuildSnapshots()
         scheduleCacheSave()
     }
 
@@ -2561,6 +2580,8 @@ final class AppModel {
             current.pastEventBehavior != next.pastEventBehavior,
             current.overdueTaskBehavior != next.overdueTaskBehavior,
             current.completedTaskBehavior != next.completedTaskBehavior,
+            current.eventRetentionDaysBack != next.eventRetentionDaysBack,
+            current.completedTaskRetentionDaysBack != next.completedTaskRetentionDaysBack,
             current.showCompletedItemsInCalendar != next.showCompletedItemsInCalendar,
             current.historyVisibleLimit != next.historyVisibleLimit,
             current.historyStorageCap != next.historyStorageCap
@@ -2586,8 +2607,10 @@ final class AppModel {
             || current.selectedCalendarIDs != next.selectedCalendarIDs
             || current.selectedTaskListIDs != next.selectedTaskListIDs
             || current.hasConfiguredCalendarSelection != next.hasConfiguredCalendarSelection
-            || current.hasConfiguredTaskListSelection != next.hasConfiguredTaskListSelection {
-            summaries.append("Sync mode, calendar visibility, or task-list visibility will change.")
+            || current.hasConfiguredTaskListSelection != next.hasConfiguredTaskListSelection
+            || current.eventRetentionDaysBack != next.eventRetentionDaysBack
+            || current.completedTaskRetentionDaysBack != next.completedTaskRetentionDaysBack {
+            summaries.append("Sync mode, retention, calendar visibility, or task-list visibility will change.")
         }
         if current.customFilters != next.customFilters {
             summaries.append("Custom filters will change from \(current.customFilters.count) to \(next.customFilters.count).")
@@ -2614,6 +2637,8 @@ final class AppModel {
         if current.pastEventBehavior != next.pastEventBehavior
             || current.overdueTaskBehavior != next.overdueTaskBehavior
             || current.completedTaskBehavior != next.completedTaskBehavior
+            || current.eventRetentionDaysBack != next.eventRetentionDaysBack
+            || current.completedTaskRetentionDaysBack != next.completedTaskRetentionDaysBack
             || current.showCompletedItemsInCalendar != next.showCompletedItemsInCalendar {
             summaries.append("Calendar cleanup and completed-item visibility preferences will change.")
         }

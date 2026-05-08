@@ -47,7 +47,7 @@ struct GoogleTasksClient: Sendable {
     // `serverDate == nil` is only expected when the header is missing or
     // unparseable; SyncScheduler falls back to a local-clock watermark in
     // that case.
-    func listTasks(taskListID: String, updatedMin: Date?) async throws -> GoogleTasksPage {
+    func listTasks(taskListID: String, updatedMin: Date?, completedMin: Date? = nil) async throws -> GoogleTasksPage {
         let encodedTaskListID = taskListID.googlePathComponentEncoded
         let baseQueryItems = [
             URLQueryItem(name: "showCompleted", value: "true"),
@@ -65,6 +65,8 @@ struct GoogleTasksClient: Sendable {
 
             if let updatedMin {
                 queryItems.append(URLQueryItem(name: "updatedMin", value: ISO8601DateFormatter.google.string(from: updatedMin)))
+            } else if let completedMin {
+                queryItems.append(URLQueryItem(name: "completedMin", value: ISO8601DateFormatter.google.string(from: completedMin)))
             }
 
             if let pageToken {

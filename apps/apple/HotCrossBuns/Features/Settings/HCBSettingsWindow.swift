@@ -376,6 +376,14 @@ private struct GeneralTab: View {
                             Text("2 years").tag(730)
                             Text("Forever").tag(0)
                         }
+                        Picker("Keep completed tasks", selection: completedTaskRetentionBinding) {
+                            Text("30 days").tag(30)
+                            Text("90 days").tag(90)
+                            Text("180 days").tag(180)
+                            Text("1 year").tag(365)
+                            Text("2 years").tag(730)
+                            Text("Forever").tag(0)
+                        }
                         HStack(spacing: 8) {
                             Text("Custom")
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -397,7 +405,7 @@ private struct GeneralTab: View {
                             .keyboardShortcut(.defaultAction)
                             .disabled(customRetentionAmount <= 0)
                         }
-                        Text("Older events are dropped from the local cache to keep memory + disk tight. Drops never touch Google — a Force Resync refetches everything.")
+                        Text("Older events and completed tasks are dropped from the local cache to keep memory + disk tight. Drops never touch Google — a Force Resync refetches according to these retention windows.")
                             .hcbFont(.caption2)
                             .foregroundStyle(.secondary)
 
@@ -444,6 +452,13 @@ private struct GeneralTab: View {
         Binding(
             get: { model.settings.eventRetentionDaysBack },
             set: { model.setEventRetentionDaysBack($0) }
+        )
+    }
+
+    private var completedTaskRetentionBinding: Binding<Int> {
+        Binding(
+            get: { model.settings.completedTaskRetentionDaysBack },
+            set: { model.setCompletedTaskRetentionDaysBack($0) }
         )
     }
 
@@ -738,6 +753,9 @@ private struct AdvancedTab: View {
                                 }
                             }
                         }
+                        Text("Before you customize this list, Hot Cross Buns follows calendars selected in Google Calendar, including subscribed and read-only calendars.")
+                            .hcbFont(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .id(SettingsSectionAnchor.advancedCalendars)
