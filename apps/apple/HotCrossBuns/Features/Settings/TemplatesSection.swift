@@ -293,7 +293,9 @@ private struct TaskTemplateEditor: View {
             errors.append("Task title is required.")
         }
         let due = taskPreview.resolvedDue.trimmingCharacters(in: .whitespacesAndNewlines)
-        if due.isEmpty == false && due.range(of: "^\\d{4}-\\d{2}-\\d{2}$", options: .regularExpression) == nil {
+        if due.isEmpty == false
+            && hasPromptPlaceholder(due) == false
+            && due.range(of: "^\\d{4}-\\d{2}-\\d{2}$", options: .regularExpression) == nil {
             errors.append("Due must resolve to YYYY-MM-DD or stay empty.")
         }
         return errors
@@ -520,7 +522,9 @@ private struct EventTemplateEditor: View {
             errors.append("Duration must be at least 5 minutes.")
         }
         let date = eventPreview.resolvedDate.trimmingCharacters(in: .whitespacesAndNewlines)
-        if date.isEmpty == false && date.range(of: "^\\d{4}-\\d{2}-\\d{2}$", options: .regularExpression) == nil {
+        if date.isEmpty == false
+            && hasPromptPlaceholder(date) == false
+            && date.range(of: "^\\d{4}-\\d{2}-\\d{2}$", options: .regularExpression) == nil {
             errors.append("Date anchor must resolve to YYYY-MM-DD or stay empty.")
         }
         let time = draft.timeAnchor.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -712,4 +716,8 @@ private extension HCBTemplateContext {
 
 private func trimmed(_ value: String) -> String {
     value.trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+private func hasPromptPlaceholder(_ value: String) -> Bool {
+    value.range(of: #"\{\{prompt:[^}]+\}\}"#, options: .regularExpression) != nil
 }
