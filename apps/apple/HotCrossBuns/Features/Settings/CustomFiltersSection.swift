@@ -10,11 +10,13 @@ import SwiftUI
 
 struct CustomFiltersSection: View {
     @Environment(AppModel.self) private var model
+    let highlightedAnchor: SettingsSectionAnchor?
     @State private var editor: CustomFilterDefinition?
     @State private var isCreating = false
 
     var body: some View {
         Section("Custom Filters") {
+            SettingsHighlightRow(anchor: .customFilters, highlightedAnchor: highlightedAnchor)
             SettingsFeatureFlow(
                 systemImage: "line.3.horizontal.decrease.circle",
                 title: "Saved filter",
@@ -64,6 +66,11 @@ struct CustomFiltersSection: View {
                             model.duplicateCustomFilter(filter)
                         } label: {
                             Label("Duplicate", systemImage: "plus.square.on.square")
+                        }
+                        Button {
+                            editor = model.duplicateCustomFilter(filter)
+                        } label: {
+                            Label("Duplicate and Edit", systemImage: "pencil.and.list.clipboard")
                         }
                         Divider()
                         Button(role: .destructive) {
@@ -118,6 +125,8 @@ private struct CustomFilterEditor: View {
     @State var draft: CustomFilterDefinition
     @State private var tagsText: String
     @State private var queryText: String
+    @State private var testedTasks: [TaskMirror] = []
+    @FocusState private var isNameFocused: Bool
     let onSave: (CustomFilterDefinition) -> Void
     let onCancel: () -> Void
 
@@ -138,6 +147,7 @@ private struct CustomFilterEditor: View {
                             SettingsSheetRow("Name") {
                                 TextField("", text: $draft.name)
                                     .textFieldStyle(.roundedBorder)
+                                    .focused($isNameFocused)
                             }
                             SettingsSheetRow("SF Symbol") {
                                 TextField("", text: $draft.systemImage)
@@ -148,13 +158,15 @@ private struct CustomFilterEditor: View {
                                 Toggle("Pin to menu bar", isOn: $draft.pinnedToMenuBar)
                                     .toggleStyle(.checkbox)
                             }
+                            UsedByRow(items: filterUsedBy)
                         }
 
                         FilterOutcomePreview(
                             name: draft.name,
                             matchCount: previewMatchCount,
                             isPinned: draft.pinnedToMenuBar,
-                            usesDSL: usingDSL
+                            usesDSL: usingDSL,
+                            testedTasks: testedTasks
                         )
 
                         SettingsSheetSection("Query (advanced)") {
@@ -253,7 +265,14 @@ private struct CustomFilterEditor: View {
 
                 Divider()
 
+                validationSummary
+
                 SettingsSheetActions(cancelTitle: "Cancel", onCancel: onCancel) {
+                    Button("Test Filter") {
+                        testedTasks = previewMatches(limit: 5)
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(filterValidationErrors.contains { $0.hasPrefix("Fix") })
                     Button("Save") {
                         var out = draft
                         out.tagsAny = tagsText
@@ -264,7 +283,6 @@ private struct CustomFilterEditor: View {
                         out.queryExpression = trimmedQuery.isEmpty ? nil : trimmedQuery
                         onSave(out)
                     }
-                    .keyboardShortcut(.defaultAction)
                     .buttonStyle(.borderedProminent)
                     .disabled(saveDisabled)
                 }
@@ -272,6 +290,10 @@ private struct CustomFilterEditor: View {
             .navigationTitle("Filter")
         }
         .frame(width: 720, height: 640)
+        .onAppear {
+            isNameFocused = true
+            testedTasks = previewMatches(limit: 5)
+        }
     }
 
     private var usingDSL: Bool {
@@ -326,19 +348,26 @@ private struct CustomFilterEditor: View {
     }
 
     private var previewMatchCount: Int {
+        previewMatches(limit: nil).count
+    }
+
+    private func previewMatches(limit: Int?) -> [TaskMirror] {
         if let compileResult {
             switch compileResult {
             case .success(let query):
-                return matchCount(for: query)
+                let ctx = QueryContext(now: Date(), calendar: .current, taskLists: model.taskLists)
+                let matches = model.tasks.filter { $0.isDeleted == false && query.matches($0, context: ctx) }
+                return limit.map { Array(matches.prefix($0)) } ?? matches
             case .failure:
-                return 0
+                return []
             }
         }
 
         var preview = draft
         preview.tagsAny = parsedTags
         preview.queryExpression = nil
-        return preview.filter(model.tasks, taskLists: model.taskLists).count
+        let matches = preview.filter(model.tasks, taskLists: model.taskLists)
+        return limit.map { Array(matches.prefix($0)) } ?? matches
     }
 
     private var parsedTags: [String] {
@@ -363,6 +392,47 @@ private struct CustomFilterEditor: View {
         return false
     }
 
+    private var filterValidationErrors: [String] {
+        var errors: [String] = []
+        if draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            errors.append("Name is required.")
+        }
+        if case .failure(let error) = compileResult {
+            errors.append("Fix DSL: \(errorText(error))")
+        }
+        return errors
+    }
+
+    private var filterUsedBy: [String] {
+        var items = ["Command Palette"]
+        if draft.pinnedToMenuBar {
+            items.append("Menu Bar")
+        }
+        return items
+    }
+
+    private var validationSummary: some View {
+        Group {
+            if filterValidationErrors.isEmpty == false {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(filterValidationErrors, id: \.self) { error in
+                            Text(error)
+                        }
+                    }
+                    .hcbFont(.caption)
+                    .foregroundStyle(.orange)
+                    Spacer()
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 10)
+                .background(.bar)
+            }
+        }
+    }
+
     @ViewBuilder
     private func cheat(_ code: String, _ desc: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
@@ -382,6 +452,7 @@ private struct FilterOutcomePreview: View {
     let matchCount: Int
     let isPinned: Bool
     let usesDSL: Bool
+    let testedTasks: [TaskMirror]
 
     var body: some View {
         SettingsSheetSection("Outcome") {
@@ -401,6 +472,22 @@ private struct FilterOutcomePreview: View {
                     title: usesDSL ? "DSL query" : "Structured rules",
                     detail: displayName
                 )
+            }
+            if testedTasks.isEmpty {
+                Text("Test preview: no matching tasks.")
+                    .hcbFont(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Test preview")
+                        .hcbFont(.caption, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                    ForEach(testedTasks) { task in
+                        Label(TagExtractor.stripped(from: task.title), systemImage: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                            .hcbFont(.caption)
+                            .lineLimit(1)
+                    }
+                }
             }
         }
     }
@@ -533,5 +620,24 @@ struct SettingsSheetActions<Content: View>: View {
         .padding(.horizontal, 24)
         .padding(.vertical, 16)
         .background(.bar)
+    }
+}
+
+struct UsedByRow: View {
+    let items: [String]
+
+    var body: some View {
+        SettingsSheetRow("Used by") {
+            HStack(spacing: 6) {
+                ForEach(items, id: \.self) { item in
+                    Text(item)
+                        .hcbFont(.caption, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(.quaternary.opacity(0.45)))
+                }
+            }
+        }
     }
 }

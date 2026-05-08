@@ -32,6 +32,8 @@ struct CustomFilterDefinition: Codable, Hashable, Identifiable, Sendable {
     // Whether this filter shows up in the menu-bar extra popover (§6.10).
     // Local-only UI affordance — never written back to Google.
     var pinnedToMenuBar: Bool
+    var lastUsedAt: Date?
+    var useCount: Int
 
     init(
         id: UUID = UUID(),
@@ -42,7 +44,9 @@ struct CustomFilterDefinition: Codable, Hashable, Identifiable, Sendable {
         taskListIDs: Set<String> = [],
         tagsAny: [String] = [],
         queryExpression: String? = nil,
-        pinnedToMenuBar: Bool = false
+        pinnedToMenuBar: Bool = false,
+        lastUsedAt: Date? = nil,
+        useCount: Int = 0
     ) {
         self.id = id
         self.name = name
@@ -53,10 +57,13 @@ struct CustomFilterDefinition: Codable, Hashable, Identifiable, Sendable {
         self.tagsAny = tagsAny
         self.queryExpression = queryExpression
         self.pinnedToMenuBar = pinnedToMenuBar
+        self.lastUsedAt = lastUsedAt
+        self.useCount = max(0, useCount)
     }
 
     enum CodingKeys: String, CodingKey {
         case id, name, systemImage, dueWindow, includeCompleted, taskListIDs, tagsAny, queryExpression, pinnedToMenuBar
+        case lastUsedAt, useCount
     }
 
     init(from decoder: Decoder) throws {
@@ -70,6 +77,8 @@ struct CustomFilterDefinition: Codable, Hashable, Identifiable, Sendable {
         tagsAny = try c.decodeIfPresent([String].self, forKey: .tagsAny) ?? []
         queryExpression = try c.decodeIfPresent(String.self, forKey: .queryExpression)
         pinnedToMenuBar = try c.decodeIfPresent(Bool.self, forKey: .pinnedToMenuBar) ?? false
+        lastUsedAt = try c.decodeIfPresent(Date.self, forKey: .lastUsedAt)
+        useCount = max(0, try c.decodeIfPresent(Int.self, forKey: .useCount) ?? 0)
     }
 
     var isUsingQueryDSL: Bool {
@@ -87,7 +96,9 @@ struct CustomFilterDefinition: Codable, Hashable, Identifiable, Sendable {
             taskListIDs: taskListIDs,
             tagsAny: tagsAny,
             queryExpression: queryExpression,
-            pinnedToMenuBar: pinnedToMenuBar
+            pinnedToMenuBar: pinnedToMenuBar,
+            lastUsedAt: nil,
+            useCount: 0
         )
     }
 

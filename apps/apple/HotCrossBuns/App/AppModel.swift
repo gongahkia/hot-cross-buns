@@ -2134,6 +2134,13 @@ final class AppModel {
         return copy
     }
 
+    func markTaskTemplateUsed(_ id: TaskTemplate.ID) {
+        guard let index = settings.taskTemplates.firstIndex(where: { $0.id == id }) else { return }
+        settings.taskTemplates[index].lastUsedAt = Date()
+        settings.taskTemplates[index].useCount += 1
+        scheduleCacheSave()
+    }
+
     // Instantiates a task template: expands every field with the given
     // variable context, then creates a real Google Task via the existing
     // createTask path. Returns true on success. `prompts` maps the label of
@@ -2175,12 +2182,16 @@ final class AppModel {
             return false
         }
 
-        return await createTask(
+        let created = await createTask(
             title: title,
             notes: notes,
             dueDate: dueDate,
             taskListID: listID
         )
+        if created {
+            markTaskTemplateUsed(template.id)
+        }
+        return created
     }
 
     // §6.12 — Cache encryption lifecycle. Enabling derives a key from the
@@ -2918,6 +2929,13 @@ final class AppModel {
         return copy
     }
 
+    func markCustomFilterUsed(_ id: CustomFilterDefinition.ID) {
+        guard let index = settings.customFilters.firstIndex(where: { $0.id == id }) else { return }
+        settings.customFilters[index].lastUsedAt = Date()
+        settings.customFilters[index].useCount += 1
+        scheduleCacheSave()
+    }
+
     func upsertEventTemplate(_ template: EventTemplate) {
         if let index = settings.eventTemplates.firstIndex(where: { $0.id == template.id }) {
             settings.eventTemplates[index] = template
@@ -2937,6 +2955,13 @@ final class AppModel {
         let copy = template.duplicated()
         upsertEventTemplate(copy)
         return copy
+    }
+
+    func markEventTemplateUsed(_ id: EventTemplate.ID) {
+        guard let index = settings.eventTemplates.firstIndex(where: { $0.id == id }) else { return }
+        settings.eventTemplates[index].lastUsedAt = Date()
+        settings.eventTemplates[index].useCount += 1
+        scheduleCacheSave()
     }
 
     // §6.13b — Instantiates an event template: expands every templated field
@@ -3044,7 +3069,7 @@ final class AppModel {
             return ["RRULE:\(trimmed)"]
         }()
 
-        return await createEvent(
+        let created = await createEvent(
             summary: summary,
             details: details,
             startDate: startDate,
@@ -3059,6 +3084,10 @@ final class AppModel {
             addGoogleMeet: template.addGoogleMeet,
             colorId: template.colorId
         )
+        if created {
+            markEventTemplateUsed(template.id)
+        }
+        return created
     }
 
     func bulkDeleteEvents(_ events: [CalendarEventMirror]) async -> Int {

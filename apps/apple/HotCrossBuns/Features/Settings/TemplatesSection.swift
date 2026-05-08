@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 // Settings UI for §6.13 / §6.13b templates. Templates are stored locally
@@ -6,6 +7,7 @@ import SwiftUI
 // indistinguishable from a manually-created one.
 struct TemplatesSection: View {
     @Environment(AppModel.self) private var model
+    let highlightedAnchor: SettingsSectionAnchor?
     @State private var taskEditor: TaskTemplate?
     @State private var isCreatingTask = false
     @State private var eventEditor: EventTemplate?
@@ -20,6 +22,7 @@ struct TemplatesSection: View {
 
     private var taskTemplatesSection: some View {
         Section("Task templates") {
+            SettingsHighlightRow(anchor: .templates, highlightedAnchor: highlightedAnchor)
             SettingsFeatureFlow(
                 systemImage: "doc.text",
                 title: "Task blueprint",
@@ -66,6 +69,11 @@ struct TemplatesSection: View {
                         } label: {
                             Label("Duplicate", systemImage: "plus.square.on.square")
                         }
+                        Button {
+                            taskEditor = model.duplicateTaskTemplate(template)
+                        } label: {
+                            Label("Duplicate and Edit", systemImage: "pencil.and.list.clipboard")
+                        }
                         Divider()
                         Button(role: .destructive) {
                             model.deleteTaskTemplate(template.id)
@@ -104,6 +112,7 @@ struct TemplatesSection: View {
 
     private var eventTemplatesSection: some View {
         Section("Event templates") {
+            SettingsHighlightRow(anchor: .templates, highlightedAnchor: highlightedAnchor)
             SettingsFeatureFlow(
                 systemImage: "calendar.badge.plus",
                 title: "Event blueprint",
@@ -150,6 +159,11 @@ struct TemplatesSection: View {
                         } label: {
                             Label("Duplicate", systemImage: "plus.square.on.square")
                         }
+                        Button {
+                            eventEditor = model.duplicateEventTemplate(template)
+                        } label: {
+                            Label("Duplicate and Edit", systemImage: "pencil.and.list.clipboard")
+                        }
                         Divider()
                         Button(role: .destructive) {
                             model.deleteEventTemplate(template.id)
@@ -190,6 +204,7 @@ struct TemplatesSection: View {
 private struct TaskTemplateEditor: View {
     @Environment(\.dismiss) private var dismiss
     @State var draft: TaskTemplate
+    @FocusState private var isNameFocused: Bool
     let onSave: (TaskTemplate) -> Void
     let onCancel: () -> Void
 
@@ -202,7 +217,9 @@ private struct TaskTemplateEditor: View {
                             SettingsSheetRow("Name") {
                                 TextField("", text: $draft.name)
                                     .textFieldStyle(.roundedBorder)
+                                    .focused($isNameFocused)
                             }
+                            UsedByRow(items: ["Command Palette", "Insert Task Template"])
                         }
 
                         SettingsSheetSection("Task") {
@@ -250,17 +267,40 @@ private struct TaskTemplateEditor: View {
 
                 Divider()
 
+                templateValidationSummary(taskValidationErrors)
+
                 SettingsSheetActions(cancelTitle: "Cancel", onCancel: onCancel) {
                     Button("Save") { onSave(draft) }
                         .keyboardShortcut(.defaultAction)
                         .buttonStyle(.borderedProminent)
-                        .disabled(draft.name.trimmingCharacters(in: .whitespaces).isEmpty
-                            || draft.title.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(taskValidationErrors.isEmpty == false)
                 }
             }
             .navigationTitle("Task Template")
         }
         .frame(width: 680, height: 540)
+        .onAppear {
+            isNameFocused = true
+        }
+    }
+
+    private var taskValidationErrors: [String] {
+        var errors: [String] = []
+        if draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            errors.append("Name is required.")
+        }
+        if draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            errors.append("Task title is required.")
+        }
+        let due = taskPreview.resolvedDue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if due.isEmpty == false && due.range(of: "^\\d{4}-\\d{2}-\\d{2}$", options: .regularExpression) == nil {
+            errors.append("Due must resolve to YYYY-MM-DD or stay empty.")
+        }
+        return errors
+    }
+
+    private var taskPreview: TaskTemplatePreview {
+        TaskTemplatePreview(template: draft)
     }
 }
 
@@ -270,6 +310,7 @@ private struct EventTemplateEditor: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
     @State var draft: EventTemplate
+    @FocusState private var isNameFocused: Bool
     let onSave: (EventTemplate) -> Void
     let onCancel: () -> Void
 
@@ -286,7 +327,9 @@ private struct EventTemplateEditor: View {
                             SettingsSheetRow("Name") {
                                 TextField("", text: $draft.name)
                                     .textFieldStyle(.roundedBorder)
+                                    .focused($isNameFocused)
                             }
+                            UsedByRow(items: ["Command Palette", "Insert Event Template", "Calendar editor"])
                         }
 
                         SettingsSheetSection("Event") {
@@ -428,18 +471,20 @@ private struct EventTemplateEditor: View {
 
                 Divider()
 
+                templateValidationSummary(eventValidationErrors)
+
                 SettingsSheetActions(cancelTitle: "Cancel", onCancel: onCancel) {
                     Button("Save") { onSave(draft) }
                         .keyboardShortcut(.defaultAction)
                         .buttonStyle(.borderedProminent)
-                        .disabled(draft.name.trimmingCharacters(in: .whitespaces).isEmpty
-                            || draft.summary.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(eventValidationErrors.isEmpty == false)
                 }
             }
             .navigationTitle("Event Template")
         }
         .frame(width: 760, height: 640)
         .onAppear {
+            isNameFocused = true
             attendeesRaw = draft.attendees.joined(separator: "\n")
         }
     }
@@ -462,30 +507,66 @@ private struct EventTemplateEditor: View {
             set: { draft.calendarIdOrTitle = $0 }
         )
     }
+
+    private var eventValidationErrors: [String] {
+        var errors: [String] = []
+        if draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            errors.append("Name is required.")
+        }
+        if draft.summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            errors.append("Event title is required.")
+        }
+        if draft.durationMinutes < 5 {
+            errors.append("Duration must be at least 5 minutes.")
+        }
+        let date = eventPreview.resolvedDate.trimmingCharacters(in: .whitespacesAndNewlines)
+        if date.isEmpty == false && date.range(of: "^\\d{4}-\\d{2}-\\d{2}$", options: .regularExpression) == nil {
+            errors.append("Date anchor must resolve to YYYY-MM-DD or stay empty.")
+        }
+        let time = draft.timeAnchor.trimmingCharacters(in: .whitespacesAndNewlines)
+        if draft.isAllDay == false && time.isEmpty == false {
+            let pieces = time.split(separator: ":").compactMap { Int($0) }
+            if pieces.count != 2 || (0...23).contains(pieces[0]) == false || (0...59).contains(pieces[1]) == false {
+                errors.append("Time must use 24-hour HH:mm.")
+            }
+        }
+        return errors
+    }
+
+    private var eventPreview: EventTemplatePreview {
+        EventTemplatePreview(template: draft)
+    }
 }
 
 private struct TaskTemplateOutcomePreview: View {
     let template: TaskTemplate
 
     var body: some View {
+        let preview = TaskTemplatePreview(template: template)
         SettingsSheetSection("Outcome") {
             HStack(spacing: 10) {
                 SettingsOutcomeCard(
                     systemImage: "text.cursor",
-                    title: trimmed(template.title).isEmpty ? "Needs title" : trimmed(template.title),
+                    title: trimmed(preview.resolvedTitle).isEmpty ? "Needs title" : trimmed(preview.resolvedTitle),
                     detail: "task title"
                 )
                 SettingsOutcomeCard(
                     systemImage: "calendar",
-                    title: trimmed(template.due).isEmpty ? "No due date" : trimmed(template.due),
-                    detail: "due value"
+                    title: trimmed(preview.resolvedDue).isEmpty ? "No due date" : trimmed(preview.resolvedDue),
+                    detail: "resolved due"
                 )
                 SettingsOutcomeCard(
                     systemImage: promptCount == 0 ? "checkmark.circle" : "questionmark.bubble",
                     title: promptCount == 0 ? "No prompts" : "\(promptCount) prompt\(promptCount == 1 ? "" : "s")",
-                    detail: trimmed(template.listIdOrTitle).isEmpty ? "default list" : trimmed(template.listIdOrTitle)
+                    detail: trimmed(preview.resolvedList).isEmpty ? "default list" : trimmed(preview.resolvedList)
                 )
             }
+            TemplateResolvedPreviewRows(rows: [
+                ("Title", preview.resolvedTitle),
+                ("Notes", preview.resolvedNotes),
+                ("Due", preview.resolvedDue),
+                ("List", preview.resolvedList)
+            ])
         }
     }
 
@@ -498,11 +579,12 @@ private struct EventTemplateOutcomePreview: View {
     let template: EventTemplate
 
     var body: some View {
+        let preview = EventTemplatePreview(template: template)
         SettingsSheetSection("Outcome") {
             HStack(spacing: 10) {
                 SettingsOutcomeCard(
                     systemImage: "calendar.badge.plus",
-                    title: trimmed(template.summary).isEmpty ? "Needs title" : trimmed(template.summary),
+                    title: trimmed(preview.resolvedSummary).isEmpty ? "Needs title" : trimmed(preview.resolvedSummary),
                     detail: "\(template.durationMinutes) min\(template.isAllDay ? " all-day" : "")"
                 )
                 SettingsOutcomeCard(
@@ -513,9 +595,16 @@ private struct EventTemplateOutcomePreview: View {
                 SettingsOutcomeCard(
                     systemImage: promptCount == 0 ? "checkmark.circle" : "questionmark.bubble",
                     title: promptCount == 0 ? "No prompts" : "\(promptCount) prompt\(promptCount == 1 ? "" : "s")",
-                    detail: destinationTitle
+                    detail: trimmed(preview.resolvedCalendar).isEmpty ? destinationTitle : trimmed(preview.resolvedCalendar)
                 )
             }
+            TemplateResolvedPreviewRows(rows: [
+                ("Title", preview.resolvedSummary),
+                ("Details", preview.resolvedDetails),
+                ("Location", preview.resolvedLocation),
+                ("Date", preview.resolvedDate.isEmpty ? "{{today}}" : preview.resolvedDate),
+                ("Calendar", preview.resolvedCalendar)
+            ])
         }
     }
 

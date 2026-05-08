@@ -12,66 +12,46 @@ struct HCBSettingsWindow: View {
     @Environment(AppModel.self) private var model
     @Environment(UpdaterController.self) private var updater
     @Environment(\.openWindow) private var openWindow
-    private enum Tab: String, CaseIterable, Identifiable {
-        case general, appearance, hotkeys, alerts, advanced, about
-        var id: String { rawValue }
-
-        var title: String {
-            switch self {
-            case .general: "General"
-            case .appearance: "Appearance"
-            case .hotkeys: "Hotkeys"
-            case .alerts: "Alerts"
-            case .advanced: "Advanced"
-            case .about: "About"
-            }
-        }
-
-        var systemImage: String {
-            switch self {
-            case .general: "gearshape"
-            case .appearance: "paintbrush"
-            case .hotkeys: "keyboard"
-            case .alerts: "bell"
-            case .advanced: "gearshape.2"
-            case .about: "info.circle"
-            }
-        }
-    }
-
-    @State private var tab: Tab = .general
+    @State private var tab: SettingsSearchTab = .general
+    @State private var settingsQuery = ""
+    @State private var highlightedAnchor: SettingsSectionAnchor?
+    @FocusState private var isSettingsSearchFocused: Bool
     // Sub-sheets hosted locally (the detached window has no RouterPath).
     @State private var isSyncDetailsPresented = false
     @State private var isDiagnosticsPresented = false
 
     var body: some View {
-        TabView(selection: $tab) {
-            GeneralTab(
-                isSyncDetailsPresented: $isSyncDetailsPresented,
-                isDiagnosticsPresented: $isDiagnosticsPresented
-            )
-            .tabItem { Label("General", systemImage: "gearshape") }
-            .tag(Tab.general)
+        VStack(spacing: 0) {
+            settingsSearchBar
+            TabView(selection: $tab) {
+                GeneralTab(
+                    highlightedAnchor: highlightedAnchor,
+                    isSyncDetailsPresented: $isSyncDetailsPresented,
+                    isDiagnosticsPresented: $isDiagnosticsPresented
+                )
+                .tabItem { Label("General", systemImage: "gearshape") }
+                .tag(SettingsSearchTab.general)
 
-            AppearanceTab()
-            .tabItem { Label("Appearance", systemImage: "paintbrush") }
-            .tag(Tab.appearance)
+                AppearanceTab(highlightedAnchor: highlightedAnchor)
+                .tabItem { Label("Appearance", systemImage: "paintbrush") }
+                .tag(SettingsSearchTab.appearance)
 
-            HotkeysTab()
-            .tabItem { Label("Hotkeys", systemImage: "keyboard") }
-            .tag(Tab.hotkeys)
+                HotkeysTab(highlightedAnchor: highlightedAnchor)
+                .tabItem { Label(hotkeysTabTitle, systemImage: "keyboard") }
+                .tag(SettingsSearchTab.hotkeys)
 
-            AlertsTab()
-            .tabItem { Label("Alerts", systemImage: "bell") }
-            .tag(Tab.alerts)
+                AlertsTab(highlightedAnchor: highlightedAnchor)
+                .tabItem { Label("Alerts", systemImage: "bell") }
+                .tag(SettingsSearchTab.alerts)
 
-            AdvancedTab()
-            .tabItem { Label("Advanced", systemImage: "gearshape.2") }
-            .tag(Tab.advanced)
+                AdvancedTab(highlightedAnchor: highlightedAnchor)
+                .tabItem { Label(advancedTabTitle, systemImage: "gearshape.2") }
+                .tag(SettingsSearchTab.advanced)
 
-            AboutTab()
-            .tabItem { Label("About", systemImage: "info.circle") }
-            .tag(Tab.about)
+                AboutTab(highlightedAnchor: highlightedAnchor)
+                .tabItem { Label(aboutTabTitle, systemImage: "info.circle") }
+                .tag(SettingsSearchTab.about)
+            }
         }
         // Hotkeys needs a two-column settings surface, so the detached
         // settings window gets a wider default while remaining resizable.
@@ -123,17 +103,168 @@ struct HCBSettingsWindow: View {
         }
     }
 
+    private var settingsSearchBar: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Search settings", text: $settingsQuery)
+                    .textFieldStyle(.plain)
+                    .focused($isSettingsSearchFocused)
+                if settingsQuery.isEmpty == false {
+                    Button {
+                        settingsQuery = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(.cancelAction)
+                    .help("Clear search")
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+
+            if settingsQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                settingsSearchResults
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 14)
+        .padding(.bottom, settingsQuery.isEmpty ? 8 : 10)
+        .background(.bar)
+        .onAppear {
+            isSettingsSearchFocused = true
+        }
+    }
+
+    private var settingsSearchResults: some View {
+        let results = SettingsSearchIndex.filter(searchIndex, query: settingsQuery)
+        return VStack(alignment: .leading, spacing: 4) {
+            if results.isEmpty {
+                Text("No settings match.")
+                    .hcbFont(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 4)
+            } else {
+                ForEach(results) { result in
+                    Button {
+                        tab = result.tab
+                        highlightedAnchor = result.anchor
+                        settingsQuery = ""
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: result.tab.systemImage)
+                                .frame(width: 18)
+                                .foregroundStyle(.secondary)
+                            Text(result.title)
+                                .lineLimit(1)
+                            Spacer()
+                            if let status = result.status, status.isEmpty == false {
+                                Text(status)
+                                    .hcbFont(.caption2, weight: .semibold)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 1)
+                                    .background(Capsule().fill(.quaternary.opacity(0.55)))
+                            }
+                            Text(result.tab.title)
+                                .hcbFont(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private var searchIndex: [SettingsSearchResult] {
+        SettingsSearchIndex.results(
+            customShortcutCount: model.settings.shortcutOverrides.count,
+            shortcutConflictCount: shortcutConflictCount,
+            customFilterCount: model.settings.customFilters.count,
+            taskTemplateCount: model.settings.taskTemplates.count,
+            eventTemplateCount: model.settings.eventTemplates.count,
+            updateStatus: updateBadgeText
+        )
+    }
+
+    private var hotkeysTabTitle: String {
+        let custom = model.settings.shortcutOverrides.count
+        if shortcutConflictCount > 0 { return "Hotkeys (\(shortcutConflictCount)!)" }
+        return custom > 0 ? "Hotkeys (\(custom))" : "Hotkeys"
+    }
+
+    private var advancedTabTitle: String {
+        let count = model.settings.customFilters.count + model.settings.taskTemplates.count + model.settings.eventTemplates.count
+        return count > 0 ? "Advanced (\(count))" : "Advanced"
+    }
+
+    private var aboutTabTitle: String {
+        guard let updateBadgeText else { return "About" }
+        return "About (\(updateBadgeText))"
+    }
+
+    private var updateBadgeText: String? {
+        if updater.isChecking { return "Checking" }
+        if let release = updater.availableRelease {
+            let state = updater.downloadState
+            if state.releaseTag == release.tagName {
+                switch state.phase {
+                case .ready: return "Ready"
+                case .failed: return "Failed"
+                case .downloading: return "Downloading"
+                case .idle: break
+                }
+            }
+            return "Update"
+        }
+        return nil
+    }
+
+    private var shortcutConflictCount: Int {
+        let overrides = model.settings.shortcutOverrides
+        var conflicts = Set<HCBShortcutCommand>()
+        for command in HCBShortcutCommand.allCases {
+            guard let binding = overrides[command.rawValue] else { continue }
+            let matches = hcbConflictingCommands(
+                proposed: binding,
+                for: command,
+                overrides: overrides
+            )
+            if matches.isEmpty == false {
+                conflicts.insert(command)
+                matches.forEach { conflicts.insert($0) }
+            }
+        }
+        return conflicts.count
+    }
 }
 
 // MARK: - About tab
 
 private struct AboutTab: View {
+    let highlightedAnchor: SettingsSectionAnchor?
+
     var body: some View {
-        Form {
-            UpdatesSection()
-            AppVersionSection()
+        ScrollViewReader { proxy in
+            Form {
+                UpdatesSection()
+                    .id(SettingsSectionAnchor.updates)
+                AppVersionSection()
+                    .id(SettingsSectionAnchor.version)
+            }
+            .formStyle(.grouped)
+            .onChange(of: highlightedAnchor) { _, anchor in
+                scroll(proxy, to: anchor, allowed: [.updates, .version])
+            }
         }
-        .formStyle(.grouped)
     }
 }
 
@@ -142,6 +273,7 @@ private struct AboutTab: View {
 private struct GeneralTab: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openWindow) private var openWindow
+    let highlightedAnchor: SettingsSectionAnchor?
     @Binding var isSyncDetailsPresented: Bool
     @Binding var isDiagnosticsPresented: Bool
     @State private var showOnboardingResetConfirmed = false
@@ -168,91 +300,117 @@ private struct GeneralTab: View {
     }
 
     var body: some View {
-        Form {
-            Section("Google OAuth client") {
-                GoogleOAuthClientSetupView()
-            }
+        ScrollViewReader { proxy in
+            Form {
+                Section("Google OAuth client") {
+                    SettingsHighlightRow(anchor: .googleOAuth, highlightedAnchor: highlightedAnchor)
+                    GoogleOAuthClientSetupView()
+                }
+                .id(SettingsSectionAnchor.googleOAuth)
 
-            Section("Google account") {
-                AccountStatusView(
-                    authState: model.authState,
-                    account: model.account,
-                    canConnect: model.isGoogleAuthConfigured,
-                    connect: { Task { await model.connectGoogleAccount() } },
-                    disconnect: { Task { await model.disconnectGoogleAccount() } }
-                )
-            }
+                Section("Google account") {
+                    SettingsHighlightRow(anchor: .googleAccount, highlightedAnchor: highlightedAnchor)
+                    AccountStatusView(
+                        authState: model.authState,
+                        account: model.account,
+                        canConnect: model.isGoogleAuthConfigured,
+                        connect: { Task { await model.connectGoogleAccount() } },
+                        disconnect: { Task { await model.disconnectGoogleAccount() } }
+                    )
+                }
+                .id(SettingsSectionAnchor.googleAccount)
 
-            OpenAtLoginSection()
+                OpenAtLoginSection()
+                    .id(SettingsSectionAnchor.openAtLogin)
 
-            if model.account != nil {
-                Section("Sync") {
-                    Picker("Mode", selection: syncModeBinding) {
-                        ForEach(SyncMode.allCases) { mode in
-                            Text(mode.title).tag(mode)
-                        }
+                Section("Diagnostics") {
+                    SettingsHighlightRow(anchor: .diagnostics, highlightedAnchor: highlightedAnchor)
+                    Button {
+                        isDiagnosticsPresented = true
+                    } label: {
+                        Label("Open diagnostics", systemImage: "stethoscope")
                     }
-                    Text(model.settings.syncMode.detail)
+                    Text("Inspect logs, mutation history, sync queues, and support bundles.")
                         .hcbFont(.footnote)
                         .foregroundStyle(.secondary)
-                    syncModeGuidance
-                    Picker("Keep past events", selection: eventRetentionBinding) {
-                        Text("30 days").tag(30)
-                        Text("90 days").tag(90)
-                        Text("180 days").tag(180)
-                        Text("1 year").tag(365)
-                        Text("2 years").tag(730)
-                        Text("Forever").tag(0)
-                    }
-                    HStack(spacing: 8) {
-                        Text("Custom")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        TextField("Amount", value: $customRetentionAmount, format: .number)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 70)
-                            .multilineTextAlignment(.trailing)
-                        Picker("Unit", selection: $customRetentionUnit) {
-                            ForEach(RetentionUnit.allCases) { unit in
-                                Text(unit.title).tag(unit)
+                }
+                .id(SettingsSectionAnchor.diagnostics)
+
+                if model.account != nil {
+                    Section("Sync") {
+                        SettingsHighlightRow(anchor: .sync, highlightedAnchor: highlightedAnchor)
+                        Picker("Mode", selection: syncModeBinding) {
+                            ForEach(SyncMode.allCases) { mode in
+                                Text(mode.title).tag(mode)
                             }
                         }
-                        .labelsHidden()
-                        .frame(width: 90)
-                        Button("Apply") {
-                            let days = customRetentionUnit.toDays(max(0, customRetentionAmount))
-                            model.setEventRetentionDaysBack(days)
+                        Text(model.settings.syncMode.detail)
+                            .hcbFont(.footnote)
+                            .foregroundStyle(.secondary)
+                        syncModeGuidance
+                        Picker("Keep past events", selection: eventRetentionBinding) {
+                            Text("30 days").tag(30)
+                            Text("90 days").tag(90)
+                            Text("180 days").tag(180)
+                            Text("1 year").tag(365)
+                            Text("2 years").tag(730)
+                            Text("Forever").tag(0)
                         }
-                        .disabled(customRetentionAmount <= 0)
-                    }
-                    Text("Older events are dropped from the local cache to keep memory + disk tight. Drops never touch Google — a Force Resync refetches everything.")
-                        .hcbFont(.caption2)
-                        .foregroundStyle(.secondary)
+                        HStack(spacing: 8) {
+                            Text("Custom")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            TextField("Amount", value: $customRetentionAmount, format: .number)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 70)
+                                .multilineTextAlignment(.trailing)
+                            Picker("Unit", selection: $customRetentionUnit) {
+                                ForEach(RetentionUnit.allCases) { unit in
+                                    Text(unit.title).tag(unit)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(width: 90)
+                            Button("Apply") {
+                                let days = customRetentionUnit.toDays(max(0, customRetentionAmount))
+                                model.setEventRetentionDaysBack(days)
+                            }
+                            .keyboardShortcut(.defaultAction)
+                            .disabled(customRetentionAmount <= 0)
+                        }
+                        Text("Older events are dropped from the local cache to keep memory + disk tight. Drops never touch Google — a Force Resync refetches everything.")
+                            .hcbFont(.caption2)
+                            .foregroundStyle(.secondary)
 
-                    if hasSyncAttentionItems {
+                        if hasSyncAttentionItems {
+                            Button {
+                                openWindow(id: "sync-issues")
+                            } label: {
+                                Label(syncAttentionLabel, systemImage: "exclamationmark.bubble")
+                            }
+                        }
+                    }
+                    .id(SettingsSectionAnchor.sync)
+
+                    Section("Setup") {
                         Button {
-                            openWindow(id: "sync-issues")
+                            model.resetOnboarding()
+                            showOnboardingResetConfirmed = true
                         } label: {
-                            Label(syncAttentionLabel, systemImage: "exclamationmark.bubble")
+                            Label("Run setup again", systemImage: "sparkles")
                         }
                     }
-                }
-
-                Section("Setup") {
-                    Button {
-                        model.resetOnboarding()
-                        showOnboardingResetConfirmed = true
-                    } label: {
-                        Label("Run setup again", systemImage: "sparkles")
+                    .alert("Setup will run now", isPresented: $showOnboardingResetConfirmed) {
+                        Button("OK") { showOnboardingResetConfirmed = false }
+                    } message: {
+                        Text("The onboarding flow has been reset. Switch back to the main Hot Cross Buns window to go through setup again.")
                     }
-                }
-                .alert("Setup will run now", isPresented: $showOnboardingResetConfirmed) {
-                    Button("OK") { showOnboardingResetConfirmed = false }
-                } message: {
-                    Text("The onboarding flow has been reset. Switch back to the main Hot Cross Buns window to go through setup again.")
                 }
             }
+            .formStyle(.grouped)
+            .onChange(of: highlightedAnchor) { _, anchor in
+                scroll(proxy, to: anchor, allowed: [.googleOAuth, .googleAccount, .openAtLogin, .diagnostics, .sync])
+            }
         }
-        .formStyle(.grouped)
     }
 
     private var syncModeBinding: Binding<SyncMode> {
@@ -309,23 +467,41 @@ private struct GeneralTab: View {
 // MARK: - Appearance tab
 
 private struct AppearanceTab: View {
+    let highlightedAnchor: SettingsSectionAnchor?
+
     var body: some View {
-        Form {
-            AppearanceSection()
-            PerSurfaceFontSection()
-            LayoutSection()
+        ScrollViewReader { proxy in
+            Form {
+                AppearanceSection()
+                    .id(SettingsSectionAnchor.appearance)
+                PerSurfaceFontSection()
+                    .id(SettingsSectionAnchor.background)
+                LayoutSection()
+                    .id(SettingsSectionAnchor.layout)
+            }
+            .formStyle(.grouped)
+            .onChange(of: highlightedAnchor) { _, anchor in
+                scroll(proxy, to: anchor, allowed: [.appearance, .background, .layout])
+            }
         }
-        .formStyle(.grouped)
     }
 }
 
 // MARK: - Hotkeys tab
 
 private struct HotkeysTab: View {
+    let highlightedAnchor: SettingsSectionAnchor?
+
     var body: some View {
-        ScrollView {
-            KeybindingsSection()
-                .hcbScaledPadding(20)
+        ScrollViewReader { proxy in
+            ScrollView {
+                KeybindingsSection()
+                    .id(SettingsSectionAnchor.hotkeys)
+                    .hcbScaledPadding(20)
+            }
+            .onChange(of: highlightedAnchor) { _, anchor in
+                scroll(proxy, to: anchor, allowed: [.hotkeys])
+            }
         }
     }
 }
@@ -335,48 +511,58 @@ private struct HotkeysTab: View {
 private struct AlertsTab: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openWindow) private var openWindow
+    let highlightedAnchor: SettingsSectionAnchor?
     @State private var permissionPrimer: PermissionPrimer?
     @State private var showLocalNotificationsInfo = false
     @State private var showNotificationsDeniedAlert = false
 
     var body: some View {
-        Form {
-            Section("Notifications") {
-                Toggle("Local reminders", isOn: localNotificationsBinding)
-                if model.settings.enableLocalNotifications {
-                    taskReminderControls
-                    if let summary = model.lastNotificationScheduleSummary, summary.hasDeferred {
-                        Button {
-                            openWindow(id: "sync-issues")
-                        } label: {
-                            Label(reminderCapacityLabel(summary), systemImage: "bell.badge")
+        ScrollViewReader { proxy in
+            Form {
+                Section("Notifications") {
+                    SettingsHighlightRow(anchor: .notifications, highlightedAnchor: highlightedAnchor)
+                    Toggle("Local reminders", isOn: localNotificationsBinding)
+                    if model.settings.enableLocalNotifications {
+                        taskReminderControls
+                        if let summary = model.lastNotificationScheduleSummary, summary.hasDeferred {
+                            Button {
+                                openWindow(id: "sync-issues")
+                            } label: {
+                                Label(reminderCapacityLabel(summary), systemImage: "bell.badge")
+                            }
                         }
                     }
                 }
-            }
+                .id(SettingsSectionAnchor.notifications)
 
-            CompletionSoundSection()
+                CompletionSoundSection()
 
-            Section("Menu bar") {
-                Toggle("Menu bar extra", isOn: menuBarExtraBinding)
-                Picker("Menu bar panel", selection: menuBarStyleBinding) {
-                    ForEach(AppSettings.MenuBarStyle.allCases, id: \.self) { style in
-                        Text(style.title).tag(style)
+                Section("Menu bar") {
+                    SettingsHighlightRow(anchor: .menuBar, highlightedAnchor: highlightedAnchor)
+                    Toggle("Menu bar extra", isOn: menuBarExtraBinding)
+                    Picker("Menu bar panel", selection: menuBarStyleBinding) {
+                        ForEach(AppSettings.MenuBarStyle.allCases, id: \.self) { style in
+                            Text(style.title).tag(style)
+                        }
                     }
-                }
-                MenuBarIconPickerRow()
-                .disabled(model.settings.showMenuBarExtra == false)
-                Toggle("Menu bar badge for overdue tasks", isOn: menuBarBadgeBinding)
+                    MenuBarIconPickerRow()
                     .disabled(model.settings.showMenuBarExtra == false)
-            }
+                    Toggle("Menu bar badge for overdue tasks", isOn: menuBarBadgeBinding)
+                        .disabled(model.settings.showMenuBarExtra == false)
+                }
+                .id(SettingsSectionAnchor.menuBar)
 
-            Section("Dock") {
-                Toggle("Dock badge for overdue tasks", isOn: dockBadgeBinding)
-            }
+                Section("Dock") {
+                    Toggle("Dock badge for overdue tasks", isOn: dockBadgeBinding)
+                }
 
-            GlobalHotkeySection()
+                GlobalHotkeySection()
+            }
+            .formStyle(.grouped)
+            .onChange(of: highlightedAnchor) { _, anchor in
+                scroll(proxy, to: anchor, allowed: [.notifications, .menuBar])
+            }
         }
-        .formStyle(.grouped)
         .sheet(item: $permissionPrimer) { primer in
             PermissionPrimerView(primer: primer) {
                 permissionPrimer = nil
@@ -510,51 +696,72 @@ private struct AlertsTab: View {
 
 private struct AdvancedTab: View {
     @Environment(AppModel.self) private var model
+    let highlightedAnchor: SettingsSectionAnchor?
 
     var body: some View {
-        Form {
-            Section("Calendars") {
-                Toggle("Show completed tasks and dismissed events in calendar views", isOn: showCompletedItemsInCalendarBinding)
-                if model.calendars.isEmpty {
-                    Text("Refresh after connecting Google to load calendars.")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(model.calendars) { calendar in
-                        Toggle(isOn: calendarBinding(calendar.id)) {
-                            HStack(spacing: 10) {
-                                Circle()
-                                    .fill(Color(hex: calendar.colorHex))
-                                    .hcbScaledFrame(width: 10, height: 10)
-                                Text(calendar.summary)
+        ScrollViewReader { proxy in
+            Form {
+                Section("Calendars") {
+                    SettingsHighlightRow(anchor: .advancedCalendars, highlightedAnchor: highlightedAnchor)
+                    Toggle("Show completed tasks and dismissed events in calendar views", isOn: showCompletedItemsInCalendarBinding)
+                    if model.calendars.isEmpty {
+                        Text("Refresh after connecting Google to load calendars.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(model.calendars) { calendar in
+                            Toggle(isOn: calendarBinding(calendar.id)) {
+                                HStack(spacing: 10) {
+                                    Circle()
+                                        .fill(Color(hex: calendar.colorHex))
+                                        .hcbScaledFrame(width: 10, height: 10)
+                                    Text(calendar.summary)
+                                }
                             }
                         }
                     }
                 }
-            }
+                .id(SettingsSectionAnchor.advancedCalendars)
 
-            Section("Task lists") {
-                if model.taskLists.isEmpty {
-                    Text("Refresh after connecting Google to load task lists.")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(model.taskLists) { taskList in
-                        Toggle(isOn: taskListBinding(taskList.id)) {
-                            Label(taskList.title, systemImage: "checklist")
+                Section("Task lists") {
+                    SettingsHighlightRow(anchor: .taskLists, highlightedAnchor: highlightedAnchor)
+                    if model.taskLists.isEmpty {
+                        Text("Refresh after connecting Google to load task lists.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(model.taskLists) { taskList in
+                            Toggle(isOn: taskListBinding(taskList.id)) {
+                                Label(taskList.title, systemImage: "checklist")
+                            }
                         }
                     }
                 }
+                .id(SettingsSectionAnchor.taskLists)
+
+                PerTabListFilterSection()
+                    .id(SettingsSectionAnchor.perTabFilters)
+
+                DataControlSection()
+                    .id(SettingsSectionAnchor.data)
+                LocalBackupSection()
+                    .id(SettingsSectionAnchor.backups)
+                EncryptionSection()
+                    .id(SettingsSectionAnchor.encryption)
+                HistorySection()
+                    .id(SettingsSectionAnchor.history)
+                CustomFiltersSection(highlightedAnchor: highlightedAnchor)
+                    .id(SettingsSectionAnchor.customFilters)
+                TemplatesSection(highlightedAnchor: highlightedAnchor)
+                    .id(SettingsSectionAnchor.templates)
             }
-
-            PerTabListFilterSection()
-
-            DataControlSection()
-            LocalBackupSection()
-            EncryptionSection()
-            HistorySection()
-            CustomFiltersSection()
-            TemplatesSection()
+            .formStyle(.grouped)
+            .onChange(of: highlightedAnchor) { _, anchor in
+                scroll(
+                    proxy,
+                    to: anchor,
+                    allowed: [.advancedCalendars, .taskLists, .perTabFilters, .data, .backups, .encryption, .history, .customFilters, .templates]
+                )
+            }
         }
-        .formStyle(.grouped)
     }
 
     private func calendarBinding(_ id: CalendarListMirror.ID) -> Binding<Bool> {
@@ -576,6 +783,32 @@ private struct AdvancedTab: View {
             get: { model.isTaskListSelected(id) },
             set: { _ in model.toggleTaskList(id) }
         )
+    }
+}
+
+struct SettingsHighlightRow: View {
+    let anchor: SettingsSectionAnchor
+    let highlightedAnchor: SettingsSectionAnchor?
+
+    var body: some View {
+        if highlightedAnchor == anchor {
+            Label("Matched from settings search", systemImage: "scope")
+                .hcbFont(.caption)
+                .foregroundStyle(AppColor.ember)
+        }
+    }
+}
+
+private func scroll(
+    _ proxy: ScrollViewProxy,
+    to anchor: SettingsSectionAnchor?,
+    allowed: Set<SettingsSectionAnchor>
+) {
+    guard let anchor, allowed.contains(anchor) else { return }
+    DispatchQueue.main.async {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            proxy.scrollTo(anchor, anchor: .top)
+        }
     }
 }
 
