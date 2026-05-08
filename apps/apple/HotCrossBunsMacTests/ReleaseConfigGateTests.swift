@@ -105,6 +105,37 @@ final class ReleaseConfigGateTests: XCTestCase {
 
         XCTAssertNil(controller.availableRelease)
         XCTAssertEqual(controller.toastState?.title, "You're on the latest version")
+        XCTAssertEqual(controller.toastState?.target, .main)
+    }
+
+    func testSettingsUpdateCheckTargetsSettingsToastOnly() async throws {
+        let session = try makeStubbedSession(statusCode: 200, body: """
+        {
+          "tag_name": "v1.0.0",
+          "html_url": "https://github.com/gongahkia/hot-cross-buns/releases/tag/v1.0.0",
+          "published_at": "2026-04-24T00:00:00Z",
+          "assets": []
+        }
+        """)
+        let suiteName = "ReleaseConfigGateTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        addTeardownBlock {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let controller = UpdaterController(
+            bundle: try makeBundle(info: ["CFBundleShortVersionString": "1.0.0"]),
+            userDefaults: defaults,
+            urlSession: session,
+            openURL: { _ in true }
+        )
+
+        await controller.checkForUpdatesNow(trigger: .manual, toastTarget: .settings)
+
+        XCTAssertNil(controller.availableRelease)
+        XCTAssertEqual(controller.toastState?.title, "You're on the latest version")
+        XCTAssertEqual(controller.toastState?.target, .settings)
     }
 
     func testOpenAvailableReleaseDownloadPrefersDownloadedLocalDMG() async throws {

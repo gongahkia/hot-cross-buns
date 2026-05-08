@@ -80,18 +80,22 @@ struct HCBSettingsWindow: View {
                 .hcbPreferredColorScheme(model.settings)
         }
         .overlay {
+            let toast = updater.toastState?.target == .settings ? updater.toastState : nil
             BulkResultToast(
                 message: Binding(
-                    get: { updater.toastState?.message },
+                    get: {
+                        guard updater.toastState?.target == .settings else { return nil }
+                        return updater.toastState?.message
+                    },
                     set: { newValue in
                         if newValue == nil {
                             updater.clearToast()
                         }
                     }
                 ),
-                isWarning: updater.toastState?.isWarning ?? false,
-                successTitle: updater.toastState?.title ?? "Update check complete",
-                warningTitle: updater.toastState?.title ?? "Update check failed",
+                isWarning: toast?.isWarning ?? false,
+                successTitle: toast?.title ?? "Update check complete",
+                warningTitle: toast?.title ?? "Update check failed",
                 successSymbol: "arrow.down.circle.fill",
                 warningSymbol: "wifi.exclamationmark"
             )

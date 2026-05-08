@@ -10,7 +10,7 @@ struct UpdatesSection: View {
             Toggle(updater.automaticCheckLabel, isOn: autoCheckBinding)
 
             Button {
-                updater.checkForUpdates()
+                updater.checkForUpdates(toastTarget: .settings)
             } label: {
                 Label(
                     updater.isChecking ? "Checking GitHub Releases…" : "Check for Updates Now",
