@@ -129,35 +129,6 @@ struct DiagnosticsView: View {
         .frame(minWidth: 620, minHeight: 520)
     }
 
-    private var legacyList: some View {
-        List {
-                    switch tab {
-                    case .overview:
-                        statusSection
-                        performanceSection
-                        bodyProbeSection
-                        localDataSection
-                        selectionsSection
-                        if notificationSummary != nil { reminderScheduleSection }
-                        cacheSection
-                    case .sync:
-                        if conflictedMutations.isEmpty == false { syncConflictsSection }
-                        if invalidPayloadQuarantined.isEmpty == false { invalidPayloadSection }
-                        if retryableQuarantined.isEmpty == false { quarantinedSection }
-                        if queuedMutations.isEmpty == false { pendingQueueSection }
-                        recoverySection
-                    case .logs:
-                        logsSection
-                    case .history:
-                        if systemCrashReports.isEmpty == false { systemCrashReportsSection }
-                        if lastCrash != nil { previousCrashSection }
-                        if auditEntries.isEmpty == false { mutationHistorySection }
-                    case .support:
-                        supportSection
-                    }
-        }
-    }
-
     private var tabBar: some View {
         HStack(spacing: 0) {
             ForEach(Tab.allCases) { entry in
@@ -620,64 +591,6 @@ struct DiagnosticsView: View {
                         lastCrash = nil
                     } label: {
                         Label("Clear", systemImage: "trash")
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var mutationHistorySection: some View {
-        Section("Mutation history") {
-            Text("Last \(auditEntries.count) user mutations. Useful for reconstructing \"when did I do that?\" after the undo window has closed.")
-                .hcbFont(.caption)
-                .foregroundStyle(.secondary)
-            ForEach(auditEntries) { entry in
-                AuditEntryRow(entry: entry)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var logsSection: some View {
-        Section("Logs") {
-            HStack {
-                Picker("Level", selection: $logLevelFilter) {
-                    ForEach(LogLevel.allCases, id: \.self) { level in
-                        Text(level.rawValue.capitalized).tag(level)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: logLevelFilter) { _, _ in refreshLogs() }
-                Spacer()
-                Button {
-                    refreshLogs()
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                }
-            }
-            if logEntries.isEmpty {
-                Text("No log entries at this level yet.")
-                    .hcbFont(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(logEntries) { entry in
-                    LogEntryRow(entry: entry)
-                }
-            }
-            HStack {
-                Button {
-                    let full = AppLogger.shared.loadPersistedLog()
-                    Clipboard.copy(full.isEmpty ? logEntries.map { $0.formattedLine() }.joined(separator: "\n") : full)
-                    logCopiedAt = Date()
-                } label: {
-                    Label(logCopiedAt == nil ? "Copy full log" : "Copied", systemImage: logCopiedAt == nil ? "doc.on.doc" : "checkmark")
-                }
-                if let url = AppLogger.shared.currentLogFileURL() {
-                    Button {
-                        NSWorkspace.shared.activateFileViewerSelecting([url])
-                    } label: {
-                        Label("Reveal log file", systemImage: "folder")
                     }
                 }
             }
