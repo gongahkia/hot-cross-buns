@@ -15,6 +15,7 @@ struct HCBSettingsWindow: View {
     @State private var tab: SettingsSearchTab = .general
     @State private var settingsQuery = ""
     @State private var highlightedAnchor: SettingsSectionAnchor?
+    @State private var highlightSequence = 0
     @FocusState private var isSettingsSearchFocused: Bool
     // Sub-sheets hosted locally (the detached window has no RouterPath).
     @State private var isSyncDetailsPresented = false
@@ -151,9 +152,7 @@ struct HCBSettingsWindow: View {
             } else {
                 ForEach(results) { result in
                     Button {
-                        tab = result.tab
-                        highlightedAnchor = result.anchor
-                        settingsQuery = ""
+                        selectSearchResult(result)
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: result.tab.systemImage)
@@ -193,6 +192,23 @@ struct HCBSettingsWindow: View {
             eventTemplateCount: model.settings.eventTemplates.count,
             updateStatus: updateBadgeText
         )
+    }
+
+    private func selectSearchResult(_ result: SettingsSearchResult) {
+        tab = result.tab
+        highlightedAnchor = result.anchor
+        settingsQuery = ""
+        highlightSequence += 1
+        let sequence = highlightSequence
+        let anchor = result.anchor
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            await MainActor.run {
+                if highlightSequence == sequence, highlightedAnchor == anchor {
+                    highlightedAnchor = nil
+                }
+            }
+        }
     }
 
     private var hotkeysTabTitle: String {
