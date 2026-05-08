@@ -36,6 +36,8 @@ struct PendingEventCreatePayload: Codable, Sendable, Equatable {
     var notifyGuests: Bool = false
     var addGoogleMeet: Bool = false
     var colorId: String? = nil
+    var startTimeZoneID: String? = nil
+    var endTimeZoneID: String? = nil
     // HCB-only backlink stored on the event's Google extendedProperties.private
     // bag (not visible in other Google clients). Nil for plain event creates;
     // set when the event was spawned by a task → time-block drag.
@@ -44,7 +46,7 @@ struct PendingEventCreatePayload: Codable, Sendable, Equatable {
     enum CodingKeys: String, CodingKey {
         case localID, calendarID, summary, details, startDate, endDate, isAllDay
         case reminderMinutes, location, recurrence, attendeeEmails, notifyGuests
-        case addGoogleMeet, colorId, hcbTaskID
+        case addGoogleMeet, colorId, startTimeZoneID, endTimeZoneID, hcbTaskID
     }
 
     init(
@@ -62,6 +64,8 @@ struct PendingEventCreatePayload: Codable, Sendable, Equatable {
         notifyGuests: Bool = false,
         addGoogleMeet: Bool = false,
         colorId: String? = nil,
+        startTimeZoneID: String? = nil,
+        endTimeZoneID: String? = nil,
         hcbTaskID: String? = nil
     ) {
         self.localID = localID
@@ -78,6 +82,8 @@ struct PendingEventCreatePayload: Codable, Sendable, Equatable {
         self.notifyGuests = notifyGuests
         self.addGoogleMeet = addGoogleMeet
         self.colorId = colorId
+        self.startTimeZoneID = TimezoneSupport.validatedIdentifier(startTimeZoneID)
+        self.endTimeZoneID = TimezoneSupport.validatedIdentifier(endTimeZoneID) ?? TimezoneSupport.validatedIdentifier(startTimeZoneID)
         self.hcbTaskID = hcbTaskID
     }
 
@@ -97,6 +103,8 @@ struct PendingEventCreatePayload: Codable, Sendable, Equatable {
         notifyGuests = try c.decodeIfPresent(Bool.self, forKey: .notifyGuests) ?? false
         addGoogleMeet = try c.decodeIfPresent(Bool.self, forKey: .addGoogleMeet) ?? false
         colorId = try c.decodeIfPresent(String.self, forKey: .colorId)
+        startTimeZoneID = TimezoneSupport.validatedIdentifier(try c.decodeIfPresent(String.self, forKey: .startTimeZoneID))
+        endTimeZoneID = TimezoneSupport.validatedIdentifier(try c.decodeIfPresent(String.self, forKey: .endTimeZoneID)) ?? startTimeZoneID
         hcbTaskID = try c.decodeIfPresent(String.self, forKey: .hcbTaskID)
     }
 }
@@ -139,12 +147,14 @@ struct PendingEventUpdatePayload: Codable, Sendable, Equatable {
     var etagSnapshot: String?
     var addGoogleMeet: Bool = false
     var colorId: String? = nil
+    var startTimeZoneID: String? = nil
+    var endTimeZoneID: String? = nil
     var hcbTaskID: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case calendarID, eventID, summary, details, startDate, endDate, isAllDay
         case reminderMinutes, location, recurrence, attendeeEmails, notifyGuests
-        case etagSnapshot, addGoogleMeet, colorId, hcbTaskID
+        case etagSnapshot, addGoogleMeet, colorId, startTimeZoneID, endTimeZoneID, hcbTaskID
     }
 
     init(
@@ -163,6 +173,8 @@ struct PendingEventUpdatePayload: Codable, Sendable, Equatable {
         etagSnapshot: String?,
         addGoogleMeet: Bool = false,
         colorId: String? = nil,
+        startTimeZoneID: String? = nil,
+        endTimeZoneID: String? = nil,
         hcbTaskID: String? = nil
     ) {
         self.calendarID = calendarID
@@ -180,6 +192,8 @@ struct PendingEventUpdatePayload: Codable, Sendable, Equatable {
         self.etagSnapshot = etagSnapshot
         self.addGoogleMeet = addGoogleMeet
         self.colorId = colorId
+        self.startTimeZoneID = TimezoneSupport.validatedIdentifier(startTimeZoneID)
+        self.endTimeZoneID = TimezoneSupport.validatedIdentifier(endTimeZoneID) ?? TimezoneSupport.validatedIdentifier(startTimeZoneID)
         self.hcbTaskID = hcbTaskID
     }
 
@@ -200,6 +214,8 @@ struct PendingEventUpdatePayload: Codable, Sendable, Equatable {
         etagSnapshot = try c.decodeIfPresent(String.self, forKey: .etagSnapshot)
         addGoogleMeet = try c.decodeIfPresent(Bool.self, forKey: .addGoogleMeet) ?? false
         colorId = try c.decodeIfPresent(String.self, forKey: .colorId)
+        startTimeZoneID = TimezoneSupport.validatedIdentifier(try c.decodeIfPresent(String.self, forKey: .startTimeZoneID))
+        endTimeZoneID = TimezoneSupport.validatedIdentifier(try c.decodeIfPresent(String.self, forKey: .endTimeZoneID)) ?? startTimeZoneID
         hcbTaskID = try c.decodeIfPresent(String.self, forKey: .hcbTaskID)
     }
 }

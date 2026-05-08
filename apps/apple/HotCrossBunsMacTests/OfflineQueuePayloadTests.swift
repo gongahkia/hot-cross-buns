@@ -31,11 +31,15 @@ final class OfflineQueuePayloadTests: XCTestCase {
             attendeeEmails: ["a@example.com"],
             notifyGuests: true,
             addGoogleMeet: true,
-            colorId: "5"
+            colorId: "5",
+            startTimeZoneID: "Asia/Singapore",
+            endTimeZoneID: "Asia/Tokyo"
         )
         let encoded = try PendingMutationEncoder.encode(payload)
         let decoded = try PendingMutationEncoder.decodeEventCreate(encoded)
         XCTAssertEqual(decoded, payload)
+        XCTAssertEqual(decoded.startTimeZoneID, "Asia/Singapore")
+        XCTAssertEqual(decoded.endTimeZoneID, "Asia/Tokyo")
     }
 
     func testTaskUpdatePayloadRoundTripPreservesEtagSnapshot() throws {
@@ -92,11 +96,53 @@ final class OfflineQueuePayloadTests: XCTestCase {
             notifyGuests: false,
             etagSnapshot: "evt-etag",
             addGoogleMeet: false,
-            colorId: nil
+            colorId: nil,
+            startTimeZoneID: "America/New_York",
+            endTimeZoneID: "America/Los_Angeles"
         )
         let encoded = try PendingMutationEncoder.encode(payload)
         let decoded = try PendingMutationEncoder.decodeEventUpdate(encoded)
         XCTAssertEqual(decoded, payload)
+        XCTAssertEqual(decoded.startTimeZoneID, "America/New_York")
+        XCTAssertEqual(decoded.endTimeZoneID, "America/Los_Angeles")
+    }
+
+    func testOlderEventPayloadsDecodeWithoutTimezoneFields() throws {
+        let createJSON = #"""
+        {
+          "localID": "local-EVT",
+          "calendarID": "primary",
+          "summary": "Review",
+          "details": "",
+          "startDate": 1742793600,
+          "endDate": 1742797200,
+          "isAllDay": false,
+          "reminderMinutes": 15
+        }
+        """#
+        let updateJSON = #"""
+        {
+          "calendarID": "primary",
+          "eventID": "event-1",
+          "summary": "Review",
+          "details": "",
+          "startDate": 1742793600,
+          "endDate": 1742797200,
+          "isAllDay": false,
+          "reminderMinutes": 15,
+          "location": "",
+          "recurrence": [],
+          "attendeeEmails": [],
+          "notifyGuests": false
+        }
+        """#
+
+        let create = try PendingMutationEncoder.decodeEventCreate(Data(createJSON.utf8))
+        let update = try PendingMutationEncoder.decodeEventUpdate(Data(updateJSON.utf8))
+        XCTAssertNil(create.startTimeZoneID)
+        XCTAssertNil(create.endTimeZoneID)
+        XCTAssertNil(update.startTimeZoneID)
+        XCTAssertNil(update.endTimeZoneID)
     }
 
     func testEventDeletePayloadRoundTrip() throws {
@@ -226,6 +272,15 @@ final class OfflineQueuePayloadTests: XCTestCase {
 
         XCTAssertEqual(copy.title, "Google Calendar or Tasks is briefly unavailable")
         XCTAssertEqual(copy.message, "Hot Cross Buns will retry automatically as soon as the service recovers.")
+    }
+
+    func testTimezoneSupportNormalizesOnulLegacyIdentifiers() {
+        XCTAssertEqual(TimezoneSupport.validatedIdentifier("US/Eastern"), "America/New_York")
+        XCTAssertEqual(TimezoneSupport.validatedIdentifier("Asia/Calcutta"), "Asia/Kolkata")
+        XCTAssertEqual(TimezoneSupport.validatedIdentifier("GMT"), "UTC")
+        XCTAssertEqual(TimezoneSupport.validatedIdentifier("Z"), "UTC")
+        XCTAssertEqual(TimezoneSupport.validatedIdentifier("Asia/Singapore"), "Asia/Singapore")
+        XCTAssertNil(TimezoneSupport.validatedIdentifier("Not/AZone"))
     }
 
     func testSyncFailureCopyUsesNotFoundMessaging() {

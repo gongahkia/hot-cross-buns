@@ -20,12 +20,18 @@ struct GoogleCalendarClient: Sendable {
                 defaultReminderMinutes: item.defaultReminders?
                     .filter { $0.method == "popup" }
                     .map(\.minutes)
-                    .sorted() ?? []
+                    .sorted() ?? [],
+                timeZoneID: item.timeZone
             )
         }
     }
 
-    func listEvents(calendarID: String, syncToken: String?, timeMin: Date = Date()) async throws -> GoogleCalendarEventsPage {
+    func listEvents(
+        calendarID: String,
+        syncToken: String?,
+        timeMin: Date = Date(),
+        defaultTimeZoneID: String? = nil
+    ) async throws -> GoogleCalendarEventsPage {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
         let baseQueryItems = [
             URLQueryItem(name: "singleEvents", value: "true"),
@@ -59,7 +65,7 @@ struct GoogleCalendarClient: Sendable {
                 queryItems: queryItems
             )
 
-            events.append(contentsOf: response.items.map { $0.mirror(calendarID: calendarID) })
+            events.append(contentsOf: response.items.map { $0.mirror(calendarID: calendarID, defaultTimeZoneID: defaultTimeZoneID) })
             nextSyncToken = response.nextSyncToken ?? nextSyncToken
             pageToken = response.nextPageToken
         } while pageToken != nil
@@ -84,6 +90,8 @@ struct GoogleCalendarClient: Sendable {
         sendUpdates: String = "none",
         addGoogleMeet: Bool = false,
         colorId: String? = nil,
+        startTimeZoneID: String? = nil,
+        endTimeZoneID: String? = nil,
         hcbTaskID: String? = nil
     ) async throws -> CalendarEventMirror {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
@@ -96,12 +104,14 @@ struct GoogleCalendarClient: Sendable {
                 )
             )
             : nil
+        let resolvedStartTimeZoneID = isAllDay ? nil : TimezoneSupport.validatedIdentifier(startTimeZoneID)
+        let resolvedEndTimeZoneID = isAllDay ? nil : (TimezoneSupport.validatedIdentifier(endTimeZoneID) ?? resolvedStartTimeZoneID)
         let requestBody = GoogleEventMutationDTO(
             summary: summary,
             description: htmlDetails.isEmpty ? nil : htmlDetails,
             location: location.isEmpty ? nil : location,
-            start: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.string(from: startDate) : nil, dateTime: isAllDay ? nil : startDate),
-            end: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.exclusiveEndString(from: endDate) : nil, dateTime: isAllDay ? nil : endDate),
+            start: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.string(from: startDate) : nil, dateTime: isAllDay ? nil : GoogleDateTimeFormatter.string(from: startDate, timeZoneID: resolvedStartTimeZoneID), timeZone: resolvedStartTimeZoneID),
+            end: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.exclusiveEndString(from: endDate) : nil, dateTime: isAllDay ? nil : GoogleDateTimeFormatter.string(from: endDate, timeZoneID: resolvedEndTimeZoneID), timeZone: resolvedEndTimeZoneID),
             recurrence: recurrence.isEmpty ? nil : recurrence,
             reminders: GoogleEventMutationRemindersDTO.custom(minutes: reminderMinutes),
             attendees: attendeeEmails.isEmpty ? nil : attendeeEmails.map { GoogleEventAttendeeMutationDTO(email: $0) },
@@ -139,6 +149,8 @@ struct GoogleCalendarClient: Sendable {
         sendUpdates: String = "none",
         addGoogleMeet: Bool = false,
         colorId: String? = nil,
+        startTimeZoneID: String? = nil,
+        endTimeZoneID: String? = nil,
         hcbTaskID: String? = nil,
         ifMatch: String? = nil
     ) async throws -> CalendarEventMirror {
@@ -153,12 +165,14 @@ struct GoogleCalendarClient: Sendable {
                 )
             )
             : nil
+        let resolvedStartTimeZoneID = isAllDay ? nil : TimezoneSupport.validatedIdentifier(startTimeZoneID)
+        let resolvedEndTimeZoneID = isAllDay ? nil : (TimezoneSupport.validatedIdentifier(endTimeZoneID) ?? resolvedStartTimeZoneID)
         let requestBody = GoogleEventMutationDTO(
             summary: summary,
             description: htmlDetails,
             location: location,
-            start: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.string(from: startDate) : nil, dateTime: isAllDay ? nil : startDate),
-            end: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.exclusiveEndString(from: endDate) : nil, dateTime: isAllDay ? nil : endDate),
+            start: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.string(from: startDate) : nil, dateTime: isAllDay ? nil : GoogleDateTimeFormatter.string(from: startDate, timeZoneID: resolvedStartTimeZoneID), timeZone: resolvedStartTimeZoneID),
+            end: GoogleEventMutationDateDTO(date: isAllDay ? GoogleDateOnlyFormatter.exclusiveEndString(from: endDate) : nil, dateTime: isAllDay ? nil : GoogleDateTimeFormatter.string(from: endDate, timeZoneID: resolvedEndTimeZoneID), timeZone: resolvedEndTimeZoneID),
             recurrence: recurrence,
             reminders: GoogleEventMutationRemindersDTO.custom(minutes: reminderMinutes),
             attendees: attendeeEmails.map { GoogleEventAttendeeMutationDTO(email: $0) },
@@ -201,14 +215,14 @@ struct GoogleCalendarClient: Sendable {
     // Fetches a single event by id — used when we need the master event's
     // current recurrence rules for "this and following" truncation, since
     // instances returned via singleEvents=true don't carry the master RRULE.
-    func getEvent(calendarID: String, eventID: String) async throws -> CalendarEventMirror {
+    func getEvent(calendarID: String, eventID: String, defaultTimeZoneID: String? = nil) async throws -> CalendarEventMirror {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
         let encodedEventID = eventID.googlePathComponentEncoded
         let response: GoogleEventDTO = try await transport.request(
             method: "GET",
             path: "/calendar/v3/calendars/\(encodedCalendarID)/events/\(encodedEventID)"
         )
-        return response.mirror(calendarID: calendarID)
+        return response.mirror(calendarID: calendarID, defaultTimeZoneID: defaultTimeZoneID)
     }
 
     // Patches only the recurrence array on the master event. Used by the
@@ -261,6 +275,7 @@ private struct GoogleCalendarListItemDTO: Decodable, Sendable {
     var accessRole: String
     var etag: String?
     var defaultReminders: [GoogleEventReminderDTO]?
+    var timeZone: String?
 }
 
 private struct GoogleEventsResponse: Decodable, Sendable {
@@ -287,7 +302,7 @@ private struct GoogleEventDTO: Decodable, Sendable {
     var colorId: String?
     var extendedProperties: GoogleEventExtendedPropertiesDTO?
 
-    func mirror(calendarID: String) -> CalendarEventMirror {
+    func mirror(calendarID: String, defaultTimeZoneID: String? = nil) -> CalendarEventMirror {
         let fallbackDate = updated ?? Date()
         // Details rendering + one-shot migration of the legacy time-blocking
         // backlink that HCB used to embed in `description`:
@@ -312,6 +327,11 @@ private struct GoogleEventDTO: Decodable, Sendable {
         // user's local midnight of the same Y/M/D so every downstream
         // comparison uses matching timezones.
         let isAllDay = start?.date != nil
+        let resolvedStartTimeZoneID = TimezoneSupport.validatedIdentifier(start?.timeZone)
+            ?? TimezoneSupport.validatedIdentifier(defaultTimeZoneID)
+            ?? TimezoneSupport.currentIdentifier
+        let resolvedEndTimeZoneID = TimezoneSupport.validatedIdentifier(end?.timeZone)
+            ?? resolvedStartTimeZoneID
         let startDate = GoogleEventDTO.resolveDate(
             dateTime: start?.dateTime,
             dateOnly: start?.date,
@@ -351,6 +371,8 @@ private struct GoogleEventDTO: Decodable, Sendable {
             meetLink: conferenceData?.meetLink ?? "",
             htmlLink: htmlLink,
             colorId: colorId,
+            startTimeZoneID: resolvedStartTimeZoneID,
+            endTimeZoneID: resolvedEndTimeZoneID,
             hcbTaskID: hcbTaskID
         )
     }
@@ -412,6 +434,7 @@ private struct GoogleEventAttendeeDTO: Codable, Sendable {
 private struct GoogleEventDateDTO: Decodable, Sendable {
     var date: Date?
     var dateTime: Date?
+    var timeZone: String?
 
     var resolvedDate: Date {
         dateTime ?? date ?? Date()
@@ -549,7 +572,19 @@ private struct GoogleEventAttendeeMutationDTO: Encodable, Sendable {
 
 private struct GoogleEventMutationDateDTO: Encodable, Sendable {
     var date: String?
-    var dateTime: Date?
+    var dateTime: String?
+    var timeZone: String?
+
+    enum CodingKeys: String, CodingKey {
+        case date, dateTime, timeZone
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(date, forKey: .date)
+        try container.encodeIfPresent(dateTime, forKey: .dateTime)
+        try container.encodeIfPresent(timeZone, forKey: .timeZone)
+    }
 }
 
 private struct GoogleEventMutationRemindersDTO: Encodable, Sendable {
@@ -588,6 +623,17 @@ private enum GoogleDateOnlyFormatter {
     static func exclusiveEndString(from inclusiveEndDate: Date) -> String {
         let nextDay = calendar.date(byAdding: .day, value: 1, to: inclusiveEndDate) ?? inclusiveEndDate
         return string(from: nextDay)
+    }
+}
+
+private enum GoogleDateTimeFormatter {
+    static func string(from date: Date, timeZoneID: String?) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimezoneSupport.timeZone(for: timeZoneID)
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssXXXXX"
+        return formatter.string(from: date)
     }
 }
 

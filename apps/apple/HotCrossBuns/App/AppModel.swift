@@ -604,7 +604,9 @@ final class AppModel {
             isAllDay: event.isAllDay,
             reminderMinutes: event.reminderMinutes.first,
             calendarID: event.calendarID,
-            location: event.location
+            location: event.location,
+            startTimeZoneID: event.startTimeZoneID,
+            endTimeZoneID: event.endTimeZoneID
         )
     }
 
@@ -1464,6 +1466,8 @@ final class AppModel {
         notifyGuests: Bool = false,
         addGoogleMeet: Bool = false,
         colorId: String? = nil,
+        startTimeZoneID: String? = nil,
+        endTimeZoneID: String? = nil,
         hcbTaskID: String? = nil
     ) async -> Bool {
         guard requireAccount(mutationDescription: "creating events") else {
@@ -1482,6 +1486,12 @@ final class AppModel {
         let cleanedEmails = attendeeEmails
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { $0.isEmpty == false }
+        let resolvedTimeZones = resolvedEventTimeZones(
+            startTimeZoneID: startTimeZoneID,
+            endTimeZoneID: endTimeZoneID,
+            calendarID: calendarID,
+            existingEvent: nil
+        )
         let optimisticEvent = CalendarEventMirror(
             id: localID,
             calendarID: calendarID,
@@ -1502,6 +1512,8 @@ final class AppModel {
             },
             meetLink: "",
             colorId: colorId,
+            startTimeZoneID: resolvedTimeZones.start,
+            endTimeZoneID: resolvedTimeZones.end,
             hcbTaskID: hcbTaskID
         )
         upsert(optimisticEvent)
@@ -1529,6 +1541,8 @@ final class AppModel {
                 notifyGuests: notifyGuests,
                 addGoogleMeet: addGoogleMeet,
                 colorId: colorId,
+                startTimeZoneID: resolvedTimeZones.start,
+                endTimeZoneID: resolvedTimeZones.end,
                 hcbTaskID: hcbTaskID
             )
             let mutation = try PendingMutation.eventCreate(payload: payload)
@@ -1567,6 +1581,8 @@ final class AppModel {
         scope: RecurringEventScope = .thisOccurrence,
         addGoogleMeet: Bool = false,
         colorId: String? = nil,
+        startTimeZoneID: String? = nil,
+        endTimeZoneID: String? = nil,
         hcbTaskID: String? = nil
     ) async -> Bool {
         guard requireAccount(mutationDescription: "updating events") else {
@@ -1593,6 +1609,12 @@ final class AppModel {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { $0.isEmpty == false }
         let effectiveRecurrence = recurrence ?? event.recurrence
+        let resolvedTimeZones = resolvedEventTimeZones(
+            startTimeZoneID: startTimeZoneID,
+            endTimeZoneID: endTimeZoneID,
+            calendarID: calendarID,
+            existingEvent: event
+        )
 
         // Optimistic update for the in-place (single-occurrence, same-calendar)
         // case. Cross-calendar moves and series-wide edits need server round-
@@ -1611,6 +1633,8 @@ final class AppModel {
             localEvent.attendeeEmails = cleanedEmails
             localEvent.reminderMinutes = reminderMinutes.map { [$0] } ?? []
             localEvent.colorId = colorId
+            localEvent.startTimeZoneID = resolvedTimeZones.start
+            localEvent.endTimeZoneID = resolvedTimeZones.end
             localEvent.hcbTaskID = hcbTaskID ?? event.hcbTaskID
             upsert(localEvent)
             scheduleCacheSave()
@@ -1631,6 +1655,8 @@ final class AppModel {
             optimistic.recurrence = effectiveRecurrence
             optimistic.attendeeEmails = cleanedEmails
             optimistic.reminderMinutes = reminderMinutes.map { [$0] } ?? []
+            optimistic.startTimeZoneID = resolvedTimeZones.start
+            optimistic.endTimeZoneID = resolvedTimeZones.end
             upsert(optimistic)
         }
 
@@ -1681,6 +1707,8 @@ final class AppModel {
                 sendUpdates: notifyGuests ? "all" : "none",
                 addGoogleMeet: addGoogleMeet,
                 colorId: colorId,
+                startTimeZoneID: resolvedTimeZones.start,
+                endTimeZoneID: resolvedTimeZones.end,
                 hcbTaskID: effectiveHCBTaskID,
                 ifMatch: scope == .allInSeries ? nil : eventToUpdate.etag
             )
@@ -1710,6 +1738,8 @@ final class AppModel {
                 etagSnapshot: event.etag,
                 addGoogleMeet: addGoogleMeet,
                 colorId: colorId,
+                startTimeZoneID: resolvedTimeZones.start,
+                endTimeZoneID: resolvedTimeZones.end,
                 hcbTaskID: hcbTaskID ?? event.hcbTaskID
             )
             if let mutation = try? PendingMutation.eventUpdate(payload: payload) {
@@ -3601,6 +3631,8 @@ final class AppModel {
                     sendUpdates: payload.notifyGuests ? "all" : "none",
                     addGoogleMeet: payload.addGoogleMeet,
                     colorId: payload.colorId,
+                    startTimeZoneID: payload.startTimeZoneID,
+                    endTimeZoneID: payload.endTimeZoneID,
                     hcbTaskID: payload.hcbTaskID,
                     ifMatch: nil
                 )
@@ -3814,6 +3846,8 @@ final class AppModel {
                 sendUpdates: payload.notifyGuests ? "all" : "none",
                 addGoogleMeet: payload.addGoogleMeet,
                 colorId: payload.colorId,
+                startTimeZoneID: payload.startTimeZoneID,
+                endTimeZoneID: payload.endTimeZoneID,
                 hcbTaskID: payload.hcbTaskID,
                 ifMatch: payload.etagSnapshot
             )
@@ -3888,6 +3922,8 @@ final class AppModel {
                 sendUpdates: payload.notifyGuests ? "all" : "none",
                 addGoogleMeet: payload.addGoogleMeet,
                 colorId: payload.colorId,
+                startTimeZoneID: payload.startTimeZoneID,
+                endTimeZoneID: payload.endTimeZoneID,
                 hcbTaskID: payload.hcbTaskID
             )
             removeEvent(id: payload.localID)
@@ -4098,6 +4134,26 @@ final class AppModel {
 
     func calendarTitle(for id: CalendarListMirror.ID, fallback: String = "Calendar") -> String {
         calendarTitleByID[id] ?? fallback
+    }
+
+    private func calendarTimeZoneID(for id: CalendarListMirror.ID) -> String? {
+        calendars.first(where: { $0.id == id })?.timeZoneID
+    }
+
+    private func resolvedEventTimeZones(
+        startTimeZoneID: String?,
+        endTimeZoneID: String?,
+        calendarID: CalendarListMirror.ID,
+        existingEvent: CalendarEventMirror?
+    ) -> (start: String, end: String) {
+        let start = TimezoneSupport.validatedIdentifier(startTimeZoneID)
+            ?? TimezoneSupport.validatedIdentifier(existingEvent?.startTimeZoneID)
+            ?? TimezoneSupport.validatedIdentifier(calendarTimeZoneID(for: calendarID))
+            ?? TimezoneSupport.currentIdentifier
+        let end = TimezoneSupport.validatedIdentifier(endTimeZoneID)
+            ?? TimezoneSupport.validatedIdentifier(existingEvent?.endTimeZoneID)
+            ?? start
+        return (start, end)
     }
 
     func openTaskCount(forTaskListID id: TaskListMirror.ID) -> Int {

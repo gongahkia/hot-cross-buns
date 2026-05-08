@@ -26,6 +26,8 @@ struct ICSEventDraft: Equatable, Sendable {
     var endDate: Date
     var isAllDay: Bool
     var recurrence: [String]
+    var startTimeZoneID: String?
+    var endTimeZoneID: String?
 }
 
 enum ICSImporter {
@@ -89,6 +91,8 @@ private struct ICSBuilder {
     var endDate: Date?
     var isAllDay: Bool = false
     var recurrence: [String] = []
+    var startTimeZoneID: String?
+    var endTimeZoneID: String?
 
     mutating func absorb(key: String, params: [String: String], value: String) {
         switch key {
@@ -99,14 +103,16 @@ private struct ICSBuilder {
         case "LOCATION":
             location = unescape(value)
         case "DTSTART":
-            let (date, allDay) = ICSDateParser.parse(value: value, params: params)
+            let (date, allDay, timeZoneID) = ICSDateParser.parse(value: value, params: params)
             if let date {
                 startDate = date
+                startTimeZoneID = timeZoneID
                 if allDay { isAllDay = true }
             }
         case "DTEND":
-            let (date, _) = ICSDateParser.parse(value: value, params: params)
+            let (date, _, timeZoneID) = ICSDateParser.parse(value: value, params: params)
             endDate = date
+            endTimeZoneID = timeZoneID
         case "RRULE":
             recurrence.append("RRULE:\(value)")
         default:
@@ -141,7 +147,9 @@ private struct ICSBuilder {
             startDate: startDate,
             endDate: normalizedEnd,
             isAllDay: isAllDay,
-            recurrence: recurrence
+            recurrence: recurrence,
+            startTimeZoneID: startTimeZoneID,
+            endTimeZoneID: endTimeZoneID ?? startTimeZoneID
         )
     }
 
@@ -164,15 +172,16 @@ enum ICSDateParser {
     // import (the only caller today), but a latent data race if any future
     // caller parsed concurrently. Formatter construction is cheap relative
     // to network-bound ICS import, so per-call is the safe default.
-    static func parse(value: String, params: [String: String]) -> (Date?, Bool) {
+    static func parse(value: String, params: [String: String]) -> (Date?, Bool, String?) {
         if params["VALUE"]?.uppercased() == "DATE" || (value.count == 8 && value.allSatisfy(\.isNumber)) {
-            guard let date = makeDateOnlyFormatter().date(from: value) else { return (nil, true) }
-            return (localMidnight(matching: date), true)
+            guard let date = makeDateOnlyFormatter().date(from: value) else { return (nil, true, nil) }
+            return (localMidnight(matching: date), true, nil)
         }
         let tzIdentifier = params["TZID"]
-        let formatter = makeDateTimeFormatter(timeZone: timeZone(forIdentifier: tzIdentifier, fallback: value.hasSuffix("Z")))
+        let resolvedTimeZoneID = resolvedTimeZoneID(forIdentifier: tzIdentifier, fallback: value.hasSuffix("Z"))
+        let formatter = makeDateTimeFormatter(timeZone: TimezoneSupport.timeZone(for: resolvedTimeZoneID))
         let trimmed = value.hasSuffix("Z") ? String(value.dropLast()) : value
-        return (formatter.date(from: trimmed), false)
+        return (formatter.date(from: trimmed), false, resolvedTimeZoneID)
     }
 
     private static func makeDateOnlyFormatter() -> DateFormatter {
@@ -193,11 +202,11 @@ enum ICSDateParser {
         return f
     }
 
-    private static func timeZone(forIdentifier id: String?, fallback utc: Bool) -> TimeZone {
-        if let id, let tz = TimeZone(identifier: id) {
-            return tz
+    private static func resolvedTimeZoneID(forIdentifier id: String?, fallback utc: Bool) -> String {
+        if let valid = TimezoneSupport.validatedIdentifier(id) {
+            return valid
         }
-        return utc ? (TimeZone(secondsFromGMT: 0) ?? .current) : .current
+        return utc ? "UTC" : TimezoneSupport.currentIdentifier
     }
 
     private static func localMidnight(matching utcMidnight: Date) -> Date {

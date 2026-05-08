@@ -270,10 +270,24 @@
 	<section id="updates" class="updates">
   <div class="updates-head">
     <p class="eyebrow">Changelog</p>
-    <h2>Latest changes in <em>v0.2.8</em>.</h2>
+    <h2>Latest changes in <em>v0.2.9</em>.</h2>
   </div>
 
   <div class="updates-list">
+    <article class="update-entry">
+      <div class="update-meta">
+        <h3>v0.2.9</h3>
+        <p>8 May 2026</p>
+      </div>
+      <div class="update-copy">
+        <ul>
+          <li>Added event time zone support for Google Calendar sync, including separate start and end time zones for timed events.</li>
+          <li>Imported calendar files now preserve TZID values and normalize legacy aliases before events are saved.</li>
+          <li>Includes the Calendar 404 sync isolation fix for users upgrading from v0.2.2, where one missing Google calendar could abort the full refresh.</li>
+        </ul>
+      </div>
+    </article>
+
     <article class="update-entry">
       <div class="update-meta">
         <h3>v0.2.8</h3>

@@ -277,7 +277,8 @@ actor SyncScheduler {
                         page = try await calendarClient.listEvents(
                             calendarID: calendarID,
                             syncToken: cp?.calendarSyncToken,
-                            timeMin: startOfToday
+                            timeMin: startOfToday,
+                            defaultTimeZoneID: calendar.timeZoneID
                         )
                         didFullSync = hadSyncToken == false
                     } catch GoogleAPIError.httpStatus(410, _) {
@@ -285,7 +286,8 @@ actor SyncScheduler {
                             page = try await calendarClient.listEvents(
                                 calendarID: calendarID,
                                 syncToken: nil,
-                                timeMin: startOfToday
+                                timeMin: startOfToday,
+                                defaultTimeZoneID: calendar.timeZoneID
                             )
                         } catch GoogleAPIError.httpStatus(404, let body) {
                             AppLogger.warn(
