@@ -17,11 +17,14 @@ struct DiagnosticsView: View {
     #endif
     @State private var logEntries: [LogEntry] = []
     @State private var logLevelFilter: LogLevel = .info
+    @State private var logSearchText = ""
     @State private var logCopiedAt: Date?
     @State private var auditEntries: [MutationAuditEntry] = []
+    @State private var historySearchText = ""
     @State private var expandedSystemReportID: String?
     @State private var systemReportPreview: String = ""
     @State private var tab: Tab = .overview
+    @FocusState private var isSearchFocused: Bool
 
     private enum Tab: String, CaseIterable, Identifiable {
         case overview, sync, logs, history, support
@@ -51,42 +54,51 @@ struct DiagnosticsView: View {
             VStack(spacing: 0) {
                 tabBar
                 Divider()
-                List {
-                    switch tab {
-                    case .overview:
-                        statusSection
-                        performanceSection
-                        bodyProbeSection
-                        localDataSection
-                        selectionsSection
-                        if notificationSummary != nil { reminderScheduleSection }
-                        cacheSection
-                    case .sync:
-                        if conflictedMutations.isEmpty == false { syncConflictsSection }
-                        if invalidPayloadQuarantined.isEmpty == false { invalidPayloadSection }
-                        if retryableQuarantined.isEmpty == false { quarantinedSection }
-                        if queuedMutations.isEmpty == false { pendingQueueSection }
-                        recoverySection
-                    case .logs:
-                        logsSection
-                    case .history:
-                        if systemCrashReports.isEmpty == false { systemCrashReportsSection }
-                        if lastCrash != nil { previousCrashSection }
-                        if auditEntries.isEmpty == false { mutationHistorySection }
-                    case .support:
-                        supportSection
+                switch tab {
+                case .logs:
+                    logsTabContent
+                case .history:
+                    historyTabContent
+                default:
+                    List {
+                        switch tab {
+                        case .overview:
+                            statusSection
+                            performanceSection
+                            bodyProbeSection
+                            localDataSection
+                            selectionsSection
+                            if notificationSummary != nil { reminderScheduleSection }
+                            cacheSection
+                        case .sync:
+                            if conflictedMutations.isEmpty == false { syncConflictsSection }
+                            if invalidPayloadQuarantined.isEmpty == false { invalidPayloadSection }
+                            if retryableQuarantined.isEmpty == false { quarantinedSection }
+                            if queuedMutations.isEmpty == false { pendingQueueSection }
+                            recoverySection
+                        case .support:
+                            supportSection
+                        case .logs, .history:
+                            EmptyView()
+                        }
                     }
                 }
             }
             .navigationTitle(tab.title)
             .toolbar {
                 Button("Close") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
             }
             .overlay {
                 if isWorking {
                     ProgressView("Working...")
                         .hcbScaledPadding(18)
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+                }
+            }
+            .onChange(of: tab) { _, newTab in
+                if newTab == .logs || newTab == .history {
+                    isSearchFocused = true
                 }
             }
             .task {
@@ -115,6 +127,35 @@ struct DiagnosticsView: View {
             }
         }
         .frame(minWidth: 620, minHeight: 520)
+    }
+
+    private var legacyList: some View {
+        List {
+                    switch tab {
+                    case .overview:
+                        statusSection
+                        performanceSection
+                        bodyProbeSection
+                        localDataSection
+                        selectionsSection
+                        if notificationSummary != nil { reminderScheduleSection }
+                        cacheSection
+                    case .sync:
+                        if conflictedMutations.isEmpty == false { syncConflictsSection }
+                        if invalidPayloadQuarantined.isEmpty == false { invalidPayloadSection }
+                        if retryableQuarantined.isEmpty == false { quarantinedSection }
+                        if queuedMutations.isEmpty == false { pendingQueueSection }
+                        recoverySection
+                    case .logs:
+                        logsSection
+                    case .history:
+                        if systemCrashReports.isEmpty == false { systemCrashReportsSection }
+                        if lastCrash != nil { previousCrashSection }
+                        if auditEntries.isEmpty == false { mutationHistorySection }
+                    case .support:
+                        supportSection
+                    }
+        }
     }
 
     private var tabBar: some View {
@@ -150,6 +191,137 @@ struct DiagnosticsView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    private var logsTabContent: some View {
+        DiagnosticsSearchListLayout(
+            searchText: $logSearchText,
+            placeholder: "Search logs",
+            header: {
+                HStack(spacing: 12) {
+                    Picker("Level", selection: $logLevelFilter) {
+                        ForEach(LogLevel.allCases, id: \.self) { level in
+                            Text(level.rawValue.capitalized).tag(level)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: logLevelFilter) { _, _ in refreshLogs() }
+                    Spacer()
+                    Button {
+                        refreshLogs()
+                    } label: {
+                        Label("Refresh", systemImage: "arrow.clockwise")
+                    }
+                    .keyboardShortcut("r")
+                }
+            },
+            content: {
+                if logEntries.isEmpty {
+                    DiagnosticsEmptyState(
+                        title: "No log entries at this level yet",
+                        systemImage: "doc.text.magnifyingglass"
+                    )
+                } else if filteredLogEntries.isEmpty {
+                    DiagnosticsEmptyState(
+                        title: "No logs match this search",
+                        systemImage: "magnifyingglass"
+                    )
+                } else {
+                    ForEach(filteredLogEntries) { entry in
+                        LogEntryRow(entry: entry)
+                        Divider()
+                    }
+                }
+            },
+            footer: {
+                HStack(spacing: 10) {
+                    Text("\(filteredLogEntries.count) of \(logEntries.count) shown")
+                        .hcbFont(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        let full = AppLogger.shared.loadPersistedLog()
+                        Clipboard.copy(full.isEmpty ? logEntries.map { $0.formattedLine() }.joined(separator: "\n") : full)
+                        logCopiedAt = Date()
+                    } label: {
+                        Label(logCopiedAt == nil ? "Copy full log" : "Copied", systemImage: logCopiedAt == nil ? "doc.on.doc" : "checkmark")
+                    }
+                    if let url = AppLogger.shared.currentLogFileURL() {
+                        Button {
+                            NSWorkspace.shared.activateFileViewerSelecting([url])
+                        } label: {
+                            Label("Reveal log file", systemImage: "folder")
+                        }
+                    }
+                }
+            }
+        )
+        .focused($isSearchFocused)
+    }
+
+    private var historyTabContent: some View {
+        DiagnosticsSearchListLayout(
+            searchText: $historySearchText,
+            placeholder: "Search history",
+            header: {
+                HStack {
+                    Text("Mutation history")
+                        .hcbFont(.headline, weight: .semibold)
+                    Spacer()
+                    Text("\(auditEntries.count) retained")
+                        .hcbFont(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            },
+            content: {
+                if auditEntries.isEmpty {
+                    DiagnosticsEmptyState(
+                        title: "No history yet",
+                        systemImage: "clock.arrow.circlepath"
+                    )
+                } else if filteredAuditEntries.isEmpty {
+                    DiagnosticsEmptyState(
+                        title: "No history matches this search",
+                        systemImage: "magnifyingglass"
+                    )
+                } else {
+                    ForEach(filteredAuditEntries) { entry in
+                        AuditEntryRow(entry: entry)
+                        Divider()
+                    }
+                }
+                if systemCrashReports.isEmpty == false || lastCrash != nil {
+                    Divider()
+                    VStack(alignment: .leading, spacing: 8) {
+                        if systemCrashReports.isEmpty == false {
+                            Text("\(systemCrashReports.count) recent system crash report\(systemCrashReports.count == 1 ? "" : "s") available in Overview diagnostics.")
+                                .hcbFont(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if lastCrash != nil {
+                            Text("A previous in-app crash record is available in the diagnostic bundle.")
+                                .hcbFont(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            },
+            footer: {
+                HStack(spacing: 10) {
+                    Text("\(filteredAuditEntries.count) of \(auditEntries.count) shown")
+                        .hcbFont(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        Clipboard.copy(filteredAuditEntries.map(historyLine).joined(separator: "\n"))
+                    } label: {
+                        Label("Copy visible history", systemImage: "doc.on.doc")
+                    }
+                    .disabled(filteredAuditEntries.isEmpty)
+                }
+            }
+        )
+        .focused($isSearchFocused)
     }
 
     // MARK: - Sections
@@ -555,6 +727,31 @@ struct DiagnosticsView: View {
         model.pendingMutations.filter { $0.isQuarantined == false }
     }
 
+    private var filteredLogEntries: [LogEntry] {
+        let query = logSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard query.isEmpty == false else { return logEntries }
+        return logEntries.filter { entry in
+            let metadata = entry.metadata
+                .sorted { $0.key < $1.key }
+                .map { "\($0.key)=\($0.value)" }
+                .joined(separator: " ")
+            let visibleTimestamp = entry.timestamp.formatted(date: .abbreviated, time: .standard)
+            return [entry.message, entry.category.rawValue, metadata, visibleTimestamp]
+                .joined(separator: "\n")
+                .localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    private var filteredAuditEntries: [MutationAuditEntry] {
+        let query = historySearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard query.isEmpty == false else { return auditEntries }
+        return auditEntries.filter { entry in
+            [entry.summary, entry.kind, entry.timestamp.formatted(date: .abbreviated, time: .shortened)]
+                .joined(separator: "\n")
+                .localizedCaseInsensitiveContains(query)
+        }
+    }
+
     private var googleStatus: String {
         if let account = model.account {
             return account.displayName
@@ -657,6 +854,10 @@ struct DiagnosticsView: View {
         logEntries = AppLogger.shared.recentEntries(limit: 200, minimumLevel: logLevelFilter)
     }
 
+    private func historyLine(_ entry: MutationAuditEntry) -> String {
+        "\(entry.timestamp.formatted(date: .abbreviated, time: .shortened)) [\(entry.kind)] \(entry.summary)"
+    }
+
     private func copyPayload(_ payload: Data) {
         let value: String
         if let object = try? JSONSerialization.jsonObject(with: payload),
@@ -680,6 +881,70 @@ struct DiagnosticsView: View {
         if url != nil {
             copiedAt = Date() // reuse the button-label success indicator
         }
+    }
+}
+
+private struct DiagnosticsSearchListLayout<Header: View, Content: View, Footer: View>: View {
+    @Binding var searchText: String
+    let placeholder: String
+    @ViewBuilder let header: Header
+    @ViewBuilder let content: Content
+    @ViewBuilder let footer: Footer
+
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 10) {
+                header
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField(placeholder, text: $searchText)
+                        .textFieldStyle(.plain)
+                    if searchText.isEmpty == false {
+                        Button {
+                            searchText = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .keyboardShortcut(.cancelAction)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+            }
+            .padding(14)
+
+            Divider()
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    content
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .frame(maxHeight: .infinity)
+
+            Divider()
+
+            footer
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(.bar)
+        }
+    }
+}
+
+private struct DiagnosticsEmptyState: View {
+    let title: String
+    let systemImage: String
+
+    var body: some View {
+        ContentUnavailableView(title, systemImage: systemImage)
+            .frame(maxWidth: .infinity, minHeight: 240)
     }
 }
 

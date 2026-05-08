@@ -7,7 +7,7 @@ import SwiftUI
 // indistinguishable from a manually-created one.
 struct TemplatesSection: View {
     @Environment(AppModel.self) private var model
-    let highlightedAnchor: SettingsSectionAnchor?
+    var highlightedAnchor: SettingsSectionAnchor? = nil
     @State private var taskEditor: TaskTemplate?
     @State private var isCreatingTask = false
     @State private var eventEditor: EventTemplate?
@@ -619,6 +619,94 @@ private struct EventTemplateOutcomePreview: View {
 
     private var promptCount: Int {
         template.requiredPrompts().count
+    }
+}
+
+private struct TaskTemplatePreview {
+    let resolvedTitle: String
+    let resolvedNotes: String
+    let resolvedDue: String
+    let resolvedList: String
+
+    init(template: TaskTemplate) {
+        let context = HCBTemplateContext.previewContext(prompts: template.requiredPrompts())
+        resolvedTitle = HCBTemplateExpander.expand(template.title, context: context)
+        resolvedNotes = HCBTemplateExpander.expand(template.notes, context: context)
+        resolvedDue = HCBTemplateExpander.expand(template.due, context: context)
+        resolvedList = HCBTemplateExpander.expand(template.listIdOrTitle, context: context)
+    }
+}
+
+private struct EventTemplatePreview {
+    let resolvedSummary: String
+    let resolvedDetails: String
+    let resolvedLocation: String
+    let resolvedDate: String
+    let resolvedCalendar: String
+
+    init(template: EventTemplate) {
+        let context = HCBTemplateContext.previewContext(prompts: template.requiredPrompts())
+        resolvedSummary = HCBTemplateExpander.expand(template.summary, context: context)
+        resolvedDetails = HCBTemplateExpander.expand(template.details, context: context)
+        resolvedLocation = HCBTemplateExpander.expand(template.location, context: context)
+        resolvedDate = HCBTemplateExpander.expand(template.dateAnchor, context: context)
+        resolvedCalendar = HCBTemplateExpander.expand(template.calendarIdOrTitle, context: context)
+    }
+}
+
+private struct TemplateResolvedPreviewRows: View {
+    let rows: [(String, String)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Resolved preview")
+                .hcbFont(.caption, weight: .semibold)
+                .foregroundStyle(.secondary)
+            ForEach(rows.filter { trimmed($0.1).isEmpty == false }, id: \.0) { label, value in
+                HStack(alignment: .top, spacing: 8) {
+                    Text(label)
+                        .hcbFont(.caption2, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 58, alignment: .trailing)
+                    Text(value)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(value.contains("{{prompt:") ? AppColor.ember : .secondary)
+                        .lineLimit(2)
+                }
+            }
+        }
+    }
+}
+
+@ViewBuilder
+private func templateValidationSummary(_ errors: [String]) -> some View {
+    if errors.isEmpty == false {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(errors, id: \.self) { error in
+                    Text(error)
+                }
+            }
+            .hcbFont(.caption)
+            .foregroundStyle(.orange)
+            Spacer()
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 10)
+        .background(.bar)
+    }
+}
+
+private extension HCBTemplateContext {
+    static func previewContext(prompts: [String]) -> HCBTemplateContext {
+        HCBTemplateContext(
+            now: Date(),
+            calendar: .current,
+            clipboard: NSPasteboard.general.string(forType: .string),
+            prompts: Dictionary(uniqueKeysWithValues: prompts.map { ($0, "{{prompt:\($0)}}") })
+        )
     }
 }
 

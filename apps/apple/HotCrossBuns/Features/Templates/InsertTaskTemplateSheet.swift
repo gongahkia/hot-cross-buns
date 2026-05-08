@@ -13,6 +13,7 @@ struct InsertTaskTemplateSheet: View {
     @State private var answers: [String: String] = [:]
     @State private var isSubmitting = false
     @State private var error: String?
+    @FocusState private var focusedPrompt: String?
 
     enum Step { case pick, prompts }
 
@@ -28,6 +29,7 @@ struct InsertTaskTemplateSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
+                        .keyboardShortcut(.cancelAction)
                 }
             }
         }
@@ -96,6 +98,7 @@ struct InsertTaskTemplateSheet: View {
                             set: { answers[label] = $0 }
                         ))
                         .textFieldStyle(.roundedBorder)
+                        .focused($focusedPrompt, equals: label)
                     }
                 }
             }
@@ -117,7 +120,11 @@ struct InsertTaskTemplateSheet: View {
                     }
                 }
                 .disabled(isSubmitting || allPromptsAnswered == false)
+                .keyboardShortcut(.defaultAction)
             }
+        }
+        .onAppear {
+            focusedPrompt = selected?.requiredPrompts().first
         }
     }
 
