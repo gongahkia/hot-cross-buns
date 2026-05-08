@@ -667,15 +667,31 @@ private struct TemplateResolvedPreviewRows: View {
                 .hcbFont(.caption, weight: .semibold)
                 .foregroundStyle(.secondary)
             ForEach(rows.filter { trimmed($0.1).isEmpty == false }, id: \.0) { label, value in
+                let prompts = promptLabels(in: value)
                 HStack(alignment: .top, spacing: 8) {
                     Text(label)
                         .hcbFont(.caption2, weight: .semibold)
                         .foregroundStyle(.secondary)
                         .frame(width: 58, alignment: .trailing)
-                    Text(value)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(value.contains("{{prompt:") ? AppColor.ember : .secondary)
-                        .lineLimit(2)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(value)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(prompts.isEmpty ? .secondary : AppColor.ember)
+                            .lineLimit(2)
+                        if prompts.isEmpty == false {
+                            VStack(alignment: .leading, spacing: 4) {
+                                ForEach(prompts, id: \.self) { prompt in
+                                    Text("Prompt: \(prompt)")
+                                        .hcbFont(.caption2, weight: .semibold)
+                                        .foregroundStyle(AppColor.ember)
+                                        .lineLimit(1)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Capsule().fill(AppColor.ember.opacity(0.12)))
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -720,4 +736,23 @@ private func trimmed(_ value: String) -> String {
 
 private func hasPromptPlaceholder(_ value: String) -> Bool {
     value.range(of: #"\{\{prompt:[^}]+\}\}"#, options: .regularExpression) != nil
+}
+
+private func promptLabels(in value: String) -> [String] {
+    guard let regex = try? NSRegularExpression(pattern: #"\{\{prompt:([^}]+)\}\}"#) else {
+        return []
+    }
+    let range = NSRange(value.startIndex..<value.endIndex, in: value)
+    var labels: [String] = []
+    regex.enumerateMatches(in: value, range: range) { match, _, _ in
+        guard
+            let match,
+            let labelRange = Range(match.range(at: 1), in: value)
+        else { return }
+        let label = trimmed(String(value[labelRange]))
+        if label.isEmpty == false, labels.contains(label) == false {
+            labels.append(label)
+        }
+    }
+    return labels
 }
