@@ -1329,6 +1329,7 @@ private struct MenuBarPinnedFilters: View {
         // to the Store tab, and raise the app. StoreView consumes the key
         // on appear (see consumePendingStoreFilter).
         model.pendingStoreFilterKey = "custom:\(f.id.uuidString)"
+        model.markCustomFilterUsed(f.id)
         NotificationCenter.default.post(name: .hcbOpenStoreTab, object: nil)
         NSApp.activate(ignoringOtherApps: true)
         if let window = NSApp.windows.first(where: { $0.canBecomeMain }) {

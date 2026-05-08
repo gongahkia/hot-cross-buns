@@ -400,6 +400,7 @@ struct MacSidebarShell: View {
         case .customFilter(let f):
             selection = .store
             model.pendingStoreFilterKey = "custom:\(f.id.uuidString)"
+            model.markCustomFilterUsed(f.id)
         }
     }
 

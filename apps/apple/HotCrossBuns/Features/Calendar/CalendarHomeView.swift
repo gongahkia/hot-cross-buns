@@ -1748,6 +1748,7 @@ struct AddEventSheet: View {
         }
         attendees = template.attendees
         addGoogleMeet = template.addGoogleMeet
+        model.markEventTemplateUsed(template.id)
     }
 
     private func applyQuickCreate() {

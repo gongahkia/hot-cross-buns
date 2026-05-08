@@ -28,6 +28,8 @@ struct EventTemplate: Identifiable, Hashable, Codable, Sendable {
     var addGoogleMeet: Bool
     var recurrenceRule: String      // RRULE body without "RRULE:" prefix; "" = none
     var calendarIdOrTitle: String   // "" = first writable calendar
+    var lastUsedAt: Date?
+    var useCount: Int
 
     init(
         id: UUID = UUID(),
@@ -44,7 +46,9 @@ struct EventTemplate: Identifiable, Hashable, Codable, Sendable {
         attendees: [String] = [],
         addGoogleMeet: Bool = false,
         recurrenceRule: String = "",
-        calendarIdOrTitle: String = ""
+        calendarIdOrTitle: String = "",
+        lastUsedAt: Date? = nil,
+        useCount: Int = 0
     ) {
         self.id = id
         self.name = name
@@ -61,12 +65,15 @@ struct EventTemplate: Identifiable, Hashable, Codable, Sendable {
         self.addGoogleMeet = addGoogleMeet
         self.recurrenceRule = recurrenceRule
         self.calendarIdOrTitle = calendarIdOrTitle
+        self.lastUsedAt = lastUsedAt
+        self.useCount = max(0, useCount)
     }
 
     enum CodingKeys: String, CodingKey {
         case id, name, summary, details, location, dateAnchor, timeAnchor
         case durationMinutes, isAllDay, reminderMinutes, colorId
         case attendees, addGoogleMeet, recurrenceRule, calendarIdOrTitle
+        case lastUsedAt, useCount
     }
 
     // decodeIfPresent on new fields keeps pre-§6.13b caches loadable.
@@ -87,6 +94,8 @@ struct EventTemplate: Identifiable, Hashable, Codable, Sendable {
         addGoogleMeet = try c.decodeIfPresent(Bool.self, forKey: .addGoogleMeet) ?? false
         recurrenceRule = try c.decodeIfPresent(String.self, forKey: .recurrenceRule) ?? ""
         calendarIdOrTitle = try c.decodeIfPresent(String.self, forKey: .calendarIdOrTitle) ?? ""
+        lastUsedAt = try c.decodeIfPresent(Date.self, forKey: .lastUsedAt)
+        useCount = max(0, try c.decodeIfPresent(Int.self, forKey: .useCount) ?? 0)
     }
 
     // Extracts every {{prompt:Label}} placeholder across every templated
@@ -126,7 +135,9 @@ struct EventTemplate: Identifiable, Hashable, Codable, Sendable {
             attendees: attendees,
             addGoogleMeet: addGoogleMeet,
             recurrenceRule: recurrenceRule,
-            calendarIdOrTitle: calendarIdOrTitle
+            calendarIdOrTitle: calendarIdOrTitle,
+            lastUsedAt: nil,
+            useCount: 0
         )
     }
 }

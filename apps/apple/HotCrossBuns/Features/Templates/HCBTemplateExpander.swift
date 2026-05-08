@@ -161,6 +161,8 @@ struct TaskTemplate: Codable, Hashable, Identifiable, Sendable {
     var notes: String
     var due: String // raw template string — may be "{{today}}", "{{+7d}}", literal "YYYY-MM-DD", or ""
     var listIdOrTitle: String // "" = inherit default list at instantiation
+    var lastUsedAt: Date?
+    var useCount: Int
 
     init(
         id: UUID = UUID(),
@@ -168,7 +170,9 @@ struct TaskTemplate: Codable, Hashable, Identifiable, Sendable {
         title: String,
         notes: String = "",
         due: String = "",
-        listIdOrTitle: String = ""
+        listIdOrTitle: String = "",
+        lastUsedAt: Date? = nil,
+        useCount: Int = 0
     ) {
         self.id = id
         self.name = name
@@ -176,6 +180,24 @@ struct TaskTemplate: Codable, Hashable, Identifiable, Sendable {
         self.notes = notes
         self.due = due
         self.listIdOrTitle = listIdOrTitle
+        self.lastUsedAt = lastUsedAt
+        self.useCount = max(0, useCount)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, title, notes, due, listIdOrTitle, lastUsedAt, useCount
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        title = try c.decode(String.self, forKey: .title)
+        notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
+        due = try c.decodeIfPresent(String.self, forKey: .due) ?? ""
+        listIdOrTitle = try c.decodeIfPresent(String.self, forKey: .listIdOrTitle) ?? ""
+        lastUsedAt = try c.decodeIfPresent(Date.self, forKey: .lastUsedAt)
+        useCount = max(0, try c.decodeIfPresent(Int.self, forKey: .useCount) ?? 0)
     }
 
     // Extracts every `{{prompt:Label}}` variable across all fields so the
@@ -204,7 +226,9 @@ struct TaskTemplate: Codable, Hashable, Identifiable, Sendable {
             title: title,
             notes: notes,
             due: due,
-            listIdOrTitle: listIdOrTitle
+            listIdOrTitle: listIdOrTitle,
+            lastUsedAt: nil,
+            useCount: 0
         )
     }
 }
