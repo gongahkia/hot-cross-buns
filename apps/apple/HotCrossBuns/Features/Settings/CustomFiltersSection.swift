@@ -10,7 +10,7 @@ import SwiftUI
 
 struct CustomFiltersSection: View {
     @Environment(AppModel.self) private var model
-    let highlightedAnchor: SettingsSectionAnchor?
+    var highlightedAnchor: SettingsSectionAnchor? = nil
     @State private var editor: CustomFilterDefinition?
     @State private var isCreating = false
 

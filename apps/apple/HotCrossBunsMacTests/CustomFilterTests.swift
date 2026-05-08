@@ -101,5 +101,61 @@ final class CustomFilterTests: XCTestCase {
         XCTAssertEqual(copy.tagsAny, filter.tagsAny)
         XCTAssertEqual(copy.queryExpression, filter.queryExpression)
         XCTAssertEqual(copy.pinnedToMenuBar, filter.pinnedToMenuBar)
+        XCTAssertNil(copy.lastUsedAt)
+        XCTAssertEqual(copy.useCount, 0)
+    }
+
+    func testCustomFilterDecodesMissingUsageMetadata() throws {
+        let id = UUID()
+        let json = """
+        {
+          "id": "\(id.uuidString)",
+          "name": "Legacy"
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(CustomFilterDefinition.self, from: json)
+
+        XCTAssertNil(decoded.lastUsedAt)
+        XCTAssertEqual(decoded.useCount, 0)
+    }
+
+    @MainActor
+    func testMarkCustomFilterUsedOnlyUpdatesTarget() {
+        let targetID = UUID()
+        let otherID = UUID()
+        let model = AppModel.bootstrap()
+        model.settings.customFilters = [
+            CustomFilterDefinition(id: targetID, name: "Target"),
+            CustomFilterDefinition(id: otherID, name: "Other")
+        ]
+
+        model.markCustomFilterUsed(targetID)
+
+        let target = model.settings.customFilters.first { $0.id == targetID }
+        let other = model.settings.customFilters.first { $0.id == otherID }
+        XCTAssertEqual(target?.useCount, 1)
+        XCTAssertNotNil(target?.lastUsedAt)
+        XCTAssertEqual(other?.useCount, 0)
+        XCTAssertNil(other?.lastUsedAt)
+    }
+
+    func testSettingsSearchIndexFindsHighValueQueries() {
+        let results = SettingsSearchIndex.results(
+            customShortcutCount: 2,
+            shortcutConflictCount: 1,
+            customFilterCount: 3,
+            taskTemplateCount: 4,
+            eventTemplateCount: 5,
+            updateStatus: "Update"
+        )
+
+        XCTAssertEqual(SettingsSearchIndex.filter(results, query: "update").first?.anchor, .updates)
+        XCTAssertEqual(SettingsSearchIndex.filter(results, query: "template").first?.anchor, .templates)
+        XCTAssertEqual(SettingsSearchIndex.filter(results, query: "filter").first?.anchor, .customFilters)
+        XCTAssertEqual(SettingsSearchIndex.filter(results, query: "shortcut").first?.anchor, .hotkeys)
+        XCTAssertEqual(SettingsSearchIndex.filter(results, query: "menu bar").first?.anchor, .menuBar)
+        XCTAssertEqual(SettingsSearchIndex.filter(results, query: "background").first?.anchor, .background)
+        XCTAssertEqual(SettingsSearchIndex.filter(results, query: "diagnostics").first?.anchor, .diagnostics)
     }
 }

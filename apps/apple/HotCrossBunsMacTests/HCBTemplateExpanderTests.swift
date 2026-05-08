@@ -151,6 +151,8 @@ final class HCBTemplateExpanderTests: XCTestCase {
         XCTAssertEqual(copy.notes, template.notes)
         XCTAssertEqual(copy.due, template.due)
         XCTAssertEqual(copy.listIdOrTitle, template.listIdOrTitle)
+        XCTAssertNil(copy.lastUsedAt)
+        XCTAssertEqual(copy.useCount, 0)
     }
 
     func testDuplicatedEventTemplateGetsNewIDCopyNameAndPreservesFields() {
@@ -192,5 +194,72 @@ final class HCBTemplateExpanderTests: XCTestCase {
         XCTAssertEqual(copy.addGoogleMeet, template.addGoogleMeet)
         XCTAssertEqual(copy.recurrenceRule, template.recurrenceRule)
         XCTAssertEqual(copy.calendarIdOrTitle, template.calendarIdOrTitle)
+        XCTAssertNil(copy.lastUsedAt)
+        XCTAssertEqual(copy.useCount, 0)
+    }
+
+    func testTaskTemplateDecodesMissingUsageMetadata() throws {
+        let id = UUID()
+        let json = """
+        {
+          "id": "\(id.uuidString)",
+          "name": "Legacy",
+          "title": "Do it"
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(TaskTemplate.self, from: json)
+
+        XCTAssertNil(decoded.lastUsedAt)
+        XCTAssertEqual(decoded.useCount, 0)
+    }
+
+    func testEventTemplateDecodesMissingUsageMetadata() throws {
+        let id = UUID()
+        let json = """
+        {
+          "id": "\(id.uuidString)",
+          "name": "Legacy",
+          "summary": "Meet"
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(EventTemplate.self, from: json)
+
+        XCTAssertNil(decoded.lastUsedAt)
+        XCTAssertEqual(decoded.useCount, 0)
+    }
+
+    @MainActor
+    func testMarkTemplateUsedOnlyUpdatesTarget() {
+        let taskID = UUID()
+        let otherTaskID = UUID()
+        let eventID = UUID()
+        let otherEventID = UUID()
+        let model = AppModel.bootstrap()
+        model.settings.taskTemplates = [
+            TaskTemplate(id: taskID, name: "Target", title: "Task"),
+            TaskTemplate(id: otherTaskID, name: "Other", title: "Task")
+        ]
+        model.settings.eventTemplates = [
+            EventTemplate(id: eventID, name: "Target", summary: "Event"),
+            EventTemplate(id: otherEventID, name: "Other", summary: "Event")
+        ]
+
+        model.markTaskTemplateUsed(taskID)
+        model.markEventTemplateUsed(eventID)
+
+        let task = model.settings.taskTemplates.first { $0.id == taskID }
+        let otherTask = model.settings.taskTemplates.first { $0.id == otherTaskID }
+        let event = model.settings.eventTemplates.first { $0.id == eventID }
+        let otherEvent = model.settings.eventTemplates.first { $0.id == otherEventID }
+        XCTAssertEqual(task?.useCount, 1)
+        XCTAssertNotNil(task?.lastUsedAt)
+        XCTAssertEqual(otherTask?.useCount, 0)
+        XCTAssertNil(otherTask?.lastUsedAt)
+        XCTAssertEqual(event?.useCount, 1)
+        XCTAssertNotNil(event?.lastUsedAt)
+        XCTAssertEqual(otherEvent?.useCount, 0)
+        XCTAssertNil(otherEvent?.lastUsedAt)
     }
 }

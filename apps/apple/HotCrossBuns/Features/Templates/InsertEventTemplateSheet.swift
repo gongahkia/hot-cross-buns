@@ -14,6 +14,7 @@ struct InsertEventTemplateSheet: View {
     @State private var answers: [String: String] = [:]
     @State private var isSubmitting = false
     @State private var error: String?
+    @FocusState private var focusedPrompt: String?
 
     enum Step { case pick, prompts }
 
@@ -29,6 +30,7 @@ struct InsertEventTemplateSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
+                        .keyboardShortcut(.cancelAction)
                 }
             }
         }
@@ -121,6 +123,7 @@ struct InsertEventTemplateSheet: View {
                             set: { answers[label] = $0 }
                         ))
                         .textFieldStyle(.roundedBorder)
+                        .focused($focusedPrompt, equals: label)
                     }
                 }
             }
@@ -142,7 +145,11 @@ struct InsertEventTemplateSheet: View {
                     }
                 }
                 .disabled(isSubmitting || allPromptsAnswered == false)
+                .keyboardShortcut(.defaultAction)
             }
+        }
+        .onAppear {
+            focusedPrompt = selected?.requiredPrompts().first
         }
     }
 
