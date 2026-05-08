@@ -461,7 +461,9 @@ struct CalendarHomeView: View {
                         reminderMinutes: nil,
                         calendarID: calendarID,
                         location: draft.location,
-                        recurrence: draft.recurrence
+                        recurrence: draft.recurrence,
+                        startTimeZoneID: draft.startTimeZoneID,
+                        endTimeZoneID: draft.endTimeZoneID
                     )
                     if didCreate { imported += 1 } else { failed += 1 }
                 }
@@ -878,6 +880,10 @@ struct AddEventSheet: View {
     @State private var notifyGuests: Bool = false
     @State private var addGoogleMeet: Bool = false
     @State private var eventColor: CalendarEventColor = .defaultColor
+    @State private var startTimeZoneID: String
+    @State private var endTimeZoneID: String
+    @State private var usesSeparateEndTimeZone: Bool
+    @State private var userManuallyPickedTimeZone: Bool = false
     @State private var isSaving = false
     @State private var quickCreateText = ""
     @State private var parsedPreview: ParsedQuickAddEvent?
@@ -917,6 +923,9 @@ struct AddEventSheet: View {
         _startDate = State(initialValue: start)
         _endDate = State(initialValue: prefilledEnd ?? defaultEnd)
         _isAllDay = State(initialValue: prefilledIsAllDay)
+        _startTimeZoneID = State(initialValue: TimezoneSupport.currentIdentifier)
+        _endTimeZoneID = State(initialValue: TimezoneSupport.currentIdentifier)
+        _usesSeparateEndTimeZone = State(initialValue: false)
         _isEditing = State(initialValue: true) // create mode is always editable
     }
 
@@ -942,6 +951,9 @@ struct AddEventSheet: View {
         _attendees = State(initialValue: existingEvent.attendeeEmails)
         _addGoogleMeet = State(initialValue: existingEvent.meetLink.isEmpty == false)
         _eventColor = State(initialValue: CalendarEventColor.from(colorId: existingEvent.colorId))
+        _startTimeZoneID = State(initialValue: existingEvent.startTimeZoneID)
+        _endTimeZoneID = State(initialValue: existingEvent.endTimeZoneID)
+        _usesSeparateEndTimeZone = State(initialValue: existingEvent.startTimeZoneID != existingEvent.endTimeZoneID)
         _editingEvent = State(initialValue: existingEvent)
     }
 
@@ -974,7 +986,11 @@ struct AddEventSheet: View {
             .navigationTitle(navTitle)
             .task {
                 selectedCalendarID = selectedCalendarID ?? defaultCalendarID
+                applyDefaultTimeZoneIfNeeded()
                 applyDeepLinkPrefillIfAny()
+            }
+            .onChange(of: selectedCalendarID) { _, _ in
+                applyDefaultTimeZoneIfNeeded()
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -1396,14 +1412,47 @@ struct AddEventSheet: View {
     private var timeBlock: some View {
         sectionCard("Time") {
             Toggle("All-day event", isOn: $isAllDay)
-            DatePicker("Starts", selection: $startDate, displayedComponents: isAllDay ? [.date] : [.date, .hourAndMinute])
-            DatePicker("Ends", selection: $endDate, displayedComponents: isAllDay ? [.date] : [.date, .hourAndMinute])
+            if isAllDay {
+                DatePicker("Starts", selection: $startDate, displayedComponents: [.date])
+                DatePicker("Ends", selection: $endDate, displayedComponents: [.date])
+            } else {
+                DatePicker("Starts", selection: $startDate, displayedComponents: [.date, .hourAndMinute])
+                    .environment(\.timeZone, startTimeZone)
+                DatePicker("Ends", selection: $endDate, displayedComponents: [.date, .hourAndMinute])
+                    .environment(\.timeZone, endTimeZone)
+                timeZoneControls
+            }
             if isValidDateRange == false {
                 Text(isAllDay ? "End date cannot be before start date." : "End time must be after start time.")
                     .hcbFont(.footnote)
                     .foregroundStyle(.red)
             }
         }
+    }
+
+    private var timeZoneControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle("Use separate start and end time zones", isOn: separateTimeZoneBinding)
+            Picker("Start time zone", selection: startTimeZoneBinding) {
+                ForEach(TimezoneSupport.pickerIdentifiers, id: \.self) { identifier in
+                    Text(TimezoneSupport.displayName(for: identifier)).tag(identifier)
+                }
+            }
+            .pickerStyle(.menu)
+            if usesSeparateEndTimeZone {
+                Picker("End time zone", selection: endTimeZoneBinding) {
+                    ForEach(TimezoneSupport.pickerIdentifiers, id: \.self) { identifier in
+                        Text(TimezoneSupport.displayName(for: identifier)).tag(identifier)
+                    }
+                }
+                .pickerStyle(.menu)
+            } else {
+                Text("End time zone follows the start time zone.")
+                    .hcbFont(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .hcbScaledPadding(.top, 4)
     }
 
     private var detailsBlock: some View {
@@ -1584,8 +1633,11 @@ struct AddEventSheet: View {
                 Text(startDate.formatted(.dateTime.weekday(.wide).day().month(.wide).year()))
                     .hcbFont(.subheadline)
                     .foregroundStyle(AppColor.ink)
-                Text("\(startDate.formatted(.dateTime.hour().minute())) – \(endDate.formatted(.dateTime.hour().minute()))")
+                Text("\(formattedClockTime(startDate, timeZoneID: startTimeZoneID)) – \(formattedClockTime(endDate, timeZoneID: effectiveEndTimeZoneID))")
                     .hcbFont(.subheadline, weight: .medium)
+                    .foregroundStyle(.secondary)
+                Text(timeZoneSummary)
+                    .hcbFont(.caption, weight: .medium)
                     .foregroundStyle(.secondary)
             }
         }
@@ -1681,6 +1733,94 @@ struct AddEventSheet: View {
 
     private var defaultCalendarID: CalendarListMirror.ID? {
         model.calendarSnapshot.selectedCalendars.first?.id ?? model.calendars.first?.id
+    }
+
+    private var startTimeZone: TimeZone {
+        TimezoneSupport.timeZone(for: startTimeZoneID)
+    }
+
+    private var endTimeZone: TimeZone {
+        TimezoneSupport.timeZone(for: effectiveEndTimeZoneID)
+    }
+
+    private var effectiveEndTimeZoneID: String {
+        usesSeparateEndTimeZone ? endTimeZoneID : startTimeZoneID
+    }
+
+    private var timeZoneSummary: String {
+        if usesSeparateEndTimeZone, startTimeZoneID != endTimeZoneID {
+            return "\(TimezoneSupport.displayName(for: startTimeZoneID)) → \(TimezoneSupport.displayName(for: endTimeZoneID))"
+        }
+        return TimezoneSupport.displayName(for: startTimeZoneID)
+    }
+
+    private var startTimeZoneBinding: Binding<String> {
+        Binding(
+            get: { startTimeZoneID },
+            set: { newValue in
+                let normalized = TimezoneSupport.validatedIdentifier(newValue) ?? TimezoneSupport.currentIdentifier
+                let oldValue = startTimeZoneID
+                guard normalized != oldValue else { return }
+                startDate = TimezoneSupport.reinterpretingWallClock(startDate, from: oldValue, to: normalized)
+                if usesSeparateEndTimeZone == false {
+                    endDate = TimezoneSupport.reinterpretingWallClock(endDate, from: oldValue, to: normalized)
+                    endTimeZoneID = normalized
+                }
+                startTimeZoneID = normalized
+                userManuallyPickedTimeZone = true
+            }
+        )
+    }
+
+    private var endTimeZoneBinding: Binding<String> {
+        Binding(
+            get: { endTimeZoneID },
+            set: { newValue in
+                let normalized = TimezoneSupport.validatedIdentifier(newValue) ?? startTimeZoneID
+                let oldValue = endTimeZoneID
+                guard normalized != oldValue else { return }
+                endDate = TimezoneSupport.reinterpretingWallClock(endDate, from: oldValue, to: normalized)
+                endTimeZoneID = normalized
+                userManuallyPickedTimeZone = true
+            }
+        )
+    }
+
+    private var separateTimeZoneBinding: Binding<Bool> {
+        Binding(
+            get: { usesSeparateEndTimeZone },
+            set: { newValue in
+                usesSeparateEndTimeZone = newValue
+                if newValue == false {
+                    endTimeZoneID = startTimeZoneID
+                }
+                userManuallyPickedTimeZone = true
+            }
+        )
+    }
+
+    private func applyDefaultTimeZoneIfNeeded() {
+        guard editingEvent == nil, userManuallyPickedTimeZone == false else { return }
+        let calendarTimeZoneID = selectedCalendarID
+            .flatMap { id in model.calendars.first(where: { $0.id == id })?.timeZoneID }
+        let resolved = TimezoneSupport.validatedIdentifier(calendarTimeZoneID) ?? TimezoneSupport.currentIdentifier
+        let old = startTimeZoneID
+        if old != resolved, isAllDay == false {
+            startDate = TimezoneSupport.reinterpretingWallClock(startDate, from: old, to: resolved)
+            endDate = TimezoneSupport.reinterpretingWallClock(endDate, from: old, to: resolved)
+        }
+        startTimeZoneID = resolved
+        endTimeZoneID = resolved
+        usesSeparateEndTimeZone = false
+    }
+
+    private func formattedClockTime(_ date: Date, timeZoneID: String) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.timeZone = TimezoneSupport.timeZone(for: timeZoneID)
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        return formatter.string(from: date)
     }
 
     private func applyDeepLinkPrefillIfAny() {
@@ -1846,7 +1986,9 @@ struct AddEventSheet: View {
                 attendeeEmails: [],
                 notifyGuests: false,
                 addGoogleMeet: false,
-                colorId: nil
+                colorId: nil,
+                startTimeZoneID: nil,
+                endTimeZoneID: nil
             )
         } else {
             didCreate = await model.createEvent(
@@ -1862,7 +2004,9 @@ struct AddEventSheet: View {
                 attendeeEmails: attendees,
                 notifyGuests: notifyGuests,
                 addGoogleMeet: addGoogleMeet,
-                colorId: eventColor.wireValue
+                colorId: eventColor.wireValue,
+                startTimeZoneID: startTimeZoneID,
+                endTimeZoneID: effectiveEndTimeZoneID
             )
         }
 
@@ -1894,7 +2038,9 @@ struct AddEventSheet: View {
             notifyGuests: notifyGuests,
             scope: scope,
             addGoogleMeet: addGoogleMeet,
-            colorId: eventColor.wireValue
+            colorId: eventColor.wireValue,
+            startTimeZoneID: startTimeZoneID,
+            endTimeZoneID: effectiveEndTimeZoneID
         )
         if didUpdate {
             dismiss()

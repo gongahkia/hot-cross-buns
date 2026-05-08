@@ -23,6 +23,22 @@ final class ICSImporterTests: XCTestCase {
         XCTAssertEqual(draft.location, "Room 3")
         XCTAssertFalse(draft.isAllDay)
         XCTAssertEqual(draft.endDate.timeIntervalSince(draft.startDate), 3600)
+        XCTAssertEqual(draft.startTimeZoneID, "UTC")
+        XCTAssertEqual(draft.endTimeZoneID, "UTC")
+    }
+
+    func testParsesTZIDWithOnulNormalization() {
+        let ics = """
+        BEGIN:VEVENT
+        SUMMARY:Legacy zone
+        DTSTART;TZID=Asia/Calcutta:20260419T090000
+        DTEND;TZID=Asia/Calcutta:20260419T100000
+        END:VEVENT
+        """
+        let drafts = ICSImporter.parse(ics)
+        XCTAssertEqual(drafts.count, 1)
+        XCTAssertEqual(drafts[0].startTimeZoneID, "Asia/Kolkata")
+        XCTAssertEqual(drafts[0].endTimeZoneID, "Asia/Kolkata")
     }
 
     func testParsesAllDayEvent() {

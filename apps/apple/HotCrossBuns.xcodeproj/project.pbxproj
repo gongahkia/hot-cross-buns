@@ -107,7 +107,6 @@
 		74E52E17654990328A3FCF08 /* Exporters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89EA3416048E26FDC6F7B0BC /* Exporters.swift */; };
 		76A6C1E3FB84BBA6C85AD47B /* HCBCacheCryptoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD98EA6DAE12DEC1BADC82FA /* HCBCacheCryptoTests.swift */; };
 		76FE748A00BF7565093EB3C2 /* CustomFiltersSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F4517375C8E849B9FBA844C /* CustomFiltersSection.swift */; };
-		C1A7E1A1B2C3D4E5F607080A /* SettingsSearchIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A7E1A1B2C3D4E5F6070809 /* SettingsSearchIndex.swift */; };
 		7A31F091EF2A8AE7B9F1742B /* BackoffPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D768DB4E22AFC1D29F84EB1 /* BackoffPolicyTests.swift */; };
 		7AA65A861A8B2A58F45B8070 /* BulkResultToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = A78470AB49D26395D2CD6F7C /* BulkResultToast.swift */; };
 		7B25895146B9C72A4161E19B /* macos-open-anyway-warning.jpeg in Resources */ = {isa = PBXBuildFile; fileRef = 8DCF05B74EEF0CEFC2A45B56 /* macos-open-anyway-warning.jpeg */; };
@@ -231,6 +230,7 @@
 		EF7717EABD3E2F5C54B2408A /* PermissionPrimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73C6AC21EF221365170C0EA0 /* PermissionPrimerView.swift */; };
 		F032090C6ABED1A77C8EEF11 /* macos-not-opened-warning.jpeg in Resources */ = {isa = PBXBuildFile; fileRef = 196CE9743073A989FF1D1994 /* macos-not-opened-warning.jpeg */; };
 		F17FBE647D419E3735B9591F /* PastCleanupServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD7C50518CD828FC3495F5EC /* PastCleanupServiceTests.swift */; };
+		F234F649C130FEA45F9153DB /* SettingsSearchIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B96F8CB54BCAAEF3859ACA /* SettingsSearchIndex.swift */; };
 		F37DF95BBEC2335CA5AFBDED /* CalendarEventInstanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22DB41A975AB784A9EBDD654 /* CalendarEventInstanceTests.swift */; };
 		F544AFBC74E117992DB58913 /* CustomFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A76571F1E7EF40F32A62835 /* CustomFilter.swift */; };
 		F59FD7D285E070B0AC27772F /* WindowRestorationStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A514A8458FFFEFE73CD579DA /* WindowRestorationStoreTests.swift */; };
@@ -294,7 +294,6 @@
 		0A50310DEBE007A0508A6907 /* ColorTagMatchPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorTagMatchPolicy.swift; sourceTree = "<group>"; };
 		0EF85250959558DF48B98023 /* UpdatesSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdatesSection.swift; sourceTree = "<group>"; };
 		0F4517375C8E849B9FBA844C /* CustomFiltersSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomFiltersSection.swift; sourceTree = "<group>"; };
-		C1A7E1A1B2C3D4E5F6070809 /* SettingsSearchIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSearchIndex.swift; sourceTree = "<group>"; };
 		1002C76B1614FACBF7D37818 /* SidebarItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItem.swift; sourceTree = "<group>"; };
 		11D2101729E351EFCFEB1B66 /* HCBAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HCBAppearance.swift; sourceTree = "<group>"; };
 		141ADCA673635CA9F5DA0BD1 /* TasksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksView.swift; sourceTree = "<group>"; };
@@ -326,6 +325,7 @@
 		359088FE0E6D820E2ED32A19 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		35AD02E0F85CA96B243D335E /* SharedInboxItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedInboxItem.swift; sourceTree = "<group>"; };
 		365DC96473F7469BD2250779 /* WeekGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekGridView.swift; sourceTree = "<group>"; };
+		36B96F8CB54BCAAEF3859ACA /* SettingsSearchIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSearchIndex.swift; sourceTree = "<group>"; };
 		377A972E3BD6867D3483B92D /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		380F19DEFA6E95FDFFBA051B /* HotCrossBunsMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HotCrossBunsMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		382C796971460006AB7D939E /* CalendarGridLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarGridLayout.swift; sourceTree = "<group>"; };
@@ -1145,7 +1145,6 @@
 				80A153811A78936A8F31094F /* GoogleOAuthClientSetupView.swift */,
 				322421AFC97A807AACB1057B /* HCBSettingsWindow.swift */,
 				E0F94A52DF81C406B97107BD /* HistorySection.swift */,
-				C1A7E1A1B2C3D4E5F6070809 /* SettingsSearchIndex.swift */,
 				8D28DC41B5549CBBC446FEC9 /* KeybindingsSection.swift */,
 				9742B8184AB071BE000E4235 /* LayoutSection.swift */,
 				2968412181F5B3ABF1A99181 /* LocalBackupSection.swift */,
@@ -1153,6 +1152,7 @@
 				B2BAC54146EDDDC11E3D930F /* PastCleanupSection.swift */,
 				A29E4EA796CF06BFCDDDEE8F /* PerSurfaceFontSection.swift */,
 				9DE5E9D4244D8F56D1FC3227 /* PerTabListFilterSection.swift */,
+				36B96F8CB54BCAAEF3859ACA /* SettingsSearchIndex.swift */,
 				AB15E1D3EF730B024771A746 /* SettingsView.swift */,
 				D71121A9391311854DE3FD37 /* TemplatesSection.swift */,
 				0EF85250959558DF48B98023 /* UpdatesSection.swift */,
@@ -1379,7 +1379,6 @@
 				8936A2BFA8B5BFA9AD841105 /* HCBDeepLinkBuilder.swift in Sources */,
 				6C767E7BC697FE433BF5AAA2 /* HCBDeepLinkRouter.swift in Sources */,
 				D553CCEF7C978404187F1049 /* HCBSettingsWindow.swift in Sources */,
-				C1A7E1A1B2C3D4E5F607080A /* SettingsSearchIndex.swift in Sources */,
 				03DDA60B71A6CF24C09880A6 /* HCBShortcuts.swift in Sources */,
 				B9D9962B30CA73EFBD0719AD /* HCBSurface.swift in Sources */,
 				2C07F4E827E1C0F708F9C9F8 /* HCBTemplateExpander.swift in Sources */,
@@ -1440,6 +1439,7 @@
 				B3FD5B5CFC0A25BB3A2D0F19 /* RecurrenceUntilRewriter.swift in Sources */,
 				84DA071F41D735D2217D9544 /* ReviewBuilder.swift in Sources */,
 				9D509BB5F19F366E80487377 /* RouterPath.swift in Sources */,
+				F234F649C130FEA45F9153DB /* SettingsSearchIndex.swift in Sources */,
 				6D5ADD20176181609E0559A6 /* SettingsTransferBundle.swift in Sources */,
 				1A0E75ED9924EC602590FEBA /* SettingsView.swift in Sources */,
 				880402797CE64EBB95F67CBE /* SharedInboxItem.swift in Sources */,
@@ -1620,7 +1620,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COMPILATION_CACHE_ENABLE_CACHING = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 10;
+				CURRENT_PROJECT_VERSION = 11;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = Q2J4QWZLR7;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1636,7 +1636,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.2.8;
+				MARKETING_VERSION = 0.2.9;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1737,7 +1737,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COMPILATION_CACHE_ENABLE_CACHING = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 10;
+				CURRENT_PROJECT_VERSION = 11;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = Q2J4QWZLR7;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1759,7 +1759,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.2.8;
+				MARKETING_VERSION = 0.2.9;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

@@ -125,6 +125,32 @@ final class CloudSyncControlTests: XCTestCase {
         XCTAssertEqual(Set(synced.calendars.map(\.id)), ["cal", "missing-cal"])
     }
 
+    func testSchedulerPrunesSelectedCalendarsMissingFromCalendarList() async throws {
+        var settings = AppSettings.default
+        settings.cloudSyncTargets = [.events]
+        settings.selectedCalendarIDs = ["cal", "stale-cal"]
+        settings.hasConfiguredCalendarSelection = true
+        let state = baseState(settings: settings)
+        MockURLProtocol.requestHandler = { request in
+            let path = try XCTUnwrap(request.url?.path)
+            XCTAssertFalse(path.hasPrefix("/tasks/"), "Tasks endpoints must not be called when Events sync is disabled")
+            if path == "/calendar/v3/users/me/calendarList" {
+                return Self.jsonResponse(for: request, body: Self.calendarListJSON)
+            }
+            if path == "/calendar/v3/calendars/cal/events" {
+                return Self.jsonResponse(for: request, body: Self.eventsJSON)
+            }
+            XCTFail("Unexpected path \(path)")
+            return Self.jsonResponse(for: request, body: #"{}"#, statusCode: 404)
+        }
+
+        let synced = try await makeScheduler().syncNow(mode: .balanced, baseState: state)
+
+        XCTAssertEqual(synced.events.map(\.id), ["remote-event"])
+        XCTAssertEqual(synced.settings.selectedCalendarIDs, ["cal"])
+        XCTAssertFalse(MockURLProtocol.capturedRequests.contains { $0.url?.path == "/calendar/v3/calendars/stale-cal/events" })
+    }
+
     func testSchedulerLeavesEventsLocalWhenOnlyTasksSync() async throws {
         var settings = AppSettings.default
         settings.cloudSyncTargets = [.tasks]

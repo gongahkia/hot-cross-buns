@@ -41,6 +41,7 @@ final class GoogleCalendarClientTransportTests: XCTestCase {
                   "selected": true,
                   "accessRole": "owner",
                   "etag": "calendar-etag",
+                  "timeZone": "Asia/Singapore",
                   "defaultReminders": [
                     { "method": "email", "minutes": 120 },
                     { "method": "popup", "minutes": 30 },
@@ -59,6 +60,7 @@ final class GoogleCalendarClientTransportTests: XCTestCase {
         XCTAssertEqual(calendars[0].summary, "Primary")
         XCTAssertEqual(calendars[0].colorHex, "#123456")
         XCTAssertEqual(calendars[0].defaultReminderMinutes, [10, 30])
+        XCTAssertEqual(calendars[0].timeZoneID, "Asia/Singapore")
     }
 
     func testListEventsPaginatesAndCarriesSyncToken() async throws {
@@ -97,8 +99,8 @@ final class GoogleCalendarClientTransportTests: XCTestCase {
                       "id": "evt-1",
                       "summary": "First",
                       "status": "confirmed",
-                      "start": { "dateTime": "2026-04-24T09:00:00Z" },
-                      "end": { "dateTime": "2026-04-24T10:00:00Z" }
+                      "start": { "dateTime": "2026-04-24T09:00:00Z", "timeZone": "Asia/Tokyo" },
+                      "end": { "dateTime": "2026-04-24T10:00:00Z", "timeZone": "Asia/Tokyo" }
                     }
                   ],
                   "nextPageToken": "page-2"
@@ -129,6 +131,8 @@ final class GoogleCalendarClientTransportTests: XCTestCase {
         XCTAssertEqual(page.events.map(\.id), ["evt-1", "evt-2"])
         XCTAssertEqual(page.nextSyncToken, "sync-next")
         XCTAssertFalse(page.events[0].isAllDay)
+        XCTAssertEqual(page.events[0].startTimeZoneID, "Asia/Tokyo")
+        XCTAssertEqual(page.events[0].endTimeZoneID, "Asia/Tokyo")
         XCTAssertTrue(page.events[1].isAllDay)
         XCTAssertEqual(page.events[1].hcbTaskID, "task-123")
         XCTAssertEqual(page.events[1].details, "")
@@ -212,6 +216,8 @@ final class GoogleCalendarClientTransportTests: XCTestCase {
             sendUpdates: "externalOnly",
             addGoogleMeet: true,
             colorId: "11",
+            startTimeZoneID: "Asia/Singapore",
+            endTimeZoneID: "Asia/Tokyo",
             hcbTaskID: "task-9"
         )
 
@@ -231,6 +237,8 @@ final class GoogleCalendarClientTransportTests: XCTestCase {
         XCTAssertTrue(capturedBody.contains(#""email":"bob@example.com""#))
         XCTAssertTrue(capturedBody.contains(#""conferenceData":{"createRequest":"#))
         XCTAssertTrue(capturedBody.contains(#""colorId":"11""#))
+        XCTAssertTrue(Self.body(capturedBody, containsJSONValue: "Asia/Singapore"))
+        XCTAssertTrue(Self.body(capturedBody, containsJSONValue: "Asia/Tokyo"))
         XCTAssertTrue(capturedBody.contains(#""extendedProperties":{"private":{"hcbTaskID":"task-9"}}"#))
         XCTAssertEqual(event.meetLink, "https://meet.google.com/abc-defg-hij")
         XCTAssertEqual(event.hcbTaskID, "task-9")
@@ -277,6 +285,8 @@ final class GoogleCalendarClientTransportTests: XCTestCase {
             sendUpdates: "none",
             addGoogleMeet: false,
             colorId: nil,
+            startTimeZoneID: "America/New_York",
+            endTimeZoneID: "America/New_York",
             hcbTaskID: nil,
             ifMatch: "etag-123"
         )
@@ -294,6 +304,46 @@ final class GoogleCalendarClientTransportTests: XCTestCase {
         XCTAssertFalse(capturedBody.contains(#""conferenceData""#))
         XCTAssertFalse(capturedBody.contains(#""colorId""#))
         XCTAssertFalse(capturedBody.contains(#""extendedProperties""#))
+        XCTAssertTrue(Self.body(capturedBody, containsJSONValue: "America/New_York"))
+    }
+
+    func testAllDayInsertOmitsTimezone() async throws {
+        var capturedBody = ""
+        MockURLProtocol.requestHandler = { request in
+            capturedBody = Self.requestBodyString(from: request)
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let body = #"""
+            {
+              "id": "all-day",
+              "summary": "Holiday",
+              "status": "confirmed",
+              "start": { "date": "2026-05-01" },
+              "end": { "date": "2026-05-02" }
+            }
+            """#
+            return (response, Data(body.utf8))
+        }
+
+        let start = Date(timeIntervalSince1970: 1_714_521_600)
+        _ = try await client.insertEvent(
+            calendarID: "primary",
+            summary: "Holiday",
+            details: "",
+            startDate: start,
+            endDate: start,
+            isAllDay: true,
+            reminderMinutes: nil,
+            startTimeZoneID: "Asia/Singapore",
+            endTimeZoneID: "Asia/Tokyo"
+        )
+
+        XCTAssertFalse(capturedBody.contains(#""timeZone""#))
+        XCTAssertTrue(capturedBody.contains(#""date":"#))
     }
 
     func testMoveEventUsesDestinationCalendarAndReturnsMovedMirror() async throws {
@@ -384,6 +434,11 @@ final class GoogleCalendarClientTransportTests: XCTestCase {
             return read(stream: stream)
         }
         return ""
+    }
+
+    private static func body(_ body: String, containsJSONValue value: String) -> Bool {
+        body.contains(value)
+            || body.contains(value.replacingOccurrences(of: "/", with: #"\/"#))
     }
 
     private static func read(stream: InputStream) -> String {
