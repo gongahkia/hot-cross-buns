@@ -9,6 +9,24 @@ final class UpdaterController {
         let title: String
         let message: String
         let isWarning: Bool
+        let target: ToastTarget
+
+        init(
+            title: String,
+            message: String,
+            isWarning: Bool,
+            target: ToastTarget = .main
+        ) {
+            self.title = title
+            self.message = message
+            self.isWarning = isWarning
+            self.target = target
+        }
+    }
+
+    enum ToastTarget: Equatable {
+        case main
+        case settings
     }
 
     struct AvailableRelease: Equatable {
@@ -182,13 +200,13 @@ final class UpdaterController {
         return userDefaults.object(forKey: DefaultsKey.lastCheckAt) as? Date
     }
 
-    func checkForUpdates() {
+    func checkForUpdates(toastTarget: ToastTarget = .main) {
         Task {
-            await checkForUpdatesNow(trigger: .manual)
+            await checkForUpdatesNow(trigger: .manual, toastTarget: toastTarget)
         }
     }
 
-    func checkForUpdatesNow(trigger: CheckTrigger) async {
+    func checkForUpdatesNow(trigger: CheckTrigger, toastTarget: ToastTarget = .main) async {
         guard isChecking == false else { return }
         isChecking = true
         defer { isChecking = false }
@@ -205,7 +223,7 @@ final class UpdaterController {
             if isNewerThanCurrentVersion(release.tagName) {
                 availableRelease = makeAvailableRelease(from: release)
                 if availableRelease?.downloadURL != nil {
-                    await downloadAvailableRelease(shouldPresentPrompt: true)
+                    await downloadAvailableRelease(shouldPresentPrompt: true, toastTarget: toastTarget)
                 } else {
                     downloadState = .idle
                     requestAvailableReleasePrompt()
@@ -213,7 +231,8 @@ final class UpdaterController {
                         toastState = ToastState(
                             title: "Update available",
                             message: "Hot Cross Buns \(availableRelease?.version ?? release.tagName) is available from GitHub Releases.",
-                            isWarning: false
+                            isWarning: false,
+                            target: toastTarget
                         )
                     }
                 }
@@ -224,7 +243,8 @@ final class UpdaterController {
                     toastState = ToastState(
                         title: "You're on the latest version",
                         message: "Hot Cross Buns didn't find anything newer on GitHub Releases.",
-                        isWarning: false
+                        isWarning: false,
+                        target: toastTarget
                     )
                 }
             }
@@ -233,7 +253,8 @@ final class UpdaterController {
                 toastState = ToastState(
                     title: "Couldn't reach GitHub Releases",
                     message: error.localizedDescription,
-                    isWarning: true
+                    isWarning: true,
+                    target: toastTarget
                 )
             }
         }
@@ -361,7 +382,7 @@ final class UpdaterController {
         return fileURL
     }
 
-    private func downloadAvailableRelease(shouldPresentPrompt: Bool) async {
+    private func downloadAvailableRelease(shouldPresentPrompt: Bool, toastTarget: ToastTarget = .main) async {
         guard let release = availableRelease,
               let remoteURL = release.downloadURL else {
             if shouldPresentPrompt {
@@ -381,7 +402,8 @@ final class UpdaterController {
             toastState = ToastState(
                 title: "Update ready to install",
                 message: "Hot Cross Buns \(release.version) is already downloaded in Downloads.",
-                isWarning: false
+                isWarning: false,
+                target: toastTarget
             )
             if shouldPresentPrompt {
                 requestAvailableReleasePrompt()
@@ -403,7 +425,8 @@ final class UpdaterController {
             toastState = ToastState(
                 title: "Couldn't prepare update download",
                 message: error.localizedDescription,
-                isWarning: true
+                isWarning: true,
+                target: toastTarget
             )
             if shouldPresentPrompt {
                 requestAvailableReleasePrompt()
@@ -446,7 +469,8 @@ final class UpdaterController {
             toastState = ToastState(
                 title: "Update ready to install",
                 message: "Hot Cross Buns \(release.version) downloaded to Downloads.",
-                isWarning: false
+                isWarning: false,
+                target: toastTarget
             )
         } catch {
             downloadState = DownloadState(
@@ -459,7 +483,8 @@ final class UpdaterController {
             toastState = ToastState(
                 title: "Couldn't download update",
                 message: error.localizedDescription,
-                isWarning: true
+                isWarning: true,
+                target: toastTarget
             )
         }
 

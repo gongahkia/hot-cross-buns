@@ -30,7 +30,10 @@ private struct UpdaterToastModifier: ViewModifier {
 
     private var message: Binding<String?> {
         Binding(
-            get: { updater.toastState?.message },
+            get: {
+                guard updater.toastState?.target == .main else { return nil }
+                return updater.toastState?.message
+            },
             set: { newValue in
                 if newValue == nil {
                     updater.clearToast()
@@ -40,11 +43,12 @@ private struct UpdaterToastModifier: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-        let title = updater.toastState?.title ?? "Update check complete"
+        let toast = updater.toastState?.target == .main ? updater.toastState : nil
+        let title = toast?.title ?? "Update check complete"
         return content.overlay {
             BulkResultToast(
                 message: message,
-                isWarning: updater.toastState?.isWarning ?? false,
+                isWarning: toast?.isWarning ?? false,
                 successTitle: title,
                 warningTitle: title,
                 successSymbol: "arrow.down.circle.fill",
