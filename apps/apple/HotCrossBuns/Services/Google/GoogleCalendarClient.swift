@@ -29,7 +29,7 @@ struct GoogleCalendarClient: Sendable {
     func listEvents(
         calendarID: String,
         syncToken: String?,
-        timeMin: Date = Date(),
+        timeMin: Date? = Date(),
         defaultTimeZoneID: String? = nil
     ) async throws -> GoogleCalendarEventsPage {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
@@ -52,7 +52,7 @@ struct GoogleCalendarClient: Sendable {
 
             if let syncToken, !syncToken.isEmpty {
                 queryItems.append(URLQueryItem(name: "syncToken", value: syncToken))
-            } else {
+            } else if let timeMin {
                 queryItems.append(URLQueryItem(name: "timeMin", value: ISO8601DateFormatter.google.string(from: timeMin)))
             }
 

@@ -5,6 +5,7 @@ struct DayGridView: View {
     @Environment(\.routerPath) private var router
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.hcbAppBackgroundConfiguration) private var backgroundConfiguration
     @Binding var anchorDate: Date
     var searchQuery: String = ""
 
@@ -14,6 +15,9 @@ struct DayGridView: View {
     private let calendar = Calendar.current
     private var calendarGridReduceMotion: Bool {
         reduceMotion || scenePhase != .active || ProcessInfo.processInfo.isLowPowerModeEnabled
+    }
+    private var usesReadableCalendarBackings: Bool {
+        backgroundConfiguration.customImagePath != nil || backgroundConfiguration.isTranslucent
     }
 
     @State private var timedDrag: TimedDrag?
@@ -29,8 +33,18 @@ struct DayGridView: View {
     var body: some View {
         eventsColumn
             .frame(maxWidth: .infinity)
-        .hcbScaledPadding(12)
-        .hcbDebugBodyProbe("DayGridView")
+            .hcbScaledPadding(12)
+            .background { readableCalendarBackdrop }
+            .hcbDebugBodyProbe("DayGridView")
+    }
+
+    @ViewBuilder
+    private var readableCalendarBackdrop: some View {
+        if usesReadableCalendarBackings {
+            Rectangle()
+                .fill(AppColor.cardSurface.opacity(0.84))
+                .overlay(AppColor.cream.opacity(0.18))
+        }
     }
 
     private var dayStart: Date { calendar.startOfDay(for: anchorDate) }

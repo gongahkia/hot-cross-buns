@@ -62,6 +62,7 @@ struct QuickCreatePopover: View {
     @State private var startDate: Date = Date()
     @State private var endDate: Date = Date()
     @State private var eventColor: CalendarEventColor = .defaultColor
+    @State private var isColorPickerPresented = false
     // Color-tag auto-apply bookkeeping. `autoAppliedTag` remembers the
     // exact tag spelling that drove the current `eventColor` so we can
     // strip it from the title on submit. `userManuallyPickedColor` latches
@@ -337,41 +338,32 @@ struct QuickCreatePopover: View {
                 .focused($summaryFocused)
                 .onSubmit { Task { await save() } }
             if mode == .event {
-                Menu {
-                    ForEach(CalendarEventColor.allCases) { color in
-                        Button {
-                            eventColor = color
-                            userManuallyPickedColor = true
-                            autoAppliedTag = nil
-                        } label: {
-                            // SF-Symbol dot renders reliably in macOS Menu
-                            // items (custom Circle views get dropped). We
-                            // tint with foregroundStyle so each row carries
-                            // the palette swatch inline.
-                            Label {
-                                HStack {
-                                    Text(color.title)
-                                    if color == eventColor {
-                                        Image(systemName: "checkmark")
-                                    }
-                                }
-                            } icon: {
-                                if let hex = color.hex {
-                                    Image(systemName: "circle.fill")
-                                        .foregroundStyle(Color(hex: hex))
-                                } else {
-                                    Image(systemName: "circle.dashed")
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
+                Button {
+                    isColorPickerPresented.toggle()
                 } label: {
                     colorSwatch(eventColor)
                 }
-                .menuStyle(.borderlessButton)
+                .buttonStyle(.plain)
                 .fixedSize()
                 .help("Event color")
+                .popover(isPresented: $isColorPickerPresented, arrowEdge: .trailing) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Event color")
+                            .hcbFont(.caption, weight: .semibold)
+                            .foregroundStyle(.secondary)
+                        EventColorPicker(selection: Binding(
+                            get: { eventColor },
+                            set: { color in
+                                eventColor = color
+                                userManuallyPickedColor = true
+                                autoAppliedTag = nil
+                                isColorPickerPresented = false
+                            }
+                        ))
+                    }
+                    .hcbScaledPadding(12)
+                    .frame(width: 240)
+                }
             }
         }
     }

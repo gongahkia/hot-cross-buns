@@ -87,7 +87,7 @@ struct SettingsView: View {
                     }
                     .buttonStyle(.plain)
 
-                    Picker("Local cache retention (Google untouched)", selection: eventRetentionBinding) {
+                    Picker("Keep past events", selection: eventRetentionBinding) {
                         Text("30 days").tag(30)
                         Text("90 days").tag(90)
                         Text("180 days").tag(180)
@@ -96,7 +96,18 @@ struct SettingsView: View {
                         Text("Forever").tag(0)
                     }
                     .pickerStyle(.menu)
-                    Text("Older events are dropped from the local cache to keep memory + disk tight. Drops never touch Google — a Force Resync refetches everything. Recently-edited events (within the window) are preserved even if they ended earlier. Past-event cleanup on Google is a separate setting under \"Past cleanup\".")
+
+                    Picker("Keep completed tasks", selection: completedTaskRetentionBinding) {
+                        Text("30 days").tag(30)
+                        Text("90 days").tag(90)
+                        Text("180 days").tag(180)
+                        Text("1 year").tag(365)
+                        Text("2 years").tag(730)
+                        Text("Forever").tag(0)
+                    }
+                    .pickerStyle(.menu)
+
+                    Text("Older events and completed tasks are dropped from the local cache to keep memory + disk tight. Drops never touch Google — a Force Resync refetches according to these retention windows. Past cleanup on Google is a separate setting under \"Past cleanup\".")
                         .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -176,6 +187,9 @@ struct SettingsView: View {
                             }
                         }
                     }
+                    Text("Before you customize this list, Hot Cross Buns follows calendars selected in Google Calendar, including subscribed and read-only calendars.")
+                        .hcbFont(.caption2)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -332,6 +346,13 @@ struct SettingsView: View {
         Binding(
             get: { model.settings.eventRetentionDaysBack },
             set: { model.setEventRetentionDaysBack($0) }
+        )
+    }
+
+    private var completedTaskRetentionBinding: Binding<Int> {
+        Binding(
+            get: { model.settings.completedTaskRetentionDaysBack },
+            set: { model.setCompletedTaskRetentionDaysBack($0) }
         )
     }
 

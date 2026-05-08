@@ -74,7 +74,8 @@ actor SyncScheduler {
                 for: selectedTaskLists,
                 accountID: accountID,
                 checkpointIndex: checkpointIndex,
-                syncStartedAt: syncStartedAt
+                syncStartedAt: syncStartedAt,
+                completedTaskRetentionDaysBack: baseState.settings.completedTaskRetentionDaysBack
             )
             : []
         async let loadedEvents = shouldSyncEvents
@@ -83,7 +84,8 @@ actor SyncScheduler {
                 selectedCalendarIDs: selectedCalendarIDs,
                 accountID: accountID,
                 checkpointIndex: checkpointIndex,
-                syncStartedAt: syncStartedAt
+                syncStartedAt: syncStartedAt,
+                eventRetentionDaysBack: baseState.settings.eventRetentionDaysBack
             )
             : []
 
@@ -96,8 +98,6 @@ actor SyncScheduler {
         if shouldSyncEvents {
             settings.selectedCalendarIDs = selectedCalendarIDs
             settings.hasConfiguredCalendarSelection = baseState.settings.hasConfiguredCalendarSelection
-                || baseState.settings.selectedCalendarIDs.isEmpty == false
-                || selectedCalendarIDs.isEmpty == false
         }
         if shouldSyncTasks {
             settings.selectedTaskListIDs = selectedTaskListIDs
@@ -110,7 +110,12 @@ actor SyncScheduler {
             account: baseState.account,
             taskLists: taskLists,
             tasks: shouldSyncTasks
-                ? mergeTasks(existing: baseState.tasks, results: taskResults)
+                ? mergeTasks(
+                    existing: baseState.tasks,
+                    results: taskResults,
+                    completedTaskRetentionDaysBack: settings.completedTaskRetentionDaysBack,
+                    now: syncStartedAt
+                )
                 : baseState.tasks,
             calendars: calendars.map { calendar in
                 var calendar = calendar
@@ -144,9 +149,11 @@ actor SyncScheduler {
         for taskLists: [TaskListMirror],
         accountID: GoogleAccount.ID,
         checkpointIndex: [String: SyncCheckpoint],
-        syncStartedAt: Date
+        syncStartedAt: Date,
+        completedTaskRetentionDaysBack: Int
     ) async throws -> [TaskListSyncResult] {
         let tasksClient = tasksClient
+        let completedMin = Self.retentionLowerBound(daysBack: completedTaskRetentionDaysBack, now: syncStartedAt)
         return try await withThrowingTaskGroup(of: TaskListSyncResult.self) { group in
             var iter = taskLists.makeIterator()
             // Seed the window with up to `maxConcurrentSyncRequests` children.
@@ -165,7 +172,8 @@ actor SyncScheduler {
                 group.addTask {
                     let page = try await tasksClient.listTasks(
                         taskListID: taskList.id,
-                        updatedMin: checkpoint?.tasksUpdatedMin
+                        updatedMin: checkpoint?.tasksUpdatedMin,
+                        completedMin: checkpoint?.tasksUpdatedMin == nil ? completedMin : nil
                     )
                     // Prefer Google's server Date — no clock-drift exposure.
                     // Fallback path uses local clock minus the slack for the
@@ -210,7 +218,8 @@ actor SyncScheduler {
                     group.addTask {
                         let page = try await tasksClient.listTasks(
                             taskListID: nextList.id,
-                            updatedMin: checkpoint?.tasksUpdatedMin
+                            updatedMin: checkpoint?.tasksUpdatedMin,
+                            completedMin: checkpoint?.tasksUpdatedMin == nil ? completedMin : nil
                         )
                         let nextWatermark: Date = page.serverDate
                             ?? syncStartedAt.addingTimeInterval(-Self.tasksWatermarkSlackSeconds)
@@ -245,13 +254,14 @@ actor SyncScheduler {
         selectedCalendarIDs: Set<CalendarListMirror.ID>,
         accountID: GoogleAccount.ID,
         checkpointIndex: [String: SyncCheckpoint],
-        syncStartedAt: Date
+        syncStartedAt: Date,
+        eventRetentionDaysBack: Int
     ) async throws -> [CalendarSyncResult] {
         let resolvedIDs = selectedCalendarIDs.isEmpty
             ? Set(calendars.filter(\.isSelected).map(\.id))
             : selectedCalendarIDs
         let selectedCalendars = calendars.filter { resolvedIDs.contains($0.id) }
-        let startOfToday = Calendar.current.startOfDay(for: Date())
+        let fullSyncTimeMin = Self.retentionLowerBound(daysBack: eventRetentionDaysBack, now: syncStartedAt)
         let calendarClient = calendarClient
 
         return try await withThrowingTaskGroup(of: CalendarSyncResult?.self) { group in
@@ -277,7 +287,7 @@ actor SyncScheduler {
                         page = try await calendarClient.listEvents(
                             calendarID: calendarID,
                             syncToken: cp?.calendarSyncToken,
-                            timeMin: startOfToday,
+                            timeMin: cp?.calendarSyncToken == nil ? fullSyncTimeMin : nil,
                             defaultTimeZoneID: calendar.timeZoneID
                         )
                         didFullSync = hadSyncToken == false
@@ -286,7 +296,7 @@ actor SyncScheduler {
                             page = try await calendarClient.listEvents(
                                 calendarID: calendarID,
                                 syncToken: nil,
-                                timeMin: startOfToday,
+                                timeMin: fullSyncTimeMin,
                                 defaultTimeZoneID: calendar.timeZoneID
                             )
                         } catch GoogleAPIError.httpStatus(404, let body) {
@@ -398,17 +408,16 @@ actor SyncScheduler {
         settings: AppSettings
     ) -> Set<CalendarListMirror.ID> {
         let availableIDs = Set(calendars.map(\.id))
-        let requestedIDs = settings.selectedCalendarIDs.intersection(availableIDs)
-
         if settings.hasConfiguredCalendarSelection {
-            return requestedIDs
-        }
-
-        if requestedIDs.isEmpty == false {
-            return requestedIDs
+            return settings.selectedCalendarIDs.intersection(availableIDs)
         }
 
         return Set(calendars.filter(\.isSelected).map(\.id))
+    }
+
+    private static func retentionLowerBound(daysBack: Int, now: Date) -> Date? {
+        guard daysBack > 0 else { return nil }
+        return Calendar.current.date(byAdding: .day, value: -daysBack, to: now)
     }
 
     private func resolvedSelectedTaskListIDs(
@@ -448,7 +457,12 @@ actor SyncScheduler {
         return checkpointsByID
     }
 
-    private func mergeTasks(existing: [TaskMirror], results: [TaskListSyncResult]) -> [TaskMirror] {
+    private func mergeTasks(
+        existing: [TaskMirror],
+        results: [TaskListSyncResult],
+        completedTaskRetentionDaysBack: Int,
+        now: Date
+    ) -> [TaskMirror] {
         let fullSyncTaskListIDs = Set(results.filter(\.didFullSync).map(\.taskListID))
         var tasksByID: [TaskMirror.ID: TaskMirror] = [:]
 
@@ -467,8 +481,18 @@ actor SyncScheduler {
             tasksByID[task.id] = task
         }
 
+        let cutoff = Self.retentionLowerBound(daysBack: completedTaskRetentionDaysBack, now: now)
+
         return tasksByID.values
             .filter { $0.isDeleted == false } // purge tombstones post-merge
+            .filter { task in
+                guard let cutoff else { return true }
+                if OptimisticID.isPending(task.id) { return true }
+                guard task.isCompleted else { return true }
+                if let completedAt = task.completedAt, completedAt >= cutoff { return true }
+                if let updatedAt = task.updatedAt, updatedAt >= cutoff { return true }
+                return false
+            }
             .sorted { lhs, rhs in
                 (lhs.dueDate ?? lhs.updatedAt ?? .distantFuture) < (rhs.dueDate ?? rhs.updatedAt ?? .distantFuture)
             }

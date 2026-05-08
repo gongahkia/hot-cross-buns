@@ -275,6 +275,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var auditLogEncryptionEnabled: Bool // whether MutationAuditLog should encrypt history at rest
     var taskTemplates: [TaskTemplate] // §6.13 — local-only task templates with variable expansion
     var eventRetentionDaysBack: Int // §7.02 — drop events with endDate older than (now - N days) during sync merge; 0 = keep forever
+    var completedTaskRetentionDaysBack: Int // drop completed tasks older than (now - N days) during sync merge; 0 = keep forever
     var collapsedTaskListIDs: Set<TaskListMirror.ID> // §7.01 — task-list section IDs the user has folded shut in StoreView
     var multiDayCount: Int // §7.01 Phase D2 — day count for Multi-Day view (2-7, default 3)
     var quickCreateExpandedByDefault: Bool // §7.01 follow-up — show all QuickCreate fields up-front instead of behind [+ More]
@@ -376,6 +377,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         auditLogEncryptionEnabled: Bool = false,
         taskTemplates: [TaskTemplate] = [],
         eventRetentionDaysBack: Int = 365,
+        completedTaskRetentionDaysBack: Int = 365,
         collapsedTaskListIDs: Set<TaskListMirror.ID> = [],
         multiDayCount: Int = 3,
         quickCreateExpandedByDefault: Bool = true,
@@ -451,7 +453,8 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.cacheEncryptionEnabled = cacheEncryptionEnabled
         self.auditLogEncryptionEnabled = auditLogEncryptionEnabled
         self.taskTemplates = taskTemplates
-        self.eventRetentionDaysBack = eventRetentionDaysBack
+        self.eventRetentionDaysBack = max(0, min(eventRetentionDaysBack, 3650))
+        self.completedTaskRetentionDaysBack = max(0, min(completedTaskRetentionDaysBack, 3650))
         self.collapsedTaskListIDs = collapsedTaskListIDs
         self.multiDayCount = max(2, min(7, multiDayCount))
         self.quickCreateExpandedByDefault = quickCreateExpandedByDefault
@@ -529,6 +532,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case auditLogEncryptionEnabled
         case taskTemplates
         case eventRetentionDaysBack
+        case completedTaskRetentionDaysBack
         case collapsedTaskListIDs
         case multiDayCount
         case quickCreateExpandedByDefault
@@ -645,7 +649,10 @@ struct AppSettings: Hashable, Codable, Sendable {
         cacheEncryptionEnabled = try container.decodeIfPresent(Bool.self, forKey: .cacheEncryptionEnabled) ?? false
         auditLogEncryptionEnabled = try container.decodeIfPresent(Bool.self, forKey: .auditLogEncryptionEnabled) ?? false
         taskTemplates = try container.decodeIfPresent([TaskTemplate].self, forKey: .taskTemplates) ?? []
-        eventRetentionDaysBack = try container.decodeIfPresent(Int.self, forKey: .eventRetentionDaysBack) ?? 365
+        let rawEventRetention = try container.decodeIfPresent(Int.self, forKey: .eventRetentionDaysBack) ?? 365
+        eventRetentionDaysBack = max(0, min(rawEventRetention, 3650))
+        let rawCompletedTaskRetention = try container.decodeIfPresent(Int.self, forKey: .completedTaskRetentionDaysBack) ?? 365
+        completedTaskRetentionDaysBack = max(0, min(rawCompletedTaskRetention, 3650))
         collapsedTaskListIDs = try container.decodeIfPresent(Set<TaskListMirror.ID>.self, forKey: .collapsedTaskListIDs) ?? []
         let rawMultiDay = try container.decodeIfPresent(Int.self, forKey: .multiDayCount) ?? 3
         multiDayCount = max(2, min(7, rawMultiDay))

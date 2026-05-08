@@ -6,10 +6,14 @@ import SwiftUI
 // selection pipeline — no new backend plumbing.
 struct YearGridView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.hcbAppBackgroundConfiguration) private var backgroundConfiguration
     @Binding var anchorDate: Date
     let onPickDay: (Date) -> Void
 
     private let calendar = Calendar.current
+    private var usesReadableMonthBackings: Bool {
+        backgroundConfiguration.customImagePath != nil || backgroundConfiguration.isTranslucent
+    }
 
     private var year: Int {
         calendar.component(.year, from: anchorDate)
@@ -93,11 +97,15 @@ struct YearGridView: View {
         .hcbScaledPadding(10)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(AppColor.cream.opacity(0.25))
+                .fill(usesReadableMonthBackings ? AppColor.cardSurface.opacity(0.86) : AppColor.cream.opacity(0.25))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(AppColor.cream.opacity(usesReadableMonthBackings ? 0.14 : 0))
+                )
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(AppColor.cardStroke, lineWidth: 0.5)
+                .strokeBorder(AppColor.cardStroke.opacity(usesReadableMonthBackings ? 0.9 : 1), lineWidth: 0.5)
         )
     }
 

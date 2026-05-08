@@ -30,7 +30,9 @@ struct CalendarHomeView: View {
                 }
             )
             navigationBar
-            Divider()
+            if mode != .month {
+                Divider()
+            }
             contentArea
             .hcbSurface(.calendarGrid) // §6.11 — covers day/week/month/year/agenda subtree
         }

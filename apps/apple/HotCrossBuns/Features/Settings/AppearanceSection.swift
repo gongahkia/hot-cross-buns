@@ -43,6 +43,7 @@ struct AppearanceSection: View {
     @State private var isImportingScheme = false
     @State private var isImportingBackground = false
     @State private var backgroundImportError: String?
+    @State private var derivedBackgroundScheme: HCBCustomColorScheme?
 
     var body: some View {
         Section("Appearance") {
@@ -63,8 +64,29 @@ struct AppearanceSection: View {
         }
         .sheet(item: $editingCustomScheme) { scheme in
             CustomColorSchemeEditor(draft: scheme) { updated in
-                model.upsertCustomColorScheme(updated)
+                saveCustomScheme(updated)
             }
+            .withHCBAppearance(model.settings)
+            .hcbPreferredColorScheme(model.settings)
+        }
+        .sheet(item: $derivedBackgroundScheme) { scheme in
+            DerivedBackgroundThemeSheet(
+                scheme: scheme,
+                onSkip: {
+                    derivedBackgroundScheme = nil
+                },
+                onSave: {
+                    saveCustomScheme(scheme)
+                    derivedBackgroundScheme = nil
+                },
+                onTweak: {
+                    derivedBackgroundScheme = nil
+                    Task { @MainActor in
+                        await Task.yield()
+                        editingCustomScheme = scheme
+                    }
+                }
+            )
             .withHCBAppearance(model.settings)
             .hcbPreferredColorScheme(model.settings)
         }
@@ -97,6 +119,7 @@ struct AppearanceSection: View {
             do {
                 try model.importCustomBackground(from: url)
                 backgroundImportError = nil
+                deriveThemeFromCurrentBackground()
             } catch {
                 backgroundImportError = error.localizedDescription
             }
@@ -175,6 +198,12 @@ struct AppearanceSection: View {
                 }
 
                 if model.settings.customBackgroundImagePath != nil {
+                    Button {
+                        deriveThemeFromCurrentBackground()
+                    } label: {
+                        Label("Derive Theme", systemImage: "paintpalette")
+                    }
+
                     Button("Remove Image", role: .destructive) {
                         model.clearCustomBackground()
                     }
@@ -356,6 +385,23 @@ struct AppearanceSection: View {
         model.setColorSchemeID(replacement.id)
     }
 
+    private func deriveThemeFromCurrentBackground() {
+        guard let path = model.settings.customBackgroundImagePath else { return }
+        let url = URL(filePath: path)
+        let title = "\(url.deletingPathExtension().lastPathComponent) theme"
+        guard let scheme = BackgroundImageColorSchemeDeriver.derive(from: url, suggestedTitle: title) else {
+            backgroundImportError = "Could not derive a color scheme from that image."
+            return
+        }
+        backgroundImportError = nil
+        derivedBackgroundScheme = scheme
+    }
+
+    private func saveCustomScheme(_ scheme: HCBCustomColorScheme) {
+        baseColorSchemePreference = scheme.isDark ? HCBBaseColorSchemePreference.dark.rawValue : HCBBaseColorSchemePreference.light.rawValue
+        model.upsertCustomColorScheme(scheme)
+    }
+
     private var layoutScaleRow: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -467,5 +513,92 @@ private struct ColorSchemeSwatch: View {
         }
         .frame(width: 22, height: 22)
         .overlay(Circle().strokeBorder(scheme.cardStroke.swiftColor, lineWidth: 0.5))
+    }
+}
+
+private struct DerivedBackgroundThemeSheet: View {
+    let scheme: HCBCustomColorScheme
+    var onSkip: () -> Void
+    var onSave: () -> Void
+    var onTweak: () -> Void
+
+    private var colorScheme: HCBColorScheme {
+        scheme.colorScheme()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Create a theme from this image?")
+                    .hcbFont(.title3, weight: .semibold)
+                Text("Hot Cross Buns derived a custom palette from the selected background. You can save it now or tweak the values first.")
+                    .hcbFont(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 10) {
+                    ColorSchemeSwatch(scheme: colorScheme)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(scheme.title)
+                            .hcbFont(.body, weight: .semibold)
+                        Text(scheme.isDark ? "Dark theme" : "Light theme")
+                            .hcbFont(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    paletteChip("Accent", scheme.emberHex)
+                    paletteChip("Success", scheme.mossHex)
+                    paletteChip("Link", scheme.blueHex)
+                    paletteChip("Text", scheme.inkHex)
+                    paletteChip("Surface", scheme.creamHex)
+                    paletteChip("Border", scheme.cardStrokeHex)
+                }
+            }
+            .hcbScaledPadding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(colorScheme.cardSurface.swiftColor)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(colorScheme.cardStroke.swiftColor, lineWidth: 1)
+            )
+
+            HStack {
+                Button("Not Now") { onSkip() }
+                Spacer()
+                Button("Tweak & Save") { onTweak() }
+                Button("Save Theme") { onSave() }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .hcbScaledPadding(20)
+        .frame(width: 560)
+    }
+
+    private func paletteChip(_ title: String, _ hex: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color(hex: hex))
+                .frame(height: 18)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4)
+                        .strokeBorder(colorScheme.cardStroke.swiftColor.opacity(0.7), lineWidth: 0.6)
+                )
+            Text(title)
+                .hcbFont(.caption2, weight: .medium)
+                .foregroundStyle(colorScheme.ink.swiftColor)
+                .lineLimit(1)
+            Text(hex)
+                .hcbFont(.caption2)
+                .foregroundStyle(.secondary)
+                .monospaced()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

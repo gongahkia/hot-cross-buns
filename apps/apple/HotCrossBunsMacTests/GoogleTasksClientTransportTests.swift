@@ -173,6 +173,47 @@ final class GoogleTasksClientTransportTests: XCTestCase {
         XCTAssertNil(page.serverDate)
     }
 
+    func testListTasksUsesCompletedMinForFullSync() async throws {
+        let completedMin = Date(timeIntervalSince1970: 1_713_900_000)
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let queryItems = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let query = Dictionary(uniqueKeysWithValues: queryItems.map { ($0.name, $0.value ?? "") })
+            XCTAssertNil(query["updatedMin"])
+            XCTAssertEqual(query["completedMin"], ISO8601DateFormatter.google.string(from: completedMin))
+            return (response, #"{"items":[]}"#.data(using: .utf8)!)
+        }
+
+        let page = try await client.listTasks(taskListID: "list-1", updatedMin: nil, completedMin: completedMin)
+        XCTAssertEqual(page.tasks.count, 0)
+    }
+
+    func testListTasksUpdatedMinWinsOverCompletedMinForIncrementalSync() async throws {
+        let updatedMin = Date(timeIntervalSince1970: 1_713_900_000)
+        let completedMin = Date(timeIntervalSince1970: 1_700_000_000)
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let queryItems = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let query = Dictionary(uniqueKeysWithValues: queryItems.map { ($0.name, $0.value ?? "") })
+            XCTAssertEqual(query["updatedMin"], ISO8601DateFormatter.google.string(from: updatedMin))
+            XCTAssertNil(query["completedMin"])
+            return (response, #"{"items":[]}"#.data(using: .utf8)!)
+        }
+
+        let page = try await client.listTasks(taskListID: "list-1", updatedMin: updatedMin, completedMin: completedMin)
+        XCTAssertEqual(page.tasks.count, 0)
+    }
+
     func testTaskDueDateSerializedAsLocalDateString() async throws {
         var captured: Data?
         MockURLProtocol.requestHandler = { request in

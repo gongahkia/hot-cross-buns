@@ -22,6 +22,7 @@ final class CloudSyncControlTests: XCTestCase {
         let settings = try JSONDecoder().decode(AppSettings.self, from: data)
 
         XCTAssertEqual(settings.cloudSyncTargets, CloudSyncTarget.all)
+        XCTAssertEqual(settings.completedTaskRetentionDaysBack, 365)
     }
 
     func testCloudSyncTargetsRoundTripTaskOnlyMode() throws {
@@ -178,6 +179,171 @@ final class CloudSyncControlTests: XCTestCase {
         XCTAssertTrue(MockURLProtocol.capturedRequests.allSatisfy { $0.url?.path.hasPrefix("/calendar/") == false })
     }
 
+    func testSchedulerFollowsGoogleSelectedCalendarsUntilUserConfiguresSelection() async throws {
+        var settings = AppSettings.default
+        settings.cloudSyncTargets = [.events]
+        settings.hasConfiguredCalendarSelection = false
+        let state = baseState(settings: settings)
+        MockURLProtocol.requestHandler = { request in
+            let path = try XCTUnwrap(request.url?.path)
+            if path == "/calendar/v3/users/me/calendarList" {
+                return Self.jsonResponse(for: request, body: Self.calendarListWithHolidayJSON)
+            }
+            if path == "/calendar/v3/calendars/cal/events" || path == "/calendar/v3/calendars/sg-holidays/events" {
+                return Self.jsonResponse(for: request, body: Self.eventsJSON)
+            }
+            XCTFail("Unexpected path \(path)")
+            return Self.jsonResponse(for: request, body: #"{}"#, statusCode: 404)
+        }
+
+        let synced = try await makeScheduler().syncNow(mode: .balanced, baseState: state)
+
+        XCTAssertFalse(synced.settings.hasConfiguredCalendarSelection)
+        XCTAssertEqual(synced.settings.selectedCalendarIDs, ["cal", "sg-holidays"])
+        XCTAssertTrue(synced.calendars.first(where: { $0.id == "sg-holidays" })?.isSelected == true)
+        XCTAssertFalse(MockURLProtocol.capturedRequests.contains { $0.url?.path == "/calendar/v3/calendars/hidden/events" })
+    }
+
+    func testSchedulerKeepsExplicitCalendarSelectionWhenGoogleSelectsMoreCalendars() async throws {
+        var settings = AppSettings.default
+        settings.cloudSyncTargets = [.events]
+        settings.selectedCalendarIDs = ["cal"]
+        settings.hasConfiguredCalendarSelection = true
+        let state = baseState(settings: settings)
+        MockURLProtocol.requestHandler = { request in
+            let path = try XCTUnwrap(request.url?.path)
+            if path == "/calendar/v3/users/me/calendarList" {
+                return Self.jsonResponse(for: request, body: Self.calendarListWithHolidayJSON)
+            }
+            if path == "/calendar/v3/calendars/cal/events" {
+                return Self.jsonResponse(for: request, body: Self.eventsJSON)
+            }
+            XCTFail("Unexpected path \(path)")
+            return Self.jsonResponse(for: request, body: #"{}"#, statusCode: 404)
+        }
+
+        let synced = try await makeScheduler().syncNow(mode: .balanced, baseState: state)
+
+        XCTAssertTrue(synced.settings.hasConfiguredCalendarSelection)
+        XCTAssertEqual(synced.settings.selectedCalendarIDs, ["cal"])
+        XCTAssertFalse(MockURLProtocol.capturedRequests.contains { $0.url?.path == "/calendar/v3/calendars/sg-holidays/events" })
+    }
+
+    func testSchedulerUsesRetentionWindowsForFullSync() async throws {
+        var settings = AppSettings.default
+        settings.cloudSyncTargets = CloudSyncTarget.all
+        settings.eventRetentionDaysBack = 365
+        settings.completedTaskRetentionDaysBack = 180
+        settings.selectedTaskListIDs = ["list"]
+        settings.hasConfiguredTaskListSelection = true
+        settings.selectedCalendarIDs = ["cal"]
+        settings.hasConfiguredCalendarSelection = true
+        let state = baseState(settings: settings)
+        MockURLProtocol.requestHandler = { request in
+            let path = try XCTUnwrap(request.url?.path)
+            switch path {
+            case "/tasks/v1/users/@me/lists":
+                return Self.jsonResponse(for: request, body: Self.taskListsJSON)
+            case "/tasks/v1/lists/list/tasks":
+                let query = Self.query(for: request)
+                XCTAssertNil(query["updatedMin"])
+                XCTAssertNotNil(query["completedMin"])
+                return Self.jsonResponse(for: request, body: Self.tasksJSON)
+            case "/calendar/v3/users/me/calendarList":
+                return Self.jsonResponse(for: request, body: Self.calendarListJSON)
+            case "/calendar/v3/calendars/cal/events":
+                let query = Self.query(for: request)
+                XCTAssertNil(query["syncToken"])
+                XCTAssertNotNil(query["timeMin"])
+                return Self.jsonResponse(for: request, body: Self.eventsJSON)
+            default:
+                XCTFail("Unexpected path \(path)")
+                return Self.jsonResponse(for: request, body: #"{}"#, statusCode: 404)
+            }
+        }
+
+        _ = try await makeScheduler().syncNow(mode: .balanced, baseState: state)
+    }
+
+    func testSchedulerOmitsRetentionWindowsForForeverFullSync() async throws {
+        var settings = AppSettings.default
+        settings.cloudSyncTargets = CloudSyncTarget.all
+        settings.eventRetentionDaysBack = 0
+        settings.completedTaskRetentionDaysBack = 0
+        settings.selectedTaskListIDs = ["list"]
+        settings.hasConfiguredTaskListSelection = true
+        settings.selectedCalendarIDs = ["cal"]
+        settings.hasConfiguredCalendarSelection = true
+        let state = baseState(settings: settings)
+        MockURLProtocol.requestHandler = { request in
+            let path = try XCTUnwrap(request.url?.path)
+            switch path {
+            case "/tasks/v1/users/@me/lists":
+                return Self.jsonResponse(for: request, body: Self.taskListsJSON)
+            case "/tasks/v1/lists/list/tasks":
+                let query = Self.query(for: request)
+                XCTAssertNil(query["updatedMin"])
+                XCTAssertNil(query["completedMin"])
+                return Self.jsonResponse(for: request, body: Self.tasksJSON)
+            case "/calendar/v3/users/me/calendarList":
+                return Self.jsonResponse(for: request, body: Self.calendarListJSON)
+            case "/calendar/v3/calendars/cal/events":
+                let query = Self.query(for: request)
+                XCTAssertNil(query["syncToken"])
+                XCTAssertNil(query["timeMin"])
+                return Self.jsonResponse(for: request, body: Self.eventsJSON)
+            default:
+                XCTFail("Unexpected path \(path)")
+                return Self.jsonResponse(for: request, body: #"{}"#, statusCode: 404)
+            }
+        }
+
+        _ = try await makeScheduler().syncNow(mode: .balanced, baseState: state)
+    }
+
+    func testSchedulerPrunesOldCompletedTasksDuringIncrementalSync() async throws {
+        var settings = AppSettings.default
+        settings.cloudSyncTargets = [.tasks]
+        settings.completedTaskRetentionDaysBack = 30
+        settings.selectedTaskListIDs = ["list"]
+        settings.hasConfiguredTaskListSelection = true
+        var state = baseState(settings: settings)
+        state.tasks = [
+            Self.task(id: "old-completed", completedAt: Date().addingTimeInterval(-60 * 24 * 60 * 60), completed: true),
+            Self.task(id: "recent-completed", completedAt: Date().addingTimeInterval(-5 * 24 * 60 * 60), completed: true),
+            Self.task(id: "old-open", completedAt: nil, completed: false)
+        ]
+        state.syncCheckpoints = [
+            SyncCheckpoint(
+                id: SyncCheckpoint.stableID(accountID: GoogleAccount.preview.id, resourceType: .taskList, resourceID: "list"),
+                accountID: GoogleAccount.preview.id,
+                resourceType: .taskList,
+                resourceID: "list",
+                calendarSyncToken: nil,
+                tasksUpdatedMin: Date().addingTimeInterval(-60),
+                lastSuccessfulSyncAt: Date().addingTimeInterval(-60)
+            )
+        ]
+        MockURLProtocol.requestHandler = { request in
+            let path = try XCTUnwrap(request.url?.path)
+            if path == "/tasks/v1/users/@me/lists" {
+                return Self.jsonResponse(for: request, body: Self.taskListsJSON)
+            }
+            if path == "/tasks/v1/lists/list/tasks" {
+                let query = Self.query(for: request)
+                XCTAssertNotNil(query["updatedMin"])
+                XCTAssertNil(query["completedMin"])
+                return Self.jsonResponse(for: request, body: #"{"items":[]}"#)
+            }
+            XCTFail("Unexpected path \(path)")
+            return Self.jsonResponse(for: request, body: #"{}"#, statusCode: 404)
+        }
+
+        let synced = try await makeScheduler().syncNow(mode: .balanced, baseState: state)
+
+        XCTAssertEqual(Set(synced.tasks.map(\.id)), ["recent-completed", "old-open"])
+    }
+
     private func makeScheduler() -> SyncScheduler {
         let transport = GoogleAPITransport(
             baseURL: URL(string: "https://example.test")!,
@@ -254,6 +420,29 @@ final class CloudSyncControlTests: XCTestCase {
         return (response, Data(body.utf8))
     }
 
+    private static func query(for request: URLRequest) -> [String: String] {
+        let queryItems = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        return Dictionary(uniqueKeysWithValues: queryItems.map { ($0.name, $0.value ?? "") })
+    }
+
+    private static func task(id: String, completedAt: Date?, completed: Bool) -> TaskMirror {
+        TaskMirror(
+            id: id,
+            taskListID: "list",
+            parentID: nil,
+            title: id,
+            notes: "",
+            status: completed ? .completed : .needsAction,
+            dueDate: nil,
+            completedAt: completedAt,
+            isDeleted: false,
+            isHidden: false,
+            position: nil,
+            etag: "\(id)-etag",
+            updatedAt: completedAt
+        )
+    }
+
     private static let taskListsJSON = """
     {
       "items": [
@@ -283,6 +472,16 @@ final class CloudSyncControlTests: XCTestCase {
       "items": [
         {"id": "cal", "summary": "Work", "backgroundColor": "#000000", "selected": true, "accessRole": "owner", "etag": "cal-etag"},
         {"id": "missing-cal", "summary": "Missing", "backgroundColor": "#666666", "selected": true, "accessRole": "reader", "etag": "missing-etag"}
+      ]
+    }
+    """
+
+    private static let calendarListWithHolidayJSON = """
+    {
+      "items": [
+        {"id": "cal", "summary": "Work", "backgroundColor": "#000000", "selected": true, "accessRole": "owner", "etag": "cal-etag"},
+        {"id": "sg-holidays", "summary": "Singapore Holidays", "backgroundColor": "#0b8043", "selected": true, "accessRole": "reader", "etag": "holiday-etag"},
+        {"id": "hidden", "summary": "Hidden", "backgroundColor": "#666666", "selected": false, "accessRole": "reader", "etag": "hidden-etag"}
       ]
     }
     """
