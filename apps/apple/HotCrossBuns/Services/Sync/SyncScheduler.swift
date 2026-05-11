@@ -62,7 +62,11 @@ actor SyncScheduler {
             calendars = baseState.calendars
         }
         let selectedCalendarIDs = shouldSyncEvents
-            ? resolvedSelectedCalendarIDs(calendars: calendars, settings: baseState.settings)
+            ? resolvedSelectedCalendarIDs(
+                calendars: calendars,
+                previouslyKnownCalendars: baseState.calendars,
+                settings: baseState.settings
+            )
             : baseState.settings.selectedCalendarIDs
         let selectedTaskListIDs = shouldSyncTasks
             ? resolvedSelectedTaskListIDs(taskLists: taskLists, settings: baseState.settings)
@@ -369,47 +373,39 @@ actor SyncScheduler {
         [
             "stage": "calendar.events.list",
             "calendar": calendar.summary,
-            "calendarID": redactedIdentifier(calendar.id),
+            "calendarID": GoogleDiagnostics.redactedIdentifier(calendar.id),
             "accessRole": calendar.accessRole,
             "googleSelected": String(calendar.isSelected)
         ]
     }
 
     private static func syncErrorMetadata(_ error: Error, stage: String) -> [String: String] {
-        var metadata: [String: String] = [
-            "stage": stage,
-            "error": String(describing: error)
-        ]
-
-        if case let GoogleAPIError.httpStatus(status, body) = error {
-            metadata["status"] = String(status)
-            if let body, body.isEmpty == false {
-                metadata["body"] = String(body.prefix(500))
-            }
-        }
-
-        return metadata
-    }
-
-    private static func redactedIdentifier(_ value: String) -> String {
-        if let at = value.firstIndex(of: "@") {
-            let local = value[..<at]
-            let domain = value[value.index(after: at)...]
-            return "\(local.prefix(2))***@\(domain)"
-        }
-        if value.count <= 16 {
-            return value
-        }
-        return "\(value.prefix(8))...\(value.suffix(4))"
+        GoogleDiagnostics.errorMetadata(error, stage: stage)
     }
 
     private func resolvedSelectedCalendarIDs(
         calendars: [CalendarListMirror],
+        previouslyKnownCalendars: [CalendarListMirror],
         settings: AppSettings
     ) -> Set<CalendarListMirror.ID> {
         let availableIDs = Set(calendars.map(\.id))
         if settings.hasConfiguredCalendarSelection {
-            return settings.selectedCalendarIDs.intersection(availableIDs)
+            let requestedIDs = settings.selectedCalendarIDs.intersection(availableIDs)
+            let knownIDs = Set(previouslyKnownCalendars.map(\.id))
+            guard knownIDs.isEmpty == false else {
+                return requestedIDs
+            }
+
+            // Preserve explicit HCB exclusions, but do not strand a calendar
+            // that was just created in Google and already marked visible there.
+            let newlySelectedIDs = Set(
+                calendars
+                    .filter { calendar in
+                        calendar.isSelected && knownIDs.contains(calendar.id) == false
+                    }
+                    .map(\.id)
+            )
+            return requestedIDs.union(newlySelectedIDs)
         }
 
         return Set(calendars.filter(\.isSelected).map(\.id))

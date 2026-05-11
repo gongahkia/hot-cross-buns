@@ -353,6 +353,10 @@ private struct GeneralTab: View {
                     Text("Inspect logs, mutation history, sync queues, and support bundles.")
                         .hcbFont(.footnote)
                         .foregroundStyle(.secondary)
+                    Toggle("Include raw Google payloads in local logs", isOn: rawGoogleDiagnosticsBinding)
+                    Text("Off by default. When enabled, future local logs may include task and event payload snippets for troubleshooting; tokens are still redacted.")
+                        .hcbFont(.footnote)
+                        .foregroundStyle(.secondary)
                 }
                 .id(SettingsSectionAnchor.diagnostics)
 
@@ -459,6 +463,13 @@ private struct GeneralTab: View {
         Binding(
             get: { model.settings.completedTaskRetentionDaysBack },
             set: { model.setCompletedTaskRetentionDaysBack($0) }
+        )
+    }
+
+    private var rawGoogleDiagnosticsBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.rawGoogleDiagnosticsEnabled },
+            set: { model.setRawGoogleDiagnosticsEnabled($0) }
         )
     }
 

@@ -226,6 +226,7 @@ final class AppModel {
         self.loginItemController = loginItemController
         self.localBackupService = localBackupService
         self.settings = settings
+        GoogleDiagnostics.setRawPayloadLoggingEnabled(settings.rawGoogleDiagnosticsEnabled)
         self.customOAuthClientConfiguration = authService.customOAuthClientConfiguration
         self.opensAtLogin = loginItemController.isEnabled
         self.pastCleanupCoordinator = PastCleanupCoordinator(model: self)
@@ -480,7 +481,7 @@ final class AppModel {
             if let tokenError = error as? GoogleTokenRefreshError, tokenError.requiresReconnect {
                 authState = .failed(tokenError.localizedDescription)
             }
-            var meta: [String: String] = ["error": String(describing: error)]
+            var meta = GoogleDiagnostics.errorMetadata(error)
             if let httpStatus { meta["status"] = httpStatus }
             AppLogger.error("refresh failed", category: .sync, metadata: meta)
             syncState = .failed(message: error.localizedDescription)
@@ -557,7 +558,7 @@ final class AppModel {
                 parentID: parentID.flatMap { OptimisticID.isPending($0) ? nil : $0 }
             )
             let mutation = try PendingMutation.taskCreate(payload: payload)
-            pendingMutations.append(mutation)
+            enqueuePendingMutation(mutation)
             scheduleCacheSave()
         } catch {
             removeTask(id: localID)
@@ -1018,7 +1019,7 @@ final class AppModel {
                 etagSnapshot: task.etag
             )
             if let mutation = try? PendingMutation.taskUpdate(payload: payload) {
-                pendingMutations.append(mutation)
+                enqueuePendingMutation(mutation)
                 scheduleCacheSave()
                 await synchronizeLocalNotifications()
                 endMutation(error: nil)
@@ -1098,7 +1099,7 @@ final class AppModel {
                 etagSnapshot: task.etag
             )
             if let mutation = try? PendingMutation.taskCompletion(payload: payload) {
-                pendingMutations.append(mutation)
+                enqueuePendingMutation(mutation)
                 scheduleCacheSave()
                 await synchronizeLocalNotifications()
                 endMutation(error: nil)
@@ -1432,7 +1433,7 @@ final class AppModel {
                 etagSnapshot: task.etag
             )
             if let mutation = try? PendingMutation.taskDelete(payload: payload) {
-                pendingMutations.append(mutation)
+                enqueuePendingMutation(mutation)
                 scheduleCacheSave()
                 await synchronizeLocalNotifications()
                 endMutation(error: nil)
@@ -1546,7 +1547,7 @@ final class AppModel {
                 hcbTaskID: hcbTaskID
             )
             let mutation = try PendingMutation.eventCreate(payload: payload)
-            pendingMutations.append(mutation)
+            enqueuePendingMutation(mutation)
             scheduleCacheSave()
         } catch {
             removeEvent(id: localID)
@@ -1743,7 +1744,7 @@ final class AppModel {
                 hcbTaskID: hcbTaskID ?? event.hcbTaskID
             )
             if let mutation = try? PendingMutation.eventUpdate(payload: payload) {
-                pendingMutations.append(mutation)
+                enqueuePendingMutation(mutation)
                 scheduleCacheSave()
                 await synchronizeLocalNotifications()
                 endMutation(error: nil)
@@ -1815,7 +1816,7 @@ final class AppModel {
                 etagSnapshot: event.etag
             )
             if let mutation = try? PendingMutation.eventDelete(payload: payload) {
-                pendingMutations.append(mutation)
+                enqueuePendingMutation(mutation)
                 scheduleCacheSave()
                 await synchronizeLocalNotifications()
                 endMutation(error: nil)
@@ -1940,7 +1941,7 @@ final class AppModel {
                 etagSnapshot: event.etag
             )
             if let mutation = try? PendingMutation.eventDelete(payload: payload) {
-                pendingMutations.append(mutation)
+                enqueuePendingMutation(mutation)
                 scheduleCacheSave()
                 await synchronizeLocalNotifications()
                 endMutation(error: nil)
@@ -2390,6 +2391,15 @@ final class AppModel {
     func updateSettings(_ next: AppSettings) {
         guard settings != next else { return }
         settings = next
+        GoogleDiagnostics.setRawPayloadLoggingEnabled(settings.rawGoogleDiagnosticsEnabled)
+        scheduleCacheSave()
+    }
+
+    func setRawGoogleDiagnosticsEnabled(_ isEnabled: Bool) {
+        guard settings.rawGoogleDiagnosticsEnabled != isEnabled else { return }
+        settings.rawGoogleDiagnosticsEnabled = isEnabled
+        GoogleDiagnostics.setRawPayloadLoggingEnabled(isEnabled)
+        AppLogger.info("raw google diagnostics changed", category: .google, metadata: ["enabled": String(isEnabled)])
         scheduleCacheSave()
     }
 
@@ -3496,6 +3506,7 @@ final class AppModel {
                     processedIDs.insert(mutation.id)
                     continue
                 }
+                logReplayAttempt(mutation)
                 await replay(mutation)
                 processedIDs.insert(mutation.id)
             }
@@ -3521,7 +3532,7 @@ final class AppModel {
                 "id": mutationID.uuidString,
                 "resourceType": pendingMutations[idx].resourceType.rawValue,
                 "action": pendingMutations[idx].action.rawValue,
-                "error": error.localizedDescription
+                "error": GoogleDiagnostics.sanitizedErrorDescription(error)
             ])
         }
     }
@@ -3573,7 +3584,7 @@ final class AppModel {
             "id": mutationID.uuidString,
             "resourceType": pendingMutations[idx].resourceType.rawValue,
             "action": pendingMutations[idx].action.rawValue,
-            "error": error.localizedDescription
+            "error": GoogleDiagnostics.sanitizedErrorDescription(error)
         ])
     }
 
@@ -3587,7 +3598,7 @@ final class AppModel {
             "id": mutationID.uuidString,
             "resourceType": pendingMutations[idx].resourceType.rawValue,
             "action": pendingMutations[idx].action.rawValue,
-            "error": error.localizedDescription
+            "error": GoogleDiagnostics.sanitizedErrorDescription(error)
         ])
     }
 
@@ -3721,6 +3732,7 @@ final class AppModel {
             )
             removeTask(id: payload.localID)
             upsert(created)
+            logReplayAccepted(mutation, acceptedID: created.id)
             pendingMutations.removeAll { $0.id == mutation.id }
             scheduleCacheSave()
             await synchronizeLocalNotifications()
@@ -3754,6 +3766,7 @@ final class AppModel {
                 ifMatch: payload.etagSnapshot
             )
             upsert(updated)
+            logReplayAccepted(mutation, acceptedID: updated.id)
             pendingMutations.removeAll { $0.id == mutation.id }
             scheduleCacheSave()
             await synchronizeLocalNotifications()
@@ -3800,6 +3813,7 @@ final class AppModel {
             )
             let updated = try await tasksClient.setTaskCompleted(payload.isCompleted, task: stub)
             upsert(updated)
+            logReplayAccepted(mutation, acceptedID: updated.id)
             pendingMutations.removeAll { $0.id == mutation.id }
             scheduleCacheSave()
             await synchronizeLocalNotifications()
@@ -3831,6 +3845,7 @@ final class AppModel {
                 ifMatch: payload.etagSnapshot
             )
             removeTask(id: payload.taskID)
+            logReplayAccepted(mutation, acceptedID: payload.taskID)
             pendingMutations.removeAll { $0.id == mutation.id }
             scheduleCacheSave()
             await synchronizeLocalNotifications()
@@ -3877,6 +3892,7 @@ final class AppModel {
                 ifMatch: payload.etagSnapshot
             )
             upsert(updated)
+            logReplayAccepted(mutation, acceptedID: updated.id)
             pendingMutations.removeAll { $0.id == mutation.id }
             scheduleCacheSave()
             await synchronizeLocalNotifications()
@@ -3908,6 +3924,7 @@ final class AppModel {
                 ifMatch: payload.etagSnapshot
             )
             removeEvent(id: payload.eventID)
+            logReplayAccepted(mutation, acceptedID: payload.eventID)
             pendingMutations.removeAll { $0.id == mutation.id }
             scheduleCacheSave()
             await synchronizeLocalNotifications()
@@ -3953,6 +3970,7 @@ final class AppModel {
             )
             removeEvent(id: payload.localID)
             upsert(created)
+            logReplayAccepted(mutation, acceptedID: created.id)
             pendingMutations.removeAll { $0.id == mutation.id }
             scheduleCacheSave()
             await synchronizeLocalNotifications()
@@ -3991,6 +4009,158 @@ final class AppModel {
         return false
     }
 
+    private func enqueuePendingMutation(_ mutation: PendingMutation) {
+        pendingMutations.append(mutation)
+        AppLogger.info(
+            "mutation queued",
+            category: .mutation,
+            metadata: Self.mutationLogMetadata(mutation).merging([
+                "queuedCount": String(pendingMutations.count)
+            ]) { _, new in new }
+        )
+    }
+
+    private func logReplayAttempt(_ mutation: PendingMutation) {
+        AppLogger.info(
+            "mutation replay attempt",
+            category: .replay,
+            metadata: Self.mutationLogMetadata(mutation)
+        )
+    }
+
+    private func logReplayAccepted(_ mutation: PendingMutation, acceptedID: String? = nil) {
+        var metadata = Self.mutationLogMetadata(mutation)
+        if let acceptedID {
+            metadata["acceptedID"] = GoogleDiagnostics.redactedIdentifier(acceptedID)
+        }
+        AppLogger.info("mutation replay accepted", category: .replay, metadata: metadata)
+    }
+
+    private static func mutationLogMetadata(_ mutation: PendingMutation) -> [String: String] {
+        var metadata: [String: String] = [
+            "id": mutation.id.uuidString,
+            "resourceType": mutation.resourceType.rawValue,
+            "resourceID": GoogleDiagnostics.redactedIdentifier(mutation.resourceID),
+            "action": mutation.action.rawValue,
+            "attempt": String(mutation.attemptCount)
+        ]
+        metadata.merge(mutationPayloadMetadata(mutation)) { _, new in new }
+        return metadata
+    }
+
+    private static func mutationPayloadMetadata(_ mutation: PendingMutation) -> [String: String] {
+        switch (mutation.resourceType, mutation.action) {
+        case (.task, .create):
+            guard let payload = try? PendingMutationEncoder.decodeTaskCreate(mutation.payload) else { return ["payload": "decodeFailed"] }
+            return [
+                "taskListID": GoogleDiagnostics.redactedIdentifier(payload.taskListID),
+                "localID": GoogleDiagnostics.redactedIdentifier(payload.localID),
+                "hasNotes": String(payload.notes.isEmpty == false),
+                "hasDueDate": String(payload.dueDate != nil),
+                "hasParent": String(payload.parentID?.isEmpty == false)
+            ]
+        case (.task, .update):
+            guard let payload = try? PendingMutationEncoder.decodeTaskUpdate(mutation.payload) else { return ["payload": "decodeFailed"] }
+            return [
+                "taskListID": GoogleDiagnostics.redactedIdentifier(payload.taskListID),
+                "taskID": GoogleDiagnostics.redactedIdentifier(payload.taskID),
+                "hasNotes": String(payload.notes.isEmpty == false),
+                "hasDueDate": String(payload.dueDate != nil),
+                "hasIfMatch": String(payload.etagSnapshot?.isEmpty == false)
+            ]
+        case (.task, .completion):
+            guard let payload = try? PendingMutationEncoder.decodeTaskCompletion(mutation.payload) else { return ["payload": "decodeFailed"] }
+            return [
+                "taskListID": GoogleDiagnostics.redactedIdentifier(payload.taskListID),
+                "taskID": GoogleDiagnostics.redactedIdentifier(payload.taskID),
+                "isCompleted": String(payload.isCompleted),
+                "hasIfMatch": String(payload.etagSnapshot?.isEmpty == false)
+            ]
+        case (.task, .delete):
+            guard let payload = try? PendingMutationEncoder.decodeTaskDelete(mutation.payload) else { return ["payload": "decodeFailed"] }
+            return [
+                "taskListID": GoogleDiagnostics.redactedIdentifier(payload.taskListID),
+                "taskID": GoogleDiagnostics.redactedIdentifier(payload.taskID),
+                "hasIfMatch": String(payload.etagSnapshot?.isEmpty == false)
+            ]
+        case (.event, .create):
+            guard let payload = try? PendingMutationEncoder.decodeEventCreate(mutation.payload) else { return ["payload": "decodeFailed"] }
+            return eventPayloadMetadata(
+                calendarID: payload.calendarID,
+                eventID: payload.localID,
+                details: payload.details,
+                isAllDay: payload.isAllDay,
+                reminderMinutes: payload.reminderMinutes,
+                location: payload.location,
+                recurrence: payload.recurrence,
+                attendeeEmails: payload.attendeeEmails,
+                notifyGuests: payload.notifyGuests,
+                addGoogleMeet: payload.addGoogleMeet,
+                colorId: payload.colorId,
+                hcbTaskID: payload.hcbTaskID,
+                etag: nil
+            )
+        case (.event, .update):
+            guard let payload = try? PendingMutationEncoder.decodeEventUpdate(mutation.payload) else { return ["payload": "decodeFailed"] }
+            return eventPayloadMetadata(
+                calendarID: payload.calendarID,
+                eventID: payload.eventID,
+                details: payload.details,
+                isAllDay: payload.isAllDay,
+                reminderMinutes: payload.reminderMinutes,
+                location: payload.location,
+                recurrence: payload.recurrence,
+                attendeeEmails: payload.attendeeEmails,
+                notifyGuests: payload.notifyGuests,
+                addGoogleMeet: payload.addGoogleMeet,
+                colorId: payload.colorId,
+                hcbTaskID: payload.hcbTaskID,
+                etag: payload.etagSnapshot
+            )
+        case (.event, .delete):
+            guard let payload = try? PendingMutationEncoder.decodeEventDelete(mutation.payload) else { return ["payload": "decodeFailed"] }
+            return [
+                "calendarID": GoogleDiagnostics.redactedIdentifier(payload.calendarID),
+                "eventID": GoogleDiagnostics.redactedIdentifier(payload.eventID),
+                "hasIfMatch": String(payload.etagSnapshot?.isEmpty == false)
+            ]
+        default:
+            return [:]
+        }
+    }
+
+    private static func eventPayloadMetadata(
+        calendarID: String,
+        eventID: String,
+        details: String,
+        isAllDay: Bool,
+        reminderMinutes: Int?,
+        location: String,
+        recurrence: [String],
+        attendeeEmails: [String],
+        notifyGuests: Bool,
+        addGoogleMeet: Bool,
+        colorId: String?,
+        hcbTaskID: String?,
+        etag: String?
+    ) -> [String: String] {
+        [
+            "calendarID": GoogleDiagnostics.redactedIdentifier(calendarID),
+            "eventID": GoogleDiagnostics.redactedIdentifier(eventID),
+            "hasDetails": String(details.isEmpty == false),
+            "isAllDay": String(isAllDay),
+            "hasReminder": String(reminderMinutes != nil),
+            "hasLocation": String(location.isEmpty == false),
+            "recurrenceCount": String(recurrence.count),
+            "attendeeCount": String(attendeeEmails.count),
+            "notifyGuests": String(notifyGuests),
+            "addGoogleMeet": String(addGoogleMeet),
+            "hasColor": String(colorId?.isEmpty == false),
+            "hasHCBTask": String(hcbTaskID?.isEmpty == false),
+            "hasIfMatch": String(etag?.isEmpty == false)
+        ]
+    }
+
     private func beginMutation() {
         mutationCount += 1
         lastMutationError = nil
@@ -4004,10 +4174,7 @@ final class AppModel {
             if syncFailureKind == .authRequired {
                 authState = .failed(error.localizedDescription)
             }
-            var meta: [String: String] = ["error": String(describing: error)]
-            if case let GoogleAPIError.httpStatus(status, _) = error {
-                meta["status"] = String(status)
-            }
+            let meta = GoogleDiagnostics.errorMetadata(error)
             AppLogger.warn("mutation failed", category: .mutation, metadata: meta)
         } else if mutationCount == 0 {
             syncFailureKind = nil
@@ -4204,6 +4371,7 @@ final class AppModel {
         calendars = state.calendars
         events = state.events
         settings = state.settings
+        GoogleDiagnostics.setRawPayloadLoggingEnabled(settings.rawGoogleDiagnosticsEnabled)
         syncCheckpoints = state.syncCheckpoints
         pendingMutations = state.pendingMutations
         HCBColorSchemeStore.current = HCBColorScheme.scheme(id: settings.colorSchemeID, customSchemes: settings.customColorSchemes) ?? .notion

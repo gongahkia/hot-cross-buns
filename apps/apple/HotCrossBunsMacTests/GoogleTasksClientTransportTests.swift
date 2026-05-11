@@ -11,6 +11,8 @@ final class GoogleTasksClientTransportTests: XCTestCase {
     override func setUp() {
         super.setUp()
         MockURLProtocol.reset()
+        GoogleDiagnostics.setRawPayloadLoggingEnabled(false)
+        AppLogger.shared.clearInMemoryEntries()
         let transport = GoogleAPITransport(
             baseURL: URL(string: "https://www.googleapis.com")!,
             tokenProvider: StaticAccessTokenProvider(token: "test-token"),
@@ -20,6 +22,9 @@ final class GoogleTasksClientTransportTests: XCTestCase {
     }
 
     override func tearDown() {
+        AppLogger.shared.flush()
+        AppLogger.shared.clearInMemoryEntries()
+        GoogleDiagnostics.setRawPayloadLoggingEnabled(false)
         MockURLProtocol.reset()
         super.tearDown()
     }
@@ -257,5 +262,110 @@ final class GoogleTasksClientTransportTests: XCTestCase {
             string.contains("\"due\":\"2026-04-"),
             "Body should encode due as a date-only yyyy-MM-dd string; got \(string)"
         )
+    }
+
+    func testGoogleTransportLogsSanitizedRequestAndResponseSummariesByDefault() async throws {
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let body = #"{"id":"srv-1","title":"Sensitive Task","notes":"Secret Body","status":"needsAction"}"#
+            return (response, Data(body.utf8))
+        }
+
+        _ = try await client.insertTask(
+            taskListID: "list-xyz",
+            title: "Sensitive Task",
+            notes: "Secret Body",
+            dueDate: nil
+        )
+
+        let log = googleLogText()
+        XCTAssertTrue(log.contains("google request start"))
+        XCTAssertTrue(log.contains("google request succeeded"))
+        XCTAssertTrue(log.contains("method=POST"))
+        XCTAssertTrue(log.contains("endpoint=tasks.tasks"))
+        XCTAssertTrue(log.contains("/tasks/v1/lists/<list:"))
+        XCTAssertTrue(log.contains("queryNames=none"))
+        XCTAssertTrue(log.contains("status=200"))
+        XCTAssertTrue(log.contains("requestFields=notes,title"))
+        XCTAssertTrue(log.contains("responseFields=id,notes,status,title"))
+        XCTAssertFalse(log.contains("Bearer"))
+        XCTAssertFalse(log.contains("test-token"))
+        XCTAssertFalse(log.contains("Sensitive Task"))
+        XCTAssertFalse(log.contains("Secret Body"))
+        XCTAssertFalse(log.contains("requestBodySnippet"))
+        XCTAssertFalse(log.contains("responseBodySnippet"))
+    }
+
+    func testGoogleTransportRawModeAddsLocalPayloadSnippetsWithoutAuthTokens() async throws {
+        GoogleDiagnostics.setRawPayloadLoggingEnabled(true)
+        XCTAssertTrue(GoogleDiagnostics.isRawPayloadLoggingEnabled)
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let body = #"{"id":"srv-raw","title":"Raw Task","status":"needsAction"}"#
+            return (response, Data(body.utf8))
+        }
+
+        _ = try await client.insertTask(
+            taskListID: "list-raw",
+            title: "Raw Task",
+            notes: "Raw Notes",
+            dueDate: nil
+        )
+
+        let log = googleLogText()
+        XCTAssertTrue(log.contains("requestBodySnippet="), log)
+        XCTAssertTrue(log.contains("responseBodySnippet="), log)
+        XCTAssertTrue(log.contains("Raw Task"), log)
+        XCTAssertTrue(log.contains("Raw Notes"), log)
+        XCTAssertTrue(log.contains("requestBodySnippetTruncated=false"), log)
+        XCTAssertTrue(log.contains("responseBodySnippetTruncated=false"), log)
+        XCTAssertFalse(log.contains("Bearer test-token"))
+        XCTAssertFalse(log.contains("test-token"))
+    }
+
+    func testGoogleTransportFailureLogsStatusWithoutRawResponseBodyByDefault() async throws {
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 500,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let body = #"{"error":"Server says Secret Body"}"#
+            return (response, Data(body.utf8))
+        }
+
+        do {
+            try await client.deleteTask(taskListID: "list-1", taskID: "task-1")
+            XCTFail("Expected HTTP failure")
+        } catch let error as GoogleAPIError {
+            XCTAssertEqual(error, .httpStatus(500, #"{"error":"Server says Secret Body"}"#))
+        }
+
+        let log = googleLogText()
+        XCTAssertTrue(log.contains("google request failed"))
+        XCTAssertTrue(log.contains("status=500"))
+        XCTAssertTrue(log.contains("responseBytes="))
+        XCTAssertFalse(log.contains("Server says Secret Body"))
+        XCTAssertFalse(log.contains("responseBodySnippet"))
+    }
+
+    private func googleLogText() -> String {
+        AppLogger.shared.flush()
+        return AppLogger.shared
+            .recentEntries(limit: 100, minimumLevel: .debug)
+            .filter { $0.category == .google }
+            .map { $0.formattedLine() }
+            .joined(separator: "\n")
     }
 }

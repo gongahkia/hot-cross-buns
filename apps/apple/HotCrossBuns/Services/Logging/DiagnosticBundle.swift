@@ -6,12 +6,14 @@ struct DiagnosticBundleEnvironment {
     var bundle: Bundle
     var loadPersistedLog: @Sendable () -> String
     var readLastCrash: @Sendable () -> String?
+    var logDirectoryPath: @Sendable () -> String? = { nil }
 
     static let live = DiagnosticBundleEnvironment(
         now: { Date() },
         bundle: .main,
         loadPersistedLog: { AppLogger.shared.loadPersistedLog() },
-        readLastCrash: { CrashReporter.readLastCrash() }
+        readLastCrash: { CrashReporter.readLastCrash() },
+        logDirectoryPath: { AppLogger.shared.logDirectoryURL()?.path }
     )
 }
 
@@ -40,7 +42,12 @@ enum DiagnosticBundle {
         let build = environment.bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
         sections.append("Version: \(version) (build \(build))")
         sections.append("")
-        sections.append(summarySection(model: model, cachePath: cachePath, notificationSummary: notificationSummary))
+        sections.append(summarySection(
+            model: model,
+            cachePath: cachePath,
+            notificationSummary: notificationSummary,
+            logDirectoryPath: environment.logDirectoryPath()
+        ))
         sections.append("")
         sections.append("=== Pending Mutations (\(model.pendingMutations.count)) ===")
         if model.pendingMutations.isEmpty {
@@ -51,7 +58,7 @@ enum DiagnosticBundle {
             }
         }
         sections.append("")
-        sections.append("=== Recent Logs (info+) ===")
+        sections.append("=== Recent Logs (info+, all rotations) ===")
         let logFile = environment.loadPersistedLog()
         sections.append(logFile.isEmpty ? "(no persisted entries yet)" : logFile)
         sections.append("")
@@ -91,7 +98,12 @@ enum DiagnosticBundle {
     }
 
     @MainActor
-    private static func summarySection(model: AppModel, cachePath: String, notificationSummary: NotificationScheduleSummary?) -> String {
+    private static func summarySection(
+        model: AppModel,
+        cachePath: String,
+        notificationSummary: NotificationScheduleSummary?,
+        logDirectoryPath: String?
+    ) -> String {
         var lines: [String] = ["=== Summary ==="]
         lines.append("Auth state: \(model.authState.title)")
         if let account = model.account {
@@ -109,6 +121,8 @@ enum DiagnosticBundle {
         lines.append("Cache path: \(cachePath)")
         lines.append("Onboarding complete: \(model.settings.hasCompletedOnboarding)")
         lines.append("Local reminders: \(model.settings.enableLocalNotifications)")
+        lines.append("Raw Google payload logs: \(model.settings.rawGoogleDiagnosticsEnabled ? "Enabled" : "Disabled")")
+        lines.append("Log folder: \(logDirectoryPath ?? "Unavailable")")
         if let summary = notificationSummary {
             lines.append("Reminders scheduled: events=\(summary.scheduledEvents) tasks=\(summary.scheduledTasks) deferred_events=\(summary.deferredEvents) deferred_tasks=\(summary.deferredTasks) window=\(summary.windowDays)d")
         }

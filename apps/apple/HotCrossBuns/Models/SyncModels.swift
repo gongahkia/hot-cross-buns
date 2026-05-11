@@ -273,6 +273,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var perSurfaceFontOverrides: [String: HCBSurfaceFontOverride] // HCBSurface.rawValue → override
     var cacheEncryptionEnabled: Bool // §6.12 — whether LocalCacheStore should encrypt at rest
     var auditLogEncryptionEnabled: Bool // whether MutationAuditLog should encrypt history at rest
+    var rawGoogleDiagnosticsEnabled: Bool // local-only raw Google payload snippets in Diagnostics logs
     var taskTemplates: [TaskTemplate] // §6.13 — local-only task templates with variable expansion
     var eventRetentionDaysBack: Int // §7.02 — drop events with endDate older than (now - N days) during sync merge; 0 = keep forever
     var completedTaskRetentionDaysBack: Int // drop completed tasks older than (now - N days) during sync merge; 0 = keep forever
@@ -375,6 +376,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         perSurfaceFontOverrides: [String: HCBSurfaceFontOverride] = [:],
         cacheEncryptionEnabled: Bool = false,
         auditLogEncryptionEnabled: Bool = false,
+        rawGoogleDiagnosticsEnabled: Bool = false,
         taskTemplates: [TaskTemplate] = [],
         eventRetentionDaysBack: Int = 365,
         completedTaskRetentionDaysBack: Int = 365,
@@ -452,6 +454,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.perSurfaceFontOverrides = perSurfaceFontOverrides
         self.cacheEncryptionEnabled = cacheEncryptionEnabled
         self.auditLogEncryptionEnabled = auditLogEncryptionEnabled
+        self.rawGoogleDiagnosticsEnabled = rawGoogleDiagnosticsEnabled
         self.taskTemplates = taskTemplates
         self.eventRetentionDaysBack = max(0, min(eventRetentionDaysBack, 3650))
         self.completedTaskRetentionDaysBack = max(0, min(completedTaskRetentionDaysBack, 3650))
@@ -530,6 +533,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case perSurfaceFontOverrides
         case cacheEncryptionEnabled
         case auditLogEncryptionEnabled
+        case rawGoogleDiagnosticsEnabled
         case taskTemplates
         case eventRetentionDaysBack
         case completedTaskRetentionDaysBack
@@ -648,6 +652,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         perSurfaceFontOverrides = try container.decodeIfPresent([String: HCBSurfaceFontOverride].self, forKey: .perSurfaceFontOverrides) ?? [:]
         cacheEncryptionEnabled = try container.decodeIfPresent(Bool.self, forKey: .cacheEncryptionEnabled) ?? false
         auditLogEncryptionEnabled = try container.decodeIfPresent(Bool.self, forKey: .auditLogEncryptionEnabled) ?? false
+        rawGoogleDiagnosticsEnabled = try container.decodeIfPresent(Bool.self, forKey: .rawGoogleDiagnosticsEnabled) ?? false
         taskTemplates = try container.decodeIfPresent([TaskTemplate].self, forKey: .taskTemplates) ?? []
         let rawEventRetention = try container.decodeIfPresent(Int.self, forKey: .eventRetentionDaysBack) ?? 365
         eventRetentionDaysBack = max(0, min(rawEventRetention, 3650))
