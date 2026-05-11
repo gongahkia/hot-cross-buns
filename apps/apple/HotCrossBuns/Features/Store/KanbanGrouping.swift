@@ -33,7 +33,7 @@ enum KanbanColumnMode: String, CaseIterable, Hashable, Codable, Sendable {
 // fire when a card is dropped onto this column. nil ⇒ not a drop target
 // (derived columns where dropping has no clear semantics, e.g. "Untagged"
 // under byTag).
-struct KanbanColumn: Identifiable, Equatable {
+struct KanbanColumn: Identifiable, Equatable, Sendable {
     let id: String
     let title: String
     let subtitle: String?
@@ -41,7 +41,7 @@ struct KanbanColumn: Identifiable, Equatable {
     let dropIntent: KanbanDropIntent?
 }
 
-enum KanbanDropIntent: Equatable {
+enum KanbanDropIntent: Equatable, Sendable {
     case moveToList(listId: String)
     case setDue(date: Date?)
     case setTag(add: String?, remove: String?)
