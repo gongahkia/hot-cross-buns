@@ -1,9 +1,10 @@
 import SwiftUI
+import AppKit
+import QuartzCore
 
 struct LoadingView: View {
     let message: String
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isAnimating = false
 
     var body: some View {
         ZStack {
@@ -12,16 +13,7 @@ struct LoadingView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 16) {
-                Image("LoadingBunsWelcome")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 104, height: 104)
-                    .rotationEffect(reduceMotion ? .zero : .degrees(isAnimating ? 360 : 0))
-                    .animation(
-                        reduceMotion ? nil : .linear(duration: 1.25).repeatForever(autoreverses: false),
-                        value: isAnimating
-                    )
-                    .accessibilityHidden(true)
+                LoadingBunsIcon(reduceMotion: reduceMotion)
 
                 Text(message)
                     .hcbFont(.headline)
@@ -30,7 +22,114 @@ struct LoadingView: View {
             }
             .padding(28)
         }
-        .onAppear { isAnimating = true }
+    }
+}
+
+private struct LoadingBunsIcon: View {
+    let reduceMotion: Bool
+
+    var body: some View {
+        Group {
+            if reduceMotion {
+                Image("LoadingBunsWelcome")
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                CoreAnimationLoadingBunsIcon()
+            }
+        }
+        .frame(width: 104, height: 104)
+        .accessibilityHidden(true)
+    }
+}
+
+private struct CoreAnimationLoadingBunsIcon: NSViewRepresentable {
+    func makeNSView(context: Context) -> RotatingLoadingBunsView {
+        let view = RotatingLoadingBunsView()
+        view.startAnimating()
+        return view
+    }
+
+    func updateNSView(_ nsView: RotatingLoadingBunsView, context: Context) {
+        nsView.startAnimating()
+    }
+
+    static func dismantleNSView(_ nsView: RotatingLoadingBunsView, coordinator: ()) {
+        nsView.stopAnimating()
+    }
+}
+
+private final class RotatingLoadingBunsView: NSView {
+    private static let animationKey = "hcb.loadingBuns.rotation"
+    private let imageLayer = CALayer()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        setAccessibilityElement(false)
+        imageLayer.contentsGravity = .resizeAspect
+        imageLayer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        imageLayer.contents = Self.loadingImage()
+        layer?.addSublayer(imageLayer)
+        updateContentsScale()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: 104, height: 104)
+    }
+
+    override func layout() {
+        super.layout()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        let side = min(bounds.width, bounds.height)
+        imageLayer.bounds = CGRect(x: 0, y: 0, width: side, height: side)
+        imageLayer.position = CGPoint(x: bounds.midX, y: bounds.midY)
+        CATransaction.commit()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateContentsScale()
+        if window == nil {
+            stopAnimating()
+        } else {
+            startAnimating()
+        }
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        updateContentsScale()
+    }
+
+    func startAnimating() {
+        guard imageLayer.animation(forKey: Self.animationKey) == nil else { return }
+        let animation = CABasicAnimation(keyPath: "transform.rotation.z")
+        animation.fromValue = 0
+        animation.toValue = CGFloat.pi * 2
+        animation.duration = 1.25
+        animation.repeatCount = .infinity
+        animation.timingFunction = CAMediaTimingFunction(name: .linear)
+        animation.isRemovedOnCompletion = false
+        imageLayer.add(animation, forKey: Self.animationKey)
+    }
+
+    func stopAnimating() {
+        imageLayer.removeAnimation(forKey: Self.animationKey)
+    }
+
+    private func updateContentsScale() {
+        imageLayer.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+    }
+
+    private static func loadingImage() -> CGImage? {
+        NSImage(named: "LoadingBunsWelcome")?.cgImage(forProposedRect: nil, context: nil, hints: nil)
     }
 }
 
