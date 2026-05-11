@@ -12,9 +12,10 @@ enum CacheSchemaMigrator {
     // `target`. No-op migrations return the target version so the caller
     // can stamp-forward the in-memory model.
     //
-    // There are no non-trivial migrations yet — v0 (pre-versioning) and
-    // v1 share the same field set. Future versions add per-step handlers
-    // here:
+    // There are no non-trivial migrations yet. v0 (pre-versioning) and
+    // v1 share the same field set; v2 adds account catalog fields derived
+    // from the legacy active account; v3 adds account workspaces and stamps
+    // the active root payload into the active workspace during decode.
     //
     //     case (0, let tgt):
     //         // v0 → v1: transform whatever changed

@@ -1,6 +1,10 @@
 import GoogleSignInSwift
 import SwiftUI
 
+private enum SettingsWindowLayout {
+    static let contentMaxWidth: CGFloat = 1_408
+}
+
 // Top-level detached Settings window. Opened via the Settings scene in
 // HotCrossBunsApp.swift (⌘, auto-wired by macOS). Layout matches Apple
 // Calendar / Mail — a top tab bar with focused categories, content below.
@@ -32,6 +36,10 @@ struct HCBSettingsWindow: View {
                 )
                 .tabItem { Label("General", systemImage: "gearshape") }
                 .tag(SettingsSearchTab.general)
+
+                ProfileTab(highlightedAnchor: highlightedAnchor)
+                .tabItem { Label("Profile", systemImage: "person.crop.circle") }
+                .tag(SettingsSearchTab.profile)
 
                 AppearanceTab(highlightedAnchor: highlightedAnchor)
                 .tabItem { Label("Appearance", systemImage: "paintbrush") }
@@ -109,36 +117,41 @@ struct HCBSettingsWindow: View {
     }
 
     private var settingsSearchBar: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                TextField("Search settings", text: $settingsQuery)
-                    .textFieldStyle(.plain)
-                    .focused($isSettingsSearchFocused)
-                if settingsQuery.isEmpty == false {
-                    Button {
-                        settingsQuery = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Search settings", text: $settingsQuery)
+                        .textFieldStyle(.plain)
+                        .focused($isSettingsSearchFocused)
+                    if settingsQuery.isEmpty == false {
+                        Button {
+                            settingsQuery = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .keyboardShortcut(.cancelAction)
+                        .help("Clear search")
                     }
-                    .buttonStyle(.plain)
-                    .keyboardShortcut(.cancelAction)
-                    .help("Clear search")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+
+                if settingsQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                    settingsSearchResults
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
-
-            if settingsQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
-                settingsSearchResults
-            }
+            .frame(maxWidth: SettingsWindowLayout.contentMaxWidth, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, settingsQuery.isEmpty ? 8 : 10)
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 14)
-        .padding(.bottom, settingsQuery.isEmpty ? 8 : 10)
+        .frame(maxWidth: .infinity)
         .background(.bar)
         .onAppear {
             isSettingsSearchFocused = true
@@ -267,6 +280,45 @@ struct HCBSettingsWindow: View {
     }
 }
 
+// MARK: - Profile tab
+
+private struct ProfileTab: View {
+    @Environment(AppModel.self) private var model
+    let highlightedAnchor: SettingsSectionAnchor?
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            Form {
+                Section("Google OAuth client") {
+                    SettingsHighlightRow(anchor: .profileOAuth, highlightedAnchor: highlightedAnchor)
+                    GoogleOAuthClientSetupView()
+                }
+                .id(SettingsSectionAnchor.profileOAuth)
+
+                Section("Google accounts") {
+                    SettingsHighlightRow(anchor: .profileAccounts, highlightedAnchor: highlightedAnchor)
+                    AccountStatusView(
+                        authState: model.authState,
+                        account: model.account,
+                        accounts: model.connectedAccounts,
+                        activeAccountID: model.activeAccountID,
+                        canConnect: model.isGoogleAuthConfigured,
+                        connect: { Task { await model.connectGoogleAccount() } },
+                        disconnect: { Task { await model.disconnectGoogleAccount() } },
+                        switchAccount: { accountID in Task { await model.switchGoogleAccount(to: accountID) } },
+                        disconnectAccount: { accountID in Task { await model.disconnectGoogleAccount(id: accountID) } }
+                    )
+                }
+                .id(SettingsSectionAnchor.profileAccounts)
+            }
+            .formStyle(.grouped)
+            .onChange(of: highlightedAnchor) { _, anchor in
+                scroll(proxy, to: anchor, allowed: [.profileOAuth, .profileAccounts])
+            }
+        }
+    }
+}
+
 // MARK: - About tab
 
 private struct AboutTab: View {
@@ -322,24 +374,6 @@ private struct GeneralTab: View {
     var body: some View {
         ScrollViewReader { proxy in
             Form {
-                Section("Google OAuth client") {
-                    SettingsHighlightRow(anchor: .googleOAuth, highlightedAnchor: highlightedAnchor)
-                    GoogleOAuthClientSetupView()
-                }
-                .id(SettingsSectionAnchor.googleOAuth)
-
-                Section("Google account") {
-                    SettingsHighlightRow(anchor: .googleAccount, highlightedAnchor: highlightedAnchor)
-                    AccountStatusView(
-                        authState: model.authState,
-                        account: model.account,
-                        canConnect: model.isGoogleAuthConfigured,
-                        connect: { Task { await model.connectGoogleAccount() } },
-                        disconnect: { Task { await model.disconnectGoogleAccount() } }
-                    )
-                }
-                .id(SettingsSectionAnchor.googleAccount)
-
                 OpenAtLoginSection()
                     .id(SettingsSectionAnchor.openAtLogin)
 
@@ -440,7 +474,7 @@ private struct GeneralTab: View {
             }
             .formStyle(.grouped)
             .onChange(of: highlightedAnchor) { _, anchor in
-                scroll(proxy, to: anchor, allowed: [.googleOAuth, .googleAccount, .openAtLogin, .diagnostics, .sync])
+                scroll(proxy, to: anchor, allowed: [.openAtLogin, .diagnostics, .sync])
             }
         }
     }

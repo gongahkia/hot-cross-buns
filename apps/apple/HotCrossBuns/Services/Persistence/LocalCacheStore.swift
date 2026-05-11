@@ -109,14 +109,14 @@ actor LocalCacheStore {
                 }
                 let plaintext = try HCBCacheCrypto.decrypt(envelope.encryptedV1, key: key)
                 var state = try JSONDecoder.cachedAppState.decode(CachedAppState.self, from: plaintext)
-                state.events = mergeEventsFromSidecar(into: state.events)
+                state = mergeEventsFromSidecar(into: state)
                 lastLoadWarning = nil
                 cachedState = state
                 lastEventsHash = nil
                 return state
             }
             var state = try JSONDecoder.cachedAppState.decode(CachedAppState.self, from: data)
-            state.events = mergeEventsFromSidecar(into: state.events)
+            state = mergeEventsFromSidecar(into: state)
             lastLoadWarning = nil
             cachedState = state
             lastEventsHash = nil
@@ -162,10 +162,12 @@ actor LocalCacheStore {
             if let envelope = try? JSONDecoder.cachedAppState.decode(EncryptedEnvelope.self, from: data),
                let key = encryptionKey,
                let plaintext = try? HCBCacheCrypto.decrypt(envelope.encryptedV1, key: key),
-               let state = try? JSONDecoder.cachedAppState.decode(CachedAppState.self, from: plaintext) {
+               var state = try? JSONDecoder.cachedAppState.decode(CachedAppState.self, from: plaintext) {
+                state = mergeEventsFromSidecar(into: state)
                 return state
             }
-            if let state = try? JSONDecoder.cachedAppState.decode(CachedAppState.self, from: data) {
+            if var state = try? JSONDecoder.cachedAppState.decode(CachedAppState.self, from: data) {
+                state = mergeEventsFromSidecar(into: state)
                 return state
             }
         }
@@ -178,6 +180,38 @@ actor LocalCacheStore {
     // the legacy decode path cleanly.
     fileprivate struct EncryptedEnvelope: Codable {
         let encryptedV1: HCBCacheCrypto.EncryptedBlob
+    }
+
+    fileprivate struct CacheEventsPayload: Codable {
+        var activeEvents: [CalendarEventMirror]
+        var workspaceEventsByAccountID: [GoogleAccount.ID: [CalendarEventMirror]]
+
+        init(activeEvents: [CalendarEventMirror], workspaceEventsByAccountID: [GoogleAccount.ID: [CalendarEventMirror]]) {
+            self.activeEvents = activeEvents
+            self.workspaceEventsByAccountID = workspaceEventsByAccountID
+        }
+
+        init(state: CachedAppState) {
+            activeEvents = state.events
+            workspaceEventsByAccountID = Dictionary(
+                uniqueKeysWithValues: state.accountWorkspaces.map { ($0.accountID, $0.events) }
+            )
+        }
+
+        func applying(to state: CachedAppState) -> CachedAppState {
+            var state = state
+            state.events = activeEvents
+            state.accountWorkspaces = state.accountWorkspaces.map { workspace in
+                var workspace = workspace
+                if let events = workspaceEventsByAccountID[workspace.accountID] {
+                    workspace.events = events
+                } else if workspace.accountID == state.activeAccountID {
+                    workspace.events = activeEvents
+                }
+                return workspace
+            }
+            return state
+        }
     }
 
     private func snapshotURL(at index: Int, basedOn fileURL: URL) -> URL {
@@ -224,10 +258,9 @@ actor LocalCacheStore {
         // rewritten when the events hash changes. For a typical mutation
         // (e.g., toggling a setting, completing a task), the multi-MB
         // events file is left untouched.
-        let newEventsHash = LocalCacheStore.hashEvents(state.events)
+        let newEventsHash = LocalCacheStore.hashEventPayloads(in: state)
         let writeEvents = lastEventsHash != newEventsHash
-        var mainState = state
-        mainState.events = []
+        let mainState = state.withoutEventPayloads()
 
         do {
             try FileManager.default.createDirectory(
@@ -241,7 +274,7 @@ actor LocalCacheStore {
             )
             if writeEvents, let eventsURL = eventsFileURL {
                 try writeEncryptedOrPlaintext(
-                    payload: try JSONEncoder.cachedAppState.encode(state.events),
+                    payload: try JSONEncoder.cachedAppState.encode(CacheEventsPayload(state: state)),
                     to: eventsURL
                 )
                 lastEventsHash = newEventsHash
@@ -270,28 +303,34 @@ actor LocalCacheStore {
     // If the events sidecar exists, decode it (decrypting if needed) and
     // return its events. Falls back to the events embedded in the main
     // file (legacy monolithic format) when the sidecar is missing.
-    private func mergeEventsFromSidecar(into legacyEvents: [CalendarEventMirror]) -> [CalendarEventMirror] {
+    private func mergeEventsFromSidecar(into state: CachedAppState) -> CachedAppState {
         guard let eventsURL = eventsFileURL,
               FileManager.default.fileExists(atPath: eventsURL.path) else {
-            return legacyEvents
+            return state
         }
         do {
             let raw = try Data(contentsOf: eventsURL)
+            let plaintext: Data
             if let envelope = try? JSONDecoder.cachedAppState.decode(EncryptedEnvelope.self, from: raw) {
                 guard let key = encryptionKey else {
                     // Sidecar is encrypted and we can't unlock — keep legacy
                     // payload to avoid silently dropping events.
-                    return legacyEvents
+                    return state
                 }
-                let plaintext = try HCBCacheCrypto.decrypt(envelope.encryptedV1, key: key)
-                return try JSONDecoder.cachedAppState.decode([CalendarEventMirror].self, from: plaintext)
+                plaintext = try HCBCacheCrypto.decrypt(envelope.encryptedV1, key: key)
+            } else {
+                plaintext = raw
             }
-            return try JSONDecoder.cachedAppState.decode([CalendarEventMirror].self, from: raw)
+            if let payload = try? JSONDecoder.cachedAppState.decode(CacheEventsPayload.self, from: plaintext) {
+                return payload.applying(to: state)
+            }
+            let legacyEvents = try JSONDecoder.cachedAppState.decode([CalendarEventMirror].self, from: plaintext)
+            return CacheEventsPayload(activeEvents: legacyEvents, workspaceEventsByAccountID: [:]).applying(to: state)
         } catch {
             AppLogger.warn("events sidecar decode failed", category: .cache, metadata: [
                 "error": String(describing: error)
             ])
-            return legacyEvents
+            return state
         }
     }
 
@@ -307,6 +346,16 @@ actor LocalCacheStore {
             hasher.combine(event.id)
             hasher.combine(event.etag)
             hasher.combine(event.updatedAt)
+        }
+        return hasher.finalize()
+    }
+
+    static func hashEventPayloads(in state: CachedAppState) -> Int {
+        var hasher = Hasher()
+        hasher.combine(hashEvents(state.events))
+        for workspace in state.accountWorkspaces.sorted(by: { $0.accountID < $1.accountID }) {
+            hasher.combine(workspace.accountID)
+            hasher.combine(hashEvents(workspace.events))
         }
         return hasher.finalize()
     }

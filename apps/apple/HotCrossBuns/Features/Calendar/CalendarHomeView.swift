@@ -19,6 +19,8 @@ struct CalendarHomeView: View {
     @State private var isGoToDateShown = false
     @State private var snoozeCustomTask: TaskMirror?
     @State private var pendingDeleteEvent: CalendarEventMirror?
+    @State private var preparedAgendaSnapshot: CalendarAgendaDisplaySnapshot?
+    @State private var agendaSnapshotBuildTask: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -146,6 +148,12 @@ struct CalendarHomeView: View {
                 model.event(id: eventID).map(calendarEventViewFilter.allows) ?? false
             }
         }
+        .onChange(of: agendaSnapshotKey) { _, _ in
+            if mode == .agenda { rebuildAgendaSnapshotIfNeeded() }
+        }
+        .onDisappear {
+            agendaSnapshotBuildTask?.cancel()
+        }
     }
 
     @ViewBuilder
@@ -201,7 +209,7 @@ struct CalendarHomeView: View {
         case .month:
             MonthGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
         case .year:
-            YearGridView(anchorDate: $selectedDate, onPickDay: { day in
+            YearGridView(anchorDate: $selectedDate, searchQuery: searchQuery, onPickDay: { day in
                 selectedDate = day
                 mode = .day
             })
@@ -620,48 +628,53 @@ struct CalendarHomeView: View {
     // sections, events (time-sorted) and tasks (due that day) interleaved.
     // Range: 14 days starting at selectedDate. DatePicker at top scrolls range.
     private var agendaContent: some View {
-        let range = agendaDays()
-        let eventsByDay = agendaEventsByDay(for: range)
-        let tasksByDay = agendaTasksByDay(for: range)
-        return List {
-            Section {
-                DatePicker("Agenda starts", selection: $selectedDate, displayedComponents: [.date])
-            }
-            ForEach(range, id: \.self) { day in
-                let dayEvents = eventsByDay[day] ?? []
-                let dayTasks = tasksByDay[day] ?? []
-                if dayEvents.isEmpty == false || dayTasks.isEmpty == false {
+        Group {
+            if let snapshot = preparedAgendaSnapshot, snapshot.key == agendaSnapshotKey, model.isRebuildingDerivedSnapshots == false {
+                List {
                     Section {
-                        ForEach(dayEvents) { event in
-                            Button {
-                                router?.present(.editEvent(event.id))
-                            } label: {
-                                EventListRow(event: event, accentColor: calendarColor(for: event))
-                            }
-                            .buttonStyle(.plain)
-                            .contextMenu {
-                                EventContextMenu(
-                                    event: event,
-                                    onOpen: { router?.present(.editEvent(event.id)) },
-                                    onConvertToTask: { router?.present(.convertEventToTask(event.id)) },
-                                    onConvertToNote: { router?.present(.convertEventToNote(event.id)) },
-                                    onDelete: { pendingDeleteEvent = event }
-                                )
+                        DatePicker("Agenda starts", selection: $selectedDate, displayedComponents: [.date])
+                    }
+                    ForEach(snapshot.days) { daySnapshot in
+                        if daySnapshot.isEmpty == false {
+                            Section {
+                                ForEach(daySnapshot.events) { event in
+                                    Button {
+                                        router?.present(.editEvent(event.id))
+                                    } label: {
+                                        EventListRow(event: event, accentColor: calendarColor(for: event, in: snapshot))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .contextMenu {
+                                        EventContextMenu(
+                                            event: event,
+                                            onOpen: { router?.present(.editEvent(event.id)) },
+                                            onConvertToTask: { router?.present(.convertEventToTask(event.id)) },
+                                            onConvertToNote: { router?.present(.convertEventToNote(event.id)) },
+                                            onDelete: { pendingDeleteEvent = event }
+                                        )
+                                    }
+                                }
+                                ForEach(daySnapshot.tasks) { task in
+                                    agendaTaskRow(task, snapshot: snapshot)
+                                }
+                            } header: {
+                                agendaDateHeader(daySnapshot.date)
                             }
                         }
-                        ForEach(dayTasks) { task in
-                            agendaTaskRow(task)
+                    }
+                    if snapshot.isEmpty {
+                        Section {
+                            Text("Nothing scheduled in the next \(snapshot.days.count) days.")
+                                .foregroundStyle(.secondary)
                         }
-                    } header: {
-                        agendaDateHeader(day)
                     }
                 }
-            }
-            if eventsByDay.values.allSatisfy(\.isEmpty), tasksByDay.values.allSatisfy(\.isEmpty) {
-                Section {
-                    Text("Nothing scheduled in the next \(range.count) days.")
-                        .foregroundStyle(.secondary)
-                }
+            } else {
+                PreparedSnapshotOverlay(
+                    title: "Preparing agenda...",
+                    message: "Collecting upcoming events and tasks before enabling interactions."
+                )
+                .onAppear { rebuildAgendaSnapshotIfNeeded() }
             }
         }
     }
@@ -739,18 +752,19 @@ struct CalendarHomeView: View {
         }
     }
 
-    private func agendaTaskRow(_ task: TaskMirror) -> some View {
-        HStack(spacing: 8) {
+    private func agendaTaskRow(_ task: TaskMirror, snapshot: CalendarAgendaDisplaySnapshot) -> some View {
+        let metadata = snapshot.taskMetadataByID[task.id]
+        return HStack(spacing: 8) {
             CalendarTaskCheckbox(task: task, size: 14)
             Button {
                 router?.present(.editTask(task.id))
             } label: {
                 HStack(spacing: 8) {
-                    Text(task.title)
+                    Text(metadata?.title ?? task.title)
                         .hcbFont(.subheadline)
                         .strikethrough(task.isCompleted)
                         .foregroundStyle(AppColor.ink)
-                    let listTitle = model.taskListTitle(for: task.taskListID, fallback: "")
+                    let listTitle = metadata?.listTitle ?? model.taskListTitle(for: task.taskListID, fallback: "")
                     if listTitle.isEmpty == false {
                         Text(listTitle)
                             .hcbFont(.caption2)
@@ -762,7 +776,8 @@ struct CalendarHomeView: View {
             }
             .buttonStyle(.plain)
         }
-        .opacity(task.isCompleted ? 0.6 : 1.0)
+        .opacity(metadata?.opacity ?? (task.isCompleted ? 0.6 : 1.0))
+        .accessibilityLabel(metadata?.accessibilityLabel ?? task.title)
         .contextMenu {
             TaskContextMenu(
                 task: task,
@@ -808,6 +823,56 @@ struct CalendarHomeView: View {
         }
         guard let hex = model.calendarSnapshot.calendarColorHexByID[event.calendarID] else {
             return AppColor.blue
+        }
+        return Color(hex: hex)
+    }
+
+    private var agendaSnapshotKey: PreparedSnapshotKey {
+        PreparedSnapshotKeys.calendar(
+            mode: .agenda,
+            dataRevision: model.dataRevision,
+            selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
+            visibleTaskListIDs: model.visibleTaskListIDs,
+            filterKey: calendarEventViewFilter.cacheKey,
+            searchQuery: searchQuery,
+            rangeKey: PreparedSnapshotKeys.dateRangeKey(agendaDays()),
+            settings: model.settings
+        )
+    }
+
+    private func rebuildAgendaSnapshotIfNeeded() {
+        let key = agendaSnapshotKey
+        guard preparedAgendaSnapshot?.key != key else { return }
+        let input = CalendarDisplayInput(
+            key: key,
+            anchorDate: selectedDate,
+            selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
+            eventViewFilter: calendarEventViewFilter,
+            visibleTaskListIDs: model.visibleTaskListIDs,
+            searchQuery: searchQuery,
+            eventsByDay: model.eventsByDay,
+            tasksByDueDate: model.tasksByDueDate,
+            eventByID: model.eventByIDSnapshot,
+            taskByID: model.taskByIDSnapshot,
+            calendarColorHexByID: model.calendarSnapshot.calendarColorHexByID,
+            taskListTitleByID: model.taskListTitleByID,
+            settings: model.settings,
+            referenceDate: Date(),
+            calendar: .current
+        )
+        agendaSnapshotBuildTask?.cancel()
+        agendaSnapshotBuildTask = Task { @MainActor in
+            let snapshot = await Task.detached(priority: .utility) {
+                CalendarDisplaySnapshotBuilder.agendaSnapshot(input)
+            }.value
+            guard Task.isCancelled == false, snapshot.key == agendaSnapshotKey else { return }
+            preparedAgendaSnapshot = snapshot
+        }
+    }
+
+    private func calendarColor(for event: CalendarEventMirror, in snapshot: CalendarAgendaDisplaySnapshot) -> Color {
+        guard let hex = snapshot.eventMetadataByID[event.id]?.colorHex else {
+            return calendarColor(for: event)
         }
         return Color(hex: hex)
     }

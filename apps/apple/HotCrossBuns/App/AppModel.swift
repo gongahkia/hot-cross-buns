@@ -67,6 +67,9 @@ final class AppModel {
     @ObservationIgnored private var notificationDiagnosticDurationMilliseconds: Double?
 
     private(set) var account: GoogleAccount?
+    private(set) var connectedAccounts: [GoogleAccount] = []
+    private(set) var activeAccountID: GoogleAccount.ID?
+    private(set) var accountWorkspaces: [AccountWorkspaceSnapshot] = []
     // Default to .authenticating (not .signedOut) so the pre-loadInitialState
     // window shows a "connecting" state instead of a false-positive
     // "reconnect Google" banner. loadInitialState flips this to the real
@@ -172,11 +175,17 @@ final class AppModel {
     // stale UI. Bumping here is the one-place invariant: if snapshots
     // rebuilt, the revision advances.
     private(set) var dataRevision: UInt64 = 0
+    // True while a scheduled derived snapshot/index rebuild is in flight.
+    // Prepared views use this to block interactions rather than rendering
+    // stale immutable snapshots against freshly mutated source arrays.
+    private(set) var isRebuildingDerivedSnapshots: Bool = false
     // O(1) ID-to-index lookups maintained by rebuildSnapshots. task(id:) / event(id:)
     // previously scanned the full arrays on every call, including inside
     // menus and body evaluations — observable lag for users with thousands
     // of tasks/events. The values are indexes rather than full mirrors so
     // lookup tables do not double-retain the largest data collections.
+    private(set) var taskByIDSnapshot: [TaskMirror.ID: TaskMirror] = [:]
+    private(set) var eventByIDSnapshot: [CalendarEventMirror.ID: CalendarEventMirror] = [:]
     private var taskIndexByID: [TaskMirror.ID: Int] = [:]
     private var eventIndexByID: [CalendarEventMirror.ID: Int] = [:]
     private var taskListIndexByID: [TaskListMirror.ID: Int] = [:]
@@ -233,7 +242,8 @@ final class AppModel {
     }
 
     static func bootstrap() -> AppModel {
-        let tokenProvider = GoogleSignInAccessTokenProvider()
+        let customOAuthService = CustomGoogleOAuthService()
+        let tokenProvider = GoogleSignInAccessTokenProvider(customOAuthService: customOAuthService)
         let transport = GoogleAPITransport(
             baseURL: URL(string: "https://www.googleapis.com")!,
             tokenProvider: tokenProvider
@@ -242,7 +252,7 @@ final class AppModel {
         let tasksClient = GoogleTasksClient(transport: transport)
         let calendarClient = GoogleCalendarClient(transport: transport)
         return AppModel(
-            authService: GoogleAuthService(),
+            authService: GoogleAuthService(customOAuthService: customOAuthService),
             tasksClient: tasksClient,
             calendarClient: calendarClient,
             syncScheduler: SyncScheduler(
@@ -250,6 +260,24 @@ final class AppModel {
                 calendarClient: calendarClient
             ),
             cacheStore: LocalCacheStore(),
+            notificationScheduler: LocalNotificationScheduler()
+        )
+    }
+
+    static func testHostBootstrap() -> AppModel {
+        let customOAuthService = CustomGoogleOAuthService(tokenStore: EmptyGoogleOAuthTokenStore())
+        let transport = GoogleAPITransport(
+            baseURL: URL(string: "https://www.googleapis.com")!,
+            tokenProvider: StaticAccessTokenProvider(token: "unit-test-token")
+        )
+        let tasksClient = GoogleTasksClient(transport: transport)
+        let calendarClient = GoogleCalendarClient(transport: transport)
+        return AppModel(
+            authService: GoogleAuthService(customOAuthService: customOAuthService),
+            tasksClient: tasksClient,
+            calendarClient: calendarClient,
+            syncScheduler: SyncScheduler(tasksClient: tasksClient, calendarClient: calendarClient),
+            cacheStore: LocalCacheStore(fileURL: nil),
             notificationScheduler: LocalNotificationScheduler()
         )
     }
@@ -326,11 +354,12 @@ final class AppModel {
         do {
             guard let restoredAccount = try await authService.restorePreviousSignIn() else {
                 account = nil
+                activeAccountID = nil
                 authState = .signedOut
                 return
             }
 
-            account = restoredAccount
+            setActiveAccount(restoredAccount)
             authState = .signedIn(restoredAccount)
         } catch {
             authState = .failed(error.localizedDescription)
@@ -339,9 +368,10 @@ final class AppModel {
 
     func connectGoogleAccount() async {
         authState = .authenticating
+        let priorState = currentCachedState()
         do {
             let account = try await authService.signIn()
-            self.account = account
+            apply(priorState.activating(account: account))
             authState = .signedIn(account)
             syncState = .idle
             // Force-flush: account state must hit disk before any sync run.
@@ -359,10 +389,7 @@ final class AppModel {
         do {
             let saved = try authService.saveCustomOAuthClientConfiguration(clientID: clientID, clientSecret: clientSecret)
             customOAuthClientConfiguration = saved
-            if account?.authProvider == .customDesktopOAuth {
-                account = nil
-                authState = .signedOut
-                syncState = .idle
+            if clearCustomDesktopOAuthAccounts() {
                 Task { await saveCurrentState() }
             }
         } catch {
@@ -373,26 +400,64 @@ final class AppModel {
     func clearCustomOAuthClientConfiguration() {
         authService.clearCustomOAuthClientConfiguration()
         customOAuthClientConfiguration = nil
-        if account?.authProvider == .customDesktopOAuth {
-            account = nil
-            authState = .signedOut
-            syncState = .idle
+        if clearCustomDesktopOAuthAccounts() {
             Task { await saveCurrentState() }
         }
     }
 
     func disconnectGoogleAccount() async {
-        do {
-            try await authService.disconnect()
-        } catch {
-            authService.signOut()
+        await disconnectGoogleAccount(id: activeAccountID ?? account?.id)
+    }
+
+    func disconnectGoogleAccount(id targetAccountID: GoogleAccount.ID?) async {
+        guard let targetAccountID else {
+            activeAccountID = nil
+            account = nil
+            authState = .signedOut
+            syncState = .idle
+            await saveCurrentState()
+            return
         }
 
-        account = nil
-        authState = .signedOut
+        let priorState = currentCachedState()
+        do {
+            try await authService.disconnect(accountID: targetAccountID)
+        } catch {
+            authService.signOut(accountID: targetAccountID)
+        }
+
+        let wasActive = targetAccountID == priorState.activeAccountID
+        let fallbackAccountID = wasActive
+            ? priorState.accounts.first(where: { $0.id != targetAccountID })?.id
+            : priorState.activeAccountID
+        let nextState = priorState.removingAccountWorkspace(
+            accountID: targetAccountID,
+            fallbackAccountID: fallbackAccountID
+        )
+        apply(nextState)
+        authState = nextState.account.map(AuthState.signedIn) ?? .signedOut
+        syncState = .idle
+        await saveCurrentState()
+        if wasActive {
+            await spotlightIndexer.removeAll()
+            await synchronizeLocalNotifications()
+        }
+    }
+
+    @discardableResult
+    func switchGoogleAccount(to accountID: GoogleAccount.ID) async -> Bool {
+        guard accountID != activeAccountID else { return true }
+        guard let switched = currentCachedState().switchingActiveAccount(to: accountID) else {
+            lastMutationError = "That Google account is not connected on this Mac."
+            return false
+        }
+        apply(switched)
+        authState = switched.account.map(AuthState.signedIn) ?? .signedOut
         syncState = .idle
         await saveCurrentState()
         await spotlightIndexer.removeAll()
+        await synchronizeLocalNotifications()
+        return true
     }
 
     func handleAuthRedirect(_ url: URL) {
@@ -2513,6 +2578,9 @@ final class AppModel {
     private func applyImportedState(_ imported: CachedAppState, options: PortableImportOptions = .all) {
         if options.includeSyncMetadata {
             account = imported.account
+            connectedAccounts = imported.accounts
+            activeAccountID = imported.activeAccountID
+            accountWorkspaces = imported.accountWorkspaces
             syncCheckpoints = imported.syncCheckpoints
             pendingMutations = imported.pendingMutations
         }
@@ -3470,7 +3538,7 @@ final class AppModel {
     }
 
     func replayPendingMutations() async {
-        guard account != nil else { return }
+        guard let activeAccountID = account?.id else { return }
         guard pendingMutations.isEmpty == false else { return }
         AppLogger.info("replay start", category: .replay, metadata: ["queued": String(pendingMutations.count)])
         // Serialise replay loops: `createTask` / `createEvent` spawn detached
@@ -3497,6 +3565,7 @@ final class AppModel {
             // elapsed yet (we'll pick them up on a later call).
             let snapshot = pendingMutations.filter {
                 processedIDs.contains($0.id) == false
+                    && ($0.accountID ?? activeAccountID) == activeAccountID
                     && settings.cloudSyncTargets.allows($0.resourceType)
                     && $0.isReadyToReplay(now: now, policy: policy)
             }
@@ -4010,6 +4079,7 @@ final class AppModel {
     }
 
     private func enqueuePendingMutation(_ mutation: PendingMutation) {
+        let mutation = account.map { mutation.accountStamped(accountID: $0.id) } ?? mutation
         pendingMutations.append(mutation)
         AppLogger.info(
             "mutation queued",
@@ -4042,7 +4112,8 @@ final class AppModel {
             "resourceType": mutation.resourceType.rawValue,
             "resourceID": GoogleDiagnostics.redactedIdentifier(mutation.resourceID),
             "action": mutation.action.rawValue,
-            "attempt": String(mutation.attemptCount)
+            "attempt": String(mutation.attemptCount),
+            "accountID": mutation.accountID.map(GoogleDiagnostics.redactedIdentifier) ?? "legacy"
         ]
         metadata.merge(mutationPayloadMetadata(mutation)) { _, new in new }
         return metadata
@@ -4366,6 +4437,10 @@ final class AppModel {
         let shouldEmitSyncDiff = priorTasks.isEmpty == false || priorEvents.isEmpty == false
 
         account = state.account
+        connectedAccounts = state.accounts
+        activeAccountID = state.activeAccountID
+        accountWorkspaces = state.accountWorkspaces
+        authService.setActiveAccountID(state.activeAccountID)
         taskLists = state.taskLists
         tasks = state.tasks
         calendars = state.calendars
@@ -4489,6 +4564,86 @@ final class AppModel {
         apply(.preview)
         authState = .signedIn(.preview)
         syncState = .synced(at: Date())
+    }
+
+    private func setActiveAccount(_ account: GoogleAccount) {
+        upsertConnectedAccount(account)
+        self.account = account
+        activeAccountID = account.id
+    }
+
+    private func upsertConnectedAccount(_ account: GoogleAccount) {
+        if let index = connectedAccounts.firstIndex(where: { $0.id == account.id }) {
+            connectedAccounts[index] = account
+        } else {
+            connectedAccounts.append(account)
+        }
+    }
+
+    private func removeConnectedAccount(id: GoogleAccount.ID) {
+        connectedAccounts.removeAll { $0.id == id }
+        if activeAccountID == id {
+            activeAccountID = nil
+        }
+        if account?.id == id {
+            account = nil
+        }
+    }
+
+    private func clearAccounts(provider: GoogleAuthProvider) {
+        var removedIDs = Set(connectedAccounts.filter { $0.authProvider == provider }.map(\.id))
+        if let account, account.authProvider == provider {
+            removedIDs.insert(account.id)
+        }
+        connectedAccounts.removeAll { $0.authProvider == provider }
+        accountWorkspaces.removeAll { removedIDs.contains($0.accountID) }
+        if let activeAccountID, removedIDs.contains(activeAccountID) {
+            self.activeAccountID = nil
+        }
+        if let account, removedIDs.contains(account.id) {
+            self.account = nil
+        }
+    }
+
+    @discardableResult
+    private func clearCustomDesktopOAuthAccounts() -> Bool {
+        let priorState = currentCachedState()
+        var removedIDs = Set(priorState.accounts
+            .filter { $0.authProvider == .customDesktopOAuth }
+            .map(\.id))
+        if let account = priorState.account, account.authProvider == .customDesktopOAuth {
+            removedIDs.insert(account.id)
+        }
+        guard removedIDs.isEmpty == false else { return false }
+
+        let remainingAccounts = priorState.accounts.filter { removedIDs.contains($0.id) == false }
+        let remainingWorkspaces = priorState.accountWorkspaces.filter { removedIDs.contains($0.accountID) == false }
+        let activeWasRemoved = priorState.activeAccountID.map { removedIDs.contains($0) } ?? false
+        let nextActiveAccountID = activeWasRemoved
+            ? remainingAccounts.first?.id
+            : priorState.activeAccountID
+        let nextAccount = nextActiveAccountID.flatMap { id in remainingAccounts.first { $0.id == id } }
+        let nextWorkspace = nextActiveAccountID.flatMap { id in remainingWorkspaces.first { $0.accountID == id } }
+        let preserveActiveRoot = activeWasRemoved == false
+
+        let nextState = CachedAppState(
+            account: nextAccount,
+            accounts: remainingAccounts,
+            activeAccountID: nextAccount?.id,
+            accountWorkspaces: remainingWorkspaces,
+            taskLists: nextWorkspace?.taskLists ?? (preserveActiveRoot ? priorState.taskLists : []),
+            tasks: nextWorkspace?.tasks ?? (preserveActiveRoot ? priorState.tasks : []),
+            calendars: nextWorkspace?.calendars ?? (preserveActiveRoot ? priorState.calendars : []),
+            events: nextWorkspace?.events ?? (preserveActiveRoot ? priorState.events : []),
+            settings: nextWorkspace?.effectiveSettings(mergedWith: priorState.settings) ?? priorState.settings,
+            syncCheckpoints: nextWorkspace?.syncCheckpoints ?? (preserveActiveRoot ? priorState.syncCheckpoints : []),
+            pendingMutations: nextWorkspace?.pendingMutations ?? (preserveActiveRoot ? priorState.pendingMutations : []),
+            schemaVersion: priorState.schemaVersion
+        )
+        apply(nextState)
+        authState = nextState.account.map(AuthState.signedIn) ?? .signedOut
+        syncState = .idle
+        return true
     }
 
     private func applyLocalTaskMove(
@@ -4647,11 +4802,29 @@ final class AppModel {
     }
 
     private func rebuildTaskIndex() {
-        taskIndexByID = Dictionary(uniqueKeysWithValues: tasks.enumerated().map { ($0.element.id, $0.offset) })
+        var indexByID: [TaskMirror.ID: Int] = [:]
+        var taskByID: [TaskMirror.ID: TaskMirror] = [:]
+        indexByID.reserveCapacity(tasks.count)
+        taskByID.reserveCapacity(tasks.count)
+        for (index, task) in tasks.enumerated() {
+            indexByID[task.id] = index
+            taskByID[task.id] = task
+        }
+        taskIndexByID = indexByID
+        taskByIDSnapshot = taskByID
     }
 
     private func rebuildEventIndex() {
-        eventIndexByID = Dictionary(uniqueKeysWithValues: events.enumerated().map { ($0.element.id, $0.offset) })
+        var indexByID: [CalendarEventMirror.ID: Int] = [:]
+        var eventByID: [CalendarEventMirror.ID: CalendarEventMirror] = [:]
+        indexByID.reserveCapacity(events.count)
+        eventByID.reserveCapacity(events.count)
+        for (index, event) in events.enumerated() {
+            indexByID[event.id] = index
+            eventByID[event.id] = event
+        }
+        eventIndexByID = indexByID
+        eventByIDSnapshot = eventByID
     }
 
     private func rebuildTaskListIndex() {
@@ -4661,6 +4834,9 @@ final class AppModel {
     private func currentCachedState() -> CachedAppState {
         CachedAppState(
             account: account,
+            accounts: connectedAccounts,
+            activeAccountID: activeAccountID,
+            accountWorkspaces: accountWorkspaces,
             taskLists: taskLists,
             tasks: tasks,
             calendars: calendars,
@@ -4902,14 +5078,20 @@ final class AppModel {
     // (createTask, updateEvent, etc.) so a sync flush of dozens of upserts
     // produces a single snapshot rebuild instead of one per upsert.
     private var snapshotRebuildPending = false
+    private var snapshotRebuildTask: Task<Void, Never>?
+    private var snapshotRebuildGeneration: UInt64 = 0
 
     private func scheduleRebuildSnapshots() {
         if snapshotRebuildPending { return }
         snapshotRebuildPending = true
+        snapshotRebuildGeneration &+= 1
+        let generation = snapshotRebuildGeneration
+        isRebuildingDerivedSnapshots = true
         Task { @MainActor [weak self] in
             guard let self else { return }
+            guard generation == self.snapshotRebuildGeneration else { return }
             self.snapshotRebuildPending = false
-            self.rebuildSnapshots()
+            self.startDerivedSnapshotRebuild(referenceDate: Date())
         }
     }
 
@@ -4919,134 +5101,208 @@ final class AppModel {
         // this only when a downstream caller needs snapshots populated
         // before its next line (apply() after sync, init bootstrap).
         snapshotRebuildPending = false
+        snapshotRebuildGeneration &+= 1
+        snapshotRebuildTask?.cancel()
+        snapshotRebuildTask = nil
+        isRebuildingDerivedSnapshots = true
         let started = ContinuousClock.now
-        visibleTaskListIDs = settings.hasConfiguredTaskListSelection
-            ? settings.selectedTaskListIDs
-            : Set(taskLists.map(\.id))
-        let visibleTaskLists = taskLists.filter { visibleTaskListIDs.contains($0.id) }
-        let visibleTasks = tasks.filter { visibleTaskListIDs.contains($0.taskListID) }
-        let tasksTabVisibleListIDs = settings.hasConfiguredTasksTabSelection
-            ? settings.tasksTabSelectedListIDs
-            : visibleTaskListIDs
-        let notesTabVisibleListIDs = settings.hasConfiguredNotesTabSelection
-            ? settings.notesTabSelectedListIDs
-            : visibleTaskListIDs
+        let snapshots = Self.buildDerivedSnapshots(derivedSnapshotInput(referenceDate: referenceDate))
+        applyDerivedSnapshots(snapshots)
+        isRebuildingDerivedSnapshots = false
+        logDerivedSnapshotRebuild(started: started, snapshots: snapshots)
+    }
 
-        taskSections = TaskListSectionSnapshot.build(taskLists: visibleTaskLists, tasks: visibleTasks)
-        taskBoardSnapshot = TaskBoardSnapshot.build(
+    private func startDerivedSnapshotRebuild(referenceDate: Date) {
+        let input = derivedSnapshotInput(referenceDate: referenceDate)
+        snapshotRebuildTask?.cancel()
+        snapshotRebuildTask = Task { @MainActor [weak self] in
+            let started = ContinuousClock.now
+            let snapshots = await Task.detached(priority: .utility) {
+                Self.buildDerivedSnapshots(input)
+            }.value
+            guard let self, Task.isCancelled == false else { return }
+            self.applyDerivedSnapshots(snapshots)
+            self.isRebuildingDerivedSnapshots = false
+            self.snapshotRebuildTask = nil
+            self.logDerivedSnapshotRebuild(started: started, snapshots: snapshots)
+        }
+    }
+
+    private func derivedSnapshotInput(referenceDate: Date) -> DerivedAppSnapshotInput {
+        DerivedAppSnapshotInput(
+            taskLists: taskLists,
             tasks: tasks,
-            tasksTabVisibleListIDs: tasksTabVisibleListIDs,
-            notesTabVisibleListIDs: notesTabVisibleListIDs,
+            calendars: calendars,
+            events: events,
             settings: settings,
             referenceDate: referenceDate
         )
-        todaySnapshot = TodaySnapshot.build(tasks: visibleTasks, events: events, referenceDate: referenceDate)
-        calendarSnapshot = CalendarSnapshot.build(calendars: calendars, events: events, referenceDate: referenceDate)
+    }
 
-        // Bucket events by calendar id so grid views can skip the
-        // per-render full-events filter. Done once here, read O(1) per
-        // calendar by callers.
-        var byCalendar: [CalendarListMirror.ID: [CalendarEventMirror.ID]] = [:]
-        byCalendar.reserveCapacity(calendars.count)
-        for event in events where settings.showCompletedItemsInCalendar || event.status != .cancelled {
-            byCalendar[event.calendarID, default: []].append(event.id)
+    private func applyDerivedSnapshots(_ snapshots: DerivedAppSnapshots) {
+        visibleTaskListIDs = snapshots.visibleTaskListIDs
+        taskSections = snapshots.taskSections
+        taskBoardSnapshot = snapshots.taskBoardSnapshot
+        todaySnapshot = snapshots.todaySnapshot
+        calendarSnapshot = snapshots.calendarSnapshot
+        eventsByCalendar = snapshots.eventsByCalendar
+        eventsByDay = snapshots.eventsByDay
+        tasksByDueDate = snapshots.tasksByDueDate
+        datedOpenTaskCount = snapshots.datedOpenTaskCount
+        undatedOpenTaskCount = snapshots.undatedOpenTaskCount
+        openTaskCountForSidebar = snapshots.openTaskCountForSidebar
+        taskListCompletionStats = snapshots.taskListCompletionStats
+        taskListTitleByID = snapshots.taskListTitleByID
+        calendarTitleByID = snapshots.calendarTitleByID
+        taskChildrenByParentID = snapshots.taskChildrenByParentID
+        duplicateIndex = snapshots.duplicateIndex
+        taskByIDSnapshot = snapshots.taskByIDSnapshot
+        eventByIDSnapshot = snapshots.eventByIDSnapshot
+        taskIndexByID = snapshots.taskIndexByID
+        eventIndexByID = snapshots.eventIndexByID
+        taskListIndexByID = snapshots.taskListIndexByID
+
+        // Advance the content revision only after every derived snapshot and
+        // lookup map has been applied together. Prepared views key off this
+        // revision, so they never rebuild against half-refreshed indexes.
+        dataRevision &+= 1
+    }
+
+    private func logDerivedSnapshotRebuild(started: ContinuousClock.Instant, snapshots: DerivedAppSnapshots) {
+        let elapsed = started.duration(to: .now)
+        let micros = (elapsed.components.seconds * 1_000_000)
+            + (elapsed.components.attoseconds / 1_000_000_000_000)
+        AppLogger.debug("rebuildSnapshots", category: .perf, metadata: [
+            "duration_us": String(micros),
+            "tasks": String(snapshots.taskCount),
+            "events": String(snapshots.eventCount),
+            "visible_tasks": String(snapshots.visibleTaskCount)
+        ])
+    }
+
+    private nonisolated static func buildDerivedSnapshots(_ input: DerivedAppSnapshotInput) -> DerivedAppSnapshots {
+        let visibleTaskListIDs = input.settings.hasConfiguredTaskListSelection
+            ? input.settings.selectedTaskListIDs
+            : Set(input.taskLists.map(\.id))
+        let visibleTaskLists = input.taskLists.filter { visibleTaskListIDs.contains($0.id) }
+        let visibleTasks = input.tasks.filter { visibleTaskListIDs.contains($0.taskListID) }
+        let tasksTabVisibleListIDs = input.settings.hasConfiguredTasksTabSelection
+            ? input.settings.tasksTabSelectedListIDs
+            : visibleTaskListIDs
+        let notesTabVisibleListIDs = input.settings.hasConfiguredNotesTabSelection
+            ? input.settings.notesTabSelectedListIDs
+            : visibleTaskListIDs
+
+        let taskSections = TaskListSectionSnapshot.build(taskLists: visibleTaskLists, tasks: visibleTasks)
+        let taskBoardSnapshot = TaskBoardSnapshot.build(
+            tasks: input.tasks,
+            tasksTabVisibleListIDs: tasksTabVisibleListIDs,
+            notesTabVisibleListIDs: notesTabVisibleListIDs,
+            settings: input.settings,
+            referenceDate: input.referenceDate
+        )
+        let todaySnapshot = TodaySnapshot.build(tasks: visibleTasks, events: input.events, referenceDate: input.referenceDate)
+        let calendarSnapshot = CalendarSnapshot.build(calendars: input.calendars, events: input.events, referenceDate: input.referenceDate)
+
+        // Bucket events by calendar id so grid views can skip full-corpus
+        // filters while rendering.
+        var eventsByCalendar: [CalendarListMirror.ID: [CalendarEventMirror.ID]] = [:]
+        eventsByCalendar.reserveCapacity(input.calendars.count)
+        for event in input.events where input.settings.showCompletedItemsInCalendar || event.status != .cancelled {
+            eventsByCalendar[event.calendarID, default: []].append(event.id)
         }
-        eventsByCalendar = byCalendar
 
-        // Bucket events by day (startOfDay key). Multi-day events appear in
-        // every day they overlap. Cap the span at 366 to guard against
-        // malformed long-running events from Google (birthdays with bad
-        // recurrence expansions etc). TimeInterval key avoids Date hashing
-        // overhead at scale.
         let cal = Calendar.current
-        var byDay: [TimeInterval: [CalendarEventMirror.ID]] = [:]
-        byDay.reserveCapacity(events.count)
-        for event in events where settings.showCompletedItemsInCalendar || event.status != .cancelled {
+        var eventsByDay: [TimeInterval: [CalendarEventMirror.ID]] = [:]
+        eventsByDay.reserveCapacity(input.events.count)
+        for event in input.events where input.settings.showCompletedItemsInCalendar || event.status != .cancelled {
             let startDay = cal.startOfDay(for: event.startDate)
             let endDay = cal.startOfDay(for: event.endDate)
             var day = startDay
             var steps = 0
             while day <= endDay && steps < 366 {
-                byDay[day.timeIntervalSinceReferenceDate, default: []].append(event.id)
+                eventsByDay[day.timeIntervalSinceReferenceDate, default: []].append(event.id)
                 guard let next = cal.date(byAdding: .day, value: 1, to: day) else { break }
                 day = next
                 steps += 1
             }
         }
-        eventsByDay = byDay
 
-        // Bucket dated, non-deleted tasks by due date (startOfDay). Completed
-        // tasks are included only when the calendar setting asks to show them.
-        // Mirrors eventsByDay so the grid + agenda views can skip filtering
-        // `model.tasks` on every cell render.
-        var tByDay: [TimeInterval: [TaskMirror.ID]] = [:]
-        for task in tasks where task.isDeleted == false && (settings.showCompletedItemsInCalendar || task.isCompleted == false) {
+        var tasksByDueDate: [TimeInterval: [TaskMirror.ID]] = [:]
+        for task in input.tasks where task.isDeleted == false && (input.settings.showCompletedItemsInCalendar || task.isCompleted == false) {
             guard let due = task.dueDate else { continue }
             let key = cal.startOfDay(for: due).timeIntervalSinceReferenceDate
-            tByDay[key, default: []].append(task.id)
+            tasksByDueDate[key, default: []].append(task.id)
         }
-        tasksByDueDate = tByDay
 
-        // Precompute sidebar open-task counts so badges don't re-filter every
-        // render. Tasks and Notes can override the global Task Lists
-        // visibility independently, so their badges should follow the same
-        // per-tab list scopes as their content panes.
         var dated = 0
         var undated = 0
-        for task in tasks where task.isCompleted == false && task.isDeleted == false {
+        for task in input.tasks where task.isCompleted == false && task.isDeleted == false {
             if task.dueDate == nil {
                 if notesTabVisibleListIDs.contains(task.taskListID) { undated += 1 }
             } else if tasksTabVisibleListIDs.contains(task.taskListID) {
                 dated += 1
             }
         }
-        datedOpenTaskCount = dated
-        undatedOpenTaskCount = undated
-        openTaskCountForSidebar = dated + undated
 
-        // Precompute completion stats per list. Walks `tasks` once rather
-        // than once-per-section during Store render.
         var stats: [TaskListMirror.ID: TaskListCompletionStats] = [:]
-        for task in tasks where task.isDeleted == false {
+        for task in input.tasks where task.isDeleted == false {
             var entry = stats[task.taskListID] ?? TaskListCompletionStats(total: 0, completed: 0)
             entry.total += 1
             if task.isCompleted { entry.completed += 1 }
             stats[task.taskListID] = entry
         }
-        taskListCompletionStats = stats
-        taskListTitleByID = Dictionary(uniqueKeysWithValues: taskLists.map { ($0.id, $0.title) })
-        calendarTitleByID = Dictionary(uniqueKeysWithValues: calendars.map { ($0.id, $0.summary) })
-        taskChildrenByParentID = buildTaskChildrenByParentID(tasks: tasks)
 
-        // rebuild duplicate groups last (reads final tasks + dismissedGroupKeys)
-        duplicateIndex = DuplicateIndex.build(
-            tasks: tasks,
-            dismissedGroupKeys: settings.dismissedDuplicateGroups
+        var taskIndexByID: [TaskMirror.ID: Int] = [:]
+        var taskByIDSnapshot: [TaskMirror.ID: TaskMirror] = [:]
+        taskIndexByID.reserveCapacity(input.tasks.count)
+        taskByIDSnapshot.reserveCapacity(input.tasks.count)
+        for (index, task) in input.tasks.enumerated() {
+            taskIndexByID[task.id] = index
+            taskByIDSnapshot[task.id] = task
+        }
+
+        var eventIndexByID: [CalendarEventMirror.ID: Int] = [:]
+        var eventByIDSnapshot: [CalendarEventMirror.ID: CalendarEventMirror] = [:]
+        eventIndexByID.reserveCapacity(input.events.count)
+        eventByIDSnapshot.reserveCapacity(input.events.count)
+        for (index, event) in input.events.enumerated() {
+            eventIndexByID[event.id] = index
+            eventByIDSnapshot[event.id] = event
+        }
+
+        return DerivedAppSnapshots(
+            visibleTaskListIDs: visibleTaskListIDs,
+            taskSections: taskSections,
+            taskBoardSnapshot: taskBoardSnapshot,
+            todaySnapshot: todaySnapshot,
+            calendarSnapshot: calendarSnapshot,
+            eventsByCalendar: eventsByCalendar,
+            eventsByDay: eventsByDay,
+            tasksByDueDate: tasksByDueDate,
+            datedOpenTaskCount: dated,
+            undatedOpenTaskCount: undated,
+            openTaskCountForSidebar: dated + undated,
+            taskListCompletionStats: stats,
+            taskListTitleByID: Dictionary(uniqueKeysWithValues: input.taskLists.map { ($0.id, $0.title) }),
+            calendarTitleByID: Dictionary(uniqueKeysWithValues: input.calendars.map { ($0.id, $0.summary) }),
+            taskChildrenByParentID: buildTaskChildrenByParentID(tasks: input.tasks),
+            duplicateIndex: DuplicateIndex.build(
+                tasks: input.tasks,
+                dismissedGroupKeys: input.settings.dismissedDuplicateGroups
+            ),
+            taskByIDSnapshot: taskByIDSnapshot,
+            eventByIDSnapshot: eventByIDSnapshot,
+            taskIndexByID: taskIndexByID,
+            eventIndexByID: eventIndexByID,
+            taskListIndexByID: Dictionary(uniqueKeysWithValues: input.taskLists.enumerated().map { ($0.element.id, $0.offset) }),
+            taskCount: input.tasks.count,
+            eventCount: input.events.count,
+            visibleTaskCount: visibleTasks.count
         )
-
-        // O(1) ID lookup tables. One pass over each collection replaces
-        // arbitrary .first(where:) scans scattered across the codebase.
-        rebuildTaskIndex()
-        rebuildEventIndex()
-        rebuildTaskListIndex()
-
-        // Advance the content revision. Any view composing this into a
-        // cache key rebuilds its derived snapshot on the next observation
-        // tick. Overflow-safe (wraps after ~5 × 10^11 years at 1 bump/ms).
-        dataRevision &+= 1
-
-        let elapsed = started.duration(to: .now)
-        let micros = (elapsed.components.seconds * 1_000_000)
-            + (elapsed.components.attoseconds / 1_000_000_000_000)
-        AppLogger.debug("rebuildSnapshots", category: .perf, metadata: [
-            "duration_us": String(micros),
-            "tasks": String(tasks.count),
-            "events": String(events.count),
-            "visible_tasks": String(visibleTasks.count)
-        ])
     }
 
-    private func buildTaskChildrenByParentID(tasks: [TaskMirror]) -> [TaskMirror.ID: [TaskMirror.ID]] {
+    private nonisolated static func buildTaskChildrenByParentID(tasks: [TaskMirror]) -> [TaskMirror.ID: [TaskMirror.ID]] {
         var grouped: [TaskMirror.ID: [TaskMirror]] = [:]
         for task in tasks where task.isDeleted == false {
             guard let parentID = task.parentID else { continue }
@@ -5064,6 +5320,53 @@ final class AppModel {
             dismissedGroupKeys: settings.dismissedDuplicateGroups
         )
     }
+}
+
+private struct DerivedAppSnapshotInput: Sendable {
+    var taskLists: [TaskListMirror]
+    var tasks: [TaskMirror]
+    var calendars: [CalendarListMirror]
+    var events: [CalendarEventMirror]
+    var settings: AppSettings
+    var referenceDate: Date
+}
+
+private struct DerivedAppSnapshots: Sendable {
+    var visibleTaskListIDs: Set<TaskListMirror.ID>
+    var taskSections: [TaskListSectionSnapshot]
+    var taskBoardSnapshot: TaskBoardSnapshot
+    var todaySnapshot: TodaySnapshot
+    var calendarSnapshot: CalendarSnapshot
+    var eventsByCalendar: [CalendarListMirror.ID: [CalendarEventMirror.ID]]
+    var eventsByDay: [TimeInterval: [CalendarEventMirror.ID]]
+    var tasksByDueDate: [TimeInterval: [TaskMirror.ID]]
+    var datedOpenTaskCount: Int
+    var undatedOpenTaskCount: Int
+    var openTaskCountForSidebar: Int
+    var taskListCompletionStats: [TaskListMirror.ID: TaskListCompletionStats]
+    var taskListTitleByID: [TaskListMirror.ID: String]
+    var calendarTitleByID: [CalendarListMirror.ID: String]
+    var taskChildrenByParentID: [TaskMirror.ID: [TaskMirror.ID]]
+    var duplicateIndex: DuplicateIndex
+    var taskByIDSnapshot: [TaskMirror.ID: TaskMirror]
+    var eventByIDSnapshot: [CalendarEventMirror.ID: CalendarEventMirror]
+    var taskIndexByID: [TaskMirror.ID: Int]
+    var eventIndexByID: [CalendarEventMirror.ID: Int]
+    var taskListIndexByID: [TaskListMirror.ID: Int]
+    var taskCount: Int
+    var eventCount: Int
+    var visibleTaskCount: Int
+}
+
+private final class EmptyGoogleOAuthTokenStore: GoogleOAuthTokenStoring, @unchecked Sendable {
+    func loadClientConfiguration() -> GoogleOAuthClientConfiguration? { nil }
+    func saveClientConfiguration(_ configuration: GoogleOAuthClientConfiguration) throws {}
+    func clearClientConfiguration() {}
+    func loadTokenSet(accountID: GoogleAccount.ID) -> CustomGoogleOAuthTokenSet? { nil }
+    func loadFirstTokenSet() -> CustomGoogleOAuthTokenSet? { nil }
+    func saveTokenSet(_ tokenSet: CustomGoogleOAuthTokenSet, accountID: GoogleAccount.ID) throws {}
+    func deleteTokenSet(accountID: GoogleAccount.ID) {}
+    func deleteAllTokenSets() {}
 }
 
 struct TaskListCompletionStats: Equatable, Sendable {

@@ -95,12 +95,11 @@ struct MonthGridView: View {
     // DragGesture .onChanged fires at ~60Hz, and without this cache every
     // drag tick ran the filteredEvents + eventsByDay pipelines over 17k+
     // events, producing ~50ms stalls per pixel moved.
-    @State private var cachedFiltered: [CalendarEventMirror] = []
-    @State private var cachedByDay: [TimeInterval: [CalendarEventMirror]] = [:]
-    @State private var cachedBandsByWeek: [Date: [CalendarGridLayout.MonthBand]] = [:]
-    @State private var cachedTasksByDay: [TimeInterval: [TaskMirror]] = [:]
     @State private var cachedWeekSnapshots: [MonthWeekSnapshot] = []
     @State private var cachedGridKey: String = ""
+    @State private var renderedGridKey: String = ""
+    @State private var isGridCachePreparing = false
+    @State private var pendingAnchorScroll: PendingAnchorScroll?
     @State private var cachedEventSearchTextByID: [CalendarEventMirror.ID: String] = [:]
     @State private var cachedEventSearchRevision: UInt64 = 0
     @State private var gridCacheBuildTask: Task<Void, Never>?
@@ -132,6 +131,11 @@ struct MonthGridView: View {
         var normalized: (Date, Date) {
             start <= end ? (start, end) : (end, start)
         }
+    }
+
+    private struct PendingAnchorScroll {
+        var animated: Bool
+        var completesInitialScroll: Bool
     }
 
     private struct MonthDaySnapshot: Identifiable, Equatable, Sendable {
@@ -173,8 +177,8 @@ struct MonthGridView: View {
         var searchQuery: String
         var eventsByDay: [TimeInterval: [CalendarEventMirror.ID]]
         var tasksByDueDate: [TimeInterval: [TaskMirror.ID]]
-        var events: [CalendarEventMirror]
-        var tasks: [TaskMirror]
+        var eventByID: [CalendarEventMirror.ID: CalendarEventMirror]
+        var taskByID: [TaskMirror.ID: TaskMirror]
         var dataRevision: UInt64
         var eventSearchTextByID: [CalendarEventMirror.ID: String]
         var calendarColorHexByID: [CalendarListMirror.ID: String]
@@ -186,13 +190,11 @@ struct MonthGridView: View {
 
     private struct MonthGridCacheResult: Sendable {
         var key: String
-        var filtered: [CalendarEventMirror]
-        var byDay: [TimeInterval: [CalendarEventMirror]]
-        var bandsByWeek: [Date: [CalendarGridLayout.MonthBand]]
-        var tasksByDay: [TimeInterval: [TaskMirror]]
         var weekSnapshots: [MonthWeekSnapshot]
         var eventSearchTextByID: [CalendarEventMirror.ID: String]
         var eventSearchRevision: UInt64
+        var visibleEventCount: Int
+        var visibleTaskCount: Int
         var buildDurationMilliseconds: String
     }
 
@@ -205,7 +207,26 @@ struct MonthGridView: View {
         .hcbDebugBodyProbe("MonthGridView")
         .onDisappear {
             gridCacheBuildTask?.cancel()
+            gridCacheBuildTask = nil
+            if isGridCachePreparing {
+                cachedGridKey = renderedGridKey
+                isGridCachePreparing = false
+            }
         }
+    }
+
+    private var isGridReadyForInteraction: Bool {
+        cachedWeekSnapshots.isEmpty == false
+            && isGridCachePreparing == false
+            && renderedGridKey == currentGridCacheKey
+            && model.isRebuildingDerivedSnapshots == false
+    }
+
+    private var shouldShowGridPreparationOverlay: Bool {
+        cachedWeekSnapshots.isEmpty
+            || isGridCachePreparing
+            || renderedGridKey != currentGridCacheKey
+            || model.isRebuildingDerivedSnapshots
     }
 
     // Replaces the paged month grid. A LazyVStack of week rows inside a
@@ -275,6 +296,12 @@ struct MonthGridView: View {
                             }
                     )
                 }
+                .allowsHitTesting(isGridReadyForInteraction)
+                .overlay {
+                    if shouldShowGridPreparationOverlay {
+                        gridPreparationOverlay
+                    }
+                }
                 .scrollContentBackground(.hidden)
                 .coordinateSpace(name: scrollCoordinateSpace)
                 .onAppear {
@@ -286,10 +313,9 @@ struct MonthGridView: View {
                     if weekStarts.isEmpty {
                         buildWindow(centeredOn: anchorDate)
                     }
+                    requestAnchorScroll(animated: false, completesInitialScroll: true)
                     rebuildGridCacheIfNeeded()
-                    scheduleScrollToAnchor(proxy: proxy, animated: false) {
-                        didPerformInitialScroll = true
-                    }
+                    flushPendingAnchorScroll(proxy: proxy)
                 }
                 .onChange(of: anchorDate) { _, newValue in
                     if skipNextScrollSync {
@@ -303,16 +329,20 @@ struct MonthGridView: View {
                     if isDateInWindow(newValue) == false {
                         buildWindow(centeredOn: newValue)
                         rebuildGridCacheIfNeeded()
-                        scheduleScrollToAnchor(proxy: proxy, animated: true)
+                        requestAnchorScroll(animated: true)
+                        flushPendingAnchorScroll(proxy: proxy)
                         return
                     }
-                    scrollToAnchor(proxy: proxy, animated: true)
+                    requestAnchorScroll(animated: true)
+                    flushPendingAnchorScroll(proxy: proxy)
                 }
                 .onChange(of: currentGridCacheKey) { _, _ in rebuildGridCacheIfNeeded() }
+                .onChange(of: renderedGridKey) { _, _ in flushPendingAnchorScroll(proxy: proxy) }
                 .onChange(of: monthWindowPreferenceKey) { _, _ in
                     buildWindow(centeredOn: anchorDate)
                     rebuildGridCacheIfNeeded()
-                    scheduleScrollToAnchor(proxy: proxy, animated: false)
+                    requestAnchorScroll(animated: false)
+                    flushPendingAnchorScroll(proxy: proxy)
                 }
                 .onPreferenceChange(ScrollOffsetKey.self) { offset in
                     guard lastObservedScrollOffset.isNaN || abs(offset - lastObservedScrollOffset) >= 8 else { return }
@@ -348,6 +378,28 @@ struct MonthGridView: View {
         "\(CalendarMonthScrollWindow.clampedPast(configuredPastMonths))|\(CalendarMonthScrollWindow.clampedFuture(configuredFutureMonths))"
     }
 
+    private var gridPreparationOverlay: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .controlSize(.large)
+            Text("Preparing calendar…")
+                .hcbFont(.subheadline, weight: .semibold)
+                .foregroundStyle(AppColor.ink)
+            Text("Optimizing \(model.events.count.formatted()) events for smooth scrolling.")
+                .hcbFont(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .hcbScaledPadding(20)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(AppColor.cardStroke.opacity(0.45), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.08), radius: 18, x: 0, y: 10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.regularMaterial.opacity(0.18))
+    }
+
     // Flash the tapped cell briefly. Used on monthCell click-to-create
     // so the user sees a visual acknowledgement before the popover paints.
     private func flashCell(_ day: Date) {
@@ -375,8 +427,8 @@ struct MonthGridView: View {
             searchQuery: searchQuery,
             eventsByDay: model.eventsByDay,
             tasksByDueDate: model.tasksByDueDate,
-            events: model.events,
-            tasks: model.tasks,
+            eventByID: model.eventByIDSnapshot,
+            taskByID: model.taskByIDSnapshot,
             dataRevision: model.dataRevision,
             eventSearchTextByID: cachedEventSearchRevision == model.dataRevision ? cachedEventSearchTextByID : [:],
             calendarColorHexByID: model.calendarSnapshot.calendarColorHexByID,
@@ -387,25 +439,24 @@ struct MonthGridView: View {
         )
 
         gridCacheBuildTask?.cancel()
+        isGridCachePreparing = true
         gridCacheBuildTask = Task { @MainActor in
-            let result = await Task.detached(priority: .userInitiated) {
+            let result = await Task.detached(priority: .utility) {
                 Self.buildMonthGridCache(payload)
             }.value
 
             guard Task.isCancelled == false, result.key == cachedGridKey else { return }
-            cachedFiltered = result.filtered
-            cachedByDay = result.byDay
-            cachedBandsByWeek = result.bandsByWeek
-            cachedTasksByDay = result.tasksByDay
             cachedWeekSnapshots = result.weekSnapshots
             cachedEventSearchTextByID = result.eventSearchTextByID
             cachedEventSearchRevision = result.eventSearchRevision
+            renderedGridKey = result.key
+            isGridCachePreparing = false
             HCBPerformanceTelemetry.debug(
                 "month grid cache rebuilt",
                 metadata: [
                     "buildMs": result.buildDurationMilliseconds,
-                    "events": "\(result.filtered.count)",
-                    "tasks": "\(result.tasksByDay.values.reduce(0) { $0 + $1.count })",
+                    "events": "\(result.visibleEventCount)",
+                    "tasks": "\(result.visibleTaskCount)",
                     "totalMs": HCBPerformanceTelemetry.elapsedMilliseconds(since: requestedAt),
                     "weeks": "\(result.weekSnapshots.count)"
                 ]
@@ -446,13 +497,11 @@ struct MonthGridView: View {
         )
         return MonthGridCacheResult(
             key: payload.key,
-            filtered: filtered,
-            byDay: byDay,
-            bandsByWeek: bandsByWeek,
-            tasksByDay: tasksByDay,
             weekSnapshots: weekSnapshots,
             eventSearchTextByID: filteredResult.eventSearchTextByID,
             eventSearchRevision: payload.dataRevision,
+            visibleEventCount: filtered.count,
+            visibleTaskCount: tasksByDay.values.reduce(0) { $0 + $1.count },
             buildDurationMilliseconds: HCBPerformanceTelemetry.elapsedMilliseconds(since: started)
         )
     }
@@ -462,7 +511,6 @@ struct MonthGridView: View {
         from rangeStart: Date,
         to rangeEnd: Date
     ) -> (events: [CalendarEventMirror], eventSearchTextByID: [CalendarEventMirror.ID: String]) {
-        let eventByID = Dictionary(uniqueKeysWithValues: payload.events.map { ($0.id, $0) })
         let q = normalizedSearchText(payload.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines))
         var eventSearchTextByID = payload.eventSearchTextByID
 
@@ -473,7 +521,7 @@ struct MonthGridView: View {
         while cursor <= last {
             let key = cursor.timeIntervalSinceReferenceDate
             for eventID in payload.eventsByDay[key] ?? [] where seen.insert(eventID).inserted {
-                guard let event = eventByID[eventID],
+                guard let event = payload.eventByID[eventID],
                       payload.selectedCalendarIDs.contains(event.calendarID) else { continue }
                 guard payload.eventViewFilter.allows(event) else { continue }
                 let matchesSearch: Bool
@@ -680,14 +728,13 @@ struct MonthGridView: View {
         from rangeStart: Date,
         to rangeEnd: Date
     ) -> [TimeInterval: [TaskMirror]] {
-        let taskByID = Dictionary(uniqueKeysWithValues: payload.tasks.map { ($0.id, $0) })
         var tasksByDay: [TimeInterval: [TaskMirror]] = [:]
         var cursor = payload.calendar.startOfDay(for: rangeStart)
         let last = payload.calendar.startOfDay(for: rangeEnd)
         while cursor <= last {
             let key = dayKey(for: cursor, calendar: payload.calendar)
             let tasks = (payload.tasksByDueDate[key] ?? [])
-                .compactMap { taskByID[$0] }
+                .compactMap { payload.taskByID[$0] }
                 .filter { payload.visibleTaskListIDs.contains($0.taskListID) }
             if tasks.isEmpty == false {
                 tasksByDay[key] = tasks
@@ -818,6 +865,25 @@ struct MonthGridView: View {
             }
         } else {
             proxy.scrollTo(target, anchor: .top)
+        }
+    }
+
+    private func requestAnchorScroll(animated: Bool, completesInitialScroll: Bool = false) {
+        pendingAnchorScroll = PendingAnchorScroll(
+            animated: animated,
+            completesInitialScroll: completesInitialScroll
+        )
+    }
+
+    private func flushPendingAnchorScroll(proxy: ScrollViewProxy) {
+        guard let pendingAnchorScroll else { return }
+        let target = firstVisibleWeekOfMonth(containing: anchorDate)
+        guard cachedWeekSnapshots.contains(where: { $0.weekStart == target }) else { return }
+        self.pendingAnchorScroll = nil
+        scheduleScrollToAnchor(proxy: proxy, animated: pendingAnchorScroll.animated) {
+            if pendingAnchorScroll.completesInitialScroll {
+                didPerformInitialScroll = true
+            }
         }
     }
 

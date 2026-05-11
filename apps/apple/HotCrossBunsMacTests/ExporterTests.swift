@@ -63,6 +63,22 @@ final class ExporterTests: XCTestCase {
         )
     }
 
+    private func makePendingMutation(
+        id: String,
+        accountID: GoogleAccount.ID?,
+        resourceID: String
+    ) -> PendingMutation {
+        PendingMutation(
+            id: UUID(uuidString: id)!,
+            accountID: accountID,
+            createdAt: day(2026, 4, 18),
+            resourceType: .task,
+            resourceID: resourceID,
+            action: .update,
+            payload: Data()
+        )
+    }
+
     func testTaskMarkdownIncludesListDueNotes() {
         let md = TaskMarkdownExporter.markdown(for: makeTask(due: day(2026, 4, 20)), taskListTitle: "Personal")
         XCTAssertTrue(md.contains("- [ ] Pay rent"))
@@ -293,6 +309,135 @@ final class ExporterTests: XCTestCase {
         XCTAssertEqual(diff.events.addedItems.map(\.incomingTitle), ["Planning"])
         XCTAssertEqual(diff.events.removedItems.map(\.currentTitle), ["Planning"])
         XCTAssertFalse(diff.settingsWillChange)
+    }
+
+    func testPortableExportImportPreservesAccountWorkspacesAndCountsPendingMutations() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "hcb-portable-multi-account-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let exportURL = root.appending(path: "archive.hcbexport", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let personal = GoogleAccount.preview
+        let work = GoogleAccount(
+            id: "work-account",
+            email: "work@example.com",
+            displayName: "Work",
+            grantedScopes: [GoogleScope.tasks],
+            authProvider: .customDesktopOAuth
+        )
+        let workWorkspace = AccountWorkspaceSnapshot(
+            accountID: work.id,
+            taskLists: [TaskListMirror(id: "work-list", title: "Work", updatedAt: nil, etag: nil)],
+            tasks: [makeTask(id: "work-task", taskListID: "work-list", title: "Work task")],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: [
+                makePendingMutation(
+                    id: "00000000-0000-0000-0000-000000000202",
+                    accountID: work.id,
+                    resourceID: "work-task"
+                )
+            ]
+        )
+        let state = CachedAppState(
+            account: personal,
+            accounts: [personal, work],
+            activeAccountID: personal.id,
+            accountWorkspaces: [workWorkspace],
+            taskLists: [TaskListMirror(id: "personal-list", title: "Personal", updatedAt: nil, etag: nil)],
+            tasks: [makeTask(id: "personal-task", taskListID: "personal-list", title: "Personal task")],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: [
+                makePendingMutation(
+                    id: "00000000-0000-0000-0000-000000000101",
+                    accountID: personal.id,
+                    resourceID: "personal-task"
+                )
+            ]
+        )
+        _ = try PortableExportArchive.write(state: state, to: exportURL)
+
+        let preview = try PortableExportArchive.previewImport(from: exportURL, comparingTo: .empty)
+        let diff = try XCTUnwrap(preview.diff)
+        let imported = try PortableExportArchive.importState(
+            from: exportURL,
+            attachmentsDirectoryURL: root.appending(path: "ImportedAttachments", directoryHint: .isDirectory)
+        ).state
+
+        XCTAssertEqual(diff.pendingMutationCount, 2)
+        XCTAssertEqual(imported.accounts.map(\.id), [personal.id, work.id])
+        XCTAssertEqual(imported.activeAccountID, personal.id)
+        XCTAssertEqual(imported.tasks.map(\.id), ["personal-task"])
+        XCTAssertEqual(imported.accountWorkspaces.first { $0.accountID == work.id }?.tasks.map(\.id), ["work-task"])
+        XCTAssertEqual(Set(imported.accountWorkspaces.flatMap { $0.pendingMutations.compactMap(\.accountID) }), [personal.id, work.id])
+    }
+
+    func testPortableImportRewritesWorkspaceAttachmentPointers() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "hcb-portable-workspace-attachments-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let source = root.appending(path: "workspace-source.txt")
+        let exportURL = root.appending(path: "archive.hcbexport", directoryHint: .isDirectory)
+        let importedAttachmentsURL = root.appending(path: "ImportedAttachments", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try "workspace".data(using: .utf8)?.write(to: source)
+
+        let personal = GoogleAccount.preview
+        let work = GoogleAccount(
+            id: "work-account",
+            email: "work@example.com",
+            displayName: "Work",
+            grantedScopes: [GoogleScope.tasks, GoogleScope.calendar],
+            authProvider: .customDesktopOAuth
+        )
+        let pointer = LocalFileAttachment.markdownPointer(displayName: "Workspace file", url: source, kind: .file)
+        let workWorkspace = AccountWorkspaceSnapshot(
+            accountID: work.id,
+            taskLists: [TaskListMirror(id: "work-list", title: "Work", updatedAt: nil, etag: nil)],
+            tasks: [makeTask(id: "work-task", taskListID: "work-list", notes: pointer)],
+            calendars: [
+                CalendarListMirror(id: "work-cal", summary: "Work", colorHex: "#000000", isSelected: true, accessRole: "owner")
+            ],
+            events: [makeEvent(id: "work-event", calendarID: "work-cal", details: pointer)],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        let state = CachedAppState(
+            account: personal,
+            accounts: [personal, work],
+            activeAccountID: personal.id,
+            accountWorkspaces: [workWorkspace],
+            taskLists: [],
+            tasks: [],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        _ = try PortableExportArchive.write(state: state, to: exportURL)
+
+        let preview = try PortableExportArchive.previewImport(from: exportURL)
+        let imported = try PortableExportArchive.importState(
+            from: exportURL,
+            attachmentsDirectoryURL: importedAttachmentsURL
+        ).state
+        let importedWorkspace = try XCTUnwrap(imported.accountWorkspaces.first { $0.accountID == work.id })
+        let taskAttachment = try XCTUnwrap(LocalFileAttachment.parseAll(in: importedWorkspace.tasks[0].notes).first)
+        let eventAttachment = try XCTUnwrap(LocalFileAttachment.parseAll(in: importedWorkspace.events[0].details).first)
+
+        XCTAssertEqual(preview.bundledAttachmentCount, 1)
+        XCTAssertEqual(taskAttachment.displayName, "Workspace file")
+        XCTAssertEqual(taskAttachment.url.deletingLastPathComponent(), importedAttachmentsURL)
+        XCTAssertEqual(eventAttachment.url, taskAttachment.url)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: taskAttachment.url.path))
     }
 
     func testPortableExportCanFilterTaskListsCalendarsAndFutureEvents() throws {

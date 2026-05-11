@@ -332,6 +332,47 @@ code, kbd {
   max-height: min(72vh, 860px);
 }
 
+/* release highlight */
+.release-highlight {
+  padding: clamp(64px, 9vw, 120px) clamp(20px, 4vw, 56px);
+  max-width: 1240px;
+  margin: 0 auto;
+  border-top: 1px solid color-mix(in srgb, var(--surface0) 55%, transparent);
+}
+.release-highlight-head {
+  display: grid;
+  gap: 16px;
+  max-width: 62ch;
+  margin-bottom: 42px;
+}
+.release-highlight-head .lede {
+  color: var(--subtext1);
+  font-size: 1.06rem;
+  line-height: 1.55;
+}
+.release-highlight-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+}
+.release-highlight-card {
+  min-width: 0;
+  padding-top: 16px;
+  border-top: 1px solid color-mix(in srgb, var(--surface0) 65%, transparent);
+}
+.release-highlight-card h3 {
+  font-family: "Fraunces", serif;
+  font-size: 1.18rem;
+  font-weight: 400;
+  letter-spacing: -.01em;
+  margin-bottom: 8px;
+}
+.release-highlight-card p {
+  color: var(--subtext1);
+  font-size: .94rem;
+  line-height: 1.48;
+}
+
 /* window placeholder */
 .placeholder {
   position: relative;
@@ -1034,8 +1075,12 @@ body.modal-open {
   .key-col dl > div { gap: 12px; }
 
   /* views / menubar / reviews / updates / download padding */
-  .views, .menubar, .reviews, .updates, .download {
+  .release-highlight, .views, .menubar, .reviews, .updates, .download {
     padding-left: 18px; padding-right: 18px;
+  }
+  .release-highlight-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
   }
   .section-head { margin-bottom: 36px; }
 

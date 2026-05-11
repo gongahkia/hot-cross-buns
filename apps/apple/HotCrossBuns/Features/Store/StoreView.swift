@@ -35,6 +35,8 @@ struct StoreView: View {
     @State private var isMutatingList: Bool = false
     @SceneStorage("storeKanbanColumnMode") private var kanbanColumnModeKey: String = KanbanColumnMode.byList.rawValue
     @State private var kanbanColumnMode: KanbanColumnMode = .byList
+    @State private var preparedTaskBoardSnapshot: TaskBoardDisplaySnapshot?
+    @State private var taskBoardBuildTask: Task<Void, Never>?
 
     private var isDisconnected: Bool {
         model.account == nil
@@ -139,9 +141,16 @@ struct StoreView: View {
             }
             .onAppear {
                 kanbanColumnMode = KanbanColumnMode(rawValue: kanbanColumnModeKey) ?? .byList
+                rebuildTaskBoardSnapshotIfNeeded()
             }
             .onChange(of: kanbanColumnMode) { _, newValue in
                 kanbanColumnModeKey = newValue.rawValue
+            }
+            .onChange(of: taskBoardSnapshotKey) { _, _ in
+                rebuildTaskBoardSnapshotIfNeeded()
+            }
+            .onDisappear {
+                taskBoardBuildTask?.cancel()
             }
     }
 
@@ -194,27 +203,7 @@ struct StoreView: View {
                 } else if model.taskLists.isEmpty {
                     noTaskListsPrompt
                 } else {
-                    KanbanView(
-                        tasks: datedTasks,
-                        columnMode: $kanbanColumnMode,
-                        selection: $selection,
-                        onResult: handleBulkResult,
-                        onRenameList: { list in
-                            renameDraft = list.title
-                            renamingList = list
-                        },
-                        onDeleteList: { list in pendingListDeletion = list },
-                        onNewList: {
-                            newListTitle = ""
-                            isCreatingList = true
-                        },
-                        onCustomSnooze: { task in
-                            snoozeCustomTask = task
-                        },
-                        onCreateTaskInList: { listID in
-                            router?.present(.quickCreateTask(listID: listID))
-                        }
-                    )
+                    taskBoardContent
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -238,6 +227,80 @@ struct StoreView: View {
     // disclosure section. Overdue hide mode still applies to open tasks.
     private var datedTasks: [TaskMirror] {
         model.taskBoardSnapshot.datedTasks
+    }
+
+    private var taskBoardVisibleListIDs: Set<TaskListMirror.ID> {
+        model.settings.hasConfiguredTasksTabSelection
+            ? model.settings.tasksTabSelectedListIDs
+            : model.visibleTaskListIDs
+    }
+
+    private var taskBoardSnapshotKey: PreparedSnapshotKey {
+        PreparedSnapshotKeys.taskBoard(
+            surface: .tasks,
+            dataRevision: model.dataRevision,
+            groupMode: kanbanColumnMode,
+            visibleListIDs: taskBoardVisibleListIDs
+        )
+    }
+
+    @ViewBuilder
+    private var taskBoardContent: some View {
+        if let snapshot = preparedTaskBoardSnapshot, snapshot.key == taskBoardSnapshotKey, model.isRebuildingDerivedSnapshots == false {
+            KanbanView(
+                snapshot: snapshot,
+                columnMode: $kanbanColumnMode,
+                selection: $selection,
+                onResult: handleBulkResult,
+                onRenameList: { list in
+                    renameDraft = list.title
+                    renamingList = list
+                },
+                onDeleteList: { list in pendingListDeletion = list },
+                onNewList: {
+                    newListTitle = ""
+                    isCreatingList = true
+                },
+                onCustomSnooze: { task in
+                    snoozeCustomTask = task
+                },
+                onCreateTaskInList: { listID in
+                    router?.present(.quickCreateTask(listID: listID))
+                }
+            )
+        } else {
+            PreparedSnapshotOverlay(
+                title: "Preparing tasks...",
+                message: "Organizing \(datedTasks.count.formatted()) tasks for smooth board interactions."
+            )
+            .onAppear { rebuildTaskBoardSnapshotIfNeeded() }
+            .allowsHitTesting(false)
+        }
+    }
+
+    private func rebuildTaskBoardSnapshotIfNeeded() {
+        let key = taskBoardSnapshotKey
+        guard preparedTaskBoardSnapshot?.key != key else { return }
+        let input = TaskBoardDisplayInput(
+            key: key,
+            surface: .tasks,
+            tasks: datedTasks,
+            columnMode: kanbanColumnMode,
+            taskLists: model.taskLists,
+            taskListTitleByID: model.taskListTitleByID,
+            duplicateTaskIDs: Set(model.duplicateIndex.memberToGroup.keys),
+            localOrder: [],
+            referenceDate: Date(),
+            calendar: .current
+        )
+        taskBoardBuildTask?.cancel()
+        taskBoardBuildTask = Task { @MainActor in
+            let snapshot = await Task.detached(priority: .utility) {
+                TaskBoardDisplaySnapshotBuilder.snapshot(input)
+            }.value
+            guard Task.isCancelled == false, snapshot.key == taskBoardSnapshotKey else { return }
+            preparedTaskBoardSnapshot = snapshot
+        }
     }
 
     private var selectedTasksFromModel: [TaskMirror] {
@@ -330,7 +393,12 @@ struct StoreView: View {
             )
             .id(task.id) // forces view teardown on task switch so draft @State and its auto-save commit are bound to the correct task. Without this, .onChange(of: task.id) fires AFTER self.task is already the new task, and commitPending writes the outgoing draft onto the incoming task.
         } else {
-            TaskInspectorEmptyState()
+            PreparedSnapshotOverlay(
+                title: "Preparing tasks...",
+                message: "Organizing \(datedTasks.count.formatted()) tasks for smooth board interactions."
+            )
+            .onAppear { rebuildTaskBoardSnapshotIfNeeded() }
+            .allowsHitTesting(false)
         }
     }
 
@@ -605,6 +673,9 @@ struct NotesView: View {
     @State private var localOrder: [TaskMirror.ID] = []
     @State private var draggingID: TaskMirror.ID?
     @State private var kanbanSelection: Set<TaskMirror.ID> = []
+    @State private var preparedNotesBoardSnapshot: TaskBoardDisplaySnapshot?
+    @State private var notesBoardBuildTask: Task<Void, Never>?
+    @State private var noteOrderIDsKey: String = ""
     // Selected note opens in the side inspector (mirrors StoreView's pattern).
     // Tapping a NoteCard sets selectedNoteID; the .inspector modifier reveals
     // a TaskInspectorView for that note. Cleared when the user taps Close.
@@ -698,8 +769,20 @@ struct NotesView: View {
                 }
             }
         }
-        .onAppear { rebuildOrder() }
-        .onChange(of: model.dataRevision) { _, _ in rebuildOrder() }
+        .onAppear {
+            rebuildOrderIfNeeded(force: true)
+            rebuildNotesBoardSnapshotIfNeeded()
+        }
+        .onChange(of: model.dataRevision) { _, _ in
+            rebuildOrderIfNeeded()
+            rebuildNotesBoardSnapshotIfNeeded()
+        }
+        .onChange(of: notesBoardSnapshotKey) { _, _ in
+            rebuildNotesBoardSnapshotIfNeeded()
+        }
+        .onDisappear {
+            notesBoardBuildTask?.cancel()
+        }
     }
 
     private func createNewListFromNotes() async {
@@ -742,22 +825,33 @@ struct NotesView: View {
     // MARK: - Kanban
 
     private var kanbanContent: some View {
-        KanbanView(
-            tasks: orderedTasks,
-            columnMode: Binding(
-                get: { model.settings.notesKanbanColumnMode },
-                set: { model.setNotesKanbanColumnMode($0) }
-            ),
-            selection: $kanbanSelection,
-            availableColumnModes: notesKanbanModes,
-            onCreateTaskInList: { listID in
-                router?.present(.quickCreateNote(listID: listID))
-            },
-            onCardTap: { task in
-                selectedNoteID = task.id
-                isNoteInspectorPresented = true
+        Group {
+            if let snapshot = preparedNotesBoardSnapshot, snapshot.key == notesBoardSnapshotKey, model.isRebuildingDerivedSnapshots == false {
+                KanbanView(
+                    snapshot: snapshot,
+                    columnMode: Binding(
+                        get: { model.settings.notesKanbanColumnMode },
+                        set: { model.setNotesKanbanColumnMode($0) }
+                    ),
+                    selection: $kanbanSelection,
+                    availableColumnModes: notesKanbanModes,
+                    onCreateTaskInList: { listID in
+                        router?.present(.quickCreateNote(listID: listID))
+                    },
+                    onCardTap: { task in
+                        selectedNoteID = task.id
+                        isNoteInspectorPresented = true
+                    }
+                )
+            } else {
+                PreparedSnapshotOverlay(
+                    title: "Preparing notes...",
+                    message: "Organizing \(undatedTasks.count.formatted()) notes for smooth board interactions."
+                )
+                .onAppear { rebuildNotesBoardSnapshotIfNeeded() }
+                .allowsHitTesting(false)
             }
-        )
+        }
     }
 
     // MARK: - Shared cell
@@ -783,6 +877,22 @@ struct NotesView: View {
         model.taskBoardSnapshot.undatedTasks
     }
 
+    private var notesVisibleListIDs: Set<TaskListMirror.ID> {
+        model.settings.hasConfiguredNotesTabSelection
+            ? model.settings.notesTabSelectedListIDs
+            : model.visibleTaskListIDs
+    }
+
+    private var notesBoardSnapshotKey: PreparedSnapshotKey {
+        PreparedSnapshotKeys.taskBoard(
+            surface: .notes,
+            dataRevision: model.dataRevision,
+            groupMode: model.settings.notesKanbanColumnMode,
+            visibleListIDs: notesVisibleListIDs,
+            localOrder: localOrder
+        )
+    }
+
     private var orderedTasks: [TaskMirror] {
         let pool = Dictionary(uniqueKeysWithValues: undatedTasks.map { ($0.id, $0) })
         let orderedSet = Set(localOrder)
@@ -802,6 +912,38 @@ struct NotesView: View {
         localOrder = preserved + fresh
     }
 
+    private func rebuildOrderIfNeeded(force: Bool = false) {
+        let nextKey = undatedTasks.map(\.id).joined(separator: "|")
+        guard force || nextKey != noteOrderIDsKey else { return }
+        noteOrderIDsKey = nextKey
+        rebuildOrder()
+    }
+
+    private func rebuildNotesBoardSnapshotIfNeeded() {
+        let key = notesBoardSnapshotKey
+        guard preparedNotesBoardSnapshot?.key != key else { return }
+        let input = TaskBoardDisplayInput(
+            key: key,
+            surface: .notes,
+            tasks: undatedTasks,
+            columnMode: model.settings.notesKanbanColumnMode,
+            taskLists: model.taskLists,
+            taskListTitleByID: model.taskListTitleByID,
+            duplicateTaskIDs: Set(model.duplicateIndex.memberToGroup.keys),
+            localOrder: localOrder,
+            referenceDate: Date(),
+            calendar: .current
+        )
+        notesBoardBuildTask?.cancel()
+        notesBoardBuildTask = Task { @MainActor in
+            let snapshot = await Task.detached(priority: .utility) {
+                TaskBoardDisplaySnapshotBuilder.snapshot(input)
+            }.value
+            guard Task.isCancelled == false, snapshot.key == notesBoardSnapshotKey else { return }
+            preparedNotesBoardSnapshot = snapshot
+        }
+    }
+
     private func reorder(movingID: TaskMirror.ID, insertBefore targetID: TaskMirror.ID) {
         guard movingID != targetID else { return }
         var next = localOrder
@@ -812,6 +954,7 @@ struct NotesView: View {
             next.append(movingID)
         }
         localOrder = next
+        rebuildNotesBoardSnapshotIfNeeded()
     }
 }
 

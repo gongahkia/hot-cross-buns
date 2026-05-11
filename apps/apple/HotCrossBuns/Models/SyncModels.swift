@@ -140,6 +140,7 @@ enum SyncResourceType: String, Hashable, Codable, Sendable {
 
 struct PendingMutation: Identifiable, Hashable, Codable, Sendable {
     let id: UUID
+    var accountID: GoogleAccount.ID?
     var createdAt: Date
     var resourceType: SyncResourceType
     var resourceID: String
@@ -162,12 +163,13 @@ struct PendingMutation: Identifiable, Hashable, Codable, Sendable {
     var conflictedAt: Date? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, createdAt, resourceType, resourceID, action, payload
+        case id, accountID, createdAt, resourceType, resourceID, action, payload
         case attemptCount, lastAttemptAt, lastErrorSummary, quarantinedAt, conflictedAt
     }
 
     init(
         id: UUID,
+        accountID: GoogleAccount.ID? = nil,
         createdAt: Date,
         resourceType: SyncResourceType,
         resourceID: String,
@@ -180,6 +182,7 @@ struct PendingMutation: Identifiable, Hashable, Codable, Sendable {
         conflictedAt: Date? = nil
     ) {
         self.id = id
+        self.accountID = accountID
         self.createdAt = createdAt
         self.resourceType = resourceType
         self.resourceID = resourceID
@@ -195,6 +198,7 @@ struct PendingMutation: Identifiable, Hashable, Codable, Sendable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
+        accountID = try c.decodeIfPresent(GoogleAccount.ID.self, forKey: .accountID)
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         resourceType = try c.decode(SyncResourceType.self, forKey: .resourceType)
         resourceID = try c.decode(String.self, forKey: .resourceID)

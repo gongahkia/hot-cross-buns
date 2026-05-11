@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="google-site-verification" content="RKZM3YxESf2Iix4AN2Vg2imTGviRv4jSq6uXevXnTjs">
-<title>Hot Cross Buns - Planner App for MacOS</title>
-<meta name="description" content="A keyboard-first, macOS-native planner for your tasks, calendar, and notes. Backed by Google.">
+<title>Hot Cross Buns - Planner App for macOS</title>
+<meta name="description" content="A keyboard-first, macOS-native planner for tasks, calendars, notes, and multiple Google account workspaces.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..700,0..100&family=Geist:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,300..500;1,8..60,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..700,0..100&amp;family=Geist:wght@400;500;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,300..500;1,8..60,400&amp;display=swap">
 <link rel="stylesheet" href="styles.css">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" href="logo.png">
@@ -21,6 +21,7 @@
     <span>Hot Cross Buns</span>
   </a>
   <div class="nav-links">
+    <a href="#new">New</a>
     <a href="#views">Views</a>
     <a href="#keys">Keyboard</a>
     <a href="#menubar">Menu Bar</a>
@@ -36,7 +37,7 @@
 <header class="hero">
   <div class="hero-copy">
     <h1>A planner for<br>busy people<br>with a <em>system</em>.</h1>
-    <p class="deck">Hot Cross Buns is a keyboard-first macOS-native client for Google&nbsp;Tasks and Google&nbsp;Calendar.</p>
+    <p class="deck">Hot Cross Buns is a keyboard-first macOS-native client for Google&nbsp;Tasks and Google&nbsp;Calendar, now with separate Google account workspaces and faster large-calendar rendering.</p>
     <div class="hero-ctas">
       <a class="cta-primary" href="#download">Download for macOS</a>
       <a class="cta-secondary" href="https://github.com/gongahkia/hot-cross-buns" target="_blank" rel="noopener">GitHub →</a>
@@ -49,6 +50,36 @@
     </video>
   </figure>
 </header>
+
+<section id="new" class="release-highlight">
+  <div class="release-highlight-head">
+    <p class="eyebrow">New in v0.3.1</p>
+    <h2>Safer accounts,<br>smoother big calendars.</h2>
+    <p class="lede">This release focuses on the things that matter when the app holds real daily data: account separation, cache safety, and interaction speed under heavy event loads.</p>
+  </div>
+
+  <div class="release-highlight-grid">
+    <article class="release-highlight-card">
+      <h3>Multiple Google accounts</h3>
+      <p>Save one Desktop OAuth client, then connect each Google account through the browser flow. Each account keeps its own tokens, cache, settings, checkpoints, and queued writes.</p>
+    </article>
+
+    <article class="release-highlight-card">
+      <h3>Prepared views</h3>
+      <p>Calendar, Tasks, and Notes now render from prepared snapshots so switching views, scrolling, selecting, and dragging stay responsive even with large task and calendar sets.</p>
+    </article>
+
+    <article class="release-highlight-card">
+      <h3>Calendar filters</h3>
+      <p>The sidebar can filter by calendar, color, and event tags. Tag detection is stricter, so ordinary unit numbers such as #11-07 are not treated as event tags.</p>
+    </article>
+
+    <article class="release-highlight-card">
+      <h3>Data-safety coverage</h3>
+      <p>Migration, encrypted cache, import/export, disconnect, sync replay, OAuth token isolation, and stale snapshot handling now have focused regression coverage.</p>
+    </article>
+  </div>
+</section>
 
 <section id="views" class="views">
   <div class="views-layout">
@@ -63,23 +94,23 @@
       <div class="section-head">
         <p class="eyebrow">Tasks, calendars, notes</p>
         <h2>Everything you need<br>in <em>three</em> views.</h2>
-        <p class="lede">Three surfaces, three jobs: tasks to finish, time to place, and notes to keep close.</p>
+        <p class="lede">Three surfaces, three jobs: tasks to finish, time to place, and notes to keep close. Large datasets are prepared before interaction so the views feel steady once they appear.</p>
       </div>
 
       <div class="views-list">
         <article class="view-item">
           <h3>Tasks</h3>
-          <p>Lists for inbox capture and day-to-day execution. Syncs with Google Tasks.</p>
+          <p>Prepared Kanban columns for inbox capture and day-to-day execution. Syncs with Google Tasks.</p>
         </article>
 
         <article class="view-item">
           <h3>Calendar</h3>
-          <p>Agenda through year views for time blocking and scheduling. Syncs with Google Calendar.</p>
+          <p>Agenda through year views with calendar, color, and tag filtering. Syncs with Google Calendar.</p>
         </article>
 
         <article class="view-item">
           <h3>Notes</h3>
-          <p>Lightweight notes backed by Google Tasks for context, drafts, and reference material.</p>
+          <p>Prepared note boards backed by Google Tasks for context, drafts, and reference material.</p>
         </article>
       </div>
     </div>
@@ -194,7 +225,7 @@
 	  <div class="download-inner">
 	    <p class="eyebrow">Ready when you are</p>
 	    <h2>Get Hot Cross Buns.</h2>
-	    <p class="lede">Free. macOS 14 Sonoma and up. Google sync uses your own Google Cloud Desktop OAuth client.</p>
+	    <p class="lede">Free. macOS 14 Sonoma and up. Google sync uses your own Google Cloud Desktop OAuth client, which can connect multiple Google accounts one at a time.</p>
 
 	    <div class="download-cta">
 	      <button
@@ -232,7 +263,7 @@
 	    <p class="eyebrow">First launch on macOS</p>
 	    <h3 id="download-modal-title">One quick thing before you download.</h3>
 	    <p id="download-modal-copy" class="download-modal-copy">
-	      Preview DMGs are unsigned for now, so macOS may ask you to approve Hot Cross Buns once before it opens normally. Google sync asks for your own Desktop OAuth client during setup.
+	      Preview DMGs are unsigned for now, so macOS may ask you to approve Hot Cross Buns once before it opens normally. Google sync asks for your own Desktop OAuth client during setup, then lets you connect individual Google accounts with the browser sign-in flow.
 	    </p>
 	    <figure class="download-modal-warning">
 	      <img
@@ -270,10 +301,29 @@
 	<section id="updates" class="updates">
   <div class="updates-head">
     <p class="eyebrow">Changelog</p>
-    <h2>Latest changes in <em>v0.3.0</em>.</h2>
+    <h2>Latest changes in <em>v0.3.1</em>.</h2>
   </div>
 
   <div class="updates-list">
+    <article class="update-entry">
+      <div class="update-meta">
+        <h3>v0.3.1</h3>
+        <p>11 May 2026</p>
+      </div>
+      <div class="update-copy">
+        <ul>
+          <li>Added multi-account support for custom Desktop OAuth: one app-level OAuth client can connect multiple Google accounts, with account-scoped Keychain tokens and account-scoped cached workspaces.</li>
+          <li>Added safe account switching and disconnect flows so tasks, calendars, events, settings, sync checkpoints, and queued writes stay attached to the correct account.</li>
+          <li>Upgraded cache persistence to preserve active and inactive account workspaces across migration, encrypted cache saves, import/export, and events sidecar round-trips.</li>
+          <li>Added prepared display snapshots across Calendar, Tasks, and Notes so expensive filtering, grouping, layout, labels, and duplicate checks are built before the user starts interacting.</li>
+          <li>Improved Calendar performance across agenda, day, week, multi-day, month, and year views, including prepared timed layouts, all-day spans, month cells, and year heatmap counts.</li>
+          <li>Added Calendar sidebar filters for calendars, colors, and event tags, with stricter tag extraction so values like #11-07 remain ordinary text.</li>
+          <li>Expanded Google diagnostics, sync replay safety, OAuth token isolation, cache migration, export/import, and prepared snapshot test coverage.</li>
+          <li>Polished UI details including the branded preparing spinner, settings search width, standard sidebar typography, and aligned completion controls in calendar overflow popovers.</li>
+        </ul>
+      </div>
+    </article>
+
     <article class="update-entry">
       <div class="update-meta">
         <h3>v0.3.0</h3>

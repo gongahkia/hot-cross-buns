@@ -245,7 +245,7 @@ struct PortableExportManifest: Codable, Equatable, Sendable {
     var attachments: [Attachment]
     var skippedPointers: [String]
     var notes: [String] = [
-        "hot-cross-buns-state.json preserves settings, tasks, notes, events, calendars, sync checkpoints, pending mutations, and original local pointer text.",
+        "hot-cross-buns-state.json preserves settings, connected account metadata, tasks, notes, events, calendars, sync checkpoints, pending mutations, and original local pointer text. Google OAuth tokens are not exported.",
         "Attachments contains reachable local files referenced by Local image/file pointers. Missing, unreadable, and corrupted image pointers are listed in skippedPointers."
     ]
 }
@@ -405,7 +405,13 @@ enum PortableExportArchive {
     private static func collectAttachments(in state: CachedAppState) -> [LocalFileAttachment] {
         let taskAttachments = state.tasks.flatMap { LocalFileAttachment.parseAll(in: $0.notes) }
         let eventAttachments = state.events.flatMap { LocalFileAttachment.parseAll(in: $0.details) }
-        return taskAttachments + eventAttachments
+        let workspaceTaskAttachments = state.accountWorkspaces.flatMap { workspace in
+            workspace.tasks.flatMap { LocalFileAttachment.parseAll(in: $0.notes) }
+        }
+        let workspaceEventAttachments = state.accountWorkspaces.flatMap { workspace in
+            workspace.events.flatMap { LocalFileAttachment.parseAll(in: $0.details) }
+        }
+        return taskAttachments + eventAttachments + workspaceTaskAttachments + workspaceEventAttachments
     }
 
     private static func filteredState(_ state: CachedAppState, options: PortableExportOptions) -> CachedAppState {
@@ -431,8 +437,14 @@ enum PortableExportArchive {
             calendars: resourceDiff(current: current.calendars, incoming: incoming.calendars, id: \.id, title: \.summary),
             taskLists: resourceDiff(current: current.taskLists, incoming: incoming.taskLists, id: \.id, title: \.title),
             settingsWillChange: current.settings != incoming.settings,
-            pendingMutationCount: incoming.pendingMutations.count
+            pendingMutationCount: pendingMutationCount(in: incoming)
         )
+    }
+
+    private static func pendingMutationCount(in state: CachedAppState) -> Int {
+        state.accountWorkspaces.isEmpty
+            ? state.pendingMutations.count
+            : state.accountWorkspaces.reduce(0) { $0 + $1.pendingMutations.count }
     }
 
     private static func resourceDiff<Value: Equatable>(
@@ -493,6 +505,20 @@ enum PortableExportArchive {
             var next = event
             next.details = LocalFileAttachment.rewritePointers(in: event.details, replacing: replacements)
             return next
+        }
+        state.accountWorkspaces = state.accountWorkspaces.map { workspace in
+            var workspace = workspace
+            workspace.tasks = workspace.tasks.map { task in
+                var next = task
+                next.notes = LocalFileAttachment.rewritePointers(in: task.notes, replacing: replacements)
+                return next
+            }
+            workspace.events = workspace.events.map { event in
+                var next = event
+                next.details = LocalFileAttachment.rewritePointers(in: event.details, replacing: replacements)
+                return next
+            }
+            return workspace
         }
     }
 

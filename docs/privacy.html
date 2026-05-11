@@ -7,7 +7,7 @@
 <meta name="description" content="Privacy, storage, permissions, and release integrity details for Hot Cross Buns.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..700,0..100&family=Geist:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,300..500;1,8..60,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..700,0..100&amp;family=Geist:wght@400;500;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,300..500;1,8..60,400&amp;display=swap">
 <link rel="stylesheet" href="styles.css">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" href="logo.png">
@@ -43,7 +43,7 @@
 
     <article class="doc-card">
       <h2>How Google data is used</h2>
-      <p>Google user data is used only to provide the visible task, note, calendar, search, reminder, template, cleanup, export, and sync features in the Mac app. The app sends your edits directly to Google Tasks and Google Calendar, reads Google responses back into the local cache, and uses local copies for fast search, offline display, pending offline writes, diagnostics, and optional local notifications.</p>
+      <p>Google user data is used only to provide the visible task, note, calendar, search, reminder, template, cleanup, export, and sync features in the Mac app. The app sends your edits directly to Google Tasks and Google Calendar for the currently active account, reads Google responses back into the local cache, and uses local copies for fast search, offline display, pending offline writes, diagnostics, and optional local notifications.</p>
       <p>Hot Cross Buns does not sell Google user data, use it for advertising, transfer it to data brokers, or use it to train AI models.</p>
     </article>
 
@@ -51,23 +51,23 @@
       <h2>Where local data lives</h2>
       <p>By default the app keeps a local cache under <code>~/Library/Application Support/com.gongahkia.hotcrossbuns.mac/</code>.</p>
       <ul>
-        <li><code>cache-state.json</code>: account metadata, settings, sync checkpoints, pending offline mutations, and non-event mirrors</li>
-        <li><code>cache-events.json</code>: calendar event mirrors stored separately so routine saves stay small</li>
+        <li><code>cache-state.json</code>: account metadata, active-account state, per-account settings, sync checkpoints, pending offline mutations, and non-event mirrors</li>
+        <li><code>cache-events.json</code>: active and inactive account calendar event mirrors stored separately so routine saves stay small</li>
         <li><code>cache-state.salt</code>: encryption salt when cache encryption is enabled</li>
         <li><code>crash.log</code>: local crash note written on certain fatal crashes</li>
       </ul>
-      <p>The cache is replaceable. Google remains the source of truth for synced tasks and events.</p>
+      <p>The cache is replaceable. Google remains the source of truth for synced tasks and events. When multiple Google accounts are connected, each account has its own cached workspace and only the active account is synced or replayed.</p>
     </article>
 
     <article class="doc-card">
       <h2>Encryption and credentials</h2>
-      <p>Google OAuth tokens stay in the macOS Keychain and are used to request fresh access tokens from Google when the app syncs. Optional local cache encryption uses AES-256-GCM with a passphrase-derived key. That encryption protects local cache files on your Mac; it does not change what Google stores.</p>
+      <p>Google OAuth tokens stay in the macOS Keychain and are used to request fresh access tokens from Google when the app syncs. For custom Desktop OAuth, the OAuth client configuration is stored once for the app, while token sets are stored separately by Google account ID. Optional local cache encryption uses AES-256-GCM with a passphrase-derived key. That encryption protects local cache files on your Mac; it does not change what Google stores.</p>
     </article>
 
     <article class="doc-card">
       <h2>Sharing and retention</h2>
       <p>There is no Hot Cross Buns server, hosted database, or analytics backend receiving your Google Tasks or Google Calendar data. Data is shared with Google because Google is the storage and sync provider you connect to. Calendar events may also be visible to event attendees or calendar subscribers according to your Google Calendar settings.</p>
-      <p>Disconnecting Google in the app signs out and clears local synced state on this Mac. You can also revoke the app's access from your Google Account. Data already stored in Google Tasks or Google Calendar remains in your Google account unless you delete it there or delete it through Hot Cross Buns.</p>
+      <p>Disconnecting a Google account in the app removes that account's local tokens and workspace on this Mac. If other accounts remain connected, the app can switch to another account; disconnecting the last account leaves the app signed out locally. You can also revoke the app's access from your Google Account. Data already stored in Google Tasks or Google Calendar remains in your Google account unless you delete it there or delete it through Hot Cross Buns.</p>
     </article>
 
     <article class="doc-card">
@@ -82,12 +82,12 @@
 
     <article class="doc-card">
       <h2>Permissions</h2>
-      <p>Notifications are optional and used only for device-local reminders. Accessibility permission is only needed if you enable global hotkeys that should work outside the app. You can revoke Google account access from your Google account settings and disconnect Hot Cross Buns from the app’s Settings window.</p>
+      <p>Notifications are optional and used only for device-local reminders from the active workspace. Accessibility permission is only needed if you enable global hotkeys that should work outside the app. You can revoke Google account access from your Google account settings and disconnect Hot Cross Buns from the app’s Settings window.</p>
     </article>
 
     <article class="doc-card">
       <h2>OAuth client ownership</h2>
-      <p>Hot Cross Buns is intended to use a Google Cloud OAuth client controlled by the person or organization using the app. Downloaded DMGs can store a user-supplied Desktop OAuth client in the macOS Keychain and use a localhost browser redirect for sign-in. Source builds can also embed a native Google Sign-In client at build time. Do not use another person's OAuth client unless you trust that build and consent screen.</p>
+      <p>Hot Cross Buns is intended to use a Google Cloud OAuth client controlled by the person or organization using the app. Downloaded DMGs can store one user-supplied Desktop OAuth client in the macOS Keychain and use a localhost browser redirect for each Google account sign-in. Source builds can also embed a native Google Sign-In client at build time. Do not use another person's OAuth client unless you trust that build and consent screen.</p>
     </article>
 
     <article class="doc-card">

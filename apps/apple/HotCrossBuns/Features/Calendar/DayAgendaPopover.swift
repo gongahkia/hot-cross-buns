@@ -49,6 +49,9 @@ struct DayAgendaPopover: View {
     let calendarColor: (CalendarEventMirror) -> Color
 
     private let calendar = Calendar.current
+    private let rowControlColumnWidth: CGFloat = 18
+    private let rowControlSize: CGFloat = 12
+    private let rowSpacing: CGFloat = 8
 
     var body: some View {
         VStack(spacing: 0) {
@@ -107,11 +110,13 @@ struct DayAgendaPopover: View {
 
     @ViewBuilder
     private func eventRow(_ event: CalendarEventMirror) -> some View {
-        HStack(alignment: .top, spacing: 6) {
-            // Dismiss affordance mirrors the task-checkbox layout in the
-            // neighboring taskRow. Hidden for read-only calendars.
-            CalendarEventDismissButton(event: event, size: 12)
-                .padding(.top, 3)
+        HStack(alignment: .top, spacing: rowSpacing) {
+            ZStack {
+                CalendarEventDismissButton(event: event, size: rowControlSize)
+            }
+            .frame(width: rowControlColumnWidth)
+            .padding(.top, 3)
+
             Button {
                 isPresented_dismiss()
                 router?.present(.editEvent(event.id))
@@ -143,18 +148,22 @@ struct DayAgendaPopover: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
-                .padding(.vertical, 4)
-                .padding(.horizontal, 6)
             }
             .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .contentShape(Rectangle())
+        .padding(.vertical, 4)
     }
 
     @ViewBuilder
     private func taskRow(_ task: TaskMirror) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            CalendarTaskCheckbox(task: task, size: 12)
-                .padding(.top, 2)
+        HStack(alignment: .top, spacing: rowSpacing) {
+            ZStack {
+                CalendarTaskCheckbox(task: task, size: rowControlSize)
+            }
+            .frame(width: rowControlColumnWidth)
+            .padding(.top, 3)
 
             Button {
                 isPresented_dismiss()
@@ -174,7 +183,6 @@ struct DayAgendaPopover: View {
         }
         .contentShape(Rectangle())
         .padding(.vertical, 4)
-        .padding(.horizontal, 6)
     }
 
     // MARK: - Helpers

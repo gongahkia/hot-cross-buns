@@ -71,6 +71,135 @@ final class CloudSyncControlTests: XCTestCase {
         XCTAssertEqual(synced.settings.syncMode, .balanced)
     }
 
+    func testSchedulerPreservesNonActiveAccountMetadata() async throws {
+        var settings = AppSettings.default
+        settings.cloudSyncTargets = []
+        let workAccount = GoogleAccount(
+            id: "work-account",
+            email: "work@example.com",
+            displayName: "Work",
+            grantedScopes: [GoogleScope.tasks],
+            authProvider: .customDesktopOAuth
+        )
+        var state = baseState(settings: settings)
+        state.accounts = [GoogleAccount.preview, workAccount]
+        state.activeAccountID = GoogleAccount.preview.id
+        state.syncCheckpoints = [
+            SyncCheckpoint(
+                id: SyncCheckpoint.stableID(accountID: GoogleAccount.preview.id, resourceType: .taskList, resourceID: "list"),
+                accountID: GoogleAccount.preview.id,
+                resourceType: .taskList,
+                resourceID: "list",
+                calendarSyncToken: nil,
+                tasksUpdatedMin: Date(),
+                lastSuccessfulSyncAt: Date()
+            ),
+            SyncCheckpoint(
+                id: SyncCheckpoint.stableID(accountID: workAccount.id, resourceType: .taskList, resourceID: "work-list"),
+                accountID: workAccount.id,
+                resourceType: .taskList,
+                resourceID: "work-list",
+                calendarSyncToken: nil,
+                tasksUpdatedMin: Date(),
+                lastSuccessfulSyncAt: Date()
+            )
+        ]
+
+        let synced = try await makeScheduler().syncNow(mode: .balanced, baseState: state)
+
+        XCTAssertEqual(synced.accounts.map(\.id), [GoogleAccount.preview.id, workAccount.id])
+        XCTAssertEqual(synced.activeAccountID, GoogleAccount.preview.id)
+        XCTAssertEqual(Set(synced.syncCheckpoints.map(\.accountID)), [GoogleAccount.preview.id])
+        let workWorkspace = try XCTUnwrap(synced.accountWorkspaces.first { $0.accountID == workAccount.id })
+        XCTAssertEqual(Set(workWorkspace.syncCheckpoints.map(\.accountID)), [workAccount.id])
+    }
+
+    func testSchedulerUpdatesOnlyActiveWorkspaceAndPreservesInactiveWorkspaceData() async throws {
+        var settings = AppSettings.default
+        settings.cloudSyncTargets = CloudSyncTarget.all
+        settings.selectedTaskListIDs = ["list"]
+        settings.hasConfiguredTaskListSelection = true
+        settings.selectedCalendarIDs = ["cal"]
+        settings.hasConfiguredCalendarSelection = true
+        let workAccount = GoogleAccount(
+            id: "work-account",
+            email: "work@example.com",
+            displayName: "Work",
+            grantedScopes: [GoogleScope.tasks, GoogleScope.calendar],
+            authProvider: .customDesktopOAuth
+        )
+        let workMutation = PendingMutation(
+            id: UUID(uuidString: "00000000-0000-0000-0000-00000000AA01")!,
+            accountID: workAccount.id,
+            createdAt: Date(timeIntervalSince1970: 100),
+            resourceType: .task,
+            resourceID: "work-task",
+            action: .update,
+            payload: Data()
+        )
+        let workWorkspace = AccountWorkspaceSnapshot(
+            accountID: workAccount.id,
+            taskLists: [TaskListMirror(id: "work-list", title: "Work", updatedAt: nil, etag: nil)],
+            tasks: [Self.task(id: "work-task", taskListID: "work-list", completedAt: nil, completed: false)],
+            calendars: [
+                CalendarListMirror(id: "work-cal", summary: "Work", colorHex: "#111111", isSelected: true, accessRole: "owner")
+            ],
+            events: [
+                CalendarEventMirror(
+                    id: "work-event",
+                    calendarID: "work-cal",
+                    summary: "Work event",
+                    details: "",
+                    startDate: Date(timeIntervalSince1970: 200),
+                    endDate: Date(timeIntervalSince1970: 300),
+                    isAllDay: false,
+                    status: .confirmed,
+                    recurrence: [],
+                    etag: nil,
+                    updatedAt: nil
+                )
+            ],
+            settings: .default,
+            syncCheckpoints: [
+                SyncCheckpoint(
+                    id: SyncCheckpoint.stableID(accountID: workAccount.id, resourceType: .taskList, resourceID: "work-list"),
+                    accountID: workAccount.id,
+                    resourceType: .taskList,
+                    resourceID: "work-list",
+                    calendarSyncToken: nil,
+                    tasksUpdatedMin: Date(timeIntervalSince1970: 50),
+                    lastSuccessfulSyncAt: Date(timeIntervalSince1970: 50)
+                )
+            ],
+            pendingMutations: [workMutation]
+        )
+        var state = baseState(settings: settings)
+        state.accounts = [GoogleAccount.preview, workAccount]
+        state.accountWorkspaces = [workWorkspace]
+        MockURLProtocol.requestHandler = { request in
+            switch request.url?.path {
+            case "/tasks/v1/users/@me/lists":
+                return Self.jsonResponse(for: request, body: Self.taskListsJSON)
+            case "/tasks/v1/lists/list/tasks":
+                return Self.jsonResponse(for: request, body: Self.tasksJSON)
+            case "/calendar/v3/users/me/calendarList":
+                return Self.jsonResponse(for: request, body: Self.calendarListJSON)
+            case "/calendar/v3/calendars/cal/events":
+                return Self.jsonResponse(for: request, body: Self.eventsJSON)
+            default:
+                XCTFail("Unexpected path \(request.url?.path ?? "<nil>")")
+                return Self.jsonResponse(for: request, body: #"{}"#, statusCode: 404)
+            }
+        }
+
+        let synced = try await makeScheduler().syncNow(mode: .balanced, baseState: state)
+
+        XCTAssertEqual(synced.taskLists.map(\.id), ["list"])
+        XCTAssertEqual(synced.tasks.map(\.id), ["remote-task"])
+        XCTAssertEqual(synced.events.map(\.id), ["remote-event"])
+        XCTAssertEqual(synced.accountWorkspaces.first { $0.accountID == workAccount.id }, workWorkspace)
+    }
+
     func testSchedulerLeavesTasksLocalWhenOnlyEventsSync() async throws {
         var settings = AppSettings.default
         settings.cloudSyncTargets = [.events]
@@ -460,10 +589,15 @@ final class CloudSyncControlTests: XCTestCase {
         return Dictionary(uniqueKeysWithValues: queryItems.map { ($0.name, $0.value ?? "") })
     }
 
-    private static func task(id: String, completedAt: Date?, completed: Bool) -> TaskMirror {
+    private static func task(
+        id: String,
+        taskListID: String = "list",
+        completedAt: Date?,
+        completed: Bool
+    ) -> TaskMirror {
         TaskMirror(
             id: id,
-            taskListID: "list",
+            taskListID: taskListID,
             parentID: nil,
             title: id,
             notes: "",
