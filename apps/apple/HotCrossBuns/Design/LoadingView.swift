@@ -25,8 +25,9 @@ struct LoadingView: View {
     }
 }
 
-private struct LoadingBunsIcon: View {
+struct LoadingBunsIcon: View {
     let reduceMotion: Bool
+    var size: CGFloat = 104
 
     var body: some View {
         Group {
@@ -38,7 +39,7 @@ private struct LoadingBunsIcon: View {
                 CoreAnimationLoadingBunsIcon()
             }
         }
-        .frame(width: 104, height: 104)
+        .frame(width: size, height: size)
         .accessibilityHidden(true)
     }
 }

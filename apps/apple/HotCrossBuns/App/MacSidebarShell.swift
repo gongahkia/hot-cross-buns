@@ -176,6 +176,9 @@ struct MacSidebarShell: View {
     @State private var chordKeys: [String]?
     @State private var chordTimeoutTask: Task<Void, Never>?
     @State private var isMainWindowFocused = true
+    @State private var isCalendarFiltersCollapsed = false
+    @State private var calendarRowTapBeganOnActiveCalendar = false
+    @State private var calendarRowTapStart: CGPoint?
 
     private var shellCore: some View {
         NavigationSplitView(columnVisibility: $sidebarVisibility) {
@@ -516,15 +519,17 @@ struct MacSidebarShell: View {
             List(selection: sidebarSelectionBinding) {
                 ForEach(visibleSidebarItems) { item in
                     sidebarRow(for: item)
-                    if item == .calendar, selection == .calendar, model.account != nil {
+                    if item == .calendar, shouldShowCalendarFilters {
                         CalendarSidebarFilters(state: calendarViewFilterStateBinding)
                             .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 6, trailing: 12))
                             .listRowSeparator(.hidden)
+                            .transition(HCBMotion.transition(.opacity.combined(with: .move(edge: .top)), reduceMotion: reduceMotion))
                     }
                 }
             }
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
+            .animation(HCBMotion.animation(.easeInOut(duration: 0.14), reduceMotion: reduceMotion), value: isCalendarFiltersCollapsed)
             if model.settings.cacheEncryptionEnabled {
                 Divider()
                 encryptedCacheFooter
@@ -536,6 +541,10 @@ struct MacSidebarShell: View {
             maxWidth: sidebarMaxWidth,
             alignment: .topLeading
         )
+    }
+
+    private var shouldShowCalendarFilters: Bool {
+        selection == .calendar && model.account != nil && isCalendarFiltersCollapsed == false
     }
 
     private var encryptedCacheFooter: some View {
@@ -1089,6 +1098,32 @@ struct MacSidebarShell: View {
             }
         }
         .help(sidebarHelp(for: item))
+        .simultaneousGesture(calendarSidebarToggleGesture(for: item))
+    }
+
+    private func calendarSidebarToggleGesture(for item: SidebarItem) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                guard item == .calendar, calendarRowTapStart == nil else { return }
+                calendarRowTapStart = value.startLocation
+                calendarRowTapBeganOnActiveCalendar = selection == .calendar
+            }
+            .onEnded { value in
+                defer {
+                    calendarRowTapStart = nil
+                    calendarRowTapBeganOnActiveCalendar = false
+                }
+                guard item == .calendar, calendarRowTapBeganOnActiveCalendar else { return }
+                guard isTapLikeGesture(start: calendarRowTapStart, end: value.location) else { return }
+                isCalendarFiltersCollapsed.toggle()
+            }
+    }
+
+    private func isTapLikeGesture(start: CGPoint?, end: CGPoint) -> Bool {
+        guard let start else { return true }
+        let horizontalDelta = start.x - end.x
+        let verticalDelta = start.y - end.y
+        return (horizontalDelta * horizontalDelta) + (verticalDelta * verticalDelta) < 64
     }
 
     private func sidebarHelp(for item: SidebarItem) -> String {
