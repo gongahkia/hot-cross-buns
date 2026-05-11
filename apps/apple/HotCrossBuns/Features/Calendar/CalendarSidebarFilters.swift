@@ -34,7 +34,7 @@ struct CalendarSidebarFilters: View {
     private var header: some View {
         HStack(spacing: 8) {
             Text("View filters")
-                .hcbFont(.caption, weight: .semibold)
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
             Spacer(minLength: 0)
             if state.hasActiveFilters {
@@ -101,10 +101,10 @@ struct CalendarSidebarFilters: View {
         if options.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Tags")
-                    .hcbFont(.caption2, weight: .semibold)
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Text("No event tags yet")
-                    .hcbFont(.caption2)
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -136,16 +136,16 @@ struct CalendarSidebarFilters: View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
                 Text(title)
-                    .hcbFont(.caption2, weight: .semibold)
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
                 Button("All", action: setAll)
                     .buttonStyle(.plain)
-                    .hcbFont(.caption2)
+                    .font(.caption2)
                     .help("Show all \(title.lowercased())")
                 Button("None", action: setNone)
                     .buttonStyle(.plain)
-                    .hcbFont(.caption2)
+                    .font(.caption2)
                     .help("Hide all \(title.lowercased())")
             }
             content()
@@ -166,12 +166,12 @@ struct CalendarSidebarFilters: View {
                     .hcbScaledFrame(width: 13)
                 swatch
                 Text(title)
-                    .hcbFont(.caption)
+                    .font(.caption)
                     .lineLimit(1)
                     .foregroundStyle(AppColor.ink)
                 Spacer(minLength: 0)
                 Text("\(count)")
-                    .font(.caption2.monospacedDigit())
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -205,7 +205,7 @@ struct CalendarSidebarFilters: View {
         } else {
             Image(systemName: "number")
                 .foregroundStyle(.secondary)
-                .hcbFont(.caption2)
+                .font(.caption2)
                 .hcbScaledFrame(width: 9)
         }
     }
