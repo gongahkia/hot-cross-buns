@@ -47,10 +47,13 @@ struct GoogleAPITransport: Sendable {
         queryItems: [URLQueryItem] = [],
         decoder: JSONDecoder = .googleAPI
     ) async throws -> (Response, Date?) {
-        var request = try await makeRequest(method: "GET", path: path, queryItems: queryItems, ifMatch: nil)
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        let (data, response) = try await urlSession.data(for: request)
-        try validate(response: response, data: data)
+        let (data, response) = try await perform(
+            method: "GET",
+            path: path,
+            queryItems: queryItems,
+            bodyData: nil,
+            ifMatch: nil
+        )
         let decoded = try decoder.decode(Response.self, from: data)
         let serverDate: Date? = {
             guard let http = response as? HTTPURLResponse,
@@ -69,15 +72,14 @@ struct GoogleAPITransport: Sendable {
         encoder: JSONEncoder = .googleAPI,
         decoder: JSONDecoder = .googleAPI
     ) async throws -> Response {
-        var request = try await makeRequest(method: method, path: path, queryItems: queryItems, ifMatch: ifMatch)
-
-        if let body {
-            request.httpBody = try encoder.encode(body)
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        }
-
-        let (data, response) = try await urlSession.data(for: request)
-        try validate(response: response, data: data)
+        let bodyData = try body.map { try encoder.encode($0) }
+        let (data, _) = try await perform(
+            method: method,
+            path: path,
+            queryItems: queryItems,
+            bodyData: bodyData,
+            ifMatch: ifMatch
+        )
         return try decoder.decode(Response.self, from: data)
     }
 
@@ -89,15 +91,14 @@ struct GoogleAPITransport: Sendable {
         ifMatch: String? = nil,
         encoder: JSONEncoder = .googleAPI
     ) async throws {
-        var request = try await makeRequest(method: method, path: path, queryItems: queryItems, ifMatch: ifMatch)
-
-        if let body {
-            request.httpBody = try encoder.encode(body)
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        }
-
-        let (data, response) = try await urlSession.data(for: request)
-        try validate(response: response, data: data)
+        let bodyData = try body.map { try encoder.encode($0) }
+        _ = try await perform(
+            method: method,
+            path: path,
+            queryItems: queryItems,
+            bodyData: bodyData,
+            ifMatch: ifMatch
+        )
     }
 
     func send(
@@ -126,6 +127,104 @@ struct GoogleAPITransport: Sendable {
             ifMatch: ifMatch,
             decoder: decoder
         )
+    }
+
+    private func perform(
+        method: String,
+        path: String,
+        queryItems: [URLQueryItem],
+        bodyData: Data?,
+        ifMatch: String?
+    ) async throws -> (Data, URLResponse) {
+        let requestID = GoogleDiagnostics.requestID()
+        let started = DispatchTime.now().uptimeNanoseconds
+        let baseMetadata = GoogleDiagnostics.baseMetadata(
+            requestID: requestID,
+            method: method,
+            path: path,
+            queryItems: queryItems,
+            requestBody: bodyData
+        )
+        AppLogger.info(
+            "google request start",
+            category: .google,
+            metadata: baseMetadata,
+            localOnlyMetadata: GoogleDiagnostics.rawMetadata(requestBody: bodyData, responseBody: nil)
+        )
+
+        var request: URLRequest
+        do {
+            request = try await makeRequest(method: method, path: path, queryItems: queryItems, ifMatch: ifMatch)
+        } catch {
+            let failure = GoogleDiagnostics.failureMetadata(
+                error: error,
+                status: nil,
+                responseBody: nil,
+                durationMilliseconds: GoogleDiagnostics.elapsedMilliseconds(since: started)
+            )
+            AppLogger.warn(
+                "google request failed",
+                category: .google,
+                metadata: baseMetadata.merging(failure) { _, new in new }
+            )
+            throw error
+        }
+
+        if let bodyData {
+            request.httpBody = bodyData
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await urlSession.data(for: request)
+        } catch {
+            let failure = GoogleDiagnostics.failureMetadata(
+                error: error,
+                status: nil,
+                responseBody: nil,
+                durationMilliseconds: GoogleDiagnostics.elapsedMilliseconds(since: started)
+            )
+            AppLogger.warn(
+                "google request failed",
+                category: .google,
+                metadata: baseMetadata.merging(failure) { _, new in new }
+            )
+            throw error
+        }
+
+        let status = (response as? HTTPURLResponse)?.statusCode
+        do {
+            try validate(response: response, data: data)
+        } catch {
+            let failure = GoogleDiagnostics.failureMetadata(
+                error: error,
+                status: status,
+                responseBody: data,
+                durationMilliseconds: GoogleDiagnostics.elapsedMilliseconds(since: started)
+            )
+            AppLogger.warn(
+                "google request failed",
+                category: .google,
+                metadata: baseMetadata.merging(failure) { _, new in new },
+                localOnlyMetadata: GoogleDiagnostics.rawMetadata(requestBody: nil, responseBody: data)
+            )
+            throw error
+        }
+
+        let success = GoogleDiagnostics.successMetadata(
+            status: status,
+            responseBody: data,
+            durationMilliseconds: GoogleDiagnostics.elapsedMilliseconds(since: started)
+        )
+        AppLogger.info(
+            "google request succeeded",
+            category: .google,
+            metadata: baseMetadata.merging(success) { _, new in new },
+            localOnlyMetadata: GoogleDiagnostics.rawMetadata(requestBody: nil, responseBody: data)
+        )
+        return (data, response)
     }
 
     private func makeRequest(

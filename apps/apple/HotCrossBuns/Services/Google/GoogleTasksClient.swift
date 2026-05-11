@@ -8,8 +8,15 @@ struct GoogleTasksClient: Sendable {
     }
 
     func listTaskLists() async throws -> [TaskListMirror] {
-        let response: GoogleTaskListsResponse = try await transport.get(path: "/tasks/v1/users/@me/lists")
-        return response.items.map(\.mirror)
+        do {
+            let response: GoogleTaskListsResponse = try await transport.get(path: "/tasks/v1/users/@me/lists")
+            let lists = response.items.map(\.mirror)
+            AppLogger.info("google task lists listed", category: .google, metadata: ["count": String(lists.count)])
+            return lists
+        } catch {
+            AppLogger.warn("google task lists list failed", category: .google, metadata: GoogleDiagnostics.errorMetadata(error))
+            throw error
+        }
     }
 
     func insertTaskList(title: String) async throws -> TaskListMirror {
@@ -18,7 +25,12 @@ struct GoogleTasksClient: Sendable {
             path: "/tasks/v1/users/@me/lists",
             body: GoogleTaskListMutationDTO(title: title)
         )
-        return response.mirror
+        let mirror = response.mirror
+        AppLogger.info("google task list write accepted", category: .google, metadata: [
+            "action": "create",
+            "taskListID": GoogleDiagnostics.redactedIdentifier(mirror.id)
+        ])
+        return mirror
     }
 
     func updateTaskList(taskListID: String, title: String) async throws -> TaskListMirror {
@@ -28,7 +40,12 @@ struct GoogleTasksClient: Sendable {
             path: "/tasks/v1/users/@me/lists/\(encodedTaskListID)",
             body: GoogleTaskListMutationDTO(title: title)
         )
-        return response.mirror
+        let mirror = response.mirror
+        AppLogger.info("google task list write accepted", category: .google, metadata: [
+            "action": "update",
+            "taskListID": GoogleDiagnostics.redactedIdentifier(mirror.id)
+        ])
+        return mirror
     }
 
     func deleteTaskList(taskListID: String) async throws {
@@ -37,6 +54,10 @@ struct GoogleTasksClient: Sendable {
             method: "DELETE",
             path: "/tasks/v1/users/@me/lists/\(encodedTaskListID)"
         )
+        AppLogger.info("google task list write accepted", category: .google, metadata: [
+            "action": "delete",
+            "taskListID": GoogleDiagnostics.redactedIdentifier(taskListID)
+        ])
     }
 
     // §14 — Returns fetched tasks plus the `Date` header from the FIRST
@@ -49,6 +70,13 @@ struct GoogleTasksClient: Sendable {
     // that case.
     func listTasks(taskListID: String, updatedMin: Date?, completedMin: Date? = nil) async throws -> GoogleTasksPage {
         let encodedTaskListID = taskListID.googlePathComponentEncoded
+        let mode = updatedMin == nil ? "full" : "incremental"
+        AppLogger.info("google tasks list start", category: .google, metadata: [
+            "taskListID": GoogleDiagnostics.redactedIdentifier(taskListID),
+            "mode": mode,
+            "hasUpdatedMin": String(updatedMin != nil),
+            "hasCompletedMin": String(completedMin != nil)
+        ])
         let baseQueryItems = [
             URLQueryItem(name: "showCompleted", value: "true"),
             URLQueryItem(name: "showDeleted", value: "true"),
@@ -59,33 +87,52 @@ struct GoogleTasksClient: Sendable {
         var tasks: [TaskMirror] = []
         var firstPageServerDate: Date?
         var isFirstPage = true
+        var pageCount = 0
 
-        repeat {
-            var queryItems = baseQueryItems
+        do {
+            repeat {
+                pageCount += 1
+                var queryItems = baseQueryItems
 
-            if let updatedMin {
-                queryItems.append(URLQueryItem(name: "updatedMin", value: ISO8601DateFormatter.google.string(from: updatedMin)))
-            } else if let completedMin {
-                queryItems.append(URLQueryItem(name: "completedMin", value: ISO8601DateFormatter.google.string(from: completedMin)))
-            }
+                if let updatedMin {
+                    queryItems.append(URLQueryItem(name: "updatedMin", value: ISO8601DateFormatter.google.string(from: updatedMin)))
+                } else if let completedMin {
+                    queryItems.append(URLQueryItem(name: "completedMin", value: ISO8601DateFormatter.google.string(from: completedMin)))
+                }
 
-            if let pageToken {
-                queryItems.append(URLQueryItem(name: "pageToken", value: pageToken))
-            }
+                if let pageToken {
+                    queryItems.append(URLQueryItem(name: "pageToken", value: pageToken))
+                }
 
-            let (response, serverDate): (GoogleTasksResponse, Date?) = try await transport.getWithServerDate(
-                path: "/tasks/v1/lists/\(encodedTaskListID)/tasks",
-                queryItems: queryItems
-            )
+                let (response, serverDate): (GoogleTasksResponse, Date?) = try await transport.getWithServerDate(
+                    path: "/tasks/v1/lists/\(encodedTaskListID)/tasks",
+                    queryItems: queryItems
+                )
 
-            if isFirstPage {
-                firstPageServerDate = serverDate
-                isFirstPage = false
-            }
+                if isFirstPage {
+                    firstPageServerDate = serverDate
+                    isFirstPage = false
+                }
 
-            tasks.append(contentsOf: response.items.map { $0.mirror(taskListID: taskListID) })
-            pageToken = response.nextPageToken
-        } while pageToken != nil
+                tasks.append(contentsOf: response.items.map { $0.mirror(taskListID: taskListID) })
+                pageToken = response.nextPageToken
+            } while pageToken != nil
+        } catch {
+            AppLogger.warn("google tasks list failed", category: .google, metadata: [
+                "taskListID": GoogleDiagnostics.redactedIdentifier(taskListID),
+                "mode": mode,
+                "pages": String(pageCount)
+            ].merging(GoogleDiagnostics.errorMetadata(error)) { _, new in new })
+            throw error
+        }
+
+        AppLogger.info("google tasks list succeeded", category: .google, metadata: [
+            "taskListID": GoogleDiagnostics.redactedIdentifier(taskListID),
+            "mode": mode,
+            "pages": String(pageCount),
+            "count": String(tasks.count),
+            "hasServerDate": String(firstPageServerDate != nil)
+        ])
 
         return GoogleTasksPage(tasks: tasks, serverDate: firstPageServerDate)
     }
@@ -113,7 +160,16 @@ struct GoogleTasksClient: Sendable {
             queryItems: queryItems,
             body: requestBody
         )
-        return response.mirror(taskListID: taskListID)
+        let mirror = response.mirror(taskListID: taskListID)
+        AppLogger.info("google task write accepted", category: .google, metadata: [
+            "action": "create",
+            "taskListID": GoogleDiagnostics.redactedIdentifier(taskListID),
+            "taskID": GoogleDiagnostics.redactedIdentifier(mirror.id),
+            "hasNotes": String(notes.isEmpty == false),
+            "hasDueDate": String(dueDate != nil),
+            "hasParent": String(parent != nil)
+        ])
+        return mirror
     }
 
     func moveTask(
@@ -132,7 +188,15 @@ struct GoogleTasksClient: Sendable {
             path: "/tasks/v1/lists/\(encodedTaskListID)/tasks/\(encodedTaskID)/move",
             queryItems: queryItems
         )
-        return response.mirror(taskListID: taskListID)
+        let mirror = response.mirror(taskListID: taskListID)
+        AppLogger.info("google task write accepted", category: .google, metadata: [
+            "action": "move",
+            "taskListID": GoogleDiagnostics.redactedIdentifier(taskListID),
+            "taskID": GoogleDiagnostics.redactedIdentifier(taskID),
+            "hasParent": String(parent != nil),
+            "hasPrevious": String(previous != nil)
+        ])
+        return mirror
     }
 
     func updateTask(
@@ -181,6 +245,12 @@ struct GoogleTasksClient: Sendable {
             path: "/tasks/v1/lists/\(encodedTaskListID)/tasks/\(encodedTaskID)",
             ifMatch: ifMatch
         )
+        AppLogger.info("google task write accepted", category: .google, metadata: [
+            "action": "delete",
+            "taskListID": GoogleDiagnostics.redactedIdentifier(taskListID),
+            "taskID": GoogleDiagnostics.redactedIdentifier(taskID),
+            "hasIfMatch": String(ifMatch?.isEmpty == false)
+        ])
     }
 
     // Hides every completed task in the list from the Tasks web/mobile UI.
@@ -192,6 +262,10 @@ struct GoogleTasksClient: Sendable {
             method: "POST",
             path: "/tasks/v1/lists/\(encodedTaskListID)/clear"
         )
+        AppLogger.info("google task write accepted", category: .google, metadata: [
+            "action": "clearCompleted",
+            "taskListID": GoogleDiagnostics.redactedIdentifier(taskListID)
+        ])
     }
 
     private func patchTask(
@@ -208,7 +282,14 @@ struct GoogleTasksClient: Sendable {
             body: body,
             ifMatch: ifMatch
         )
-        return response.mirror(taskListID: taskListID)
+        let mirror = response.mirror(taskListID: taskListID)
+        AppLogger.info("google task write accepted", category: .google, metadata: [
+            "action": body.status == nil ? "update" : "completion",
+            "taskListID": GoogleDiagnostics.redactedIdentifier(taskListID),
+            "taskID": GoogleDiagnostics.redactedIdentifier(taskID),
+            "hasIfMatch": String(ifMatch?.isEmpty == false)
+        ])
+        return mirror
     }
 }
 

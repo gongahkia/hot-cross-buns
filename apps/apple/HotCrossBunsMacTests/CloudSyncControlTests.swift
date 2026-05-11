@@ -204,12 +204,46 @@ final class CloudSyncControlTests: XCTestCase {
         XCTAssertFalse(MockURLProtocol.capturedRequests.contains { $0.url?.path == "/calendar/v3/calendars/hidden/events" })
     }
 
-    func testSchedulerKeepsExplicitCalendarSelectionWhenGoogleSelectsMoreCalendars() async throws {
+    func testSchedulerAutoSelectsNewGoogleSelectedCalendarsWhenSelectionWasConfigured() async throws {
         var settings = AppSettings.default
         settings.cloudSyncTargets = [.events]
         settings.selectedCalendarIDs = ["cal"]
         settings.hasConfiguredCalendarSelection = true
         let state = baseState(settings: settings)
+        MockURLProtocol.requestHandler = { request in
+            let path = try XCTUnwrap(request.url?.path)
+            if path == "/calendar/v3/users/me/calendarList" {
+                return Self.jsonResponse(for: request, body: Self.calendarListWithHolidayJSON)
+            }
+            if path == "/calendar/v3/calendars/cal/events" || path == "/calendar/v3/calendars/sg-holidays/events" {
+                return Self.jsonResponse(for: request, body: Self.eventsJSON)
+            }
+            XCTFail("Unexpected path \(path)")
+            return Self.jsonResponse(for: request, body: #"{}"#, statusCode: 404)
+        }
+
+        let synced = try await makeScheduler().syncNow(mode: .balanced, baseState: state)
+
+        XCTAssertTrue(synced.settings.hasConfiguredCalendarSelection)
+        XCTAssertEqual(synced.settings.selectedCalendarIDs, ["cal", "sg-holidays"])
+        XCTAssertTrue(synced.calendars.first(where: { $0.id == "sg-holidays" })?.isSelected == true)
+        XCTAssertFalse(MockURLProtocol.capturedRequests.contains { $0.url?.path == "/calendar/v3/calendars/hidden/events" })
+    }
+
+    func testSchedulerKeepsPreviouslyHiddenCalendarHiddenWhenGoogleSelectsIt() async throws {
+        var settings = AppSettings.default
+        settings.cloudSyncTargets = [.events]
+        settings.selectedCalendarIDs = ["cal"]
+        settings.hasConfiguredCalendarSelection = true
+        var state = baseState(settings: settings)
+        state.calendars.append(CalendarListMirror(
+            id: "sg-holidays",
+            summary: "Singapore Holidays",
+            colorHex: "#0b8043",
+            isSelected: false,
+            accessRole: "reader",
+            etag: "holiday-etag"
+        ))
         MockURLProtocol.requestHandler = { request in
             let path = try XCTUnwrap(request.url?.path)
             if path == "/calendar/v3/users/me/calendarList" {
@@ -226,6 +260,7 @@ final class CloudSyncControlTests: XCTestCase {
 
         XCTAssertTrue(synced.settings.hasConfiguredCalendarSelection)
         XCTAssertEqual(synced.settings.selectedCalendarIDs, ["cal"])
+        XCTAssertFalse(synced.calendars.first(where: { $0.id == "sg-holidays" })?.isSelected == true)
         XCTAssertFalse(MockURLProtocol.capturedRequests.contains { $0.url?.path == "/calendar/v3/calendars/sg-holidays/events" })
     }
 

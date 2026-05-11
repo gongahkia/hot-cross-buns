@@ -9,7 +9,7 @@ import os
 //   AppLogger.debug("refreshNow start", category: .sync)
 //   AppLogger.error("updateTask failed", category: .mutation, metadata: ["taskID": task.id, "status": "429"])
 //
-// Ring is capped at 3 rotated files of 1 MB each; older entries roll
+// Ring is capped at 5 rotated files of 2 MB each; older entries roll
 // off. DiagnosticsView reads back the tail via recentEntries(limit:).
 enum LogLevel: String, Sendable, Comparable, CaseIterable {
     case debug, info, warn, error
@@ -37,6 +37,7 @@ enum LogLevel: String, Sendable, Comparable, CaseIterable {
 
 enum LogCategory: String, Sendable, CaseIterable {
     case auth
+    case google
     case sync
     case mutation
     case replay
@@ -76,6 +77,7 @@ struct LogEntry: Identifiable, Hashable, Sendable {
     let category: LogCategory
     let message: String
     let metadata: [String: String]
+    let osMetadata: [String: String]
 
     var id: String { "\(timestamp.timeIntervalSince1970)-\(message.hashValue)" }
 
@@ -102,8 +104,8 @@ final class AppLogger: @unchecked Sendable {
 
     private let queue = DispatchQueue(label: "com.gongahkia.hotcrossbuns.logger", qos: .utility)
     private let osLogger = Logger(subsystem: "com.gongahkia.hotcrossbuns.mac", category: "app")
-    private let maxFileBytes: Int = 1_024 * 1_024 // 1 MB
-    private let rotationKeep = 3
+    private let maxFileBytes: Int = 2 * 1_024 * 1_024 // 2 MB
+    private let rotationKeep = 5
     private var inMemoryRing: [LogEntry] = []
     private let inMemoryCap = 500
     // Only entries at or above this level are persisted + surfaced.
@@ -115,26 +117,57 @@ final class AppLogger: @unchecked Sendable {
 
     private init() {}
 
-    static func debug(_ message: String, category: LogCategory = .misc, metadata: [String: String] = [:]) {
-        shared.log(level: .debug, message: message, category: category, metadata: metadata)
-    }
-    static func info(_ message: String, category: LogCategory = .misc, metadata: [String: String] = [:]) {
-        shared.log(level: .info, message: message, category: category, metadata: metadata)
-    }
-    static func warn(_ message: String, category: LogCategory = .misc, metadata: [String: String] = [:]) {
-        shared.log(level: .warn, message: message, category: category, metadata: metadata)
-    }
-    static func error(_ message: String, category: LogCategory = .misc, metadata: [String: String] = [:]) {
-        shared.log(level: .error, message: message, category: category, metadata: metadata)
+    static func debug(
+        _ message: String,
+        category: LogCategory = .misc,
+        metadata: [String: String] = [:],
+        localOnlyMetadata: [String: String] = [:]
+    ) {
+        shared.log(level: .debug, message: message, category: category, metadata: metadata, localOnlyMetadata: localOnlyMetadata)
     }
 
-    func log(level: LogLevel, message: String, category: LogCategory, metadata: [String: String]) {
+    static func info(
+        _ message: String,
+        category: LogCategory = .misc,
+        metadata: [String: String] = [:],
+        localOnlyMetadata: [String: String] = [:]
+    ) {
+        shared.log(level: .info, message: message, category: category, metadata: metadata, localOnlyMetadata: localOnlyMetadata)
+    }
+
+    static func warn(
+        _ message: String,
+        category: LogCategory = .misc,
+        metadata: [String: String] = [:],
+        localOnlyMetadata: [String: String] = [:]
+    ) {
+        shared.log(level: .warn, message: message, category: category, metadata: metadata, localOnlyMetadata: localOnlyMetadata)
+    }
+
+    static func error(
+        _ message: String,
+        category: LogCategory = .misc,
+        metadata: [String: String] = [:],
+        localOnlyMetadata: [String: String] = [:]
+    ) {
+        shared.log(level: .error, message: message, category: category, metadata: metadata, localOnlyMetadata: localOnlyMetadata)
+    }
+
+    func log(
+        level: LogLevel,
+        message: String,
+        category: LogCategory,
+        metadata: [String: String],
+        localOnlyMetadata: [String: String] = [:]
+    ) {
+        let fullMetadata = metadata.merging(localOnlyMetadata) { _, localOnly in localOnly }
         let entry = LogEntry(
             timestamp: Date(),
             level: level,
             category: category,
             message: message,
-            metadata: metadata
+            metadata: fullMetadata,
+            osMetadata: metadata
         )
         bridgeToOSLogger(entry)
         queue.async { [weak self] in
@@ -157,7 +190,7 @@ final class AppLogger: @unchecked Sendable {
         let lvl = entry.level.rawValue.uppercased()
         let cat = entry.category.rawValue
         let msg = entry.message
-        let meta = entry.metadata.isEmpty ? "" : " " + entry.metadata
+        let meta = entry.osMetadata.isEmpty ? "" : " " + entry.osMetadata
             .sorted { $0.key < $1.key }
             .map { "\($0.key)=\($0.value)" }
             .joined(separator: " ")
@@ -235,15 +268,44 @@ final class AppLogger: @unchecked Sendable {
     }
 
     func loadPersistedLog() -> String {
-        guard let url = Self.currentLogFileURL() else { return "" }
-        return (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        Self.persistedLogFileURLs()
+            .compactMap { try? String(contentsOf: $0, encoding: .utf8) }
+            .filter { $0.isEmpty == false }
+            .joined(separator: "\n")
+    }
+
+    func clearLogs() {
+        queue.sync {
+            inMemoryRing.removeAll()
+            for url in Self.persistedLogFileURLs(includeMissing: true) {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+    }
+
+    func clearInMemoryEntries() {
+        queue.sync {
+            inMemoryRing.removeAll()
+        }
+    }
+
+    func flush() {
+        queue.sync {}
     }
 
     func currentLogFileURL() -> URL? {
         Self.currentLogFileURL()
     }
 
+    func logDirectoryURL() -> URL? {
+        Self.logDirectoryURL()
+    }
+
     static func currentLogFileURL() -> URL? {
+        Self.logDirectoryURL()?.appending(path: "app.log")
+    }
+
+    static func logDirectoryURL() -> URL? {
         guard let support = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
@@ -252,6 +314,15 @@ final class AppLogger: @unchecked Sendable {
         return support
             .appending(path: bundle, directoryHint: .isDirectory)
             .appending(path: "logs", directoryHint: .isDirectory)
-            .appending(path: "app.log")
+    }
+
+    private static func persistedLogFileURLs(includeMissing: Bool = false) -> [URL] {
+        guard let current = currentLogFileURL() else { return [] }
+        let directory = current.deletingLastPathComponent()
+        let base = current.lastPathComponent
+        let rotated = stride(from: 5, through: 1, by: -1).map {
+            directory.appending(path: "\(base).\($0)")
+        }
+        return (rotated + [current]).filter { includeMissing || FileManager.default.fileExists(atPath: $0.path) }
     }
 }

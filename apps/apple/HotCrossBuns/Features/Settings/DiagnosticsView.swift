@@ -215,14 +215,19 @@ struct DiagnosticsView: View {
                         Clipboard.copy(full.isEmpty ? logEntries.map { $0.formattedLine() }.joined(separator: "\n") : full)
                         logCopiedAt = Date()
                     } label: {
-                        Label(logCopiedAt == nil ? "Copy full log" : "Copied", systemImage: logCopiedAt == nil ? "doc.on.doc" : "checkmark")
+                        Label(logCopiedAt == nil ? "Copy all logs" : "Copied", systemImage: logCopiedAt == nil ? "doc.on.doc" : "checkmark")
                     }
-                    if let url = AppLogger.shared.currentLogFileURL() {
+                    if let url = AppLogger.shared.logDirectoryURL() {
                         Button {
-                            NSWorkspace.shared.activateFileViewerSelecting([url])
+                            NSWorkspace.shared.open(url)
                         } label: {
-                            Label("Reveal log file", systemImage: "folder")
+                            Label("Reveal logs folder", systemImage: "folder")
                         }
+                    }
+                    Button(role: .destructive) {
+                        confirmation = .clearLogs
+                    } label: {
+                        Label("Clear logs", systemImage: "trash")
                     }
                 }
             }
@@ -742,6 +747,9 @@ struct DiagnosticsView: View {
             runRecoveryAction {
                 await model.clearCachedGoogleDataAndRefresh()
             }
+        case .clearLogs:
+            AppLogger.shared.clearLogs()
+            refreshLogs()
         }
     }
 
@@ -1183,6 +1191,7 @@ private struct DiagnosticRow: View {
 private enum DiagnosticsConfirmation: Identifiable {
     case fullResync
     case clearCache
+    case clearLogs
 
     var id: String {
         switch self {
@@ -1190,6 +1199,8 @@ private enum DiagnosticsConfirmation: Identifiable {
             "fullResync"
         case .clearCache:
             "clearCache"
+        case .clearLogs:
+            "clearLogs"
         }
     }
 
@@ -1199,6 +1210,8 @@ private enum DiagnosticsConfirmation: Identifiable {
             "Force full resync?"
         case .clearCache:
             "Clear cached Google data?"
+        case .clearLogs:
+            "Clear local logs?"
         }
     }
 
@@ -1208,6 +1221,8 @@ private enum DiagnosticsConfirmation: Identifiable {
             "This clears local sync checkpoints and asks Google for fresh task and calendar state. It keeps your cached data visible during the refresh."
         case .clearCache:
             "This removes cached task lists, tasks, calendars, events, checkpoints, and pending local writes from this device, then refreshes from Google if connected. Your Google account data is not deleted."
+        case .clearLogs:
+            "This removes local app log files and the in-memory log view on this Mac. It does not change Google data, cached tasks, events, or mutation history."
         }
     }
 
@@ -1217,6 +1232,8 @@ private enum DiagnosticsConfirmation: Identifiable {
             "Force Full Resync"
         case .clearCache:
             "Clear Cache"
+        case .clearLogs:
+            "Clear Logs"
         }
     }
 
@@ -1224,7 +1241,7 @@ private enum DiagnosticsConfirmation: Identifiable {
         switch self {
         case .fullResync:
             nil
-        case .clearCache:
+        case .clearCache, .clearLogs:
             .destructive
         }
     }

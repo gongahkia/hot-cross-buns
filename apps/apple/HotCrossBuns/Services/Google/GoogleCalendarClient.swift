@@ -8,22 +8,31 @@ struct GoogleCalendarClient: Sendable {
     }
 
     func listCalendars() async throws -> [CalendarListMirror] {
-        let response: GoogleCalendarListResponse = try await transport.get(path: "/calendar/v3/users/me/calendarList")
-        return response.items.map { item in
-            CalendarListMirror(
-                id: item.id,
-                summary: item.summary,
-                colorHex: item.backgroundColor ?? "#F66B3D",
-                isSelected: item.selected ?? true,
-                accessRole: item.accessRole,
-                etag: item.etag,
-                defaultReminderMinutes: item.defaultReminders?
-                    .filter { $0.method == "popup" }
-                    .map(\.minutes)
-                    .sorted() ?? [],
-                timeZoneID: item.timeZone
-            )
+        do {
+            let response: GoogleCalendarListResponse = try await transport.get(path: "/calendar/v3/users/me/calendarList")
+            let calendars = response.items.map(calendarMirror)
+            AppLogger.info("google calendars listed", category: .google, metadata: ["count": String(calendars.count)])
+            return calendars
+        } catch {
+            AppLogger.warn("google calendars list failed", category: .google, metadata: GoogleDiagnostics.errorMetadata(error))
+            throw error
         }
+    }
+
+    private func calendarMirror(_ item: GoogleCalendarListItemDTO) -> CalendarListMirror {
+        CalendarListMirror(
+            id: item.id,
+            summary: item.summary,
+            colorHex: item.backgroundColor ?? "#F66B3D",
+            isSelected: item.selected ?? true,
+            accessRole: item.accessRole,
+            etag: item.etag,
+            defaultReminderMinutes: item.defaultReminders?
+                .filter { $0.method == "popup" }
+                .map(\.minutes)
+                .sorted() ?? [],
+            timeZoneID: item.timeZone
+        )
     }
 
     func listEvents(
@@ -33,6 +42,13 @@ struct GoogleCalendarClient: Sendable {
         defaultTimeZoneID: String? = nil
     ) async throws -> GoogleCalendarEventsPage {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
+        let mode = (syncToken?.isEmpty == false) ? "incremental" : "full"
+        AppLogger.info("google calendar events list start", category: .google, metadata: [
+            "calendarID": GoogleDiagnostics.redactedIdentifier(calendarID),
+            "mode": mode,
+            "hasSyncToken": String(syncToken?.isEmpty == false),
+            "hasTimeMin": String(timeMin != nil)
+        ])
         let baseQueryItems = [
             URLQueryItem(name: "singleEvents", value: "true"),
             URLQueryItem(name: "showDeleted", value: "true"),
@@ -46,29 +62,48 @@ struct GoogleCalendarClient: Sendable {
         var pageToken: String?
         var events: [CalendarEventMirror] = []
         var nextSyncToken: String?
+        var pageCount = 0
 
-        repeat {
-            var queryItems = baseQueryItems
+        do {
+            repeat {
+                pageCount += 1
+                var queryItems = baseQueryItems
 
-            if let syncToken, !syncToken.isEmpty {
-                queryItems.append(URLQueryItem(name: "syncToken", value: syncToken))
-            } else if let timeMin {
-                queryItems.append(URLQueryItem(name: "timeMin", value: ISO8601DateFormatter.google.string(from: timeMin)))
-            }
+                if let syncToken, !syncToken.isEmpty {
+                    queryItems.append(URLQueryItem(name: "syncToken", value: syncToken))
+                } else if let timeMin {
+                    queryItems.append(URLQueryItem(name: "timeMin", value: ISO8601DateFormatter.google.string(from: timeMin)))
+                }
 
-            if let pageToken {
-                queryItems.append(URLQueryItem(name: "pageToken", value: pageToken))
-            }
+                if let pageToken {
+                    queryItems.append(URLQueryItem(name: "pageToken", value: pageToken))
+                }
 
-            let response: GoogleEventsResponse = try await transport.get(
-                path: "/calendar/v3/calendars/\(encodedCalendarID)/events",
-                queryItems: queryItems
-            )
+                let response: GoogleEventsResponse = try await transport.get(
+                    path: "/calendar/v3/calendars/\(encodedCalendarID)/events",
+                    queryItems: queryItems
+                )
 
-            events.append(contentsOf: response.items.map { $0.mirror(calendarID: calendarID, defaultTimeZoneID: defaultTimeZoneID) })
-            nextSyncToken = response.nextSyncToken ?? nextSyncToken
-            pageToken = response.nextPageToken
-        } while pageToken != nil
+                events.append(contentsOf: response.items.map { $0.mirror(calendarID: calendarID, defaultTimeZoneID: defaultTimeZoneID) })
+                nextSyncToken = response.nextSyncToken ?? nextSyncToken
+                pageToken = response.nextPageToken
+            } while pageToken != nil
+        } catch {
+            AppLogger.warn("google calendar events list failed", category: .google, metadata: [
+                "calendarID": GoogleDiagnostics.redactedIdentifier(calendarID),
+                "mode": mode,
+                "pages": String(pageCount)
+            ].merging(GoogleDiagnostics.errorMetadata(error)) { _, new in new })
+            throw error
+        }
+
+        AppLogger.info("google calendar events list succeeded", category: .google, metadata: [
+            "calendarID": GoogleDiagnostics.redactedIdentifier(calendarID),
+            "mode": mode,
+            "pages": String(pageCount),
+            "count": String(events.count),
+            "hasNextSyncToken": String(nextSyncToken?.isEmpty == false)
+        ])
 
         return GoogleCalendarEventsPage(
             events: events,
@@ -131,7 +166,20 @@ struct GoogleCalendarClient: Sendable {
             queryItems: queryItems,
             body: requestBody
         )
-        return response.mirror(calendarID: calendarID)
+        let mirror = response.mirror(calendarID: calendarID)
+        AppLogger.info("google calendar event write accepted", category: .google, metadata: [
+            "action": "create",
+            "calendarID": GoogleDiagnostics.redactedIdentifier(calendarID),
+            "eventID": GoogleDiagnostics.redactedIdentifier(mirror.id),
+            "isAllDay": String(isAllDay),
+            "hasDetails": String(details.isEmpty == false),
+            "hasLocation": String(location.isEmpty == false),
+            "attendeeCount": String(attendeeEmails.count),
+            "recurrenceCount": String(recurrence.count),
+            "notifyGuests": String(sendUpdates != "none"),
+            "addGoogleMeet": String(addGoogleMeet)
+        ])
+        return mirror
     }
 
     func updateEvent(
@@ -191,7 +239,21 @@ struct GoogleCalendarClient: Sendable {
             body: requestBody,
             ifMatch: ifMatch
         )
-        return response.mirror(calendarID: calendarID)
+        let mirror = response.mirror(calendarID: calendarID)
+        AppLogger.info("google calendar event write accepted", category: .google, metadata: [
+            "action": "update",
+            "calendarID": GoogleDiagnostics.redactedIdentifier(calendarID),
+            "eventID": GoogleDiagnostics.redactedIdentifier(eventID),
+            "isAllDay": String(isAllDay),
+            "hasDetails": String(details.isEmpty == false),
+            "hasLocation": String(location.isEmpty == false),
+            "attendeeCount": String(attendeeEmails.count),
+            "recurrenceCount": String(recurrence.count),
+            "notifyGuests": String(sendUpdates != "none"),
+            "addGoogleMeet": String(addGoogleMeet),
+            "hasIfMatch": String(ifMatch?.isEmpty == false)
+        ])
+        return mirror
     }
 
     func moveEvent(
@@ -209,7 +271,14 @@ struct GoogleCalendarClient: Sendable {
                 URLQueryItem(name: "sendUpdates", value: "none")
             ]
         )
-        return response.mirror(calendarID: destinationCalendarID)
+        let mirror = response.mirror(calendarID: destinationCalendarID)
+        AppLogger.info("google calendar event write accepted", category: .google, metadata: [
+            "action": "move",
+            "calendarID": GoogleDiagnostics.redactedIdentifier(calendarID),
+            "eventID": GoogleDiagnostics.redactedIdentifier(eventID),
+            "destinationCalendarID": GoogleDiagnostics.redactedIdentifier(destinationCalendarID)
+        ])
+        return mirror
     }
 
     // Fetches a single event by id — used when we need the master event's
@@ -222,7 +291,12 @@ struct GoogleCalendarClient: Sendable {
             method: "GET",
             path: "/calendar/v3/calendars/\(encodedCalendarID)/events/\(encodedEventID)"
         )
-        return response.mirror(calendarID: calendarID, defaultTimeZoneID: defaultTimeZoneID)
+        let mirror = response.mirror(calendarID: calendarID, defaultTimeZoneID: defaultTimeZoneID)
+        AppLogger.info("google calendar event fetched", category: .google, metadata: [
+            "calendarID": GoogleDiagnostics.redactedIdentifier(calendarID),
+            "eventID": GoogleDiagnostics.redactedIdentifier(eventID)
+        ])
+        return mirror
     }
 
     // Patches only the recurrence array on the master event. Used by the
@@ -243,7 +317,15 @@ struct GoogleCalendarClient: Sendable {
             body: RecurrencePatch(recurrence: recurrence),
             ifMatch: ifMatch
         )
-        return response.mirror(calendarID: calendarID)
+        let mirror = response.mirror(calendarID: calendarID)
+        AppLogger.info("google calendar event write accepted", category: .google, metadata: [
+            "action": "patchRecurrence",
+            "calendarID": GoogleDiagnostics.redactedIdentifier(calendarID),
+            "eventID": GoogleDiagnostics.redactedIdentifier(eventID),
+            "recurrenceCount": String(recurrence.count),
+            "hasIfMatch": String(ifMatch?.isEmpty == false)
+        ])
+        return mirror
     }
 
     func deleteEvent(calendarID: String, eventID: String, ifMatch: String? = nil) async throws {
@@ -255,6 +337,12 @@ struct GoogleCalendarClient: Sendable {
             queryItems: [URLQueryItem(name: "sendUpdates", value: "none")],
             ifMatch: ifMatch
         )
+        AppLogger.info("google calendar event write accepted", category: .google, metadata: [
+            "action": "delete",
+            "calendarID": GoogleDiagnostics.redactedIdentifier(calendarID),
+            "eventID": GoogleDiagnostics.redactedIdentifier(eventID),
+            "hasIfMatch": String(ifMatch?.isEmpty == false)
+        ])
     }
 }
 

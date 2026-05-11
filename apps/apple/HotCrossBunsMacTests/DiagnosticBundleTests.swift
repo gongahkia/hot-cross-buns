@@ -30,7 +30,8 @@ final class DiagnosticBundleTests: XCTestCase {
                 user tester@example.com
                 """
             },
-            readLastCrash: { "last user was crash@example.com" }
+            readLastCrash: { "last user was crash@example.com" },
+            logDirectoryPath: { "/tmp/hcb/logs" }
         )
 
         let output = DiagnosticBundle.build(
@@ -44,8 +45,10 @@ final class DiagnosticBundleTests: XCTestCase {
         XCTAssertTrue(output.contains("Version: 9.9.9 (build 42)"))
         XCTAssertTrue(output.contains("Cache path: /tmp/hcb/cache.json"))
         XCTAssertTrue(output.contains("Reminders scheduled: events=2 tasks=3 deferred_events=1 deferred_tasks=4 window=30d"))
+        XCTAssertTrue(output.contains("Raw Google payload logs: Disabled"))
+        XCTAssertTrue(output.contains("Log folder: /tmp/hcb/logs"))
         XCTAssertTrue(output.contains("=== Pending Mutations (0) ==="))
-        XCTAssertTrue(output.contains("=== Recent Logs (info+) ==="))
+        XCTAssertTrue(output.contains("=== Recent Logs (info+, all rotations) ==="))
         XCTAssertTrue(output.contains("=== Last Crash Breadcrumb ==="))
         XCTAssertTrue(output.contains("pe***@example.com"))
         XCTAssertTrue(output.contains("te***@example.com"))
@@ -57,6 +60,28 @@ final class DiagnosticBundleTests: XCTestCase {
         XCTAssertFalse(output.contains("crash@example.com"))
         XCTAssertFalse(output.contains("top-secret-token"))
         XCTAssertFalse(output.contains("ya29.super-secret"))
+    }
+
+    func testAppSettingsDecodesRawGoogleDiagnosticsDisabledWhenMissing() throws {
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data("{}".utf8))
+        XCTAssertFalse(settings.rawGoogleDiagnosticsEnabled)
+    }
+
+    func testRawGoogleDiagnosticsToggleUpdatesSettingsAndRuntimeFlag() {
+        let model = AppModel.preview
+        addTeardownBlock {
+            GoogleDiagnostics.setRawPayloadLoggingEnabled(false)
+        }
+
+        model.setRawGoogleDiagnosticsEnabled(true)
+
+        XCTAssertTrue(model.settings.rawGoogleDiagnosticsEnabled)
+        XCTAssertTrue(GoogleDiagnostics.isRawPayloadLoggingEnabled)
+
+        model.setRawGoogleDiagnosticsEnabled(false)
+
+        XCTAssertFalse(model.settings.rawGoogleDiagnosticsEnabled)
+        XCTAssertFalse(GoogleDiagnostics.isRawPayloadLoggingEnabled)
     }
 
     private func makeBundle(info: [String: Any]) throws -> Bundle {
