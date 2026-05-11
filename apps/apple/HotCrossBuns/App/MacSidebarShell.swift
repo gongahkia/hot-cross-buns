@@ -177,8 +177,6 @@ struct MacSidebarShell: View {
     @State private var chordTimeoutTask: Task<Void, Never>?
     @State private var isMainWindowFocused = true
     @State private var isCalendarFiltersCollapsed = false
-    @State private var calendarRowTapBeganOnActiveCalendar = false
-    @State private var calendarRowTapStart: CGPoint?
 
     private var shellCore: some View {
         NavigationSplitView(columnVisibility: $sidebarVisibility) {
@@ -516,7 +514,7 @@ struct MacSidebarShell: View {
             // the first row.
             Color.clear
                 .frame(height: trafficLightInset)
-            List(selection: sidebarSelectionBinding) {
+            List {
                 ForEach(visibleSidebarItems) { item in
                     sidebarRow(for: item)
                     if item == .calendar, shouldShowCalendarFilters {
@@ -595,17 +593,6 @@ struct MacSidebarShell: View {
         CalendarEventViewFilter(
             state: CalendarViewFilterState.decoded(from: storedCalendarViewFilters),
             colorTagBindings: model.settings.colorTagBindings
-        )
-    }
-
-    private var sidebarSelectionBinding: Binding<SidebarItem?> {
-        Binding(
-            get: { selection },
-            set: { newValue in
-                if let newValue {
-                    selection = newValue
-                }
-            }
         )
     }
 
@@ -1082,48 +1069,44 @@ struct MacSidebarShell: View {
 
     @ViewBuilder
     private func sidebarRow(for item: SidebarItem) -> some View {
-        NavigationLink(value: item) {
-            Label {
-                HStack {
-                    Text(item.title)
-                    Spacer()
-                    if let badgeValue = badge(for: item) {
-                        Text(badgeValue)
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            } icon: {
+        Button {
+            handleSidebarRowClick(item)
+        } label: {
+            HStack(spacing: 14) {
                 Image(systemName: item.systemImage)
-            }
-        }
-        .help(sidebarHelp(for: item))
-        .simultaneousGesture(calendarSidebarToggleGesture(for: item))
-    }
-
-    private func calendarSidebarToggleGesture(for item: SidebarItem) -> some Gesture {
-        DragGesture(minimumDistance: 0)
-            .onChanged { value in
-                guard item == .calendar, calendarRowTapStart == nil else { return }
-                calendarRowTapStart = value.startLocation
-                calendarRowTapBeganOnActiveCalendar = selection == .calendar
-            }
-            .onEnded { value in
-                defer {
-                    calendarRowTapStart = nil
-                    calendarRowTapBeganOnActiveCalendar = false
+                    .hcbScaledFrame(width: 18)
+                Text(item.title)
+                Spacer(minLength: 0)
+                if let badgeValue = badge(for: item) {
+                    Text(badgeValue)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(item == selection ? .white.opacity(0.84) : .secondary)
                 }
-                guard item == .calendar, calendarRowTapBeganOnActiveCalendar else { return }
-                guard isTapLikeGesture(start: calendarRowTapStart, end: value.location) else { return }
-                isCalendarFiltersCollapsed.toggle()
             }
+            .hcbFont(.body, weight: .semibold)
+            .foregroundStyle(item == selection ? .white : AppColor.ink)
+            .hcbScaledPadding(.horizontal, 12)
+            .hcbScaledPadding(.vertical, 9)
+            .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(item == selection ? AppColor.ember : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(sidebarHelp(for: item))
+        .listRowInsets(EdgeInsets(top: 2, leading: 18, bottom: 2, trailing: 12))
+        .listRowSeparator(.hidden)
+        .accessibilityAddTraits(item == selection ? [.isSelected, .isButton] : .isButton)
     }
 
-    private func isTapLikeGesture(start: CGPoint?, end: CGPoint) -> Bool {
-        guard let start else { return true }
-        let horizontalDelta = start.x - end.x
-        let verticalDelta = start.y - end.y
-        return (horizontalDelta * horizontalDelta) + (verticalDelta * verticalDelta) < 64
+    private func handleSidebarRowClick(_ item: SidebarItem) {
+        if item == .calendar, selection == .calendar {
+            isCalendarFiltersCollapsed.toggle()
+        } else {
+            selection = item
+        }
     }
 
     private func sidebarHelp(for item: SidebarItem) -> String {
