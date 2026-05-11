@@ -8,6 +8,7 @@ struct WeekGridView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.hcbAppBackgroundConfiguration) private var backgroundConfiguration
+    @Environment(\.calendarEventViewFilter) private var calendarEventViewFilter
     @Binding var anchorDate: Date
     var searchQuery: String = ""
     @Binding var selectedEventIDs: Set<String>
@@ -121,7 +122,7 @@ struct WeekGridView: View {
         let start = weekDays.first.map { "\($0.timeIntervalSinceReferenceDate)" } ?? ""
         // dataRevision replaces event-count fingerprint so edits that keep
         // the count unchanged still invalidate the cache. See MonthGridView.
-        return "\(selectedIds)|\(searchQuery)|\(start)|\(model.dataRevision)"
+        return "\(selectedIds)|\(calendarEventViewFilter.cacheKey)|\(searchQuery)|\(start)|\(model.dataRevision)"
     }
 
     private func rebuildWeekCacheIfNeeded() {
@@ -152,6 +153,7 @@ struct WeekGridView: View {
                 base.append(contentsOf: bucket.compactMap { model.event(id: $0) })
             }
         }
+        base = base.filter(calendarEventViewFilter.allows)
         let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard q.isEmpty == false else { return base }
         return base.filter { event in

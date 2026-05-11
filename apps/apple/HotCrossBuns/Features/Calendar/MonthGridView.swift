@@ -24,6 +24,7 @@ struct MonthGridView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.hcbAppBackgroundConfiguration) private var backgroundConfiguration
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.calendarEventViewFilter) private var calendarEventViewFilter
     @AppStorage(CalendarMonthScrollWindow.pastMonthsKey) private var configuredPastMonths = CalendarMonthScrollWindow.defaultPastMonths
     @AppStorage(CalendarMonthScrollWindow.futureMonthsKey) private var configuredFutureMonths = CalendarMonthScrollWindow.defaultFutureMonths
     @Binding var anchorDate: Date
@@ -167,6 +168,7 @@ struct MonthGridView: View {
         var anchorDate: Date
         var weekStarts: [Date]
         var selectedCalendarIDs: Set<CalendarListMirror.ID>
+        var eventViewFilter: CalendarEventViewFilter
         var visibleTaskListIDs: Set<TaskListMirror.ID>
         var searchQuery: String
         var eventsByDay: [TimeInterval: [CalendarEventMirror.ID]]
@@ -330,7 +332,7 @@ struct MonthGridView: View {
         // dataRevision replaces the prior model.events.count fingerprint —
         // renames / reschedules / recolors with unchanged total count now
         // bust the cache correctly.
-        return "\(selectedIds)|\(visibleTaskListKey)|\(searchQuery)|\(windowKey)|\(model.dataRevision)"
+        return "\(selectedIds)|\(calendarEventViewFilter.cacheKey)|\(visibleTaskListKey)|\(searchQuery)|\(windowKey)|\(model.dataRevision)"
     }
 
     private var windowKey: String {
@@ -368,6 +370,7 @@ struct MonthGridView: View {
             anchorDate: anchorDate,
             weekStarts: weekStarts,
             selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
+            eventViewFilter: calendarEventViewFilter,
             visibleTaskListIDs: model.visibleTaskListIDs,
             searchQuery: searchQuery,
             eventsByDay: model.eventsByDay,
@@ -472,6 +475,7 @@ struct MonthGridView: View {
             for eventID in payload.eventsByDay[key] ?? [] where seen.insert(eventID).inserted {
                 guard let event = eventByID[eventID],
                       payload.selectedCalendarIDs.contains(event.calendarID) else { continue }
+                guard payload.eventViewFilter.allows(event) else { continue }
                 let matchesSearch: Bool
                 if q.isEmpty {
                     matchesSearch = true
