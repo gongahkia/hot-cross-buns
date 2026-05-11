@@ -399,7 +399,11 @@ private struct KanbanCompletedTaskRowView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(card.accessibilityLabel)
+        .accessibilityLabel(completedTaskAccessibilityLabel)
+    }
+
+    private var completedTaskAccessibilityLabel: String {
+        card.accessibilityLabel
     }
 }
 
@@ -451,7 +455,11 @@ private struct KanbanCardView: View {
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(card.accessibilityLabel)
+        .accessibilityLabel(taskAccessibilityLabel)
+    }
+
+    private var taskAccessibilityLabel: String {
+        card.accessibilityLabel
     }
 
     private var duplicateBadge: some View {

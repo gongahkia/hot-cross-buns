@@ -5079,13 +5079,17 @@ final class AppModel {
     // produces a single snapshot rebuild instead of one per upsert.
     private var snapshotRebuildPending = false
     private var snapshotRebuildTask: Task<Void, Never>?
+    private var snapshotRebuildGeneration: UInt64 = 0
 
     private func scheduleRebuildSnapshots() {
         if snapshotRebuildPending { return }
         snapshotRebuildPending = true
+        snapshotRebuildGeneration &+= 1
+        let generation = snapshotRebuildGeneration
         isRebuildingDerivedSnapshots = true
         Task { @MainActor [weak self] in
             guard let self else { return }
+            guard generation == self.snapshotRebuildGeneration else { return }
             self.snapshotRebuildPending = false
             self.startDerivedSnapshotRebuild(referenceDate: Date())
         }
@@ -5097,6 +5101,7 @@ final class AppModel {
         // this only when a downstream caller needs snapshots populated
         // before its next line (apply() after sync, init bootstrap).
         snapshotRebuildPending = false
+        snapshotRebuildGeneration &+= 1
         snapshotRebuildTask?.cancel()
         snapshotRebuildTask = nil
         isRebuildingDerivedSnapshots = true
