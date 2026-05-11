@@ -52,23 +52,8 @@ struct WeekGridView: View {
     // before the quick-create popover paints. Independent from timedDrag so
     // drag previews still behave.
     @State private var flashTimedSlot: Date?
-    // Grid-content cache. Rebuilt only when inputs change — not on every
-    // body eval. Drag-create gestures fire at ~60Hz; without this cache each
-    // tick re-ran bucketTimedEventsByDay over ~3k visible events, producing
-    // selection-lag on large calendars.
-    @State private var cachedTimedByDay: [Date: [CalendarEventMirror]] = [:]
-    @State private var cachedAllDaySpans: [AllDaySpan] = []
-    @State private var cachedWeekDayLabels: [WeekDayLabelSnapshot] = []
-    @State private var cachedWeekKey: String = ""
-
-    private struct WeekDayLabelSnapshot: Identifiable, Equatable {
-        var day: Date
-        var weekday: String
-        var dayNumber: String
-        var isToday: Bool
-
-        var id: Date { day }
-    }
+    @State private var preparedWeekSnapshot: CalendarWeekDisplaySnapshot?
+    @State private var weekSnapshotBuildTask: Task<Void, Never>?
 
     private struct WeekDaySelection: Equatable {
         var startCol: Int
@@ -89,19 +74,30 @@ struct WeekGridView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            weekHeader
-            Divider()
-            allDayStrip
-            tasksStrip
-            Divider()
-            ScrollView {
-                timeGrid
+        ZStack {
+            if let snapshot = preparedWeekSnapshot, snapshot.key == weekSnapshotKey {
+                VStack(spacing: 0) {
+                    weekHeader(snapshot)
+                    Divider()
+                    allDayStrip(snapshot)
+                    tasksStrip(snapshot)
+                    Divider()
+                    ScrollView {
+                        timeGrid(snapshot)
+                    }
+                }
+            } else {
+                PreparedSnapshotOverlay(
+                    title: multiDayCount == nil ? "Preparing week..." : "Preparing days...",
+                    message: "Laying out events and tasks before enabling interactions."
+                )
+                .onAppear { rebuildWeekSnapshotIfNeeded() }
             }
         }
         .background { readableCalendarBackdrop }
-        .onAppear { rebuildWeekCacheIfNeeded() }
-        .onChange(of: currentWeekCacheKey) { _, _ in rebuildWeekCacheIfNeeded() }
+        .onAppear { rebuildWeekSnapshotIfNeeded() }
+        .onChange(of: weekSnapshotKey) { _, _ in rebuildWeekSnapshotIfNeeded() }
+        .onDisappear { weekSnapshotBuildTask?.cancel() }
         .hcbDebugBodyProbe("WeekGridView")
     }
 
@@ -114,24 +110,17 @@ struct WeekGridView: View {
         }
     }
 
-    // Fingerprints the inputs that make cachedTimedByDay valid. Cheap to
-    // compute and triggers a real rebuild only when the user changes
-    // calendars, search, week, or when sync lands new events.
-    private var currentWeekCacheKey: String {
-        let selectedIds = model.calendarSnapshot.selectedCalendarIDs.sorted().joined(separator: ",")
-        let start = weekDays.first.map { "\($0.timeIntervalSinceReferenceDate)" } ?? ""
-        // dataRevision replaces event-count fingerprint so edits that keep
-        // the count unchanged still invalidate the cache. See MonthGridView.
-        return "\(selectedIds)|\(calendarEventViewFilter.cacheKey)|\(searchQuery)|\(start)|\(model.dataRevision)"
-    }
-
-    private func rebuildWeekCacheIfNeeded() {
-        let key = currentWeekCacheKey
-        guard key != cachedWeekKey else { return }
-        cachedWeekKey = key
-        cachedTimedByDay = bucketTimedEventsByDay()
-        cachedAllDaySpans = layoutAllDaySpans()
-        cachedWeekDayLabels = buildWeekDayLabels()
+    private var weekSnapshotKey: PreparedSnapshotKey {
+        PreparedSnapshotKeys.calendar(
+            mode: multiDayCount == nil ? .week : .multiDay,
+            dataRevision: model.dataRevision,
+            selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
+            visibleTaskListIDs: model.visibleTaskListIDs,
+            filterKey: calendarEventViewFilter.cacheKey,
+            searchQuery: searchQuery,
+            rangeKey: PreparedSnapshotKeys.dateRangeKey(weekDays),
+            settings: model.settings
+        )
     }
 
     private var weekDays: [Date] {
@@ -142,62 +131,11 @@ struct WeekGridView: View {
         return CalendarGridLayout.weekDays(containing: anchorDate, calendar: calendar)
     }
 
-    private var visibleEvents: [CalendarEventMirror] {
-        // Reads model.eventsByCalendar (built once in rebuildSnapshots) so
-        // we walk only the events for the user's selected calendars rather
-        // than filtering the full event corpus per body eval. Cancelled
-        // events are already excluded at index-build time.
-        var base: [CalendarEventMirror] = []
-        for cal in model.calendarSnapshot.selectedCalendars {
-            if let bucket = model.eventsByCalendar[cal.id] {
-                base.append(contentsOf: bucket.compactMap { model.event(id: $0) })
-            }
-        }
-        base = base.filter(calendarEventViewFilter.allows)
-        let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard q.isEmpty == false else { return base }
-        return base.filter { event in
-            event.summary.localizedCaseInsensitiveContains(q)
-                || event.details.localizedCaseInsensitiveContains(q)
-                || event.location.localizedCaseInsensitiveContains(q)
-        }
-    }
-
-    private func tasksForDay(_ day: Date) -> [TaskMirror] {
-        let dayStart = calendar.startOfDay(for: day)
-        let key = dayStart.timeIntervalSinceReferenceDate
-        // model.tasksByDueDate is prebuilt in rebuildSnapshots across ALL
-        // lists — intersect with the user's visible list selection here.
-        let visibleLists = model.visibleTaskListIDs
-        let bucket = (model.tasksByDueDate[key] ?? []).compactMap { model.task(id: $0) }
-        return bucket
-            .filter { visibleLists.contains($0.taskListID) }
-            .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
-    }
-
-    // Per body-pass bucketing of timed (non-all-day) events by startOfDay.
-    // Mirrors MonthGridView's byDay pattern but includes only timed events
-    // so the timed-event lane layout in dayColumn gets exactly the set it
-    // needs. Cancelled events are already excluded from visibleEvents.
-    private func bucketTimedEventsByDay() -> [Date: [CalendarEventMirror]] {
-        guard let first = weekDays.first, let last = weekDays.last else { return [:] }
-        let weekStart = calendar.startOfDay(for: first)
-        let weekEnd = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: last)) ?? weekStart
-        var buckets: [Date: [CalendarEventMirror]] = [:]
-        for event in visibleEvents where event.isAllDay == false
-            && event.startDate < weekEnd && event.endDate > weekStart {
-            let key = calendar.startOfDay(for: event.startDate)
-            buckets[key, default: []].append(event)
-        }
-        return buckets
-    }
-
-    private var weekHeader: some View {
-        let dayLabels = cachedWeekDayLabels.isEmpty ? buildWeekDayLabels() : cachedWeekDayLabels
-        return HStack(spacing: 0) {
+    private func weekHeader(_ snapshot: CalendarWeekDisplaySnapshot) -> some View {
+        HStack(spacing: 0) {
             Text("")
                 .hcbScaledFrame(width: 54)
-            ForEach(dayLabels) { label in
+            ForEach(snapshot.dayLabels) { label in
                 VStack(spacing: 2) {
                     Text(label.weekday)
                         .hcbFont(.caption, weight: .semibold)
@@ -217,86 +155,15 @@ struct WeekGridView: View {
         .hcbScaledPadding(.vertical, 10)
     }
 
-    private func buildWeekDayLabels() -> [WeekDayLabelSnapshot] {
-        weekDays.map { day in
-            WeekDayLabelSnapshot(
-                day: day,
-                weekday: day.formatted(.dateTime.weekday(.abbreviated)),
-                dayNumber: day.formatted(.dateTime.day()),
-                isToday: isToday(day)
-            )
-        }
-    }
-
-    private struct AllDaySpan: Identifiable {
-        let event: CalendarEventMirror
-        let startColumn: Int
-        let endColumn: Int // inclusive
-        let laneIndex: Int
-
-        var id: String { event.id }
-        var columnCount: Int { endColumn - startColumn + 1 }
-    }
-
-    private func layoutAllDaySpans() -> [AllDaySpan] {
-        guard let weekStart = weekDays.first, let weekEnd = weekDays.last else { return [] }
-        let weekStartDay = calendar.startOfDay(for: weekStart)
-        let weekEndDay = calendar.startOfDay(for: weekEnd)
-        let allDay = visibleEvents.filter { $0.isAllDay }
-
-        let spans: [(event: CalendarEventMirror, start: Int, end: Int)] = allDay.compactMap { event in
-            let eventStart = calendar.startOfDay(for: event.startDate)
-            // `CalendarGridLayout.eventEndDay` returns the inclusive end day
-            // for all-day events.
-            let eventEnd = CalendarGridLayout.eventEndDay(event: event, calendar: calendar)
-            guard eventStart <= weekEndDay, eventEnd >= weekStartDay else { return nil }
-            let clampedStart = max(eventStart, weekStartDay)
-            let clampedEnd = min(eventEnd, weekEndDay)
-            let startIdx = calendar.dateComponents([.day], from: weekStartDay, to: clampedStart).day ?? 0
-            let endIdx = calendar.dateComponents([.day], from: weekStartDay, to: clampedEnd).day ?? 0
-            let lastColumn = max(weekDays.count - 1, 0)
-            return (event, max(0, min(lastColumn, startIdx)), max(0, min(lastColumn, endIdx)))
-        }
-
-        // Lane assignment: sort by start column, then place each span into the
-        // lowest-index lane whose previous span's end is < this span's start.
-        let sorted = spans.sorted { lhs, rhs in
-            if lhs.start != rhs.start { return lhs.start < rhs.start }
-            return lhs.end > rhs.end
-        }
-        var lanes: [[Int]] = [] // end-column per lane
-        var assigned: [AllDaySpan] = []
-        for span in sorted {
-            var placedLane: Int?
-            for (index, lane) in lanes.enumerated() {
-                if let last = lane.last, last >= span.start { continue }
-                lanes[index].append(span.end)
-                placedLane = index
-                break
-            }
-            if placedLane == nil {
-                lanes.append([span.end])
-                placedLane = lanes.count - 1
-            }
-            assigned.append(AllDaySpan(
-                event: span.event,
-                startColumn: span.start,
-                endColumn: span.end,
-                laneIndex: placedLane ?? 0
-            ))
-        }
-        return assigned
-    }
-
-    private var allDayStrip: some View {
-        let spans = cachedAllDaySpans
+    private func allDayStrip(_ snapshot: CalendarWeekDisplaySnapshot) -> some View {
+        let spans = snapshot.allDaySpans
         let laneCount = (spans.map(\.laneIndex).max() ?? -1) + 1
         let visibleLaneCount = min(laneCount, allDayVisibleLimit)
         let hasOverflow = laneCount > allDayVisibleLimit
         let rowCount = max(visibleLaneCount + (hasOverflow ? 1 : 0), 1)
         let stripHeight = CGFloat(rowCount) * allDayLaneHeight
         let visibleSpans = spans.filter { $0.laneIndex < allDayVisibleLimit }
-        let allDayByDay = allDayEventsByDay()
+        let allDayByDay = snapshot.allDayEventsByDay
         // Captured outside GeometryReader so DragGesture closures see a
         // reliable router reference (custom-EnvironmentKey reads inside
         // GeometryReader closures have shown propagation gaps).
@@ -308,7 +175,7 @@ struct WeekGridView: View {
                 .hcbScaledFrame(width: 54, alignment: .trailing)
                 .hcbScaledPadding(.trailing, 6)
             GeometryReader { geo in
-                let columnWidth = geo.size.width / CGFloat(max(weekDays.count, 1))
+                let columnWidth = geo.size.width / CGFloat(max(snapshot.days.count, 1))
                 let laneHeight: CGFloat = 22
                 ZStack(alignment: .topLeading) {
                     Rectangle()
@@ -329,11 +196,12 @@ struct WeekGridView: View {
                             .allowsHitTesting(false)
                     }
                     ForEach(visibleSpans) { span in
-                        allDaySpanTile(span, columnWidth: columnWidth, laneHeight: laneHeight)
+                        allDaySpanTile(span, columnWidth: columnWidth, laneHeight: laneHeight, snapshot: snapshot)
                     }
-                    ForEach(Array(weekDays.enumerated()), id: \.offset) { idx, day in
+                    ForEach(Array(snapshot.days.enumerated()), id: \.offset) { idx, day in
                         let dayStart = calendar.startOfDay(for: day)
-                        let events = allDayByDay[dayStart] ?? []
+                        let dayStartKey = CalendarDisplaySnapshotBuilder.dayKey(dayStart, calendar: calendar)
+                        let events = allDayByDay[dayStartKey] ?? []
                         let hiddenCount = hiddenAllDaySpanCount(onColumn: idx, spans: spans)
                         if hiddenCount > 0 {
                             MonthMoreButton(
@@ -341,7 +209,7 @@ struct WeekGridView: View {
                                 day: dayStart,
                                 events: events,
                                 tasks: [],
-                                calendarColor: calendarColor(for:)
+                                calendarColor: { calendarColor(for: $0, in: snapshot) }
                             )
                             .frame(width: max(columnWidth - 4, 20), height: laneHeight - 4, alignment: .leading)
                             .offset(
@@ -363,9 +231,9 @@ struct WeekGridView: View {
                             guard let drag = allDayDrag else { return }
                             allDayDrag = nil
                             let (a, b) = drag.normalized
-                            guard weekDays.indices.contains(a), weekDays.indices.contains(b) else { return }
-                            let start = calendar.startOfDay(for: weekDays[a])
-                            let endExclusive = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: weekDays[b])) ?? weekDays[b]
+                            guard snapshot.days.indices.contains(a), snapshot.days.indices.contains(b) else { return }
+                            let start = calendar.startOfDay(for: snapshot.days[a])
+                            let endExclusive = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: snapshot.days[b])) ?? snapshot.days[b]
                             capturedRouter?.present(.quickCreateRange(start, endExclusive, allDay: true))
                         }
                 )
@@ -378,31 +246,12 @@ struct WeekGridView: View {
         .hcbScaledPadding(.vertical, 4)
     }
 
-    private func hiddenAllDaySpanCount(onColumn column: Int, spans: [AllDaySpan]) -> Int {
+    private func hiddenAllDaySpanCount(onColumn column: Int, spans: [CalendarWeekDisplaySnapshot.AllDaySpan]) -> Int {
         spans.filter { span in
             span.laneIndex >= allDayVisibleLimit
                 && column >= span.startColumn
                 && column <= span.endColumn
         }.count
-    }
-
-    private func allDayEventsByDay() -> [Date: [CalendarEventMirror]] {
-        var result: [Date: [CalendarEventMirror]] = [:]
-        for day in weekDays {
-            let dayStart = calendar.startOfDay(for: day)
-            result[dayStart] = visibleEvents
-                .filter { event in
-                    guard event.isAllDay else { return false }
-                    let eventStart = calendar.startOfDay(for: event.startDate)
-                    let eventEnd = CalendarGridLayout.eventEndDay(event: event, calendar: calendar)
-                    return eventStart <= dayStart && eventEnd >= dayStart
-                }
-                .sorted { lhs, rhs in
-                    if lhs.startDate != rhs.startDate { return lhs.startDate < rhs.startDate }
-                    return lhs.summary.localizedCaseInsensitiveCompare(rhs.summary) == .orderedAscending
-                }
-        }
-        return result
     }
 
     private func columnIndex(for x: CGFloat, columnWidth: CGFloat) -> Int {
@@ -411,11 +260,16 @@ struct WeekGridView: View {
         return max(0, min(lastColumn, Int(x / columnWidth)))
     }
 
-    private func allDaySpanTile(_ span: AllDaySpan, columnWidth: CGFloat, laneHeight: CGFloat) -> some View {
+    private func allDaySpanTile(
+        _ span: CalendarWeekDisplaySnapshot.AllDaySpan,
+        columnWidth: CGFloat,
+        laneHeight: CGFloat,
+        snapshot: CalendarWeekDisplaySnapshot
+    ) -> some View {
         let x = CGFloat(span.startColumn) * columnWidth + 2
         let width = CGFloat(span.columnCount) * columnWidth - 4
         let y = CGFloat(span.laneIndex) * laneHeight + 2
-        let fill = calendarColor(for: span.event)
+        let fill = calendarColor(for: span.event, in: snapshot)
         return CalendarEventPreviewButton(event: span.event) {
             Text(span.event.summary)
                 .hcbFont(.caption)
@@ -434,7 +288,7 @@ struct WeekGridView: View {
                 .foregroundStyle(AppColor.ink)
         }
         .offset(x: x, y: y)
-        .accessibilityLabel(eventAccessibilityLabel(span.event))
+        .accessibilityLabel(snapshot.eventMetadataByID[span.event.id]?.accessibilityLabel ?? span.event.summary)
     }
 
     private func exportSingleEventICS(_ event: CalendarEventMirror) {
@@ -476,10 +330,8 @@ struct WeekGridView: View {
         return "\(event.summary), \(start) to \(end)"
     }
 
-    private var tasksStrip: some View {
-        let tasksByDay: [Date: [TaskMirror]] = Dictionary(uniqueKeysWithValues: weekDays.map { day in
-            (calendar.startOfDay(for: day), tasksForDay(day))
-        })
+    private func tasksStrip(_ snapshot: CalendarWeekDisplaySnapshot) -> some View {
+        let tasksByDay = snapshot.tasksByDay
         let maxLanes = tasksByDay.values.map(\.count).max() ?? 0
         let visibleRows = min(maxLanes, taskVisibleLimit)
         let overflowRow = maxLanes > taskVisibleLimit ? 1 : 0
@@ -497,15 +349,17 @@ struct WeekGridView: View {
                         .hcbScaledFrame(width: 54, alignment: .trailing)
                         .hcbScaledPadding(.trailing, 6)
                     GeometryReader { geo in
-                        let columnWidth = geo.size.width / CGFloat(max(weekDays.count, 1))
+                        let columnWidth = geo.size.width / CGFloat(max(snapshot.days.count, 1))
                         ZStack(alignment: .topLeading) {
-                            ForEach(Array(weekDays.enumerated()), id: \.offset) { idx, day in
+                            ForEach(Array(snapshot.days.enumerated()), id: \.offset) { idx, day in
+                                let dayStart = calendar.startOfDay(for: day)
+                                let dayStartKey = CalendarDisplaySnapshotBuilder.dayKey(dayStart, calendar: calendar)
                                 VStack(alignment: .leading, spacing: taskRowSpacing) {
-                                    ForEach((tasksByDay[calendar.startOfDay(for: day)] ?? []).prefix(taskVisibleLimit)) { task in
+                                    ForEach((tasksByDay[dayStartKey] ?? []).prefix(taskVisibleLimit)) { task in
                                         HStack(spacing: 4) {
                                             CalendarTaskCheckbox(task: task, size: 10)
                                             CalendarTaskPreviewButton(task: task) {
-                                                Text(task.title)
+                                                Text(snapshot.taskMetadataByID[task.id]?.title ?? task.title)
                                                     .hcbFont(.caption)
                                                     .lineLimit(1)
                                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -524,17 +378,16 @@ struct WeekGridView: View {
                                         )
                                         .foregroundStyle(AppColor.ink)
                                         .strikethrough(task.isCompleted, color: .secondary)
-                                        .opacity(task.isCompleted ? 0.55 : 1.0)
-                                        .accessibilityLabel("Task due \(day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())): \(task.title)")
+                                        .opacity(snapshot.taskMetadataByID[task.id]?.opacity ?? (task.isCompleted ? 0.55 : 1.0))
+                                        .accessibilityLabel(snapshot.taskMetadataByID[task.id]?.accessibilityLabel ?? "Task due \(day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())): \(task.title)")
                                     }
-                                    let dayStart = calendar.startOfDay(for: day)
-                                    if let tasks = tasksByDay[dayStart], tasks.count > taskVisibleLimit {
+                                    if let tasks = tasksByDay[dayStartKey], tasks.count > taskVisibleLimit {
                                         MonthMoreButton(
                                             count: tasks.count - taskVisibleLimit,
                                             day: dayStart,
                                             events: [],
                                             tasks: tasks,
-                                            calendarColor: calendarColor(for:)
+                                            calendarColor: { calendarColor(for: $0, in: snapshot) }
                                         )
                                         .frame(height: taskRowHeight, alignment: .leading)
                                     }
@@ -555,27 +408,26 @@ struct WeekGridView: View {
         }
     }
 
-    private var timeGrid: some View {
+    private func timeGrid(_ snapshot: CalendarWeekDisplaySnapshot) -> some View {
         // Captured outside GeometryReader so DragGesture closures see a
         // reliable router reference (see allDayStrip for rationale).
         let capturedRouter = router
-        // cachedTimedByDay is rebuilt only when underlying inputs change,
-        // not on every body eval — critical for DragGesture responsiveness
-        // during drag-to-create where body fires at ~60Hz.
-        let timedByDay = cachedTimedByDay
         return HStack(alignment: .top, spacing: 0) {
             hoursColumn
             GeometryReader { geo in
-                let columnWidth = geo.size.width / CGFloat(max(weekDays.count, 1))
+                let columnWidth = geo.size.width / CGFloat(max(snapshot.days.count, 1))
                 let totalHeight = CGFloat(hourEnd - hourStart) * hourHeight
                 ZStack(alignment: .topLeading) {
                     gridLines
-                    ForEach(Array(weekDays.enumerated()), id: \.offset) { idx, day in
+                    ForEach(Array(snapshot.days.enumerated()), id: \.offset) { idx, day in
+                        let dayStart = calendar.startOfDay(for: day)
+                        let dayStartKey = CalendarDisplaySnapshotBuilder.dayKey(dayStart, calendar: calendar)
                         dayColumn(
                             day: day,
                             xOffset: CGFloat(idx) * columnWidth,
                             width: columnWidth,
-                            eventsForDay: timedByDay[calendar.startOfDay(for: day)] ?? []
+                            laidOutEvents: snapshot.laidOutTimedEventsByDay[dayStartKey] ?? [],
+                            snapshot: snapshot
                         )
                     }
                     if let nowOffset = currentTimeOffset() {
@@ -740,11 +592,11 @@ struct WeekGridView: View {
         day: Date,
         xOffset: CGFloat,
         width: CGFloat,
-        eventsForDay: [CalendarEventMirror]
+        laidOutEvents: [CalendarGridLayout.LaidOutEvent],
+        snapshot: CalendarWeekDisplaySnapshot
     ) -> some View {
         let startOfDay = calendar.startOfDay(for: day)
         let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay
-        let laid = CalendarGridLayout.layout(eventsInDay: eventsForDay, calendar: calendar)
         let capturedRouter = router
 
         return ZStack(alignment: .topLeading) {
@@ -771,8 +623,14 @@ struct WeekGridView: View {
                 }
                 return true
             }
-            ForEach(Array(laid.enumerated()), id: \.offset) { _, placed in
-                eventTile(placed: placed, dayStart: startOfDay, dayEnd: endOfDay, columnWidth: width)
+            ForEach(Array(laidOutEvents.enumerated()), id: \.offset) { _, placed in
+                eventTile(
+                    placed: placed,
+                    dayStart: startOfDay,
+                    dayEnd: endOfDay,
+                    columnWidth: width,
+                    snapshot: snapshot
+                )
             }
             // Momentary tint at the tapped hour slot so users see their
             // click register before the popover paints. Drawn above event
@@ -870,7 +728,13 @@ struct WeekGridView: View {
         model.calendarSnapshot.selectedCalendars.first(where: { $0.accessRole == "owner" || $0.accessRole == "writer" })?.id
     }
 
-    private func eventTile(placed: CalendarGridLayout.LaidOutEvent, dayStart: Date, dayEnd: Date, columnWidth: CGFloat) -> some View {
+    private func eventTile(
+        placed: CalendarGridLayout.LaidOutEvent,
+        dayStart: Date,
+        dayEnd: Date,
+        columnWidth: CGFloat,
+        snapshot: CalendarWeekDisplaySnapshot
+    ) -> some View {
         let clampedStart = max(placed.event.startDate, dayStart)
         let clampedEnd = min(placed.event.endDate, dayEnd)
         let startMinutes = clampedStart.timeIntervalSince(dayStart) / 60
@@ -881,7 +745,7 @@ struct WeekGridView: View {
         let xOffsetWithinDay = CGFloat(placed.columnIndex) * slotWidth
         let tileWidth = max(slotWidth - 2, 1)
         let tileHeight = max(height - 2, 1)
-        let fill = calendarColor(for: placed.event)
+        let fill = calendarColor(for: placed.event, in: snapshot)
         let fullDurationMinutes = Int(max(placed.event.endDate.timeIntervalSince(placed.event.startDate) / 60, 15))
 
         return CalendarEventPreviewButton(event: placed.event) {
@@ -890,7 +754,7 @@ struct WeekGridView: View {
                     .hcbFont(.caption, weight: .semibold)
                     .lineLimit(height > 38 ? 2 : 1)
                 if height > 34 {
-                    Text("\(placed.event.startDate.formatted(.dateTime.hour().minute())) – \(placed.event.endDate.formatted(.dateTime.hour().minute()))")
+                    Text(snapshot.eventMetadataByID[placed.event.id]?.timeRangeLabel ?? "")
                         .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -922,7 +786,7 @@ struct WeekGridView: View {
                 toggleSelection(placed.event.id)
             }
         )
-        .accessibilityLabel(eventAccessibilityLabel(placed.event))
+        .accessibilityLabel(snapshot.eventMetadataByID[placed.event.id]?.accessibilityLabel ?? placed.event.summary)
         .accessibilityHint("Opens event details")
         .modifier(EventHoverPreviewModifier(event: placed.event))
         .draggable(DraggedEvent(
@@ -962,12 +826,39 @@ struct WeekGridView: View {
         CalendarHourLabelCache.label(for: hour)
     }
 
-    private func calendarColor(for event: CalendarEventMirror) -> Color {
-        // Per-event colorId takes precedence over the calendar's color.
-        if let hex = CalendarEventColor.from(colorId: event.colorId).hex {
-            return Color(hex: hex)
+    private func rebuildWeekSnapshotIfNeeded() {
+        let key = weekSnapshotKey
+        guard preparedWeekSnapshot?.key != key else { return }
+        let input = CalendarDisplayInput(
+            key: key,
+            anchorDate: anchorDate,
+            selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
+            eventViewFilter: calendarEventViewFilter,
+            visibleTaskListIDs: model.visibleTaskListIDs,
+            searchQuery: searchQuery,
+            eventsByDay: model.eventsByDay,
+            tasksByDueDate: model.tasksByDueDate,
+            eventByID: model.eventByIDSnapshot,
+            taskByID: model.taskByIDSnapshot,
+            calendarColorHexByID: model.calendarSnapshot.calendarColorHexByID,
+            taskListTitleByID: model.taskListTitleByID,
+            settings: model.settings,
+            referenceDate: Date(),
+            calendar: calendar
+        )
+        let count = multiDayCount
+        weekSnapshotBuildTask?.cancel()
+        weekSnapshotBuildTask = Task { @MainActor in
+            let snapshot = await Task.detached(priority: .utility) {
+                CalendarDisplaySnapshotBuilder.weekSnapshot(input, multiDayCount: count)
+            }.value
+            guard Task.isCancelled == false, snapshot.key == weekSnapshotKey else { return }
+            preparedWeekSnapshot = snapshot
         }
-        guard let hex = model.calendarSnapshot.calendarColorHexByID[event.calendarID] else { return AppColor.blue }
+    }
+
+    private func calendarColor(for event: CalendarEventMirror, in snapshot: CalendarWeekDisplaySnapshot) -> Color {
+        guard let hex = snapshot.eventMetadataByID[event.id]?.colorHex else { return AppColor.blue }
         return Color(hex: hex)
     }
 }

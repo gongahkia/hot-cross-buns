@@ -25,6 +25,8 @@ struct DayGridView: View {
     // Click-to-create feedback. Flashes a brief tint at the tapped hour
     // slot so users see their click register before the popover paints.
     @State private var flashTimedSlot: Date?
+    @State private var preparedDaySnapshot: CalendarDayDisplaySnapshot?
+    @State private var daySnapshotBuildTask: Task<Void, Never>?
 
     private struct TimedDrag: Equatable {
         var startY: CGFloat
@@ -32,11 +34,24 @@ struct DayGridView: View {
     }
 
     var body: some View {
-        eventsColumn
-            .frame(maxWidth: .infinity)
-            .hcbScaledPadding(12)
-            .background { readableCalendarBackdrop }
-            .hcbDebugBodyProbe("DayGridView")
+        ZStack {
+            if let snapshot = preparedDaySnapshot, snapshot.key == daySnapshotKey {
+                eventsColumn(snapshot)
+                    .frame(maxWidth: .infinity)
+                    .hcbScaledPadding(12)
+            } else {
+                PreparedSnapshotOverlay(
+                    title: "Preparing day...",
+                    message: "Laying out events before enabling interactions."
+                )
+                .onAppear { rebuildDaySnapshotIfNeeded() }
+            }
+        }
+        .background { readableCalendarBackdrop }
+        .onAppear { rebuildDaySnapshotIfNeeded() }
+        .onChange(of: daySnapshotKey) { _, _ in rebuildDaySnapshotIfNeeded() }
+        .onDisappear { daySnapshotBuildTask?.cancel() }
+        .hcbDebugBodyProbe("DayGridView")
     }
 
     @ViewBuilder
@@ -51,58 +66,41 @@ struct DayGridView: View {
     private var dayStart: Date { calendar.startOfDay(for: anchorDate) }
     private var dayEnd: Date { calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart }
 
-    // Looks up model.eventsByDay IDs (pre-bucketed in rebuildSnapshots)
-    // rather than scanning model.events. Each lookup is O(bucket size) instead of
-    // O(full corpus). Search + past-event filtering apply afterward.
-    private var visibleEvents: [CalendarEventMirror] {
-        let now = Date()
-        let key = dayStart.timeIntervalSinceReferenceDate
-        let selectedIDs = model.calendarSnapshot.selectedCalendarIDs
-        let bucket = (model.eventsByDay[key] ?? []).compactMap { model.event(id: $0) }
-        let filtered = bucket.filter { event in
-            selectedIDs.contains(event.calendarID)
-                && calendarEventViewFilter.allows(event)
-                && model.settings.shouldHidePastEvent(event, now: now) == false
-        }
-        let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard q.isEmpty == false else { return filtered }
-        return filtered.filter { event in
-            event.summary.localizedCaseInsensitiveContains(q)
-                || event.details.localizedCaseInsensitiveContains(q)
-                || event.location.localizedCaseInsensitiveContains(q)
-        }
+    private var daySnapshotKey: PreparedSnapshotKey {
+        PreparedSnapshotKeys.calendar(
+            mode: .day,
+            dataRevision: model.dataRevision,
+            selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
+            visibleTaskListIDs: model.visibleTaskListIDs,
+            filterKey: calendarEventViewFilter.cacheKey,
+            searchQuery: searchQuery,
+            rangeKey: PreparedSnapshotKeys.dateKey(anchorDate, calendar: calendar),
+            settings: model.settings
+        )
     }
 
-    private var allDayEvents: [CalendarEventMirror] {
-        visibleEvents.filter(\.isAllDay).sorted { $0.summary < $1.summary }
-    }
-
-    private var timedEvents: [CalendarEventMirror] {
-        visibleEvents.filter { $0.isAllDay == false }.sorted { $0.startDate < $1.startDate }
-    }
-
-    private var eventsColumn: some View {
+    private func eventsColumn(_ snapshot: CalendarDayDisplaySnapshot) -> some View {
         // Capture router locally so the DragGesture / SpatialTapGesture
         // closures inside ScrollView reference a stable reference (custom
         // EnvironmentKey reads inside ScrollView/GeometryReader gesture
         // closures have shown propagation gaps).
         let capturedRouter = router
         return VStack(alignment: .leading, spacing: 8) {
-            if allDayEvents.isEmpty == false {
+            if snapshot.allDayEvents.isEmpty == false {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("ALL-DAY")
                         .hcbFont(.caption2, weight: .bold)
                         .foregroundStyle(.secondary)
-                    ForEach(allDayEvents) { event in
+                    ForEach(snapshot.allDayEvents) { event in
                         CalendarEventPreviewButton(event: event) {
                             Text(event.summary)
                                 .hcbFont(.caption, weight: .medium)
                                 .lineLimit(1)
-                                .opacity(model.settings.opacityForPastEvent(event, now: Date()))
+                                .opacity(snapshot.eventMetadataByID[event.id]?.opacity ?? 1.0)
                                 .hcbScaledPadding(.horizontal, 8)
                                 .hcbScaledPadding(.vertical, 4)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Capsule().fill(calendarColor(for: event).opacity(0.25)))
+                                .background(Capsule().fill(calendarColor(for: event, in: snapshot).opacity(0.25)))
                                 .foregroundStyle(AppColor.ink)
                         }
                         .accessibilityLabel("\(event.summary), all day")
@@ -190,10 +188,9 @@ struct DayGridView: View {
                         }
                         .animation(HCBMotion.animation(.easeOut(duration: 0.18), reduceMotion: calendarGridReduceMotion), value: flashTimedSlot)
                     GeometryReader { geo in
-                        let laidOutEvents = CalendarGridLayout.layout(eventsInDay: timedEvents, calendar: calendar)
-                        ForEach(Array(laidOutEvents.enumerated()), id: \.offset) { _, placed in
-                            eventTile(placed, availableWidth: geo.size.width - 56)
-                                .opacity(model.settings.opacityForPastEvent(placed.event, now: Date()))
+                        ForEach(Array(snapshot.laidOutTimedEvents.enumerated()), id: \.offset) { _, placed in
+                            eventTile(placed, availableWidth: geo.size.width - 56, snapshot: snapshot)
+                                .opacity(snapshot.eventMetadataByID[placed.event.id]?.opacity ?? 1.0)
                         }
                     }
                     .frame(height: CGFloat(hourEnd - hourStart) * hourHeight)
@@ -241,11 +238,15 @@ struct DayGridView: View {
         CalendarHourLabelCache.label(for: hour)
     }
 
-    private func eventTile(_ placed: CalendarGridLayout.LaidOutEvent, availableWidth: CGFloat) -> some View {
+    private func eventTile(
+        _ placed: CalendarGridLayout.LaidOutEvent,
+        availableWidth: CGFloat,
+        snapshot: CalendarDayDisplaySnapshot
+    ) -> some View {
         let event = placed.event
-        let clampedStart = max(event.startDate, dayStart)
-        let clampedEnd = min(event.endDate, dayEnd)
-        let startMinutes = clampedStart.timeIntervalSince(dayStart) / 60
+        let clampedStart = max(event.startDate, snapshot.dayStart)
+        let clampedEnd = min(event.endDate, snapshot.dayEnd)
+        let startMinutes = clampedStart.timeIntervalSince(snapshot.dayStart) / 60
         let durationMinutes = max(clampedEnd.timeIntervalSince(clampedStart) / 60, 20)
         let yOffset = CGFloat(startMinutes) * (hourHeight / 60)
         let height = CGFloat(durationMinutes) * (hourHeight / 60)
@@ -253,7 +254,7 @@ struct DayGridView: View {
         let xOffsetWithinDay = CGFloat(placed.columnIndex) * slotWidth
         let tileWidth = max(slotWidth - 3, 1)
         let tileHeight = max(height - 2, 1)
-        let fill = calendarColor(for: event)
+        let fill = calendarColor(for: event, in: snapshot)
 
         return CalendarEventPreviewButton(event: event) {
             VStack(alignment: .leading, spacing: 2) {
@@ -261,7 +262,7 @@ struct DayGridView: View {
                     .hcbFont(.caption, weight: .semibold)
                     .lineLimit(height > 38 ? 2 : 1)
                 if height > 38 {
-                    Text("\(event.startDate.formatted(.dateTime.hour().minute())) – \(event.endDate.formatted(.dateTime.hour().minute()))")
+                    Text(snapshot.eventMetadataByID[event.id]?.timeRangeLabel ?? "")
                         .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -281,7 +282,7 @@ struct DayGridView: View {
             .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(fill.opacity(0.55), lineWidth: 0.8))
         }
         .offset(x: 56 + xOffsetWithinDay, y: yOffset)
-        .accessibilityLabel("\(event.summary), \(event.startDate.formatted(.dateTime.hour().minute())) to \(event.endDate.formatted(.dateTime.hour().minute()))")
+        .accessibilityLabel(snapshot.eventMetadataByID[event.id]?.accessibilityLabel ?? event.summary)
     }
 
     private func currentTimeOffset() -> CGFloat? {
@@ -292,11 +293,38 @@ struct DayGridView: View {
         return CGFloat(minutes) * (hourHeight / 60)
     }
 
-    private func calendarColor(for event: CalendarEventMirror) -> Color {
-        if let hex = CalendarEventColor.from(colorId: event.colorId).hex {
-            return Color(hex: hex)
+    private func rebuildDaySnapshotIfNeeded() {
+        let key = daySnapshotKey
+        guard preparedDaySnapshot?.key != key else { return }
+        let input = CalendarDisplayInput(
+            key: key,
+            anchorDate: anchorDate,
+            selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
+            eventViewFilter: calendarEventViewFilter,
+            visibleTaskListIDs: model.visibleTaskListIDs,
+            searchQuery: searchQuery,
+            eventsByDay: model.eventsByDay,
+            tasksByDueDate: model.tasksByDueDate,
+            eventByID: model.eventByIDSnapshot,
+            taskByID: model.taskByIDSnapshot,
+            calendarColorHexByID: model.calendarSnapshot.calendarColorHexByID,
+            taskListTitleByID: model.taskListTitleByID,
+            settings: model.settings,
+            referenceDate: Date(),
+            calendar: calendar
+        )
+        daySnapshotBuildTask?.cancel()
+        daySnapshotBuildTask = Task { @MainActor in
+            let snapshot = await Task.detached(priority: .utility) {
+                CalendarDisplaySnapshotBuilder.daySnapshot(input)
+            }.value
+            guard Task.isCancelled == false, snapshot.key == daySnapshotKey else { return }
+            preparedDaySnapshot = snapshot
         }
-        guard let hex = model.calendarSnapshot.calendarColorHexByID[event.calendarID] else { return AppColor.blue }
+    }
+
+    private func calendarColor(for event: CalendarEventMirror, in snapshot: CalendarDayDisplaySnapshot) -> Color {
+        guard let hex = snapshot.eventMetadataByID[event.id]?.colorHex else { return AppColor.blue }
         return Color(hex: hex)
     }
 }
