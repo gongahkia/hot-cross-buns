@@ -51,4 +51,36 @@ final class AppModelEventsByCalendarTests: XCTestCase {
         XCTAssertEqual(bucketedTotal, activeRawTotal,
                        "every active event must appear in exactly one calendar bucket")
     }
+
+    func testScheduledDerivedSnapshotRebuildAppliesIndexesBeforeRevisionBump() async {
+        let model = AppModel.preview
+        let initialRevision = model.dataRevision
+        guard let listID = model.taskLists.first?.id else {
+            XCTFail("preview data should include task lists")
+            return
+        }
+
+        model.toggleTaskList(listID)
+
+        XCTAssertTrue(model.isRebuildingDerivedSnapshots)
+        await waitForRevisionChange(model, from: initialRevision)
+
+        XCTAssertFalse(model.isRebuildingDerivedSnapshots)
+        XCTAssertGreaterThan(model.dataRevision, initialRevision)
+        XCTAssertEqual(model.visibleTaskListIDs, model.settings.selectedTaskListIDs)
+        XCTAssertEqual(model.taskByIDSnapshot.count, model.tasks.count)
+        XCTAssertEqual(model.eventByIDSnapshot.count, model.events.count)
+        XCTAssertTrue(model.tasksByDueDate.values.joined().allSatisfy { model.task(id: $0) != nil })
+        XCTAssertTrue(model.eventsByDay.values.joined().allSatisfy { model.event(id: $0) != nil })
+    }
+
+    private func waitForRevisionChange(_ model: AppModel, from revision: UInt64, file: StaticString = #filePath, line: UInt = #line) async {
+        let deadline = Date().addingTimeInterval(2)
+        while model.dataRevision == revision, Date() < deadline {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        if model.dataRevision == revision {
+            XCTFail("timed out waiting for derived snapshot rebuild", file: file, line: line)
+        }
+    }
 }

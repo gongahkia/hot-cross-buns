@@ -175,6 +175,10 @@ final class AppModel {
     // stale UI. Bumping here is the one-place invariant: if snapshots
     // rebuilt, the revision advances.
     private(set) var dataRevision: UInt64 = 0
+    // True while a scheduled derived snapshot/index rebuild is in flight.
+    // Prepared views use this to block interactions rather than rendering
+    // stale immutable snapshots against freshly mutated source arrays.
+    private(set) var isRebuildingDerivedSnapshots: Bool = false
     // O(1) ID-to-index lookups maintained by rebuildSnapshots. task(id:) / event(id:)
     // previously scanned the full arrays on every call, including inside
     // menus and body evaluations — observable lag for users with thousands
@@ -5074,14 +5078,16 @@ final class AppModel {
     // (createTask, updateEvent, etc.) so a sync flush of dozens of upserts
     // produces a single snapshot rebuild instead of one per upsert.
     private var snapshotRebuildPending = false
+    private var snapshotRebuildTask: Task<Void, Never>?
 
     private func scheduleRebuildSnapshots() {
         if snapshotRebuildPending { return }
         snapshotRebuildPending = true
+        isRebuildingDerivedSnapshots = true
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.snapshotRebuildPending = false
-            self.rebuildSnapshots()
+            self.startDerivedSnapshotRebuild(referenceDate: Date())
         }
     }
 
@@ -5091,134 +5097,207 @@ final class AppModel {
         // this only when a downstream caller needs snapshots populated
         // before its next line (apply() after sync, init bootstrap).
         snapshotRebuildPending = false
+        snapshotRebuildTask?.cancel()
+        snapshotRebuildTask = nil
+        isRebuildingDerivedSnapshots = true
         let started = ContinuousClock.now
-        visibleTaskListIDs = settings.hasConfiguredTaskListSelection
-            ? settings.selectedTaskListIDs
-            : Set(taskLists.map(\.id))
-        let visibleTaskLists = taskLists.filter { visibleTaskListIDs.contains($0.id) }
-        let visibleTasks = tasks.filter { visibleTaskListIDs.contains($0.taskListID) }
-        let tasksTabVisibleListIDs = settings.hasConfiguredTasksTabSelection
-            ? settings.tasksTabSelectedListIDs
-            : visibleTaskListIDs
-        let notesTabVisibleListIDs = settings.hasConfiguredNotesTabSelection
-            ? settings.notesTabSelectedListIDs
-            : visibleTaskListIDs
+        let snapshots = Self.buildDerivedSnapshots(derivedSnapshotInput(referenceDate: referenceDate))
+        applyDerivedSnapshots(snapshots)
+        isRebuildingDerivedSnapshots = false
+        logDerivedSnapshotRebuild(started: started, snapshots: snapshots)
+    }
 
-        taskSections = TaskListSectionSnapshot.build(taskLists: visibleTaskLists, tasks: visibleTasks)
-        taskBoardSnapshot = TaskBoardSnapshot.build(
+    private func startDerivedSnapshotRebuild(referenceDate: Date) {
+        let input = derivedSnapshotInput(referenceDate: referenceDate)
+        snapshotRebuildTask?.cancel()
+        snapshotRebuildTask = Task { @MainActor [weak self] in
+            let started = ContinuousClock.now
+            let snapshots = await Task.detached(priority: .utility) {
+                Self.buildDerivedSnapshots(input)
+            }.value
+            guard let self, Task.isCancelled == false else { return }
+            self.applyDerivedSnapshots(snapshots)
+            self.isRebuildingDerivedSnapshots = false
+            self.snapshotRebuildTask = nil
+            self.logDerivedSnapshotRebuild(started: started, snapshots: snapshots)
+        }
+    }
+
+    private func derivedSnapshotInput(referenceDate: Date) -> DerivedAppSnapshotInput {
+        DerivedAppSnapshotInput(
+            taskLists: taskLists,
             tasks: tasks,
-            tasksTabVisibleListIDs: tasksTabVisibleListIDs,
-            notesTabVisibleListIDs: notesTabVisibleListIDs,
+            calendars: calendars,
+            events: events,
             settings: settings,
             referenceDate: referenceDate
         )
-        todaySnapshot = TodaySnapshot.build(tasks: visibleTasks, events: events, referenceDate: referenceDate)
-        calendarSnapshot = CalendarSnapshot.build(calendars: calendars, events: events, referenceDate: referenceDate)
+    }
 
-        // Bucket events by calendar id so grid views can skip the
-        // per-render full-events filter. Done once here, read O(1) per
-        // calendar by callers.
-        var byCalendar: [CalendarListMirror.ID: [CalendarEventMirror.ID]] = [:]
-        byCalendar.reserveCapacity(calendars.count)
-        for event in events where settings.showCompletedItemsInCalendar || event.status != .cancelled {
-            byCalendar[event.calendarID, default: []].append(event.id)
+    private func applyDerivedSnapshots(_ snapshots: DerivedAppSnapshots) {
+        visibleTaskListIDs = snapshots.visibleTaskListIDs
+        taskSections = snapshots.taskSections
+        taskBoardSnapshot = snapshots.taskBoardSnapshot
+        todaySnapshot = snapshots.todaySnapshot
+        calendarSnapshot = snapshots.calendarSnapshot
+        eventsByCalendar = snapshots.eventsByCalendar
+        eventsByDay = snapshots.eventsByDay
+        tasksByDueDate = snapshots.tasksByDueDate
+        datedOpenTaskCount = snapshots.datedOpenTaskCount
+        undatedOpenTaskCount = snapshots.undatedOpenTaskCount
+        openTaskCountForSidebar = snapshots.openTaskCountForSidebar
+        taskListCompletionStats = snapshots.taskListCompletionStats
+        taskListTitleByID = snapshots.taskListTitleByID
+        calendarTitleByID = snapshots.calendarTitleByID
+        taskChildrenByParentID = snapshots.taskChildrenByParentID
+        duplicateIndex = snapshots.duplicateIndex
+        taskByIDSnapshot = snapshots.taskByIDSnapshot
+        eventByIDSnapshot = snapshots.eventByIDSnapshot
+        taskIndexByID = snapshots.taskIndexByID
+        eventIndexByID = snapshots.eventIndexByID
+        taskListIndexByID = snapshots.taskListIndexByID
+
+        // Advance the content revision only after every derived snapshot and
+        // lookup map has been applied together. Prepared views key off this
+        // revision, so they never rebuild against half-refreshed indexes.
+        dataRevision &+= 1
+    }
+
+    private func logDerivedSnapshotRebuild(started: ContinuousClock.Instant, snapshots: DerivedAppSnapshots) {
+        let elapsed = started.duration(to: .now)
+        let micros = (elapsed.components.seconds * 1_000_000)
+            + (elapsed.components.attoseconds / 1_000_000_000_000)
+        AppLogger.debug("rebuildSnapshots", category: .perf, metadata: [
+            "duration_us": String(micros),
+            "tasks": String(snapshots.taskCount),
+            "events": String(snapshots.eventCount),
+            "visible_tasks": String(snapshots.visibleTaskCount)
+        ])
+    }
+
+    private nonisolated static func buildDerivedSnapshots(_ input: DerivedAppSnapshotInput) -> DerivedAppSnapshots {
+        let visibleTaskListIDs = input.settings.hasConfiguredTaskListSelection
+            ? input.settings.selectedTaskListIDs
+            : Set(input.taskLists.map(\.id))
+        let visibleTaskLists = input.taskLists.filter { visibleTaskListIDs.contains($0.id) }
+        let visibleTasks = input.tasks.filter { visibleTaskListIDs.contains($0.taskListID) }
+        let tasksTabVisibleListIDs = input.settings.hasConfiguredTasksTabSelection
+            ? input.settings.tasksTabSelectedListIDs
+            : visibleTaskListIDs
+        let notesTabVisibleListIDs = input.settings.hasConfiguredNotesTabSelection
+            ? input.settings.notesTabSelectedListIDs
+            : visibleTaskListIDs
+
+        let taskSections = TaskListSectionSnapshot.build(taskLists: visibleTaskLists, tasks: visibleTasks)
+        let taskBoardSnapshot = TaskBoardSnapshot.build(
+            tasks: input.tasks,
+            tasksTabVisibleListIDs: tasksTabVisibleListIDs,
+            notesTabVisibleListIDs: notesTabVisibleListIDs,
+            settings: input.settings,
+            referenceDate: input.referenceDate
+        )
+        let todaySnapshot = TodaySnapshot.build(tasks: visibleTasks, events: input.events, referenceDate: input.referenceDate)
+        let calendarSnapshot = CalendarSnapshot.build(calendars: input.calendars, events: input.events, referenceDate: input.referenceDate)
+
+        // Bucket events by calendar id so grid views can skip full-corpus
+        // filters while rendering.
+        var eventsByCalendar: [CalendarListMirror.ID: [CalendarEventMirror.ID]] = [:]
+        eventsByCalendar.reserveCapacity(input.calendars.count)
+        for event in input.events where input.settings.showCompletedItemsInCalendar || event.status != .cancelled {
+            eventsByCalendar[event.calendarID, default: []].append(event.id)
         }
-        eventsByCalendar = byCalendar
 
-        // Bucket events by day (startOfDay key). Multi-day events appear in
-        // every day they overlap. Cap the span at 366 to guard against
-        // malformed long-running events from Google (birthdays with bad
-        // recurrence expansions etc). TimeInterval key avoids Date hashing
-        // overhead at scale.
         let cal = Calendar.current
-        var byDay: [TimeInterval: [CalendarEventMirror.ID]] = [:]
-        byDay.reserveCapacity(events.count)
-        for event in events where settings.showCompletedItemsInCalendar || event.status != .cancelled {
+        var eventsByDay: [TimeInterval: [CalendarEventMirror.ID]] = [:]
+        eventsByDay.reserveCapacity(input.events.count)
+        for event in input.events where input.settings.showCompletedItemsInCalendar || event.status != .cancelled {
             let startDay = cal.startOfDay(for: event.startDate)
             let endDay = cal.startOfDay(for: event.endDate)
             var day = startDay
             var steps = 0
             while day <= endDay && steps < 366 {
-                byDay[day.timeIntervalSinceReferenceDate, default: []].append(event.id)
+                eventsByDay[day.timeIntervalSinceReferenceDate, default: []].append(event.id)
                 guard let next = cal.date(byAdding: .day, value: 1, to: day) else { break }
                 day = next
                 steps += 1
             }
         }
-        eventsByDay = byDay
 
-        // Bucket dated, non-deleted tasks by due date (startOfDay). Completed
-        // tasks are included only when the calendar setting asks to show them.
-        // Mirrors eventsByDay so the grid + agenda views can skip filtering
-        // `model.tasks` on every cell render.
-        var tByDay: [TimeInterval: [TaskMirror.ID]] = [:]
-        for task in tasks where task.isDeleted == false && (settings.showCompletedItemsInCalendar || task.isCompleted == false) {
+        var tasksByDueDate: [TimeInterval: [TaskMirror.ID]] = [:]
+        for task in input.tasks where task.isDeleted == false && (input.settings.showCompletedItemsInCalendar || task.isCompleted == false) {
             guard let due = task.dueDate else { continue }
             let key = cal.startOfDay(for: due).timeIntervalSinceReferenceDate
-            tByDay[key, default: []].append(task.id)
+            tasksByDueDate[key, default: []].append(task.id)
         }
-        tasksByDueDate = tByDay
 
-        // Precompute sidebar open-task counts so badges don't re-filter every
-        // render. Tasks and Notes can override the global Task Lists
-        // visibility independently, so their badges should follow the same
-        // per-tab list scopes as their content panes.
         var dated = 0
         var undated = 0
-        for task in tasks where task.isCompleted == false && task.isDeleted == false {
+        for task in input.tasks where task.isCompleted == false && task.isDeleted == false {
             if task.dueDate == nil {
                 if notesTabVisibleListIDs.contains(task.taskListID) { undated += 1 }
             } else if tasksTabVisibleListIDs.contains(task.taskListID) {
                 dated += 1
             }
         }
-        datedOpenTaskCount = dated
-        undatedOpenTaskCount = undated
-        openTaskCountForSidebar = dated + undated
 
-        // Precompute completion stats per list. Walks `tasks` once rather
-        // than once-per-section during Store render.
         var stats: [TaskListMirror.ID: TaskListCompletionStats] = [:]
-        for task in tasks where task.isDeleted == false {
+        for task in input.tasks where task.isDeleted == false {
             var entry = stats[task.taskListID] ?? TaskListCompletionStats(total: 0, completed: 0)
             entry.total += 1
             if task.isCompleted { entry.completed += 1 }
             stats[task.taskListID] = entry
         }
-        taskListCompletionStats = stats
-        taskListTitleByID = Dictionary(uniqueKeysWithValues: taskLists.map { ($0.id, $0.title) })
-        calendarTitleByID = Dictionary(uniqueKeysWithValues: calendars.map { ($0.id, $0.summary) })
-        taskChildrenByParentID = buildTaskChildrenByParentID(tasks: tasks)
 
-        // rebuild duplicate groups last (reads final tasks + dismissedGroupKeys)
-        duplicateIndex = DuplicateIndex.build(
-            tasks: tasks,
-            dismissedGroupKeys: settings.dismissedDuplicateGroups
+        var taskIndexByID: [TaskMirror.ID: Int] = [:]
+        var taskByIDSnapshot: [TaskMirror.ID: TaskMirror] = [:]
+        taskIndexByID.reserveCapacity(input.tasks.count)
+        taskByIDSnapshot.reserveCapacity(input.tasks.count)
+        for (index, task) in input.tasks.enumerated() {
+            taskIndexByID[task.id] = index
+            taskByIDSnapshot[task.id] = task
+        }
+
+        var eventIndexByID: [CalendarEventMirror.ID: Int] = [:]
+        var eventByIDSnapshot: [CalendarEventMirror.ID: CalendarEventMirror] = [:]
+        eventIndexByID.reserveCapacity(input.events.count)
+        eventByIDSnapshot.reserveCapacity(input.events.count)
+        for (index, event) in input.events.enumerated() {
+            eventIndexByID[event.id] = index
+            eventByIDSnapshot[event.id] = event
+        }
+
+        return DerivedAppSnapshots(
+            visibleTaskListIDs: visibleTaskListIDs,
+            taskSections: taskSections,
+            taskBoardSnapshot: taskBoardSnapshot,
+            todaySnapshot: todaySnapshot,
+            calendarSnapshot: calendarSnapshot,
+            eventsByCalendar: eventsByCalendar,
+            eventsByDay: eventsByDay,
+            tasksByDueDate: tasksByDueDate,
+            datedOpenTaskCount: dated,
+            undatedOpenTaskCount: undated,
+            openTaskCountForSidebar: dated + undated,
+            taskListCompletionStats: stats,
+            taskListTitleByID: Dictionary(uniqueKeysWithValues: input.taskLists.map { ($0.id, $0.title) }),
+            calendarTitleByID: Dictionary(uniqueKeysWithValues: input.calendars.map { ($0.id, $0.summary) }),
+            taskChildrenByParentID: buildTaskChildrenByParentID(tasks: input.tasks),
+            duplicateIndex: DuplicateIndex.build(
+                tasks: input.tasks,
+                dismissedGroupKeys: input.settings.dismissedDuplicateGroups
+            ),
+            taskByIDSnapshot: taskByIDSnapshot,
+            eventByIDSnapshot: eventByIDSnapshot,
+            taskIndexByID: taskIndexByID,
+            eventIndexByID: eventIndexByID,
+            taskListIndexByID: Dictionary(uniqueKeysWithValues: input.taskLists.enumerated().map { ($0.element.id, $0.offset) }),
+            taskCount: input.tasks.count,
+            eventCount: input.events.count,
+            visibleTaskCount: visibleTasks.count
         )
-
-        // O(1) ID lookup tables. One pass over each collection replaces
-        // arbitrary .first(where:) scans scattered across the codebase.
-        rebuildTaskIndex()
-        rebuildEventIndex()
-        rebuildTaskListIndex()
-
-        // Advance the content revision. Any view composing this into a
-        // cache key rebuilds its derived snapshot on the next observation
-        // tick. Overflow-safe (wraps after ~5 × 10^11 years at 1 bump/ms).
-        dataRevision &+= 1
-
-        let elapsed = started.duration(to: .now)
-        let micros = (elapsed.components.seconds * 1_000_000)
-            + (elapsed.components.attoseconds / 1_000_000_000_000)
-        AppLogger.debug("rebuildSnapshots", category: .perf, metadata: [
-            "duration_us": String(micros),
-            "tasks": String(tasks.count),
-            "events": String(events.count),
-            "visible_tasks": String(visibleTasks.count)
-        ])
     }
 
-    private func buildTaskChildrenByParentID(tasks: [TaskMirror]) -> [TaskMirror.ID: [TaskMirror.ID]] {
+    private nonisolated static func buildTaskChildrenByParentID(tasks: [TaskMirror]) -> [TaskMirror.ID: [TaskMirror.ID]] {
         var grouped: [TaskMirror.ID: [TaskMirror]] = [:]
         for task in tasks where task.isDeleted == false {
             guard let parentID = task.parentID else { continue }
@@ -5236,6 +5315,42 @@ final class AppModel {
             dismissedGroupKeys: settings.dismissedDuplicateGroups
         )
     }
+}
+
+private struct DerivedAppSnapshotInput: Sendable {
+    var taskLists: [TaskListMirror]
+    var tasks: [TaskMirror]
+    var calendars: [CalendarListMirror]
+    var events: [CalendarEventMirror]
+    var settings: AppSettings
+    var referenceDate: Date
+}
+
+private struct DerivedAppSnapshots: Sendable {
+    var visibleTaskListIDs: Set<TaskListMirror.ID>
+    var taskSections: [TaskListSectionSnapshot]
+    var taskBoardSnapshot: TaskBoardSnapshot
+    var todaySnapshot: TodaySnapshot
+    var calendarSnapshot: CalendarSnapshot
+    var eventsByCalendar: [CalendarListMirror.ID: [CalendarEventMirror.ID]]
+    var eventsByDay: [TimeInterval: [CalendarEventMirror.ID]]
+    var tasksByDueDate: [TimeInterval: [TaskMirror.ID]]
+    var datedOpenTaskCount: Int
+    var undatedOpenTaskCount: Int
+    var openTaskCountForSidebar: Int
+    var taskListCompletionStats: [TaskListMirror.ID: TaskListCompletionStats]
+    var taskListTitleByID: [TaskListMirror.ID: String]
+    var calendarTitleByID: [CalendarListMirror.ID: String]
+    var taskChildrenByParentID: [TaskMirror.ID: [TaskMirror.ID]]
+    var duplicateIndex: DuplicateIndex
+    var taskByIDSnapshot: [TaskMirror.ID: TaskMirror]
+    var eventByIDSnapshot: [CalendarEventMirror.ID: CalendarEventMirror]
+    var taskIndexByID: [TaskMirror.ID: Int]
+    var eventIndexByID: [CalendarEventMirror.ID: Int]
+    var taskListIndexByID: [TaskListMirror.ID: Int]
+    var taskCount: Int
+    var eventCount: Int
+    var visibleTaskCount: Int
 }
 
 private final class EmptyGoogleOAuthTokenStore: GoogleOAuthTokenStoring, @unchecked Sendable {

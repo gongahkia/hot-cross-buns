@@ -209,7 +209,7 @@ struct CalendarHomeView: View {
         case .month:
             MonthGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
         case .year:
-            YearGridView(anchorDate: $selectedDate, onPickDay: { day in
+            YearGridView(anchorDate: $selectedDate, searchQuery: searchQuery, onPickDay: { day in
                 selectedDate = day
                 mode = .day
             })
@@ -629,7 +629,7 @@ struct CalendarHomeView: View {
     // Range: 14 days starting at selectedDate. DatePicker at top scrolls range.
     private var agendaContent: some View {
         Group {
-            if let snapshot = preparedAgendaSnapshot, snapshot.key == agendaSnapshotKey {
+            if let snapshot = preparedAgendaSnapshot, snapshot.key == agendaSnapshotKey, model.isRebuildingDerivedSnapshots == false {
                 List {
                     Section {
                         DatePicker("Agenda starts", selection: $selectedDate, displayedComponents: [.date])
