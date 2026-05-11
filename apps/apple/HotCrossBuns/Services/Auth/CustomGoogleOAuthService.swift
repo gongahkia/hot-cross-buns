@@ -25,7 +25,7 @@ struct GoogleOAuthClientConfiguration: Codable, Hashable, Sendable {
     }
 }
 
-private struct CustomGoogleOAuthTokenSet: Codable, Sendable {
+struct CustomGoogleOAuthTokenSet: Codable, Sendable, Equatable {
     var accessToken: String
     var refreshToken: String
     var expiresAt: Date
@@ -36,6 +36,17 @@ private struct CustomGoogleOAuthTokenSet: Codable, Sendable {
     var needsRefresh: Bool {
         expiresAt.timeIntervalSinceNow < 60
     }
+}
+
+protocol GoogleOAuthTokenStoring: Sendable {
+    func loadClientConfiguration() -> GoogleOAuthClientConfiguration?
+    func saveClientConfiguration(_ configuration: GoogleOAuthClientConfiguration) throws
+    func clearClientConfiguration()
+    func loadTokenSet(accountID: GoogleAccount.ID) -> CustomGoogleOAuthTokenSet?
+    func loadFirstTokenSet() -> CustomGoogleOAuthTokenSet?
+    func saveTokenSet(_ tokenSet: CustomGoogleOAuthTokenSet, accountID: GoogleAccount.ID) throws
+    func deleteTokenSet(accountID: GoogleAccount.ID)
+    func deleteAllTokenSets()
 }
 
 enum CustomGoogleOAuthError: LocalizedError, Equatable {
@@ -49,6 +60,7 @@ enum CustomGoogleOAuthError: LocalizedError, Equatable {
     case tokenExchangeFailed(String)
     case missingRefreshToken
     case missingAccountProfile
+    case missingTokenSet
 
     var errorDescription: String? {
         switch self {
@@ -72,12 +84,17 @@ enum CustomGoogleOAuthError: LocalizedError, Equatable {
             "Google did not return a refresh token. Remove access for this OAuth client in your Google Account, then connect again."
         case .missingAccountProfile:
             "Google sign-in succeeded but did not return an account email. Try connecting again."
+        case .missingTokenSet:
+            "That Google account is no longer signed in on this Mac. Reconnect it from Settings."
         }
     }
 }
 
 final class CustomGoogleOAuthService: @unchecked Sendable {
     private let urlSession: URLSession
+    private let tokenStore: GoogleOAuthTokenStoring
+    private let activeAccountLock = NSLock()
+    private var _activeAccountID: GoogleAccount.ID?
     private let callbackTimeoutNanoseconds: UInt64 = 120_000_000_000
     private let requiredScopes = [
         GoogleScope.openID,
@@ -87,12 +104,28 @@ final class CustomGoogleOAuthService: @unchecked Sendable {
         GoogleScope.calendar
     ]
 
-    init(urlSession: URLSession = .shared) {
+    init(
+        urlSession: URLSession = .shared,
+        tokenStore: GoogleOAuthTokenStoring = GoogleOAuthKeychainStore()
+    ) {
         self.urlSession = urlSession
+        self.tokenStore = tokenStore
+    }
+
+    var activeAccountID: GoogleAccount.ID? {
+        activeAccountLock.lock()
+        defer { activeAccountLock.unlock() }
+        return _activeAccountID
+    }
+
+    func setActiveAccountID(_ accountID: GoogleAccount.ID?) {
+        activeAccountLock.lock()
+        _activeAccountID = accountID
+        activeAccountLock.unlock()
     }
 
     var clientConfiguration: GoogleOAuthClientConfiguration? {
-        GoogleOAuthKeychain.loadClientConfiguration()
+        tokenStore.loadClientConfiguration()
     }
 
     var isConfigured: Bool {
@@ -104,26 +137,45 @@ final class CustomGoogleOAuthService: @unchecked Sendable {
         guard normalized.isValid else {
             throw CustomGoogleOAuthError.invalidClientID
         }
-        try GoogleOAuthKeychain.save(normalized, account: GoogleOAuthKeychain.clientConfigurationAccount)
-        GoogleOAuthKeychain.delete(account: GoogleOAuthKeychain.tokenSetAccount)
+        try tokenStore.saveClientConfiguration(normalized)
+        tokenStore.deleteAllTokenSets()
+        setActiveAccountID(nil)
         return normalized
     }
 
     func clearClientConfiguration() {
-        GoogleOAuthKeychain.delete(account: GoogleOAuthKeychain.clientConfigurationAccount)
-        GoogleOAuthKeychain.delete(account: GoogleOAuthKeychain.tokenSetAccount)
+        tokenStore.clearClientConfiguration()
+        tokenStore.deleteAllTokenSets()
+        setActiveAccountID(nil)
     }
 
     func clearTokenSet() {
-        GoogleOAuthKeychain.delete(account: GoogleOAuthKeychain.tokenSetAccount)
+        if let activeAccountID {
+            clearTokenSet(accountID: activeAccountID)
+        }
+    }
+
+    func clearTokenSet(accountID: GoogleAccount.ID) {
+        tokenStore.deleteTokenSet(accountID: accountID)
+        if activeAccountID == accountID {
+            setActiveAccountID(nil)
+        }
+    }
+
+    func clearAllTokenSets() {
+        tokenStore.deleteAllTokenSets()
+        setActiveAccountID(nil)
     }
 
     func restorePreviousSignIn() async throws -> GoogleAccount? {
         guard isConfigured else { return nil }
-        guard var tokenSet = GoogleOAuthKeychain.loadTokenSet() else { return nil }
+        guard var tokenSet = activeAccountID.flatMap({ tokenStore.loadTokenSet(accountID: $0) }) ?? tokenStore.loadFirstTokenSet() else {
+            return nil
+        }
         if tokenSet.needsRefresh {
             tokenSet = try await refresh(tokenSet: tokenSet)
         }
+        setActiveAccountID(tokenSet.account.id)
         return tokenSet.account
     }
 
@@ -180,14 +232,18 @@ final class CustomGoogleOAuthService: @unchecked Sendable {
             account: account,
             idToken: response.idToken
         )
-        try GoogleOAuthKeychain.save(tokenSet, account: GoogleOAuthKeychain.tokenSetAccount)
+        try tokenStore.saveTokenSet(tokenSet, accountID: account.id)
+        setActiveAccountID(account.id)
         AppLogger.info("custom OAuth sign-in succeeded", category: .auth, metadata: ["email": GoogleAuthService.redact(account.email)])
         return account
     }
 
     func accessToken() async throws -> String? {
         guard isConfigured else { return nil }
-        guard var tokenSet = GoogleOAuthKeychain.loadTokenSet() else { return nil }
+        guard let activeAccountID else { return nil }
+        guard var tokenSet = tokenStore.loadTokenSet(accountID: activeAccountID) else {
+            throw CustomGoogleOAuthError.missingTokenSet
+        }
         if tokenSet.needsRefresh {
             tokenSet = try await refresh(tokenSet: tokenSet)
         }
@@ -224,7 +280,7 @@ final class CustomGoogleOAuthService: @unchecked Sendable {
             URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "scope", value: requiredScopes.joined(separator: " ")),
             URLQueryItem(name: "access_type", value: "offline"),
-            URLQueryItem(name: "prompt", value: "consent"),
+            URLQueryItem(name: "prompt", value: "consent select_account"),
             URLQueryItem(name: "state", value: state),
             URLQueryItem(name: "code_challenge", value: codeChallenge),
             URLQueryItem(name: "code_challenge_method", value: "S256")
@@ -279,7 +335,7 @@ final class CustomGoogleOAuthService: @unchecked Sendable {
                 refreshed.account = account
             }
         }
-        try GoogleOAuthKeychain.save(refreshed, account: GoogleOAuthKeychain.tokenSetAccount)
+        try tokenStore.saveTokenSet(refreshed, accountID: refreshed.account.id)
         return refreshed
     }
 
@@ -385,20 +441,87 @@ private struct GoogleOAuthUserInfo: Decodable {
     var name: String?
 }
 
-private enum GoogleOAuthKeychain {
-    static let clientConfigurationAccount = "custom-google-oauth-client"
-    static let tokenSetAccount = "custom-google-oauth-token-set"
+final class GoogleOAuthKeychainStore: GoogleOAuthTokenStoring, @unchecked Sendable {
+    private static let clientConfigurationAccount = "custom-google-oauth-client"
+    private static let legacyTokenSetAccount = "custom-google-oauth-token-set"
+    private static let tokenIndexAccount = "custom-google-oauth-token-index"
+    private static let tokenSetAccountPrefix = "custom-google-oauth-token-set:"
     private static let service = "com.gongahkia.hotcrossbuns.custom-google-oauth"
 
-    static func loadClientConfiguration() -> GoogleOAuthClientConfiguration? {
-        load(GoogleOAuthClientConfiguration.self, account: clientConfigurationAccount)
+    func loadClientConfiguration() -> GoogleOAuthClientConfiguration? {
+        Self.load(GoogleOAuthClientConfiguration.self, account: Self.clientConfigurationAccount)
     }
 
-    static func loadTokenSet() -> CustomGoogleOAuthTokenSet? {
-        load(CustomGoogleOAuthTokenSet.self, account: tokenSetAccount)
+    func saveClientConfiguration(_ configuration: GoogleOAuthClientConfiguration) throws {
+        try Self.save(configuration, account: Self.clientConfigurationAccount)
     }
 
-    static func save<T: Encodable>(_ value: T, account: String) throws {
+    func clearClientConfiguration() {
+        Self.delete(account: Self.clientConfigurationAccount)
+    }
+
+    func loadTokenSet(accountID: GoogleAccount.ID) -> CustomGoogleOAuthTokenSet? {
+        migrateLegacyTokenSetIfNeeded()
+        return Self.load(CustomGoogleOAuthTokenSet.self, account: Self.tokenSetAccount(accountID: accountID))
+    }
+
+    func loadFirstTokenSet() -> CustomGoogleOAuthTokenSet? {
+        migrateLegacyTokenSetIfNeeded()
+        for accountID in tokenIndex() {
+            if let tokenSet = loadTokenSet(accountID: accountID) {
+                return tokenSet
+            }
+        }
+        return nil
+    }
+
+    func saveTokenSet(_ tokenSet: CustomGoogleOAuthTokenSet, accountID: GoogleAccount.ID) throws {
+        try Self.save(tokenSet, account: Self.tokenSetAccount(accountID: accountID))
+        var index = tokenIndex()
+        if index.contains(accountID) == false {
+            index.append(accountID)
+            try Self.save(index, account: Self.tokenIndexAccount)
+        }
+    }
+
+    func deleteTokenSet(accountID: GoogleAccount.ID) {
+        Self.delete(account: Self.tokenSetAccount(accountID: accountID))
+        let index = tokenIndex().filter { $0 != accountID }
+        try? Self.save(index, account: Self.tokenIndexAccount)
+    }
+
+    func deleteAllTokenSets() {
+        for accountID in tokenIndex() {
+            Self.delete(account: Self.tokenSetAccount(accountID: accountID))
+        }
+        Self.delete(account: Self.legacyTokenSetAccount)
+        Self.delete(account: Self.tokenIndexAccount)
+    }
+
+    private func migrateLegacyTokenSetIfNeeded() {
+        guard tokenIndex().isEmpty,
+              let legacy = Self.load(CustomGoogleOAuthTokenSet.self, account: Self.legacyTokenSetAccount) else {
+            return
+        }
+        do {
+            try saveTokenSet(legacy, accountID: legacy.account.id)
+            Self.delete(account: Self.legacyTokenSetAccount)
+        } catch {
+            AppLogger.warn("custom OAuth legacy token migration failed", category: .auth, metadata: [
+                "error": String(describing: error)
+            ])
+        }
+    }
+
+    private func tokenIndex() -> [GoogleAccount.ID] {
+        Self.load([GoogleAccount.ID].self, account: Self.tokenIndexAccount) ?? []
+    }
+
+    private static func tokenSetAccount(accountID: GoogleAccount.ID) -> String {
+        "\(tokenSetAccountPrefix)\(accountID)"
+    }
+
+    private static func save<T: Encodable>(_ value: T, account: String) throws {
         let data = try JSONEncoder().encode(value)
         let query = baseQuery(account: account)
         let attributes: [String: Any] = [kSecValueData as String: data]
@@ -419,7 +542,7 @@ private enum GoogleOAuthKeychain {
         throw GoogleOAuthKeychainError.osStatus(status)
     }
 
-    static func delete(account: String) {
+    private static func delete(account: String) {
         SecItemDelete(baseQuery(account: account) as CFDictionary)
     }
 

@@ -121,4 +121,76 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
         XCTAssertTrue(summary.confirmationMessage.contains("Pending sync work: 1 queued local write"))
         XCTAssertFalse(summary.confirmationMessage.contains("Needs attention:"))
     }
+
+    func testAccountDisconnectImpactResolverUsesInactiveWorkspaceCounts() {
+        let active = GoogleAccount.preview
+        let work = GoogleAccount(
+            id: "work-account",
+            email: "work@example.com",
+            displayName: "Work",
+            grantedScopes: [GoogleScope.tasks],
+            authProvider: .customDesktopOAuth
+        )
+        let activeMutation = pendingMutation(id: "00000000-0000-0000-0000-000000000001", accountID: active.id)
+        let workConflict = pendingMutation(
+            id: "00000000-0000-0000-0000-000000000002",
+            accountID: work.id,
+            quarantinedAt: Date(timeIntervalSince1970: 10),
+            conflictedAt: Date(timeIntervalSince1970: 10)
+        )
+        let workInvalid = pendingMutation(
+            id: "00000000-0000-0000-0000-000000000003",
+            accountID: work.id,
+            lastErrorSummary: "Invalid payload - rejected by Google",
+            quarantinedAt: Date(timeIntervalSince1970: 20)
+        )
+        let resolver = AccountDisconnectImpactResolver(
+            activeAccountID: active.id,
+            activePendingMutations: [activeMutation],
+            accountWorkspaces: [
+                AccountWorkspaceSnapshot(
+                    accountID: work.id,
+                    taskLists: [],
+                    tasks: [],
+                    calendars: [],
+                    events: [],
+                    settings: .default,
+                    syncCheckpoints: [],
+                    pendingMutations: [workConflict, workInvalid]
+                )
+            ]
+        )
+
+        let activeSummary = resolver.summary(for: active.id, accountName: "Personal", cacheFootprint: "1 KB")
+        let inactiveSummary = resolver.summary(for: work.id, accountName: "Work", cacheFootprint: "1 KB")
+
+        XCTAssertEqual(activeSummary.pendingMutationCount, 1)
+        XCTAssertEqual(activeSummary.conflictedMutationCount, 0)
+        XCTAssertEqual(inactiveSummary.pendingMutationCount, 2)
+        XCTAssertEqual(inactiveSummary.conflictedMutationCount, 1)
+        XCTAssertEqual(inactiveSummary.quarantinedMutationCount, 2)
+        XCTAssertEqual(inactiveSummary.invalidPayloadMutationCount, 1)
+        XCTAssertTrue(resolver.cacheInvalidationKey.contains("work-account:2:1:2:1"))
+    }
+
+    private func pendingMutation(
+        id: String,
+        accountID: GoogleAccount.ID,
+        lastErrorSummary: String? = nil,
+        quarantinedAt: Date? = nil,
+        conflictedAt: Date? = nil
+    ) -> PendingMutation {
+        PendingMutation(
+            id: UUID(uuidString: id)!,
+            accountID: accountID,
+            createdAt: Date(timeIntervalSince1970: 1),
+            resourceType: .task,
+            resourceID: id,
+            action: .update,
+            payload: Data(),
+            lastErrorSummary: lastErrorSummary,
+            quarantinedAt: quarantinedAt,
+            conflictedAt: conflictedAt
+        )
+    }
 }

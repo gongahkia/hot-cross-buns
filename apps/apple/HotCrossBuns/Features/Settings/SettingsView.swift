@@ -31,6 +31,16 @@ struct SettingsView: View {
                         Task {
                             await model.disconnectGoogleAccount()
                         }
+                    },
+                    switchAccount: { accountID in
+                        Task {
+                            await model.switchGoogleAccount(to: accountID)
+                        }
+                    },
+                    disconnectAccount: { accountID in
+                        Task {
+                            await model.disconnectGoogleAccount(id: accountID)
+                        }
                     }
                 )
             }
@@ -508,8 +518,10 @@ struct AccountStatusView: View {
     let canConnect: Bool
     let connect: () -> Void
     let disconnect: () -> Void
+    let switchAccount: (GoogleAccount.ID) -> Void
+    let disconnectAccount: (GoogleAccount.ID) -> Void
 
-    @State private var isConfirmingDisconnect = false
+    @State private var confirmingDisconnectAccountID: GoogleAccount.ID?
     @State private var cacheFootprint = "Calculating..."
 
     var body: some View {
@@ -529,10 +541,19 @@ struct AccountStatusView: View {
             }
 
             if account != nil {
+                Button(action: connect) {
+                    Label("Add Google Account", systemImage: "person.crop.circle.badge.plus")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(AppColor.ember)
+                .hcbScaledFrame(maxWidth: 320, alignment: .leading)
+                .disabled(isAuthenticating || canConnect == false)
+
                 Button(role: .destructive) {
-                    isConfirmingDisconnect = true
+                    confirmingDisconnectAccountID = resolvedActiveAccountID
                 } label: {
-                    Text("Disconnect Google")
+                    Label("Disconnect Active Account", systemImage: "person.crop.circle.badge.xmark")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
@@ -558,10 +579,20 @@ struct AccountStatusView: View {
         }
         .confirmationDialog(
             "Disconnect Google?",
-            isPresented: $isConfirmingDisconnect,
+            isPresented: Binding(
+                get: { confirmingDisconnectAccountID != nil },
+                set: { if $0 == false { confirmingDisconnectAccountID = nil } }
+            ),
             titleVisibility: .visible
         ) {
-            Button("Disconnect Google", role: .destructive, action: disconnect)
+            Button("Disconnect Google", role: .destructive) {
+                if let confirmingDisconnectAccountID {
+                    disconnectAccount(confirmingDisconnectAccountID)
+                } else {
+                    disconnect()
+                }
+                confirmingDisconnectAccountID = nil
+            }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text(disconnectConfirmationMessage)
@@ -639,7 +670,24 @@ struct AccountStatusView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
+            if isActive == false {
+                Button {
+                    switchAccount(account.id)
+                } label: {
+                    Label("Switch Account", systemImage: "arrow.left.arrow.right")
+                }
+                .buttonStyle(.bordered)
+                .help("Make this the active Google account")
+            }
+            Button(role: .destructive) {
+                confirmingDisconnectAccountID = account.id
+            } label: {
+                Image(systemName: "minus.circle")
+            }
+            .buttonStyle(.borderless)
+            .help("Disconnect this Google account")
         }
+        .hcbScaledPadding(.vertical, 3)
     }
 
     private var statusTitle: String {
@@ -698,22 +746,26 @@ struct AccountStatusView: View {
     private var disconnectImpactID: String {
         [
             account?.id ?? "signed-out",
-            String(model.pendingMutations.count),
-            String(model.conflictedMutationCount),
-            String(model.quarantinedMutationCount),
-            String(model.invalidPayloadMutationCount)
+            disconnectImpactResolver.cacheInvalidationKey
         ].joined(separator: ":")
     }
 
     private var disconnectConfirmationMessage: String {
-        DisconnectImpactSummary(
-            accountName: account?.displayName ?? "this Google account",
-            cacheFootprint: cacheFootprint,
-            pendingMutationCount: model.pendingMutations.count,
-            conflictedMutationCount: model.conflictedMutationCount,
-            quarantinedMutationCount: model.quarantinedMutationCount,
-            invalidPayloadMutationCount: model.invalidPayloadMutationCount
+        let targetID = confirmingDisconnectAccountID ?? account?.id
+        let targetAccount = targetID.flatMap { id in displayAccounts.first { $0.id == id } } ?? account
+        return disconnectImpactResolver.summary(
+            for: targetID,
+            accountName: targetAccount?.displayName ?? "this Google account",
+            cacheFootprint: cacheFootprint
         ).confirmationMessage
+    }
+
+    private var disconnectImpactResolver: AccountDisconnectImpactResolver {
+        AccountDisconnectImpactResolver(
+            activeAccountID: resolvedActiveAccountID,
+            activePendingMutations: model.pendingMutations,
+            accountWorkspaces: model.accountWorkspaces
+        )
     }
 
     private func scopeSummary(for account: GoogleAccount) -> String {

@@ -23,6 +23,10 @@ final class GoogleAuthService {
         customOAuthService.clientConfiguration
     }
 
+    func setActiveAccountID(_ accountID: GoogleAccount.ID?) {
+        customOAuthService.setActiveAccountID(accountID)
+    }
+
     func saveCustomOAuthClientConfiguration(clientID: String, clientSecret: String?) throws -> GoogleOAuthClientConfiguration {
         try customOAuthService.saveClientConfiguration(
             GoogleOAuthClientConfiguration(clientID: clientID, clientSecret: clientSecret)
@@ -162,14 +166,22 @@ final class GoogleAuthService {
         return ns.domain == kGIDSignInErrorDomain && ns.code == GIDSignInError.canceled.rawValue
     }
 
-    func signOut() {
-        customOAuthService.clearTokenSet()
+    func signOut(accountID: GoogleAccount.ID? = nil) {
+        if let accountID {
+            customOAuthService.clearTokenSet(accountID: accountID)
+        } else {
+            customOAuthService.clearTokenSet()
+        }
         GIDSignIn.sharedInstance.signOut()
     }
 
-    func disconnect() async throws {
+    func disconnect(accountID: GoogleAccount.ID? = nil) async throws {
         if customOAuthService.isConfigured {
-            customOAuthService.clearTokenSet()
+            if let accountID {
+                customOAuthService.clearTokenSet(accountID: accountID)
+            } else {
+                customOAuthService.clearTokenSet()
+            }
             return
         }
 
@@ -317,24 +329,33 @@ enum GoogleTokenRefreshError: LocalizedError {
 }
 
 struct GoogleSignInAccessTokenProvider: AccessTokenProviding {
-    private let customOAuthService = CustomGoogleOAuthService()
+    private let customOAuthService: CustomGoogleOAuthService
     private let tokenCache = GoogleAccessTokenMemo(ttl: 30)
+
+    init(customOAuthService: CustomGoogleOAuthService = CustomGoogleOAuthService()) {
+        self.customOAuthService = customOAuthService
+    }
 
     @MainActor
     func accessToken() async throws -> String {
-        if let cached = await tokenCache.validToken() {
+        let cacheKey = customOAuthService.activeAccountID.map { "custom:\($0)" } ?? "embedded"
+        if let cached = await tokenCache.validToken(for: cacheKey) {
             return cached
         }
 
         let token = try await freshAccessToken()
-        await tokenCache.store(token)
+        await tokenCache.store(token, for: cacheKey)
         return token
     }
 
     @MainActor
     private func freshAccessToken() async throws -> String {
-        if let customToken = try await customOAuthService.accessToken() {
-            return customToken
+        do {
+            if let customToken = try await customOAuthService.accessToken() {
+                return customToken
+            }
+        } catch {
+            throw GoogleTokenRefreshError.refreshFailed(error)
         }
 
         guard let user = GIDSignIn.sharedInstance.currentUser else {
@@ -354,22 +375,20 @@ struct GoogleSignInAccessTokenProvider: AccessTokenProviding {
 
 private actor GoogleAccessTokenMemo {
     private let ttl: TimeInterval
-    private var token: String?
-    private var expiresAt: Date?
+    private var tokensByKey: [String: (token: String, expiresAt: Date)] = [:]
 
     init(ttl: TimeInterval) {
         self.ttl = ttl
     }
 
-    func validToken(now: Date = Date()) -> String? {
-        guard let token, let expiresAt, expiresAt > now else {
+    func validToken(for key: String, now: Date = Date()) -> String? {
+        guard let cached = tokensByKey[key], cached.expiresAt > now else {
             return nil
         }
-        return token
+        return cached.token
     }
 
-    func store(_ token: String, now: Date = Date()) {
-        self.token = token
-        self.expiresAt = now.addingTimeInterval(ttl)
+    func store(_ token: String, for key: String, now: Date = Date()) {
+        tokensByKey[key] = (token, now.addingTimeInterval(ttl))
     }
 }

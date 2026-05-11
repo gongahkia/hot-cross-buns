@@ -60,6 +60,7 @@ final class ModelPersistenceTests: XCTestCase {
         XCTAssertNil(state.account)
         XCTAssertTrue(state.accounts.isEmpty)
         XCTAssertNil(state.activeAccountID)
+        XCTAssertTrue(state.accountWorkspaces.isEmpty)
         XCTAssertTrue(state.taskLists.isEmpty)
         XCTAssertTrue(state.tasks.isEmpty)
         XCTAssertTrue(state.calendars.isEmpty)
@@ -113,6 +114,600 @@ final class ModelPersistenceTests: XCTestCase {
         XCTAssertEqual(state.account?.id, "google-1")
         XCTAssertEqual(state.accounts.map(\.id), ["google-1"])
         XCTAssertEqual(state.activeAccountID, "google-1")
+        XCTAssertEqual(state.accountWorkspaces.map(\.accountID), ["google-1"])
+    }
+
+    func testCachedAppStateMigratesLegacyRootPayloadIntoActiveWorkspace() throws {
+        let data = Data(
+            """
+            {
+              "schemaVersion": 1,
+              "account": {
+                "id": "google-1",
+                "email": "person@example.com",
+                "displayName": "Personal",
+                "grantedScopes": ["https://www.googleapis.com/auth/tasks"],
+                "authProvider": "customDesktopOAuth"
+              },
+              "taskLists": [
+                { "id": "list-1", "title": "Inbox", "updatedAt": "2026-04-18T00:00:00Z", "etag": "tl" }
+              ],
+              "tasks": [
+                {
+                  "id": "task-1",
+                  "taskListID": "list-1",
+                  "title": "Legacy task",
+                  "notes": "",
+                  "status": "needsAction",
+                  "isDeleted": false,
+                  "isHidden": false
+                }
+              ],
+              "calendars": [],
+              "events": [],
+              "settings": {
+                "syncMode": "manual",
+                "selectedCalendarIDs": [],
+                "selectedTaskListIDs": ["list-1"],
+                "enableLocalNotifications": false
+              },
+              "pendingMutations": [
+                {
+                  "id": "00000000-0000-0000-0000-000000000001",
+                  "createdAt": "2026-04-18T00:00:00Z",
+                  "resourceType": "task",
+                  "resourceID": "task-1",
+                  "action": "update",
+                  "payload": ""
+                }
+              ]
+            }
+            """.utf8
+        )
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let state = try decoder.decode(CachedAppState.self, from: data)
+        let workspace = try XCTUnwrap(state.accountWorkspaces.first)
+
+        XCTAssertEqual(state.schemaVersion, CachedAppState.currentSchemaVersion)
+        XCTAssertEqual(workspace.accountID, "google-1")
+        XCTAssertEqual(workspace.taskLists.map(\.id), ["list-1"])
+        XCTAssertEqual(workspace.tasks.map(\.id), ["task-1"])
+        XCTAssertEqual(workspace.pendingMutations.first?.accountID, "google-1")
+        XCTAssertEqual(workspace.settings.selectedTaskListIDs, ["list-1"])
+    }
+
+    func testCachedAppStateSplitsMixedRootSyncMetadataIntoAccountWorkspaces() throws {
+        let personal = GoogleAccount.preview
+        let work = GoogleAccount(
+            id: "work-account",
+            email: "work@example.com",
+            displayName: "Work",
+            grantedScopes: [GoogleScope.tasks],
+            authProvider: .customDesktopOAuth
+        )
+        let personalCheckpoint = SyncCheckpoint(
+            id: SyncCheckpoint.stableID(accountID: personal.id, resourceType: .taskList, resourceID: "personal-list"),
+            accountID: personal.id,
+            resourceType: .taskList,
+            resourceID: "personal-list",
+            calendarSyncToken: nil,
+            tasksUpdatedMin: Date(timeIntervalSince1970: 10),
+            lastSuccessfulSyncAt: nil
+        )
+        let workCheckpoint = SyncCheckpoint(
+            id: SyncCheckpoint.stableID(accountID: work.id, resourceType: .taskList, resourceID: "work-list"),
+            accountID: work.id,
+            resourceType: .taskList,
+            resourceID: "work-list",
+            calendarSyncToken: nil,
+            tasksUpdatedMin: Date(timeIntervalSince1970: 20),
+            lastSuccessfulSyncAt: nil
+        )
+        let legacyActiveMutation = PendingMutation(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000010")!,
+            createdAt: Date(timeIntervalSince1970: 30),
+            resourceType: .task,
+            resourceID: "personal-task",
+            action: .update,
+            payload: Data()
+        )
+        let workMutation = PendingMutation(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000020")!,
+            accountID: work.id,
+            createdAt: Date(timeIntervalSince1970: 40),
+            resourceType: .task,
+            resourceID: "work-task",
+            action: .update,
+            payload: Data()
+        )
+
+        let state = CachedAppState(
+            account: personal,
+            accounts: [personal, work],
+            activeAccountID: personal.id,
+            taskLists: [],
+            tasks: [],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [personalCheckpoint, workCheckpoint],
+            pendingMutations: [legacyActiveMutation, workMutation]
+        )
+
+        XCTAssertEqual(Set(state.syncCheckpoints.map(\.accountID)), [personal.id])
+        XCTAssertEqual(Set(state.pendingMutations.compactMap(\.accountID)), [personal.id])
+        let workWorkspace = try XCTUnwrap(state.accountWorkspaces.first { $0.accountID == work.id })
+        XCTAssertEqual(workWorkspace.syncCheckpoints.map(\.resourceID), ["work-list"])
+        XCTAssertEqual(workWorkspace.pendingMutations.map(\.accountID), [work.id])
+    }
+
+    func testSwitchingActiveAccountRestoresWorkspaceAndAccountScopedSettings() throws {
+        let personal = GoogleAccount.preview
+        let work = GoogleAccount(
+            id: "work-account",
+            email: "work@example.com",
+            displayName: "Work",
+            grantedScopes: [GoogleScope.tasks, GoogleScope.calendar],
+            authProvider: .customDesktopOAuth
+        )
+        var workSettings = AppSettings.default
+        workSettings.syncMode = .manual
+        workSettings.selectedTaskListIDs = ["work-list"]
+        workSettings.hasConfiguredTaskListSelection = true
+        let workWorkspace = AccountWorkspaceSnapshot(
+            accountID: work.id,
+            taskLists: [
+                TaskListMirror(id: "work-list", title: "Work", updatedAt: nil, etag: nil)
+            ],
+            tasks: [],
+            calendars: [],
+            events: [],
+            settings: workSettings,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        let state = CachedAppState(
+            account: personal,
+            accounts: [personal, work],
+            activeAccountID: personal.id,
+            accountWorkspaces: [workWorkspace],
+            taskLists: [TaskListMirror(id: "personal-list", title: "Personal", updatedAt: nil, etag: nil)],
+            tasks: [],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+
+        let switched = try XCTUnwrap(state.switchingActiveAccount(to: work.id))
+
+        XCTAssertEqual(switched.account, work)
+        XCTAssertEqual(switched.activeAccountID, work.id)
+        XCTAssertEqual(switched.taskLists.map(\.id), ["work-list"])
+        XCTAssertEqual(switched.settings.syncMode, .manual)
+        XCTAssertEqual(switched.settings.selectedTaskListIDs, ["work-list"])
+    }
+
+    @MainActor
+    func testAppModelSwitchesBetweenAccountWorkspaces() async throws {
+        let personal = GoogleAccount.preview
+        let work = GoogleAccount(
+            id: "work-account",
+            email: "work@example.com",
+            displayName: "Work",
+            grantedScopes: [GoogleScope.tasks, GoogleScope.calendar],
+            authProvider: .customDesktopOAuth
+        )
+        let workWorkspace = AccountWorkspaceSnapshot(
+            accountID: work.id,
+            taskLists: [TaskListMirror(id: "work-list", title: "Work", updatedAt: nil, etag: nil)],
+            tasks: [],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        let state = CachedAppState(
+            account: personal,
+            accounts: [personal, work],
+            activeAccountID: personal.id,
+            accountWorkspaces: [workWorkspace],
+            taskLists: [TaskListMirror(id: "personal-list", title: "Personal", updatedAt: nil, etag: nil)],
+            tasks: [],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        let model = makeModel(cachedState: state)
+        await model.loadInitialState()
+
+        XCTAssertEqual(model.activeAccountID, personal.id)
+        XCTAssertEqual(model.taskLists.map(\.id), ["personal-list"])
+
+        let didSwitchToWork = await model.switchGoogleAccount(to: work.id)
+        XCTAssertTrue(didSwitchToWork)
+        XCTAssertEqual(model.activeAccountID, work.id)
+        XCTAssertEqual(model.taskLists.map(\.id), ["work-list"])
+
+        let didSwitchToPersonal = await model.switchGoogleAccount(to: personal.id)
+        XCTAssertTrue(didSwitchToPersonal)
+        XCTAssertEqual(model.activeAccountID, personal.id)
+        XCTAssertEqual(model.taskLists.map(\.id), ["personal-list"])
+    }
+
+    @MainActor
+    func testSwitchingPersistsDirtyActiveSettingsBeforeLoadingTargetWorkspace() async throws {
+        let personal = GoogleAccount.preview
+        let work = GoogleAccount(
+            id: "work-account",
+            email: "work@example.com",
+            displayName: "Work",
+            grantedScopes: [GoogleScope.tasks, GoogleScope.calendar],
+            authProvider: .customDesktopOAuth
+        )
+        var workSettings = AppSettings.default
+        workSettings.tasksTabSelectedListIDs = ["work-list"]
+        workSettings.hasConfiguredTasksTabSelection = true
+        let workWorkspace = AccountWorkspaceSnapshot(
+            accountID: work.id,
+            taskLists: [TaskListMirror(id: "work-list", title: "Work", updatedAt: nil, etag: nil)],
+            tasks: [],
+            calendars: [],
+            events: [],
+            settings: workSettings,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        let state = CachedAppState(
+            account: personal,
+            accounts: [personal, work],
+            activeAccountID: personal.id,
+            accountWorkspaces: [workWorkspace],
+            taskLists: [TaskListMirror(id: "personal-list", title: "Personal", updatedAt: nil, etag: nil)],
+            tasks: [],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        let model = makeModel(cachedState: state)
+        await model.loadInitialState()
+
+        model.setTasksTabListFilter(["personal-list"])
+        let didSwitchToWork = await model.switchGoogleAccount(to: work.id)
+        XCTAssertTrue(didSwitchToWork)
+        XCTAssertEqual(model.settings.tasksTabSelectedListIDs, ["work-list"])
+        let didSwitchToPersonal = await model.switchGoogleAccount(to: personal.id)
+        XCTAssertTrue(didSwitchToPersonal)
+
+        XCTAssertEqual(model.settings.tasksTabSelectedListIDs, ["personal-list"])
+        XCTAssertTrue(model.settings.hasConfiguredTasksTabSelection)
+    }
+
+    @MainActor
+    func testSwitchingToMissingAccountLeavesLiveWorkspaceUntouched() async throws {
+        let personal = GoogleAccount.preview
+        let state = CachedAppState(
+            account: personal,
+            accounts: [personal],
+            activeAccountID: personal.id,
+            taskLists: [TaskListMirror(id: "personal-list", title: "Personal", updatedAt: nil, etag: nil)],
+            tasks: [],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        let model = makeModel(cachedState: state)
+        await model.loadInitialState()
+
+        let didSwitch = await model.switchGoogleAccount(to: "missing-account")
+
+        XCTAssertFalse(didSwitch)
+        XCTAssertEqual(model.activeAccountID, personal.id)
+        XCTAssertEqual(model.taskLists.map(\.id), ["personal-list"])
+        XCTAssertEqual(model.lastMutationError, "That Google account is not connected on this Mac.")
+    }
+
+    @MainActor
+    func testReplaySkipsInactiveAccountMutationsEvenIfTheyLeakIntoActiveQueue() async throws {
+        MockURLProtocol.reset()
+        defer { MockURLProtocol.reset() }
+
+        let personal = GoogleAccount.preview
+        let work = GoogleAccount(
+            id: "work-account",
+            email: "work@example.com",
+            displayName: "Work",
+            grantedScopes: [GoogleScope.tasks],
+            authProvider: .customDesktopOAuth
+        )
+        var activeMutation = try PendingMutation.taskCreate(payload: PendingTaskCreatePayload(
+            localID: "local-active",
+            taskListID: "personal-list",
+            title: "Active write",
+            notes: "",
+            dueDate: nil,
+            parentID: nil
+        ))
+        activeMutation.accountID = personal.id
+        var inactiveMutation = try PendingMutation.taskCreate(payload: PendingTaskCreatePayload(
+            localID: "local-inactive",
+            taskListID: "work-list",
+            title: "Inactive write",
+            notes: "",
+            dueDate: nil,
+            parentID: nil
+        ))
+        inactiveMutation.accountID = work.id
+        var state = CachedAppState(
+            account: personal,
+            accounts: [personal, work],
+            activeAccountID: personal.id,
+            taskLists: [TaskListMirror(id: "personal-list", title: "Personal", updatedAt: nil, etag: nil)],
+            tasks: [],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        state.pendingMutations = [activeMutation, inactiveMutation]
+        MockURLProtocol.requestHandler = { request in
+            XCTAssertEqual(request.url?.path, "/tasks/v1/lists/personal-list/tasks")
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(#"{"id":"server-active","title":"Active write","status":"needsAction","etag":"srv"}"#.utf8))
+        }
+        let model = makeModel(cachedState: state, urlSession: MockURLProtocol.testSession())
+        await model.loadInitialState()
+
+        await model.replayPendingMutations()
+
+        XCTAssertEqual(MockURLProtocol.capturedRequests.map { $0.url?.path }, ["/tasks/v1/lists/personal-list/tasks"])
+        XCTAssertEqual(model.pendingMutations.map(\.id), [inactiveMutation.id])
+        XCTAssertEqual(model.pendingMutations.first?.accountID, work.id)
+    }
+
+    @MainActor
+    func testAppModelDisconnectsInactiveAccountWithoutTouchingActiveWorkspace() async throws {
+        let personal = GoogleAccount.preview
+        let work = GoogleAccount(
+            id: "work-account",
+            email: "work@example.com",
+            displayName: "Work",
+            grantedScopes: [GoogleScope.tasks, GoogleScope.calendar],
+            authProvider: .customDesktopOAuth
+        )
+        let workWorkspace = AccountWorkspaceSnapshot(
+            accountID: work.id,
+            taskLists: [TaskListMirror(id: "work-list", title: "Work", updatedAt: nil, etag: nil)],
+            tasks: [],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        let state = CachedAppState(
+            account: personal,
+            accounts: [personal, work],
+            activeAccountID: personal.id,
+            accountWorkspaces: [workWorkspace],
+            taskLists: [TaskListMirror(id: "personal-list", title: "Personal", updatedAt: nil, etag: nil)],
+            tasks: [],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        let store = InMemoryGoogleOAuthTokenStore(
+            clientConfiguration: GoogleOAuthClientConfiguration(clientID: "abc.apps.googleusercontent.com", clientSecret: nil)
+        )
+        try store.saveTokenSet(testTokenSet(account: personal), accountID: personal.id)
+        try store.saveTokenSet(testTokenSet(account: work), accountID: work.id)
+        let model = makeModel(cachedState: state, tokenStore: store)
+        await model.loadInitialState()
+
+        await model.disconnectGoogleAccount(id: work.id)
+
+        XCTAssertEqual(model.activeAccountID, personal.id)
+        XCTAssertEqual(model.connectedAccounts.map(\.id), [personal.id])
+        XCTAssertEqual(model.taskLists.map(\.id), ["personal-list"])
+        XCTAssertNil(store.loadTokenSet(accountID: work.id))
+        XCTAssertNotNil(store.loadTokenSet(accountID: personal.id))
+    }
+
+    @MainActor
+    func testAppModelDisconnectsActiveAccountSwitchesToFallbackWorkspace() async throws {
+        let personal = GoogleAccount.preview
+        let work = GoogleAccount(
+            id: "work-account",
+            email: "work@example.com",
+            displayName: "Work",
+            grantedScopes: [GoogleScope.tasks, GoogleScope.calendar],
+            authProvider: .customDesktopOAuth
+        )
+        let workWorkspace = AccountWorkspaceSnapshot(
+            accountID: work.id,
+            taskLists: [TaskListMirror(id: "work-list", title: "Work", updatedAt: nil, etag: nil)],
+            tasks: [],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        let state = CachedAppState(
+            account: personal,
+            accounts: [personal, work],
+            activeAccountID: personal.id,
+            accountWorkspaces: [workWorkspace],
+            taskLists: [TaskListMirror(id: "personal-list", title: "Personal", updatedAt: nil, etag: nil)],
+            tasks: [],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        let store = InMemoryGoogleOAuthTokenStore(
+            clientConfiguration: GoogleOAuthClientConfiguration(clientID: "abc.apps.googleusercontent.com", clientSecret: nil)
+        )
+        try store.saveTokenSet(testTokenSet(account: personal), accountID: personal.id)
+        try store.saveTokenSet(testTokenSet(account: work), accountID: work.id)
+        let model = makeModel(cachedState: state, tokenStore: store)
+        await model.loadInitialState()
+
+        await model.disconnectGoogleAccount(id: personal.id)
+
+        XCTAssertEqual(model.activeAccountID, work.id)
+        XCTAssertEqual(model.connectedAccounts.map(\.id), [work.id])
+        XCTAssertEqual(model.taskLists.map(\.id), ["work-list"])
+        XCTAssertNil(store.loadTokenSet(accountID: personal.id))
+        XCTAssertNotNil(store.loadTokenSet(accountID: work.id))
+    }
+
+    @MainActor
+    func testAppModelDisconnectsLastAccountLeavesSignedOutLocalState() async throws {
+        let personal = GoogleAccount.preview
+        let state = CachedAppState(
+            account: personal,
+            accounts: [personal],
+            activeAccountID: personal.id,
+            taskLists: [TaskListMirror(id: "personal-list", title: "Personal", updatedAt: nil, etag: nil)],
+            tasks: [],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        let store = InMemoryGoogleOAuthTokenStore(
+            clientConfiguration: GoogleOAuthClientConfiguration(clientID: "abc.apps.googleusercontent.com", clientSecret: nil)
+        )
+        try store.saveTokenSet(testTokenSet(account: personal), accountID: personal.id)
+        let model = makeModel(cachedState: state, tokenStore: store)
+        await model.loadInitialState()
+
+        await model.disconnectGoogleAccount(id: personal.id)
+
+        XCTAssertNil(model.activeAccountID)
+        XCTAssertTrue(model.connectedAccounts.isEmpty)
+        XCTAssertTrue(model.taskLists.isEmpty)
+        XCTAssertNil(store.loadTokenSet(accountID: personal.id))
+    }
+
+    @MainActor
+    func testChangingOAuthClientDropsInactiveCustomAccountsWithoutSigningOutEmbeddedActive() async throws {
+        let personal = GoogleAccount.preview
+        let work = GoogleAccount(
+            id: "work-account",
+            email: "work@example.com",
+            displayName: "Work",
+            grantedScopes: [GoogleScope.tasks, GoogleScope.calendar],
+            authProvider: .customDesktopOAuth
+        )
+        let workWorkspace = AccountWorkspaceSnapshot(
+            accountID: work.id,
+            taskLists: [TaskListMirror(id: "work-list", title: "Work", updatedAt: nil, etag: nil)],
+            tasks: [],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        let state = CachedAppState(
+            account: personal,
+            accounts: [personal, work],
+            activeAccountID: personal.id,
+            accountWorkspaces: [workWorkspace],
+            taskLists: [TaskListMirror(id: "personal-list", title: "Personal", updatedAt: nil, etag: nil)],
+            tasks: [],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        let store = InMemoryGoogleOAuthTokenStore(
+            clientConfiguration: GoogleOAuthClientConfiguration(clientID: "abc.apps.googleusercontent.com", clientSecret: nil)
+        )
+        try store.saveTokenSet(testTokenSet(account: work), accountID: work.id)
+        let model = makeModel(cachedState: state, tokenStore: store)
+        await model.loadInitialState()
+
+        model.saveCustomOAuthClientConfiguration(clientID: "new-client.apps.googleusercontent.com", clientSecret: nil)
+
+        XCTAssertEqual(model.activeAccountID, personal.id)
+        XCTAssertEqual(model.connectedAccounts.map(\.id), [personal.id])
+        XCTAssertEqual(model.taskLists.map(\.id), ["personal-list"])
+        XCTAssertFalse(model.accountWorkspaces.contains { $0.accountID == work.id })
+        XCTAssertNil(store.loadTokenSet(accountID: work.id))
+    }
+
+    @MainActor
+    func testClearingOAuthClientDropsActiveCustomAccountAndFallsBackToEmbeddedAccount() async throws {
+        let personal = GoogleAccount.preview
+        let work = GoogleAccount(
+            id: "work-account",
+            email: "work@example.com",
+            displayName: "Work",
+            grantedScopes: [GoogleScope.tasks, GoogleScope.calendar],
+            authProvider: .customDesktopOAuth
+        )
+        let personalWorkspace = AccountWorkspaceSnapshot(
+            accountID: personal.id,
+            taskLists: [TaskListMirror(id: "personal-list", title: "Personal", updatedAt: nil, etag: nil)],
+            tasks: [],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        let state = CachedAppState(
+            account: work,
+            accounts: [work, personal],
+            activeAccountID: work.id,
+            accountWorkspaces: [personalWorkspace],
+            taskLists: [TaskListMirror(id: "work-list", title: "Work", updatedAt: nil, etag: nil)],
+            tasks: [],
+            calendars: [],
+            events: [],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        let store = InMemoryGoogleOAuthTokenStore(
+            clientConfiguration: GoogleOAuthClientConfiguration(clientID: "abc.apps.googleusercontent.com", clientSecret: nil)
+        )
+        try store.saveTokenSet(testTokenSet(account: work), accountID: work.id)
+        let model = makeModel(cachedState: state, tokenStore: store)
+        await model.loadInitialState()
+
+        model.clearCustomOAuthClientConfiguration()
+
+        XCTAssertEqual(model.activeAccountID, personal.id)
+        XCTAssertEqual(model.connectedAccounts.map(\.id), [personal.id])
+        XCTAssertEqual(model.taskLists.map(\.id), ["personal-list"])
+        XCTAssertFalse(model.accountWorkspaces.contains { $0.accountID == work.id })
+        XCTAssertNil(store.loadClientConfiguration())
+        XCTAssertNil(store.loadTokenSet(accountID: work.id))
     }
 
     func testCachedAppStateAllowsSignedOutAccountCatalog() throws {
@@ -170,6 +765,43 @@ final class ModelPersistenceTests: XCTestCase {
         XCTAssertEqual(snapshot.dueTasks.map(\.id), ["due-today"])
         XCTAssertEqual(snapshot.overdueCount, 1)
         XCTAssertEqual(snapshot.scheduledEvents.map(\.id), ["earlier", "later"])
+    }
+
+    @MainActor
+    private func makeModel(
+        cachedState: CachedAppState,
+        tokenStore: InMemoryGoogleOAuthTokenStore = InMemoryGoogleOAuthTokenStore(
+            clientConfiguration: GoogleOAuthClientConfiguration(clientID: "abc.apps.googleusercontent.com", clientSecret: nil)
+        ),
+        urlSession: URLSession = .shared
+    ) -> AppModel {
+        let customOAuthService = CustomGoogleOAuthService(tokenStore: tokenStore)
+        let authService = GoogleAuthService(customOAuthService: customOAuthService)
+        let transport = GoogleAPITransport(
+            baseURL: URL(string: "https://www.googleapis.com")!,
+            tokenProvider: StaticAccessTokenProvider(token: "test-token"),
+            urlSession: urlSession
+        )
+        let tasksClient = GoogleTasksClient(transport: transport)
+        let calendarClient = GoogleCalendarClient(transport: transport)
+        return AppModel(
+            authService: authService,
+            tasksClient: tasksClient,
+            calendarClient: calendarClient,
+            syncScheduler: SyncScheduler(tasksClient: tasksClient, calendarClient: calendarClient),
+            cacheStore: LocalCacheStore(fileURL: nil, cachedState: cachedState)
+        )
+    }
+
+    private func testTokenSet(account: GoogleAccount) -> CustomGoogleOAuthTokenSet {
+        CustomGoogleOAuthTokenSet(
+            accessToken: "\(account.id)-access",
+            refreshToken: "\(account.id)-refresh",
+            expiresAt: Date().addingTimeInterval(3_600),
+            grantedScopes: account.grantedScopes,
+            account: account,
+            idToken: nil
+        )
     }
 
     private func task(

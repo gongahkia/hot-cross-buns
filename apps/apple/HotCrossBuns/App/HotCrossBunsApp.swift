@@ -3,20 +3,50 @@ import SwiftUI
 enum HCBLaunchMode {
     case normal
     case smokeTest
+    case unitTest
 
-    static let current: HCBLaunchMode = ProcessInfo.processInfo.arguments.contains("--smoke-test")
-        ? .smokeTest
-        : .normal
+    static let current: HCBLaunchMode = {
+        let processInfo = ProcessInfo.processInfo
+        if processInfo.arguments.contains("--smoke-test") {
+            return .smokeTest
+        }
+        if processInfo.environment["XCTestConfigurationFilePath"] != nil {
+            return .unitTest
+        }
+        return .normal
+    }()
 
     var isSmokeTest: Bool {
         self == .smokeTest
+    }
+
+    var skipsAppStartupWork: Bool {
+        switch self {
+        case .normal:
+            return false
+        case .smokeTest, .unitTest:
+            return true
+        }
+    }
+
+    var logValue: String {
+        switch self {
+        case .normal:
+            return "normal"
+        case .smokeTest:
+            return "smoke-test"
+        case .unitTest:
+            return "unit-test"
+        }
     }
 }
 
 @main
 struct HotCrossBunsApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var appModel = AppModel.bootstrap()
+    @State private var appModel = HCBLaunchMode.current == .unitTest
+        ? AppModel.testHostBootstrap()
+        : AppModel.bootstrap()
     @State private var updater = UpdaterController()
     @State private var networkMonitor = NetworkMonitor()
 
@@ -25,7 +55,7 @@ struct HotCrossBunsApp: App {
         AppLogger.info("app launch", category: .misc, metadata: [
             "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?",
             "build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?",
-            "launchMode": HCBLaunchMode.current.isSmokeTest ? "smoke-test" : "normal"
+            "launchMode": HCBLaunchMode.current.logValue
         ])
     }
 
