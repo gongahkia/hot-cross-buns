@@ -171,7 +171,7 @@ enum CalendarGridLayout {
         return result
     }
 
-    struct LaidOutEvent: Equatable {
+    struct LaidOutEvent: Equatable, Sendable {
         let event: CalendarEventMirror
         let columnIndex: Int
         let columnCount: Int
