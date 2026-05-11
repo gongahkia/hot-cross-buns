@@ -18,7 +18,7 @@ import SwiftUI
 struct KanbanView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.hcbAppBackgroundConfiguration) private var backgroundConfiguration
-    let tasks: [TaskMirror]
+    let snapshot: TaskBoardDisplaySnapshot
     @Binding var columnMode: KanbanColumnMode
     @Binding var selection: Set<TaskMirror.ID>
     var availableColumnModes: [KanbanColumnMode] = KanbanColumnMode.allCases
@@ -46,7 +46,7 @@ struct KanbanView: View {
                 // Lazy horizontal stack so columns off-screen don't
                 // instantiate their row subtrees on every board render.
                 LazyHStack(alignment: .top, spacing: 14) {
-                    ForEach(columns) { column in
+                    ForEach(snapshot.columns) { column in
                         KanbanColumnView(
                             column: column,
                             mode: columnMode,
@@ -80,17 +80,7 @@ struct KanbanView: View {
         }
     }
 
-    private var columns: [KanbanColumn] {
-        KanbanGrouping.columns(
-            for: tasks,
-            mode: columnMode,
-            taskLists: model.taskLists,
-            now: Date(),
-            calendar: .current
-        )
-    }
-
-    private func taskList(for column: KanbanColumn) -> TaskListMirror? {
+    private func taskList(for column: PreparedKanbanColumn) -> TaskListMirror? {
         // Column IDs under byList follow "list-<id>" — see KanbanGrouping.
         guard columnMode == .byList, column.id.hasPrefix("list-") else { return nil }
         let listID = String(column.id.dropFirst("list-".count))
@@ -111,7 +101,7 @@ struct KanbanView: View {
             .labelsHidden()
             .fixedSize()
             Spacer(minLength: 0)
-            Text("\(tasks.count) task\(tasks.count == 1 ? "" : "s")")
+            Text("\(snapshot.taskCount) task\(snapshot.taskCount == 1 ? "" : "s")")
                 .hcbFont(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -146,7 +136,7 @@ struct KanbanView: View {
         .help("Create a new Google Tasks list")
     }
 
-    private func handleDrop(_ dropped: DraggedTask, on column: KanbanColumn) {
+    private func handleDrop(_ dropped: DraggedTask, on column: PreparedKanbanColumn) {
         guard let intent = column.dropIntent,
               let op = intent.operation(for: dropped.taskID) else { return }
         Task {
@@ -160,7 +150,7 @@ private struct KanbanColumnView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    let column: KanbanColumn
+    let column: PreparedKanbanColumn
     let mode: KanbanColumnMode
     let taskList: TaskListMirror?
     let isDropTargeted: Bool
@@ -186,8 +176,8 @@ private struct KanbanColumnView: View {
                 // scrolled off-screen. LazyVStack materializes cards as they
                 // approach the viewport.
                 LazyVStack(spacing: 8) {
-                    ForEach(openTasks, id: \.id) { task in
-                        taskCard(task)
+                    ForEach(column.openTasks) { card in
+                        taskCard(card)
                     }
                     // Inline add-task affordance — clicking anywhere in this
                     // zone opens QuickCreatePopover pre-filled with the
@@ -213,12 +203,12 @@ private struct KanbanColumnView: View {
                     if completedTasks.isEmpty == false {
                         completedDisclosure
                         if isCompletedExpanded {
-                            ForEach(completedTasks, id: \.id) { task in
-                                completedTaskRow(task)
+                            ForEach(column.completedTasks) { card in
+                                completedTaskRow(card)
                             }
                         }
                     }
-                    if column.tasks.isEmpty, column.dropIntent != nil {
+                    if column.taskCount == 0, column.dropIntent != nil {
                         Text("Drop here")
                             .hcbFont(.caption)
                             .foregroundStyle(.tertiary)
@@ -253,13 +243,7 @@ private struct KanbanColumnView: View {
         }
     }
 
-    private var openTasks: [TaskMirror] {
-        column.tasks.filter { $0.isCompleted == false }
-    }
-
-    private var completedTasks: [TaskMirror] {
-        column.tasks.filter(\.isCompleted)
-    }
+    private var completedTasks: [PreparedTaskCard] { column.completedTasks }
 
     private var completedDisclosure: some View {
         Button {
@@ -285,27 +269,27 @@ private struct KanbanColumnView: View {
         .accessibilityLabel(isCompletedExpanded ? "Collapse completed tasks" : "Expand completed tasks")
     }
 
-    private func taskCard(_ task: TaskMirror) -> some View {
+    private func taskCard(_ card: PreparedTaskCard) -> some View {
         KanbanCardView(
-            task: task,
-            isSelected: selection.contains(task.id),
-            onTap: { onCardTap(task) }
+            card: card,
+            isSelected: selection.contains(card.id),
+            onTap: { onCardTap(card.task) }
         )
-        .draggable(DraggedTask(taskID: task.id, taskListID: task.taskListID, title: task.title))
+        .draggable(DraggedTask(taskID: card.id, taskListID: card.task.taskListID, title: card.task.title))
         .contextMenu {
-            taskContextMenu(for: task)
+            taskContextMenu(for: card.task)
         }
     }
 
-    private func completedTaskRow(_ task: TaskMirror) -> some View {
+    private func completedTaskRow(_ card: PreparedTaskCard) -> some View {
         KanbanCompletedTaskRowView(
-            task: task,
-            isSelected: selection.contains(task.id),
-            onTap: { onCardTap(task) }
+            card: card,
+            isSelected: selection.contains(card.id),
+            onTap: { onCardTap(card.task) }
         )
-        .draggable(DraggedTask(taskID: task.id, taskListID: task.taskListID, title: task.title))
+        .draggable(DraggedTask(taskID: card.id, taskListID: card.task.taskListID, title: card.task.title))
         .contextMenu {
-            taskContextMenu(for: task)
+            taskContextMenu(for: card.task)
         }
     }
 
@@ -380,7 +364,7 @@ private struct KanbanColumnView: View {
 }
 
 private struct KanbanCompletedTaskRowView: View {
-    let task: TaskMirror
+    let card: PreparedTaskCard
     let isSelected: Bool
     let onTap: () -> Void
 
@@ -392,13 +376,13 @@ private struct KanbanCompletedTaskRowView: View {
                     .foregroundStyle(AppColor.ember)
                     .frame(width: 18)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(TagExtractor.stripped(from: task.title))
+                    Text(card.strippedTitle)
                         .hcbFont(.subheadline)
                         .foregroundStyle(AppColor.ink)
                         .strikethrough(true, color: AppColor.ink)
                         .lineLimit(3)
                         .multilineTextAlignment(.leading)
-                    Text(completedText)
+                    Text(card.completedText ?? "Completed")
                         .hcbFont(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -415,24 +399,16 @@ private struct KanbanCompletedTaskRowView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(completedTaskAccessibilityLabel)
-    }
-
-    private var completedText: String {
-        guard let completedAt = task.completedAt else { return "Completed" }
-        return "Completed: \(completedAt.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))"
-    }
-
-    private var completedTaskAccessibilityLabel: String {
-        "Completed task: \(TagExtractor.stripped(from: task.title)), \(completedText)"
+        .accessibilityLabel(card.accessibilityLabel)
     }
 }
 
 private struct KanbanCardView: View {
-    @Environment(AppModel.self) private var model
-    let task: TaskMirror
+    let card: PreparedTaskCard
     let isSelected: Bool
     let onTap: () -> Void
+
+    private var task: TaskMirror { card.task }
 
     var body: some View {
         Button(action: onTap) {
@@ -443,7 +419,7 @@ private struct KanbanCardView: View {
                         .hcbFont(.subheadline)
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 4) {
-                            Text(TagExtractor.stripped(from: task.title))
+                            Text(card.strippedTitle)
                                 .hcbFont(.subheadline, weight: .medium)
                                 .foregroundStyle(AppColor.ink)
                                 .lineLimit(2)
@@ -468,14 +444,14 @@ private struct KanbanCardView: View {
                     )
             )
             .overlay(alignment: .topTrailing) {
-                if model.duplicateIndex.isMember(task.id) {
+                if card.isDuplicate {
                     duplicateBadge
                         .hcbScaledPadding(6)
                 }
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(taskAccessibilityLabel)
+        .accessibilityLabel(card.accessibilityLabel)
     }
 
     private var duplicateBadge: some View {
@@ -490,15 +466,11 @@ private struct KanbanCardView: View {
             .accessibilityLabel("Possible duplicate")
     }
 
-    private var tags: [String] {
-        TagExtractor.tags(in: task.title)
-    }
-
     @ViewBuilder
     private var tagsRow: some View {
-        if tags.isEmpty == false {
+        if card.tags.isEmpty == false {
             HStack(spacing: 4) {
-                ForEach(tags.prefix(4), id: \.self) { tag in
+                ForEach(card.tags.prefix(4), id: \.self) { tag in
                     Text("#\(tag)")
                         .hcbFont(.caption2, weight: .medium)
                         .hcbScaledPadding(.horizontal, 6)
@@ -507,11 +479,11 @@ private struct KanbanCardView: View {
                         .foregroundStyle(AppColor.blue)
                         .accessibilityLabel("Tag \(tag)")
                 }
-                if tags.count > 4 {
-                    Text("+\(tags.count - 4)")
+                if card.tags.count > 4 {
+                    Text("+\(card.tags.count - 4)")
                         .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
-                        .accessibilityLabel("\(tags.count - 4) more tags")
+                        .accessibilityLabel("\(card.tags.count - 4) more tags")
                 }
             }
         }
@@ -520,18 +492,17 @@ private struct KanbanCardView: View {
     @ViewBuilder
     private var metaRow: some View {
         HStack(spacing: 6) {
-            if let due = task.dueDate {
+            if let dueDateBadge = card.dueDateBadge {
                 Label {
-                    Text(dueDateBadge(due))
+                    Text(dueDateBadge)
                 } icon: {
                     Image(systemName: "calendar")
                 }
                 .hcbFont(.caption2)
-                .foregroundStyle(dueDateColor(due))
+                .foregroundStyle(dueDateColor(card.dueDateTone))
             }
-            let listName = model.taskListTitle(for: task.taskListID, fallback: "")
-            if listName.isEmpty == false {
-                Text(listName)
+            if card.listTitle.isEmpty == false {
+                Text(card.listTitle)
                     .hcbFont(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -539,43 +510,9 @@ private struct KanbanCardView: View {
         }
     }
 
-    // Renders "Overdue", "Today", "Tomorrow", a weekday name, or a
-    // month/day string. Replaces the old smart-filter badges with the
-    // same information inline on the card — the filter menu is gone
-    // post-refactor so users still need a quick-scan of "what's late".
-    private func dueDateBadge(_ due: Date) -> String {
-        let cal = Calendar.current
-        let startOfToday = cal.startOfDay(for: Date())
-        let startOfDue = cal.startOfDay(for: due)
-        let days = cal.dateComponents([.day], from: startOfToday, to: startOfDue).day ?? 0
-        if days < 0 { return "Overdue \(-days)d" }
-        if days == 0 { return "Today" }
-        if days == 1 { return "Tomorrow" }
-        if days < 7 { return due.formatted(.dateTime.weekday(.wide)) }
-        return due.formatted(.dateTime.month(.abbreviated).day())
-    }
-
-    private func dueDateColor(_ due: Date) -> Color {
-        let cal = Calendar.current
-        let startOfToday = cal.startOfDay(for: Date())
-        let startOfDue = cal.startOfDay(for: due)
-        if startOfDue < startOfToday { return AppColor.ember }
-        if startOfDue == startOfToday { return AppColor.moss }
+    private func dueDateColor(_ tone: PreparedDueDateTone?) -> Color {
+        if tone == .overdue { return AppColor.ember }
+        if tone == .today { return AppColor.moss }
         return .secondary
-    }
-
-    private var taskAccessibilityLabel: String {
-        var parts = [task.isCompleted ? "Completed task" : "Task", TagExtractor.stripped(from: task.title)]
-        if let due = task.dueDate {
-            parts.append("due \(dueDateBadge(due))")
-        }
-        let listName = model.taskListTitle(for: task.taskListID, fallback: "")
-        if listName.isEmpty == false {
-            parts.append("list \(listName)")
-        }
-        if tags.isEmpty == false {
-            parts.append("tags \(tags.joined(separator: ", "))")
-        }
-        return parts.joined(separator: ", ")
     }
 }
