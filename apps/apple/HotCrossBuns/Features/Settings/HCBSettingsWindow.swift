@@ -1,6 +1,10 @@
 import GoogleSignInSwift
 import SwiftUI
 
+private enum SettingsWindowLayout {
+    static let contentMaxWidth: CGFloat = 1_408
+}
+
 // Top-level detached Settings window. Opened via the Settings scene in
 // HotCrossBunsApp.swift (⌘, auto-wired by macOS). Layout matches Apple
 // Calendar / Mail — a top tab bar with focused categories, content below.
@@ -113,36 +117,41 @@ struct HCBSettingsWindow: View {
     }
 
     private var settingsSearchBar: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                TextField("Search settings", text: $settingsQuery)
-                    .textFieldStyle(.plain)
-                    .focused($isSettingsSearchFocused)
-                if settingsQuery.isEmpty == false {
-                    Button {
-                        settingsQuery = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Search settings", text: $settingsQuery)
+                        .textFieldStyle(.plain)
+                        .focused($isSettingsSearchFocused)
+                    if settingsQuery.isEmpty == false {
+                        Button {
+                            settingsQuery = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .keyboardShortcut(.cancelAction)
+                        .help("Clear search")
                     }
-                    .buttonStyle(.plain)
-                    .keyboardShortcut(.cancelAction)
-                    .help("Clear search")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+
+                if settingsQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                    settingsSearchResults
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
-
-            if settingsQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
-                settingsSearchResults
-            }
+            .frame(maxWidth: SettingsWindowLayout.contentMaxWidth, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, settingsQuery.isEmpty ? 8 : 10)
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 14)
-        .padding(.bottom, settingsQuery.isEmpty ? 8 : 10)
+        .frame(maxWidth: .infinity)
         .background(.bar)
         .onAppear {
             isSettingsSearchFocused = true
