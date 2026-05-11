@@ -7,6 +7,7 @@ import SwiftUI
 struct YearGridView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.hcbAppBackgroundConfiguration) private var backgroundConfiguration
+    @Environment(\.calendarEventViewFilter) private var calendarEventViewFilter
     @Binding var anchorDate: Date
     let onPickDay: (Date) -> Void
 
@@ -44,7 +45,7 @@ struct YearGridView: View {
             guard key >= yearStartKey && key < yearEndKey else { continue }
             let count = eventIDs.reduce(into: 0) { acc, eventID in
                 guard let event = model.event(id: eventID) else { return }
-                if selected.contains(event.calendarID) { acc += 1 }
+                if selected.contains(event.calendarID), calendarEventViewFilter.allows(event) { acc += 1 }
             }
             if count > 0 {
                 counts[Date(timeIntervalSinceReferenceDate: key)] = count

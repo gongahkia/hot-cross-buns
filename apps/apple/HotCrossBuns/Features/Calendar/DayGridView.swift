@@ -6,6 +6,7 @@ struct DayGridView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.hcbAppBackgroundConfiguration) private var backgroundConfiguration
+    @Environment(\.calendarEventViewFilter) private var calendarEventViewFilter
     @Binding var anchorDate: Date
     var searchQuery: String = ""
 
@@ -60,6 +61,7 @@ struct DayGridView: View {
         let bucket = (model.eventsByDay[key] ?? []).compactMap { model.event(id: $0) }
         let filtered = bucket.filter { event in
             selectedIDs.contains(event.calendarID)
+                && calendarEventViewFilter.allows(event)
                 && model.settings.shouldHidePastEvent(event, now: now) == false
         }
         let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()

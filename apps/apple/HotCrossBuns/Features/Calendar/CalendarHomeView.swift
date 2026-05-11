@@ -8,6 +8,7 @@ struct CalendarHomeView: View {
     @Environment(NetworkMonitor.self) private var networkMonitor
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.hcbAppBackgroundConfiguration) private var backgroundConfiguration
+    @Environment(\.calendarEventViewFilter) private var calendarEventViewFilter
     @State private var selectedDate = Date()
     @SceneStorage("calendarGridMode") private var storedMode: String = CalendarGridMode.month.rawValue
     @State private var mode: CalendarGridMode = .month
@@ -140,6 +141,11 @@ struct CalendarHomeView: View {
                 mode = first
             }
         }
+        .onChange(of: calendarEventViewFilter.cacheKey) { _, _ in
+            selectedEventIDs = selectedEventIDs.filter { eventID in
+                model.event(id: eventID).map(calendarEventViewFilter.allows) ?? false
+            }
+        }
     }
 
     @ViewBuilder
@@ -266,7 +272,7 @@ struct CalendarHomeView: View {
     }
 
     private var selectedEvents: [CalendarEventMirror] {
-        model.events.filter { selectedEventIDs.contains($0.id) }
+        model.events.filter { selectedEventIDs.contains($0.id) && calendarEventViewFilter.allows($0) }
     }
 
     // CalendarGridMode.allCases filtered by user-hidden set from Layout settings.
@@ -677,7 +683,17 @@ struct CalendarHomeView: View {
             let key = day.timeIntervalSinceReferenceDate
             guard let eventIDs = model.eventsByDay[key], eventIDs.isEmpty == false else { continue }
             let entries = eventIDs.compactMap { model.event(id: $0) }
-            let filtered = entries.filter { selectedIDs.contains($0.calendarID) }
+            let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+            let filtered = entries.filter { event in
+                selectedIDs.contains(event.calendarID)
+                    && calendarEventViewFilter.allows(event)
+                    && (
+                        q.isEmpty
+                        || event.summary.localizedCaseInsensitiveContains(q)
+                        || event.details.localizedCaseInsensitiveContains(q)
+                        || event.location.localizedCaseInsensitiveContains(q)
+                    )
+            }
             guard filtered.isEmpty == false else { continue }
             bucket[day] = filtered.sorted { lhs, rhs in
                 if lhs.isAllDay != rhs.isAllDay { return lhs.isAllDay && rhs.isAllDay == false }
@@ -777,6 +793,7 @@ struct CalendarHomeView: View {
             .filter { event in
                 (model.settings.showCompletedItemsInCalendar || event.status != .cancelled)
                     && selectedCalendarIDs.contains(event.calendarID)
+                    && calendarEventViewFilter.allows(event)
                     && event.startDate < endOfDay
                     && event.endDate > startOfDay
             }
