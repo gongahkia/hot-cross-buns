@@ -1,13 +1,14 @@
 import Foundation
 
 enum SettingsSearchTab: String, CaseIterable, Identifiable, Sendable {
-    case general, appearance, hotkeys, alerts, advanced, about
+    case general, profile, appearance, hotkeys, alerts, advanced, about
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .general: "General"
+        case .profile: "Profile"
         case .appearance: "Appearance"
         case .hotkeys: "Hotkeys"
         case .alerts: "Alerts"
@@ -19,6 +20,7 @@ enum SettingsSearchTab: String, CaseIterable, Identifiable, Sendable {
     var systemImage: String {
         switch self {
         case .general: "gearshape"
+        case .profile: "person.crop.circle"
         case .appearance: "paintbrush"
         case .hotkeys: "keyboard"
         case .alerts: "bell"
@@ -29,8 +31,8 @@ enum SettingsSearchTab: String, CaseIterable, Identifiable, Sendable {
 }
 
 enum SettingsSectionAnchor: String, Sendable {
-    case googleOAuth
-    case googleAccount
+    case profileOAuth
+    case profileAccounts
     case sync
     case openAtLogin
     case diagnostics
@@ -87,8 +89,8 @@ enum SettingsSearchIndex {
         updateStatus: String? = nil
     ) -> [SettingsSearchResult] {
         [
-            .init(tab: .general, anchor: .googleOAuth, title: "Google OAuth client", keywords: ["google", "oauth", "client", "api"]),
-            .init(tab: .general, anchor: .googleAccount, title: "Google account", keywords: ["connect", "disconnect", "account"]),
+            .init(tab: .profile, anchor: .profileOAuth, title: "Google OAuth client", keywords: ["google", "oauth", "client", "api", "profile", "identity"]),
+            .init(tab: .profile, anchor: .profileAccounts, title: "Google account", keywords: ["connect", "disconnect", "account", "profile", "google", "identity", "provider", "sign in", "add account"]),
             .init(tab: .general, anchor: .sync, title: "Sync", keywords: ["refresh", "resync", "background", "retention"]),
             .init(tab: .general, anchor: .openAtLogin, title: "Open at login", keywords: ["launch", "startup", "background"]),
             .init(tab: .general, anchor: .diagnostics, title: "Diagnostics", keywords: ["logs", "history", "support", "debug"]),

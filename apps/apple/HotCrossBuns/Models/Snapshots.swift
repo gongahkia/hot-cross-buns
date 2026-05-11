@@ -135,10 +135,15 @@ struct CachedAppState: Codable, Sendable {
     // Bumped whenever the cache layout changes in a way that can't be
     // decoded field-by-field. CacheSchemaMigrator routes older decoded
     // payloads through migration shims before the decoder returns.
-    static let currentSchemaVersion: Int = 1
+    static let currentSchemaVersion: Int = 2
 
     var schemaVersion: Int
+    // Legacy active-account field. Kept so older caches decode cleanly and
+    // existing AppModel call sites can continue to read the current account
+    // while the multi-account backend is introduced in slices.
     var account: GoogleAccount?
+    var accounts: [GoogleAccount]
+    var activeAccountID: GoogleAccount.ID?
     var taskLists: [TaskListMirror]
     var tasks: [TaskMirror]
     var calendars: [CalendarListMirror]
@@ -149,6 +154,8 @@ struct CachedAppState: Codable, Sendable {
 
     init(
         account: GoogleAccount?,
+        accounts: [GoogleAccount] = [],
+        activeAccountID: GoogleAccount.ID? = nil,
         taskLists: [TaskListMirror],
         tasks: [TaskMirror],
         calendars: [CalendarListMirror],
@@ -159,7 +166,15 @@ struct CachedAppState: Codable, Sendable {
         schemaVersion: Int = CachedAppState.currentSchemaVersion
     ) {
         self.schemaVersion = schemaVersion
-        self.account = account
+        let normalizedAccounts = Self.normalizedAccounts(primary: account, accounts: accounts)
+        let resolvedActiveAccountID = Self.resolvedActiveAccountID(
+            primary: account,
+            accounts: normalizedAccounts,
+            requestedActiveAccountID: activeAccountID
+        )
+        self.account = Self.account(id: resolvedActiveAccountID, in: normalizedAccounts) ?? account
+        self.accounts = normalizedAccounts
+        self.activeAccountID = resolvedActiveAccountID
         self.taskLists = taskLists
         self.tasks = tasks
         self.calendars = calendars
@@ -172,6 +187,8 @@ struct CachedAppState: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case schemaVersion
         case account
+        case accounts
+        case activeAccountID
         case taskLists
         case tasks
         case calendars
@@ -186,7 +203,16 @@ struct CachedAppState: Codable, Sendable {
         // Absent schemaVersion means the cache was written before versioning
         // was introduced — treat as v0 so future migrations can tell.
         schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 0
-        account = try container.decodeIfPresent(GoogleAccount.self, forKey: .account)
+        let decodedAccount = try container.decodeIfPresent(GoogleAccount.self, forKey: .account)
+        let decodedAccounts = try container.decodeIfPresent([GoogleAccount].self, forKey: .accounts) ?? []
+        let decodedActiveAccountID = try container.decodeIfPresent(GoogleAccount.ID.self, forKey: .activeAccountID)
+        accounts = Self.normalizedAccounts(primary: decodedAccount, accounts: decodedAccounts)
+        activeAccountID = Self.resolvedActiveAccountID(
+            primary: decodedAccount,
+            accounts: accounts,
+            requestedActiveAccountID: decodedActiveAccountID
+        )
+        account = Self.account(id: activeAccountID, in: accounts) ?? decodedAccount
         taskLists = try container.decodeIfPresent([TaskListMirror].self, forKey: .taskLists) ?? []
         tasks = try container.decodeIfPresent([TaskMirror].self, forKey: .tasks) ?? []
         calendars = try container.decodeIfPresent([CalendarListMirror].self, forKey: .calendars) ?? []
@@ -202,6 +228,42 @@ struct CachedAppState: Codable, Sendable {
                 to: CachedAppState.currentSchemaVersion
             )
         }
+    }
+
+    private static func normalizedAccounts(primary: GoogleAccount?, accounts: [GoogleAccount]) -> [GoogleAccount] {
+        var seen: Set<GoogleAccount.ID> = []
+        var normalized: [GoogleAccount] = []
+
+        if let primary {
+            normalized.append(primary)
+            seen.insert(primary.id)
+        }
+
+        for account in accounts where seen.insert(account.id).inserted {
+            normalized.append(account)
+        }
+
+        return normalized
+    }
+
+    private static func resolvedActiveAccountID(
+        primary: GoogleAccount?,
+        accounts: [GoogleAccount],
+        requestedActiveAccountID: GoogleAccount.ID?
+    ) -> GoogleAccount.ID? {
+        if let requestedActiveAccountID,
+           accounts.contains(where: { $0.id == requestedActiveAccountID }) {
+            return requestedActiveAccountID
+        }
+        if let primary {
+            return primary.id
+        }
+        return nil
+    }
+
+    private static func account(id: GoogleAccount.ID?, in accounts: [GoogleAccount]) -> GoogleAccount? {
+        guard let id else { return nil }
+        return accounts.first { $0.id == id }
     }
 
     static let empty = CachedAppState(

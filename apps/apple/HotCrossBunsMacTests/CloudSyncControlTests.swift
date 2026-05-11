@@ -71,6 +71,47 @@ final class CloudSyncControlTests: XCTestCase {
         XCTAssertEqual(synced.settings.syncMode, .balanced)
     }
 
+    func testSchedulerPreservesNonActiveAccountMetadata() async throws {
+        var settings = AppSettings.default
+        settings.cloudSyncTargets = []
+        let workAccount = GoogleAccount(
+            id: "work-account",
+            email: "work@example.com",
+            displayName: "Work",
+            grantedScopes: [GoogleScope.tasks],
+            authProvider: .customDesktopOAuth
+        )
+        var state = baseState(settings: settings)
+        state.accounts = [GoogleAccount.preview, workAccount]
+        state.activeAccountID = GoogleAccount.preview.id
+        state.syncCheckpoints = [
+            SyncCheckpoint(
+                id: SyncCheckpoint.stableID(accountID: GoogleAccount.preview.id, resourceType: .taskList, resourceID: "list"),
+                accountID: GoogleAccount.preview.id,
+                resourceType: .taskList,
+                resourceID: "list",
+                calendarSyncToken: nil,
+                tasksUpdatedMin: Date(),
+                lastSuccessfulSyncAt: Date()
+            ),
+            SyncCheckpoint(
+                id: SyncCheckpoint.stableID(accountID: workAccount.id, resourceType: .taskList, resourceID: "work-list"),
+                accountID: workAccount.id,
+                resourceType: .taskList,
+                resourceID: "work-list",
+                calendarSyncToken: nil,
+                tasksUpdatedMin: Date(),
+                lastSuccessfulSyncAt: Date()
+            )
+        ]
+
+        let synced = try await makeScheduler().syncNow(mode: .balanced, baseState: state)
+
+        XCTAssertEqual(synced.accounts.map(\.id), [GoogleAccount.preview.id, workAccount.id])
+        XCTAssertEqual(synced.activeAccountID, GoogleAccount.preview.id)
+        XCTAssertEqual(Set(synced.syncCheckpoints.map(\.accountID)), [GoogleAccount.preview.id, workAccount.id])
+    }
+
     func testSchedulerLeavesTasksLocalWhenOnlyEventsSync() async throws {
         var settings = AppSettings.default
         settings.cloudSyncTargets = [.events]

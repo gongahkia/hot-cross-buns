@@ -157,5 +157,9 @@ final class CustomFilterTests: XCTestCase {
         XCTAssertEqual(SettingsSearchIndex.filter(results, query: "menu bar").first?.anchor, .menuBar)
         XCTAssertEqual(SettingsSearchIndex.filter(results, query: "background").first?.anchor, .background)
         XCTAssertEqual(SettingsSearchIndex.filter(results, query: "diagnostics").first?.anchor, .diagnostics)
+        XCTAssertEqual(SettingsSearchIndex.filter(results, query: "google account").first?.tab, .profile)
+        XCTAssertEqual(SettingsSearchIndex.filter(results, query: "connect account").first?.anchor, .profileAccounts)
+        XCTAssertEqual(SettingsSearchIndex.filter(results, query: "oauth client").first?.tab, .profile)
+        XCTAssertEqual(SettingsSearchIndex.filter(results, query: "profile").first?.tab, .profile)
     }
 }
