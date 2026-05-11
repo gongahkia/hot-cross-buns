@@ -125,6 +125,7 @@ struct MacSidebarShell: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @SceneStorage("sidebarSelection") private var storedSelection: String = SidebarItem.calendar.rawValue
+    @AppStorage(CalendarViewFilterState.storageKey) private var storedCalendarViewFilters: String = ""
 
     private let layoutScaleMin: Double = 0.80
     private let layoutScaleMax: Double = 1.50
@@ -515,6 +516,11 @@ struct MacSidebarShell: View {
             List(selection: sidebarSelectionBinding) {
                 ForEach(visibleSidebarItems) { item in
                     sidebarRow(for: item)
+                    if item == .calendar, selection == .calendar, model.account != nil {
+                        CalendarSidebarFilters(state: calendarViewFilterStateBinding)
+                            .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 6, trailing: 12))
+                            .listRowSeparator(.hidden)
+                    }
                 }
             }
             .listStyle(.sidebar)
@@ -562,10 +568,25 @@ struct MacSidebarShell: View {
             // The outer .environment calls below are belt-and-braces for
             // sheets/inspectors hoisted out of the NavigationStack.
             selection.makeContentView(router: router)
+                .environment(\.calendarEventViewFilter, calendarEventViewFilter)
                 .withAppDestinations()
         }
         .environment(\.routerPath, router)
         .withSheetDestinations(router: router)
+    }
+
+    private var calendarViewFilterStateBinding: Binding<CalendarViewFilterState> {
+        Binding(
+            get: { CalendarViewFilterState.decoded(from: storedCalendarViewFilters) },
+            set: { storedCalendarViewFilters = $0.encodedString() }
+        )
+    }
+
+    private var calendarEventViewFilter: CalendarEventViewFilter {
+        CalendarEventViewFilter(
+            state: CalendarViewFilterState.decoded(from: storedCalendarViewFilters),
+            colorTagBindings: model.settings.colorTagBindings
+        )
     }
 
     private var sidebarSelectionBinding: Binding<SidebarItem?> {
