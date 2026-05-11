@@ -90,17 +90,12 @@ struct NaturalLanguageTaskParser: Sendable {
     }
 
     private func extractListHint(in text: String) -> (String, String)? {
-        let pattern = "#([A-Za-z0-9_\\-]{1,40})"
-        guard let regex = try? NSRegularExpression(pattern: pattern),
-              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
-              let fullRange = Range(match.range, in: text),
-              let hintRange = Range(match.range(at: 1), in: text) else {
+        guard let match = TagExtractor.firstTag(in: text) else {
             return nil
         }
-        let hint = String(text[hintRange])
         var replacement = text
-        replacement.removeSubrange(fullRange)
-        return (hint, replacement)
+        replacement.removeSubrange(match.range)
+        return (match.tag, replacement)
     }
 
     private func extractDueDate(in text: String) -> (Date, String, String)? {
@@ -205,17 +200,23 @@ struct NaturalLanguageTaskParser: Sendable {
         for (pattern, resolver) in patterns {
             guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
             let range = NSRange(lower.startIndex..., in: lower)
-            guard let match = regex.firstMatch(in: lower, range: range),
-                  let fullRange = Range(match.range, in: text) else {
-                continue
-            }
-            if let (date, display) = resolver(match, lower) {
+            for match in regex.matches(in: lower, range: range) {
+                guard let fullRange = Range(match.range, in: text),
+                      isHashPrefixed(fullRange, in: text) == false,
+                      let (date, display) = resolver(match, lower) else {
+                    continue
+                }
                 var replacement = text
                 replacement.removeSubrange(fullRange)
                 return (date, replacement, display)
             }
         }
         return nil
+    }
+
+    private func isHashPrefixed(_ range: Range<String.Index>, in text: String) -> Bool {
+        guard range.lowerBound > text.startIndex else { return false }
+        return text[text.index(before: range.lowerBound)] == "#"
     }
 
     private func resolveEndOfWeek() -> (Date, String)? {

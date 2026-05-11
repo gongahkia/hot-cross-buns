@@ -122,6 +122,13 @@ final class NaturalLanguageTaskParserTests: XCTestCase {
         XCTAssertEqual(result.taskListHint, "side_project-v2")
     }
 
+    func testUnitNumberHashIsNotListHintOrDueDate() {
+        let result = parser().parse("view house #11-07 #home")
+        XCTAssertEqual(result.title, "view house #11-07")
+        XCTAssertEqual(result.taskListHint, "home")
+        XCTAssertNil(result.dueDate)
+    }
+
     // MARK: - Expanded vocabulary
 
     func testTodayAbbreviationTDY() {
