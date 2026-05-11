@@ -112,6 +112,16 @@ final class CalendarViewFilterTests: XCTestCase {
         XCTAssertFalse(filter.allows(event(id: "mapped", summary: "Planning", colorId: CalendarEventColor.sage.rawValue)))
     }
 
+    func testHashUnitNumberDoesNotBecomeCalendarTag() {
+        let event = event(id: "unit", summary: "Viewing at #11-07", colorId: CalendarEventColor.tomato.rawValue)
+        let filter = CalendarEventViewFilter(
+            state: CalendarViewFilterState(visibleCalendarIDs: nil, visibleColorIDs: nil, visibleTagNames: [])
+        )
+
+        XCTAssertTrue(CalendarEventViewFilter.literalTagNames(in: event).isEmpty)
+        XCTAssertTrue(filter.allows(event))
+    }
+
     func testSectionsCombineWithAndSemantics() {
         let filter = CalendarEventViewFilter(
             state: CalendarViewFilterState(

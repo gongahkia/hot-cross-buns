@@ -180,6 +180,8 @@ final class AppModel {
     // menus and body evaluations — observable lag for users with thousands
     // of tasks/events. The values are indexes rather than full mirrors so
     // lookup tables do not double-retain the largest data collections.
+    private(set) var taskByIDSnapshot: [TaskMirror.ID: TaskMirror] = [:]
+    private(set) var eventByIDSnapshot: [CalendarEventMirror.ID: CalendarEventMirror] = [:]
     private var taskIndexByID: [TaskMirror.ID: Int] = [:]
     private var eventIndexByID: [CalendarEventMirror.ID: Int] = [:]
     private var taskListIndexByID: [TaskListMirror.ID: Int] = [:]
@@ -4796,11 +4798,29 @@ final class AppModel {
     }
 
     private func rebuildTaskIndex() {
-        taskIndexByID = Dictionary(uniqueKeysWithValues: tasks.enumerated().map { ($0.element.id, $0.offset) })
+        var indexByID: [TaskMirror.ID: Int] = [:]
+        var taskByID: [TaskMirror.ID: TaskMirror] = [:]
+        indexByID.reserveCapacity(tasks.count)
+        taskByID.reserveCapacity(tasks.count)
+        for (index, task) in tasks.enumerated() {
+            indexByID[task.id] = index
+            taskByID[task.id] = task
+        }
+        taskIndexByID = indexByID
+        taskByIDSnapshot = taskByID
     }
 
     private func rebuildEventIndex() {
-        eventIndexByID = Dictionary(uniqueKeysWithValues: events.enumerated().map { ($0.element.id, $0.offset) })
+        var indexByID: [CalendarEventMirror.ID: Int] = [:]
+        var eventByID: [CalendarEventMirror.ID: CalendarEventMirror] = [:]
+        indexByID.reserveCapacity(events.count)
+        eventByID.reserveCapacity(events.count)
+        for (index, event) in events.enumerated() {
+            indexByID[event.id] = index
+            eventByID[event.id] = event
+        }
+        eventIndexByID = indexByID
+        eventByIDSnapshot = eventByID
     }
 
     private func rebuildTaskListIndex() {
