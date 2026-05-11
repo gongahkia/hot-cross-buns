@@ -176,7 +176,6 @@ struct MacSidebarShell: View {
     @State private var chordKeys: [String]?
     @State private var chordTimeoutTask: Task<Void, Never>?
     @State private var isMainWindowFocused = true
-    @State private var isCalendarFiltersCollapsed = false
 
     private var shellCore: some View {
         NavigationSplitView(columnVisibility: $sidebarVisibility) {
@@ -514,20 +513,18 @@ struct MacSidebarShell: View {
             // the first row.
             Color.clear
                 .frame(height: trafficLightInset)
-            List {
+            List(selection: sidebarSelectionBinding) {
                 ForEach(visibleSidebarItems) { item in
                     sidebarRow(for: item)
-                    if item == .calendar, shouldShowCalendarFilters {
+                    if item == .calendar, selection == .calendar, model.account != nil {
                         CalendarSidebarFilters(state: calendarViewFilterStateBinding)
                             .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 6, trailing: 12))
                             .listRowSeparator(.hidden)
-                            .transition(HCBMotion.transition(.opacity.combined(with: .move(edge: .top)), reduceMotion: reduceMotion))
                     }
                 }
             }
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
-            .animation(HCBMotion.animation(.easeInOut(duration: 0.14), reduceMotion: reduceMotion), value: isCalendarFiltersCollapsed)
             if model.settings.cacheEncryptionEnabled {
                 Divider()
                 encryptedCacheFooter
@@ -539,10 +536,6 @@ struct MacSidebarShell: View {
             maxWidth: sidebarMaxWidth,
             alignment: .topLeading
         )
-    }
-
-    private var shouldShowCalendarFilters: Bool {
-        selection == .calendar && model.account != nil && isCalendarFiltersCollapsed == false
     }
 
     private var encryptedCacheFooter: some View {
@@ -593,6 +586,17 @@ struct MacSidebarShell: View {
         CalendarEventViewFilter(
             state: CalendarViewFilterState.decoded(from: storedCalendarViewFilters),
             colorTagBindings: model.settings.colorTagBindings
+        )
+    }
+
+    private var sidebarSelectionBinding: Binding<SidebarItem?> {
+        Binding(
+            get: { selection },
+            set: { newValue in
+                if let newValue {
+                    selection = newValue
+                }
+            }
         )
     }
 
@@ -1069,44 +1073,22 @@ struct MacSidebarShell: View {
 
     @ViewBuilder
     private func sidebarRow(for item: SidebarItem) -> some View {
-        Button {
-            handleSidebarRowClick(item)
-        } label: {
-            HStack(spacing: 14) {
-                Image(systemName: item.systemImage)
-                    .hcbScaledFrame(width: 18)
-                Text(item.title)
-                Spacer(minLength: 0)
-                if let badgeValue = badge(for: item) {
-                    Text(badgeValue)
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(item == selection ? .white.opacity(0.84) : .secondary)
+        NavigationLink(value: item) {
+            Label {
+                HStack {
+                    Text(item.title)
+                    Spacer()
+                    if let badgeValue = badge(for: item) {
+                        Text(badgeValue)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
                 }
+            } icon: {
+                Image(systemName: item.systemImage)
             }
-            .hcbFont(.body, weight: .semibold)
-            .foregroundStyle(item == selection ? .white : AppColor.ink)
-            .hcbScaledPadding(.horizontal, 12)
-            .hcbScaledPadding(.vertical, 9)
-            .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(item == selection ? AppColor.ember : Color.clear)
-            )
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
         .help(sidebarHelp(for: item))
-        .listRowInsets(EdgeInsets(top: 2, leading: 18, bottom: 2, trailing: 12))
-        .listRowSeparator(.hidden)
-        .accessibilityAddTraits(item == selection ? [.isSelected, .isButton] : .isButton)
-    }
-
-    private func handleSidebarRowClick(_ item: SidebarItem) {
-        if item == .calendar, selection == .calendar {
-            isCalendarFiltersCollapsed.toggle()
-        } else {
-            selection = item
-        }
     }
 
     private func sidebarHelp(for item: SidebarItem) -> String {
