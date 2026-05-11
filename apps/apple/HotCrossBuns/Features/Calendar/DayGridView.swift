@@ -35,7 +35,7 @@ struct DayGridView: View {
 
     var body: some View {
         ZStack {
-            if let snapshot = preparedDaySnapshot, snapshot.key == daySnapshotKey {
+            if let snapshot = preparedDaySnapshot, snapshot.key == daySnapshotKey, model.isRebuildingDerivedSnapshots == false {
                 eventsColumn(snapshot)
                     .frame(maxWidth: .infinity)
                     .hcbScaledPadding(12)

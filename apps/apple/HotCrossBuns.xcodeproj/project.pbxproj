@@ -12,6 +12,7 @@
 		022E0EA4BE1699F339F0240E /* DiagnosticBundleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC34E08C7F6A754ACBE7ED0C /* DiagnosticBundleTests.swift */; };
 		025714D0F603A7346F61A495 /* NaturalLanguageTaskParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 451F7A551BAF39DA361383F4 /* NaturalLanguageTaskParser.swift */; };
 		02598EE66FEA1A5CDC12893D /* AppVersionSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A2BE751C144C19479D45966 /* AppVersionSection.swift */; };
+		02E1D255927A49986EFD4F27 /* PreparedSnapshotBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 602BF5ACCC1C7E3E52EE2AD3 /* PreparedSnapshotBuilderTests.swift */; };
 		03465E1F1734DE5270C3F7EE /* MarkdownHTML.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D029E6660BF1FF8C9C2E34E /* MarkdownHTML.swift */; };
 		03DDA60B71A6CF24C09880A6 /* HCBShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA90C3B9D57FCA2A8C27B206 /* HCBShortcuts.swift */; };
 		041DE1465AD215C7A592AE13 /* CalendarDropComputer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09D526E7EC054A5BAA2ED4E3 /* CalendarDropComputer.swift */; };
@@ -373,6 +374,7 @@
 		5DBBBAB47C6578BBCC5A1170 /* MarkdownHighlighter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownHighlighter.swift; sourceTree = "<group>"; };
 		5E7CCAAA53D6C1875F338A5B /* CalendarGridLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarGridLayoutTests.swift; sourceTree = "<group>"; };
 		5EEFF7D128C1CEAC536841BF /* CommandPalettePanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPalettePanelController.swift; sourceTree = "<group>"; };
+		602BF5ACCC1C7E3E52EE2AD3 /* PreparedSnapshotBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparedSnapshotBuilderTests.swift; sourceTree = "<group>"; };
 		62B7E28F16E7ED3A3AF854DC /* CacheSchemaMigrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheSchemaMigrator.swift; sourceTree = "<group>"; };
 		6366F53ACB2CE1B4D522E41D /* DockBadgeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockBadgeController.swift; sourceTree = "<group>"; };
 		679D4851E75DBE60257686A7 /* GoogleMapsConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleMapsConfig.swift; sourceTree = "<group>"; };
@@ -903,6 +905,7 @@
 				16A980BF4A880C22BC900697 /* OfflineQueuePayloadTests.swift */,
 				C9947809DE2CC9C0058C3BA2 /* OptimisticWriterTests.swift */,
 				DD7C50518CD828FC3495F5EC /* PastCleanupServiceTests.swift */,
+				602BF5ACCC1C7E3E52EE2AD3 /* PreparedSnapshotBuilderTests.swift */,
 				49E10912879943FB239566EB /* QueryDSLTests.swift */,
 				EF455BE4BA241A0C46869EF5 /* RecurrenceRuleTests.swift */,
 				E24E974EA5B94188A538989B /* RecurrenceUntilRewriterTests.swift */,
@@ -1565,6 +1568,7 @@
 				15F071FA91ACB9AEB3DF3D09 /* OfflineQueuePayloadTests.swift in Sources */,
 				981EAEC817813AB5AC211094 /* OptimisticWriterTests.swift in Sources */,
 				F17FBE647D419E3735B9591F /* PastCleanupServiceTests.swift in Sources */,
+				02E1D255927A49986EFD4F27 /* PreparedSnapshotBuilderTests.swift in Sources */,
 				486292178C2C7163A0C8C45E /* QueryDSLTests.swift in Sources */,
 				DE7B01F05C5329EB42F6C188 /* RecurrenceRuleTests.swift in Sources */,
 				B3700FF9237085BF5E14CCE8 /* RecurrenceUntilRewriterTests.swift in Sources */,

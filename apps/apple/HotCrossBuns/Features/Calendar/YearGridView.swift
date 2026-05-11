@@ -9,7 +9,10 @@ struct YearGridView: View {
     @Environment(\.hcbAppBackgroundConfiguration) private var backgroundConfiguration
     @Environment(\.calendarEventViewFilter) private var calendarEventViewFilter
     @Binding var anchorDate: Date
+    let searchQuery: String
     let onPickDay: (Date) -> Void
+    @State private var preparedYearSnapshot: CalendarYearDisplaySnapshot?
+    @State private var yearSnapshotBuildTask: Task<Void, Never>?
 
     private let calendar = Calendar.current
     private var usesReadableMonthBackings: Bool {
@@ -20,66 +23,66 @@ struct YearGridView: View {
         calendar.component(.year, from: anchorDate)
     }
 
-    private var months: [Date] {
-        (1...12).compactMap { month in
-            calendar.date(from: DateComponents(year: year, month: month, day: 1))
-        }
-    }
-
-    // Reads the pre-bucketed model.eventsByDay (built once per sync in
-    // rebuildSnapshots) rather than re-walking the full event corpus + its
-    // multi-day spans on every scroll tick. The index already excludes
-    // cancelled events and inserts multi-day events into each day they
-    // cover, so we only need to project counts for days within this year
-    // and filter by selected calendars.
-    private var eventsByDay: [Date: Int] {
-        let selected = model.calendarSnapshot.selectedCalendarIDs
-        guard let yearStart = calendar.date(from: DateComponents(year: year, month: 1, day: 1)),
-              let yearEnd = calendar.date(from: DateComponents(year: year + 1, month: 1, day: 1)) else {
-            return [:]
-        }
-        let yearStartKey = yearStart.timeIntervalSinceReferenceDate
-        let yearEndKey = yearEnd.timeIntervalSinceReferenceDate
-        var counts: [Date: Int] = [:]
-        for (key, eventIDs) in model.eventsByDay {
-            guard key >= yearStartKey && key < yearEndKey else { continue }
-            let count = eventIDs.reduce(into: 0) { acc, eventID in
-                guard let event = model.event(id: eventID) else { return }
-                if selected.contains(event.calendarID), calendarEventViewFilter.allows(event) { acc += 1 }
-            }
-            if count > 0 {
-                counts[Date(timeIntervalSinceReferenceDate: key)] = count
-            }
-        }
-        return counts
-    }
-
     var body: some View {
-        let counts = eventsByDay
-        let maxCount = counts.values.max() ?? 0
-        GeometryReader { proxy in
-            let outerPadding: CGFloat = 16
-            let gridSpacing: CGFloat = 16
-            let availableHeight = max(0, proxy.size.height - outerPadding * 2 - gridSpacing * 2)
-            let monthHeight = max(210, availableHeight / 3)
-            let dayCellHeight = max(18, (monthHeight - 58) / 7)
+        Group {
+            if let snapshot = preparedYearSnapshot, snapshot.key == yearSnapshotKey, model.isRebuildingDerivedSnapshots == false {
+                GeometryReader { proxy in
+                    let outerPadding: CGFloat = 16
+                    let gridSpacing: CGFloat = 16
+                    let availableHeight = max(0, proxy.size.height - outerPadding * 2 - gridSpacing * 2)
+                    let monthHeight = max(210, availableHeight / 3)
+                    let dayCellHeight = max(18, (monthHeight - 58) / 7)
 
-            ScrollView {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: 4), spacing: gridSpacing) {
-                    ForEach(months, id: \.self) { month in
-                        miniMonth(for: month, counts: counts, maxCount: maxCount, monthHeight: monthHeight, dayCellHeight: dayCellHeight)
+                    ScrollView {
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: 4), spacing: gridSpacing) {
+                            ForEach(snapshot.months) { month in
+                                miniMonth(
+                                    month,
+                                    counts: snapshot.countsByDay,
+                                    maxCount: snapshot.maxCount,
+                                    monthHeight: monthHeight,
+                                    dayCellHeight: dayCellHeight
+                                )
+                            }
+                        }
+                        .hcbScaledPadding(outerPadding)
                     }
                 }
-                .hcbScaledPadding(outerPadding)
+            } else {
+                PreparedSnapshotOverlay(
+                    title: "Preparing year...",
+                    message: "Building the yearly event heatmap before enabling navigation."
+                )
+                .onAppear { rebuildYearSnapshotIfNeeded() }
             }
         }
+        .onAppear { rebuildYearSnapshotIfNeeded() }
+        .onChange(of: yearSnapshotKey) { _, _ in rebuildYearSnapshotIfNeeded() }
+        .onDisappear { yearSnapshotBuildTask?.cancel() }
     }
 
-    private func miniMonth(for monthStart: Date, counts: [Date: Int], maxCount: Int, monthHeight: CGFloat, dayCellHeight: CGFloat) -> some View {
-        let cells = CalendarGridLayout.monthCells(for: monthStart, calendar: calendar)
-        let monthNum = calendar.component(.month, from: monthStart)
-        return VStack(alignment: .leading, spacing: 6) {
-            Text(monthStart.formatted(.dateTime.month(.wide)))
+    private var yearSnapshotKey: PreparedSnapshotKey {
+        PreparedSnapshotKeys.calendar(
+            mode: .year,
+            dataRevision: model.dataRevision,
+            selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
+            visibleTaskListIDs: model.visibleTaskListIDs,
+            filterKey: calendarEventViewFilter.cacheKey,
+            searchQuery: searchQuery,
+            rangeKey: PreparedSnapshotKeys.yearKey(anchorDate, calendar: calendar),
+            settings: model.settings
+        )
+    }
+
+    private func miniMonth(
+        _ month: CalendarYearDisplaySnapshot.Month,
+        counts: [TimeInterval: Int],
+        maxCount: Int,
+        monthHeight: CGFloat,
+        dayCellHeight: CGFloat
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(month.monthName)
                 .hcbFont(.subheadline, weight: .semibold)
                 .foregroundStyle(AppColor.ink)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: 7), spacing: 2) {
@@ -88,8 +91,14 @@ struct YearGridView: View {
                         .hcbFont(.caption2, weight: .medium)
                         .foregroundStyle(.secondary)
                 }
-                ForEach(cells, id: \.self) { day in
-                    dayCell(day: day, monthNum: monthNum, counts: counts, maxCount: maxCount, dayCellHeight: dayCellHeight)
+                ForEach(month.cells, id: \.self) { day in
+                    dayCell(
+                        day: day,
+                        monthNumber: month.monthNumber,
+                        counts: counts,
+                        maxCount: maxCount,
+                        dayCellHeight: dayCellHeight
+                    )
                 }
             }
             Spacer(minLength: 0)
@@ -110,11 +119,18 @@ struct YearGridView: View {
         )
     }
 
-    private func dayCell(day: Date, monthNum: Int, counts: [Date: Int], maxCount: Int, dayCellHeight: CGFloat) -> some View {
+    private func dayCell(
+        day: Date,
+        monthNumber: Int,
+        counts: [TimeInterval: Int],
+        maxCount: Int,
+        dayCellHeight: CGFloat
+    ) -> some View {
         let startOfDay = calendar.startOfDay(for: day)
-        let isInMonth = calendar.component(.month, from: day) == monthNum
+        let isInMonth = calendar.component(.month, from: day) == monthNumber
         let isToday = calendar.isDateInToday(day)
-        let count = counts[startOfDay] ?? 0
+        let key = CalendarDisplaySnapshotBuilder.dayKey(startOfDay, calendar: calendar)
+        let count = counts[key] ?? 0
         let shade: Double = maxCount > 0 ? min(0.7, Double(count) / Double(max(maxCount, 1)) * 0.7) : 0
         return Button {
             onPickDay(startOfDay)
@@ -131,6 +147,36 @@ struct YearGridView: View {
         .buttonStyle(.plain)
         .opacity(isInMonth ? 1.0 : 0.4)
         .help(count > 0 ? "\(count) event\(count == 1 ? "" : "s") on \(day.formatted(.dateTime.month(.abbreviated).day().year()))" : "\(day.formatted(.dateTime.month(.abbreviated).day().year()))")
+    }
+
+    private func rebuildYearSnapshotIfNeeded() {
+        let key = yearSnapshotKey
+        guard preparedYearSnapshot?.key != key else { return }
+        let input = CalendarDisplayInput(
+            key: key,
+            anchorDate: anchorDate,
+            selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
+            eventViewFilter: calendarEventViewFilter,
+            visibleTaskListIDs: model.visibleTaskListIDs,
+            searchQuery: searchQuery,
+            eventsByDay: model.eventsByDay,
+            tasksByDueDate: model.tasksByDueDate,
+            eventByID: model.eventByIDSnapshot,
+            taskByID: model.taskByIDSnapshot,
+            calendarColorHexByID: model.calendarSnapshot.calendarColorHexByID,
+            taskListTitleByID: model.taskListTitleByID,
+            settings: model.settings,
+            referenceDate: Date(),
+            calendar: calendar
+        )
+        yearSnapshotBuildTask?.cancel()
+        yearSnapshotBuildTask = Task { @MainActor in
+            let snapshot = await Task.detached(priority: .utility) {
+                CalendarDisplaySnapshotBuilder.yearSnapshot(input)
+            }.value
+            guard Task.isCancelled == false, snapshot.key == yearSnapshotKey else { return }
+            preparedYearSnapshot = snapshot
+        }
     }
 
     private var weekdayHeaders: [String] {

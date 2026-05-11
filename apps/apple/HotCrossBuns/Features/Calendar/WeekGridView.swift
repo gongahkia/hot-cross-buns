@@ -75,7 +75,7 @@ struct WeekGridView: View {
 
     var body: some View {
         ZStack {
-            if let snapshot = preparedWeekSnapshot, snapshot.key == weekSnapshotKey {
+            if let snapshot = preparedWeekSnapshot, snapshot.key == weekSnapshotKey, model.isRebuildingDerivedSnapshots == false {
                 VStack(spacing: 0) {
                     weekHeader(snapshot)
                     Divider()

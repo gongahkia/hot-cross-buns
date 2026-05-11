@@ -63,8 +63,10 @@ enum TaskBoardDisplaySnapshotBuilder {
             calendar: input.calendar
         )
 
+        let localOrderIndex = Dictionary(uniqueKeysWithValues: input.localOrder.enumerated().map { ($0.element, $0.offset) })
         let preparedColumns = columns.map { column in
-            let cards = column.tasks.map { card(for: $0, input: input) }
+            let columnTasks = orderedColumnTasks(column.tasks, localOrderIndex: localOrderIndex)
+            let cards = columnTasks.map { card(for: $0, input: input) }
             return PreparedKanbanColumn(
                 id: column.id,
                 title: column.title,
@@ -90,6 +92,25 @@ enum TaskBoardDisplaySnapshotBuilder {
         let ordered = localOrder.compactMap { pool[$0] }
         let missing = tasks.filter { orderedSet.contains($0.id) == false }
         return ordered + missing
+    }
+
+    private static func orderedColumnTasks(
+        _ tasks: [TaskMirror],
+        localOrderIndex: [TaskMirror.ID: Int]
+    ) -> [TaskMirror] {
+        guard localOrderIndex.isEmpty == false else { return tasks }
+        return tasks.sorted { lhs, rhs in
+            switch (localOrderIndex[lhs.id], localOrderIndex[rhs.id]) {
+            case let (l?, r?):
+                return l < r
+            case (_?, nil):
+                return true
+            case (nil, _?):
+                return false
+            case (nil, nil):
+                return false
+            }
+        }
     }
 
     private static func card(for task: TaskMirror, input: TaskBoardDisplayInput) -> PreparedTaskCard {
@@ -149,4 +170,3 @@ enum TaskBoardDisplaySnapshotBuilder {
         return .future
     }
 }
-

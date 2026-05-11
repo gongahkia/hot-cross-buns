@@ -246,7 +246,7 @@ struct StoreView: View {
 
     @ViewBuilder
     private var taskBoardContent: some View {
-        if let snapshot = preparedTaskBoardSnapshot, snapshot.key == taskBoardSnapshotKey {
+        if let snapshot = preparedTaskBoardSnapshot, snapshot.key == taskBoardSnapshotKey, model.isRebuildingDerivedSnapshots == false {
             KanbanView(
                 snapshot: snapshot,
                 columnMode: $kanbanColumnMode,
@@ -393,7 +393,12 @@ struct StoreView: View {
             )
             .id(task.id) // forces view teardown on task switch so draft @State and its auto-save commit are bound to the correct task. Without this, .onChange(of: task.id) fires AFTER self.task is already the new task, and commitPending writes the outgoing draft onto the incoming task.
         } else {
-            TaskInspectorEmptyState()
+            PreparedSnapshotOverlay(
+                title: "Preparing tasks...",
+                message: "Organizing \(datedTasks.count.formatted()) tasks for smooth board interactions."
+            )
+            .onAppear { rebuildTaskBoardSnapshotIfNeeded() }
+            .allowsHitTesting(false)
         }
     }
 
@@ -821,7 +826,7 @@ struct NotesView: View {
 
     private var kanbanContent: some View {
         Group {
-            if let snapshot = preparedNotesBoardSnapshot, snapshot.key == notesBoardSnapshotKey {
+            if let snapshot = preparedNotesBoardSnapshot, snapshot.key == notesBoardSnapshotKey, model.isRebuildingDerivedSnapshots == false {
                 KanbanView(
                     snapshot: snapshot,
                     columnMode: Binding(

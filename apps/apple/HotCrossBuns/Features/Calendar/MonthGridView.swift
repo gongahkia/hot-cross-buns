@@ -219,12 +219,14 @@ struct MonthGridView: View {
         cachedWeekSnapshots.isEmpty == false
             && isGridCachePreparing == false
             && renderedGridKey == currentGridCacheKey
+            && model.isRebuildingDerivedSnapshots == false
     }
 
     private var shouldShowGridPreparationOverlay: Bool {
         cachedWeekSnapshots.isEmpty
             || isGridCachePreparing
             || renderedGridKey != currentGridCacheKey
+            || model.isRebuildingDerivedSnapshots
     }
 
     // Replaces the paged month grid. A LazyVStack of week rows inside a
