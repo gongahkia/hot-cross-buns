@@ -295,7 +295,9 @@ private struct ProfileTab: View {
                         activeAccountID: model.activeAccountID,
                         canConnect: model.isGoogleAuthConfigured,
                         connect: { Task { await model.connectGoogleAccount() } },
-                        disconnect: { Task { await model.disconnectGoogleAccount() } }
+                        disconnect: { Task { await model.disconnectGoogleAccount() } },
+                        switchAccount: { accountID in Task { await model.switchGoogleAccount(to: accountID) } },
+                        disconnectAccount: { accountID in Task { await model.disconnectGoogleAccount(id: accountID) } }
                     )
                 }
                 .id(SettingsSectionAnchor.profileAccounts)

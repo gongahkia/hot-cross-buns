@@ -40,8 +40,7 @@ final class LocalCacheStoreSplitTests: XCTestCase {
         XCTAssertTrue(mainDecoded.events.isEmpty,
                       "main file should not carry events post-split")
 
-        let sidecarData = try Data(contentsOf: eventsFileURL)
-        let sidecarEvents = try JSONDecoder.testCacheDecoder.decode([CalendarEventMirror].self, from: sidecarData)
+        let sidecarEvents = try decodedSidecarEvents()
         XCTAssertEqual(sidecarEvents.count, 2)
         XCTAssertEqual(Set(sidecarEvents.map(\.id)), ["e1", "e2"])
     }
@@ -199,6 +198,98 @@ final class LocalCacheStoreSplitTests: XCTestCase {
         XCTAssertEqual(Set(loaded.events.map(\.id)), ["encA", "encB"])
     }
 
+    func testMultiAccountSidecarRoundtripPreservesInactiveWorkspaceEvents() async throws {
+        let workAccount = GoogleAccount(
+            id: "work-account",
+            email: "work@example.com",
+            displayName: "Work",
+            grantedScopes: [GoogleScope.tasks, GoogleScope.calendar],
+            authProvider: .customDesktopOAuth
+        )
+        let workWorkspace = AccountWorkspaceSnapshot(
+            accountID: workAccount.id,
+            taskLists: [],
+            tasks: [],
+            calendars: [],
+            events: [makeEvent(id: "work-event")],
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        let personal = makeState(events: [makeEvent(id: "personal-event")])
+        let state = CachedAppState(
+            account: GoogleAccount.preview,
+            accounts: [GoogleAccount.preview, workAccount],
+            activeAccountID: GoogleAccount.preview.id,
+            accountWorkspaces: [workWorkspace],
+            taskLists: personal.taskLists,
+            tasks: personal.tasks,
+            calendars: personal.calendars,
+            events: personal.events,
+            settings: personal.settings,
+            syncCheckpoints: personal.syncCheckpoints,
+            pendingMutations: personal.pendingMutations
+        )
+        let store = LocalCacheStore(fileURL: mainFileURL)
+
+        await store.save(state)
+        let reloader = LocalCacheStore(fileURL: mainFileURL)
+        let loaded = await reloader.loadCachedState()
+
+        XCTAssertEqual(loaded.events.map(\.id), ["personal-event"])
+        XCTAssertEqual(
+            loaded.accountWorkspaces.first { $0.accountID == workAccount.id }?.events.map(\.id),
+            ["work-event"]
+        )
+    }
+
+    func testInactiveWorkspaceEventChangeTriggersSidecarRewrite() async throws {
+        let store = LocalCacheStore(fileURL: mainFileURL)
+        let state1 = makeMultiAccountState(
+            activeEvents: [makeEvent(id: "personal-event")],
+            inactiveEvents: [makeEvent(id: "work-event", etag: "v1")]
+        )
+        await store.save(state1)
+        let firstBytes = try sidecarBytes()
+
+        let state2 = makeMultiAccountState(
+            activeEvents: [makeEvent(id: "personal-event")],
+            inactiveEvents: [makeEvent(id: "work-event", etag: "v2")]
+        )
+        await store.save(state2)
+
+        let secondBytes = try sidecarBytes()
+        XCTAssertNotEqual(
+            firstBytes,
+            secondBytes,
+            "inactive account event changes must rewrite the sidecar, not wait for the active account to change"
+        )
+    }
+
+    func testEncryptedMultiAccountSidecarRoundtripPreservesInactiveWorkspaceEvents() async throws {
+        let key = SymmetricKey(size: .bits256)
+        let store = LocalCacheStore(fileURL: mainFileURL)
+        await store.setEncryptionKey(key)
+        let state = makeMultiAccountState(
+            activeEvents: [makeEvent(id: "personal-event")],
+            inactiveEvents: [makeEvent(id: "work-event")]
+        )
+
+        await store.save(state)
+        let raw = try Data(contentsOf: eventsFileURL)
+        XCTAssertNil(try? JSONDecoder.testCacheDecoder.decode([CalendarEventMirror].self, from: raw))
+
+        let reloader = LocalCacheStore(fileURL: mainFileURL)
+        await reloader.setEncryptionKey(key)
+        let loaded = await reloader.loadCachedState()
+
+        XCTAssertEqual(loaded.events.map(\.id), ["personal-event"])
+        XCTAssertEqual(
+            loaded.accountWorkspaces.first { $0.accountID == "work-account" }?.events.map(\.id),
+            ["work-event"]
+        )
+    }
+
     // MARK: - Hash semantics
 
     func testHashEventsStableForIdenticalArrays() {
@@ -237,6 +328,17 @@ final class LocalCacheStoreSplitTests: XCTestCase {
         try Data(contentsOf: eventsFileURL)
     }
 
+    private func decodedSidecarEvents() throws -> [CalendarEventMirror] {
+        struct Payload: Decodable {
+            var activeEvents: [CalendarEventMirror]
+        }
+        let sidecarData = try Data(contentsOf: eventsFileURL)
+        if let payload = try? JSONDecoder.testCacheDecoder.decode(Payload.self, from: sidecarData) {
+            return payload.activeEvents
+        }
+        return try JSONDecoder.testCacheDecoder.decode([CalendarEventMirror].self, from: sidecarData)
+    }
+
     private func makeState(events: [CalendarEventMirror]) -> CachedAppState {
         var state = CachedAppState.empty
         state.events = events
@@ -252,6 +354,43 @@ final class LocalCacheStoreSplitTests: XCTestCase {
             )
         ]
         return state
+    }
+
+    private func makeMultiAccountState(
+        activeEvents: [CalendarEventMirror],
+        inactiveEvents: [CalendarEventMirror]
+    ) -> CachedAppState {
+        let workAccount = GoogleAccount(
+            id: "work-account",
+            email: "work@example.com",
+            displayName: "Work",
+            grantedScopes: [GoogleScope.tasks, GoogleScope.calendar],
+            authProvider: .customDesktopOAuth
+        )
+        let workWorkspace = AccountWorkspaceSnapshot(
+            accountID: workAccount.id,
+            taskLists: [],
+            tasks: [],
+            calendars: [],
+            events: inactiveEvents,
+            settings: .default,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        let active = makeState(events: activeEvents)
+        return CachedAppState(
+            account: GoogleAccount.preview,
+            accounts: [GoogleAccount.preview, workAccount],
+            activeAccountID: GoogleAccount.preview.id,
+            accountWorkspaces: [workWorkspace],
+            taskLists: active.taskLists,
+            tasks: active.tasks,
+            calendars: active.calendars,
+            events: active.events,
+            settings: active.settings,
+            syncCheckpoints: active.syncCheckpoints,
+            pendingMutations: active.pendingMutations
+        )
     }
 
     private func makeEvent(

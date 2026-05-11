@@ -188,19 +188,26 @@ final class ReleaseConfigGateTests: XCTestCase {
     }
 
     func testGoogleAuthServiceRequiresConcreteClientID() throws {
-        XCTAssertFalse(GoogleAuthService(bundle: try makeBundle(info: [:])).isConfigured)
-        XCTAssertFalse(GoogleAuthService(bundle: try makeBundle(info: [
+        func service(info: [String: Any]) throws -> GoogleAuthService {
+            GoogleAuthService(
+                bundle: try makeBundle(info: info),
+                customOAuthService: CustomGoogleOAuthService(tokenStore: InMemoryGoogleOAuthTokenStore(clientConfiguration: nil))
+            )
+        }
+
+        XCTAssertFalse(try service(info: [:]).isConfigured)
+        XCTAssertFalse(try service(info: [
             "GIDClientID": ""
-        ])).isConfigured)
-        XCTAssertFalse(GoogleAuthService(bundle: try makeBundle(info: [
+        ]).isConfigured)
+        XCTAssertFalse(try service(info: [
             "GIDClientID": "your-macos-oauth-client-id.apps.googleusercontent.com"
-        ])).isConfigured)
-        XCTAssertFalse(GoogleAuthService(bundle: try makeBundle(info: [
+        ]).isConfigured)
+        XCTAssertFalse(try service(info: [
             "GIDClientID": "$(GOOGLE_MACOS_CLIENT_ID)"
-        ])).isConfigured)
-        XCTAssertTrue(GoogleAuthService(bundle: try makeBundle(info: [
+        ]).isConfigured)
+        XCTAssertTrue(try service(info: [
             "GIDClientID": "1234567890-abcdef.apps.googleusercontent.com"
-        ])).isConfigured)
+        ]).isConfigured)
     }
 
     private func makeBundle(info: [String: Any]) throws -> Bundle {

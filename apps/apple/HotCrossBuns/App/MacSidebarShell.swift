@@ -610,7 +610,7 @@ struct MacSidebarShell: View {
     }
 
     private func performInitialLoad() async {
-        guard HCBLaunchMode.current.isSmokeTest == false else {
+        guard HCBLaunchMode.current.skipsAppStartupWork == false else {
             selection = SidebarItem(rawValue: storedSelection) ?? .calendar
             return
         }

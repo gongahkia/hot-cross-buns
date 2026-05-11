@@ -114,6 +114,7 @@ actor SyncScheduler {
             account: baseState.account,
             accounts: baseState.accounts,
             activeAccountID: baseState.activeAccountID,
+            accountWorkspaces: baseState.accountWorkspaces,
             taskLists: taskLists,
             tasks: shouldSyncTasks
                 ? mergeTasks(
