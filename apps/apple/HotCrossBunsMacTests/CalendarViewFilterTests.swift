@@ -86,6 +86,7 @@ final class CalendarViewFilterTests: XCTestCase {
         XCTAssertTrue(filter.allows(event(id: "summary", summary: "Prep #Launch")))
         XCTAssertTrue(filter.allows(event(id: "details", details: "Bring #launch notes")))
         XCTAssertTrue(filter.allows(event(id: "location", location: "Room #launch")))
+        XCTAssertTrue(filter.allows(event(id: "untagged", summary: "Planning")))
         XCTAssertFalse(filter.allows(event(id: "other", summary: "Prep #ops")))
     }
 
@@ -96,7 +97,19 @@ final class CalendarViewFilterTests: XCTestCase {
         )
 
         XCTAssertTrue(filter.allows(event(id: "mapped", colorId: CalendarEventColor.sage.rawValue)))
-        XCTAssertFalse(filter.allows(event(id: "unmapped", colorId: CalendarEventColor.tomato.rawValue)))
+        XCTAssertTrue(filter.allows(event(id: "unmapped-untagged", colorId: CalendarEventColor.tomato.rawValue)))
+        XCTAssertFalse(filter.allows(event(id: "unmapped-tagged", summary: "Launch #ops", colorId: CalendarEventColor.tomato.rawValue)))
+    }
+
+    func testEmptyVisibleTagSetHidesOnlyTaggedEvents() {
+        let filter = CalendarEventViewFilter(
+            state: CalendarViewFilterState(visibleCalendarIDs: nil, visibleColorIDs: nil, visibleTagNames: []),
+            colorTagBindings: [CalendarEventColor.sage.rawValue: "#Marketing"]
+        )
+
+        XCTAssertTrue(filter.allows(event(id: "untagged", summary: "Planning", colorId: CalendarEventColor.tomato.rawValue)))
+        XCTAssertFalse(filter.allows(event(id: "literal", summary: "Prep #Launch", colorId: CalendarEventColor.tomato.rawValue)))
+        XCTAssertFalse(filter.allows(event(id: "mapped", summary: "Planning", colorId: CalendarEventColor.sage.rawValue)))
     }
 
     func testSectionsCombineWithAndSemantics() {

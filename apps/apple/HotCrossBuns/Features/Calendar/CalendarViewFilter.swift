@@ -85,14 +85,9 @@ struct CalendarEventViewFilter: Equatable, Sendable {
         }
 
         if let visibleTagNames {
-            guard visibleTagNames.isEmpty == false else { return false }
-            let literalTags = Self.literalTagNames(in: event)
-            if literalTags.isDisjoint(with: visibleTagNames) == false {
-                return true
-            }
-            return visibleTagNames.contains { tagName in
-                colorTagIndex[tagName].map(Self.normalizedColorID) == eventColorID
-            }
+            let eventTagNames = Self.tagNames(in: event, eventColorID: eventColorID, colorTagIndex: colorTagIndex)
+            guard eventTagNames.isEmpty == false else { return true }
+            return eventTagNames.isDisjoint(with: visibleTagNames) == false
         }
 
         return true
@@ -105,6 +100,18 @@ struct CalendarEventViewFilter: Equatable, Sendable {
     static func literalTagNames(in event: CalendarEventMirror) -> Set<String> {
         let fields = [event.summary, event.details, event.location]
         return Set(fields.flatMap(TagExtractor.tags).map(normalizedTagName).filter { $0.isEmpty == false })
+    }
+
+    static func tagNames(
+        in event: CalendarEventMirror,
+        eventColorID: String? = nil,
+        colorTagIndex: [String: String]
+    ) -> Set<String> {
+        let resolvedColorID = eventColorID.map(normalizedColorID) ?? Self.eventColorID(for: event)
+        let colorTags = colorTagIndex.compactMap { tagName, colorID in
+            normalizedColorID(colorID) == resolvedColorID ? tagName : nil
+        }
+        return literalTagNames(in: event).union(colorTags)
     }
 
     static func colorTagIndex(from bindings: [String: String]) -> [String: String] {
