@@ -67,6 +67,8 @@ final class AppModel {
     @ObservationIgnored private var notificationDiagnosticDurationMilliseconds: Double?
 
     private(set) var account: GoogleAccount?
+    private(set) var connectedAccounts: [GoogleAccount] = []
+    private(set) var activeAccountID: GoogleAccount.ID?
     // Default to .authenticating (not .signedOut) so the pre-loadInitialState
     // window shows a "connecting" state instead of a false-positive
     // "reconnect Google" banner. loadInitialState flips this to the real
@@ -326,11 +328,12 @@ final class AppModel {
         do {
             guard let restoredAccount = try await authService.restorePreviousSignIn() else {
                 account = nil
+                activeAccountID = nil
                 authState = .signedOut
                 return
             }
 
-            account = restoredAccount
+            setActiveAccount(restoredAccount)
             authState = .signedIn(restoredAccount)
         } catch {
             authState = .failed(error.localizedDescription)
@@ -341,7 +344,7 @@ final class AppModel {
         authState = .authenticating
         do {
             let account = try await authService.signIn()
-            self.account = account
+            setActiveAccount(account)
             authState = .signedIn(account)
             syncState = .idle
             // Force-flush: account state must hit disk before any sync run.
@@ -360,7 +363,7 @@ final class AppModel {
             let saved = try authService.saveCustomOAuthClientConfiguration(clientID: clientID, clientSecret: clientSecret)
             customOAuthClientConfiguration = saved
             if account?.authProvider == .customDesktopOAuth {
-                account = nil
+                clearAccounts(provider: .customDesktopOAuth)
                 authState = .signedOut
                 syncState = .idle
                 Task { await saveCurrentState() }
@@ -374,7 +377,7 @@ final class AppModel {
         authService.clearCustomOAuthClientConfiguration()
         customOAuthClientConfiguration = nil
         if account?.authProvider == .customDesktopOAuth {
-            account = nil
+            clearAccounts(provider: .customDesktopOAuth)
             authState = .signedOut
             syncState = .idle
             Task { await saveCurrentState() }
@@ -388,7 +391,11 @@ final class AppModel {
             authService.signOut()
         }
 
-        account = nil
+        if let account {
+            removeConnectedAccount(id: account.id)
+        } else {
+            activeAccountID = nil
+        }
         authState = .signedOut
         syncState = .idle
         await saveCurrentState()
@@ -2513,6 +2520,8 @@ final class AppModel {
     private func applyImportedState(_ imported: CachedAppState, options: PortableImportOptions = .all) {
         if options.includeSyncMetadata {
             account = imported.account
+            connectedAccounts = imported.accounts
+            activeAccountID = imported.activeAccountID
             syncCheckpoints = imported.syncCheckpoints
             pendingMutations = imported.pendingMutations
         }
@@ -4366,6 +4375,8 @@ final class AppModel {
         let shouldEmitSyncDiff = priorTasks.isEmpty == false || priorEvents.isEmpty == false
 
         account = state.account
+        connectedAccounts = state.accounts
+        activeAccountID = state.activeAccountID
         taskLists = state.taskLists
         tasks = state.tasks
         calendars = state.calendars
@@ -4489,6 +4500,44 @@ final class AppModel {
         apply(.preview)
         authState = .signedIn(.preview)
         syncState = .synced(at: Date())
+    }
+
+    private func setActiveAccount(_ account: GoogleAccount) {
+        upsertConnectedAccount(account)
+        self.account = account
+        activeAccountID = account.id
+    }
+
+    private func upsertConnectedAccount(_ account: GoogleAccount) {
+        if let index = connectedAccounts.firstIndex(where: { $0.id == account.id }) {
+            connectedAccounts[index] = account
+        } else {
+            connectedAccounts.append(account)
+        }
+    }
+
+    private func removeConnectedAccount(id: GoogleAccount.ID) {
+        connectedAccounts.removeAll { $0.id == id }
+        if activeAccountID == id {
+            activeAccountID = nil
+        }
+        if account?.id == id {
+            account = nil
+        }
+    }
+
+    private func clearAccounts(provider: GoogleAuthProvider) {
+        var removedIDs = Set(connectedAccounts.filter { $0.authProvider == provider }.map(\.id))
+        if let account, account.authProvider == provider {
+            removedIDs.insert(account.id)
+        }
+        connectedAccounts.removeAll { $0.authProvider == provider }
+        if let activeAccountID, removedIDs.contains(activeAccountID) {
+            self.activeAccountID = nil
+        }
+        if let account, removedIDs.contains(account.id) {
+            self.account = nil
+        }
     }
 
     private func applyLocalTaskMove(
@@ -4661,6 +4710,8 @@ final class AppModel {
     private func currentCachedState() -> CachedAppState {
         CachedAppState(
             account: account,
+            accounts: connectedAccounts,
+            activeAccountID: activeAccountID,
             taskLists: taskLists,
             tasks: tasks,
             calendars: calendars,

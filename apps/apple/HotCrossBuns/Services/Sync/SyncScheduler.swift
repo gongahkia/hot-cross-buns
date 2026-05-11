@@ -112,6 +112,8 @@ actor SyncScheduler {
 
         return CachedAppState(
             account: baseState.account,
+            accounts: baseState.accounts,
+            activeAccountID: baseState.activeAccountID,
             taskLists: taskLists,
             tasks: shouldSyncTasks
                 ? mergeTasks(
@@ -549,11 +551,11 @@ actor SyncScheduler {
     ) -> [SyncCheckpoint] {
         var checkpointsByID: [SyncCheckpoint.ID: SyncCheckpoint] = [:]
 
-        for checkpoint in existing where checkpoint.accountID == accountID {
+        for checkpoint in existing {
             checkpointsByID[checkpoint.id] = checkpoint
         }
 
-        for checkpoint in updated {
+        for checkpoint in updated where checkpoint.accountID == accountID {
             checkpointsByID[checkpoint.id] = checkpoint
         }
 

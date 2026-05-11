@@ -19,6 +19,8 @@ struct SettingsView: View {
                 AccountStatusView(
                     authState: model.authState,
                     account: model.account,
+                    accounts: model.connectedAccounts,
+                    activeAccountID: model.activeAccountID,
                     canConnect: model.isGoogleAuthConfigured,
                     connect: {
                         Task {
@@ -501,6 +503,8 @@ struct AccountStatusView: View {
     @Environment(AppModel.self) private var model
     let authState: AuthState
     let account: GoogleAccount?
+    let accounts: [GoogleAccount]
+    let activeAccountID: GoogleAccount.ID?
     let canConnect: Bool
     let connect: () -> Void
     let disconnect: () -> Void
@@ -510,35 +514,21 @@ struct AccountStatusView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label(authState.title, systemImage: iconName)
-                    .hcbFont(.headline)
-                Spacer()
-                if case .authenticating = authState {
-                    ProgressView()
+            statusHeader
+            authMessage
+            Divider()
+            identityProviderRow
+
+            if displayAccounts.isEmpty == false {
+                Divider()
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(displayAccounts) { account in
+                        accountRow(account, isActive: account.id == resolvedActiveAccountID)
+                    }
                 }
             }
 
-            if case .failed(let message) = authState {
-                Text(message)
-                    .hcbFont(.footnote)
-                    .foregroundStyle(.red)
-            } else if case .cancelled(let message) = authState {
-                Text(message)
-                    .hcbFont(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-
-            if let account {
-                Text(account.displayName)
-                    .hcbFont(.subheadline, weight: .medium)
-                Text(scopeSummary(for: account))
-                    .hcbFont(.footnote)
-                    .foregroundStyle(.secondary)
-                Text("Auth provider: \(account.authProvider.title)")
-                    .hcbFont(.caption)
-                    .foregroundStyle(.secondary)
-
+            if account != nil {
                 Button(role: .destructive) {
                     isConfirmingDisconnect = true
                 } label: {
@@ -553,8 +543,8 @@ struct AccountStatusView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(AppColor.ember)
-                    .hcbScaledFrame(maxWidth: 320, alignment: .leading)
-                    .disabled(isAuthenticating || canConnect == false)
+                .hcbScaledFrame(maxWidth: 320, alignment: .leading)
+                .disabled(isAuthenticating || canConnect == false)
                 if canConnect == false {
                     Text("Save a desktop OAuth client above, or build the app with an embedded Google Sign-In client.")
                         .hcbFont(.caption)
@@ -578,11 +568,116 @@ struct AccountStatusView: View {
         }
     }
 
+    private var statusHeader: some View {
+        HStack {
+            Label(statusTitle, systemImage: iconName)
+                .hcbFont(.headline)
+            Spacer()
+            if case .authenticating = authState {
+                ProgressView()
+                    .controlSize(.small)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var authMessage: some View {
+        if case .failed(let message) = authState {
+            Text(message)
+                .hcbFont(.footnote)
+                .foregroundStyle(.red)
+        } else if case .cancelled(let message) = authState {
+            Text(message)
+                .hcbFont(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var identityProviderRow: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "globe")
+                .foregroundStyle(.secondary)
+                .frame(width: 22)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Google")
+                    .hcbFont(.subheadline, weight: .semibold)
+                Text(identityProviderDetail)
+                    .hcbFont(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func accountRow(_ account: GoogleAccount, isActive: Bool) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "person.crop.circle.fill")
+                .foregroundStyle(isActive ? AppColor.moss : .secondary)
+                .frame(width: 22)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text(account.displayName)
+                        .hcbFont(.subheadline, weight: .semibold)
+                        .lineLimit(1)
+                    if isActive {
+                        Text("Active")
+                            .hcbFont(.caption2, weight: .semibold)
+                            .foregroundStyle(AppColor.moss)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(AppColor.moss.opacity(0.14)))
+                    }
+                }
+                Text(account.email)
+                    .hcbFont(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Text(scopeSummary(for: account))
+                    .hcbFont(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var statusTitle: String {
+        if account != nil {
+            return "Connected"
+        }
+        return authState.title
+    }
+
+    private var identityProviderDetail: String {
+        if let account {
+            return "Identity provider - \(account.authProvider.title)"
+        }
+        return canConnect ? "Identity provider ready" : "Desktop OAuth client required"
+    }
+
     private var isAuthenticating: Bool {
         if case .authenticating = authState {
             return true
         }
         return false
+    }
+
+    private var displayAccounts: [GoogleAccount] {
+        var seen: Set<GoogleAccount.ID> = []
+        var ordered: [GoogleAccount] = []
+        if let account {
+            ordered.append(account)
+            seen.insert(account.id)
+        }
+        for account in accounts where seen.insert(account.id).inserted {
+            ordered.append(account)
+        }
+        return ordered
+    }
+
+    private var resolvedActiveAccountID: GoogleAccount.ID? {
+        activeAccountID ?? account?.id
     }
 
     private var iconName: String {

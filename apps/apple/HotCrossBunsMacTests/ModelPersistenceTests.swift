@@ -58,6 +58,8 @@ final class ModelPersistenceTests: XCTestCase {
         let state = try JSONDecoder().decode(CachedAppState.self, from: data)
 
         XCTAssertNil(state.account)
+        XCTAssertTrue(state.accounts.isEmpty)
+        XCTAssertNil(state.activeAccountID)
         XCTAssertTrue(state.taskLists.isEmpty)
         XCTAssertTrue(state.tasks.isEmpty)
         XCTAssertTrue(state.calendars.isEmpty)
@@ -79,12 +81,63 @@ final class ModelPersistenceTests: XCTestCase {
         let loadedState = await store.loadCachedState()
 
         XCTAssertEqual(loadedState.account, .preview)
+        XCTAssertEqual(loadedState.accounts, [.preview])
+        XCTAssertEqual(loadedState.activeAccountID, GoogleAccount.preview.id)
         XCTAssertEqual(loadedState.taskLists.count, CachedAppState.preview.taskLists.count)
         XCTAssertEqual(loadedState.tasks.count, CachedAppState.preview.tasks.count)
         XCTAssertEqual(loadedState.calendars.count, CachedAppState.preview.calendars.count)
         XCTAssertEqual(loadedState.events.count, CachedAppState.preview.events.count)
         let cacheFilePath = await store.cacheFilePath()
         XCTAssertEqual(cacheFilePath, fileURL.path)
+    }
+
+    func testCachedAppStateMigratesLegacyAccountIntoAccountCatalog() throws {
+        let data = Data(
+            """
+            {
+              "schemaVersion": 1,
+              "account": {
+                "id": "google-1",
+                "email": "person@example.com",
+                "displayName": "Personal",
+                "grantedScopes": ["https://www.googleapis.com/auth/tasks"],
+                "authProvider": "customDesktopOAuth"
+              }
+            }
+            """.utf8
+        )
+
+        let state = try JSONDecoder().decode(CachedAppState.self, from: data)
+
+        XCTAssertEqual(state.schemaVersion, CachedAppState.currentSchemaVersion)
+        XCTAssertEqual(state.account?.id, "google-1")
+        XCTAssertEqual(state.accounts.map(\.id), ["google-1"])
+        XCTAssertEqual(state.activeAccountID, "google-1")
+    }
+
+    func testCachedAppStateAllowsSignedOutAccountCatalog() throws {
+        let savedAccount = GoogleAccount(
+            id: "google-2",
+            email: "work@example.com",
+            displayName: "Work",
+            grantedScopes: [GoogleScope.tasks, GoogleScope.calendar],
+            authProvider: .customDesktopOAuth
+        )
+
+        let state = CachedAppState(
+            account: nil,
+            accounts: [savedAccount],
+            activeAccountID: nil,
+            taskLists: [],
+            tasks: [],
+            calendars: [],
+            events: [],
+            settings: .default
+        )
+
+        XCTAssertNil(state.account)
+        XCTAssertEqual(state.accounts, [savedAccount])
+        XCTAssertNil(state.activeAccountID)
     }
 
     func testTodaySnapshotExcludesCompletedDeletedAndCancelledItems() {
