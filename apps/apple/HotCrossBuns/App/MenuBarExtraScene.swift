@@ -22,6 +22,16 @@ private struct HCBMenuBarStatusControllerHost: View {
             .onChange(of: model.settings.menuBarStyle) { _, _ in
                 controller.configure(model: model)
             }
+            .onChange(of: model.settings.menuBarAdaptiveStatusSource) { _, _ in
+                controller.refreshStatusItemImage()
+                controller.refreshContent()
+            }
+            .onChange(of: model.settings.menuBarAdaptiveEmptyBehavior) { _, _ in
+                controller.refreshStatusItemImage()
+            }
+            .onChange(of: model.settings.menuBarAdaptivePanelContent) { _, _ in
+                controller.refreshContent()
+            }
             .onChange(of: model.settings.showMenuBarBadge) { _, _ in
                 controller.refreshStatusItemImage()
             }
@@ -59,12 +69,14 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
     private var detailHostingController: NSHostingController<AnyView>?
     private var selectedWeekDetailDay: Date?
     private var isPinned = false
+    private var adaptiveStatusTimer: Timer?
 
     func configure(model: AppModel) {
         self.model = model
         if model.settings.showMenuBarExtra {
             installStatusItemIfNeeded()
             refreshContent()
+            updateAdaptiveStatusTimer()
         } else {
             uninstallStatusItem()
         }
@@ -93,6 +105,8 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
             hideWeekDayDetail()
         }
 
+        refreshStatusItemImage()
+
         if panel?.isVisible == true {
             resizePanelToFitContent()
             positionPanel()
@@ -114,6 +128,7 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
     }
 
     private func uninstallStatusItem() {
+        invalidateAdaptiveStatusTimer()
         hidePanel()
         if let statusItem {
             NSStatusBar.system.removeStatusItem(statusItem)
@@ -125,14 +140,32 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
     }
 
     func refreshStatusItemImage() {
-        guard let model, let button = statusItem?.button else { return }
+        guard let model, let statusItem, let button = statusItem.button else { return }
         let count = model.settings.showMenuBarBadge ? model.todaySnapshot.overdueCount : 0
         button.image = statusImage(badgeCount: count)
-        if count > 0 {
-            button.setAccessibilityLabel("Hot Cross Buns, \(count) overdue task\(count == 1 ? "" : "s")")
-        } else {
-            button.setAccessibilityLabel("Hot Cross Buns")
+        button.imageScaling = .scaleProportionallyDown
+        button.font = NSFont.menuBarFont(ofSize: 0)
+
+        if model.settings.menuBarStyle == .adaptive {
+            let adaptiveStatus = model.menuBarAdaptiveStatus()
+            if let label = adaptiveStatus.label {
+                statusItem.length = NSStatusItem.variableLength
+                button.imagePosition = .imageLeft
+                button.title = " | \(label)"
+                button.setAccessibilityLabel(accessibilityLabel(base: adaptiveStatus.accessibilityLabel, overdueCount: count))
+                return
+            }
         }
+
+        statusItem.length = NSStatusItem.squareLength
+        button.imagePosition = .imageOnly
+        button.title = ""
+        button.setAccessibilityLabel(accessibilityLabel(base: "Hot Cross Buns", overdueCount: count))
+    }
+
+    private func accessibilityLabel(base: String, overdueCount count: Int) -> String {
+        guard count > 0 else { return base }
+        return "\(base), \(count) overdue task\(count == 1 ? "" : "s")"
     }
 
     private func statusImage(badgeCount: Int) -> NSImage? {
@@ -150,6 +183,34 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
         }
 
         return image.hcbMenuBarBadgedImage(count: badgeCount)
+    }
+
+    private func updateAdaptiveStatusTimer() {
+        invalidateAdaptiveStatusTimer()
+        guard let model,
+              model.settings.showMenuBarExtra,
+              model.settings.menuBarStyle == .adaptive,
+              statusItem != nil
+        else {
+            return
+        }
+
+        let timer = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.refreshStatusItemImage()
+                if self.panel?.isVisible == true {
+                    self.refreshContent()
+                }
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        adaptiveStatusTimer = timer
+    }
+
+    private func invalidateAdaptiveStatusTimer() {
+        adaptiveStatusTimer?.invalidate()
+        adaptiveStatusTimer = nil
     }
 
     @objc private func statusItemClicked(_ sender: Any?) {
@@ -886,6 +947,19 @@ private extension AppModel {
 
     var menuBarVisibleTaskListIDs: Set<TaskListMirror.ID> {
         visibleTaskListIDs
+    }
+
+    func menuBarAdaptiveStatus(now: Date = Date()) -> MenuBarAdaptiveStatus {
+        let selectedCalendars = menuBarSelectedCalendarIDs
+        let statusEvents = events.filter { selectedCalendars.contains($0.calendarID) }
+        return MenuBarAdaptiveStatusResolver.status(
+            now: now,
+            events: statusEvents,
+            tasks: menuBarDatedOpenTasks(),
+            source: settings.menuBarAdaptiveStatusSource,
+            emptyBehavior: settings.menuBarAdaptiveEmptyBehavior,
+            calendar: .current
+        )
     }
 
     func menuBarEvents(on day: Date) -> [CalendarEventMirror] {
