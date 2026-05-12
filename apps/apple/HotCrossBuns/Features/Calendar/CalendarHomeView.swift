@@ -21,6 +21,10 @@ struct CalendarHomeView: View {
     @State private var pendingDeleteEvent: CalendarEventMirror?
     @State private var preparedAgendaSnapshot: CalendarAgendaDisplaySnapshot?
     @State private var agendaSnapshotBuildTask: Task<Void, Never>?
+    @State private var isShareAvailabilityShown = false
+    @State private var availabilityDraft = ShareAvailabilityDraft()
+    @State private var availabilityMessage: String?
+    @State private var isWritingAvailabilityHolds = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -55,6 +59,14 @@ struct CalendarHomeView: View {
         // start below the lights on Calendar but above them on Tasks/Notes.
         .toolbar {
             ToolbarItemGroup {
+                Button {
+                    openShareAvailability()
+                } label: {
+                    Label("Share Availability", systemImage: "calendar.badge.clock")
+                }
+                .help("Share availability")
+                .disabled(model.account == nil || writableCalendars.isEmpty)
+
                 Button {
                     router?.present(.quickCreate(Date(), allDay: true))
                 } label: {
@@ -172,19 +184,48 @@ struct CalendarHomeView: View {
     }
 
     private var activeCalendarSurface: some View {
-        ZStack(alignment: .bottom) {
-            currentModeContent
+        ZStack(alignment: .trailing) {
+            ZStack(alignment: .bottom) {
+                currentModeContent
 
-            if selectedEventIDs.count >= 2 {
-                EventBulkActionBar(
-                    selection: $selectedEventIDs,
-                    events: selectedEvents
+                if selectedEventIDs.count >= 2 {
+                    EventBulkActionBar(
+                        selection: $selectedEventIDs,
+                        events: selectedEvents
+                    )
+                    .hcbScaledPadding(.bottom, 16)
+                    .transition(HCBMotion.transition(.move(edge: .bottom).combined(with: .opacity), reduceMotion: reduceMotion))
+                }
+            }
+
+            if isShareAvailabilityShown {
+                ShareAvailabilityPanel(
+                    draft: $availabilityDraft,
+                    calendars: writableCalendars,
+                    holdGroups: availabilityHoldGroups,
+                    snippet: availabilitySnippet,
+                    message: availabilityMessage,
+                    supportsSelection: supportsAvailabilitySelection,
+                    isWriting: isWritingAvailabilityHolds,
+                    onClose: { isShareAvailabilityShown = false },
+                    onCopy: copyAvailabilitySnippet,
+                    onCreateHolds: createAvailabilityHolds,
+                    onRemoveSlot: removeAvailabilitySlot,
+                    onConfirmHold: { hold in
+                        Task { await confirmAvailabilityHold(hold) }
+                    },
+                    onCancelGroup: { group in
+                        Task { await cancelAvailabilityHoldGroup(group) }
+                    },
+                    onOpenHold: { hold in
+                        router?.present(.editEvent(hold.id))
+                    }
                 )
-                .hcbScaledPadding(.bottom, 16)
-                .transition(HCBMotion.transition(.move(edge: .bottom).combined(with: .opacity), reduceMotion: reduceMotion))
+                .transition(HCBMotion.transition(.move(edge: .trailing).combined(with: .opacity), reduceMotion: reduceMotion))
             }
         }
         .animation(HCBMotion.animation(.easeOut(duration: 0.12), reduceMotion: reduceMotion), value: selectedEventIDs.count >= 2)
+        .animation(HCBMotion.animation(.easeOut(duration: 0.16), reduceMotion: reduceMotion), value: isShareAvailabilityShown)
     }
 
     @ViewBuilder
@@ -193,7 +234,11 @@ struct CalendarHomeView: View {
         case .agenda:
             agendaContent
         case .day:
-            DayGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
+            DayGridView(
+                anchorDate: $selectedDate,
+                searchQuery: searchQuery,
+                availabilitySelection: availabilityGridSelection
+            )
         case .multiDay:
             VStack(spacing: 0) {
                 multiDayStepperBar
@@ -201,11 +246,17 @@ struct CalendarHomeView: View {
                     anchorDate: $selectedDate,
                     searchQuery: searchQuery,
                     selectedEventIDs: $selectedEventIDs,
-                    multiDayCount: model.settings.multiDayCount
+                    multiDayCount: model.settings.multiDayCount,
+                    availabilitySelection: availabilityGridSelection
                 )
             }
         case .week:
-            WeekGridView(anchorDate: $selectedDate, searchQuery: searchQuery, selectedEventIDs: $selectedEventIDs)
+            WeekGridView(
+                anchorDate: $selectedDate,
+                searchQuery: searchQuery,
+                selectedEventIDs: $selectedEventIDs,
+                availabilitySelection: availabilityGridSelection
+            )
         case .month:
             MonthGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
         case .year:
@@ -283,6 +334,67 @@ struct CalendarHomeView: View {
         model.events.filter { selectedEventIDs.contains($0.id) && calendarEventViewFilter.allows($0) }
     }
 
+    private var writableCalendars: [CalendarListMirror] {
+        let selectedIDs = model.calendarSnapshot.selectedCalendarIDs
+        let writable = model.calendars.filter { calendar in
+            (calendar.accessRole == "owner" || calendar.accessRole == "writer")
+                && (selectedIDs.isEmpty || selectedIDs.contains(calendar.id))
+        }
+        if writable.isEmpty {
+            return model.calendars.filter { $0.accessRole == "owner" || $0.accessRole == "writer" }
+        }
+        return writable
+    }
+
+    private var supportsAvailabilitySelection: Bool {
+        switch mode {
+        case .day, .week, .multiDay:
+            true
+        case .agenda, .month, .year:
+            false
+        }
+    }
+
+    private var availabilityGridSelection: AvailabilityGridSelection? {
+        guard isShareAvailabilityShown, supportsAvailabilitySelection else { return nil }
+        return AvailabilityGridSelection(
+            slots: availabilityDraft.slots,
+            defaultDurationMinutes: availabilityDraft.durationMinutes,
+            onSelect: addAvailabilitySlot,
+            onReject: { availabilityMessage = $0 },
+            isSlotAvailable: isAvailabilitySlotAvailable
+        )
+    }
+
+    private var availabilitySnippet: String {
+        AvailabilitySnippetFormatter.snippet(
+            title: availabilityDraft.title,
+            durationMinutes: availabilityDraft.durationMinutes,
+            timeZoneID: availabilityDraft.timeZoneID,
+            slots: availabilityDraft.slots
+        )
+    }
+
+    private var availabilityHoldGroups: [AvailabilityHoldGroup] {
+        let holds = model.events.filter { $0.status != .cancelled && $0.availabilityHold != nil }
+        let grouped = Dictionary(grouping: holds) { $0.availabilityHold?.groupID ?? "" }
+        return grouped.compactMap { groupID, events in
+            guard groupID.isEmpty == false,
+                  let metadata = events.compactMap(\.availabilityHold).first
+            else { return nil }
+            return AvailabilityHoldGroup(
+                id: groupID,
+                metadata: metadata,
+                events: events.sorted { $0.startDate < $1.startDate }
+            )
+        }
+        .sorted { lhs, rhs in
+            let left = lhs.events.first?.startDate ?? lhs.metadata.createdAt
+            let right = rhs.events.first?.startDate ?? rhs.metadata.createdAt
+            return left < right
+        }
+    }
+
     // CalendarGridMode.allCases filtered by user-hidden set from Layout settings.
     // If the user hides every mode, allCases still returns something — the
     // AppModel.setCalendarViewModeHidden setter refuses to hide the last one.
@@ -319,6 +431,94 @@ struct CalendarHomeView: View {
     private func selectMode(_ target: CalendarGridMode) {
         guard visibleCalendarModes.contains(target) else { return }
         mode = target
+    }
+
+    private func openShareAvailability() {
+        if availabilityDraft.calendarID == nil || writableCalendars.contains(where: { $0.id == availabilityDraft.calendarID }) == false {
+            availabilityDraft.calendarID = writableCalendars.first?.id
+        }
+        if let calendarID = availabilityDraft.calendarID,
+           let calendarTimeZone = model.calendars.first(where: { $0.id == calendarID })?.timeZoneID {
+            availabilityDraft.timeZoneID = calendarTimeZone
+        }
+        isShareAvailabilityShown = true
+        availabilityMessage = nil
+    }
+
+    private func addAvailabilitySlot(_ slot: AvailabilitySlot) {
+        availabilityDraft.slots = AvailabilitySlotResolver.normalized(availabilityDraft.slots + [slot])
+        availabilityMessage = "Added \(availabilitySlotLabel(slot))."
+    }
+
+    private func removeAvailabilitySlot(_ slot: AvailabilitySlot) {
+        availabilityDraft.slots.removeAll { $0.id == slot.id }
+        availabilityMessage = nil
+    }
+
+    private func isAvailabilitySlotAvailable(_ slot: AvailabilitySlot) -> Bool {
+        guard slot.endDate > slot.startDate else { return false }
+        var calendarIDs = model.calendarSnapshot.selectedCalendarIDs.isEmpty
+            ? Set(model.calendars.map(\.id))
+            : model.calendarSnapshot.selectedCalendarIDs
+        if let holdCalendarID = availabilityDraft.calendarID ?? writableCalendars.first?.id {
+            calendarIDs.insert(holdCalendarID)
+        }
+        return AvailabilitySlotResolver.blockingEvents(
+            for: slot,
+            events: model.events,
+            calendarIDs: calendarIDs
+        ).isEmpty
+    }
+
+    private func copyAvailabilitySnippet() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(availabilitySnippet, forType: .string)
+        availabilityMessage = "Copied availability."
+    }
+
+    private func createAvailabilityHolds() {
+        guard let calendarID = availabilityDraft.calendarID ?? writableCalendars.first?.id else {
+            availabilityMessage = "Choose a writable calendar."
+            return
+        }
+        let slots = AvailabilitySlotResolver.normalized(availabilityDraft.slots)
+        guard slots.isEmpty == false else {
+            availabilityMessage = "Select at least one slot."
+            return
+        }
+        isWritingAvailabilityHolds = true
+        Task {
+            let didCreate = await model.createAvailabilityHoldGroup(
+                title: availabilityDraft.title,
+                durationMinutes: availabilityDraft.durationMinutes,
+                slots: slots,
+                calendarID: calendarID,
+                timeZoneID: availabilityDraft.timeZoneID
+            )
+            isWritingAvailabilityHolds = false
+            if didCreate {
+                availabilityDraft.slots = []
+                availabilityMessage = "Created \(slots.count) hold\(slots.count == 1 ? "" : "s")."
+            } else {
+                availabilityMessage = model.lastMutationError ?? "Could not create holds."
+            }
+        }
+    }
+
+    private func confirmAvailabilityHold(_ hold: CalendarEventMirror) async {
+        let didConfirm = await model.confirmAvailabilityHold(hold)
+        availabilityMessage = didConfirm ? "Confirmed \(hold.summary)." : (model.lastMutationError ?? "Could not confirm hold.")
+    }
+
+    private func cancelAvailabilityHoldGroup(_ group: AvailabilityHoldGroup) async {
+        let didCancel = await model.cancelAvailabilityHoldGroup(groupID: group.id)
+        availabilityMessage = didCancel ? "Cancelled \(group.events.count) hold\(group.events.count == 1 ? "" : "s")." : (model.lastMutationError ?? "Could not cancel holds.")
+    }
+
+    private func availabilitySlotLabel(_ slot: AvailabilitySlot) -> String {
+        let start = slot.startDate.formatted(.dateTime.weekday(.abbreviated).hour().minute())
+        let end = slot.endDate.formatted(.dateTime.hour().minute())
+        return "\(start)-\(end)"
     }
 
     private var periodTitle: String {
@@ -875,6 +1075,308 @@ struct CalendarHomeView: View {
             return calendarColor(for: event)
         }
         return Color(hex: hex)
+    }
+}
+
+private struct ShareAvailabilityDraft: Equatable {
+    var title: String = "Meeting"
+    var durationMinutes: Int = 30
+    var timeZoneID: String = TimezoneSupport.currentIdentifier
+    var calendarID: CalendarListMirror.ID?
+    var slots: [AvailabilitySlot] = []
+}
+
+private struct AvailabilityHoldGroup: Identifiable, Equatable {
+    var id: String
+    var metadata: AvailabilityHoldMetadata
+    var events: [CalendarEventMirror]
+}
+
+private struct ShareAvailabilityPanel: View {
+    @Binding var draft: ShareAvailabilityDraft
+    let calendars: [CalendarListMirror]
+    let holdGroups: [AvailabilityHoldGroup]
+    let snippet: String
+    let message: String?
+    let supportsSelection: Bool
+    let isWriting: Bool
+    let onClose: () -> Void
+    let onCopy: () -> Void
+    let onCreateHolds: () -> Void
+    let onRemoveSlot: (AvailabilitySlot) -> Void
+    let onConfirmHold: (CalendarEventMirror) -> Void
+    let onCancelGroup: (AvailabilityHoldGroup) -> Void
+    let onOpenHold: (CalendarEventMirror) -> Void
+
+    private let durations = [15, 30, 45, 60, 90, 120]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            header
+            controls
+            Divider()
+            selectedSlotsSection
+            snippetSection
+            Divider()
+            holdGroupsSection
+            Spacer(minLength: 0)
+        }
+        .hcbScaledPadding(16)
+        .frame(width: 360)
+        .frame(maxHeight: .infinity)
+        .background(.regularMaterial)
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(AppColor.cardStroke)
+                .frame(width: 1)
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            Label("Share Availability", systemImage: "calendar.badge.clock")
+                .hcbFont(.headline, weight: .semibold)
+            Spacer(minLength: 0)
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close Share Availability")
+        }
+    }
+
+    private var controls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            TextField("Meeting title", text: $draft.title)
+                .textFieldStyle(.roundedBorder)
+
+            HStack(spacing: 10) {
+                Picker("Duration", selection: $draft.durationMinutes) {
+                    ForEach(durations, id: \.self) { minutes in
+                        Text("\(minutes)m").tag(minutes)
+                    }
+                }
+                .pickerStyle(.menu)
+
+                Picker("Calendar", selection: calendarSelectionBinding) {
+                    ForEach(calendars) { calendar in
+                        Text(calendar.summary).tag(Optional(calendar.id))
+                    }
+                }
+                .pickerStyle(.menu)
+                .disabled(calendars.isEmpty)
+            }
+
+            Picker("Timezone", selection: $draft.timeZoneID) {
+                ForEach(TimezoneSupport.pickerIdentifiers, id: \.self) { identifier in
+                    Text(TimezoneSupport.displayName(for: identifier)).tag(identifier)
+                }
+            }
+            .pickerStyle(.menu)
+
+            if let message {
+                Text(message)
+                    .hcbFont(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            if supportsSelection == false {
+                Label("Day, Week, or Multi-Day", systemImage: "calendar")
+                    .hcbFont(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var selectedSlotsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Selected Slots")
+                    .hcbFont(.subheadline, weight: .semibold)
+                Spacer(minLength: 0)
+                Text("\(draft.slots.count)")
+                    .hcbFont(.caption, weight: .semibold)
+                    .foregroundStyle(.secondary)
+            }
+
+            if draft.slots.isEmpty {
+                Text("No slots selected.")
+                    .hcbFont(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(spacing: 6) {
+                    ForEach(AvailabilitySlotResolver.normalized(draft.slots)) { slot in
+                        HStack(spacing: 8) {
+                            Image(systemName: "clock")
+                                .foregroundStyle(.secondary)
+                            Text(slotLabel(slot))
+                                .hcbFont(.caption)
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                            Button {
+                                onRemoveSlot(slot)
+                            } label: {
+                                Image(systemName: "minus.circle")
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Remove slot")
+                        }
+                        .hcbScaledPadding(.horizontal, 8)
+                        .hcbScaledPadding(.vertical, 6)
+                        .background(RoundedRectangle(cornerRadius: 7).fill(AppColor.cardSurface))
+                    }
+                }
+            }
+
+            Button {
+                onCreateHolds()
+            } label: {
+                Label(isWriting ? "Creating" : "Create Holds", systemImage: "calendar.badge.plus")
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(AppColor.ember)
+            .disabled(isWriting || draft.slots.isEmpty || calendars.isEmpty)
+        }
+    }
+
+    private var snippetSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Snippet")
+                    .hcbFont(.subheadline, weight: .semibold)
+                Spacer(minLength: 0)
+                Button {
+                    onCopy()
+                } label: {
+                    Label("Copy", systemImage: "doc.on.doc")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
+            ScrollView {
+                Text(snippet)
+                    .font(.system(.caption, design: .monospaced))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+                    .hcbScaledPadding(8)
+            }
+            .frame(height: 116)
+            .background(RoundedRectangle(cornerRadius: 7).fill(AppColor.cardSurface))
+            .overlay(
+                RoundedRectangle(cornerRadius: 7)
+                    .strokeBorder(AppColor.cardStroke, lineWidth: 1)
+            )
+        }
+    }
+
+    private var holdGroupsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Pending Holds")
+                    .hcbFont(.subheadline, weight: .semibold)
+                Spacer(minLength: 0)
+                Text("\(holdGroups.count)")
+                    .hcbFont(.caption, weight: .semibold)
+                    .foregroundStyle(.secondary)
+            }
+
+            if holdGroups.isEmpty {
+                Text("No pending holds.")
+                    .hcbFont(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ScrollView {
+                    VStack(spacing: 10) {
+                        ForEach(holdGroups) { group in
+                            holdGroupCard(group)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func holdGroupCard(_ group: AvailabilityHoldGroup) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(group.metadata.title)
+                        .hcbFont(.caption, weight: .semibold)
+                        .lineLimit(1)
+                    Text("\(group.events.count) hold\(group.events.count == 1 ? "" : "s")")
+                        .hcbFont(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                Button {
+                    onCancelGroup(group)
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Cancel hold group")
+            }
+
+            ForEach(group.events) { event in
+                HStack(spacing: 8) {
+                    Button {
+                        onOpenHold(event)
+                    } label: {
+                        Text(slotLabel(AvailabilitySlot(startDate: event.startDate, endDate: event.endDate)))
+                            .hcbFont(.caption)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        onConfirmHold(event)
+                    } label: {
+                        Image(systemName: "checkmark.circle")
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(OptimisticID.isPending(event.id))
+                    .accessibilityLabel("Confirm hold")
+                }
+            }
+        }
+        .hcbScaledPadding(10)
+        .background(RoundedRectangle(cornerRadius: 8).fill(AppColor.cardSurface))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(AppColor.cardStroke, lineWidth: 1)
+        )
+    }
+
+    private var calendarSelectionBinding: Binding<CalendarListMirror.ID?> {
+        Binding(
+            get: {
+                if let id = draft.calendarID, calendars.contains(where: { $0.id == id }) {
+                    return id
+                }
+                return calendars.first?.id
+            },
+            set: { newValue in
+                draft.calendarID = newValue
+                if let newValue,
+                   let timeZoneID = calendars.first(where: { $0.id == newValue })?.timeZoneID {
+                    draft.timeZoneID = timeZoneID
+                }
+            }
+        )
+    }
+
+    private func slotLabel(_ slot: AvailabilitySlot) -> String {
+        let dateFormatter = DateFormatter()
+        dateFormatter.timeZone = TimezoneSupport.timeZone(for: draft.timeZoneID)
+        dateFormatter.dateFormat = "EEE, MMM d"
+        let timeFormatter = DateFormatter()
+        timeFormatter.timeZone = TimezoneSupport.timeZone(for: draft.timeZoneID)
+        timeFormatter.dateStyle = .none
+        timeFormatter.timeStyle = .short
+        return "\(dateFormatter.string(from: slot.startDate)) \(timeFormatter.string(from: slot.startDate))-\(timeFormatter.string(from: slot.endDate))"
     }
 }
 
