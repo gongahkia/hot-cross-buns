@@ -19,6 +19,19 @@ final class RecurrenceRuleTests: XCTestCase {
         XCTAssertEqual(RecurrenceRule.parse(rrule: rule.rruleString()), rule)
     }
 
+    func testRoundTripMonthlyWithCountEnd() {
+        let rule = RecurrenceRule(frequency: .monthly, interval: 1, end: .after(5))
+        XCTAssertEqual(rule.rruleString(), "RRULE:FREQ=MONTHLY;INTERVAL=1;COUNT=5")
+        XCTAssertEqual(RecurrenceRule.parse(rrule: rule.rruleString()), rule)
+    }
+
+    func testRoundTripYearlyWithUntilEnd() {
+        let until = calendar.date(from: DateComponents(year: 2026, month: 12, day: 31, hour: 23, minute: 59, second: 0))!
+        let rule = RecurrenceRule(frequency: .yearly, interval: 1, end: .until(until))
+        XCTAssertEqual(rule.rruleString(), "RRULE:FREQ=YEARLY;INTERVAL=1;UNTIL=20261231T235900Z")
+        XCTAssertEqual(RecurrenceRule.parse(rrule: rule.rruleString()), rule)
+    }
+
     func testParseWithoutRRULEPrefix() {
         XCTAssertEqual(
             RecurrenceRule.parse(rrule: "FREQ=MONTHLY;INTERVAL=1"),
