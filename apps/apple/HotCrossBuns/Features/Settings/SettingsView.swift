@@ -172,6 +172,10 @@ struct SettingsView: View {
                     }
                 }
                 .pickerStyle(.menu)
+                .disabled(model.settings.showMenuBarExtra == false)
+                if model.settings.menuBarStyle == .adaptive {
+                    adaptiveMenuBarControls
+                }
                 MenuBarIconPickerRow()
                 .disabled(model.settings.showMenuBarExtra == false)
                 Toggle("Menu bar badge for overdue tasks", isOn: menuBarBadgeBinding)
@@ -352,6 +356,52 @@ struct SettingsView: View {
             get: { model.settings.menuBarStyle },
             set: { model.setMenuBarStyle($0) }
         )
+    }
+
+    private var menuBarAdaptiveStatusSourceBinding: Binding<AppSettings.MenuBarAdaptiveStatusSource> {
+        Binding(
+            get: { model.settings.menuBarAdaptiveStatusSource },
+            set: { model.setMenuBarAdaptiveStatusSource($0) }
+        )
+    }
+
+    private var menuBarAdaptiveEmptyBehaviorBinding: Binding<AppSettings.MenuBarAdaptiveEmptyBehavior> {
+        Binding(
+            get: { model.settings.menuBarAdaptiveEmptyBehavior },
+            set: { model.setMenuBarAdaptiveEmptyBehavior($0) }
+        )
+    }
+
+    private var menuBarAdaptivePanelContentBinding: Binding<AppSettings.MenuBarAdaptivePanelContent> {
+        Binding(
+            get: { model.settings.menuBarAdaptivePanelContent },
+            set: { model.setMenuBarAdaptivePanelContent($0) }
+        )
+    }
+
+    @ViewBuilder
+    private var adaptiveMenuBarControls: some View {
+        Group {
+            Picker("Status source", selection: menuBarAdaptiveStatusSourceBinding) {
+                ForEach(AppSettings.MenuBarAdaptiveStatusSource.allCases, id: \.self) { source in
+                    Text(source.title).tag(source)
+                }
+            }
+            .pickerStyle(.menu)
+            Picker("When empty", selection: menuBarAdaptiveEmptyBehaviorBinding) {
+                ForEach(AppSettings.MenuBarAdaptiveEmptyBehavior.allCases, id: \.self) { behavior in
+                    Text(behavior.title).tag(behavior)
+                }
+            }
+            .pickerStyle(.menu)
+            Picker("Panel contents", selection: menuBarAdaptivePanelContentBinding) {
+                ForEach(AppSettings.MenuBarAdaptivePanelContent.allCases, id: \.self) { content in
+                    Text(content.title).tag(content)
+                }
+            }
+            .pickerStyle(.menu)
+        }
+        .disabled(model.settings.showMenuBarExtra == false)
     }
 
     private var eventRetentionBinding: Binding<Int> {
