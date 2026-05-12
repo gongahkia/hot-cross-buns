@@ -19,9 +19,8 @@ import SwiftUI
 // - Alert (event.reminders.overrides) ✅
 // - Invitees (event.attendees) ✅
 // - Notes (event.description) ✅
+// - End Repeat UNTIL/COUNT ✅
 // - Travel Time — NOT in Google Calendar API, intentionally omitted.
-// - End Repeat UNTIL/COUNT — our RecurrenceRule model only carries
-//   freq+interval today. Extending is a separate change.
 // - Attachments — requires a Google Drive file picker; out of scope here.
 // - Task priority / location / time-of-day — not in Google Tasks API.
 struct QuickCreatePopover: View {
@@ -61,6 +60,8 @@ struct QuickCreatePopover: View {
     @State private var isAllDay: Bool = false
     @State private var startDate: Date = Date()
     @State private var endDate: Date = Date()
+    @State private var eventTimeZoneID: String = TimezoneSupport.currentIdentifier
+    @State private var userManuallyPickedEventTimeZone: Bool = false
     @State private var eventColor: CalendarEventColor = .defaultColor
     @State private var isColorPickerPresented = false
     // Color-tag auto-apply bookkeeping. `autoAppliedTag` remembers the
@@ -87,14 +88,6 @@ struct QuickCreatePopover: View {
     @State private var isTaskDateCardExpanded: Bool = false
     @State private var isTaskListCardExpanded: Bool = false
 
-    // Event end-repeat UI state. Lives on the popover so we can render
-    // "Never / After / On Date" without exposing the enum construction
-    // in the Picker directly.
-    @State private var eventEndRepeatKind: RecurrenceEndKind = .never
-    @State private var eventEndRepeatCount: Int = 5
-    @State private var eventEndRepeatDate: Date = Date().addingTimeInterval(60 * 60 * 24 * 30)
-
-    private enum RecurrenceEndKind: Hashable { case never, after, onDate }
     private struct TaskListTagMatch {
         let list: TaskListMirror
         let tag: String
@@ -180,6 +173,7 @@ struct QuickCreatePopover: View {
             // mode/hasDueDate/isAllDay/startDate/endDate/taskDueDate are seeded in init() to avoid a first-frame flash. Only model-dependent seeds run here.
             selectedListID = initialTaskListID ?? model.taskLists.first?.id
             selectedCalendarID = model.calendarSnapshot.selectedCalendars.first?.id ?? model.calendars.first?.id
+            applyDefaultEventTimeZoneIfNeeded()
             summaryFocused = true
             showOptionalFields = model.settings.quickCreateExpandedByDefault
         }
@@ -195,7 +189,11 @@ struct QuickCreatePopover: View {
             } else {
                 autoAppliedTaskListTag = nil
                 applyCalendarTagAutoSelection(title: summary)
+                applyDefaultEventTimeZoneIfNeeded()
             }
+        }
+        .onChange(of: selectedCalendarID) { _, _ in
+            applyDefaultEventTimeZoneIfNeeded()
         }
     }
 
@@ -491,6 +489,7 @@ struct QuickCreatePopover: View {
                 } else {
                     DatePicker("", selection: $startDate, displayedComponents: [.date, .hourAndMinute])
                         .labelsHidden()
+                        .environment(\.timeZone, eventTimeZone)
                 }
             }
             HStack {
@@ -501,59 +500,25 @@ struct QuickCreatePopover: View {
                     DatePicker("", selection: $endDate, in: startDate..., displayedComponents: [.date])
                         .labelsHidden()
                 } else {
-                    DatePicker("", selection: $endDate, in: startDate..., displayedComponents: [.date, .hourAndMinute])
-                        .labelsHidden()
-                }
-            }
-            HStack {
-                Text("Repeat")
-                    .hcbFont(.subheadline)
-                    .frame(width: 90, alignment: .leading)
-                Picker("", selection: eventFrequencyBinding) {
-                    Text("Never").tag(RecurrenceFrequency?.none)
-                    Text("Every Day").tag(Optional(RecurrenceFrequency.daily))
-                    Text("Every Week").tag(Optional(RecurrenceFrequency.weekly))
-                    Text("Every Month").tag(Optional(RecurrenceFrequency.monthly))
-                    Text("Every Year").tag(Optional(RecurrenceFrequency.yearly))
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-            }
-            if recurrenceRule != nil {
-                HStack {
-                    Text("End Repeat")
-                        .hcbFont(.subheadline)
-                        .frame(width: 90, alignment: .leading)
-                    Picker("", selection: $eventEndRepeatKind) {
-                        Text("Never").tag(RecurrenceEndKind.never)
-                        Text("After").tag(RecurrenceEndKind.after)
-                        Text("On Date").tag(RecurrenceEndKind.onDate)
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .onChange(of: eventEndRepeatKind) { _, _ in applyEndRepeatToRule() }
-                }
-                switch eventEndRepeatKind {
-                case .never:
-                    EmptyView()
-                case .after:
-                    HStack {
-                        Spacer().frame(width: 90)
-                        Stepper(value: $eventEndRepeatCount, in: 1...999) {
-                            Text("\(eventEndRepeatCount) occurrence\(eventEndRepeatCount == 1 ? "" : "s")")
-                                .monospacedDigit()
-                        }
-                        .onChange(of: eventEndRepeatCount) { _, _ in applyEndRepeatToRule() }
-                    }
-                case .onDate:
-                    HStack {
-                        Spacer().frame(width: 90)
-                        DatePicker("", selection: $eventEndRepeatDate, in: startDate..., displayedComponents: [.date])
+                    HStack(spacing: 6) {
+                        DatePicker("", selection: $endDate, in: startDate..., displayedComponents: [.date, .hourAndMinute])
                             .labelsHidden()
-                            .onChange(of: eventEndRepeatDate) { _, _ in applyEndRepeatToRule() }
+                            .environment(\.timeZone, eventTimeZone)
+                        EventEndTimePickerMenu(
+                            startDate: startDate,
+                            endDate: $endDate,
+                            timeZoneID: eventTimeZoneID
+                        )
                     }
                 }
             }
+            if isAllDay == false {
+                HStack {
+                    Spacer().frame(width: 90)
+                    EventTimeZonePickerRow(title: "Time zone", selection: eventTimeZoneBinding)
+                }
+            }
+            RecurrenceEditor(rule: $recurrenceRule, startDate: startDate)
             HStack {
                 Text("Alert")
                     .hcbFont(.subheadline)
@@ -573,9 +538,6 @@ struct QuickCreatePopover: View {
                 .labelsHidden()
                 .pickerStyle(.menu)
             }
-            Text("Travel Time and attachments sync through google.com but aren't exposed through the Google Calendar API — add them from the web UI after creating.")
-                .hcbFont(.caption2)
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -865,34 +827,6 @@ struct QuickCreatePopover: View {
         Binding(get: { reminderMinutes }, set: { reminderMinutes = $0 })
     }
 
-    private var eventFrequencyBinding: Binding<RecurrenceFrequency?> {
-        Binding(
-            get: { recurrenceRule?.frequency },
-            set: { new in
-                if let new {
-                    let carriedEnd = recurrenceRule?.end ?? .never
-                    recurrenceRule = RecurrenceRule(frequency: new, interval: recurrenceRule?.interval ?? 1, end: carriedEnd)
-                } else {
-                    recurrenceRule = nil
-                    eventEndRepeatKind = .never
-                }
-            }
-        )
-    }
-
-    private func applyEndRepeatToRule() {
-        guard var rule = recurrenceRule else { return }
-        switch eventEndRepeatKind {
-        case .never:
-            rule.end = .never
-        case .after:
-            rule.end = .after(max(1, eventEndRepeatCount))
-        case .onDate:
-            rule.end = .until(eventEndRepeatDate)
-        }
-        recurrenceRule = rule
-    }
-
     // MARK: - Derived
 
     private var currentListTitle: String {
@@ -902,6 +836,42 @@ struct QuickCreatePopover: View {
 
     private var currentCalendarTitle: String {
         model.calendars.first(where: { $0.id == selectedCalendarID })?.summary ?? "Calendar"
+    }
+
+    private var eventTimeZone: TimeZone {
+        TimezoneSupport.timeZone(for: eventTimeZoneID)
+    }
+
+    private var eventTimeZoneBinding: Binding<String> {
+        Binding(
+            get: { eventTimeZoneID },
+            set: { newValue in
+                let normalized = TimezoneSupport.validatedIdentifier(newValue) ?? TimezoneSupport.currentIdentifier
+                let oldValue = eventTimeZoneID
+                guard normalized != oldValue else { return }
+                if isAllDay == false {
+                    startDate = TimezoneSupport.reinterpretingWallClock(startDate, from: oldValue, to: normalized)
+                    endDate = TimezoneSupport.reinterpretingWallClock(endDate, from: oldValue, to: normalized)
+                }
+                eventTimeZoneID = normalized
+                userManuallyPickedEventTimeZone = true
+            }
+        )
+    }
+
+    private func applyDefaultEventTimeZoneIfNeeded() {
+        guard mode == .event,
+              userManuallyPickedEventTimeZone == false
+        else { return }
+        let calendarTimeZoneID = selectedCalendarID
+            .flatMap { id in model.calendars.first(where: { $0.id == id })?.timeZoneID }
+        let resolved = TimezoneSupport.validatedIdentifier(calendarTimeZoneID) ?? TimezoneSupport.currentIdentifier
+        let oldValue = eventTimeZoneID
+        if oldValue != resolved, isAllDay == false {
+            startDate = TimezoneSupport.reinterpretingWallClock(startDate, from: oldValue, to: resolved)
+            endDate = TimezoneSupport.reinterpretingWallClock(endDate, from: oldValue, to: resolved)
+        }
+        eventTimeZoneID = resolved
     }
 
     private var canCreate: Bool {
@@ -944,7 +914,9 @@ struct QuickCreatePopover: View {
                 attendeeEmails: attendees,
                 notifyGuests: false,
                 addGoogleMeet: addGoogleMeet,
-                colorId: eventColor.wireValue
+                colorId: eventColor.wireValue,
+                startTimeZoneID: eventTimeZoneID,
+                endTimeZoneID: eventTimeZoneID
             )
             if didCreate { dismiss() }
         case .task:

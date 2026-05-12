@@ -1502,8 +1502,15 @@ struct AddEventSheet: View {
             } else {
                 DatePicker("Starts", selection: $startDate, displayedComponents: [.date, .hourAndMinute])
                     .environment(\.timeZone, startTimeZone)
-                DatePicker("Ends", selection: $endDate, displayedComponents: [.date, .hourAndMinute])
-                    .environment(\.timeZone, endTimeZone)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    DatePicker("Ends", selection: $endDate, displayedComponents: [.date, .hourAndMinute])
+                        .environment(\.timeZone, endTimeZone)
+                    EventEndTimePickerMenu(
+                        startDate: startDate,
+                        endDate: $endDate,
+                        timeZoneID: effectiveEndTimeZoneID
+                    )
+                }
                 timeZoneControls
             }
             if isValidDateRange == false {
@@ -1515,25 +1522,16 @@ struct AddEventSheet: View {
     }
 
     private var timeZoneControls: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Toggle("Use separate start and end time zones", isOn: separateTimeZoneBinding)
-            Picker("Start time zone", selection: startTimeZoneBinding) {
-                ForEach(TimezoneSupport.pickerIdentifiers, id: \.self) { identifier in
-                    Text(TimezoneSupport.displayName(for: identifier)).tag(identifier)
-                }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                EventTimeZonePickerRow(title: "Time zone", selection: startTimeZoneBinding)
+                Spacer(minLength: 8)
+                Toggle("Separate end", isOn: separateTimeZoneBinding)
+                    .toggleStyle(.checkbox)
+                    .hcbFont(.caption)
             }
-            .pickerStyle(.menu)
             if usesSeparateEndTimeZone {
-                Picker("End time zone", selection: endTimeZoneBinding) {
-                    ForEach(TimezoneSupport.pickerIdentifiers, id: \.self) { identifier in
-                        Text(TimezoneSupport.displayName(for: identifier)).tag(identifier)
-                    }
-                }
-                .pickerStyle(.menu)
-            } else {
-                Text("End time zone follows the start time zone.")
-                    .hcbFont(.caption2)
-                    .foregroundStyle(.secondary)
+                EventTimeZonePickerRow(title: "End time zone", selection: endTimeZoneBinding)
             }
         }
         .hcbScaledPadding(.top, 4)
@@ -1578,7 +1576,7 @@ struct AddEventSheet: View {
 
     private var repeatBlock: some View {
         sectionCard("Repeat") {
-            RecurrenceEditor(rule: $recurrenceRule)
+            RecurrenceEditor(rule: $recurrenceRule, startDate: startDate)
         }
     }
 
@@ -1780,12 +1778,14 @@ struct AddEventSheet: View {
             if let existing = editingEvent, existing.attendeeResponses.isEmpty == false {
                 AttendeeResponsesCard(responses: existing.attendeeResponses)
             } else {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 6) {
                     ForEach(attendees, id: \.self) { email in
-                        Label(email, systemImage: "person.crop.circle")
-                            .hcbFont(.subheadline)
-                            .foregroundStyle(AppColor.ink)
-                            .textSelection(.enabled)
+                        GuestParticipantRow(
+                            email: email,
+                            statusTitle: "Invited",
+                            statusSymbol: "paperplane",
+                            statusTint: .secondary
+                        )
                     }
                 }
             }
@@ -1833,9 +1833,9 @@ struct AddEventSheet: View {
 
     private var timeZoneSummary: String {
         if usesSeparateEndTimeZone, startTimeZoneID != endTimeZoneID {
-            return "\(TimezoneSupport.displayName(for: startTimeZoneID)) → \(TimezoneSupport.displayName(for: endTimeZoneID))"
+            return "\(TimezoneSupport.compactDisplayName(for: startTimeZoneID)) → \(TimezoneSupport.compactDisplayName(for: endTimeZoneID))"
         }
-        return TimezoneSupport.displayName(for: startTimeZoneID)
+        return TimezoneSupport.compactDisplayName(for: startTimeZoneID)
     }
 
     private var startTimeZoneBinding: Binding<String> {
@@ -2139,6 +2139,152 @@ struct AddEventSheet: View {
         isAllDay ? Calendar.current.startOfDay(for: endDate) : endDate
     }
 }
+
+struct EventDurationFormatter {
+    static func label(minutes rawMinutes: Int) -> String {
+        let minutes = max(1, rawMinutes)
+        if minutes < 60 {
+            return "\(minutes) min"
+        }
+
+        let hours = minutes / 60
+        let remainder = minutes % 60
+        if hours < 24 {
+            if remainder == 0 {
+                return "\(hours)h"
+            }
+            return "\(hours)h \(remainder)m"
+        }
+
+        let days = hours / 24
+        let dayHours = hours % 24
+        let dayPrefix = "\(days)d"
+        if dayHours == 0 && remainder == 0 {
+            return dayPrefix
+        }
+        if remainder == 0 {
+            return "\(dayPrefix) \(dayHours)h"
+        }
+        return "\(dayPrefix) \(dayHours)h \(remainder)m"
+    }
+}
+
+struct EventEndTimeOption: Hashable, Identifiable {
+    let durationMinutes: Int
+    let endDate: Date
+    let timeTitle: String
+    let durationTitle: String
+
+    var id: Int { durationMinutes }
+
+    static let standardDurationMinutes: [Int] = Array(stride(from: 15, through: 240, by: 15)) + [
+        270,
+        300,
+        360,
+        420,
+        480
+    ]
+
+    static func options(
+        startDate: Date,
+        currentEndDate: Date,
+        timeZoneID: String,
+        calendar: Calendar = .current
+    ) -> [EventEndTimeOption] {
+        var durations = Set(standardDurationMinutes)
+        let currentDuration = Int((currentEndDate.timeIntervalSince(startDate) / 60).rounded())
+        if currentDuration > 0 {
+            durations.insert(currentDuration)
+        }
+
+        return durations
+            .sorted()
+            .map { duration in
+                let endDate = startDate.addingTimeInterval(TimeInterval(duration * 60))
+                return EventEndTimeOption(
+                    durationMinutes: duration,
+                    endDate: endDate,
+                    timeTitle: timeTitle(for: endDate, startDate: startDate, timeZoneID: timeZoneID, calendar: calendar),
+                    durationTitle: EventDurationFormatter.label(minutes: duration)
+                )
+            }
+    }
+
+    private static func timeTitle(
+        for endDate: Date,
+        startDate: Date,
+        timeZoneID: String,
+        calendar: Calendar
+    ) -> String {
+        let timeZone = TimezoneSupport.timeZone(for: timeZoneID)
+        var scopedCalendar = calendar
+        scopedCalendar.timeZone = timeZone
+
+        let formatter = DateFormatter()
+        formatter.timeZone = timeZone
+        formatter.locale = .current
+        if scopedCalendar.isDate(startDate, inSameDayAs: endDate) {
+            formatter.dateStyle = .none
+            formatter.timeStyle = .short
+        } else {
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
+        }
+        return formatter.string(from: endDate)
+    }
+}
+
+struct EventEndTimePickerMenu: View {
+    let startDate: Date
+    @Binding var endDate: Date
+    let timeZoneID: String
+
+    private var options: [EventEndTimeOption] {
+        EventEndTimeOption.options(
+            startDate: startDate,
+            currentEndDate: endDate,
+            timeZoneID: timeZoneID
+        )
+    }
+
+    var body: some View {
+        Menu {
+            ForEach(options) { option in
+                Button("\(option.timeTitle) · \(option.durationTitle)") {
+                    endDate = option.endDate
+                }
+            }
+        } label: {
+            Label("End time options", systemImage: "clock")
+                .labelStyle(.iconOnly)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Choose an end time by duration")
+        .accessibilityLabel("End time options")
+        .accessibilityHint("Shows common end times in fifteen minute increments")
+    }
+}
+
+struct EventTimeZonePickerRow: View {
+    let title: String
+    @Binding var selection: String
+
+    var body: some View {
+        Picker(selection: $selection) {
+            ForEach(TimezoneSupport.pickerIdentifiers, id: \.self) { identifier in
+                Text(TimezoneSupport.compactDisplayName(for: identifier))
+                    .tag(identifier)
+            }
+        } label: {
+            Label(title, systemImage: "globe")
+                .labelStyle(.titleAndIcon)
+        }
+        .pickerStyle(.menu)
+        .accessibilityLabel(title)
+    }
+}
+
 enum EventReminderOption: Hashable, Identifiable {
     case useDefault
     case preset(Int) // minutes
@@ -2424,24 +2570,13 @@ struct AttendeeResponsesCard: View {
                 .hcbFont(.caption, weight: .bold)
                 .foregroundStyle(.secondary)
             ForEach(responses, id: \.email) { attendee in
-                HStack(spacing: 10) {
-                    Image(systemName: attendee.responseStatus.symbol)
-                        .foregroundStyle(tint(for: attendee.responseStatus))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(attendee.displayName ?? attendee.email)
-                            .hcbFont(.subheadline)
-                            .foregroundStyle(AppColor.ink)
-                        if attendee.displayName != nil {
-                            Text(attendee.email)
-                                .hcbFont(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    Spacer(minLength: 8)
-                    Text(attendee.responseStatus.displayTitle)
-                        .hcbFont(.caption, weight: .medium)
-                        .foregroundStyle(tint(for: attendee.responseStatus))
-                }
+                GuestParticipantRow(
+                    email: attendee.email,
+                    displayName: attendee.displayName,
+                    statusTitle: attendee.responseStatus.displayTitle,
+                    statusSymbol: attendee.responseStatus.symbol,
+                    statusTint: tint(for: attendee.responseStatus)
+                )
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
