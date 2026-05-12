@@ -418,6 +418,9 @@ struct AppSettings: Hashable, Codable, Sendable {
     var eventTemplates: [EventTemplate]
     var customCompletionSounds: [CompletionSoundAsset]
     var menuBarStyle: MenuBarStyle
+    var menuBarAdaptiveStatusSource: MenuBarAdaptiveStatusSource
+    var menuBarAdaptiveEmptyBehavior: MenuBarAdaptiveEmptyBehavior
+    var menuBarAdaptivePanelContent: MenuBarAdaptivePanelContent
     var uiLayoutScale: Double // 0.80–1.50, geometric scale of UI chrome only (not text)
     var uiTextSizePoints: Double // literal body-text point size (9–24), drives every semantic style
     var uiFontName: String? // PostScript name, nil for system
@@ -526,6 +529,9 @@ struct AppSettings: Hashable, Codable, Sendable {
         eventTemplates: [EventTemplate] = [],
         customCompletionSounds: [CompletionSoundAsset] = [],
         menuBarStyle: MenuBarStyle = .compact,
+        menuBarAdaptiveStatusSource: MenuBarAdaptiveStatusSource = .events,
+        menuBarAdaptiveEmptyBehavior: MenuBarAdaptiveEmptyBehavior = .iconOnly,
+        menuBarAdaptivePanelContent: MenuBarAdaptivePanelContent = .events,
         uiLayoutScale: Double = 1.0,
         uiTextSizePoints: Double = 13.0,
         uiFontName: String? = nil,
@@ -605,6 +611,9 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.eventTemplates = eventTemplates
         self.customCompletionSounds = customCompletionSounds
         self.menuBarStyle = menuBarStyle
+        self.menuBarAdaptiveStatusSource = menuBarAdaptiveStatusSource
+        self.menuBarAdaptiveEmptyBehavior = menuBarAdaptiveEmptyBehavior
+        self.menuBarAdaptivePanelContent = menuBarAdaptivePanelContent
         self.uiLayoutScale = uiLayoutScale
         self.uiTextSizePoints = uiTextSizePoints
         self.uiFontName = uiFontName
@@ -687,6 +696,9 @@ struct AppSettings: Hashable, Codable, Sendable {
         case eventTemplates
         case customCompletionSounds
         case menuBarStyle
+        case menuBarAdaptiveStatusSource
+        case menuBarAdaptiveEmptyBehavior
+        case menuBarAdaptivePanelContent
         case uiLayoutScale
         case uiTextSizePoints
         case uiFontName
@@ -789,6 +801,9 @@ struct AppSettings: Hashable, Codable, Sendable {
             // Migrate legacy showDetailedMenuBar bool into the new style enum
             menuBarStyle = showDetailedMenuBar ? .detailed : .compact
         }
+        menuBarAdaptiveStatusSource = try container.decodeIfPresent(MenuBarAdaptiveStatusSource.self, forKey: .menuBarAdaptiveStatusSource) ?? .events
+        menuBarAdaptiveEmptyBehavior = try container.decodeIfPresent(MenuBarAdaptiveEmptyBehavior.self, forKey: .menuBarAdaptiveEmptyBehavior) ?? .iconOnly
+        menuBarAdaptivePanelContent = try container.decodeIfPresent(MenuBarAdaptivePanelContent.self, forKey: .menuBarAdaptivePanelContent) ?? .events
         uiLayoutScale = try container.decodeIfPresent(Double.self, forKey: .uiLayoutScale) ?? 1.0
         if let points = try container.decodeIfPresent(Double.self, forKey: .uiTextSizePoints) {
             uiTextSizePoints = points
@@ -875,12 +890,14 @@ struct AppSettings: Hashable, Codable, Sendable {
     }
 
     enum MenuBarStyle: String, Codable, Hashable, Sendable, CaseIterable {
+        case adaptive
         case compact
         case detailed
         case weekly
 
         var title: String {
             switch self {
+            case .adaptive: "Adaptive"
             case .compact: "Compact"
             case .detailed: "Calendar"
             case .weekly: "Week-at-a-glance"
@@ -893,6 +910,48 @@ struct AppSettings: Hashable, Codable, Sendable {
                 .compact
             default:
                 MenuBarStyle(rawValue: rawValue)
+            }
+        }
+    }
+
+    enum MenuBarAdaptiveStatusSource: String, Codable, Hashable, Sendable, CaseIterable {
+        case events
+        case tasks
+        case eventsAndTasks
+
+        var title: String {
+            switch self {
+            case .events: "Events"
+            case .tasks: "Tasks"
+            case .eventsAndTasks: "Events + Tasks"
+            }
+        }
+    }
+
+    enum MenuBarAdaptiveEmptyBehavior: String, Codable, Hashable, Sendable, CaseIterable {
+        case iconOnly
+        case clear
+        case nextCommitment
+
+        var title: String {
+            switch self {
+            case .iconOnly: "Icon only"
+            case .clear: "Clear"
+            case .nextCommitment: "Next commitment"
+            }
+        }
+    }
+
+    enum MenuBarAdaptivePanelContent: String, Codable, Hashable, Sendable, CaseIterable {
+        case events
+        case tasks
+        case eventsAndTasks
+
+        var title: String {
+            switch self {
+            case .events: "Events only"
+            case .tasks: "Tasks only"
+            case .eventsAndTasks: "Events + Tasks"
             }
         }
     }

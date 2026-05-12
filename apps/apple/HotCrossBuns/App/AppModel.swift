@@ -2673,6 +2673,9 @@ final class AppModel {
             current.perSurfaceFontOverrides != next.perSurfaceFontOverrides,
             current.sidebarPlacement != next.sidebarPlacement,
             current.menuBarStyle != next.menuBarStyle,
+            current.menuBarAdaptiveStatusSource != next.menuBarAdaptiveStatusSource,
+            current.menuBarAdaptiveEmptyBehavior != next.menuBarAdaptiveEmptyBehavior,
+            current.menuBarAdaptivePanelContent != next.menuBarAdaptivePanelContent,
             current.menuBarIcon != next.menuBarIcon,
             current.showMenuBarExtra != next.showMenuBarExtra,
             current.showMenuBarBadge != next.showMenuBarBadge,
@@ -2723,6 +2726,9 @@ final class AppModel {
             summaries.append("Templates will change from \(current.taskTemplates.count + current.eventTemplates.count) to \(next.taskTemplates.count + next.eventTemplates.count).")
         }
         if current.menuBarStyle != next.menuBarStyle
+            || current.menuBarAdaptiveStatusSource != next.menuBarAdaptiveStatusSource
+            || current.menuBarAdaptiveEmptyBehavior != next.menuBarAdaptiveEmptyBehavior
+            || current.menuBarAdaptivePanelContent != next.menuBarAdaptivePanelContent
             || current.menuBarIcon != next.menuBarIcon
             || current.showMenuBarExtra != next.showMenuBarExtra
             || current.showMenuBarBadge != next.showMenuBarBadge
@@ -3432,6 +3438,24 @@ final class AppModel {
         settings.menuBarStyle = style
         // Keep legacy bool in sync so older reads don't misreport
         settings.showDetailedMenuBar = (style == .detailed)
+        scheduleCacheSave()
+    }
+
+    func setMenuBarAdaptiveStatusSource(_ source: AppSettings.MenuBarAdaptiveStatusSource) {
+        guard settings.menuBarAdaptiveStatusSource != source else { return }
+        settings.menuBarAdaptiveStatusSource = source
+        scheduleCacheSave()
+    }
+
+    func setMenuBarAdaptiveEmptyBehavior(_ behavior: AppSettings.MenuBarAdaptiveEmptyBehavior) {
+        guard settings.menuBarAdaptiveEmptyBehavior != behavior else { return }
+        settings.menuBarAdaptiveEmptyBehavior = behavior
+        scheduleCacheSave()
+    }
+
+    func setMenuBarAdaptivePanelContent(_ content: AppSettings.MenuBarAdaptivePanelContent) {
+        guard settings.menuBarAdaptivePanelContent != content else { return }
+        settings.menuBarAdaptivePanelContent = content
         scheduleCacheSave()
     }
 
