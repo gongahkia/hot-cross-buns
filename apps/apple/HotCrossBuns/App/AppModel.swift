@@ -1396,7 +1396,13 @@ final class AppModel {
                 attendeeEmails: snap.attendeeEmails,
                 notifyGuests: false,
                 addGoogleMeet: false,
-                colorId: snap.colorId
+                colorId: snap.colorId,
+                startTimeZoneID: snap.startTimeZoneID,
+                endTimeZoneID: snap.endTimeZoneID,
+                transparency: snap.transparency,
+                visibility: snap.visibility,
+                hcbTaskID: snap.hcbTaskID,
+                availabilityHold: snap.availabilityHold
             )
         case .eventEdit(let priorSnap):
             guard let event = event(id: priorSnap.id) else { return }
@@ -1417,7 +1423,13 @@ final class AppModel {
                 attendeeEmails: priorSnap.attendeeEmails,
                 notifyGuests: false,
                 addGoogleMeet: false,
-                colorId: priorSnap.colorId
+                colorId: priorSnap.colorId,
+                startTimeZoneID: priorSnap.startTimeZoneID,
+                endTimeZoneID: priorSnap.endTimeZoneID,
+                transparency: priorSnap.transparency,
+                visibility: priorSnap.visibility,
+                hcbTaskID: priorSnap.hcbTaskID,
+                availabilityHold: priorSnap.availabilityHold
             )
         case .taskCreate(let snap):
             // undo create = delete the created task
@@ -1454,7 +1466,13 @@ final class AppModel {
                 attendeeEmails: snap.attendeeEmails,
                 notifyGuests: false,
                 addGoogleMeet: false,
-                colorId: snap.colorId
+                colorId: snap.colorId,
+                startTimeZoneID: snap.startTimeZoneID,
+                endTimeZoneID: snap.endTimeZoneID,
+                transparency: snap.transparency,
+                visibility: snap.visibility,
+                hcbTaskID: snap.hcbTaskID,
+                availabilityHold: snap.availabilityHold
             )
         case .clipboardOp, .bulkAction, .syncPulled, .taskRestore, .eventRestore:
             // not invertible from the short-TTL undo toast; history window handles these via snapshot copy
@@ -1542,7 +1560,12 @@ final class AppModel {
         colorId: String? = nil,
         startTimeZoneID: String? = nil,
         endTimeZoneID: String? = nil,
-        hcbTaskID: String? = nil
+        transparency: CalendarEventTransparency = .opaque,
+        visibility: CalendarEventVisibility = .defaultVisibility,
+        hcbTaskID: String? = nil,
+        availabilityHold: AvailabilityHoldMetadata? = nil,
+        replayImmediately: Bool = true,
+        recordUndoAction: Bool = true
     ) async -> Bool {
         guard requireAccount(mutationDescription: "creating events") else {
             return false
@@ -1588,12 +1611,17 @@ final class AppModel {
             colorId: colorId,
             startTimeZoneID: resolvedTimeZones.start,
             endTimeZoneID: resolvedTimeZones.end,
-            hcbTaskID: hcbTaskID
+            transparency: transparency,
+            visibility: visibility,
+            hcbTaskID: hcbTaskID,
+            availabilityHold: availabilityHold
         )
         upsert(optimisticEvent)
 
         guard settings.cloudSyncTargets.syncsEvents else {
-            recordUndo(.eventCreate(snapshot: optimisticEvent))
+            if recordUndoAction {
+                recordUndo(.eventCreate(snapshot: optimisticEvent))
+            }
             scheduleCacheSave()
             await synchronizeLocalNotifications()
             return true
@@ -1617,7 +1645,10 @@ final class AppModel {
                 colorId: colorId,
                 startTimeZoneID: resolvedTimeZones.start,
                 endTimeZoneID: resolvedTimeZones.end,
-                hcbTaskID: hcbTaskID
+                transparency: transparency,
+                visibility: visibility,
+                hcbTaskID: hcbTaskID,
+                availabilityHold: availabilityHold
             )
             let mutation = try PendingMutation.eventCreate(payload: payload)
             enqueuePendingMutation(mutation)
@@ -1628,8 +1659,12 @@ final class AppModel {
             return false
         }
 
-        recordUndo(.eventCreate(snapshot: optimisticEvent))
-        Task { await replayPendingMutations() }
+        if recordUndoAction {
+            recordUndo(.eventCreate(snapshot: optimisticEvent))
+        }
+        if replayImmediately {
+            Task { await replayPendingMutations() }
+        }
         return true
     }
 
@@ -1657,7 +1692,11 @@ final class AppModel {
         colorId: String? = nil,
         startTimeZoneID: String? = nil,
         endTimeZoneID: String? = nil,
-        hcbTaskID: String? = nil
+        transparency: CalendarEventTransparency? = nil,
+        visibility: CalendarEventVisibility? = nil,
+        hcbTaskID: String? = nil,
+        availabilityHold: AvailabilityHoldMetadata? = nil,
+        clearAvailabilityHoldMetadata: Bool = false
     ) async -> Bool {
         guard requireAccount(mutationDescription: "updating events") else {
             return false
@@ -1689,6 +1728,9 @@ final class AppModel {
             calendarID: calendarID,
             existingEvent: event
         )
+        let effectiveTransparency = transparency ?? event.transparency
+        let effectiveVisibility = visibility ?? event.visibility
+        let effectiveAvailabilityHold = clearAvailabilityHoldMetadata ? nil : (availabilityHold ?? event.availabilityHold)
 
         // Optimistic update for the in-place (single-occurrence, same-calendar)
         // case. Cross-calendar moves and series-wide edits need server round-
@@ -1709,7 +1751,10 @@ final class AppModel {
             localEvent.colorId = colorId
             localEvent.startTimeZoneID = resolvedTimeZones.start
             localEvent.endTimeZoneID = resolvedTimeZones.end
+            localEvent.transparency = effectiveTransparency
+            localEvent.visibility = effectiveVisibility
             localEvent.hcbTaskID = hcbTaskID ?? event.hcbTaskID
+            localEvent.availabilityHold = effectiveAvailabilityHold
             upsert(localEvent)
             scheduleCacheSave()
             await synchronizeLocalNotifications()
@@ -1731,6 +1776,11 @@ final class AppModel {
             optimistic.reminderMinutes = reminderMinutes.map { [$0] } ?? []
             optimistic.startTimeZoneID = resolvedTimeZones.start
             optimistic.endTimeZoneID = resolvedTimeZones.end
+            optimistic.colorId = colorId
+            optimistic.transparency = effectiveTransparency
+            optimistic.visibility = effectiveVisibility
+            optimistic.hcbTaskID = hcbTaskID ?? event.hcbTaskID
+            optimistic.availabilityHold = effectiveAvailabilityHold
             upsert(optimistic)
         }
 
@@ -1765,6 +1815,7 @@ final class AppModel {
             // treats an omitted field on PATCH as "leave as-is" for the outer
             // bag — but we pass a dict, so we need to echo it back ourselves).
             let effectiveHCBTaskID = hcbTaskID ?? event.hcbTaskID
+            let updateAvailabilityHold = clearAvailabilityHoldMetadata ? nil : (availabilityHold ?? event.availabilityHold)
 
             let updatedEvent = try await calendarClient.updateEvent(
                 calendarID: eventToUpdate.calendarID,
@@ -1784,6 +1835,10 @@ final class AppModel {
                 startTimeZoneID: resolvedTimeZones.start,
                 endTimeZoneID: resolvedTimeZones.end,
                 hcbTaskID: effectiveHCBTaskID,
+                transparency: effectiveTransparency,
+                visibility: effectiveVisibility,
+                availabilityHold: updateAvailabilityHold,
+                clearAvailabilityHoldMetadata: clearAvailabilityHoldMetadata,
                 ifMatch: scope == .allInSeries ? nil : eventToUpdate.etag
             )
             if calendarID != event.calendarID {
@@ -1814,7 +1869,11 @@ final class AppModel {
                 colorId: colorId,
                 startTimeZoneID: resolvedTimeZones.start,
                 endTimeZoneID: resolvedTimeZones.end,
-                hcbTaskID: hcbTaskID ?? event.hcbTaskID
+                hcbTaskID: hcbTaskID ?? event.hcbTaskID,
+                transparency: effectiveTransparency,
+                visibility: effectiveVisibility,
+                availabilityHold: effectiveAvailabilityHold,
+                clearAvailabilityHoldMetadata: clearAvailabilityHoldMetadata
             )
             if let mutation = try? PendingMutation.eventUpdate(payload: payload) {
                 enqueuePendingMutation(mutation)
@@ -2032,6 +2091,146 @@ final class AppModel {
             endMutation(error: error)
             return false
         }
+    }
+
+    func createAvailabilityHoldGroup(
+        title: String,
+        durationMinutes: Int,
+        slots: [AvailabilitySlot],
+        calendarID: CalendarListMirror.ID,
+        timeZoneID: String
+    ) async -> Bool {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedTitle = trimmedTitle.isEmpty ? "Meeting" : trimmedTitle
+        let sortedSlots = AvailabilitySlotResolver.normalized(slots)
+        guard sortedSlots.isEmpty == false else {
+            lastMutationError = "Select at least one available slot before creating holds."
+            return false
+        }
+        guard sortedSlots.count <= AvailabilityHoldLimits.maxSlotsPerGroup else {
+            lastMutationError = "Create up to \(AvailabilityHoldLimits.maxSlotsPerGroup) availability holds at a time."
+            return false
+        }
+
+        let groupID = UUID().uuidString
+        let createdAt = Date()
+        var createdCount = 0
+        for slot in sortedSlots {
+            let metadata = AvailabilityHoldMetadata(
+                groupID: groupID,
+                title: resolvedTitle,
+                durationMinutes: durationMinutes,
+                createdAt: createdAt
+            )
+            let didCreate = await createEvent(
+                summary: "Hold: \(resolvedTitle)",
+                details: AvailabilitySnippetFormatter.holdDetails(
+                    title: resolvedTitle,
+                    durationMinutes: durationMinutes,
+                    timeZoneID: timeZoneID,
+                    slot: slot
+                ),
+                startDate: slot.startDate,
+                endDate: slot.endDate,
+                isAllDay: false,
+                reminderMinutes: nil,
+                calendarID: calendarID,
+                notifyGuests: false,
+                startTimeZoneID: timeZoneID,
+                endTimeZoneID: timeZoneID,
+                transparency: .opaque,
+                visibility: .privateVisibility,
+                availabilityHold: metadata,
+                replayImmediately: false,
+                recordUndoAction: false
+            )
+            guard didCreate else {
+                if createdCount > 0 {
+                    lastMutationError = "Created \(createdCount) of \(sortedSlots.count) holds. Review pending holds before sharing."
+                    if settings.cloudSyncTargets.syncsEvents {
+                        Task { await replayPendingMutations() }
+                    }
+                }
+                return false
+            }
+            createdCount += 1
+        }
+
+        if settings.cloudSyncTargets.syncsEvents {
+            Task { await replayPendingMutations() }
+        }
+
+        return true
+    }
+
+    func confirmAvailabilityHold(_ hold: CalendarEventMirror) async -> Bool {
+        guard let metadata = hold.availabilityHold else {
+            lastMutationError = "This calendar event is not an availability hold."
+            return false
+        }
+
+        let didConfirm = await updateEvent(
+            hold,
+            summary: metadata.title,
+            details: "",
+            startDate: hold.startDate,
+            endDate: hold.endDate,
+            isAllDay: false,
+            reminderMinutes: hold.reminderMinutes.first,
+            calendarID: hold.calendarID,
+            location: hold.location,
+            recurrence: [],
+            attendeeEmails: [],
+            notifyGuests: false,
+            addGoogleMeet: false,
+            colorId: hold.colorId,
+            startTimeZoneID: hold.startTimeZoneID,
+            endTimeZoneID: hold.endTimeZoneID,
+            transparency: .opaque,
+            visibility: .defaultVisibility,
+            hcbTaskID: hold.hcbTaskID,
+            clearAvailabilityHoldMetadata: true
+        )
+        guard didConfirm else { return false }
+
+        let siblings = availabilityHolds(groupID: metadata.groupID).filter { $0.id != hold.id }
+        var allSiblingsDeleted = true
+        for sibling in siblings {
+            let didDelete = await deleteEvent(sibling)
+            allSiblingsDeleted = allSiblingsDeleted && didDelete
+        }
+        if allSiblingsDeleted == false {
+            lastMutationError = "Confirmed the selected hold, but one or more alternate holds could not be removed."
+            return false
+        }
+        return true
+    }
+
+    @discardableResult
+    func cancelAvailabilityHoldGroup(groupID: String) async -> Bool {
+        let holds = availabilityHolds(groupID: groupID)
+        guard holds.isEmpty == false else {
+            lastMutationError = "No availability holds were found for this group."
+            return false
+        }
+        var allDeleted = true
+        for hold in holds {
+            let didDelete = await deleteEvent(hold)
+            allDeleted = allDeleted && didDelete
+        }
+        if allDeleted == false {
+            lastMutationError = "One or more availability holds could not be removed."
+        }
+        return allDeleted
+    }
+
+    func availabilityHolds(groupID: String) -> [CalendarEventMirror] {
+        events
+            .filter { event in
+                event.status != .cancelled
+                    && event.availabilityHold?.groupID == groupID
+            }
+            .sorted { lhs, rhs in lhs.startDate < rhs.startDate }
     }
 
     func updateSyncMode(_ mode: SyncMode) {
@@ -3789,6 +3988,10 @@ final class AppModel {
                     startTimeZoneID: payload.startTimeZoneID,
                     endTimeZoneID: payload.endTimeZoneID,
                     hcbTaskID: payload.hcbTaskID,
+                    transparency: payload.transparency,
+                    visibility: payload.visibility,
+                    availabilityHold: payload.availabilityHold,
+                    clearAvailabilityHoldMetadata: payload.clearAvailabilityHoldMetadata,
                     ifMatch: nil
                 )
                 upsert(updated)
@@ -4008,6 +4211,10 @@ final class AppModel {
                 startTimeZoneID: payload.startTimeZoneID,
                 endTimeZoneID: payload.endTimeZoneID,
                 hcbTaskID: payload.hcbTaskID,
+                transparency: payload.transparency,
+                visibility: payload.visibility,
+                availabilityHold: payload.availabilityHold,
+                clearAvailabilityHoldMetadata: payload.clearAvailabilityHoldMetadata,
                 ifMatch: payload.etagSnapshot
             )
             upsert(updated)
@@ -4085,7 +4292,10 @@ final class AppModel {
                 colorId: payload.colorId,
                 startTimeZoneID: payload.startTimeZoneID,
                 endTimeZoneID: payload.endTimeZoneID,
-                hcbTaskID: payload.hcbTaskID
+                transparency: payload.transparency,
+                visibility: payload.visibility,
+                hcbTaskID: payload.hcbTaskID,
+                availabilityHold: payload.availabilityHold
             )
             removeEvent(id: payload.localID)
             upsert(created)

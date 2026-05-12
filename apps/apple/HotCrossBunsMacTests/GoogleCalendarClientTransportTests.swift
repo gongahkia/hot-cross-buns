@@ -138,6 +138,57 @@ final class GoogleCalendarClientTransportTests: XCTestCase {
         XCTAssertEqual(page.events[1].details, "")
     }
 
+    func testListEventsMapsAvailabilityHoldMetadataVisibilityAndTransparency() async throws {
+        MockURLProtocol.requestHandler = { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let body = #"""
+            {
+              "items": [
+                {
+                  "id": "hold-1",
+                  "summary": "Hold: Design review",
+                  "status": "confirmed",
+                  "transparency": "opaque",
+                  "visibility": "private",
+                  "start": { "dateTime": "2026-05-01T09:00:00Z", "timeZone": "UTC" },
+                  "end": { "dateTime": "2026-05-01T09:45:00Z", "timeZone": "UTC" },
+                  "extendedProperties": {
+                    "private": {
+                      "hcbAvailabilityGroupID": "group-42",
+                      "hcbAvailabilityRole": "hold",
+                      "hcbAvailabilityTitle": "Design review",
+                      "hcbAvailabilityDuration": "45",
+                      "hcbAvailabilityCreatedAt": "2026-05-01T01:02:03.000Z"
+                    }
+                  }
+                }
+              ],
+              "nextSyncToken": "sync-next"
+            }
+            """#
+            return (response, Data(body.utf8))
+        }
+
+        let page = try await client.listEvents(calendarID: "primary", syncToken: nil)
+        let event = try XCTUnwrap(page.events.first)
+        let metadata = try XCTUnwrap(event.availabilityHold)
+        let expectedCreatedAt = try XCTUnwrap(ISO8601DateFormatter.google.date(from: "2026-05-01T01:02:03.000Z"))
+
+        XCTAssertEqual(event.visibility, .privateVisibility)
+        XCTAssertEqual(event.transparency, .opaque)
+        XCTAssertTrue(event.isAvailabilityHold)
+        XCTAssertEqual(metadata.groupID, "group-42")
+        XCTAssertEqual(metadata.title, "Design review")
+        XCTAssertEqual(metadata.durationMinutes, 45)
+        XCTAssertEqual(metadata.createdAt, expectedCreatedAt)
+    }
+
     func testListEventsUsesTimeMinForFullSync() async throws {
         let timeMin = Date(timeIntervalSince1970: 1_713_900_000)
         MockURLProtocol.requestHandler = { request in
@@ -266,6 +317,73 @@ final class GoogleCalendarClientTransportTests: XCTestCase {
         XCTAssertEqual(event.attendeeEmails, ["alice@example.com", "bob@example.com"])
     }
 
+    func testInsertAvailabilityHoldWritesPrivateOpaqueEventMetadata() async throws {
+        var capturedBody = ""
+        let createdAt = try XCTUnwrap(ISO8601DateFormatter.google.date(from: "2026-05-01T01:02:03.000Z"))
+        MockURLProtocol.requestHandler = { request in
+            capturedBody = Self.requestBodyString(from: request)
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let body = #"""
+            {
+              "id": "hold-1",
+              "summary": "Hold: Design review",
+              "status": "confirmed",
+              "transparency": "opaque",
+              "visibility": "private",
+              "start": { "dateTime": "2026-05-01T09:00:00Z", "timeZone": "UTC" },
+              "end": { "dateTime": "2026-05-01T09:45:00Z", "timeZone": "UTC" },
+              "extendedProperties": {
+                "private": {
+                  "hcbAvailabilityGroupID": "group-42",
+                  "hcbAvailabilityRole": "hold",
+                  "hcbAvailabilityTitle": "Design review",
+                  "hcbAvailabilityDuration": "45",
+                  "hcbAvailabilityCreatedAt": "2026-05-01T01:02:03.000Z"
+                }
+              }
+            }
+            """#
+            return (response, Data(body.utf8))
+        }
+
+        let start = Date(timeIntervalSince1970: 1_714_556_800)
+        let event = try await client.insertEvent(
+            calendarID: "primary",
+            summary: "Hold: Design review",
+            details: "Availability hold",
+            startDate: start,
+            endDate: start.addingTimeInterval(45 * 60),
+            isAllDay: false,
+            reminderMinutes: nil,
+            startTimeZoneID: "UTC",
+            endTimeZoneID: "UTC",
+            transparency: .opaque,
+            visibility: .privateVisibility,
+            availabilityHold: AvailabilityHoldMetadata(
+                groupID: "group-42",
+                title: "Design review",
+                durationMinutes: 45,
+                createdAt: createdAt
+            )
+        )
+
+        XCTAssertTrue(capturedBody.contains(#""transparency":"opaque""#))
+        XCTAssertTrue(capturedBody.contains(#""visibility":"private""#))
+        XCTAssertTrue(capturedBody.contains(#""hcbAvailabilityGroupID":"group-42""#))
+        XCTAssertTrue(capturedBody.contains(#""hcbAvailabilityRole":"hold""#))
+        XCTAssertTrue(capturedBody.contains(#""hcbAvailabilityTitle":"Design review""#))
+        XCTAssertTrue(capturedBody.contains(#""hcbAvailabilityDuration":"45""#))
+        XCTAssertTrue(capturedBody.contains(#""hcbAvailabilityCreatedAt":"2026-05-01T01:02:03.000Z""#))
+        XCTAssertEqual(event.availabilityHold?.groupID, "group-42")
+        XCTAssertEqual(event.visibility, .privateVisibility)
+        XCTAssertEqual(event.transparency, .opaque)
+    }
+
     func testUpdateEventSendsIfMatchAndOmitsNilOptionalFields() async throws {
         var capturedBody = ""
         MockURLProtocol.requestHandler = { request in
@@ -325,6 +443,59 @@ final class GoogleCalendarClientTransportTests: XCTestCase {
         XCTAssertFalse(capturedBody.contains(#""colorId""#))
         XCTAssertFalse(capturedBody.contains(#""extendedProperties""#))
         XCTAssertTrue(Self.body(capturedBody, containsJSONValue: "America/New_York"))
+    }
+
+    func testUpdateEventCanClearAvailabilityHoldMetadata() async throws {
+        var capturedBody = ""
+        MockURLProtocol.requestHandler = { request in
+            capturedBody = Self.requestBodyString(from: request)
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let body = #"""
+            {
+              "id": "hold-1",
+              "summary": "Design review",
+              "status": "confirmed",
+              "transparency": "opaque",
+              "visibility": "default",
+              "start": { "dateTime": "2026-05-01T09:00:00Z", "timeZone": "UTC" },
+              "end": { "dateTime": "2026-05-01T09:45:00Z", "timeZone": "UTC" },
+              "extendedProperties": { "private": {} }
+            }
+            """#
+            return (response, Data(body.utf8))
+        }
+
+        let start = Date(timeIntervalSince1970: 1_714_556_800)
+        let event = try await client.updateEvent(
+            calendarID: "primary",
+            eventID: "hold-1",
+            summary: "Design review",
+            details: "Confirmed",
+            startDate: start,
+            endDate: start.addingTimeInterval(45 * 60),
+            isAllDay: false,
+            reminderMinutes: nil,
+            startTimeZoneID: "UTC",
+            endTimeZoneID: "UTC",
+            transparency: .opaque,
+            visibility: .defaultVisibility,
+            clearAvailabilityHoldMetadata: true
+        )
+
+        XCTAssertTrue(capturedBody.contains(#""visibility":"default""#))
+        XCTAssertTrue(capturedBody.contains(#""transparency":"opaque""#))
+        XCTAssertTrue(capturedBody.contains(#""hcbAvailabilityGroupID":null"#))
+        XCTAssertTrue(capturedBody.contains(#""hcbAvailabilityRole":null"#))
+        XCTAssertTrue(capturedBody.contains(#""hcbAvailabilityTitle":null"#))
+        XCTAssertTrue(capturedBody.contains(#""hcbAvailabilityDuration":null"#))
+        XCTAssertTrue(capturedBody.contains(#""hcbAvailabilityCreatedAt":null"#))
+        XCTAssertNil(event.availabilityHold)
+        XCTAssertEqual(event.visibility, .defaultVisibility)
     }
 
     func testAllDayInsertOmitsTimezone() async throws {

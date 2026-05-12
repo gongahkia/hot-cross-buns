@@ -169,6 +169,7 @@ struct MacSidebarShell: View {
     @State private var settingsImportPreview: SettingsImportPreview?
     @State private var pendingSettingsImport: SettingsTransferBundle?
     @State private var isPresentingFeatureTour = false
+    @State private var isActionCenterPresented = false
     // Leader-key chord state (§6.9). `nil` = inactive; non-nil = collecting
     // keys after a ⌘K press. timeoutTask cancels the collecting state after
     // 3s of inactivity so a stray leader press doesn't lock out single-key
@@ -322,6 +323,21 @@ struct MacSidebarShell: View {
                     .transition(HCBMotion.transition(.move(edge: .bottom).combined(with: .opacity), reduceMotion: reduceMotion))
                 }
             }
+            .modifier(ActionCenterPresentationModifier(
+                snapshot: actionCenterSnapshot,
+                isPresented: $isActionCenterPresented,
+                reduceMotion: reduceMotion,
+                onOpenHold: openActionCenterHold,
+                onConfirmHold: confirmActionCenterHold,
+                onCancelHoldGroup: cancelActionCenterHoldGroup,
+                onOpenTask: openActionCenterTask,
+                onCompleteTask: completeActionCenterTask,
+                onSnoozeTask: snoozeActionCenterTask,
+                onOpenSyncIssues: openActionCenterSyncIssues,
+                onOpenSettings: openActionCenterSettings,
+                onRetrySync: retryActionCenterSync,
+                onDismissStatus: { model.clearFailureState() }
+            ))
             .loadingOverlay(model.loadingOverlay)
             .transaction { transaction in
                 if model.loadingOverlay != nil {
@@ -449,6 +465,74 @@ struct MacSidebarShell: View {
             model.pendingStoreFilterKey = "custom:\(f.id.uuidString)"
             model.markCustomFilterUsed(f.id)
         }
+    }
+
+    private var actionCenterSnapshot: ActionCenterSnapshot {
+        ActionCenterBuilder.build(
+            tasks: model.tasks,
+            events: model.events,
+            pendingMutations: model.pendingMutations,
+            notificationSummary: model.lastNotificationScheduleSummary,
+            authState: model.authState,
+            syncState: model.syncState,
+            isSyncPaused: model.isSyncPaused,
+            mutationError: model.lastMutationError,
+            syncFailureKind: model.syncFailureKind,
+            networkReachability: networkMonitor.reachability
+        )
+    }
+
+    private func openActionCenterHold(_ hold: CalendarEventMirror) {
+        selection = .calendar
+        tabRouter.router(for: sidebarItemKey(.calendar)).present(.editEvent(hold.id))
+        isActionCenterPresented = false
+    }
+
+    private func confirmActionCenterHold(_ hold: CalendarEventMirror) {
+        Task {
+            _ = await model.confirmAvailabilityHold(hold)
+        }
+    }
+
+    private func cancelActionCenterHoldGroup(_ group: ActionCenterHoldGroup) {
+        Task {
+            _ = await model.cancelAvailabilityHoldGroup(groupID: group.id)
+        }
+    }
+
+    private func openActionCenterTask(_ task: TaskMirror) {
+        let targetTab: SidebarItem = task.dueDate == nil ? .notes : .store
+        selection = targetTab
+        tabRouter.router(for: sidebarItemKey(targetTab)).present(.editTask(task.id))
+        isActionCenterPresented = false
+    }
+
+    private func completeActionCenterTask(_ task: TaskMirror) {
+        Task {
+            _ = await model.setTaskCompleted(true, task: task)
+        }
+    }
+
+    private func snoozeActionCenterTask(_ task: TaskMirror) {
+        Task {
+            let tomorrow = TaskSnoozeSupport.targetDate(daysFromToday: 1)
+            _ = await model.updateTask(task, title: task.title, notes: task.notes, dueDate: tomorrow)
+        }
+    }
+
+    private func openActionCenterSyncIssues() {
+        openWindow(id: "sync-issues")
+        isActionCenterPresented = false
+    }
+
+    private func openActionCenterSettings() {
+        openSettings()
+        isActionCenterPresented = false
+    }
+
+    private func retryActionCenterSync() {
+        model.resumeSync()
+        Task { await model.refreshNow() }
     }
 
     private func handleScenePhaseChange(_ newPhase: ScenePhase) {
@@ -1488,6 +1572,94 @@ private struct FeatureTourRow: View {
                 .frame(width: 22)
         }
         .labelStyle(.titleAndIcon)
+    }
+}
+
+private struct ActionCenterPresentationModifier: ViewModifier {
+    let snapshot: ActionCenterSnapshot
+    @Binding var isPresented: Bool
+    let reduceMotion: Bool
+    let onOpenHold: (CalendarEventMirror) -> Void
+    let onConfirmHold: (CalendarEventMirror) -> Void
+    let onCancelHoldGroup: (ActionCenterHoldGroup) -> Void
+    let onOpenTask: (TaskMirror) -> Void
+    let onCompleteTask: (TaskMirror) -> Void
+    let onSnoozeTask: (TaskMirror) -> Void
+    let onOpenSyncIssues: () -> Void
+    let onOpenSettings: () -> Void
+    let onRetrySync: () -> Void
+    let onDismissStatus: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    toolbarButton
+                }
+            }
+            .overlay(alignment: .trailing) {
+                drawerOverlay
+            }
+            .animation(HCBMotion.animation(.easeOut(duration: 0.16), reduceMotion: reduceMotion), value: isPresented)
+    }
+
+    private var toolbarButton: some View {
+        Button {
+            isPresented.toggle()
+        } label: {
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: snapshot.isEmpty ? "bell" : "bell.badge")
+                    .imageScale(.large)
+                if snapshot.actionableCount > 0 {
+                    Text(badgeText(snapshot.actionableCount))
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(AppColor.ember))
+                        .offset(x: 8, y: -8)
+                        .accessibilityHidden(true)
+                }
+            }
+            .frame(width: 24, height: 24)
+        }
+        .help(snapshot.actionableCount == 0 ? "Notifications" : "\(snapshot.actionableCount) notification\(snapshot.actionableCount == 1 ? "" : "s")")
+        .accessibilityLabel(snapshot.actionableCount == 0 ? "Notifications" : "Notifications, \(snapshot.actionableCount) items")
+    }
+
+    @ViewBuilder
+    private var drawerOverlay: some View {
+        if isPresented {
+            ZStack(alignment: .trailing) {
+                Color.black.opacity(0.001)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        isPresented = false
+                    }
+
+                ActionCenterDrawer(
+                    snapshot: snapshot,
+                    onClose: { isPresented = false },
+                    onOpenHold: onOpenHold,
+                    onConfirmHold: onConfirmHold,
+                    onCancelHoldGroup: onCancelHoldGroup,
+                    onOpenTask: onOpenTask,
+                    onCompleteTask: onCompleteTask,
+                    onSnoozeTask: onSnoozeTask,
+                    onOpenSyncIssues: onOpenSyncIssues,
+                    onOpenSettings: onOpenSettings,
+                    onRetrySync: onRetrySync,
+                    onDismissStatus: onDismissStatus
+                )
+                .transition(HCBMotion.transition(.move(edge: .trailing).combined(with: .opacity), reduceMotion: reduceMotion))
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+        }
+    }
+
+    private func badgeText(_ count: Int) -> String {
+        count > 99 ? "99+" : "\(count)"
     }
 }
 

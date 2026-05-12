@@ -52,4 +52,101 @@ struct CalendarDropComputerTests {
         let start = CalendarDropComputer.snappedStart(for: 200, hourHeight: 0, dayStart: dayStart, calendar: calendar)
         #expect(start == dayStart)
     }
+
+    @Test func normalizesAvailabilitySlotsBySortingAndDroppingDuplicatesOrInvalidRanges() {
+        let early = AvailabilitySlot(startDate: date(hour: 9), endDate: date(hour: 9, minute: 30))
+        let late = AvailabilitySlot(startDate: date(hour: 11), endDate: date(hour: 11, minute: 30))
+        let invalid = AvailabilitySlot(startDate: date(hour: 14), endDate: date(hour: 13))
+
+        let normalized = AvailabilitySlotResolver.normalized([late, invalid, early, early])
+
+        #expect(normalized == [early, late])
+    }
+
+    @Test func availabilityBlockingIgnoresTransparentCancelledAllDayAndUnselectedCalendarEvents() {
+        let slot = AvailabilitySlot(startDate: date(hour: 9), endDate: date(hour: 10))
+        let events = [
+            event(
+                id: "transparent",
+                startDate: date(hour: 9, minute: 15),
+                endDate: date(hour: 9, minute: 45),
+                transparency: .transparent
+            ),
+            event(
+                id: "cancelled",
+                startDate: date(hour: 9, minute: 15),
+                endDate: date(hour: 9, minute: 45),
+                status: .cancelled
+            ),
+            event(
+                id: "all-day",
+                startDate: dayStart,
+                endDate: calendar.date(byAdding: .day, value: 1, to: dayStart)!,
+                isAllDay: true
+            ),
+            event(
+                id: "other-calendar",
+                calendarID: "secondary",
+                startDate: date(hour: 9, minute: 15),
+                endDate: date(hour: 9, minute: 45)
+            ),
+            event(
+                id: "busy",
+                startDate: date(hour: 9, minute: 30),
+                endDate: date(hour: 10, minute: 30)
+            )
+        ]
+
+        let blocking = AvailabilitySlotResolver.blockingEvents(
+            for: slot,
+            events: events,
+            calendarIDs: ["primary"]
+        )
+
+        #expect(blocking.map(\.id) == ["busy"])
+    }
+
+    @Test func availabilitySlotOverlapTreatsTouchingBoundariesAsAvailable() {
+        let selected = [
+            AvailabilitySlot(startDate: date(hour: 9), endDate: date(hour: 10))
+        ]
+
+        #expect(AvailabilitySlotResolver.overlapsSelectedSlots(
+            AvailabilitySlot(startDate: date(hour: 9, minute: 30), endDate: date(hour: 10, minute: 30)),
+            selectedSlots: selected
+        ))
+        #expect(AvailabilitySlotResolver.overlapsSelectedSlots(
+            AvailabilitySlot(startDate: date(hour: 10), endDate: date(hour: 10, minute: 30)),
+            selectedSlots: selected
+        ) == false)
+    }
+
+    private func date(hour: Int, minute: Int = 0) -> Date {
+        calendar.date(byAdding: .minute, value: hour * 60 + minute, to: dayStart)!
+    }
+
+    private func event(
+        id: String,
+        calendarID: String = "primary",
+        startDate: Date,
+        endDate: Date,
+        isAllDay: Bool = false,
+        status: CalendarEventStatus = .confirmed,
+        transparency: CalendarEventTransparency = .opaque
+    ) -> CalendarEventMirror {
+        CalendarEventMirror(
+            id: id,
+            calendarID: calendarID,
+            summary: id,
+            details: "",
+            startDate: startDate,
+            endDate: endDate,
+            isAllDay: isAllDay,
+            status: status,
+            recurrence: [],
+            etag: nil,
+            updatedAt: nil,
+            transparency: transparency
+        )
+    }
 }
