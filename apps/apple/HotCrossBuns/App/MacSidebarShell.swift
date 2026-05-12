@@ -126,6 +126,7 @@ struct MacSidebarShell: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @SceneStorage("sidebarSelection") private var storedSelection: String = SidebarItem.calendar.rawValue
     @AppStorage(CalendarViewFilterState.storageKey) private var storedCalendarViewFilters: String = ""
+    @AppStorage("calendar.sidebarFilters.collapsed") private var calendarSidebarFiltersCollapsed = false
 
     private let layoutScaleMin: Double = 0.80
     private let layoutScaleMax: Double = 1.50
@@ -643,7 +644,7 @@ struct MacSidebarShell: View {
             List(selection: sidebarSelectionBinding) {
                 ForEach(visibleSidebarItems) { item in
                     sidebarRow(for: item)
-                    if item == .calendar, selection == .calendar, model.account != nil {
+                    if item == .calendar, shouldShowCalendarSidebarFilters {
                         CalendarSidebarFilters(state: calendarViewFilterStateBinding)
                             .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 6, trailing: 12))
                             .listRowSeparator(.hidden)
@@ -671,7 +672,7 @@ struct MacSidebarShell: View {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(visibleSidebarItems) { item in
                         verticalNavigationButton(for: item)
-                        if item == .calendar, selection == .calendar, model.account != nil {
+                        if item == .calendar, shouldShowCalendarSidebarFilters {
                             CalendarSidebarFilters(state: calendarViewFilterStateBinding)
                                 .hcbScaledPadding(.leading, 8)
                                 .hcbScaledPadding(.trailing, 4)
@@ -785,6 +786,9 @@ struct MacSidebarShell: View {
         .help(sidebarHelp(for: item))
         .accessibilityLabel(navigationAccessibilityLabel(for: item))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .contextMenu {
+            sidebarContextMenu(for: item)
+        }
     }
 
     private func navigationBadge(_ value: String, isSelected: Bool) -> some View {
@@ -850,6 +854,14 @@ struct MacSidebarShell: View {
             state: CalendarViewFilterState.decoded(from: storedCalendarViewFilters),
             colorTagBindings: model.settings.colorTagBindings
         )
+    }
+
+    private var shouldShowCalendarSidebarFilters: Bool {
+        selection == .calendar && model.account != nil && calendarSidebarFiltersCollapsed == false
+    }
+
+    private var hasWritableCalendars: Bool {
+        model.calendars.contains { $0.accessRole == "owner" || $0.accessRole == "writer" }
     }
 
     private var sidebarSelectionBinding: Binding<SidebarItem?> {
@@ -1351,6 +1363,40 @@ struct MacSidebarShell: View {
             }
         }
         .help(sidebarHelp(for: item))
+        .contextMenu {
+            sidebarContextMenu(for: item)
+        }
+    }
+
+    @ViewBuilder
+    private func sidebarContextMenu(for item: SidebarItem) -> some View {
+        if item == .calendar {
+            Button {
+                openShareAvailabilityFromSidebar()
+            } label: {
+                Label("Share Availability", systemImage: "calendar.badge.clock")
+            }
+            .disabled(model.account == nil || hasWritableCalendars == false)
+
+            Divider()
+
+            Button {
+                calendarSidebarFiltersCollapsed.toggle()
+            } label: {
+                Label(
+                    calendarSidebarFiltersCollapsed ? "Expand View Filters" : "Collapse View Filters",
+                    systemImage: calendarSidebarFiltersCollapsed ? "chevron.down" : "chevron.up"
+                )
+            }
+            .disabled(model.account == nil)
+        }
+    }
+
+    private func openShareAvailabilityFromSidebar() {
+        selection = .calendar
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: .hcbOpenShareAvailability, object: nil)
+        }
     }
 
     private func sidebarHelp(for item: SidebarItem) -> String {
