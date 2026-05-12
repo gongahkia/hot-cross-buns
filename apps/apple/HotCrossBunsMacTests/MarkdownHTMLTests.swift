@@ -134,4 +134,26 @@ final class MarkdownHTMLTests: XCTestCase {
         XCTAssertEqual(parsed.displayName, "brief.pdf")
         XCTAssertEqual(parsed.url.path, url.path)
     }
+
+    func testMarkdownEditorLinkUsesSelectedTextAsLabel() {
+        let result = MarkdownEditorTextMutation.link(
+            text: "Read docs today",
+            selection: NSRange(location: 5, length: 4)
+        )
+
+        XCTAssertEqual(result.text, "Read [docs](https://) today")
+        XCTAssertEqual(result.selection.location, 12)
+        XCTAssertEqual(result.selection.length, 8)
+    }
+
+    func testMarkdownEditorLinkInsertsAtCursorWhenSelectionIsEmpty() {
+        let result = MarkdownEditorTextMutation.link(
+            text: "Read ",
+            selection: NSRange(location: 5, length: 0)
+        )
+
+        XCTAssertEqual(result.text, "Read [text](https://)")
+        XCTAssertEqual(result.selection.location, 12)
+        XCTAssertEqual(result.selection.length, 8)
+    }
 }

@@ -211,6 +211,7 @@ struct MarkdownLiveEditor: NSViewRepresentable {
     var maxHeight: CGFloat
     var baseFont: NSFont
     var theme: MarkdownHighlightTheme
+    @Binding var selectedRange: NSRange
     var onFocusChange: ((Bool) -> Void)?
     var onPasteAttachments: (() -> Bool)?
 
@@ -294,15 +295,18 @@ struct MarkdownLiveEditor: NSViewRepresentable {
             .foregroundColor: theme.baseColor
         ]
         if tv.string != text {
-            let selection = tv.selectedRange()
+            context.coordinator.isApplyingViewUpdate = true
             tv.string = text
-            let len = (text as NSString).length
-            if selection.location <= len {
-                tv.setSelectedRange(NSRange(location: min(selection.location, len), length: 0))
-            }
+            context.coordinator.isApplyingViewUpdate = false
         }
         if let storage = tv.textStorage {
             MarkdownHighlighter.apply(to: storage, theme: theme)
+        }
+        let desiredSelection = MarkdownEditorTextMutation.clamped(selectedRange, textLength: (tv.string as NSString).length)
+        if NSEqualRanges(tv.selectedRange(), desiredSelection) == false {
+            context.coordinator.isApplyingViewUpdate = true
+            tv.setSelectedRange(desiredSelection)
+            context.coordinator.isApplyingViewUpdate = false
         }
         updatePlaceholderVisibility(coordinator: context.coordinator, isEmpty: text.isEmpty)
         if let placeholderLabel = context.coordinator.placeholderLabel {
@@ -337,6 +341,7 @@ struct MarkdownLiveEditor: NSViewRepresentable {
         var parent: MarkdownLiveEditor
         weak var placeholderLabel: NSTextField?
         private var isApplyingEmojiCompletion = false
+        var isApplyingViewUpdate = false
 
         init(_ parent: MarkdownLiveEditor) {
             self.parent = parent
@@ -344,10 +349,12 @@ struct MarkdownLiveEditor: NSViewRepresentable {
 
         func textDidChange(_ notification: Notification) {
             guard let tv = notification.object as? NSTextView else { return }
+            guard isApplyingViewUpdate == false else { return }
             let newString = tv.string
             if parent.text != newString {
                 parent.text = newString
             }
+            updateSelectedRange(from: tv)
             if let storage = tv.textStorage {
                 MarkdownHighlighter.apply(to: storage, theme: parent.theme)
             }
@@ -368,6 +375,12 @@ struct MarkdownLiveEditor: NSViewRepresentable {
 
         func textDidEndEditing(_ notification: Notification) {
             parent.onFocusChange?(false)
+        }
+
+        func textViewDidChangeSelection(_ notification: Notification) {
+            guard isApplyingViewUpdate == false else { return }
+            guard let tv = notification.object as? NSTextView else { return }
+            updateSelectedRange(from: tv)
         }
 
         func textView(
@@ -420,6 +433,12 @@ struct MarkdownLiveEditor: NSViewRepresentable {
                 guard EmojiShortcodeAutocomplete.completions(for: token.query).isEmpty == false else { return }
                 textView.complete(nil)
             }
+        }
+
+        private func updateSelectedRange(from textView: NSTextView) {
+            let range = textView.selectedRange()
+            guard NSEqualRanges(parent.selectedRange, range) == false else { return }
+            parent.selectedRange = range
         }
     }
 }
