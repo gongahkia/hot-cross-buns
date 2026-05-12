@@ -1576,7 +1576,7 @@ struct AddEventSheet: View {
 
     private var repeatBlock: some View {
         sectionCard("Repeat") {
-            RecurrenceEditor(rule: $recurrenceRule)
+            RecurrenceEditor(rule: $recurrenceRule, startDate: startDate)
         }
     }
 
