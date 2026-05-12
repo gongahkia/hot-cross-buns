@@ -538,9 +538,6 @@ struct QuickCreatePopover: View {
                 .labelsHidden()
                 .pickerStyle(.menu)
             }
-            Text("Travel Time and attachments sync through google.com but aren't exposed through the Google Calendar API — add them from the web UI after creating.")
-                .hcbFont(.caption2)
-                .foregroundStyle(.secondary)
         }
     }
 
