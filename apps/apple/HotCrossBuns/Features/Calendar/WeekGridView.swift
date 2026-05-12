@@ -12,6 +12,7 @@ struct WeekGridView: View {
     @Binding var anchorDate: Date
     var searchQuery: String = ""
     @Binding var selectedEventIDs: Set<String>
+    var availabilitySelection: AvailabilityGridSelection?
     // §7.01 Phase D2 — multi-day variant. When non-nil, renders N consecutive
     // days starting at `anchorDate` instead of the full calendar week. nil
     // preserves the classic 7-day week-aligned layout.
@@ -21,12 +22,14 @@ struct WeekGridView: View {
         anchorDate: Binding<Date>,
         searchQuery: String = "",
         selectedEventIDs: Binding<Set<String>> = .constant([]),
-        multiDayCount: Int? = nil
+        multiDayCount: Int? = nil,
+        availabilitySelection: AvailabilityGridSelection? = nil
     ) {
         _anchorDate = anchorDate
         self.searchQuery = searchQuery
         _selectedEventIDs = selectedEventIDs
         self.multiDayCount = multiDayCount
+        self.availabilitySelection = availabilitySelection
     }
 
     private let hourHeight: CGFloat = 44
@@ -457,6 +460,18 @@ struct WeekGridView: View {
                         .onEnded { _ in
                             guard let drag = timedDrag else { return }
                             timedDrag = nil
+                            if let availabilitySelection {
+                                guard drag.startColumn == drag.endColumn else {
+                                    availabilitySelection.onReject("Drag within one day to select an availability slot.")
+                                    return
+                                }
+                                guard let (start, end) = resolveTimedDrag(drag) else { return }
+                                selectAvailabilitySlot(
+                                    AvailabilitySlot(startDate: start, endDate: end),
+                                    using: availabilitySelection
+                                )
+                                return
+                            }
                             guard let (start, end) = resolveTimedDrag(drag) else { return }
                             capturedRouter?.present(.quickCreateRange(start, end, allDay: false))
                         }
@@ -605,6 +620,18 @@ struct WeekGridView: View {
                 dayStart: startOfDay,
                 calendar: calendar,
                 onTap: { start in
+                    if let availabilitySelection {
+                        let end = calendar.date(
+                            byAdding: .minute,
+                            value: max(15, availabilitySelection.defaultDurationMinutes),
+                            to: start
+                        ) ?? start.addingTimeInterval(1800)
+                        selectAvailabilitySlot(
+                            AvailabilitySlot(startDate: start, endDate: end),
+                            using: availabilitySelection
+                        )
+                        return
+                    }
                     flashTimedStart(start)
                     capturedRouter?.present(.quickCreate(start, allDay: false))
                 }
@@ -623,6 +650,11 @@ struct WeekGridView: View {
                 }
                 return true
             }
+            availabilitySlotOverlays(
+                dayStart: startOfDay,
+                dayEnd: endOfDay,
+                columnWidth: width
+            )
             ForEach(Array(laidOutEvents.enumerated()), id: \.offset) { _, placed in
                 eventTile(
                     placed: placed,
@@ -681,6 +713,49 @@ struct WeekGridView: View {
                         }
                 )
         }
+    }
+
+    @ViewBuilder
+    private func availabilitySlotOverlays(
+        dayStart: Date,
+        dayEnd: Date,
+        columnWidth: CGFloat
+    ) -> some View {
+        if let availabilitySelection {
+            ForEach(availabilitySelection.slots.filter { $0.startDate < dayEnd && $0.endDate > dayStart }) { slot in
+                let clampedStart = max(slot.startDate, dayStart)
+                let clampedEnd = min(slot.endDate, dayEnd)
+                let startMinutes = clampedStart.timeIntervalSince(dayStart) / 60
+                let durationMinutes = max(clampedEnd.timeIntervalSince(clampedStart) / 60, 15)
+                let yOffset = CGFloat(startMinutes) * (hourHeight / 60)
+                let height = CGFloat(durationMinutes) * (hourHeight / 60)
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(AppColor.blue.opacity(0.18))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .strokeBorder(AppColor.blue.opacity(0.7), lineWidth: 1)
+                    )
+                    .frame(width: max(columnWidth - 8, 20), height: max(height - 2, 12))
+                    .offset(x: 4, y: yOffset)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    private func selectAvailabilitySlot(
+        _ slot: AvailabilitySlot,
+        using selection: AvailabilityGridSelection
+    ) {
+        if AvailabilitySlotResolver.overlapsSelectedSlots(slot, selectedSlots: selection.slots) {
+            selection.onReject("That slot overlaps another selected slot.")
+            return
+        }
+        guard selection.isSlotAvailable(slot) else {
+            selection.onReject("That slot overlaps a blocking event.")
+            return
+        }
+        selection.onSelect(slot)
     }
 
     private func scheduleTaskAsEvent(_ dropped: DraggedTask, dropY: CGFloat, dayStart: Date) async {

@@ -9,6 +9,7 @@ struct DayGridView: View {
     @Environment(\.calendarEventViewFilter) private var calendarEventViewFilter
     @Binding var anchorDate: Date
     var searchQuery: String = ""
+    var availabilitySelection: AvailabilityGridSelection?
 
     private let hourHeight: CGFloat = 48
     private let hourStart = 0
@@ -153,6 +154,13 @@ struct DayGridView: View {
                                     )
                                     timedDrag = nil
                                     let adjustedEnd = end <= start ? start.addingTimeInterval(1800) : end
+                                    if let availabilitySelection {
+                                        selectAvailabilitySlot(
+                                            AvailabilitySlot(startDate: start, endDate: adjustedEnd),
+                                            using: availabilitySelection
+                                        )
+                                        return
+                                    }
                                     capturedRouter?.present(.quickCreateRange(start, adjustedEnd, allDay: false))
                                 }
                         )
@@ -166,6 +174,18 @@ struct DayGridView: View {
                                         dayStart: dayStart,
                                         calendar: calendar
                                     )
+                                    if let availabilitySelection {
+                                        let end = calendar.date(
+                                            byAdding: .minute,
+                                            value: max(15, availabilitySelection.defaultDurationMinutes),
+                                            to: start
+                                        ) ?? start.addingTimeInterval(1800)
+                                        selectAvailabilitySlot(
+                                            AvailabilitySlot(startDate: start, endDate: end),
+                                            using: availabilitySelection
+                                        )
+                                        return
+                                    }
                                     flashTimedStart(start)
                                     capturedRouter?.present(.quickCreate(start, allDay: false))
                                 }
@@ -188,9 +208,16 @@ struct DayGridView: View {
                         }
                         .animation(HCBMotion.animation(.easeOut(duration: 0.18), reduceMotion: calendarGridReduceMotion), value: flashTimedSlot)
                     GeometryReader { geo in
-                        ForEach(Array(snapshot.laidOutTimedEvents.enumerated()), id: \.offset) { _, placed in
-                            eventTile(placed, availableWidth: geo.size.width - 56, snapshot: snapshot)
-                                .opacity(snapshot.eventMetadataByID[placed.event.id]?.opacity ?? 1.0)
+                        ZStack(alignment: .topLeading) {
+                            availabilitySlotOverlays(
+                                dayStart: snapshot.dayStart,
+                                dayEnd: snapshot.dayEnd,
+                                availableWidth: geo.size.width
+                            )
+                            ForEach(Array(snapshot.laidOutTimedEvents.enumerated()), id: \.offset) { _, placed in
+                                eventTile(placed, availableWidth: geo.size.width - 56, snapshot: snapshot)
+                                    .opacity(snapshot.eventMetadataByID[placed.event.id]?.opacity ?? 1.0)
+                            }
                         }
                     }
                     .frame(height: CGFloat(hourEnd - hourStart) * hourHeight)
@@ -283,6 +310,49 @@ struct DayGridView: View {
         }
         .offset(x: 56 + xOffsetWithinDay, y: yOffset)
         .accessibilityLabel(snapshot.eventMetadataByID[event.id]?.accessibilityLabel ?? event.summary)
+    }
+
+    @ViewBuilder
+    private func availabilitySlotOverlays(
+        dayStart: Date,
+        dayEnd: Date,
+        availableWidth: CGFloat
+    ) -> some View {
+        if let availabilitySelection {
+            ForEach(availabilitySelection.slots.filter { $0.startDate < dayEnd && $0.endDate > dayStart }) { slot in
+                let clampedStart = max(slot.startDate, dayStart)
+                let clampedEnd = min(slot.endDate, dayEnd)
+                let startMinutes = clampedStart.timeIntervalSince(dayStart) / 60
+                let durationMinutes = max(clampedEnd.timeIntervalSince(clampedStart) / 60, 15)
+                let yOffset = CGFloat(startMinutes) * (hourHeight / 60)
+                let height = CGFloat(durationMinutes) * (hourHeight / 60)
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(AppColor.blue.opacity(0.18))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .strokeBorder(AppColor.blue.opacity(0.7), lineWidth: 1)
+                    )
+                    .frame(width: max(availableWidth - 64, 40), height: max(height - 2, 12))
+                    .offset(x: 56, y: yOffset)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    private func selectAvailabilitySlot(
+        _ slot: AvailabilitySlot,
+        using selection: AvailabilityGridSelection
+    ) {
+        if AvailabilitySlotResolver.overlapsSelectedSlots(slot, selectedSlots: selection.slots) {
+            selection.onReject("That slot overlaps another selected slot.")
+            return
+        }
+        guard selection.isSlotAvailable(slot) else {
+            selection.onReject("That slot overlaps a blocking event.")
+            return
+        }
+        selection.onSelect(slot)
     }
 
     private func currentTimeOffset() -> CGFloat? {
