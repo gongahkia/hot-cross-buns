@@ -58,15 +58,7 @@ struct CalendarHomeView: View {
         // the window used a borderless titlebar and the sidebar appeared to
         // start below the lights on Calendar but above them on Tasks/Notes.
         .toolbar {
-            ToolbarItemGroup {
-                Button {
-                    openShareAvailability()
-                } label: {
-                    Label("Share Availability", systemImage: "calendar.badge.clock")
-                }
-                .help("Share availability")
-                .disabled(model.account == nil || writableCalendars.isEmpty)
-
+            ToolbarItem {
                 Button {
                     router?.present(.quickCreate(Date(), allDay: true))
                 } label: {
@@ -75,6 +67,9 @@ struct CalendarHomeView: View {
                 .help("Open the quick-create popover to add an event or task")
                 .disabled(model.account == nil)
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .hcbOpenShareAvailability)) { _ in
+            openShareAvailability()
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             handleICSDrop(providers)
