@@ -1522,25 +1522,16 @@ struct AddEventSheet: View {
     }
 
     private var timeZoneControls: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Toggle("Use separate start and end time zones", isOn: separateTimeZoneBinding)
-            Picker("Start time zone", selection: startTimeZoneBinding) {
-                ForEach(TimezoneSupport.pickerIdentifiers, id: \.self) { identifier in
-                    Text(TimezoneSupport.displayName(for: identifier)).tag(identifier)
-                }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                EventTimeZonePickerRow(title: "Time zone", selection: startTimeZoneBinding)
+                Spacer(minLength: 8)
+                Toggle("Separate end", isOn: separateTimeZoneBinding)
+                    .toggleStyle(.checkbox)
+                    .hcbFont(.caption)
             }
-            .pickerStyle(.menu)
             if usesSeparateEndTimeZone {
-                Picker("End time zone", selection: endTimeZoneBinding) {
-                    ForEach(TimezoneSupport.pickerIdentifiers, id: \.self) { identifier in
-                        Text(TimezoneSupport.displayName(for: identifier)).tag(identifier)
-                    }
-                }
-                .pickerStyle(.menu)
-            } else {
-                Text("End time zone follows the start time zone.")
-                    .hcbFont(.caption2)
-                    .foregroundStyle(.secondary)
+                EventTimeZonePickerRow(title: "End time zone", selection: endTimeZoneBinding)
             }
         }
         .hcbScaledPadding(.top, 4)
@@ -1840,9 +1831,9 @@ struct AddEventSheet: View {
 
     private var timeZoneSummary: String {
         if usesSeparateEndTimeZone, startTimeZoneID != endTimeZoneID {
-            return "\(TimezoneSupport.displayName(for: startTimeZoneID)) → \(TimezoneSupport.displayName(for: endTimeZoneID))"
+            return "\(TimezoneSupport.compactDisplayName(for: startTimeZoneID)) → \(TimezoneSupport.compactDisplayName(for: endTimeZoneID))"
         }
-        return TimezoneSupport.displayName(for: startTimeZoneID)
+        return TimezoneSupport.compactDisplayName(for: startTimeZoneID)
     }
 
     private var startTimeZoneBinding: Binding<String> {
@@ -2270,6 +2261,25 @@ struct EventEndTimePickerMenu: View {
         .help("Choose an end time by duration")
         .accessibilityLabel("End time options")
         .accessibilityHint("Shows common end times in fifteen minute increments")
+    }
+}
+
+struct EventTimeZonePickerRow: View {
+    let title: String
+    @Binding var selection: String
+
+    var body: some View {
+        Picker(selection: $selection) {
+            ForEach(TimezoneSupport.pickerIdentifiers, id: \.self) { identifier in
+                Text(TimezoneSupport.compactDisplayName(for: identifier))
+                    .tag(identifier)
+            }
+        } label: {
+            Label(title, systemImage: "globe")
+                .labelStyle(.titleAndIcon)
+        }
+        .pickerStyle(.menu)
+        .accessibilityLabel(title)
     }
 }
 

@@ -61,6 +61,8 @@ struct QuickCreatePopover: View {
     @State private var isAllDay: Bool = false
     @State private var startDate: Date = Date()
     @State private var endDate: Date = Date()
+    @State private var eventTimeZoneID: String = TimezoneSupport.currentIdentifier
+    @State private var userManuallyPickedEventTimeZone: Bool = false
     @State private var eventColor: CalendarEventColor = .defaultColor
     @State private var isColorPickerPresented = false
     // Color-tag auto-apply bookkeeping. `autoAppliedTag` remembers the
@@ -180,6 +182,7 @@ struct QuickCreatePopover: View {
             // mode/hasDueDate/isAllDay/startDate/endDate/taskDueDate are seeded in init() to avoid a first-frame flash. Only model-dependent seeds run here.
             selectedListID = initialTaskListID ?? model.taskLists.first?.id
             selectedCalendarID = model.calendarSnapshot.selectedCalendars.first?.id ?? model.calendars.first?.id
+            applyDefaultEventTimeZoneIfNeeded()
             summaryFocused = true
             showOptionalFields = model.settings.quickCreateExpandedByDefault
         }
@@ -195,7 +198,11 @@ struct QuickCreatePopover: View {
             } else {
                 autoAppliedTaskListTag = nil
                 applyCalendarTagAutoSelection(title: summary)
+                applyDefaultEventTimeZoneIfNeeded()
             }
+        }
+        .onChange(of: selectedCalendarID) { _, _ in
+            applyDefaultEventTimeZoneIfNeeded()
         }
     }
 
@@ -491,6 +498,7 @@ struct QuickCreatePopover: View {
                 } else {
                     DatePicker("", selection: $startDate, displayedComponents: [.date, .hourAndMinute])
                         .labelsHidden()
+                        .environment(\.timeZone, eventTimeZone)
                 }
             }
             HStack {
@@ -504,12 +512,19 @@ struct QuickCreatePopover: View {
                     HStack(spacing: 6) {
                         DatePicker("", selection: $endDate, in: startDate..., displayedComponents: [.date, .hourAndMinute])
                             .labelsHidden()
+                            .environment(\.timeZone, eventTimeZone)
                         EventEndTimePickerMenu(
                             startDate: startDate,
                             endDate: $endDate,
-                            timeZoneID: TimezoneSupport.currentIdentifier
+                            timeZoneID: eventTimeZoneID
                         )
                     }
+                }
+            }
+            if isAllDay == false {
+                HStack {
+                    Spacer().frame(width: 90)
+                    EventTimeZonePickerRow(title: "Time zone", selection: eventTimeZoneBinding)
                 }
             }
             HStack {
@@ -911,6 +926,42 @@ struct QuickCreatePopover: View {
         model.calendars.first(where: { $0.id == selectedCalendarID })?.summary ?? "Calendar"
     }
 
+    private var eventTimeZone: TimeZone {
+        TimezoneSupport.timeZone(for: eventTimeZoneID)
+    }
+
+    private var eventTimeZoneBinding: Binding<String> {
+        Binding(
+            get: { eventTimeZoneID },
+            set: { newValue in
+                let normalized = TimezoneSupport.validatedIdentifier(newValue) ?? TimezoneSupport.currentIdentifier
+                let oldValue = eventTimeZoneID
+                guard normalized != oldValue else { return }
+                if isAllDay == false {
+                    startDate = TimezoneSupport.reinterpretingWallClock(startDate, from: oldValue, to: normalized)
+                    endDate = TimezoneSupport.reinterpretingWallClock(endDate, from: oldValue, to: normalized)
+                }
+                eventTimeZoneID = normalized
+                userManuallyPickedEventTimeZone = true
+            }
+        )
+    }
+
+    private func applyDefaultEventTimeZoneIfNeeded() {
+        guard mode == .event,
+              userManuallyPickedEventTimeZone == false
+        else { return }
+        let calendarTimeZoneID = selectedCalendarID
+            .flatMap { id in model.calendars.first(where: { $0.id == id })?.timeZoneID }
+        let resolved = TimezoneSupport.validatedIdentifier(calendarTimeZoneID) ?? TimezoneSupport.currentIdentifier
+        let oldValue = eventTimeZoneID
+        if oldValue != resolved, isAllDay == false {
+            startDate = TimezoneSupport.reinterpretingWallClock(startDate, from: oldValue, to: resolved)
+            endDate = TimezoneSupport.reinterpretingWallClock(endDate, from: oldValue, to: resolved)
+        }
+        eventTimeZoneID = resolved
+    }
+
     private var canCreate: Bool {
         let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.isEmpty == false, isSaving == false else { return false }
@@ -951,7 +1002,9 @@ struct QuickCreatePopover: View {
                 attendeeEmails: attendees,
                 notifyGuests: false,
                 addGoogleMeet: addGoogleMeet,
-                colorId: eventColor.wireValue
+                colorId: eventColor.wireValue,
+                startTimeZoneID: eventTimeZoneID,
+                endTimeZoneID: eventTimeZoneID
             )
             if didCreate { dismiss() }
         case .task:
