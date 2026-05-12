@@ -86,6 +86,157 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
         XCTAssertEqual(AppSettings.MenuBarAdaptivePanelContent.eventsAndTasks.title, "Events + Tasks")
     }
 
+    func testAdaptiveStatusUsesCurrentEventTimeRemaining() {
+        let calendar = adaptiveCalendar()
+        let now = adaptiveDate(hour: 10, minute: 10, calendar: calendar)
+        let current = adaptiveEvent(
+            id: "current-event",
+            summary: "Deep Work",
+            start: adaptiveDate(hour: 10, calendar: calendar),
+            end: adaptiveDate(hour: 11, calendar: calendar)
+        )
+        let next = adaptiveEvent(
+            id: "next-event",
+            summary: "Design Review",
+            start: adaptiveDate(hour: 10, minute: 30, calendar: calendar),
+            end: adaptiveDate(hour: 11, minute: 30, calendar: calendar)
+        )
+
+        let status = MenuBarAdaptiveStatusResolver.status(
+            now: now,
+            events: [next, current],
+            tasks: [],
+            source: .events,
+            emptyBehavior: .iconOnly,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(status.label, "Deep Work - 50m left")
+        XCTAssertEqual(status.kind, .currentEvent("current-event"))
+    }
+
+    func testAdaptiveStatusUsesNextEventCountdownWhenNoCurrentEvent() {
+        let calendar = adaptiveCalendar()
+        let now = adaptiveDate(hour: 10, minute: 10, calendar: calendar)
+        let cancelled = adaptiveEvent(
+            id: "cancelled",
+            summary: "Cancelled",
+            start: adaptiveDate(hour: 10, minute: 20, calendar: calendar),
+            end: adaptiveDate(hour: 11, calendar: calendar),
+            status: .cancelled
+        )
+        let next = adaptiveEvent(
+            id: "next-event",
+            summary: "Design Review",
+            start: adaptiveDate(hour: 10, minute: 30, calendar: calendar),
+            end: adaptiveDate(hour: 11, calendar: calendar)
+        )
+
+        let status = MenuBarAdaptiveStatusResolver.status(
+            now: now,
+            events: [cancelled, next],
+            tasks: [],
+            source: .events,
+            emptyBehavior: .iconOnly,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(status.label, "Design Review - in 20m")
+        XCTAssertEqual(status.kind, .nextEvent("next-event"))
+    }
+
+    func testAdaptiveStatusSupportsIconOnlyAndClearEmptyStates() {
+        let calendar = adaptiveCalendar()
+        let now = adaptiveDate(hour: 10, calendar: calendar)
+
+        let iconOnly = MenuBarAdaptiveStatusResolver.status(
+            now: now,
+            events: [],
+            tasks: [],
+            source: .events,
+            emptyBehavior: .iconOnly,
+            calendar: calendar
+        )
+        let clear = MenuBarAdaptiveStatusResolver.status(
+            now: now,
+            events: [],
+            tasks: [],
+            source: .events,
+            emptyBehavior: .clear,
+            calendar: calendar
+        )
+
+        XCTAssertNil(iconOnly.label)
+        XCTAssertEqual(iconOnly.kind, .iconOnly)
+        XCTAssertEqual(clear.label, "Clear")
+        XCTAssertEqual(clear.kind, .clear)
+    }
+
+    func testAdaptiveStatusUsesOnlyDatedOpenTasks() {
+        let calendar = adaptiveCalendar()
+        let now = adaptiveDate(hour: 10, calendar: calendar)
+        let dueToday = adaptiveTask(id: "due", title: "Submit invoice", due: adaptiveDate(hour: 0, calendar: calendar))
+        let completed = adaptiveTask(
+            id: "completed",
+            title: "Completed",
+            due: adaptiveDate(day: 9, hour: 0, calendar: calendar),
+            status: .completed
+        )
+        let hidden = adaptiveTask(
+            id: "hidden",
+            title: "Hidden",
+            due: adaptiveDate(day: 9, hour: 0, calendar: calendar),
+            isHidden: true
+        )
+        let deleted = adaptiveTask(
+            id: "deleted",
+            title: "Deleted",
+            due: adaptiveDate(day: 9, hour: 0, calendar: calendar),
+            isDeleted: true
+        )
+        let undated = adaptiveTask(id: "undated", title: "Undated", due: nil)
+
+        let status = MenuBarAdaptiveStatusResolver.status(
+            now: now,
+            events: [],
+            tasks: [completed, hidden, deleted, undated, dueToday],
+            source: .tasks,
+            emptyBehavior: .iconOnly,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(status.label, "Submit invoice - due today")
+        XCTAssertEqual(status.kind, .task("due"))
+    }
+
+    func testAdaptiveStatusCanFallbackToNextCommitmentAcrossSources() {
+        let calendar = adaptiveCalendar()
+        let now = adaptiveDate(hour: 10, calendar: calendar)
+        let tomorrowTask = adaptiveTask(id: "tomorrow", title: "Prepare notes", due: adaptiveDate(day: 11, hour: 0, calendar: calendar))
+
+        let status = MenuBarAdaptiveStatusResolver.status(
+            now: now,
+            events: [],
+            tasks: [tomorrowTask],
+            source: .events,
+            emptyBehavior: .nextCommitment,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(status.label, "Prepare notes - due tomorrow")
+        XCTAssertEqual(status.kind, .task("tomorrow"))
+    }
+
+    func testAdaptiveDurationTextRoundsMinuteBoundariesUp() {
+        let start = Date(timeIntervalSince1970: 0)
+
+        XCTAssertEqual(MenuBarAdaptiveStatusResolver.durationText(from: start, to: start.addingTimeInterval(1)), "1m")
+        XCTAssertEqual(MenuBarAdaptiveStatusResolver.durationText(from: start, to: start.addingTimeInterval(60)), "1m")
+        XCTAssertEqual(MenuBarAdaptiveStatusResolver.durationText(from: start, to: start.addingTimeInterval(61)), "2m")
+        XCTAssertEqual(MenuBarAdaptiveStatusResolver.durationText(from: start, to: start.addingTimeInterval(60 * 60)), "1h")
+        XCTAssertEqual(MenuBarAdaptiveStatusResolver.durationText(from: start, to: start.addingTimeInterval(60 * 60 + 1)), "1h 1m")
+    }
+
     func testNavigationSurfacePlacementMetadataAndUnknownDecodeFallback() throws {
         XCTAssertEqual(NavigationSurfacePlacement.allCases.map(\.rawValue), ["left", "right", "top", "bottom"])
         XCTAssertEqual(NavigationSurfacePlacement.right.title, "Right")
@@ -253,6 +404,77 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
             lastErrorSummary: lastErrorSummary,
             quarantinedAt: quarantinedAt,
             conflictedAt: conflictedAt
+        )
+    }
+
+    private func adaptiveCalendar() -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }
+
+    private func adaptiveDate(
+        day: Int = 10,
+        hour: Int,
+        minute: Int = 0,
+        calendar: Calendar
+    ) -> Date {
+        var components = DateComponents()
+        components.calendar = calendar
+        components.timeZone = calendar.timeZone
+        components.year = 2026
+        components.month = 5
+        components.day = day
+        components.hour = hour
+        components.minute = minute
+        return calendar.date(from: components)!
+    }
+
+    private func adaptiveEvent(
+        id: String,
+        summary: String,
+        start: Date,
+        end: Date,
+        isAllDay: Bool = false,
+        status: CalendarEventStatus = .confirmed
+    ) -> CalendarEventMirror {
+        CalendarEventMirror(
+            id: id,
+            calendarID: "primary",
+            summary: summary,
+            details: "",
+            startDate: start,
+            endDate: end,
+            isAllDay: isAllDay,
+            status: status,
+            recurrence: [],
+            etag: nil,
+            updatedAt: nil
+        )
+    }
+
+    private func adaptiveTask(
+        id: String,
+        title: String,
+        due: Date?,
+        status: TaskStatus = .needsAction,
+        isDeleted: Bool = false,
+        isHidden: Bool = false
+    ) -> TaskMirror {
+        TaskMirror(
+            id: id,
+            taskListID: "tasks",
+            parentID: nil,
+            title: title,
+            notes: "",
+            status: status,
+            dueDate: due,
+            completedAt: nil,
+            isDeleted: isDeleted,
+            isHidden: isHidden,
+            position: nil,
+            etag: nil,
+            updatedAt: nil
         )
     }
 }

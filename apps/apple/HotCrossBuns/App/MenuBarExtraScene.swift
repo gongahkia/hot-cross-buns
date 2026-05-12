@@ -664,6 +664,220 @@ struct MenuBarExtraContent: View {
     }
 }
 
+struct MenuBarAdaptiveStatus: Equatable {
+    enum Kind: Equatable {
+        case currentEvent(CalendarEventMirror.ID)
+        case nextEvent(CalendarEventMirror.ID)
+        case task(TaskMirror.ID)
+        case clear
+        case iconOnly
+    }
+
+    var label: String?
+    var accessibilityLabel: String
+    var kind: Kind
+    var sortDate: Date
+}
+
+enum MenuBarAdaptiveStatusResolver {
+    static func status(
+        now: Date,
+        events: [CalendarEventMirror],
+        tasks: [TaskMirror],
+        source: AppSettings.MenuBarAdaptiveStatusSource,
+        emptyBehavior: AppSettings.MenuBarAdaptiveEmptyBehavior,
+        calendar: Calendar = .current
+    ) -> MenuBarAdaptiveStatus {
+        if let primary = bestStatus(now: now, events: events, tasks: tasks, source: source, calendar: calendar) {
+            return primary
+        }
+
+        if emptyBehavior == .nextCommitment,
+           source != .eventsAndTasks,
+           let fallback = bestStatus(now: now, events: events, tasks: tasks, source: .eventsAndTasks, calendar: calendar)
+        {
+            return fallback
+        }
+
+        switch emptyBehavior {
+        case .iconOnly, .nextCommitment:
+            return MenuBarAdaptiveStatus(
+                label: nil,
+                accessibilityLabel: "Hot Cross Buns",
+                kind: .iconOnly,
+                sortDate: .distantFuture
+            )
+        case .clear:
+            return MenuBarAdaptiveStatus(
+                label: "Clear",
+                accessibilityLabel: "Hot Cross Buns, Clear",
+                kind: .clear,
+                sortDate: .distantFuture
+            )
+        }
+    }
+
+    static func durationText(from start: Date, to end: Date) -> String {
+        let seconds = max(0, end.timeIntervalSince(start))
+        let minutes = max(1, Int(ceil(seconds / 60)))
+        if minutes < 60 {
+            return "\(minutes)m"
+        }
+
+        let hours = minutes / 60
+        let remainingMinutes = minutes % 60
+        if hours < 24 {
+            return remainingMinutes == 0 ? "\(hours)h" : "\(hours)h \(remainingMinutes)m"
+        }
+
+        let days = hours / 24
+        let remainingHours = hours % 24
+        return remainingHours == 0 ? "\(days)d" : "\(days)d \(remainingHours)h"
+    }
+
+    private static func bestStatus(
+        now: Date,
+        events: [CalendarEventMirror],
+        tasks: [TaskMirror],
+        source: AppSettings.MenuBarAdaptiveStatusSource,
+        calendar: Calendar
+    ) -> MenuBarAdaptiveStatus? {
+        let eventStatus: MenuBarAdaptiveStatus?
+        switch source {
+        case .events, .eventsAndTasks:
+            eventStatus = bestEventStatus(now: now, events: events)
+        case .tasks:
+            eventStatus = nil
+        }
+
+        let taskStatus: MenuBarAdaptiveStatus?
+        switch source {
+        case .tasks, .eventsAndTasks:
+            taskStatus = bestTaskStatus(now: now, tasks: tasks, calendar: calendar)
+        case .events:
+            taskStatus = nil
+        }
+
+        if let eventStatus, case .currentEvent = eventStatus.kind {
+            return eventStatus
+        }
+
+        switch (eventStatus, taskStatus) {
+        case let (event?, task?):
+            return statusSortDate(event) <= statusSortDate(task) ? event : task
+        case let (event?, nil):
+            return event
+        case let (nil, task?):
+            return task
+        case (nil, nil):
+            return nil
+        }
+    }
+
+    private static func bestEventStatus(now: Date, events: [CalendarEventMirror]) -> MenuBarAdaptiveStatus? {
+        let eligible = events
+            .filter { event in
+                event.status != .cancelled
+                    && event.isAllDay == false
+                    && event.endDate > now
+            }
+            .sorted { lhs, rhs in
+                if lhs.startDate == rhs.startDate {
+                    return lhs.summary.localizedCaseInsensitiveCompare(rhs.summary) == .orderedAscending
+                }
+                return lhs.startDate < rhs.startDate
+            }
+
+        if let current = eligible
+            .filter({ $0.startDate <= now && $0.endDate > now })
+            .sorted(by: { lhs, rhs in
+                if lhs.endDate == rhs.endDate {
+                    return lhs.summary.localizedCaseInsensitiveCompare(rhs.summary) == .orderedAscending
+                }
+                return lhs.endDate < rhs.endDate
+            })
+            .first
+        {
+            let label = "\(shortTitle(current.summary)) - \(durationText(from: now, to: current.endDate)) left"
+            return MenuBarAdaptiveStatus(
+                label: label,
+                accessibilityLabel: "Hot Cross Buns, \(label)",
+                kind: .currentEvent(current.id),
+                sortDate: .distantPast
+            )
+        }
+
+        guard let next = eligible.first(where: { $0.startDate > now }) else { return nil }
+        let label = "\(shortTitle(next.summary)) - in \(durationText(from: now, to: next.startDate))"
+        return MenuBarAdaptiveStatus(
+            label: label,
+            accessibilityLabel: "Hot Cross Buns, \(label)",
+            kind: .nextEvent(next.id),
+            sortDate: next.startDate
+        )
+    }
+
+    private static func bestTaskStatus(now: Date, tasks: [TaskMirror], calendar: Calendar) -> MenuBarAdaptiveStatus? {
+        guard let task = tasks
+            .filter({ task in
+                task.dueDate != nil
+                    && task.isCompleted == false
+                    && task.isDeleted == false
+                    && task.isHidden == false
+            })
+            .sorted(by: { lhs, rhs in
+                let leftDue = lhs.dueDate ?? .distantFuture
+                let rightDue = rhs.dueDate ?? .distantFuture
+                if leftDue == rightDue {
+                    return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+                }
+                return leftDue < rightDue
+            })
+            .first,
+            let dueDate = task.dueDate
+        else {
+            return nil
+        }
+
+        let label = "\(shortTitle(task.title)) - \(taskDueText(now: now, dueDate: dueDate, calendar: calendar))"
+        return MenuBarAdaptiveStatus(
+            label: label,
+            accessibilityLabel: "Hot Cross Buns, \(label)",
+            kind: .task(task.id),
+            sortDate: dueDate
+        )
+    }
+
+    private static func taskDueText(now: Date, dueDate: Date, calendar: Calendar) -> String {
+        let today = calendar.startOfDay(for: now)
+        let dueDay = calendar.startOfDay(for: dueDate)
+        let dayDelta = calendar.dateComponents([.day], from: today, to: dueDay).day ?? 0
+
+        if dayDelta < 0 {
+            return "overdue"
+        }
+        if dayDelta == 0 {
+            return "due today"
+        }
+        if dayDelta == 1 {
+            return "due tomorrow"
+        }
+        return "due in \(dayDelta)d"
+    }
+
+    private static func statusSortDate(_ status: MenuBarAdaptiveStatus) -> Date {
+        status.sortDate
+    }
+
+    private static func shortTitle(_ raw: String, maxCharacters: Int = 28) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = trimmed.isEmpty ? "Untitled" : trimmed
+        guard title.count > maxCharacters else { return title }
+        let prefixCount = max(1, maxCharacters - 3)
+        return String(title.prefix(prefixCount)) + "..."
+    }
+}
+
 private extension AppModel {
     var menuBarSelectedCalendarIDs: Set<CalendarListMirror.ID> {
         let selected = calendarSnapshot.selectedCalendarIDs
