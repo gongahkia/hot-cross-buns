@@ -446,7 +446,12 @@ struct CalendarHomeView: View {
     }
 
     private func addAvailabilitySlot(_ slot: AvailabilitySlot) {
-        availabilityDraft.slots = AvailabilitySlotResolver.normalized(availabilityDraft.slots + [slot])
+        let normalized = AvailabilitySlotResolver.normalized(availabilityDraft.slots + [slot])
+        guard normalized.count <= AvailabilityHoldLimits.maxSlotsPerGroup else {
+            availabilityMessage = "Maximum \(AvailabilityHoldLimits.maxSlotsPerGroup) slots per hold group."
+            return
+        }
+        availabilityDraft.slots = normalized
         availabilityMessage = "Added \(availabilitySlotLabel(slot))."
     }
 
@@ -484,6 +489,10 @@ struct CalendarHomeView: View {
         let slots = AvailabilitySlotResolver.normalized(availabilityDraft.slots)
         guard slots.isEmpty == false else {
             availabilityMessage = "Select at least one slot."
+            return
+        }
+        guard slots.count <= AvailabilityHoldLimits.maxSlotsPerGroup else {
+            availabilityMessage = "Maximum \(AvailabilityHoldLimits.maxSlotsPerGroup) slots per hold group."
             return
         }
         isWritingAvailabilityHolds = true
@@ -1195,7 +1204,7 @@ private struct ShareAvailabilityPanel: View {
                 Text("Selected Slots")
                     .hcbFont(.subheadline, weight: .semibold)
                 Spacer(minLength: 0)
-                Text("\(draft.slots.count)")
+                Text("\(draft.slots.count)/\(AvailabilityHoldLimits.maxSlotsPerGroup)")
                     .hcbFont(.caption, weight: .semibold)
                     .foregroundStyle(.secondary)
             }
@@ -1236,7 +1245,7 @@ private struct ShareAvailabilityPanel: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(AppColor.ember)
-            .disabled(isWriting || draft.slots.isEmpty || calendars.isEmpty)
+            .disabled(isWriting || draft.slots.isEmpty || draft.slots.count > AvailabilityHoldLimits.maxSlotsPerGroup || calendars.isEmpty)
         }
     }
 
