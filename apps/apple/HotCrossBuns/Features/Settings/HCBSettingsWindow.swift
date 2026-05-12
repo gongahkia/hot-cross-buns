@@ -2,7 +2,9 @@ import GoogleSignInSwift
 import SwiftUI
 
 private enum SettingsWindowLayout {
-    static let contentMaxWidth: CGFloat = 1_408
+    // Match the default grouped Form column width so chrome above the form
+    // lines up with the settings sections below it.
+    static let contentMaxWidth: CGFloat = 704
 }
 
 // Top-level detached Settings window. Opened via the Settings scene in
