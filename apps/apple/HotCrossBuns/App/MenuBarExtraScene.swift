@@ -151,7 +151,8 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
             if let label = adaptiveStatus.label {
                 statusItem.length = NSStatusItem.variableLength
                 button.imagePosition = .imageLeft
-                button.title = " | \(label)"
+                // Keep icon and status text separated without rendering the old vertical divider.
+                button.title = " \(label)"
                 button.setAccessibilityLabel(accessibilityLabel(base: adaptiveStatus.accessibilityLabel, overdueCount: count))
                 return
             }
@@ -859,7 +860,10 @@ enum MenuBarAdaptiveStatusResolver {
             })
             .first
         {
-            let label = "\(shortTitle(current.summary)) - \(durationText(from: now, to: current.endDate)) left"
+            let label = statusLabel(
+                title: current.summary,
+                detail: "\(durationText(from: now, to: current.endDate)) left"
+            )
             return MenuBarAdaptiveStatus(
                 label: label,
                 accessibilityLabel: "Hot Cross Buns, \(label)",
@@ -869,7 +873,10 @@ enum MenuBarAdaptiveStatusResolver {
         }
 
         guard let next = eligible.first(where: { $0.startDate > now }) else { return nil }
-        let label = "\(shortTitle(next.summary)) - in \(durationText(from: now, to: next.startDate))"
+        let label = statusLabel(
+            title: next.summary,
+            detail: "in \(durationText(from: now, to: next.startDate))"
+        )
         return MenuBarAdaptiveStatus(
             label: label,
             accessibilityLabel: "Hot Cross Buns, \(label)",
@@ -900,7 +907,10 @@ enum MenuBarAdaptiveStatusResolver {
             return nil
         }
 
-        let label = "\(shortTitle(task.title)) - \(taskDueText(now: now, dueDate: dueDate, calendar: calendar))"
+        let label = statusLabel(
+            title: task.title,
+            detail: taskDueText(now: now, dueDate: dueDate, calendar: calendar)
+        )
         return MenuBarAdaptiveStatus(
             label: label,
             accessibilityLabel: "Hot Cross Buns, \(label)",
@@ -930,12 +940,28 @@ enum MenuBarAdaptiveStatusResolver {
         status.sortDate
     }
 
-    private static func shortTitle(_ raw: String, maxCharacters: Int = 28) -> String {
+    private static func statusLabel(title rawTitle: String, detail: String) -> String {
+        let title = shortTitle(rawTitle)
+        // Parenthesize timing only when the title is truncated, matching the requested compact menu-bar format.
+        if title.isTruncated {
+            return "\(title.text) (\(detail))"
+        }
+        return "\(title.text) - \(detail)"
+    }
+
+    private struct ShortTitle {
+        var text: String
+        var isTruncated: Bool
+    }
+
+    private static func shortTitle(_ raw: String, maxCharacters: Int = 28) -> ShortTitle {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         let title = trimmed.isEmpty ? "Untitled" : trimmed
-        guard title.count > maxCharacters else { return title }
+        guard title.count > maxCharacters else {
+            return ShortTitle(text: title, isTruncated: false)
+        }
         let prefixCount = max(1, maxCharacters - 3)
-        return String(title.prefix(prefixCount)) + "..."
+        return ShortTitle(text: String(title.prefix(prefixCount)) + "...", isTruncated: true)
     }
 }
 

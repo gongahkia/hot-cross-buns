@@ -1,37 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-enum BackgroundOpacityPreset: String, CaseIterable, Identifiable {
-    case subtle
-    case readable
-    case strong
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .subtle: "Subtle"
-        case .readable: "Readable"
-        case .strong: "Strong"
-        }
-    }
-
-    var opacity: Double {
-        switch self {
-        case .subtle: 0.45
-        case .readable: 0.70
-        case .strong: 0.90
-        }
-    }
-
-    init?(opacity: Double) {
-        guard let preset = Self.allCases.first(where: { abs($0.opacity - opacity) < 0.000_001 }) else {
-            return nil
-        }
-        self = preset
-    }
-}
-
 struct AppearanceSection: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var systemColorScheme
@@ -163,15 +132,7 @@ struct AppearanceSection: View {
 
             if model.settings.appBackgroundTranslucencyEnabled || model.settings.customBackgroundImagePath != nil {
                 VStack(alignment: .leading, spacing: 6) {
-                    Picker("Background contrast", selection: backgroundPresetBinding) {
-                        ForEach(BackgroundOpacityPreset.allCases) { preset in
-                            Text(preset.title).tag(Optional(preset))
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .frame(maxWidth: 360)
-
+                    // Presets were removed so opacity has one direct control instead of two competing controls.
                     HStack {
                         Text("App surface opacity")
                         Spacer()
@@ -245,16 +206,6 @@ struct AppearanceSection: View {
             .pickerStyle(.menu)
             .frame(width: 170)
         }
-    }
-
-    private var backgroundPresetBinding: Binding<BackgroundOpacityPreset?> {
-        Binding(
-            get: { BackgroundOpacityPreset(opacity: model.settings.appBackgroundOpacity) },
-            set: { preset in
-                guard let preset else { return }
-                model.setAppBackgroundOpacity(preset.opacity)
-            }
-        )
     }
 
     private var themeRow: some View {
