@@ -635,6 +635,10 @@ private struct AlertsTab: View {
                             Text(style.title).tag(style)
                         }
                     }
+                    .disabled(model.settings.showMenuBarExtra == false)
+                    if model.settings.menuBarStyle == .adaptive {
+                        adaptiveMenuBarControls
+                    }
                     MenuBarIconPickerRow()
                     .disabled(model.settings.showMenuBarExtra == false)
                     Toggle("Menu bar badge for overdue tasks", isOn: menuBarBadgeBinding)
@@ -714,6 +718,27 @@ private struct AlertsTab: View {
         )
     }
 
+    private var menuBarAdaptiveStatusSourceBinding: Binding<AppSettings.MenuBarAdaptiveStatusSource> {
+        Binding(
+            get: { model.settings.menuBarAdaptiveStatusSource },
+            set: { model.setMenuBarAdaptiveStatusSource($0) }
+        )
+    }
+
+    private var menuBarAdaptiveEmptyBehaviorBinding: Binding<AppSettings.MenuBarAdaptiveEmptyBehavior> {
+        Binding(
+            get: { model.settings.menuBarAdaptiveEmptyBehavior },
+            set: { model.setMenuBarAdaptiveEmptyBehavior($0) }
+        )
+    }
+
+    private var menuBarAdaptivePanelContentBinding: Binding<AppSettings.MenuBarAdaptivePanelContent> {
+        Binding(
+            get: { model.settings.menuBarAdaptivePanelContent },
+            set: { model.setMenuBarAdaptivePanelContent($0) }
+        )
+    }
+
     private var menuBarBadgeBinding: Binding<Bool> {
         Binding(
             get: { model.settings.showMenuBarBadge },
@@ -731,6 +756,28 @@ private struct AlertsTab: View {
     // App-wide task reminder controls. Threshold = how many days before a task's
     // due date to fire a local notification. Time = hour:minute it fires at.
     // Per-task reminder offsets are gone: Google Tasks API has no reminder field.
+    @ViewBuilder
+    private var adaptiveMenuBarControls: some View {
+        Group {
+            Picker("Status source", selection: menuBarAdaptiveStatusSourceBinding) {
+                ForEach(AppSettings.MenuBarAdaptiveStatusSource.allCases, id: \.self) { source in
+                    Text(source.title).tag(source)
+                }
+            }
+            Picker("When empty", selection: menuBarAdaptiveEmptyBehaviorBinding) {
+                ForEach(AppSettings.MenuBarAdaptiveEmptyBehavior.allCases, id: \.self) { behavior in
+                    Text(behavior.title).tag(behavior)
+                }
+            }
+            Picker("Panel contents", selection: menuBarAdaptivePanelContentBinding) {
+                ForEach(AppSettings.MenuBarAdaptivePanelContent.allCases, id: \.self) { content in
+                    Text(content.title).tag(content)
+                }
+            }
+        }
+        .disabled(model.settings.showMenuBarExtra == false)
+    }
+
     @ViewBuilder
     private var taskReminderControls: some View {
         Picker("Remind me before due", selection: taskReminderThresholdBinding) {

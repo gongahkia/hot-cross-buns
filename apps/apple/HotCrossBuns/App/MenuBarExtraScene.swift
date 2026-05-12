@@ -710,7 +710,7 @@ struct MenuBarExtraContent: View {
             switch model.settings.menuBarStyle {
             case .detailed: DetailedMenuBarPanel()
             case .weekly: WeeklyMenuBarPanel(onDaySelected: onWeekDaySelected)
-            case .adaptive: DetailedMenuBarPanel()
+            case .adaptive: AdaptiveMenuBarPanel()
             case .compact: CompactMenuBarPanel()
             }
         }
@@ -992,6 +992,7 @@ private extension AppModel {
                 guard let due = task.dueDate else { return false }
                 return task.isDeleted == false
                     && task.isCompleted == false
+                    && task.isHidden == false
                     && visible.contains(task.taskListID)
                     && cal.isDate(due, inSameDayAs: day)
             }
@@ -1011,10 +1012,369 @@ private extension AppModel {
         for key in tasksByDueDate.keys.sorted() {
             let bucket = (tasksByDueDate[key] ?? [])
                 .compactMap { task(id: $0) }
-                .filter { visible.contains($0.taskListID) }
+                .filter { task in
+                    visible.contains(task.taskListID)
+                        && task.dueDate != nil
+                        && task.isDeleted == false
+                        && task.isCompleted == false
+                        && task.isHidden == false
+                }
             out.append(contentsOf: bucket)
         }
         return out
+    }
+}
+
+private struct AdaptiveMenuBarPanel: View {
+    @Environment(AppModel.self) private var model
+    @State private var completingTaskIDs: Set<TaskMirror.ID> = []
+    @State private var snoozeCustomTask: TaskMirror?
+    @State private var pendingDeleteEvent: CalendarEventMirror?
+
+    private enum AgendaItem: Identifiable {
+        case event(CalendarEventMirror)
+        case task(TaskMirror)
+
+        var id: String {
+            switch self {
+            case .event(let event): "event-\(event.id)"
+            case .task(let task): "task-\(task.id)"
+            }
+        }
+
+        var sortDate: Date {
+            switch self {
+            case .event(let event): event.isAllDay ? .distantPast : event.startDate
+            case .task(let task): task.dueDate ?? .distantFuture
+            }
+        }
+
+        var isAllDayEvent: Bool {
+            switch self {
+            case .event(let event): event.isAllDay
+            case .task: false
+            }
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            header
+            if let currentEvent {
+                currentEventSection(currentEvent)
+            }
+            agendaSection(title: "Today", day: Date())
+            agendaSection(title: "Tomorrow", day: tomorrow)
+            if todayItems.isEmpty && tomorrowItems.isEmpty && currentEvent == nil {
+                emptyAgenda
+            }
+            Divider()
+            MenuBarAccountSwitcher()
+            MenuBarQuickActions()
+        }
+        .hcbScaledPadding(14)
+        .hcbScaledFrame(width: 340)
+        .sheet(item: $snoozeCustomTask) { task in
+            SnoozePickerSheet(task: task) { newDate in
+                Task { await snooze(task, to: newDate) }
+            }
+        }
+        .confirmationDialog(
+            "Delete this event?",
+            isPresented: Binding(
+                get: { pendingDeleteEvent != nil },
+                set: { if $0 == false { pendingDeleteEvent = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let event = pendingDeleteEvent {
+                Button("Delete", role: .destructive) {
+                    Task {
+                        _ = await model.deleteEvent(event)
+                        pendingDeleteEvent = nil
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) { pendingDeleteEvent = nil }
+        } message: {
+            if let event = pendingDeleteEvent {
+                Text("Delete \"\(event.summary)\" from Google Calendar?")
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Agenda")
+                .hcbFont(.headline)
+            Spacer()
+            Text(model.syncState.title)
+                .hcbFont(.caption, weight: .medium)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func currentEventSection(_ event: CalendarEventMirror) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Now")
+                    .hcbFont(.caption, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(MenuBarAdaptiveStatusResolver.durationText(from: Date(), to: event.endDate)) left")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            eventRow(event, isCurrent: true)
+        }
+    }
+
+    @ViewBuilder
+    private func agendaSection(title: String, day: Date) -> some View {
+        let items = agendaItems(on: day)
+        if items.isEmpty == false {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(title)
+                        .hcbFont(.caption, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(items.count)")
+                        .font(.caption2.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(items) { item in
+                        switch item {
+                        case .event(let event):
+                            eventRow(event)
+                        case .task(let task):
+                            taskRow(task)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var emptyAgenda: some View {
+        Text("No visible agenda items.")
+            .hcbFont(.footnote)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .hcbScaledPadding(.vertical, 8)
+    }
+
+    private func eventRow(_ event: CalendarEventMirror, isCurrent: Bool = false) -> some View {
+        HStack(alignment: .center, spacing: 8) {
+            Image(systemName: isCurrent ? "record.circle.fill" : "calendar")
+                .hcbFont(.caption, weight: .semibold)
+                .foregroundStyle(isCurrent ? AppColor.ember : .secondary)
+                .hcbScaledFrame(width: 16)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(event.summary.isEmpty ? "Untitled event" : event.summary)
+                    .hcbFont(.subheadline, weight: isCurrent ? .semibold : .regular)
+                    .lineLimit(1)
+                Text(eventSubtitle(for: event))
+                    .hcbFont(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            if let url = meetURL(for: event) {
+                Button {
+                    NSWorkspace.shared.open(url)
+                } label: {
+                    Label("Join meeting", systemImage: "video.fill")
+                        .labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.borderless)
+                .help("Join meeting")
+            }
+        }
+        .hcbScaledPadding(.horizontal, isCurrent ? 7 : 4)
+        .hcbScaledPadding(.vertical, isCurrent ? 6 : 4)
+        .background {
+            if isCurrent {
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(Color.secondary.opacity(0.10))
+            }
+        }
+        .contentShape(Rectangle())
+        .contextMenu {
+            EventContextMenu(
+                event: event,
+                onOpen: { open(event) },
+                onDelete: { pendingDeleteEvent = event }
+            )
+        }
+    }
+
+    private func taskRow(_ task: TaskMirror) -> some View {
+        HStack(alignment: .center, spacing: 8) {
+            Image(systemName: "checkmark.circle")
+                .hcbFont(.caption, weight: .semibold)
+                .foregroundStyle(.secondary)
+                .hcbScaledFrame(width: 16)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(task.title.isEmpty ? "Untitled task" : task.title)
+                    .hcbFont(.subheadline)
+                    .lineLimit(1)
+                Text(taskSubtitle(for: task))
+                    .hcbFont(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            Button {
+                complete(task)
+            } label: {
+                if completingTaskIDs.contains(task.id) {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: "checkmark")
+                }
+            }
+            .buttonStyle(.borderless)
+            .disabled(completingTaskIDs.contains(task.id))
+            .help("Mark complete")
+        }
+        .hcbScaledPadding(.horizontal, 4)
+        .hcbScaledPadding(.vertical, 4)
+        .contentShape(Rectangle())
+        .contextMenu {
+            TaskContextMenu(
+                task: task,
+                onOpen: { open(task) },
+                onCustomSnooze: { snoozeCustomTask = task },
+                onDelete: {
+                    Task { _ = await model.deleteTask(task) }
+                }
+            )
+        }
+    }
+
+    private var includesEvents: Bool {
+        switch model.settings.menuBarAdaptivePanelContent {
+        case .events, .eventsAndTasks: true
+        case .tasks: false
+        }
+    }
+
+    private var includesTasks: Bool {
+        switch model.settings.menuBarAdaptivePanelContent {
+        case .tasks, .eventsAndTasks: true
+        case .events: false
+        }
+    }
+
+    private var currentEvent: CalendarEventMirror? {
+        guard includesEvents else { return nil }
+        let now = Date()
+        let selected = model.menuBarSelectedCalendarIDs
+        return model.events
+            .filter { event in
+                selected.contains(event.calendarID)
+                    && event.status != .cancelled
+                    && event.isAllDay == false
+                    && event.startDate <= now
+                    && event.endDate > now
+            }
+            .sorted { lhs, rhs in
+                if lhs.endDate == rhs.endDate {
+                    return lhs.summary.localizedCaseInsensitiveCompare(rhs.summary) == .orderedAscending
+                }
+                return lhs.endDate < rhs.endDate
+            }
+            .first
+    }
+
+    private var tomorrow: Date {
+        Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+    }
+
+    private var todayItems: [AgendaItem] {
+        agendaItems(on: Date())
+    }
+
+    private var tomorrowItems: [AgendaItem] {
+        agendaItems(on: tomorrow)
+    }
+
+    private func agendaItems(on day: Date) -> [AgendaItem] {
+        var items: [AgendaItem] = []
+        if includesEvents {
+            let currentID = currentEvent?.id
+            items.append(contentsOf: model.menuBarEvents(on: day)
+                .filter { $0.id != currentID }
+                .map(AgendaItem.event))
+        }
+        if includesTasks {
+            items.append(contentsOf: model.menuBarTasks(on: day).map(AgendaItem.task))
+        }
+        return items.sorted { lhs, rhs in
+            if lhs.isAllDayEvent != rhs.isAllDayEvent {
+                return lhs.isAllDayEvent
+            }
+            if lhs.sortDate == rhs.sortDate {
+                return lhs.id < rhs.id
+            }
+            return lhs.sortDate < rhs.sortDate
+        }
+    }
+
+    private func eventSubtitle(for event: CalendarEventMirror) -> String {
+        let calendarTitle = model.calendarTitle(for: event.calendarID, fallback: "Calendar")
+        if event.isAllDay {
+            return "All day - \(calendarTitle)"
+        }
+        return "\(event.startDate.formatted(date: .omitted, time: .shortened))-\(event.endDate.formatted(date: .omitted, time: .shortened)) - \(calendarTitle)"
+    }
+
+    private func taskSubtitle(for task: TaskMirror) -> String {
+        let listTitle = model.taskListTitle(for: task.taskListID, fallback: "Tasks")
+        guard let dueDate = task.dueDate else { return listTitle }
+        let calendar = Calendar.current
+        if dueDate < calendar.startOfDay(for: Date()) {
+            return "Overdue - \(listTitle)"
+        }
+        if calendar.isDateInToday(dueDate) {
+            return "Due today - \(listTitle)"
+        }
+        if calendar.isDateInTomorrow(dueDate) {
+            return "Due tomorrow - \(listTitle)"
+        }
+        return "Due \(dueDate.formatted(.dateTime.weekday(.abbreviated).month().day())) - \(listTitle)"
+    }
+
+    private func meetURL(for event: CalendarEventMirror) -> URL? {
+        let trimmed = event.meetLink.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return nil }
+        return URL(string: trimmed)
+    }
+
+    private func open(_ event: CalendarEventMirror) {
+        NSApp.activate(ignoringOtherApps: true)
+        NotificationCenter.default.post(name: .hcbRevealEventInCalendar, object: event.id)
+    }
+
+    private func open(_ task: TaskMirror) {
+        NSApp.activate(ignoringOtherApps: true)
+        NotificationCenter.default.post(name: .hcbRevealTaskInStore, object: task.id)
+    }
+
+    private func complete(_ task: TaskMirror) {
+        guard completingTaskIDs.contains(task.id) == false else { return }
+        completingTaskIDs.insert(task.id)
+        Task {
+            _ = await model.setTaskCompleted(true, task: task)
+            completingTaskIDs.remove(task.id)
+        }
+    }
+
+    private func snooze(_ task: TaskMirror, to newDate: Date?) async {
+        _ = await model.updateTask(task, title: task.title, notes: task.notes, dueDate: newDate)
     }
 }
 
