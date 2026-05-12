@@ -18,8 +18,7 @@ struct MarkdownEditor: View {
     var showInlinePreview: Bool = true
 
     @State private var isFocused: Bool = false
-    @State private var isImportingLocalImage = false
-    @State private var isImportingLocalFile = false
+    @State private var isImportingLocalAttachment = false
     @State private var attachmentImportMessage: String?
     @State private var isDropTargeted = false
     @State private var selectedRange = NSRange(location: 0, length: 0)
@@ -66,16 +65,10 @@ struct MarkdownEditor: View {
             editor
         }
         .fileImporter(
-            isPresented: $isImportingLocalImage,
-            allowedContentTypes: [.image],
+            isPresented: $isImportingLocalAttachment,
+            allowedContentTypes: [.data, .image],
             allowsMultipleSelection: true,
-            onCompletion: handleLocalImageImport
-        )
-        .fileImporter(
-            isPresented: $isImportingLocalFile,
-            allowedContentTypes: [.data],
-            allowsMultipleSelection: true,
-            onCompletion: handleLocalFileImport
+            onCompletion: handleLocalAttachmentImport
         )
         .onDrop(
             of: [UTType.fileURL.identifier, UTType.image.identifier],
@@ -119,13 +112,9 @@ struct MarkdownEditor: View {
             toolbarButton(title: "🔗", systemImage: "link", help: "Link selected text") {
                 applyTextMutation(MarkdownEditorTextMutation.link(text: text, selection: selectedRange))
             }
-            toolbarButton(title: "Image", systemImage: "photo.badge.plus", help: "Attach local image pointer") {
+            toolbarButton(title: "File", systemImage: "paperclip", help: "Attach local file or image pointer") {
                 attachmentImportMessage = nil
-                isImportingLocalImage = true
-            }
-            toolbarButton(title: "File", systemImage: "paperclip", help: "Attach local file pointer") {
-                attachmentImportMessage = nil
-                isImportingLocalFile = true
+                isImportingLocalAttachment = true
             }
             Spacer(minLength: 8)
             if trimmed.isEmpty == false {
@@ -193,7 +182,7 @@ struct MarkdownEditor: View {
         }
     }
 
-    private func handleLocalImageImport(_ result: Result<[URL], Error>) {
+    private func handleLocalAttachmentImport(_ result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
             attachmentImportMessage = nil
@@ -203,37 +192,19 @@ struct MarkdownEditor: View {
                     skipped += 1
                     return nil
                 }
-                guard LocalAttachmentStore.isReadableImage(url) else {
-                    skipped += 1
-                    return nil
+                if LocalAttachmentStore.isReadableImage(url) {
+                    return LocalFileAttachment.markdownPointer(for: url, kind: .image)
                 }
-                return LocalFileAttachment.markdownPointer(for: url, kind: .image)
+                return LocalFileAttachment.markdownPointer(for: url, kind: .file)
             }
             guard pointers.isEmpty == false else {
-                attachmentImportMessage = "Choose a readable local image file."
+                attachmentImportMessage = "Choose a readable local file or image."
                 return
             }
             appendBlock(pointers.joined(separator: "\n"))
             if skipped > 0 {
-                attachmentImportMessage = "Skipped \(skipped) image file\(skipped == 1 ? "" : "s") that could not be opened."
+                attachmentImportMessage = "Skipped \(skipped) attachment\(skipped == 1 ? "" : "s") that could not be opened."
             }
-        case .failure(let error):
-            attachmentImportMessage = error.localizedDescription
-        }
-    }
-
-    private func handleLocalFileImport(_ result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            attachmentImportMessage = nil
-            let pointers = urls
-                .filter(\.isFileURL)
-                .map { LocalFileAttachment.markdownPointer(for: $0, kind: .file) }
-            guard pointers.isEmpty == false else {
-                attachmentImportMessage = "Choose a local file."
-                return
-            }
-            appendBlock(pointers.joined(separator: "\n"))
         case .failure(let error):
             attachmentImportMessage = error.localizedDescription
         }
