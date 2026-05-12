@@ -22,4 +22,23 @@ final class GuestsSectionEmailTests: XCTestCase {
     func testRejectsEmpty() {
         XCTAssertFalse(GuestsSection.isPlausibleEmail(""))
     }
+
+    func testGuestParticipantProfileUsesDisplayNameInitials() {
+        let profile = GuestParticipantProfile.make(
+            email: "ada@example.com",
+            displayName: "Ada Lovelace"
+        )
+
+        XCTAssertEqual(profile.title, "Ada Lovelace")
+        XCTAssertEqual(profile.subtitle, "ada@example.com")
+        XCTAssertEqual(profile.initials, "AL")
+    }
+
+    func testGuestParticipantProfileFallsBackToEmailLocalPart() {
+        let profile = GuestParticipantProfile.make(email: "first.last+team@example.com")
+
+        XCTAssertEqual(profile.title, "First Last Team")
+        XCTAssertEqual(profile.subtitle, "first.last+team@example.com")
+        XCTAssertEqual(profile.initials, "FL")
+    }
 }
