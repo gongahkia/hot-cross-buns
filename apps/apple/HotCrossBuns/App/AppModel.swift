@@ -1563,7 +1563,9 @@ final class AppModel {
         transparency: CalendarEventTransparency = .opaque,
         visibility: CalendarEventVisibility = .defaultVisibility,
         hcbTaskID: String? = nil,
-        availabilityHold: AvailabilityHoldMetadata? = nil
+        availabilityHold: AvailabilityHoldMetadata? = nil,
+        replayImmediately: Bool = true,
+        recordUndoAction: Bool = true
     ) async -> Bool {
         guard requireAccount(mutationDescription: "creating events") else {
             return false
@@ -1617,7 +1619,9 @@ final class AppModel {
         upsert(optimisticEvent)
 
         guard settings.cloudSyncTargets.syncsEvents else {
-            recordUndo(.eventCreate(snapshot: optimisticEvent))
+            if recordUndoAction {
+                recordUndo(.eventCreate(snapshot: optimisticEvent))
+            }
             scheduleCacheSave()
             await synchronizeLocalNotifications()
             return true
@@ -1655,8 +1659,12 @@ final class AppModel {
             return false
         }
 
-        recordUndo(.eventCreate(snapshot: optimisticEvent))
-        Task { await replayPendingMutations() }
+        if recordUndoAction {
+            recordUndo(.eventCreate(snapshot: optimisticEvent))
+        }
+        if replayImmediately {
+            Task { await replayPendingMutations() }
+        }
         return true
     }
 
@@ -2099,10 +2107,14 @@ final class AppModel {
             lastMutationError = "Select at least one available slot before creating holds."
             return false
         }
+        guard sortedSlots.count <= AvailabilityHoldLimits.maxSlotsPerGroup else {
+            lastMutationError = "Create up to \(AvailabilityHoldLimits.maxSlotsPerGroup) availability holds at a time."
+            return false
+        }
 
         let groupID = UUID().uuidString
         let createdAt = Date()
-        var allCreated = true
+        var createdCount = 0
         for slot in sortedSlots {
             let metadata = AvailabilityHoldMetadata(
                 groupID: groupID,
@@ -2128,12 +2140,27 @@ final class AppModel {
                 endTimeZoneID: timeZoneID,
                 transparency: .opaque,
                 visibility: .privateVisibility,
-                availabilityHold: metadata
+                availabilityHold: metadata,
+                replayImmediately: false,
+                recordUndoAction: false
             )
-            allCreated = allCreated && didCreate
+            guard didCreate else {
+                if createdCount > 0 {
+                    lastMutationError = "Created \(createdCount) of \(sortedSlots.count) holds. Review pending holds before sharing."
+                    if settings.cloudSyncTargets.syncsEvents {
+                        Task { await replayPendingMutations() }
+                    }
+                }
+                return false
+            }
+            createdCount += 1
         }
 
-        return allCreated
+        if settings.cloudSyncTargets.syncsEvents {
+            Task { await replayPendingMutations() }
+        }
+
+        return true
     }
 
     func confirmAvailabilityHold(_ hold: CalendarEventMirror) async -> Bool {
@@ -2167,8 +2194,14 @@ final class AppModel {
         guard didConfirm else { return false }
 
         let siblings = availabilityHolds(groupID: metadata.groupID).filter { $0.id != hold.id }
+        var allSiblingsDeleted = true
         for sibling in siblings {
-            _ = await deleteEvent(sibling)
+            let didDelete = await deleteEvent(sibling)
+            allSiblingsDeleted = allSiblingsDeleted && didDelete
+        }
+        if allSiblingsDeleted == false {
+            lastMutationError = "Confirmed the selected hold, but one or more alternate holds could not be removed."
+            return false
         }
         return true
     }
@@ -2176,11 +2209,17 @@ final class AppModel {
     @discardableResult
     func cancelAvailabilityHoldGroup(groupID: String) async -> Bool {
         let holds = availabilityHolds(groupID: groupID)
-        guard holds.isEmpty == false else { return false }
+        guard holds.isEmpty == false else {
+            lastMutationError = "No availability holds were found for this group."
+            return false
+        }
         var allDeleted = true
         for hold in holds {
             let didDelete = await deleteEvent(hold)
             allDeleted = allDeleted && didDelete
+        }
+        if allDeleted == false {
+            lastMutationError = "One or more availability holds could not be removed."
         }
         return allDeleted
     }

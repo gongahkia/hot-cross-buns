@@ -43,6 +43,10 @@ struct AvailabilityGridSelection {
     var isSlotAvailable: (AvailabilitySlot) -> Bool
 }
 
+enum AvailabilityHoldLimits {
+    static let maxSlotsPerGroup = 24
+}
+
 enum AvailabilitySlotResolver {
     static func normalized(_ slots: [AvailabilitySlot]) -> [AvailabilitySlot] {
         var seen: Set<String> = []

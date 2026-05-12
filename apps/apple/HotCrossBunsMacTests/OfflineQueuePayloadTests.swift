@@ -33,13 +33,23 @@ final class OfflineQueuePayloadTests: XCTestCase {
             addGoogleMeet: true,
             colorId: "5",
             startTimeZoneID: "Asia/Singapore",
-            endTimeZoneID: "Asia/Tokyo"
+            endTimeZoneID: "Asia/Tokyo",
+            transparency: .opaque,
+            visibility: .privateVisibility,
+            availabilityHold: AvailabilityHoldMetadata(
+                groupID: "group-1",
+                title: "Review",
+                durationMinutes: 30,
+                createdAt: Date(timeIntervalSince1970: 1_742_790_000)
+            )
         )
         let encoded = try PendingMutationEncoder.encode(payload)
         let decoded = try PendingMutationEncoder.decodeEventCreate(encoded)
         XCTAssertEqual(decoded, payload)
         XCTAssertEqual(decoded.startTimeZoneID, "Asia/Singapore")
         XCTAssertEqual(decoded.endTimeZoneID, "Asia/Tokyo")
+        XCTAssertEqual(decoded.visibility, .privateVisibility)
+        XCTAssertEqual(decoded.availabilityHold?.groupID, "group-1")
     }
 
     func testTaskUpdatePayloadRoundTripPreservesEtagSnapshot() throws {
@@ -98,13 +108,18 @@ final class OfflineQueuePayloadTests: XCTestCase {
             addGoogleMeet: false,
             colorId: nil,
             startTimeZoneID: "America/New_York",
-            endTimeZoneID: "America/Los_Angeles"
+            endTimeZoneID: "America/Los_Angeles",
+            transparency: .opaque,
+            visibility: .defaultVisibility,
+            clearAvailabilityHoldMetadata: true
         )
         let encoded = try PendingMutationEncoder.encode(payload)
         let decoded = try PendingMutationEncoder.decodeEventUpdate(encoded)
         XCTAssertEqual(decoded, payload)
         XCTAssertEqual(decoded.startTimeZoneID, "America/New_York")
         XCTAssertEqual(decoded.endTimeZoneID, "America/Los_Angeles")
+        XCTAssertEqual(decoded.visibility, .defaultVisibility)
+        XCTAssertTrue(decoded.clearAvailabilityHoldMetadata)
     }
 
     func testOlderEventPayloadsDecodeWithoutTimezoneFields() throws {
@@ -143,6 +158,9 @@ final class OfflineQueuePayloadTests: XCTestCase {
         XCTAssertNil(create.endTimeZoneID)
         XCTAssertNil(update.startTimeZoneID)
         XCTAssertNil(update.endTimeZoneID)
+        XCTAssertNil(create.availabilityHold)
+        XCTAssertNil(update.availabilityHold)
+        XCTAssertFalse(update.clearAvailabilityHoldMetadata)
     }
 
     func testEventDeletePayloadRoundTrip() throws {
