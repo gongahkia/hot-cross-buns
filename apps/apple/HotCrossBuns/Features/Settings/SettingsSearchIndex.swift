@@ -33,6 +33,7 @@ enum SettingsSearchTab: String, CaseIterable, Identifiable, Sendable {
 enum SettingsSectionAnchor: String, Sendable {
     case profileOAuth
     case profileAccounts
+    case language
     case sync
     case openAtLogin
     case diagnostics
@@ -91,12 +92,13 @@ enum SettingsSearchIndex {
         [
             .init(tab: .profile, anchor: .profileOAuth, title: "Google OAuth client", keywords: ["google", "oauth", "client", "api", "profile", "identity"]),
             .init(tab: .profile, anchor: .profileAccounts, title: "Google account", keywords: ["connect", "disconnect", "account", "profile", "google", "identity", "provider", "sign in", "add account"]),
+            .init(tab: .general, anchor: .language, title: "Language", keywords: ["locale", "translation", "onboarding", "system default"]),
             .init(tab: .general, anchor: .sync, title: "Sync", keywords: ["refresh", "resync", "background", "retention"]),
             .init(tab: .general, anchor: .openAtLogin, title: "Open at login", keywords: ["launch", "startup", "background"]),
             .init(tab: .general, anchor: .diagnostics, title: "Diagnostics", keywords: ["logs", "history", "support", "debug"]),
             .init(tab: .appearance, anchor: .appearance, title: "Appearance", keywords: ["theme", "color", "font", "text"]),
             .init(tab: .appearance, anchor: .background, title: "Background", keywords: ["translucency", "opacity", "image", "wallpaper"]),
-            .init(tab: .appearance, anchor: .layout, title: "Layout", keywords: ["sidebar", "tabs", "scale", "calendar"]),
+            .init(tab: .appearance, anchor: .layout, title: "Layout", keywords: ["sidebar", "navigation", "placement", "tabs", "left", "right", "top", "bottom", "scale", "calendar"]),
             .init(tab: .hotkeys, anchor: .hotkeys, title: "Hotkeys", keywords: ["shortcut", "keyboard", "command", "conflict"], status: hotkeyStatus(customShortcutCount, shortcutConflictCount)),
             .init(tab: .alerts, anchor: .notifications, title: "Notifications", keywords: ["reminder", "alert", "bell", "dock"]),
             .init(tab: .alerts, anchor: .menuBar, title: "Menu bar", keywords: ["menu bar", "badge", "extra", "status item"]),

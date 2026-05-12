@@ -233,6 +233,164 @@ enum PendingMutationAction: String, Hashable, Codable, Sendable {
     case delete
 }
 
+enum AppLanguage: String, CaseIterable, Identifiable, Hashable, Sendable, Codable {
+    case system
+    case en
+    case ms
+    case ta
+    case zhHans = "zh-Hans"
+    case id
+    case vi
+    case th
+    case ja
+    case ko
+    case zhHant = "zh-Hant"
+    case hi
+
+    var id: String { rawValue }
+
+    var locale: Locale {
+        guard let identifier = localeIdentifier else { return .autoupdatingCurrent }
+        return Locale(identifier: identifier)
+    }
+
+    var localeIdentifier: String? {
+        switch self {
+        case .system: nil
+        case .en: "en"
+        case .ms: "ms"
+        case .ta: "ta"
+        case .zhHans: "zh-Hans"
+        case .id: "id"
+        case .vi: "vi"
+        case .th: "th"
+        case .ja: "ja"
+        case .ko: "ko"
+        case .zhHant: "zh-Hant"
+        case .hi: "hi"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .system: "System Default"
+        case .en: "English"
+        case .ms: "Bahasa Melayu"
+        case .ta: "தமிழ்"
+        case .zhHans: "简体中文"
+        case .id: "Bahasa Indonesia"
+        case .vi: "Tiếng Việt"
+        case .th: "ไทย"
+        case .ja: "日本語"
+        case .ko: "한국어"
+        case .zhHant: "繁體中文"
+        case .hi: "हिन्दी"
+        }
+    }
+
+    var helloWordmark: String {
+        switch self {
+        case .system: AppLanguage.preferredSupportedLanguage.helloWordmark
+        case .en: "Hello"
+        case .ms: "Helo"
+        case .ta: "வணக்கம்"
+        case .zhHans: "你好"
+        case .id: "Halo"
+        case .vi: "Xin chào"
+        case .th: "สวัสดี"
+        case .ja: "こんにちは"
+        case .ko: "안녕하세요"
+        case .zhHant: "你好"
+        case .hi: "नमस्ते"
+        }
+    }
+
+    static var preferredSupportedLanguage: AppLanguage {
+        Locale.preferredLanguages
+            .lazy
+            .compactMap(AppLanguage.init(localeIdentifier:))
+            .first ?? .en
+    }
+
+    init?(localeIdentifier: String) {
+        let components = Locale.Components(identifier: localeIdentifier).languageComponents
+        let languageCode = components.languageCode?.identifier.lowercased()
+        let scriptCode = components.script?.identifier.lowercased()
+        let regionCode = components.region?.identifier.lowercased()
+        switch languageCode {
+        case "en": self = .en
+        case "ms": self = .ms
+        case "ta": self = .ta
+        case "id": self = .id
+        case "vi": self = .vi
+        case "th": self = .th
+        case "ja": self = .ja
+        case "ko": self = .ko
+        case "hi": self = .hi
+        case "zh" where scriptCode == "hant" || regionCode == "tw" || regionCode == "hk" || regionCode == "mo":
+            self = .zhHant
+        case "zh" where scriptCode == nil || scriptCode == "hans": self = .zhHans
+        default: return nil
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        self = AppLanguage(rawValue: rawValue) ?? .system
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
+
+enum NavigationSurfacePlacement: String, CaseIterable, Identifiable, Hashable, Sendable, Codable {
+    case left
+    case right
+    case top
+    case bottom
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .left: "Left"
+        case .right: "Right"
+        case .top: "Top"
+        case .bottom: "Bottom"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .left: "sidebar.left"
+        case .right: "sidebar.right"
+        case .top: "rectangle.topthird.inset.filled"
+        case .bottom: "rectangle.bottomthird.inset.filled"
+        }
+    }
+
+    var isHorizontal: Bool {
+        switch self {
+        case .top, .bottom: true
+        case .left, .right: false
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        self = NavigationSurfacePlacement(rawValue: rawValue) ?? .left
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
+
 struct AppSettings: Hashable, Codable, Sendable {
     var syncMode: SyncMode
     var cloudSyncTargets: Set<CloudSyncTarget>
@@ -245,6 +403,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var enableEventCompletionSound: Bool
     var taskCompletionSoundChoice: CompletionSoundChoice
     var eventCompletionSoundChoice: CompletionSoundChoice
+    var appLanguage: AppLanguage
     var hasCompletedOnboarding: Bool
     var hasSeenFeatureTour: Bool
     var showMenuBarExtra: Bool
@@ -268,7 +427,8 @@ struct AppSettings: Hashable, Codable, Sendable {
     var appBackgroundOpacity: Double // 0.35-1.0, applied to the app fill over desktop/custom image
     var customBackgroundImagePath: String? // copied image in Application Support, nil = theme/window background
     var shortcutOverrides: [String: HCBKeyBinding] // HCBShortcutCommand.rawValue → binding
-    var hiddenSidebarItems: Set<String> // SidebarItem.rawValues user has hidden (Settings never hidable)
+    var sidebarPlacement: NavigationSurfacePlacement // where the app navigation surface is rendered
+    var hiddenSidebarItems: Set<String> // SidebarItem.rawValues user has hidden
     var hiddenCalendarViewModes: Set<String> // CalendarGridMode.rawValues user has hidden from Calendar picker
     // TODO: prune — dead after the Calendar/Tasks/Notes sidebar refactor.
     // StoreView is Kanban-only; the hide/show picker went with it. Drop
@@ -351,6 +511,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         enableEventCompletionSound: Bool = true,
         taskCompletionSoundChoice: CompletionSoundChoice = .defaultTask,
         eventCompletionSoundChoice: CompletionSoundChoice = .defaultEvent,
+        appLanguage: AppLanguage = .system,
         hasCompletedOnboarding: Bool = false,
         hasSeenFeatureTour: Bool = false,
         showMenuBarExtra: Bool = true,
@@ -374,6 +535,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         appBackgroundOpacity: Double = 1.0,
         customBackgroundImagePath: String? = nil,
         shortcutOverrides: [String: HCBKeyBinding] = [:],
+        sidebarPlacement: NavigationSurfacePlacement = .left,
         hiddenSidebarItems: Set<String> = [],
         hiddenCalendarViewModes: Set<String> = [],
         hiddenStoreViewModes: Set<String> = [],
@@ -428,6 +590,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.enableEventCompletionSound = enableEventCompletionSound
         self.taskCompletionSoundChoice = taskCompletionSoundChoice
         self.eventCompletionSoundChoice = eventCompletionSoundChoice
+        self.appLanguage = appLanguage
         self.hasCompletedOnboarding = hasCompletedOnboarding
         self.hasSeenFeatureTour = hasSeenFeatureTour
         self.showMenuBarExtra = showMenuBarExtra
@@ -452,6 +615,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         let normalizedBackgroundPath = customBackgroundImagePath?.trimmingCharacters(in: .whitespacesAndNewlines)
         self.customBackgroundImagePath = (normalizedBackgroundPath?.isEmpty ?? true) ? nil : normalizedBackgroundPath
         self.shortcutOverrides = shortcutOverrides
+        self.sidebarPlacement = sidebarPlacement
         self.hiddenSidebarItems = hiddenSidebarItems
         self.hiddenCalendarViewModes = hiddenCalendarViewModes
         self.hiddenStoreViewModes = hiddenStoreViewModes
@@ -508,6 +672,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case enableEventCompletionSound
         case taskCompletionSoundChoice
         case eventCompletionSoundChoice
+        case appLanguage
         case hasCompletedOnboarding
         case hasSeenFeatureTour
         case showMenuBarExtra
@@ -531,6 +696,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case appBackgroundOpacity
         case customBackgroundImagePath
         case shortcutOverrides
+        case sidebarPlacement
         case hiddenSidebarItems
         case hiddenCalendarViewModes
         case hiddenStoreViewModes
@@ -597,6 +763,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         enableEventCompletionSound = try container.decodeIfPresent(Bool.self, forKey: .enableEventCompletionSound) ?? true
         taskCompletionSoundChoice = try container.decodeIfPresent(CompletionSoundChoice.self, forKey: .taskCompletionSoundChoice) ?? .defaultTask
         eventCompletionSoundChoice = try container.decodeIfPresent(CompletionSoundChoice.self, forKey: .eventCompletionSoundChoice) ?? .defaultEvent
+        appLanguage = try container.decodeIfPresent(AppLanguage.self, forKey: .appLanguage) ?? .system
         hasCompletedOnboarding = try container.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? false
         hasSeenFeatureTour = try container.decodeIfPresent(Bool.self, forKey: .hasSeenFeatureTour) ?? false
         showMenuBarExtra = try container.decodeIfPresent(Bool.self, forKey: .showMenuBarExtra) ?? true
@@ -650,6 +817,7 @@ struct AppSettings: Hashable, Codable, Sendable {
             customBackgroundImagePath = nil
         }
         shortcutOverrides = try container.decodeIfPresent([String: HCBKeyBinding].self, forKey: .shortcutOverrides) ?? [:]
+        sidebarPlacement = try container.decodeIfPresent(NavigationSurfacePlacement.self, forKey: .sidebarPlacement) ?? .left
         hiddenSidebarItems = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenSidebarItems) ?? []
         hiddenCalendarViewModes = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenCalendarViewModes) ?? []
         hiddenStoreViewModes = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenStoreViewModes) ?? []

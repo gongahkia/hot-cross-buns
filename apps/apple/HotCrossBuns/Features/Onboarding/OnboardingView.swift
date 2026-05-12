@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 
 private enum OnboardingStage {
+    case language
     case introDetails
     case setup
 }
@@ -9,11 +10,15 @@ private enum OnboardingStage {
 struct OnboardingView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
-    @State private var stage: OnboardingStage = .introDetails
+    @State private var stage: OnboardingStage = .language
 
     var body: some View {
         Group {
             switch stage {
+            case .language:
+                LanguageWelcomeView(
+                    onContinue: { stage = .introDetails }
+                )
             case .introDetails:
                 IntroDetailsView(
                     onContinue: { stage = .setup },
@@ -23,6 +28,7 @@ struct OnboardingView: View {
                 setupBody
             }
         }
+        .environment(\.locale, model.settings.appLanguage.locale)
         .appBackground()
         .interactiveDismissDisabled(model.settings.hasCompletedOnboarding == false)
         .hcbScaledFrame(minWidth: 560, idealWidth: 600, minHeight: 560, idealHeight: 640)
@@ -43,6 +49,73 @@ struct OnboardingView: View {
     private func finish() {
         model.completeOnboarding()
         dismiss()
+    }
+}
+
+private struct LanguageWelcomeView: View {
+    @Environment(AppModel.self) private var model
+    let onContinue: () -> Void
+
+    var body: some View {
+        VStack(spacing: 28) {
+            Spacer(minLength: 0)
+
+            VStack(spacing: 12) {
+                Text(verbatim: model.settings.appLanguage.helloWordmark)
+                    .font(.system(size: 66, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.55)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel("Welcome")
+
+                Text("Choose your app language")
+                    .hcbFont(.title2, weight: .semibold)
+                    .multilineTextAlignment(.center)
+
+                Text("Pick the language Hot Cross Buns uses before setup. You can change this later in Settings.")
+                    .hcbFont(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                AppLanguagePicker(title: "App language")
+                    .pickerStyle(.radioGroup)
+            }
+            .frame(maxWidth: 320, alignment: .leading)
+
+            Spacer(minLength: 0)
+
+            Button("Continue", action: onContinue)
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .hcbScaledPadding(32)
+        .cardSurface(cornerRadius: 16)
+        .hcbScaledPadding(20)
+    }
+}
+
+struct AppLanguagePicker: View {
+    @Environment(AppModel.self) private var model
+    let title: LocalizedStringKey
+
+    var body: some View {
+        Picker(title, selection: languageBinding) {
+            ForEach(AppLanguage.allCases) { language in
+                Text(verbatim: language.title)
+                    .tag(language)
+            }
+        }
+    }
+
+    private var languageBinding: Binding<AppLanguage> {
+        Binding(
+            get: { model.settings.appLanguage },
+            set: { model.setAppLanguage($0) }
+        )
     }
 }
 

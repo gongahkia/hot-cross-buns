@@ -22,7 +22,88 @@ final class ModelPersistenceTests: XCTestCase {
         XCTAssertTrue(settings.enableLocalNotifications)
         XCTAssertFalse(settings.hasConfiguredCalendarSelection)
         XCTAssertFalse(settings.hasConfiguredTaskListSelection)
+        XCTAssertEqual(settings.appLanguage, .system)
+        XCTAssertEqual(settings.sidebarPlacement, .left)
         XCTAssertFalse(settings.hasCompletedOnboarding)
+    }
+
+    func testAppLanguageRoundTripsSupportedOverrides() throws {
+        for language in AppLanguage.allCases {
+            let settings = AppSettings(
+                syncMode: .manual,
+                selectedCalendarIDs: [],
+                selectedTaskListIDs: [],
+                enableLocalNotifications: false,
+                appLanguage: language
+            )
+
+            let data = try JSONEncoder().encode(settings)
+            let decoded = try JSONDecoder().decode(AppSettings.self, from: data)
+
+            XCTAssertEqual(decoded.appLanguage, language)
+        }
+    }
+
+    func testAppLanguageFallsBackToSystemForUnknownRawValue() throws {
+        let data = Data(
+            """
+            {
+              "syncMode": "manual",
+              "selectedCalendarIDs": [],
+              "selectedTaskListIDs": [],
+              "enableLocalNotifications": false,
+              "appLanguage": "xx"
+            }
+            """.utf8
+        )
+
+        let settings = try JSONDecoder().decode(AppSettings.self, from: data)
+
+        XCTAssertEqual(settings.appLanguage, .system)
+    }
+
+    func testAppLanguageLocaleMetadata() {
+        XCTAssertNil(AppLanguage.system.localeIdentifier)
+
+        let expectedLocaleIdentifiers: [AppLanguage: String] = [
+            .en: "en",
+            .ms: "ms",
+            .ta: "ta",
+            .zhHans: "zh-Hans",
+            .id: "id",
+            .vi: "vi",
+            .th: "th",
+            .ja: "ja",
+            .ko: "ko",
+            .zhHant: "zh-Hant",
+            .hi: "hi"
+        ]
+
+        for (language, identifier) in expectedLocaleIdentifiers {
+            XCTAssertEqual(language.localeIdentifier, identifier)
+        }
+
+        XCTAssertEqual(AppLanguage(localeIdentifier: "zh-Hans"), .zhHans)
+        XCTAssertEqual(AppLanguage(localeIdentifier: "zh-CN"), .zhHans)
+        XCTAssertEqual(AppLanguage(localeIdentifier: "zh-Hant"), .zhHant)
+        XCTAssertEqual(AppLanguage(localeIdentifier: "zh-TW"), .zhHant)
+        XCTAssertEqual(AppLanguage(localeIdentifier: "zh-HK"), .zhHant)
+        XCTAssertEqual(AppLanguage(localeIdentifier: "ta-IN"), .ta)
+        XCTAssertEqual(AppLanguage(localeIdentifier: "id-ID"), .id)
+        XCTAssertEqual(AppLanguage(localeIdentifier: "vi-VN"), .vi)
+        XCTAssertEqual(AppLanguage(localeIdentifier: "th-TH"), .th)
+        XCTAssertEqual(AppLanguage(localeIdentifier: "ja-JP"), .ja)
+        XCTAssertEqual(AppLanguage(localeIdentifier: "ko-KR"), .ko)
+        XCTAssertEqual(AppLanguage(localeIdentifier: "hi-IN"), .hi)
+    }
+
+    func testAppLanguageCasesMatchSupportedLocalizationBatch() {
+        let supportedLocaleIdentifiers = Set(AppLanguage.allCases.compactMap { $0.localeIdentifier })
+
+        XCTAssertEqual(
+            supportedLocaleIdentifiers,
+            ["en", "ms", "ta", "zh-Hans", "id", "vi", "th", "ja", "ko", "zh-Hant", "hi"]
+        )
     }
 
     func testCalendarEventDecodeDefaultsMissingReminders() throws {

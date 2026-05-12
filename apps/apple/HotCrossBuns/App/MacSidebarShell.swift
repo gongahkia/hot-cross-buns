@@ -177,20 +177,62 @@ struct MacSidebarShell: View {
     @State private var chordTimeoutTask: Task<Void, Never>?
     @State private var isMainWindowFocused = true
 
+    @ViewBuilder
     private var shellCore: some View {
+        Group {
+            switch model.settings.sidebarPlacement {
+            case .left:
+                nativeLeftNavigationShell
+            case .right:
+                trailingNavigationShell
+            case .top, .bottom:
+                horizontalNavigationShell(placement: model.settings.sidebarPlacement)
+            }
+        }
+        .animation(HCBMotion.animation(.easeInOut(duration: 0.12), reduceMotion: reduceMotion), value: model.settings.sidebarPlacement)
+        .animation(HCBMotion.animation(.easeInOut(duration: 0.12), reduceMotion: reduceMotion), value: layoutZoomScale)
+        .animation(HCBMotion.animation(.easeInOut(duration: 0.12), reduceMotion: reduceMotion), value: textSizePoints)
+    }
+
+    private var nativeLeftNavigationShell: some View {
         NavigationSplitView(columnVisibility: $sidebarVisibility) {
             sidebar
         } detail: {
             detail
         }
         .navigationSplitViewStyle(.balanced)
-        .animation(HCBMotion.animation(.easeInOut(duration: 0.12), reduceMotion: reduceMotion), value: layoutZoomScale)
-        .animation(HCBMotion.animation(.easeInOut(duration: 0.12), reduceMotion: reduceMotion), value: textSizePoints)
+    }
+
+    private var trailingNavigationShell: some View {
+        HStack(spacing: 0) {
+            detail
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            Divider()
+            trailingSidebar
+        }
+    }
+
+    @ViewBuilder
+    private func horizontalNavigationShell(placement: NavigationSurfacePlacement) -> some View {
+        VStack(spacing: 0) {
+            if placement == .top {
+                horizontalNavigationBar
+                Divider()
+                detail
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                detail
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                Divider()
+                horizontalNavigationBar
+            }
+        }
     }
 
     var body: some View {
         shellCore
             .id(model.settings.colorSchemeID) // force re-render so AppColor.X picks up the new palette
+            .environment(\.locale, model.settings.appLanguage.locale)
             .withHCBAppearance(model.settings)
             .environment(\.hcbShortcutOverrides, model.settings.shortcutOverrides)
             .hcbPreferredColorScheme(model.settings)
@@ -499,12 +541,13 @@ struct MacSidebarShell: View {
             .hcbSurface(.sidebar) // §6.11 per-surface font override
     }
 
-    // SidebarItem.allCases filtered by user-hidden set. Settings is never
-    // hidable (see SidebarItem.isHideable), so it always appears here.
+    // SidebarItem.allCases filtered by user-hidden set. Keep a fallback so
+    // imported or legacy settings cannot render the window with no tabs.
     private var visibleSidebarItems: [SidebarItem] {
-        SidebarItem.allCases.filter { item in
+        let visible = SidebarItem.allCases.filter { item in
             item.isHideable == false || model.settings.hiddenSidebarItems.contains(item.rawValue) == false
         }
+        return visible.isEmpty ? [.calendar] : visible
     }
 
     private var expandedSidebar: some View {
@@ -536,6 +579,142 @@ struct MacSidebarShell: View {
             maxWidth: sidebarMaxWidth,
             alignment: .topLeading
         )
+    }
+
+    private var trailingSidebar: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(visibleSidebarItems) { item in
+                        verticalNavigationButton(for: item)
+                        if item == .calendar, selection == .calendar, model.account != nil {
+                            CalendarSidebarFilters(state: calendarViewFilterStateBinding)
+                                .hcbScaledPadding(.leading, 8)
+                                .hcbScaledPadding(.trailing, 4)
+                                .hcbScaledPadding(.bottom, 6)
+                        }
+                    }
+                }
+                .hcbScaledPadding(.horizontal, 10)
+                .hcbScaledPadding(.vertical, 12)
+            }
+            .scrollIndicators(.hidden)
+            if model.settings.cacheEncryptionEnabled {
+                Divider()
+                encryptedCacheFooter
+            }
+        }
+        .frame(
+            minWidth: sidebarMinWidth,
+            idealWidth: sidebarIdealWidth,
+            maxWidth: sidebarMaxWidth,
+            alignment: .topLeading
+        )
+        .background(.bar)
+        .hcbSurface(.sidebar)
+    }
+
+    private var horizontalNavigationBar: some View {
+        HStack(spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(visibleSidebarItems) { item in
+                        horizontalNavigationButton(for: item)
+                    }
+                }
+            }
+            if model.settings.cacheEncryptionEnabled {
+                Divider()
+                    .hcbScaledFrame(height: 24)
+                Label("Cache encrypted", systemImage: "lock.fill")
+                    .labelStyle(.iconOnly)
+                    .foregroundStyle(AppColor.moss)
+                    .help("Local cache encryption uses a key stored in macOS Keychain. There is no separate app idle timer; access follows your Mac lock state.")
+                    .accessibilityLabel("Cache encrypted")
+            }
+        }
+        .hcbScaledPadding(.horizontal, 12)
+        .hcbScaledPadding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.bar)
+        .hcbSurface(.sidebar)
+    }
+
+    private func verticalNavigationButton(for item: SidebarItem) -> some View {
+        let isSelected = selection == item
+        return Button {
+            selection = item
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: item.systemImage)
+                    .frame(width: 20, alignment: .center)
+                Text(item.title)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                if let badgeValue = badge(for: item) {
+                    navigationBadge(badgeValue, isSelected: isSelected)
+                }
+            }
+            .hcbFont(.body, weight: isSelected ? .semibold : .regular)
+            .foregroundColor(isSelected ? AppColor.ember : .primary)
+            .hcbScaledPadding(.horizontal, 10)
+            .hcbScaledPadding(.vertical, 7)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? AppColor.ember.opacity(0.14) : Color.clear)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help(sidebarHelp(for: item))
+        .accessibilityLabel(navigationAccessibilityLabel(for: item))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private func horizontalNavigationButton(for item: SidebarItem) -> some View {
+        let isSelected = selection == item
+        return Button {
+            selection = item
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: item.systemImage)
+                    .frame(width: 18, alignment: .center)
+                Text(item.title)
+                    .lineLimit(1)
+                if let badgeValue = badge(for: item) {
+                    navigationBadge(badgeValue, isSelected: isSelected)
+                }
+            }
+            .hcbFont(.subheadline, weight: isSelected ? .semibold : .regular)
+            .foregroundColor(isSelected ? AppColor.ember : .primary)
+            .hcbScaledPadding(.horizontal, 10)
+            .hcbScaledPadding(.vertical, 6)
+            .hcbScaledFrame(minWidth: 92, minHeight: 30, alignment: .center)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? AppColor.ember.opacity(0.14) : Color.clear)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help(sidebarHelp(for: item))
+        .accessibilityLabel(navigationAccessibilityLabel(for: item))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private func navigationBadge(_ value: String, isSelected: Bool) -> some View {
+        Text(value)
+            .hcbFont(.caption2, weight: .semibold)
+            .monospacedDigit()
+            .foregroundColor(isSelected ? AppColor.ember : .secondary)
+            .hcbScaledPadding(.horizontal, 6)
+            .hcbScaledPadding(.vertical, 1)
+            .background(
+                Capsule()
+                    .fill(isSelected ? AppColor.ember.opacity(0.18) : Color.secondary.opacity(0.12))
+            )
+            .accessibilityHidden(true)
     }
 
     private var encryptedCacheFooter: some View {
@@ -671,8 +850,7 @@ struct MacSidebarShell: View {
         appCommandActions.switchTo = { item in
             // If the target tab is currently hidden via Layout settings, treat
             // the keyboard shortcut as a no-op rather than auto-unhide.
-            guard item.isHideable == false
-                || model.settings.hiddenSidebarItems.contains(item.rawValue) == false else { return }
+            guard visibleSidebarItems.contains(item) else { return }
             selection = item
         }
         appCommandActions.openSettingsWindow = { openSettings() }
@@ -1093,6 +1271,18 @@ struct MacSidebarShell: View {
 
     private func sidebarHelp(for item: SidebarItem) -> String {
         item.navigationHelp(shortcutOverrides: model.settings.shortcutOverrides)
+    }
+
+    private func navigationAccessibilityLabel(for item: SidebarItem) -> String {
+        var components = [item.title]
+        if let badgeValue = badge(for: item) {
+            let count = Int(badgeValue)
+            components.append("\(badgeValue) \(count == 1 ? "item" : "items")")
+        }
+        if selection == item {
+            components.append("selected")
+        }
+        return components.joined(separator: ", ")
     }
 
     private func sidebarItemKey(_ item: SidebarItem) -> String {

@@ -10,6 +10,7 @@ final class SettingsTransferBundleTests: XCTestCase {
         settings.uiTextSizePoints = 15
         settings.showDockBadge = false
         settings.showCompletedItemsInCalendar = true
+        settings.sidebarPlacement = .top
         settings.hiddenSidebarItems = ["notes"]
         settings.shortcutOverrides = [
             HCBShortcutCommand.refresh.rawValue: HCBKeyBinding(
