@@ -5,8 +5,7 @@ import UniformTypeIdentifiers
 // Edit surface for task notes and event descriptions. The underlying text
 // view is MarkdownLiveEditor, which renders markdown formatting live while
 // keeping syntax visible but dimmed (Obsidian-style live preview). The
-// toolbar on top still inserts raw markdown — the live render does the
-// rest.
+// toolbar applies markdown commands to the current text selection.
 struct MarkdownEditor: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var colorScheme
@@ -23,6 +22,7 @@ struct MarkdownEditor: View {
     @State private var isImportingLocalFile = false
     @State private var attachmentImportMessage: String?
     @State private var isDropTargeted = false
+    @State private var selectedRange = NSRange(location: 0, length: 0)
 
     private var editorFontSize: CGFloat {
         let base = CGFloat(HCBTextSize.clamp(model.settings.uiTextSizePoints))
@@ -116,8 +116,8 @@ struct MarkdownEditor: View {
             toolbarButton(title: "1.", systemImage: "list.number", help: "Numbered list") {
                 insertLinePrefix("1. ")
             }
-            toolbarButton(title: "🔗", systemImage: "link", help: "Link ([text](url))") {
-                insertAtEnd("[text](https://)")
+            toolbarButton(title: "🔗", systemImage: "link", help: "Link selected text") {
+                applyTextMutation(MarkdownEditorTextMutation.link(text: text, selection: selectedRange))
             }
             toolbarButton(title: "Image", systemImage: "photo.badge.plus", help: "Attach local image pointer") {
                 attachmentImportMessage = nil
@@ -155,6 +155,7 @@ struct MarkdownEditor: View {
             maxHeight: maxHeight,
             baseFont: baseNSFont,
             theme: theme,
+            selectedRange: $selectedRange,
             onFocusChange: { focused in isFocused = focused },
             onPasteAttachments: handleAttachmentPaste
         )
@@ -170,11 +171,16 @@ struct MarkdownEditor: View {
         )
     }
 
-    // Toolbar still appends since NSTextView's selection isn't round-tripped
-    // through the SwiftUI binding. Wrapping at cursor remains a possible
-    // follow-up if callers ask.
     private func wrapAtEnd(prefix: String, suffix: String, placeholder: String) {
-        appendAddition("\(prefix)\(placeholder)\(suffix)")
+        applyTextMutation(
+            MarkdownEditorTextMutation.wrap(
+                text: text,
+                selection: selectedRange,
+                prefix: prefix,
+                suffix: suffix,
+                placeholder: placeholder
+            )
+        )
     }
 
     private func insertLinePrefix(_ prefix: String) {
@@ -185,10 +191,6 @@ struct MarkdownEditor: View {
         } else {
             text.append("\n\(prefix)")
         }
-    }
-
-    private func insertAtEnd(_ snippet: String) {
-        appendAddition(snippet)
     }
 
     private func handleLocalImageImport(_ result: Result<[URL], Error>) {
@@ -266,16 +268,6 @@ struct MarkdownEditor: View {
         }
     }
 
-    private func appendAddition(_ addition: String) {
-        if text.isEmpty {
-            text = addition
-        } else if text.hasSuffix(" ") || text.hasSuffix("\n") {
-            text.append(addition)
-        } else {
-            text.append(" \(addition)")
-        }
-    }
-
     private func appendBlock(_ block: String) {
         if text.isEmpty {
             text = block
@@ -286,5 +278,51 @@ struct MarkdownEditor: View {
         } else {
             text.append("\n\n\(block)")
         }
+    }
+
+    private func applyTextMutation(_ mutation: MarkdownEditorTextMutation.Result) {
+        text = mutation.text
+        selectedRange = mutation.selection
+    }
+}
+
+struct MarkdownEditorTextMutation {
+    struct Result {
+        var text: String
+        var selection: NSRange
+    }
+
+    static func link(text: String, selection: NSRange) -> Result {
+        let nsText = text as NSString
+        let range = clamped(selection, textLength: nsText.length)
+        let label = range.length > 0 ? nsText.substring(with: range) : "text"
+        let replacement = "[\(label)](https://)"
+        let output = nsText.replacingCharacters(in: range, with: replacement)
+        let urlLocation = range.location + 1 + (label as NSString).length + 2
+        return Result(
+            text: output,
+            selection: NSRange(location: urlLocation, length: ("https://" as NSString).length)
+        )
+    }
+
+    static func wrap(text: String, selection: NSRange, prefix: String, suffix: String, placeholder: String) -> Result {
+        let nsText = text as NSString
+        let range = clamped(selection, textLength: nsText.length)
+        let selected = range.length > 0 ? nsText.substring(with: range) : placeholder
+        let replacement = "\(prefix)\(selected)\(suffix)"
+        let output = nsText.replacingCharacters(in: range, with: replacement)
+        return Result(
+            text: output,
+            selection: NSRange(location: range.location + (prefix as NSString).length, length: (selected as NSString).length)
+        )
+    }
+
+    static func clamped(_ range: NSRange, textLength: Int) -> NSRange {
+        guard range.location != NSNotFound, range.location >= 0 else {
+            return NSRange(location: textLength, length: 0)
+        }
+        let location = min(range.location, textLength)
+        let length = max(0, min(range.length, textLength - location))
+        return NSRange(location: location, length: length)
     }
 }
