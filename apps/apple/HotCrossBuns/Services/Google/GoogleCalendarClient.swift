@@ -127,7 +127,10 @@ struct GoogleCalendarClient: Sendable {
         colorId: String? = nil,
         startTimeZoneID: String? = nil,
         endTimeZoneID: String? = nil,
-        hcbTaskID: String? = nil
+        transparency: CalendarEventTransparency? = nil,
+        visibility: CalendarEventVisibility? = nil,
+        hcbTaskID: String? = nil,
+        availabilityHold: AvailabilityHoldMetadata? = nil
     ) async throws -> CalendarEventMirror {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
         let htmlDetails = MarkdownHTML.markdownToCalendarHTML(details)
@@ -152,7 +155,12 @@ struct GoogleCalendarClient: Sendable {
             attendees: attendeeEmails.isEmpty ? nil : attendeeEmails.map { GoogleEventAttendeeMutationDTO(email: $0) },
             conferenceData: conference,
             colorId: colorId,
-            extendedProperties: GoogleEventExtendedPropertiesEncodeDTO.hcb(taskID: hcbTaskID)
+            transparency: transparency?.rawValue,
+            visibility: visibility?.rawValue,
+            extendedProperties: GoogleEventExtendedPropertiesEncodeDTO.hcb(
+                taskID: hcbTaskID,
+                availabilityHold: availabilityHold
+            )
         )
         var queryItems: [URLQueryItem] = [URLQueryItem(name: "sendUpdates", value: sendUpdates)]
         if addGoogleMeet {
@@ -177,7 +185,8 @@ struct GoogleCalendarClient: Sendable {
             "attendeeCount": String(attendeeEmails.count),
             "recurrenceCount": String(recurrence.count),
             "notifyGuests": String(sendUpdates != "none"),
-            "addGoogleMeet": String(addGoogleMeet)
+            "addGoogleMeet": String(addGoogleMeet),
+            "isAvailabilityHold": String(availabilityHold != nil)
         ])
         return mirror
     }
@@ -200,6 +209,10 @@ struct GoogleCalendarClient: Sendable {
         startTimeZoneID: String? = nil,
         endTimeZoneID: String? = nil,
         hcbTaskID: String? = nil,
+        transparency: CalendarEventTransparency? = nil,
+        visibility: CalendarEventVisibility? = nil,
+        availabilityHold: AvailabilityHoldMetadata? = nil,
+        clearAvailabilityHoldMetadata: Bool = false,
         ifMatch: String? = nil
     ) async throws -> CalendarEventMirror {
         let encodedCalendarID = calendarID.googlePathComponentEncoded
@@ -226,7 +239,13 @@ struct GoogleCalendarClient: Sendable {
             attendees: attendeeEmails.map { GoogleEventAttendeeMutationDTO(email: $0) },
             conferenceData: conference,
             colorId: colorId,
-            extendedProperties: GoogleEventExtendedPropertiesEncodeDTO.hcb(taskID: hcbTaskID)
+            transparency: transparency?.rawValue,
+            visibility: visibility?.rawValue,
+            extendedProperties: GoogleEventExtendedPropertiesEncodeDTO.hcb(
+                taskID: hcbTaskID,
+                availabilityHold: availabilityHold,
+                clearAvailabilityHoldMetadata: clearAvailabilityHoldMetadata
+            )
         )
         var queryItems: [URLQueryItem] = [URLQueryItem(name: "sendUpdates", value: sendUpdates)]
         if addGoogleMeet {
@@ -251,6 +270,8 @@ struct GoogleCalendarClient: Sendable {
             "recurrenceCount": String(recurrence.count),
             "notifyGuests": String(sendUpdates != "none"),
             "addGoogleMeet": String(addGoogleMeet),
+            "isAvailabilityHold": String(availabilityHold != nil),
+            "clearsAvailabilityHold": String(clearAvailabilityHoldMetadata),
             "hasIfMatch": String(ifMatch?.isEmpty == false)
         ])
         return mirror
@@ -388,6 +409,8 @@ private struct GoogleEventDTO: Decodable, Sendable {
     var conferenceData: GoogleConferenceDataDTO?
     var htmlLink: String?
     var colorId: String?
+    var transparency: String?
+    var visibility: String?
     var extendedProperties: GoogleEventExtendedPropertiesDTO?
 
     func mirror(calendarID: String, defaultTimeZoneID: String? = nil) -> CalendarEventMirror {
@@ -406,7 +429,9 @@ private struct GoogleEventDTO: Decodable, Sendable {
         } else {
             renderedDetails = ""
         }
-        let hcbTaskID = extendedProperties?.privateProperties?["hcbTaskID"] ?? legacyTaskID
+        let privateProperties = extendedProperties?.privateProperties ?? [:]
+        let hcbTaskID = privateProperties["hcbTaskID"] ?? legacyTaskID
+        let availabilityHold = AvailabilityHoldMetadata(privateProperties: privateProperties)
         // Google Calendar returns `date` (for all-day) as "yyyy-MM-dd" decoded
         // by GoogleDateParser.dateOnly as UTC midnight. Comparing that against
         // a local-TZ reference date is unsafe: in UTC-N an event whose date is
@@ -461,7 +486,10 @@ private struct GoogleEventDTO: Decodable, Sendable {
             colorId: colorId,
             startTimeZoneID: resolvedStartTimeZoneID,
             endTimeZoneID: resolvedEndTimeZoneID,
-            hcbTaskID: hcbTaskID
+            transparency: CalendarEventTransparency(wire: transparency),
+            visibility: CalendarEventVisibility(wire: visibility),
+            hcbTaskID: hcbTaskID,
+            availabilityHold: availabilityHold
         )
     }
 
@@ -589,12 +617,14 @@ private struct GoogleEventMutationDTO: Encodable, Sendable {
     var attendees: [GoogleEventAttendeeMutationDTO]?
     var conferenceData: GoogleConferenceCreateDTO?
     var colorId: String?
+    var transparency: String?
+    var visibility: String?
     var extendedProperties: GoogleEventExtendedPropertiesEncodeDTO?
 
     enum CodingKeys: String, CodingKey {
         case summary, description, location, start, end
         case recurrence, reminders, attendees, conferenceData, colorId
-        case extendedProperties
+        case transparency, visibility, extendedProperties
     }
 
     // Custom encoding so nil optionals are omitted rather than emitted as
@@ -613,6 +643,8 @@ private struct GoogleEventMutationDTO: Encodable, Sendable {
         try container.encodeIfPresent(attendees, forKey: .attendees)
         try container.encodeIfPresent(conferenceData, forKey: .conferenceData)
         try container.encodeIfPresent(colorId, forKey: .colorId)
+        try container.encodeIfPresent(transparency, forKey: .transparency)
+        try container.encodeIfPresent(visibility, forKey: .visibility)
         try container.encodeIfPresent(extendedProperties, forKey: .extendedProperties)
     }
 }
@@ -629,15 +661,31 @@ private struct GoogleEventExtendedPropertiesDTO: Decodable, Sendable {
 }
 
 private struct GoogleEventExtendedPropertiesEncodeDTO: Encodable, Sendable {
-    var privateProperties: [String: String]
+    var privateProperties: [String: String?]
 
     enum CodingKeys: String, CodingKey {
         case privateProperties = "private"
     }
 
-    static func hcb(taskID: String?) -> GoogleEventExtendedPropertiesEncodeDTO? {
-        guard let taskID, taskID.isEmpty == false else { return nil }
-        return GoogleEventExtendedPropertiesEncodeDTO(privateProperties: ["hcbTaskID": taskID])
+    static func hcb(
+        taskID: String?,
+        availabilityHold: AvailabilityHoldMetadata? = nil,
+        clearAvailabilityHoldMetadata: Bool = false
+    ) -> GoogleEventExtendedPropertiesEncodeDTO? {
+        var properties: [String: String?] = [:]
+
+        if let taskID, taskID.isEmpty == false {
+            properties["hcbTaskID"] = taskID
+        }
+
+        if let availabilityHold {
+            properties.merge(availabilityHold.privateProperties.mapValues { Optional($0) }) { _, new in new }
+        } else if clearAvailabilityHoldMetadata {
+            properties.merge(AvailabilityHoldMetadata.clearPrivateProperties) { _, new in new }
+        }
+
+        guard properties.isEmpty == false else { return nil }
+        return GoogleEventExtendedPropertiesEncodeDTO(privateProperties: properties)
     }
 }
 
