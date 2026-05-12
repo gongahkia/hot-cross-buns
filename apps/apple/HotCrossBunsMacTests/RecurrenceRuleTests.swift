@@ -44,4 +44,31 @@ final class RecurrenceRuleTests: XCTestCase {
         XCTAssertEqual(rule.advance(start, calendar: calendar), expected)
     }
 
+    func testEventDurationFormatterLabelsCommonDurations() {
+        XCTAssertEqual(EventDurationFormatter.label(minutes: 15), "15 min")
+        XCTAssertEqual(EventDurationFormatter.label(minutes: 60), "1h")
+        XCTAssertEqual(EventDurationFormatter.label(minutes: 90), "1h 30m")
+        XCTAssertEqual(EventDurationFormatter.label(minutes: 24 * 60), "1d")
+    }
+
+    func testEventEndTimeOptionsUseFifteenMinuteDurationsAndKeepCurrentDuration() {
+        let start = calendar.date(from: DateComponents(year: 2026, month: 4, day: 18, hour: 9, minute: 0))!
+        let customEnd = calendar.date(from: DateComponents(year: 2026, month: 4, day: 18, hour: 10, minute: 7))!
+
+        let options = EventEndTimeOption.options(
+            startDate: start,
+            currentEndDate: customEnd,
+            timeZoneID: "UTC",
+            calendar: calendar
+        )
+
+        XCTAssertEqual(options.prefix(4).map(\.durationMinutes), [15, 30, 45, 60])
+        XCTAssertTrue(options.contains { $0.durationMinutes == 67 })
+        XCTAssertTrue(options.contains { $0.durationMinutes == 90 })
+        XCTAssertEqual(
+            options.first(where: { $0.durationMinutes == 67 })?.durationTitle,
+            "1h 7m"
+        )
+    }
+
 }
