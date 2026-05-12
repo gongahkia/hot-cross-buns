@@ -20,6 +20,9 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
         XCTAssertTrue(settings.showMenuBarExtra, "legacy caches should opt into the menu bar extra by default")
         XCTAssertFalse(settings.showDetailedMenuBar, "legacy caches should default to compact menu bar panel")
         XCTAssertEqual(settings.menuBarIcon, .buns, "legacy caches should keep the original menu bar icon")
+        XCTAssertEqual(settings.menuBarAdaptiveStatusSource, .events)
+        XCTAssertEqual(settings.menuBarAdaptiveEmptyBehavior, .iconOnly)
+        XCTAssertEqual(settings.menuBarAdaptivePanelContent, .events)
         XCTAssertTrue(settings.showDockBadge, "legacy caches should opt into the dock badge by default")
         XCTAssertTrue(settings.restoreWindowStateEnabled, "legacy caches should restore prior window sessions by default")
         XCTAssertEqual(settings.globalHotkeyBinding, .defaultQuickAdd)
@@ -42,6 +45,10 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
                 key: .char("k"),
                 modifiers: [.command, .shift]
             ),
+            menuBarStyle: .adaptive,
+            menuBarAdaptiveStatusSource: .eventsAndTasks,
+            menuBarAdaptiveEmptyBehavior: .clear,
+            menuBarAdaptivePanelContent: .tasks,
             sidebarPlacement: .bottom
         )
 
@@ -50,6 +57,10 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
 
         XCTAssertFalse(decoded.showMenuBarExtra)
         XCTAssertTrue(decoded.showDetailedMenuBar)
+        XCTAssertEqual(decoded.menuBarStyle, .adaptive)
+        XCTAssertEqual(decoded.menuBarAdaptiveStatusSource, .eventsAndTasks)
+        XCTAssertEqual(decoded.menuBarAdaptiveEmptyBehavior, .clear)
+        XCTAssertEqual(decoded.menuBarAdaptivePanelContent, .tasks)
         XCTAssertEqual(decoded.menuBarIcon, .sparkles)
         XCTAssertFalse(decoded.showDockBadge)
         XCTAssertFalse(decoded.restoreWindowStateEnabled)
@@ -59,6 +70,20 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
 
     func testMenuBarIconCatalogExposesUpToFiftyChoices() {
         XCTAssertEqual(AppSettings.MenuBarIcon.allCases.count, 50)
+    }
+
+    func testAdaptiveMenuBarSettingsMetadata() {
+        XCTAssertTrue(AppSettings.MenuBarStyle.allCases.contains(.adaptive))
+        XCTAssertEqual(AppSettings.MenuBarStyle.adaptive.title, "Adaptive")
+        XCTAssertEqual(AppSettings.MenuBarAdaptiveStatusSource.events.title, "Events")
+        XCTAssertEqual(AppSettings.MenuBarAdaptiveStatusSource.tasks.title, "Tasks")
+        XCTAssertEqual(AppSettings.MenuBarAdaptiveStatusSource.eventsAndTasks.title, "Events + Tasks")
+        XCTAssertEqual(AppSettings.MenuBarAdaptiveEmptyBehavior.iconOnly.title, "Icon only")
+        XCTAssertEqual(AppSettings.MenuBarAdaptiveEmptyBehavior.clear.title, "Clear")
+        XCTAssertEqual(AppSettings.MenuBarAdaptiveEmptyBehavior.nextCommitment.title, "Next commitment")
+        XCTAssertEqual(AppSettings.MenuBarAdaptivePanelContent.events.title, "Events only")
+        XCTAssertEqual(AppSettings.MenuBarAdaptivePanelContent.tasks.title, "Tasks only")
+        XCTAssertEqual(AppSettings.MenuBarAdaptivePanelContent.eventsAndTasks.title, "Events + Tasks")
     }
 
     func testNavigationSurfacePlacementMetadataAndUnknownDecodeFallback() throws {

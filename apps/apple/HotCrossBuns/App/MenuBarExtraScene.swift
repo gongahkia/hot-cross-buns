@@ -649,6 +649,7 @@ struct MenuBarExtraContent: View {
             switch model.settings.menuBarStyle {
             case .detailed: DetailedMenuBarPanel()
             case .weekly: WeeklyMenuBarPanel(onDaySelected: onWeekDaySelected)
+            case .adaptive: DetailedMenuBarPanel()
             case .compact: CompactMenuBarPanel()
             }
         }
