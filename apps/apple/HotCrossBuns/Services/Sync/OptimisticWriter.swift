@@ -38,15 +38,19 @@ struct PendingEventCreatePayload: Codable, Sendable, Equatable {
     var colorId: String? = nil
     var startTimeZoneID: String? = nil
     var endTimeZoneID: String? = nil
+    var transparency: CalendarEventTransparency? = nil
+    var visibility: CalendarEventVisibility? = nil
     // HCB-only backlink stored on the event's Google extendedProperties.private
     // bag (not visible in other Google clients). Nil for plain event creates;
     // set when the event was spawned by a task → time-block drag.
     var hcbTaskID: String? = nil
+    var availabilityHold: AvailabilityHoldMetadata? = nil
 
     enum CodingKeys: String, CodingKey {
         case localID, calendarID, summary, details, startDate, endDate, isAllDay
         case reminderMinutes, location, recurrence, attendeeEmails, notifyGuests
-        case addGoogleMeet, colorId, startTimeZoneID, endTimeZoneID, hcbTaskID
+        case addGoogleMeet, colorId, startTimeZoneID, endTimeZoneID
+        case transparency, visibility, hcbTaskID, availabilityHold
     }
 
     init(
@@ -66,7 +70,10 @@ struct PendingEventCreatePayload: Codable, Sendable, Equatable {
         colorId: String? = nil,
         startTimeZoneID: String? = nil,
         endTimeZoneID: String? = nil,
-        hcbTaskID: String? = nil
+        transparency: CalendarEventTransparency? = nil,
+        visibility: CalendarEventVisibility? = nil,
+        hcbTaskID: String? = nil,
+        availabilityHold: AvailabilityHoldMetadata? = nil
     ) {
         self.localID = localID
         self.calendarID = calendarID
@@ -84,7 +91,10 @@ struct PendingEventCreatePayload: Codable, Sendable, Equatable {
         self.colorId = colorId
         self.startTimeZoneID = TimezoneSupport.validatedIdentifier(startTimeZoneID)
         self.endTimeZoneID = TimezoneSupport.validatedIdentifier(endTimeZoneID) ?? TimezoneSupport.validatedIdentifier(startTimeZoneID)
+        self.transparency = transparency
+        self.visibility = visibility
         self.hcbTaskID = hcbTaskID
+        self.availabilityHold = availabilityHold
     }
 
     init(from decoder: Decoder) throws {
@@ -105,7 +115,10 @@ struct PendingEventCreatePayload: Codable, Sendable, Equatable {
         colorId = try c.decodeIfPresent(String.self, forKey: .colorId)
         startTimeZoneID = TimezoneSupport.validatedIdentifier(try c.decodeIfPresent(String.self, forKey: .startTimeZoneID))
         endTimeZoneID = TimezoneSupport.validatedIdentifier(try c.decodeIfPresent(String.self, forKey: .endTimeZoneID)) ?? startTimeZoneID
+        transparency = try c.decodeIfPresent(CalendarEventTransparency.self, forKey: .transparency)
+        visibility = try c.decodeIfPresent(CalendarEventVisibility.self, forKey: .visibility)
         hcbTaskID = try c.decodeIfPresent(String.self, forKey: .hcbTaskID)
+        availabilityHold = try c.decodeIfPresent(AvailabilityHoldMetadata.self, forKey: .availabilityHold)
     }
 }
 
@@ -150,11 +163,16 @@ struct PendingEventUpdatePayload: Codable, Sendable, Equatable {
     var startTimeZoneID: String? = nil
     var endTimeZoneID: String? = nil
     var hcbTaskID: String? = nil
+    var transparency: CalendarEventTransparency? = nil
+    var visibility: CalendarEventVisibility? = nil
+    var availabilityHold: AvailabilityHoldMetadata? = nil
+    var clearAvailabilityHoldMetadata: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case calendarID, eventID, summary, details, startDate, endDate, isAllDay
         case reminderMinutes, location, recurrence, attendeeEmails, notifyGuests
         case etagSnapshot, addGoogleMeet, colorId, startTimeZoneID, endTimeZoneID, hcbTaskID
+        case transparency, visibility, availabilityHold, clearAvailabilityHoldMetadata
     }
 
     init(
@@ -175,7 +193,11 @@ struct PendingEventUpdatePayload: Codable, Sendable, Equatable {
         colorId: String? = nil,
         startTimeZoneID: String? = nil,
         endTimeZoneID: String? = nil,
-        hcbTaskID: String? = nil
+        hcbTaskID: String? = nil,
+        transparency: CalendarEventTransparency? = nil,
+        visibility: CalendarEventVisibility? = nil,
+        availabilityHold: AvailabilityHoldMetadata? = nil,
+        clearAvailabilityHoldMetadata: Bool = false
     ) {
         self.calendarID = calendarID
         self.eventID = eventID
@@ -195,6 +217,10 @@ struct PendingEventUpdatePayload: Codable, Sendable, Equatable {
         self.startTimeZoneID = TimezoneSupport.validatedIdentifier(startTimeZoneID)
         self.endTimeZoneID = TimezoneSupport.validatedIdentifier(endTimeZoneID) ?? TimezoneSupport.validatedIdentifier(startTimeZoneID)
         self.hcbTaskID = hcbTaskID
+        self.transparency = transparency
+        self.visibility = visibility
+        self.availabilityHold = availabilityHold
+        self.clearAvailabilityHoldMetadata = clearAvailabilityHoldMetadata
     }
 
     init(from decoder: Decoder) throws {
@@ -217,6 +243,10 @@ struct PendingEventUpdatePayload: Codable, Sendable, Equatable {
         startTimeZoneID = TimezoneSupport.validatedIdentifier(try c.decodeIfPresent(String.self, forKey: .startTimeZoneID))
         endTimeZoneID = TimezoneSupport.validatedIdentifier(try c.decodeIfPresent(String.self, forKey: .endTimeZoneID)) ?? startTimeZoneID
         hcbTaskID = try c.decodeIfPresent(String.self, forKey: .hcbTaskID)
+        transparency = try c.decodeIfPresent(CalendarEventTransparency.self, forKey: .transparency)
+        visibility = try c.decodeIfPresent(CalendarEventVisibility.self, forKey: .visibility)
+        availabilityHold = try c.decodeIfPresent(AvailabilityHoldMetadata.self, forKey: .availabilityHold)
+        clearAvailabilityHoldMetadata = try c.decodeIfPresent(Bool.self, forKey: .clearAvailabilityHoldMetadata) ?? false
     }
 }
 

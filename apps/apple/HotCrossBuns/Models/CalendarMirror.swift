@@ -76,13 +76,12 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
     var colorId: String?
     var startTimeZoneID: String
     var endTimeZoneID: String
+    var transparency: CalendarEventTransparency
+    var visibility: CalendarEventVisibility
     // HCB-only metadata stored in Google's native `extendedProperties.private`
-    // bag. `private` is HCB-only — other Google clients don't render it —
-    // which is exactly the philosophy-compliant place to attach per-event
-    // app state without polluting user-visible fields like description.
-    // Used today for the time-blocking backlink (task → event) so the UI can
-    // jump from an event tile back to its originating task.
+    // bag so app state stays out of user-visible fields like description.
     var hcbTaskID: String?
+    var availabilityHold: AvailabilityHoldMetadata?
 
     init(
         id: String,
@@ -106,7 +105,10 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         colorId: String? = nil,
         startTimeZoneID: String? = nil,
         endTimeZoneID: String? = nil,
-        hcbTaskID: String? = nil
+        transparency: CalendarEventTransparency = .opaque,
+        visibility: CalendarEventVisibility = .defaultVisibility,
+        hcbTaskID: String? = nil,
+        availabilityHold: AvailabilityHoldMetadata? = nil
     ) {
         self.id = id
         self.calendarID = calendarID
@@ -130,7 +132,10 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         let resolvedStartTimeZoneID = TimezoneSupport.validatedIdentifier(startTimeZoneID) ?? TimezoneSupport.currentIdentifier
         self.startTimeZoneID = resolvedStartTimeZoneID
         self.endTimeZoneID = TimezoneSupport.validatedIdentifier(endTimeZoneID) ?? resolvedStartTimeZoneID
+        self.transparency = transparency
+        self.visibility = visibility
         self.hcbTaskID = hcbTaskID
+        self.availabilityHold = availabilityHold
     }
 
     enum CodingKeys: String, CodingKey {
@@ -155,7 +160,10 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         case colorId
         case startTimeZoneID
         case endTimeZoneID
+        case transparency
+        case visibility
         case hcbTaskID
+        case availabilityHold
     }
 
     init(from decoder: Decoder) throws {
@@ -184,7 +192,101 @@ struct CalendarEventMirror: Identifiable, Hashable, Codable, Sendable {
         startTimeZoneID = decodedStartTimeZoneID
         endTimeZoneID = TimezoneSupport.validatedIdentifier(try container.decodeIfPresent(String.self, forKey: .endTimeZoneID))
             ?? decodedStartTimeZoneID
+        transparency = try container.decodeIfPresent(CalendarEventTransparency.self, forKey: .transparency) ?? .opaque
+        visibility = try container.decodeIfPresent(CalendarEventVisibility.self, forKey: .visibility) ?? .defaultVisibility
         hcbTaskID = try container.decodeIfPresent(String.self, forKey: .hcbTaskID)
+        availabilityHold = try container.decodeIfPresent(AvailabilityHoldMetadata.self, forKey: .availabilityHold)
+    }
+
+    var isAvailabilityHold: Bool {
+        availabilityHold != nil
+    }
+}
+
+enum CalendarEventTransparency: String, Codable, Hashable, Sendable {
+    case opaque
+    case transparent
+
+    init(wire: String?) {
+        self = CalendarEventTransparency(rawValue: wire ?? "") ?? .opaque
+    }
+}
+
+enum CalendarEventVisibility: String, Codable, Hashable, Sendable {
+    case defaultVisibility = "default"
+    case publicVisibility = "public"
+    case privateVisibility = "private"
+    case confidential
+
+    init(wire: String?) {
+        self = CalendarEventVisibility(rawValue: wire ?? "") ?? .defaultVisibility
+    }
+}
+
+struct AvailabilityHoldMetadata: Hashable, Codable, Sendable {
+    static let roleValue = "hold"
+    static let groupIDKey = "hcbAvailabilityGroupID"
+    static let roleKey = "hcbAvailabilityRole"
+    static let titleKey = "hcbAvailabilityTitle"
+    static let durationKey = "hcbAvailabilityDuration"
+    static let createdAtKey = "hcbAvailabilityCreatedAt"
+
+    var groupID: String
+    var title: String
+    var durationMinutes: Int
+    var createdAt: Date
+
+    init(
+        groupID: String,
+        title: String,
+        durationMinutes: Int,
+        createdAt: Date = Date()
+    ) {
+        self.groupID = groupID
+        self.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.durationMinutes = max(15, durationMinutes)
+        self.createdAt = createdAt
+    }
+
+    init?(privateProperties: [String: String]) {
+        guard privateProperties[Self.roleKey] == Self.roleValue,
+              let groupID = privateProperties[Self.groupIDKey],
+              groupID.isEmpty == false
+        else {
+            return nil
+        }
+
+        self.groupID = groupID
+        let rawTitle = privateProperties[Self.titleKey]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        self.title = rawTitle.isEmpty ? "Meeting" : rawTitle
+        let rawDuration = privateProperties[Self.durationKey].flatMap(Int.init) ?? 30
+        self.durationMinutes = max(15, rawDuration)
+        if let rawCreated = privateProperties[Self.createdAtKey],
+           let parsed = ISO8601DateFormatter.google.date(from: rawCreated) {
+            self.createdAt = parsed
+        } else {
+            self.createdAt = Date()
+        }
+    }
+
+    var privateProperties: [String: String] {
+        [
+            Self.groupIDKey: groupID,
+            Self.roleKey: Self.roleValue,
+            Self.titleKey: title,
+            Self.durationKey: String(durationMinutes),
+            Self.createdAtKey: ISO8601DateFormatter.google.string(from: createdAt)
+        ]
+    }
+
+    static var clearPrivateProperties: [String: String?] {
+        [
+            Self.groupIDKey: nil,
+            Self.roleKey: nil,
+            Self.titleKey: nil,
+            Self.durationKey: nil,
+            Self.createdAtKey: nil
+        ]
     }
 }
 
