@@ -283,6 +283,14 @@ final class OfflineQueuePayloadTests: XCTestCase {
         XCTAssertNil(TimezoneSupport.validatedIdentifier("Not/AZone"))
     }
 
+    func testTimezoneSupportCompactDisplayNameUsesOffsetAndPlace() {
+        XCTAssertEqual(TimezoneSupport.compactDisplayName(for: "UTC"), "GMT+00:00 UTC")
+
+        let singapore = TimezoneSupport.compactDisplayName(for: "Asia/Singapore")
+        XCTAssertTrue(singapore.hasPrefix("GMT+08:00 "))
+        XCTAssertTrue(singapore.hasSuffix("Singapore"))
+    }
+
     func testSyncFailureCopyUsesNotFoundMessaging() {
         let copy = AppStatusBanner.syncFailureCopy(
             fallbackMessage: #"{"error":{"code":404,"message":"Not Found"}}"#,

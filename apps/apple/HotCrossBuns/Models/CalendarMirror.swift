@@ -272,14 +272,30 @@ enum TimezoneSupport {
 
     static func displayName(for identifier: String) -> String {
         let timeZone = timeZone(for: identifier)
-        let seconds = timeZone.secondsFromGMT(for: Date())
+        let offset = gmtOffset(for: timeZone)
+        let name = timeZone.localizedName(for: .standard, locale: .current) ?? identifier
+        return "(\(offset)) \(name)"
+    }
+
+    static func compactDisplayName(for identifier: String) -> String {
+        let timeZone = timeZone(for: identifier)
+        let normalized = validatedIdentifier(identifier) ?? identifier
+        let placeName = normalized == "UTC"
+            ? "UTC"
+            : normalized
+                .split(separator: "/")
+                .last
+                .map { String($0).replacingOccurrences(of: "_", with: " ") }
+        return "\(gmtOffset(for: timeZone)) \(placeName ?? normalized)"
+    }
+
+    private static func gmtOffset(for timeZone: TimeZone, at date: Date = Date()) -> String {
+        let seconds = timeZone.secondsFromGMT(for: date)
         let sign = seconds >= 0 ? "+" : "-"
         let absolute = abs(seconds)
         let hours = absolute / 3600
         let minutes = (absolute % 3600) / 60
-        let offset = String(format: "GMT%@%02d:%02d", sign, hours, minutes)
-        let name = timeZone.localizedName(for: .standard, locale: .current) ?? identifier
-        return "(\(offset)) \(name)"
+        return String(format: "GMT%@%02d:%02d", sign, hours, minutes)
     }
 
     static func reinterpretingWallClock(
