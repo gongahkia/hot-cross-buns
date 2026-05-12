@@ -755,6 +755,10 @@ struct MacSidebarShell: View {
         .help(sidebarHelp(for: item))
         .accessibilityLabel(navigationAccessibilityLabel(for: item))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+        // Keep sidebar actions available when the sidebar is in compact icon-only mode.
+        .contextMenu {
+            sidebarContextMenu(for: item)
+        }
     }
 
     private func horizontalNavigationButton(for item: SidebarItem) -> some View {
@@ -1776,6 +1780,8 @@ private struct MainWindowFocusAccessor: NSViewRepresentable {
 
         func attach(to nextWindow: NSWindow?) {
             guard let nextWindow else { return }
+            // The app uses its own sidebar chrome; the macOS title text should stay hidden.
+            nextWindow.titleVisibility = .hidden
             guard window !== nextWindow else {
                 refreshFocus()
                 return

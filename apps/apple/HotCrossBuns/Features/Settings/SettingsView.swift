@@ -591,22 +591,14 @@ struct AccountStatusView: View {
             }
 
             if account != nil {
+                // The add-account CTA owns the full row; disconnect stays as a compact row action on each account.
                 Button(action: connect) {
                     Label("Add Google Account", systemImage: "person.crop.circle.badge.plus")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(AppColor.ember)
-                .hcbScaledFrame(maxWidth: 320, alignment: .leading)
                 .disabled(isAuthenticating || canConnect == false)
-
-                Button(role: .destructive) {
-                    confirmingDisconnectAccountID = resolvedActiveAccountID
-                } label: {
-                    Label("Disconnect Active Account", systemImage: "person.crop.circle.badge.xmark")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
             } else {
                 Button(action: connect) {
                     Label("Connect Google", systemImage: "person.crop.circle.badge.plus")
@@ -732,9 +724,11 @@ struct AccountStatusView: View {
             Button(role: .destructive) {
                 confirmingDisconnectAccountID = account.id
             } label: {
-                Image(systemName: "minus.circle")
+                // Icon-only because this action belongs to the specific account row, not the global account controls.
+                Image(systemName: "person.crop.circle.badge.xmark")
             }
             .buttonStyle(.borderless)
+            .accessibilityLabel("Disconnect \(account.displayName)")
             .help("Disconnect this Google account")
         }
         .hcbScaledPadding(.vertical, 3)

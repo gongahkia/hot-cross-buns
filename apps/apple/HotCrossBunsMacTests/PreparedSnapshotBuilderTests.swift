@@ -357,6 +357,38 @@ final class PreparedTaskBoardDisplaySnapshotBuilderTests: XCTestCase {
         XCTAssertEqual(cards[1].tags, ["home"])
     }
 
+    func testListSnapshotsOmitEmptyListColumns() {
+        let task = task(id: "open", title: "Only populated list", due: now)
+        let input = boardInput(
+            key: PreparedSnapshotKey("tasks-non-empty-lists"),
+            surface: .tasks,
+            tasks: [task],
+            mode: .byList
+        )
+
+        let snapshot = TaskBoardDisplaySnapshotBuilder.snapshot(input)
+
+        // Empty lists should not render placeholder Kanban columns.
+        XCTAssertEqual(snapshot.columns.map(\.title), ["Inbox"])
+    }
+
+    func testNotesSnapshotKeepsCompletedOnlyListColumn() {
+        let note = task(id: "done-note", listID: "list-b", title: "Archived note", completed: true)
+        let input = boardInput(
+            key: PreparedSnapshotKey("notes-completed-only-list"),
+            surface: .notes,
+            tasks: [note],
+            mode: .byList
+        )
+
+        let snapshot = TaskBoardDisplaySnapshotBuilder.snapshot(input)
+
+        // Completed-only lists still count as populated, so the notes column remains visible.
+        XCTAssertEqual(snapshot.columns.map(\.title), ["Writing"])
+        XCTAssertEqual(snapshot.columns.first?.openTasks.map(\.id), [])
+        XCTAssertEqual(snapshot.columns.first?.completedTasks.map(\.id), ["done-note"])
+    }
+
     func testDeletedTasksDoNotContributeToPreparedColumnsOrCount() {
         let live = task(id: "live", title: "Live")
         let deleted = task(id: "deleted", title: "Deleted", deleted: true)

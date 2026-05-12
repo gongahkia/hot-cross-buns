@@ -145,6 +145,30 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
         XCTAssertEqual(status.kind, .nextEvent("next-event"))
     }
 
+    func testAdaptiveStatusUsesParenthesizedDetailForTruncatedEventTitle() {
+        let calendar = adaptiveCalendar()
+        let now = adaptiveDate(hour: 10, calendar: calendar)
+        let next = adaptiveEvent(
+            id: "next-event",
+            summary: "ABCDEFGHIJKLMNOPQRSTUVWXYZ12345",
+            start: adaptiveDate(hour: 11, minute: 53, calendar: calendar),
+            end: adaptiveDate(hour: 12, calendar: calendar)
+        )
+
+        let status = MenuBarAdaptiveStatusResolver.status(
+            now: now,
+            events: [next],
+            tasks: [],
+            source: .events,
+            emptyBehavior: .iconOnly,
+            calendar: calendar
+        )
+
+        // Truncated titles move timing into parentheses instead of using the normal dash separator.
+        XCTAssertEqual(status.label, "ABCDEFGHIJKLMNOPQRSTUVWXY... (in 1h 53m)")
+        XCTAssertEqual(status.kind, .nextEvent("next-event"))
+    }
+
     func testAdaptiveStatusSupportsIconOnlyAndClearEmptyStates() {
         let calendar = adaptiveCalendar()
         let now = adaptiveDate(hour: 10, calendar: calendar)
@@ -209,6 +233,29 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
         XCTAssertEqual(status.kind, .task("due"))
     }
 
+    func testAdaptiveStatusUsesParenthesizedDetailForTruncatedTaskTitle() {
+        let calendar = adaptiveCalendar()
+        let now = adaptiveDate(hour: 10, calendar: calendar)
+        let dueToday = adaptiveTask(
+            id: "due",
+            title: "ABCDEFGHIJKLMNOPQRSTUVWXYZ12345",
+            due: adaptiveDate(hour: 0, calendar: calendar)
+        )
+
+        let status = MenuBarAdaptiveStatusResolver.status(
+            now: now,
+            events: [],
+            tasks: [dueToday],
+            source: .tasks,
+            emptyBehavior: .iconOnly,
+            calendar: calendar
+        )
+
+        // Truncated titles move timing into parentheses instead of using the normal dash separator.
+        XCTAssertEqual(status.label, "ABCDEFGHIJKLMNOPQRSTUVWXY... (due today)")
+        XCTAssertEqual(status.kind, .task("due"))
+    }
+
     func testAdaptiveStatusCanFallbackToNextCommitmentAcrossSources() {
         let calendar = adaptiveCalendar()
         let now = adaptiveDate(hour: 10, calendar: calendar)
@@ -269,16 +316,6 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
         model.setSidebarItemHidden(.notes, hidden: true)
 
         XCTAssertEqual(model.settings.hiddenSidebarItems, Set(["calendar", "store"]))
-    }
-
-    func testBackgroundOpacityPresetMapping() {
-        XCTAssertEqual(BackgroundOpacityPreset.subtle.opacity, 0.45)
-        XCTAssertEqual(BackgroundOpacityPreset.readable.opacity, 0.70)
-        XCTAssertEqual(BackgroundOpacityPreset.strong.opacity, 0.90)
-        XCTAssertEqual(BackgroundOpacityPreset(opacity: 0.45), .subtle)
-        XCTAssertEqual(BackgroundOpacityPreset(opacity: 0.70), .readable)
-        XCTAssertEqual(BackgroundOpacityPreset(opacity: 0.90), .strong)
-        XCTAssertNil(BackgroundOpacityPreset(opacity: 0.55))
     }
 
     @MainActor

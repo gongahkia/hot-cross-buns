@@ -849,7 +849,7 @@ struct TaskInspectorEmptyState: View {
                 .hcbScaledPadding(.horizontal, 30)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Keep the empty inspector from reintroducing the hidden main-window title.
         .background(AppColor.cream.opacity(0.25))
-        .navigationTitle("Hot Cross Buns")
     }
 }

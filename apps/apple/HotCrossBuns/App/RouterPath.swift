@@ -167,6 +167,8 @@ private struct SheetHost<Content: View>: View {
         content()
             .sheet(item: $router.presentedSheet) { destination in
                 SheetDestinationHost(destination: destination, router: router)
+                    // Rebuild the host per route so the deferred first-paint state never leaks between sheets.
+                    .id(destination.id)
                     .environment(\.routerPath, router)
             }
     }
@@ -176,11 +178,29 @@ private struct SheetDestinationHost: View {
     @Environment(AppModel.self) private var model
     let destination: SheetDestination
     let router: RouterPath
+    @State private var isDeferredContentReady = false
 
     var body: some View {
-        sheetBody
+        Group {
+            // Show a lightweight shell first so click/drag creation feels immediate while heavier editors hydrate.
+            if destination.usesResponsiveFirstPaint, isDeferredContentReady == false {
+                ResponsiveSheetPlaceholder(destination: destination)
+            } else {
+                sheetBody
+            }
+        }
             .environment(\.routerPath, router)
             .withHCBAppearance(model.settings)
+            .task(id: destination.id) {
+                guard destination.usesResponsiveFirstPaint else { return }
+                isDeferredContentReady = false
+                await Task.yield()
+                try? await Task.sleep(for: .milliseconds(80))
+                guard Task.isCancelled == false else { return }
+                withAnimation(.easeOut(duration: 0.12)) {
+                    isDeferredContentReady = true
+                }
+            }
     }
 
     @ViewBuilder
@@ -248,6 +268,210 @@ private struct SheetDestinationHost: View {
         } else {
             ContentUnavailableView("Source not found", systemImage: "arrow.triangle.swap",
                                    description: Text("The item you're converting may have been deleted on Google."))
+        }
+    }
+}
+
+private struct ResponsiveSheetPlaceholder: View {
+    let destination: SheetDestination
+
+    var body: some View {
+        let style = destination.placeholderStyle
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: style.systemImage)
+                    .foregroundStyle(AppColor.ember)
+                    .hcbScaledFrame(width: 22)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(style.title)
+                        .hcbFont(.headline, weight: .semibold)
+                        .foregroundStyle(AppColor.ink)
+                    Text(style.subtitle)
+                        .hcbFont(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 12)
+                ProgressView()
+                    .controlSize(.small)
+            }
+            .hcbScaledPadding(.horizontal, 18)
+            .hcbScaledPadding(.vertical, 14)
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 12) {
+                placeholderBar(height: 40, widthScale: 0.82)
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        placeholderCard(height: 92)
+                        placeholderCard(height: 118)
+                    }
+                    if style.layout == .event {
+                        VStack(alignment: .leading, spacing: 10) {
+                            placeholderCard(height: 74)
+                            placeholderCard(height: 136)
+                        }
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .hcbScaledPadding(18)
+        }
+        .frameForResponsivePlaceholder(style.layout)
+        .background(.regularMaterial)
+        .accessibilityLabel(style.accessibilityLabel)
+    }
+
+    private func placeholderBar(height: CGFloat, widthScale: CGFloat) -> some View {
+        GeometryReader { proxy in
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(AppColor.cardSurface.opacity(0.72))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(AppColor.cardStroke.opacity(0.8), lineWidth: 0.6)
+                )
+                .frame(width: proxy.size.width * widthScale, height: height)
+        }
+        .frame(height: height)
+        .redacted(reason: .placeholder)
+    }
+
+    private func placeholderCard(height: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .fill(AppColor.cardSurface.opacity(0.58))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(AppColor.cardStroke.opacity(0.75), lineWidth: 0.6)
+            )
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+            .redacted(reason: .placeholder)
+    }
+}
+
+private enum ResponsiveSheetPlaceholderLayout {
+    case quickCreate
+    case task
+    case event
+}
+
+private struct ResponsiveSheetPlaceholderStyle {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let layout: ResponsiveSheetPlaceholderLayout
+
+    var accessibilityLabel: String {
+        "\(title), preparing editor"
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func frameForResponsivePlaceholder(_ layout: ResponsiveSheetPlaceholderLayout) -> some View {
+        switch layout {
+        case .quickCreate:
+            self.hcbScaledFrame(width: 440)
+                .frame(minHeight: 320)
+        case .task:
+            self.hcbScaledFrame(minWidth: 520, idealWidth: 560, minHeight: 520, idealHeight: 640)
+        case .event:
+            self.hcbScaledFrame(minWidth: 820, idealWidth: 920, minHeight: 560, idealHeight: 680)
+        }
+    }
+}
+
+private extension SheetDestination {
+    var usesResponsiveFirstPaint: Bool {
+        switch self {
+        // These routes build the full event/task editors, so they benefit most from a snappy placeholder pass.
+        case .addTask,
+             .editTask,
+             .addEvent,
+             .editEvent,
+             .addEventAt,
+             .addEventRange,
+             .quickCreate,
+             .quickCreateRange,
+             .quickCreateTask,
+             .quickCreateNote:
+            true
+        case .quickAddTask,
+             .quickAddNote,
+             .quickAddEvent,
+             .convertEventToTask,
+             .convertEventToNote,
+             .convertTaskToEvent,
+             .convertTaskToNote,
+             .convertNoteToTask,
+             .convertNoteToEvent,
+             .syncSettings,
+             .diagnostics:
+            false
+        }
+    }
+
+    var placeholderStyle: ResponsiveSheetPlaceholderStyle {
+        switch self {
+        case .addTask, .quickCreateTask:
+            ResponsiveSheetPlaceholderStyle(
+                title: "New Task",
+                subtitle: "Preparing the task editor.",
+                systemImage: "checklist",
+                layout: .task
+            )
+        case .editTask:
+            ResponsiveSheetPlaceholderStyle(
+                title: "Task",
+                subtitle: "Opening task details.",
+                systemImage: "checklist",
+                layout: .task
+            )
+        case .addEvent, .addEventAt, .addEventRange:
+            ResponsiveSheetPlaceholderStyle(
+                title: "New Event",
+                subtitle: "Preparing the event editor.",
+                systemImage: "calendar.badge.plus",
+                layout: .event
+            )
+        case .editEvent:
+            ResponsiveSheetPlaceholderStyle(
+                title: "Event",
+                subtitle: "Opening event details.",
+                systemImage: "calendar",
+                layout: .event
+            )
+        case .quickCreate, .quickCreateRange:
+            ResponsiveSheetPlaceholderStyle(
+                title: "New Event",
+                subtitle: "Preparing quick create.",
+                systemImage: "calendar.badge.plus",
+                layout: .quickCreate
+            )
+        case .quickCreateNote:
+            ResponsiveSheetPlaceholderStyle(
+                title: "New Note",
+                subtitle: "Preparing the note editor.",
+                systemImage: "note.text",
+                layout: .quickCreate
+            )
+        case .quickAddTask,
+             .quickAddNote,
+             .quickAddEvent,
+             .convertEventToTask,
+             .convertEventToNote,
+             .convertTaskToEvent,
+             .convertTaskToNote,
+             .convertNoteToTask,
+             .convertNoteToEvent,
+             .syncSettings,
+             .diagnostics:
+            ResponsiveSheetPlaceholderStyle(
+                title: "Opening",
+                subtitle: "Preparing content.",
+                systemImage: "sparkles",
+                layout: .quickCreate
+            )
         }
     }
 }

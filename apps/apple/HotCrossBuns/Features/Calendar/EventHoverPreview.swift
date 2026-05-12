@@ -102,22 +102,24 @@ struct CalendarEventPreviewButton<Label: View>: View {
             Button("Cancel", role: .cancel) {}
         }
         .popover(isPresented: $isPresented, arrowEdge: .trailing) {
-            VStack(alignment: .leading, spacing: 10) {
-                EventHoverPreview(event: event)
-                HStack(spacing: 8) {
-                    // Left-aligned circle button mirrors the task completion
-                    // affordance. Hidden on read-only calendars.
-                    CalendarEventDismissButton(event: event, size: 16)
-                    Spacer(minLength: 0)
-                    Button("Open") {
-                        isPresented = false
-                        router?.present(.editEvent(event.id))
+            CalendarPreviewPopoverShell(kind: .event, contentKey: event.id) {
+                VStack(alignment: .leading, spacing: 10) {
+                    EventHoverPreview(event: event)
+                    HStack(spacing: 8) {
+                        // Left-aligned circle button mirrors the task completion
+                        // affordance. Hidden on read-only calendars.
+                        CalendarEventDismissButton(event: event, size: 16)
+                        Spacer(minLength: 0)
+                        Button("Open") {
+                            isPresented = false
+                            router?.present(.editEvent(event.id))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(AppColor.ember)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(AppColor.ember)
+                    .hcbScaledPadding(.horizontal, 12)
+                    .hcbScaledPadding(.bottom, 10)
                 }
-                .hcbScaledPadding(.horizontal, 12)
-                .hcbScaledPadding(.bottom, 10)
             }
         }
     }
@@ -182,21 +184,114 @@ struct CalendarTaskPreviewButton<Label: View>: View {
             }
         }
         .popover(isPresented: $isPresented, arrowEdge: .trailing) {
-            VStack(alignment: .leading, spacing: 10) {
-                TaskHoverPreview(task: task)
-                HStack {
-                    Spacer(minLength: 0)
-                    Button("Open") {
-                        isPresented = false
-                        router?.present(.editTask(task.id))
+            CalendarPreviewPopoverShell(kind: .task, contentKey: task.id) {
+                VStack(alignment: .leading, spacing: 10) {
+                    TaskHoverPreview(task: task)
+                    HStack {
+                        Spacer(minLength: 0)
+                        Button("Open") {
+                            isPresented = false
+                            router?.present(.editTask(task.id))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(AppColor.ember)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(AppColor.ember)
+                    .hcbScaledPadding(.horizontal, 12)
+                    .hcbScaledPadding(.bottom, 10)
                 }
-                .hcbScaledPadding(.horizontal, 12)
-                .hcbScaledPadding(.bottom, 10)
             }
         }
+    }
+}
+
+private struct CalendarPreviewPopoverShell<Content: View>: View {
+    let kind: CalendarPreviewPopoverKind
+    let contentKey: String
+    @ViewBuilder let content: () -> Content
+    @State private var isContentReady = false
+
+    var body: some View {
+        Group {
+            // A lightweight preview shell makes event/task clicks feel acknowledged before rich details finish building.
+            if isContentReady {
+                content()
+            } else {
+                CalendarPreviewPopoverPlaceholder(kind: kind)
+            }
+        }
+        .task(id: contentKey) {
+            isContentReady = false
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(50))
+            guard Task.isCancelled == false else { return }
+            withAnimation(.easeOut(duration: 0.1)) {
+                isContentReady = true
+            }
+        }
+    }
+}
+
+private enum CalendarPreviewPopoverKind {
+    case event
+    case task
+
+    var title: String {
+        switch self {
+        case .event: "Opening event"
+        case .task: "Opening task"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .event: "calendar"
+        case .task: "checklist"
+        }
+    }
+}
+
+private struct CalendarPreviewPopoverPlaceholder: View {
+    let kind: CalendarPreviewPopoverKind
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: kind.systemImage)
+                    .foregroundStyle(AppColor.ember)
+                    .hcbScaledFrame(width: 18)
+                Text(kind.title)
+                    .hcbFont(.headline)
+                    .foregroundStyle(AppColor.ink)
+                Spacer(minLength: 16)
+                ProgressView()
+                    .controlSize(.small)
+            }
+
+            placeholderLine(widthScale: 0.86)
+            placeholderLine(widthScale: 0.62)
+            Divider()
+            placeholderLine(widthScale: 0.72)
+            HStack {
+                Spacer(minLength: 0)
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(AppColor.cardSurface.opacity(0.68))
+                    .hcbScaledFrame(width: 72, height: 28)
+            }
+        }
+        .hcbScaledPadding(12)
+        .hcbScaledFrame(width: 300, alignment: .leading)
+        .background(.regularMaterial)
+        .accessibilityLabel("\(kind.title), preparing preview")
+    }
+
+    private func placeholderLine(widthScale: CGFloat) -> some View {
+        GeometryReader { proxy in
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(AppColor.cardSurface.opacity(0.72))
+                .frame(width: proxy.size.width * widthScale, height: 10)
+        }
+        .frame(height: 10)
+        .redacted(reason: .placeholder)
     }
 }
 

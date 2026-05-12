@@ -47,7 +47,7 @@ struct StoreView: View {
             .hcbSurface(.taskList)
             .hcbDebugBodyProbe("StoreView")
             .appBackground()
-            .navigationTitle("Hot Cross Buns")
+            // Intentionally no navigationTitle; the main window should not surface an app title in chrome.
             .focusedSceneValue(\.storeCommandActions, storeCommandActions)
             .inspector(isPresented: inspectorBinding) {
                 inspectorContent
@@ -726,7 +726,7 @@ struct NotesView: View {
         }
         .hcbSurface(.taskList)
         .appBackground()
-        .navigationTitle("Hot Cross Buns")
+        // Intentionally no navigationTitle; the main window should not surface an app title in chrome.
         .inspector(isPresented: noteInspectorBinding) {
             noteInspectorContent
                 .environment(\.routerPath, router)

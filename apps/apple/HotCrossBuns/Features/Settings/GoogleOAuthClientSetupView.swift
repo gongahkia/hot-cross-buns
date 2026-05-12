@@ -21,11 +21,6 @@ struct GoogleOAuthClientSetupView: View {
                 }
             }
 
-            Text("Downloaded DMGs can sync through your own Google Cloud project. Set this up once, then Hot Cross Buns keeps the OAuth client and refresh token in your Mac Keychain for normal future launches.")
-                .hcbFont(.footnote)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
             DisclosureGroup("Setup checklist") {
                 VStack(alignment: .leading, spacing: 8) {
                     setupStep("Create a Google Cloud project.")
@@ -35,6 +30,9 @@ struct GoogleOAuthClientSetupView: View {
                     setupStep("Paste the Desktop app client ID below. If Google shows a client secret, paste it too.")
                     setupStep("Click Save OAuth Client, then Connect Google, and approve the browser consent flow.")
                     setupStep("For daily use without weekly re-consent, publish the OAuth app to In production after setup.")
+                    // Keep the storage caveats behind the expanded checklist so the default settings view stays compact.
+                    setupStep("Downloaded DMGs can sync through your own Google Cloud project. Set this up once, then Hot Cross Buns keeps the OAuth client and refresh token in your Mac Keychain for normal future launches.")
+                    setupStep("The app stores this OAuth client and the resulting refresh token in your macOS Keychain. Clearing the client removes the saved custom client and token from this Mac.")
                 }
                 .hcbScaledPadding(.top, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -81,10 +79,6 @@ struct GoogleOAuthClientSetupView: View {
                     .foregroundStyle(AppColor.moss)
             }
 
-            Text("The app stores this OAuth client and the resulting refresh token in your macOS Keychain. Clearing the client removes the saved custom client and token from this Mac.")
-                .hcbFont(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .onAppear(perform: loadExistingConfiguration)
     }

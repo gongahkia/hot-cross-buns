@@ -76,11 +76,15 @@ enum TaskBoardDisplaySnapshotBuilder {
                 dropIntent: column.dropIntent
             )
         }
+        // List-grouped boards should only show lists that contain at least one open or completed item.
+        let visibleColumns = input.columnMode == .byList
+            ? preparedColumns.filter { $0.taskCount > 0 }
+            : preparedColumns
 
         return TaskBoardDisplaySnapshot(
             key: input.key,
             surface: input.surface,
-            columns: preparedColumns,
+            columns: visibleColumns,
             taskCount: orderedTasks.filter { $0.isDeleted == false }.count
         )
     }
