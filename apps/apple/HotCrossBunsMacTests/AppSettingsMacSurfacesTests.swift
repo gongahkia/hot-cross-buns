@@ -23,6 +23,7 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
         XCTAssertTrue(settings.showDockBadge, "legacy caches should opt into the dock badge by default")
         XCTAssertTrue(settings.restoreWindowStateEnabled, "legacy caches should restore prior window sessions by default")
         XCTAssertEqual(settings.globalHotkeyBinding, .defaultQuickAdd)
+        XCTAssertEqual(settings.sidebarPlacement, .left)
     }
 
     func testEncodedSettingsRoundTripPreservesMacSurfaceFlags() throws {
@@ -40,7 +41,8 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
                 keyCode: UInt32(kVK_ANSI_K),
                 key: .char("k"),
                 modifiers: [.command, .shift]
-            )
+            ),
+            sidebarPlacement: .bottom
         )
 
         let data = try JSONEncoder().encode(settings)
@@ -52,10 +54,45 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
         XCTAssertFalse(decoded.showDockBadge)
         XCTAssertFalse(decoded.restoreWindowStateEnabled)
         XCTAssertEqual(decoded.globalHotkeyBinding.displayLabel, "⇧⌘K")
+        XCTAssertEqual(decoded.sidebarPlacement, .bottom)
     }
 
     func testMenuBarIconCatalogExposesUpToFiftyChoices() {
         XCTAssertEqual(AppSettings.MenuBarIcon.allCases.count, 50)
+    }
+
+    func testNavigationSurfacePlacementMetadataAndUnknownDecodeFallback() throws {
+        XCTAssertEqual(NavigationSurfacePlacement.allCases.map(\.rawValue), ["left", "right", "top", "bottom"])
+        XCTAssertEqual(NavigationSurfacePlacement.right.title, "Right")
+        XCTAssertEqual(NavigationSurfacePlacement.top.systemImage, "rectangle.topthird.inset.filled")
+        XCTAssertTrue(NavigationSurfacePlacement.bottom.isHorizontal)
+
+        let data = Data(#""floating""#.utf8)
+        let decoded = try JSONDecoder().decode(NavigationSurfacePlacement.self, from: data)
+
+        XCTAssertEqual(decoded, .left)
+    }
+
+    @MainActor
+    func testSidebarPlacementSetterUpdatesSettings() {
+        let model = AppModel.testHostBootstrap()
+
+        XCTAssertEqual(model.settings.sidebarPlacement, .left)
+
+        model.setSidebarPlacement(.right)
+
+        XCTAssertEqual(model.settings.sidebarPlacement, .right)
+    }
+
+    @MainActor
+    func testSidebarItemHidingKeepsAtLeastOneVisibleTab() {
+        let model = AppModel.testHostBootstrap()
+
+        model.setSidebarItemHidden(.calendar, hidden: true)
+        model.setSidebarItemHidden(.store, hidden: true)
+        model.setSidebarItemHidden(.notes, hidden: true)
+
+        XCTAssertEqual(model.settings.hiddenSidebarItems, Set(["calendar", "store"]))
     }
 
     func testBackgroundOpacityPresetMapping() {

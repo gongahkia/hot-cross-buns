@@ -1300,6 +1300,13 @@
 				ms,
 				ta,
 				"zh-Hans",
+				id,
+				vi,
+				th,
+				ja,
+				ko,
+				"zh-Hant",
+				hi,
 			);
 			mainGroup = 502678EDD2E8BD49CBFE5942;
 			minimizedProjectReferenceProxies = 1;

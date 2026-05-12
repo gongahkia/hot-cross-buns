@@ -31,6 +31,15 @@ private struct HCBMenuBarStatusControllerHost: View {
             .onChange(of: model.settings.colorSchemeID) { _, _ in
                 controller.configure(model: model)
             }
+            .onChange(of: model.settings.appLanguage) { _, _ in
+                controller.refreshContent()
+            }
+            .onChange(of: model.activeAccountID) { _, _ in
+                controller.refreshContent()
+            }
+            .onChange(of: model.connectedAccounts.map(\.id)) { _, _ in
+                controller.refreshContent()
+            }
             .onChange(of: model.todaySnapshot.overdueCount) { _, _ in
                 controller.refreshStatusItemImage()
             }
@@ -68,6 +77,7 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
                 self?.showWeekDayDetail(day)
             }
                 .environment(model)
+                .environment(\.locale, model.settings.appLanguage.locale)
         )
 
         if let hostingController {
@@ -291,6 +301,7 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
                 .hcbPreferredColorScheme(model.settings)
                 .hcbSurface(.menuBar)
                 .environment(model)
+                .environment(\.locale, model.settings.appLanguage.locale)
         )
 
         if let detailHostingController {
@@ -642,6 +653,7 @@ struct MenuBarExtraContent: View {
             }
         }
         .id(model.settings.colorSchemeID)
+        .environment(\.locale, model.settings.appLanguage.locale)
         .withHCBAppearance(model.settings)
         .hcbPreferredColorScheme(model.settings)
         .hcbSurface(.menuBar) // §6.11 per-surface font override
@@ -731,6 +743,7 @@ private struct DetailedMenuBarPanel: View {
             agenda
             MenuBarQuickAddRow()
             Divider()
+            MenuBarAccountSwitcher()
             MenuBarQuickActions()
         }
         .hcbScaledPadding(12)
@@ -971,6 +984,7 @@ private struct CompactMenuBarPanel: View {
 
             MenuBarQuickAddRow()
             Divider()
+            MenuBarAccountSwitcher()
             MenuBarQuickActions()
         }
         .hcbScaledPadding(14)
@@ -1338,6 +1352,93 @@ private struct MenuBarPinnedFilters: View {
     }
 }
 
+private struct MenuBarAccountSwitcher: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        if let activeAccount, displayAccounts.isEmpty == false {
+            VStack(alignment: .leading, spacing: 8) {
+                Menu {
+                    ForEach(displayAccounts) { account in
+                        Button {
+                            switchAccount(account)
+                        } label: {
+                            Label(
+                                accountMenuTitle(account),
+                                systemImage: account.id == activeAccount.id ? "checkmark.circle.fill" : "person.crop.circle"
+                            )
+                        }
+                        .disabled(account.id == activeAccount.id)
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "person.crop.circle")
+                            .foregroundStyle(.secondary)
+                            .hcbScaledFrame(width: 16)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Google account")
+                                .hcbFont(.caption2, weight: .semibold)
+                                .foregroundStyle(.secondary)
+                            Text(activeAccount.displayName)
+                                .hcbFont(.caption, weight: .semibold)
+                                .lineLimit(1)
+                            Text(activeAccount.email)
+                                .hcbFont(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .hcbFont(.caption2, weight: .semibold)
+                            .foregroundStyle(.secondary)
+                    }
+                    .hcbScaledPadding(.vertical, 5)
+                    .hcbScaledPadding(.horizontal, 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Switch Google account")
+                .accessibilityLabel("Google account, \(activeAccount.displayName)")
+
+                Divider()
+            }
+        }
+    }
+
+    private var activeAccount: GoogleAccount? {
+        let activeID = model.activeAccountID ?? model.account?.id
+        if let activeID, let account = displayAccounts.first(where: { $0.id == activeID }) {
+            return account
+        }
+        return model.account ?? displayAccounts.first
+    }
+
+    private var displayAccounts: [GoogleAccount] {
+        var seen = Set<GoogleAccount.ID>()
+        var ordered: [GoogleAccount] = []
+        if let account = model.account, seen.insert(account.id).inserted {
+            ordered.append(account)
+        }
+        for account in model.connectedAccounts where seen.insert(account.id).inserted {
+            ordered.append(account)
+        }
+        return ordered
+    }
+
+    private func accountMenuTitle(_ account: GoogleAccount) -> String {
+        if account.email.isEmpty {
+            return account.displayName
+        }
+        return "\(account.displayName) (\(account.email))"
+    }
+
+    private func switchAccount(_ account: GoogleAccount) {
+        guard account.id != activeAccount?.id else { return }
+        Task { await model.switchGoogleAccount(to: account.id) }
+    }
+}
+
 private struct MenuBarQuickActions: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openWindow) private var openWindow
@@ -1702,6 +1803,7 @@ private struct WeeklyMenuBarPanel: View {
             }
             MenuBarQuickAddRow()
             Divider()
+            MenuBarAccountSwitcher()
             MenuBarQuickActions()
         }
         .hcbScaledPadding(14)

@@ -70,6 +70,7 @@ struct HCBSettingsWindow: View {
         // carry through — re-apply here so the color scheme, dark/light
         // mode, scaled fonts, and background match the main window.
         .id(model.settings.colorSchemeID)
+        .environment(\.locale, model.settings.appLanguage.locale)
         .withHCBAppearance(model.settings)
         .environment(\.hcbShortcutOverrides, model.settings.shortcutOverrides)
         .hcbPreferredColorScheme(model.settings)
@@ -374,6 +375,15 @@ private struct GeneralTab: View {
     var body: some View {
         ScrollViewReader { proxy in
             Form {
+                Section("Language") {
+                    SettingsHighlightRow(anchor: .language, highlightedAnchor: highlightedAnchor)
+                    AppLanguagePicker(title: "App language")
+                    Text("Use the app in a supported language. System Default follows your macOS language order.")
+                        .hcbFont(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .id(SettingsSectionAnchor.language)
+
                 OpenAtLoginSection()
                     .id(SettingsSectionAnchor.openAtLogin)
 
@@ -474,7 +484,7 @@ private struct GeneralTab: View {
             }
             .formStyle(.grouped)
             .onChange(of: highlightedAnchor) { _, anchor in
-                scroll(proxy, to: anchor, allowed: [.openAtLogin, .diagnostics, .sync])
+                scroll(proxy, to: anchor, allowed: [.language, .openAtLogin, .diagnostics, .sync])
             }
         }
     }

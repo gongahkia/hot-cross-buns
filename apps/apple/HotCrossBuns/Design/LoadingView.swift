@@ -56,7 +56,9 @@ private struct CoreAnimationLoadingBunsIcon: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ nsView: RotatingLoadingBunsView, coordinator: ()) {
-        nsView.stopAnimating()
+        // Let Core Animation own the final frames if SwiftUI keeps the view
+        // alive briefly for an exit transition. The layer is torn down with
+        // the NSView, so there is no persistent animation to cancel here.
     }
 }
 
@@ -96,12 +98,9 @@ private final class RotatingLoadingBunsView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        guard window != nil else { return }
         updateContentsScale()
-        if window == nil {
-            stopAnimating()
-        } else {
-            startAnimating()
-        }
+        startAnimating()
     }
 
     override func viewDidChangeBackingProperties() {
@@ -123,6 +122,10 @@ private final class RotatingLoadingBunsView: NSView {
 
     func stopAnimating() {
         imageLayer.removeAnimation(forKey: Self.animationKey)
+    }
+
+    deinit {
+        stopAnimating()
     }
 
     private func updateContentsScale() {

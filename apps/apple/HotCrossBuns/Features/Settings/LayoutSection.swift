@@ -7,6 +7,8 @@ struct LayoutSection: View {
 
     var body: some View {
         Section("Layout") {
+            navigationPlacementBlock
+            Divider()
             sidebarTabsBlock
             Divider()
             calendarViewsBlock
@@ -70,16 +72,41 @@ struct LayoutSection: View {
         )
     }
 
+    private var navigationPlacementBlock: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Navigation placement")
+                .hcbFont(.subheadline, weight: .medium)
+            Picker("Navigation placement", selection: navigationPlacementBinding) {
+                ForEach(NavigationSurfacePlacement.allCases) { placement in
+                    Label(placement.title, systemImage: placement.systemImage)
+                        .tag(placement)
+                }
+            }
+            .pickerStyle(.segmented)
+            Text("Left keeps the native macOS sidebar. Right, top, and bottom move the same tabs around the current view.")
+                .hcbFont(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var navigationPlacementBinding: Binding<NavigationSurfacePlacement> {
+        Binding(
+            get: { model.settings.sidebarPlacement },
+            set: { model.setSidebarPlacement($0) }
+        )
+    }
+
     private var sidebarTabsBlock: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Sidebar tabs")
+            Text("Navigation tabs")
                 .hcbFont(.subheadline, weight: .medium)
             ForEach(SidebarItem.allCases.filter(\.isHideable)) { item in
                 Toggle(isOn: sidebarItemVisibleBinding(item)) {
                     Label(item.title, systemImage: item.systemImage)
                 }
+                .disabled(isLastVisibleSidebarItem(item))
             }
-            Text("Settings always stays visible so you can re-enable hidden tabs. Keyboard shortcuts for a hidden tab are ignored until it's re-enabled.")
+            Text("Hidden tabs disappear from every navigation placement. Keyboard shortcuts for a hidden tab are ignored until it's re-enabled.")
                 .hcbFont(.footnote)
                 .foregroundStyle(.secondary)
         }
@@ -155,6 +182,14 @@ struct LayoutSection: View {
             get: { model.settings.hiddenSidebarItems.contains(item.rawValue) == false },
             set: { isVisible in model.setSidebarItemHidden(item, hidden: isVisible == false) }
         )
+    }
+
+    private func isLastVisibleSidebarItem(_ item: SidebarItem) -> Bool {
+        guard model.settings.hiddenSidebarItems.contains(item.rawValue) == false else { return false }
+        let visibleCount = SidebarItem.allCases.reduce(0) { acc, sidebarItem in
+            acc + (model.settings.hiddenSidebarItems.contains(sidebarItem.rawValue) ? 0 : 1)
+        }
+        return visibleCount <= 1
     }
 
     private func calendarModeVisibleBinding(_ mode: CalendarGridMode) -> Binding<Bool> {

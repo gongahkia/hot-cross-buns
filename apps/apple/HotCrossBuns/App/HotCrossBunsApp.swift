@@ -63,6 +63,7 @@ struct HotCrossBunsApp: App {
         Window("Hot Cross Buns", id: "main") {
             MacSidebarShell()
                 .environment(appModel)
+                .environment(\.locale, appModel.settings.appLanguage.locale)
                 .environment(updater)
                 .environment(networkMonitor)
                 .environment(\.globalHotkeyConfigurator, globalHotkeyConfigurator)
@@ -96,6 +97,7 @@ struct HotCrossBunsApp: App {
         Settings {
             HCBSettingsWindow()
                 .environment(appModel)
+                .environment(\.locale, appModel.settings.appLanguage.locale)
                 .environment(updater)
                 .environment(networkMonitor)
                 .environment(\.globalHotkeyConfigurator, globalHotkeyConfigurator)
@@ -106,6 +108,7 @@ struct HotCrossBunsApp: App {
         Window("Hot Cross Buns Help", id: "help") {
             HelpView()
                 .environment(appModel)
+                .environment(\.locale, appModel.settings.appLanguage.locale)
                 .withHCBAppearance(appModel.settings)
                 .hcbPreferredColorScheme(appModel.settings)
                 .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
@@ -118,6 +121,7 @@ struct HotCrossBunsApp: App {
         Window("History", id: "history") {
             HistoryWindow()
                 .environment(appModel)
+                .environment(\.locale, appModel.settings.appLanguage.locale)
                 .withHCBAppearance(appModel.settings)
                 .hcbPreferredColorScheme(appModel.settings)
                 .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
@@ -129,6 +133,7 @@ struct HotCrossBunsApp: App {
         Window("Sync Issues", id: "sync-issues") {
             SyncIssuesWindow()
                 .environment(appModel)
+                .environment(\.locale, appModel.settings.appLanguage.locale)
                 .withHCBAppearance(appModel.settings)
                 .hcbPreferredColorScheme(appModel.settings)
                 .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
@@ -140,6 +145,7 @@ struct HotCrossBunsApp: App {
         Window("Diagnostics and Recovery", id: "diagnostics") {
             DiagnosticsView()
                 .environment(appModel)
+                .environment(\.locale, appModel.settings.appLanguage.locale)
                 .withHCBAppearance(appModel.settings)
                 .hcbPreferredColorScheme(appModel.settings)
                 .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
@@ -151,6 +157,7 @@ struct HotCrossBunsApp: App {
         Window("Review Duplicates", id: "duplicate-review") {
             DuplicateReviewWindow()
                 .environment(appModel)
+                .environment(\.locale, appModel.settings.appLanguage.locale)
                 .withHCBAppearance(appModel.settings)
                 .hcbPreferredColorScheme(appModel.settings)
                 .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
@@ -161,6 +168,7 @@ struct HotCrossBunsApp: App {
         Window("Update Available", id: "update-available") {
             UpdateAvailableWindow()
                 .environment(updater)
+                .environment(\.locale, appModel.settings.appLanguage.locale)
                 .withHCBAppearance(appModel.settings)
                 .hcbPreferredColorScheme(appModel.settings)
                 .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
@@ -171,6 +179,7 @@ struct HotCrossBunsApp: App {
         Window("Install Update", id: "install-update") {
             InstallUpdateWindow()
                 .environment(updater)
+                .environment(\.locale, appModel.settings.appLanguage.locale)
                 .withHCBAppearance(appModel.settings)
                 .hcbPreferredColorScheme(appModel.settings)
                 .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)

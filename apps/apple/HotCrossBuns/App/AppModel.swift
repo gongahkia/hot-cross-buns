@@ -308,6 +308,7 @@ final class AppModel {
         }
         let cachedState = await cacheStore.loadCachedState()
         apply(cachedState)
+        await dismissLoadingOverlayBeforeFollowUpWork()
         localBackupSummary = await localBackupService.summary()
         await runDailyLocalBackupIfNeeded()
         if settings.auditLogEncryptionEnabled,
@@ -332,6 +333,12 @@ final class AppModel {
         // user has enabled a deletion behavior AND acknowledged the
         // blast-radius modal; the coordinator filters on read.
         pastCleanupCoordinator.scheduleDailyTick()
+    }
+
+    private func dismissLoadingOverlayBeforeFollowUpWork() async {
+        guard loadingOverlay != nil else { return }
+        loadingOverlay = nil
+        await Task.yield()
     }
 
     // Reads the prior wall-clock launch time from UserDefaults, computes the
@@ -516,6 +523,7 @@ final class AppModel {
             syncState = .synced(at: Date())
             isSyncPaused = false
             syncFailureKind = nil
+            await dismissLoadingOverlayBeforeFollowUpWork()
             // Force-flush: completed sync state must hit disk so a crash
             // before the next mutation doesn't lose the freshly-fetched
             // events. (replayPendingMutations runs again next launch
@@ -2033,6 +2041,12 @@ final class AppModel {
         }
     }
 
+    func setAppLanguage(_ language: AppLanguage) {
+        guard settings.appLanguage != language else { return }
+        settings.appLanguage = language
+        scheduleCacheSave()
+    }
+
     func setCloudSyncTarget(_ target: CloudSyncTarget, enabled: Bool) {
         var targets = settings.cloudSyncTargets
         if enabled {
@@ -2198,15 +2212,25 @@ final class AppModel {
     }
 
     func setSidebarItemHidden(_ item: SidebarItem, hidden: Bool) {
-        guard item.isHideable else { return } // Settings is always visible
+        guard item.isHideable else { return }
         var next = settings.hiddenSidebarItems
         if hidden {
+            let wouldRemainVisible = SidebarItem.allCases.contains { other in
+                other != item && next.contains(other.rawValue) == false
+            }
+            guard wouldRemainVisible else { return }
             next.insert(item.rawValue)
         } else {
             next.remove(item.rawValue)
         }
         guard next != settings.hiddenSidebarItems else { return }
         settings.hiddenSidebarItems = next
+        scheduleCacheSave()
+    }
+
+    func setSidebarPlacement(_ placement: NavigationSurfacePlacement) {
+        guard settings.sidebarPlacement != placement else { return }
+        settings.sidebarPlacement = placement
         scheduleCacheSave()
     }
 
@@ -2647,6 +2671,7 @@ final class AppModel {
             current.uiTextSizePoints != next.uiTextSizePoints,
             current.uiFontName != next.uiFontName,
             current.perSurfaceFontOverrides != next.perSurfaceFontOverrides,
+            current.sidebarPlacement != next.sidebarPlacement,
             current.menuBarStyle != next.menuBarStyle,
             current.menuBarIcon != next.menuBarIcon,
             current.showMenuBarExtra != next.showMenuBarExtra,
@@ -2673,7 +2698,8 @@ final class AppModel {
             || current.uiLayoutScale != next.uiLayoutScale
             || current.uiTextSizePoints != next.uiTextSizePoints
             || current.uiFontName != next.uiFontName
-            || current.perSurfaceFontOverrides != next.perSurfaceFontOverrides {
+            || current.perSurfaceFontOverrides != next.perSurfaceFontOverrides
+            || current.sidebarPlacement != next.sidebarPlacement {
             summaries.append("Appearance, font, layout, or theme preferences will change.")
         }
         if current.shortcutOverrides != next.shortcutOverrides
