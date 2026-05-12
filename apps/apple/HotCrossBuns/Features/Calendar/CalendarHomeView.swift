@@ -1778,12 +1778,14 @@ struct AddEventSheet: View {
             if let existing = editingEvent, existing.attendeeResponses.isEmpty == false {
                 AttendeeResponsesCard(responses: existing.attendeeResponses)
             } else {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 6) {
                     ForEach(attendees, id: \.self) { email in
-                        Label(email, systemImage: "person.crop.circle")
-                            .hcbFont(.subheadline)
-                            .foregroundStyle(AppColor.ink)
-                            .textSelection(.enabled)
+                        GuestParticipantRow(
+                            email: email,
+                            statusTitle: "Invited",
+                            statusSymbol: "paperplane",
+                            statusTint: .secondary
+                        )
                     }
                 }
             }
@@ -2568,24 +2570,13 @@ struct AttendeeResponsesCard: View {
                 .hcbFont(.caption, weight: .bold)
                 .foregroundStyle(.secondary)
             ForEach(responses, id: \.email) { attendee in
-                HStack(spacing: 10) {
-                    Image(systemName: attendee.responseStatus.symbol)
-                        .foregroundStyle(tint(for: attendee.responseStatus))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(attendee.displayName ?? attendee.email)
-                            .hcbFont(.subheadline)
-                            .foregroundStyle(AppColor.ink)
-                        if attendee.displayName != nil {
-                            Text(attendee.email)
-                                .hcbFont(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    Spacer(minLength: 8)
-                    Text(attendee.responseStatus.displayTitle)
-                        .hcbFont(.caption, weight: .medium)
-                        .foregroundStyle(tint(for: attendee.responseStatus))
-                }
+                GuestParticipantRow(
+                    email: attendee.email,
+                    displayName: attendee.displayName,
+                    statusTitle: attendee.responseStatus.displayTitle,
+                    statusSymbol: attendee.responseStatus.symbol,
+                    statusTint: tint(for: attendee.responseStatus)
+                )
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
