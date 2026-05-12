@@ -1502,8 +1502,15 @@ struct AddEventSheet: View {
             } else {
                 DatePicker("Starts", selection: $startDate, displayedComponents: [.date, .hourAndMinute])
                     .environment(\.timeZone, startTimeZone)
-                DatePicker("Ends", selection: $endDate, displayedComponents: [.date, .hourAndMinute])
-                    .environment(\.timeZone, endTimeZone)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    DatePicker("Ends", selection: $endDate, displayedComponents: [.date, .hourAndMinute])
+                        .environment(\.timeZone, endTimeZone)
+                    EventEndTimePickerMenu(
+                        startDate: startDate,
+                        endDate: $endDate,
+                        timeZoneID: effectiveEndTimeZoneID
+                    )
+                }
                 timeZoneControls
             }
             if isValidDateRange == false {
@@ -2139,6 +2146,133 @@ struct AddEventSheet: View {
         isAllDay ? Calendar.current.startOfDay(for: endDate) : endDate
     }
 }
+
+struct EventDurationFormatter {
+    static func label(minutes rawMinutes: Int) -> String {
+        let minutes = max(1, rawMinutes)
+        if minutes < 60 {
+            return "\(minutes) min"
+        }
+
+        let hours = minutes / 60
+        let remainder = minutes % 60
+        if hours < 24 {
+            if remainder == 0 {
+                return "\(hours)h"
+            }
+            return "\(hours)h \(remainder)m"
+        }
+
+        let days = hours / 24
+        let dayHours = hours % 24
+        let dayPrefix = "\(days)d"
+        if dayHours == 0 && remainder == 0 {
+            return dayPrefix
+        }
+        if remainder == 0 {
+            return "\(dayPrefix) \(dayHours)h"
+        }
+        return "\(dayPrefix) \(dayHours)h \(remainder)m"
+    }
+}
+
+struct EventEndTimeOption: Hashable, Identifiable {
+    let durationMinutes: Int
+    let endDate: Date
+    let timeTitle: String
+    let durationTitle: String
+
+    var id: Int { durationMinutes }
+
+    static let standardDurationMinutes: [Int] = Array(stride(from: 15, through: 240, by: 15)) + [
+        270,
+        300,
+        360,
+        420,
+        480
+    ]
+
+    static func options(
+        startDate: Date,
+        currentEndDate: Date,
+        timeZoneID: String,
+        calendar: Calendar = .current
+    ) -> [EventEndTimeOption] {
+        var durations = Set(standardDurationMinutes)
+        let currentDuration = Int((currentEndDate.timeIntervalSince(startDate) / 60).rounded())
+        if currentDuration > 0 {
+            durations.insert(currentDuration)
+        }
+
+        return durations
+            .sorted()
+            .map { duration in
+                let endDate = startDate.addingTimeInterval(TimeInterval(duration * 60))
+                return EventEndTimeOption(
+                    durationMinutes: duration,
+                    endDate: endDate,
+                    timeTitle: timeTitle(for: endDate, startDate: startDate, timeZoneID: timeZoneID, calendar: calendar),
+                    durationTitle: EventDurationFormatter.label(minutes: duration)
+                )
+            }
+    }
+
+    private static func timeTitle(
+        for endDate: Date,
+        startDate: Date,
+        timeZoneID: String,
+        calendar: Calendar
+    ) -> String {
+        let timeZone = TimezoneSupport.timeZone(for: timeZoneID)
+        var scopedCalendar = calendar
+        scopedCalendar.timeZone = timeZone
+
+        let formatter = DateFormatter()
+        formatter.timeZone = timeZone
+        formatter.locale = .current
+        if scopedCalendar.isDate(startDate, inSameDayAs: endDate) {
+            formatter.dateStyle = .none
+            formatter.timeStyle = .short
+        } else {
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
+        }
+        return formatter.string(from: endDate)
+    }
+}
+
+struct EventEndTimePickerMenu: View {
+    let startDate: Date
+    @Binding var endDate: Date
+    let timeZoneID: String
+
+    private var options: [EventEndTimeOption] {
+        EventEndTimeOption.options(
+            startDate: startDate,
+            currentEndDate: endDate,
+            timeZoneID: timeZoneID
+        )
+    }
+
+    var body: some View {
+        Menu {
+            ForEach(options) { option in
+                Button("\(option.timeTitle) · \(option.durationTitle)") {
+                    endDate = option.endDate
+                }
+            }
+        } label: {
+            Label("End time options", systemImage: "clock")
+                .labelStyle(.iconOnly)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Choose an end time by duration")
+        .accessibilityLabel("End time options")
+        .accessibilityHint("Shows common end times in fifteen minute increments")
+    }
+}
+
 enum EventReminderOption: Hashable, Identifiable {
     case useDefault
     case preset(Int) // minutes

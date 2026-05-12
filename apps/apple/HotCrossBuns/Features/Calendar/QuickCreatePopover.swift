@@ -501,8 +501,15 @@ struct QuickCreatePopover: View {
                     DatePicker("", selection: $endDate, in: startDate..., displayedComponents: [.date])
                         .labelsHidden()
                 } else {
-                    DatePicker("", selection: $endDate, in: startDate..., displayedComponents: [.date, .hourAndMinute])
-                        .labelsHidden()
+                    HStack(spacing: 6) {
+                        DatePicker("", selection: $endDate, in: startDate..., displayedComponents: [.date, .hourAndMinute])
+                            .labelsHidden()
+                        EventEndTimePickerMenu(
+                            startDate: startDate,
+                            endDate: $endDate,
+                            timeZoneID: TimezoneSupport.currentIdentifier
+                        )
+                    }
                 }
             }
             HStack {
