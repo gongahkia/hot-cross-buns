@@ -46,37 +46,87 @@ struct TodaySnapshot: Equatable, Sendable {
 struct CalendarSnapshot: Equatable, Sendable {
     var selectedCalendars: [CalendarListMirror]
     var selectedCalendarIDs: Set<CalendarListMirror.ID>
-    var upcomingEvents: [CalendarEventMirror]
     var calendarColorHexByID: [CalendarListMirror.ID: String]
+    var eventCountsByCalendarID: [CalendarListMirror.ID: Int]
+    var eventCountsByColorID: [String: Int]
+    var eventCountsByTagName: [String: Int]
 
     static let empty = CalendarSnapshot(
         selectedCalendars: [],
         selectedCalendarIDs: [],
-        upcomingEvents: [],
-        calendarColorHexByID: [:]
+        calendarColorHexByID: [:],
+        eventCountsByCalendarID: [:],
+        eventCountsByColorID: [:],
+        eventCountsByTagName: [:]
     )
 
     static func build(
         calendars: [CalendarListMirror],
         events: [CalendarEventMirror],
-        referenceDate: Date
+        settings: AppSettings
     ) -> CalendarSnapshot {
         let selectedCalendars = calendars.filter(\.isSelected)
         let selectedIDs = Set(selectedCalendars.map(\.id))
-        let upcomingEvents = events
-            .filter { event in
-                event.status != .cancelled && selectedIDs.contains(event.calendarID) && event.endDate >= referenceDate
+        var eventCountsByCalendarID: [CalendarListMirror.ID: Int] = [:]
+        var eventCountsByColorID: [String: Int] = [:]
+        var eventCountsByTagName: [String: Int] = [:]
+        let colorTagIndex = colorTagIndex(from: settings.colorTagBindings)
+
+        for event in events where selectedIDs.contains(event.calendarID)
+            && (settings.showCompletedItemsInCalendar || event.status != .cancelled) {
+            eventCountsByCalendarID[event.calendarID, default: 0] += 1
+            let colorID = eventColorID(for: event)
+            eventCountsByColorID[colorID, default: 0] += 1
+
+            var eventTagNames = literalTagNames(in: event)
+            for (tag, boundColorID) in colorTagIndex where normalizedColorID(boundColorID) == colorID {
+                eventTagNames.insert(tag)
             }
-            .sorted { lhs, rhs in
-                lhs.startDate < rhs.startDate
+            for tag in eventTagNames {
+                eventCountsByTagName[tag, default: 0] += 1
             }
+        }
 
         return CalendarSnapshot(
             selectedCalendars: selectedCalendars,
             selectedCalendarIDs: selectedIDs,
-            upcomingEvents: upcomingEvents,
-            calendarColorHexByID: Dictionary(uniqueKeysWithValues: calendars.map { ($0.id, $0.colorHex) })
+            calendarColorHexByID: Dictionary(uniqueKeysWithValues: calendars.map { ($0.id, $0.colorHex) }),
+            eventCountsByCalendarID: eventCountsByCalendarID,
+            eventCountsByColorID: eventCountsByColorID,
+            eventCountsByTagName: eventCountsByTagName
         )
+    }
+
+    private static func eventColorID(for event: CalendarEventMirror) -> String {
+        CalendarEventColor.from(colorId: event.colorId).rawValue
+    }
+
+    private static func literalTagNames(in event: CalendarEventMirror) -> Set<String> {
+        let fields = [event.summary, event.details, event.location]
+        return Set(fields.flatMap(TagExtractor.tags).map(normalizedTagName).filter { $0.isEmpty == false })
+    }
+
+    private static func colorTagIndex(from bindings: [String: String]) -> [String: String] {
+        bindings.reduce(into: [String: String]()) { result, entry in
+            let colorID = normalizedColorID(entry.key)
+            let tagName = normalizedTagName(entry.value)
+            guard colorID.isEmpty == false, tagName.isEmpty == false else { return }
+            result[tagName] = colorID
+        }
+    }
+
+    private static func normalizedTagName(_ value: String) -> String {
+        var trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        while trimmed.first == "#" {
+            trimmed.removeFirst()
+        }
+        return trimmed
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+    }
+
+    private static func normalizedColorID(_ value: String) -> String {
+        CalendarEventColor(rawValue: value)?.rawValue ?? CalendarEventColor.defaultColor.rawValue
     }
 }
 
