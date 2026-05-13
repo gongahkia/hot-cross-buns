@@ -13,6 +13,7 @@
   <a href="https://github.com/gongahkia/hot-cross-buns/releases/latest">Latest Release</a> ·
   <a href="https://gongahkia.github.io/hot-cross-buns/privacy.html">Privacy</a> ·
   <a href="apps/apple/README.md">Apple App</a> ·
+  <a href="docs/mcp.md">MCP</a> ·
   <a href="reference/architecture/ARCHITECTURE.md">Architecture</a>
 </p>
 
@@ -66,6 +67,7 @@ Around those core surfaces, the app also includes:
 - Leader-key shortcuts for diagnostics, help, refresh, and secondary actions
 - menu bar surfaces for glanceable calendar, compact capture, and fast return to the main app
 - Spotlight indexing and App Shortcuts integration
+- Optional local MCP server for user-configured AI agent clients
 - Local cache, sync checkpoints, and pending offline mutations
 - Diagnostics, recovery tools, and local reminder scheduling
 
@@ -234,5 +236,6 @@ The next highest-value gaps are Google Calendar transport edge cases, local noti
 
 - [Apple app README](apps/apple/README.md)
 - [Contributing](docs/CONTRIBUTING.md)
+- [Local MCP agent access](docs/mcp.md)
 - [Architecture reference](reference/architecture/ARCHITECTURE.md)
 - [Docsite](https://gongahkia.github.io/hot-cross-buns/)

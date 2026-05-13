@@ -3,7 +3,7 @@ import SwiftUI
 
 struct QuickAddView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     @Environment(AppModel.self) private var model
 
     // Note mode reuses the task parser end-to-end — notes are undated

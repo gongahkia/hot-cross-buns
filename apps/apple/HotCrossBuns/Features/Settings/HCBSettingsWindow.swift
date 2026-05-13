@@ -287,6 +287,7 @@ struct HCBSettingsWindow: View {
 
 private struct ProfileTab: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     let highlightedAnchor: SettingsSectionAnchor?
 
     var body: some View {
@@ -316,7 +317,7 @@ private struct ProfileTab: View {
             }
             .formStyle(.grouped)
             .onChange(of: highlightedAnchor) { _, anchor in
-                scroll(proxy, to: anchor, allowed: [.profileOAuth, .profileAccounts])
+                scroll(proxy, to: anchor, allowed: [.profileOAuth, .profileAccounts], reduceMotion: reduceMotion)
             }
         }
     }
@@ -325,6 +326,7 @@ private struct ProfileTab: View {
 // MARK: - About tab
 
 private struct AboutTab: View {
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     let highlightedAnchor: SettingsSectionAnchor?
 
     var body: some View {
@@ -337,7 +339,7 @@ private struct AboutTab: View {
             }
             .formStyle(.grouped)
             .onChange(of: highlightedAnchor) { _, anchor in
-                scroll(proxy, to: anchor, allowed: [.updates, .version])
+                scroll(proxy, to: anchor, allowed: [.updates, .version], reduceMotion: reduceMotion)
             }
         }
     }
@@ -348,6 +350,7 @@ private struct AboutTab: View {
 private struct GeneralTab: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     let highlightedAnchor: SettingsSectionAnchor?
     @Binding var isSyncDetailsPresented: Bool
     @Binding var isDiagnosticsPresented: Bool
@@ -405,6 +408,9 @@ private struct GeneralTab: View {
                         .foregroundStyle(.secondary)
                 }
                 .id(SettingsSectionAnchor.diagnostics)
+
+                AgentAccessSection()
+                    .id(SettingsSectionAnchor.agentAccess)
 
                 if model.account != nil {
                     Section("Sync") {
@@ -486,7 +492,7 @@ private struct GeneralTab: View {
             }
             .formStyle(.grouped)
             .onChange(of: highlightedAnchor) { _, anchor in
-                scroll(proxy, to: anchor, allowed: [.language, .openAtLogin, .diagnostics, .sync])
+                scroll(proxy, to: anchor, allowed: [.language, .openAtLogin, .diagnostics, .agentAccess, .sync], reduceMotion: reduceMotion)
             }
         }
     }
@@ -559,6 +565,7 @@ private struct GeneralTab: View {
 // MARK: - Appearance tab
 
 private struct AppearanceTab: View {
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     let highlightedAnchor: SettingsSectionAnchor?
 
     var body: some View {
@@ -573,7 +580,7 @@ private struct AppearanceTab: View {
             }
             .formStyle(.grouped)
             .onChange(of: highlightedAnchor) { _, anchor in
-                scroll(proxy, to: anchor, allowed: [.appearance, .background, .layout])
+                scroll(proxy, to: anchor, allowed: [.appearance, .background, .layout], reduceMotion: reduceMotion)
             }
         }
     }
@@ -582,6 +589,7 @@ private struct AppearanceTab: View {
 // MARK: - Hotkeys tab
 
 private struct HotkeysTab: View {
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     let highlightedAnchor: SettingsSectionAnchor?
 
     var body: some View {
@@ -592,7 +600,7 @@ private struct HotkeysTab: View {
                     .hcbScaledPadding(20)
             }
             .onChange(of: highlightedAnchor) { _, anchor in
-                scroll(proxy, to: anchor, allowed: [.hotkeys])
+                scroll(proxy, to: anchor, allowed: [.hotkeys], reduceMotion: reduceMotion)
             }
         }
     }
@@ -603,6 +611,7 @@ private struct HotkeysTab: View {
 private struct AlertsTab: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     let highlightedAnchor: SettingsSectionAnchor?
     @State private var permissionPrimer: PermissionPrimer?
     @State private var showLocalNotificationsInfo = false
@@ -656,7 +665,7 @@ private struct AlertsTab: View {
             }
             .formStyle(.grouped)
             .onChange(of: highlightedAnchor) { _, anchor in
-                scroll(proxy, to: anchor, allowed: [.notifications, .menuBar])
+                scroll(proxy, to: anchor, allowed: [.notifications, .menuBar], reduceMotion: reduceMotion)
             }
         }
         .sheet(item: $permissionPrimer) { primer in
@@ -835,6 +844,7 @@ private struct AlertsTab: View {
 
 private struct AdvancedTab: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     let highlightedAnchor: SettingsSectionAnchor?
 
     var body: some View {
@@ -900,7 +910,8 @@ private struct AdvancedTab: View {
                 scroll(
                     proxy,
                     to: anchor,
-                    allowed: [.advancedCalendars, .taskLists, .perTabFilters, .data, .backups, .encryption, .history, .customFilters, .templates]
+                    allowed: [.advancedCalendars, .taskLists, .perTabFilters, .data, .backups, .encryption, .history, .customFilters, .templates],
+                    reduceMotion: reduceMotion
                 )
             }
         }
@@ -944,11 +955,12 @@ struct SettingsHighlightRow: View {
 private func scroll(
     _ proxy: ScrollViewProxy,
     to anchor: SettingsSectionAnchor?,
-    allowed: Set<SettingsSectionAnchor>
+    allowed: Set<SettingsSectionAnchor>,
+    reduceMotion: Bool
 ) {
     guard let anchor, allowed.contains(anchor) else { return }
     DispatchQueue.main.async {
-        withAnimation(.easeInOut(duration: 0.2)) {
+        HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeInOut(duration: 0.2)) {
             proxy.scrollTo(anchor, anchor: .top)
         }
     }

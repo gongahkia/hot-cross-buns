@@ -44,6 +44,10 @@ coverage/
 playwright-report/
 test-results/
 
+# Profiling / local evidence
+.build-evidence/
+*.trace/
+
 CLAUDE.md
 AGENTS.md
 .poor-cli

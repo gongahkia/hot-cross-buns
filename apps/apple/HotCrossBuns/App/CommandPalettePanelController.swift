@@ -22,6 +22,10 @@ final class CommandPalettePanelController: NSObject, NSWindowDelegate {
         .environment(model)
         .withHCBAppearance(model.settings)
         .hcbPreferredColorScheme(model.settings)
+        .hcbStoredTransitionContent(
+            key: HCBTransitionKeys.commandPalette,
+            metadata: ["surface": "commandPalette"]
+        )
 
         let hostingController = NSHostingController(rootView: content)
         let size = NSSize(width: 648, height: 448)

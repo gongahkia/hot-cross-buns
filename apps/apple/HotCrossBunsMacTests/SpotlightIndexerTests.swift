@@ -167,6 +167,52 @@ final class SpotlightIndexerTests: XCTestCase {
         XCTAssertEqual(index.indexedBatches, [])
     }
 
+    func testConcurrentUpdatesDuringInitialPrimeDoNotRebuildDomainsTwice() async {
+        let gate = AsyncGate()
+        let index = FakeSpotlightIndex(firstDomainDeleteGate: gate)
+        let indexer = SpotlightIndexer(index: index)
+
+        let task = TaskMirror(
+            id: "task-1",
+            taskListID: "tasks",
+            parentID: nil,
+            title: "Ship build",
+            notes: "Check release notes",
+            status: .needsAction,
+            dueDate: Date(timeIntervalSince1970: 1_714_000_000),
+            completedAt: nil,
+            isDeleted: false,
+            isHidden: false,
+            position: nil,
+            etag: nil,
+            updatedAt: Date(timeIntervalSince1970: 1_714_000_100)
+        )
+
+        async let initialPrime: Void = indexer.update(tasks: [task], events: [])
+        await gate.waitUntilPaused()
+
+        var changedTask = task
+        changedTask.notes = "Updated release notes"
+        async let overlappingUpdate: Void = indexer.update(tasks: [changedTask], events: [])
+
+        await gate.release()
+        _ = await (initialPrime, overlappingUpdate)
+
+        XCTAssertEqual(index.deletedDomainCalls, [
+            [SpotlightIndexer.taskDomain],
+            [SpotlightIndexer.eventDomain]
+        ])
+        XCTAssertEqual(index.deletedIdentifierCalls, [])
+        XCTAssertEqual(index.indexedBatches.map { $0.map(\.uniqueIdentifier) }, [
+            [SpotlightIndexer.taskURLScheme + "task-1"],
+            [SpotlightIndexer.taskURLScheme + "task-1"]
+        ])
+
+        let summary = await indexer.summary()
+        XCTAssertEqual(summary.indexedTaskCount, 1)
+        XCTAssertFalse(summary.rebuiltDomains)
+    }
+
     func testTaskAndEventTextContentIncludeUsefulPreviewFields() {
         let task = TaskMirror(
             id: "task-1",
@@ -221,8 +267,17 @@ private final class FakeSpotlightIndex: SpotlightIndexing {
     var deletedIdentifierCalls: [[String]] = []
     var indexedBatches: [[CSSearchableItem]] = []
 
+    private let firstDomainDeleteGate: AsyncGate?
+
+    init(firstDomainDeleteGate: AsyncGate? = nil) {
+        self.firstDomainDeleteGate = firstDomainDeleteGate
+    }
+
     func deleteSearchableItems(withDomainIdentifiers domainIdentifiers: [String]) async throws {
         deletedDomainCalls.append(domainIdentifiers)
+        if deletedDomainCalls.count == 1 {
+            await firstDomainDeleteGate?.pauseOnce()
+        }
     }
 
     func deleteSearchableItems(withIdentifiers identifiers: [String]) async throws {
@@ -237,5 +292,33 @@ private final class FakeSpotlightIndex: SpotlightIndexing {
         deletedDomainCalls = []
         deletedIdentifierCalls = []
         indexedBatches = []
+    }
+}
+
+private actor AsyncGate {
+    private var paused = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    private var releaseContinuation: CheckedContinuation<Void, Never>?
+
+    func pauseOnce() async {
+        guard paused == false else { return }
+        paused = true
+        waiters.forEach { $0.resume() }
+        waiters = []
+        await withCheckedContinuation { continuation in
+            releaseContinuation = continuation
+        }
+    }
+
+    func waitUntilPaused() async {
+        if paused { return }
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    func release() {
+        releaseContinuation?.resume()
+        releaseContinuation = nil
     }
 }

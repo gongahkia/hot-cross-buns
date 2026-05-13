@@ -62,6 +62,7 @@ final class AppModel {
     private let spotlightIndexer: SpotlightIndexer
     private let loginItemController: LoginItemController
     private let localBackupService: LocalBackupService
+    @ObservationIgnored private var mcpServerController: MCPServerController?
     @ObservationIgnored private var nearRealtimePollDiagnostics: NearRealtimePollDiagnostics?
     @ObservationIgnored private var notificationDiagnosticUpdatedAt: Date?
     @ObservationIgnored private var notificationDiagnosticDurationMilliseconds: Double?
@@ -122,6 +123,7 @@ final class AppModel {
     private(set) var syncFailureKind: SyncFailureKind?
     private(set) var loadingOverlay: LoadingOverlayState?
     private(set) var localBackupSummary: LocalBackupService.BackupSummary?
+    private(set) var mcpServerStatus: MCPServerStatus = .stopped
     private(set) var taskLists: [TaskListMirror] = []
     private(set) var tasks: [TaskMirror] = []
     private(set) var calendars: [CalendarListMirror] = []
@@ -329,6 +331,7 @@ final class AppModel {
             lastMutationError = warning
         }
         await synchronizeLocalNotifications()
+        reconcileMCPServer()
         // Arm the daily midnight tick for past-cleanup. No-op until the
         // user has enabled a deletion behavior AND acknowledged the
         // blast-radius modal; the coordinator filters on read.
@@ -2681,6 +2684,75 @@ final class AppModel {
         settings = next
         GoogleDiagnostics.setRawPayloadLoggingEnabled(settings.rawGoogleDiagnosticsEnabled)
         scheduleCacheSave()
+        reconcileMCPServer()
+    }
+
+    func setMCPServerEnabled(_ isEnabled: Bool) {
+        guard settings.mcpServerEnabled != isEnabled else { return }
+        settings.mcpServerEnabled = isEnabled
+        scheduleCacheSave()
+        reconcileMCPServer()
+    }
+
+    func setMCPPermissionMode(_ mode: MCPPermissionMode) {
+        guard settings.mcpPermissionMode != mode else { return }
+        settings.mcpPermissionMode = mode
+        scheduleCacheSave()
+    }
+
+    func setMCPPort(_ port: Int) {
+        let normalized = max(1, min(65535, port))
+        guard settings.mcpPort != normalized else { return }
+        settings.mcpPort = normalized
+        scheduleCacheSave()
+        reconcileMCPServer()
+    }
+
+    func resetMCPBearerToken() -> String? {
+        do {
+            let token = try HCBMCPTokenStore.resetToken()
+            if settings.mcpServerEnabled {
+                reconcileMCPServer()
+            }
+            return token
+        } catch {
+            lastMutationError = "Could not reset MCP token: \(error.localizedDescription)"
+            return nil
+        }
+    }
+
+    func mcpClientConfigurationJSON() -> String {
+        let token = (try? HCBMCPTokenStore.loadOrCreateToken()) ?? "<token unavailable>"
+        let object: [String: Any] = [
+            "mcpServers": [
+                "hot-cross-buns": [
+                    "url": "http://127.0.0.1:\(settings.mcpPort)/mcp",
+                    "headers": [
+                        "Authorization": "Bearer \(token)"
+                    ]
+                ]
+            ]
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]),
+              let json = String(data: data, encoding: .utf8) else {
+            return "{}"
+        }
+        return json
+    }
+
+    private func reconcileMCPServer() {
+        guard settings.mcpServerEnabled else {
+            mcpServerController?.stop()
+            mcpServerStatus = .stopped
+            return
+        }
+        if mcpServerController == nil {
+            let toolService = HCBToolService(model: self)
+            mcpServerController = MCPServerController(toolService: toolService) { [weak self] status in
+                self?.mcpServerStatus = status
+            }
+        }
+        mcpServerController?.start(port: settings.mcpPort)
     }
 
     func setRawGoogleDiagnosticsEnabled(_ isEnabled: Bool) {
@@ -2869,6 +2941,7 @@ final class AppModel {
             current.uiLayoutScale != next.uiLayoutScale,
             current.uiTextSizePoints != next.uiTextSizePoints,
             current.uiFontName != next.uiFontName,
+            current.disableAnimations != next.disableAnimations,
             current.perSurfaceFontOverrides != next.perSurfaceFontOverrides,
             current.sidebarPlacement != next.sidebarPlacement,
             current.menuBarStyle != next.menuBarStyle,
@@ -2900,6 +2973,7 @@ final class AppModel {
             || current.uiLayoutScale != next.uiLayoutScale
             || current.uiTextSizePoints != next.uiTextSizePoints
             || current.uiFontName != next.uiFontName
+            || current.disableAnimations != next.disableAnimations
             || current.perSurfaceFontOverrides != next.perSurfaceFontOverrides
             || current.sidebarPlacement != next.sidebarPlacement {
             summaries.append("Appearance, font, layout, or theme preferences will change.")

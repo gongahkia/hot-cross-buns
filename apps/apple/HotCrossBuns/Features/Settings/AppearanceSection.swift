@@ -18,6 +18,7 @@ struct AppearanceSection: View {
         Section("Appearance") {
             colourPanel
             backgroundPanel
+            motionRow
             layoutScaleRow
             textSizeRow
             fontRow
@@ -183,6 +184,32 @@ struct AppearanceSection: View {
                     .hcbFont(.caption2)
                     .foregroundStyle(AppColor.ember)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var motionRow: some View {
+        VStack(spacing: 0) {
+            Divider()
+                .hcbScaledPadding(.vertical, 10)
+            HStack(alignment: .center, spacing: 18) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Animations")
+                        .hcbFont(.body, weight: .semibold)
+                    Text("Turn off app-driven transitions, panel motion, loading animation, and animated state changes.")
+                        .hcbFont(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 16)
+                Toggle("Disable animations", isOn: Binding(
+                    get: { model.settings.disableAnimations },
+                    set: { isDisabled in
+                        var next = model.settings
+                        next.disableAnimations = isDisabled
+                        model.updateSettings(next)
+                    }
+                ))
+                .toggleStyle(.switch)
             }
         }
     }

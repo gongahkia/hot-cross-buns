@@ -3,7 +3,7 @@ import SwiftUI
 struct DayGridView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.hcbAppBackgroundConfiguration) private var backgroundConfiguration
     @Environment(\.calendarEventViewFilter) private var calendarEventViewFilter

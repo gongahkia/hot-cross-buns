@@ -205,6 +205,7 @@ struct CalendarTaskPreviewButton<Label: View>: View {
 }
 
 private struct CalendarPreviewPopoverShell<Content: View>: View {
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     let kind: CalendarPreviewPopoverKind
     let contentKey: String
     @ViewBuilder let content: () -> Content
@@ -224,7 +225,7 @@ private struct CalendarPreviewPopoverShell<Content: View>: View {
             await Task.yield()
             try? await Task.sleep(for: .milliseconds(50))
             guard Task.isCancelled == false else { return }
-            withAnimation(.easeOut(duration: 0.1)) {
+            HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeOut(duration: 0.1)) {
                 isContentReady = true
             }
         }

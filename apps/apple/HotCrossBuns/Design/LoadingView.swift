@@ -4,7 +4,7 @@ import QuartzCore
 
 struct LoadingView: View {
     let message: String
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.hcbReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -138,7 +138,7 @@ private final class RotatingLoadingBunsView: NSView {
 }
 
 struct LoadingOverlayModifier: ViewModifier {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     let state: LoadingOverlayState?
 
     func body(content: Content) -> some View {

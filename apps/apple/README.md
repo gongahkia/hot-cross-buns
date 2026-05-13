@@ -129,6 +129,10 @@ Local reminders are opt-in from Settings. When enabled, the app requests notific
 
 The app exposes App Shortcuts for opening the task editor, opening the event editor, and opening Today.
 
+## Local MCP Agent Access
+
+Settings includes an opt-in local MCP server for user-configured AI agent clients. It binds to `127.0.0.1`, uses a Keychain-backed bearer token, and routes tools through the same `AppModel` mutation paths as the UI. See [Local MCP agent access](../../docs/mcp.md).
+
 ## Task Writes
 
 The Tasks section includes online task create, edit, complete/reopen, and delete flows backed by Google Tasks `tasks.insert`, `tasks.patch`, and `tasks.delete`. It also supports creating, renaming, and deleting task lists.

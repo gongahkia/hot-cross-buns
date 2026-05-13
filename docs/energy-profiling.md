@@ -94,3 +94,46 @@ only for profiling; it intentionally emits extra debug work.
   user action
 
 Attach the profiling evidence to #6 before closing it.
+
+## 2026-05-13 Local Evidence Pass
+
+This pass found and fixed a Spotlight startup churn issue before final Energy
+Gauge closure:
+
+- `xctrace` Power Profiler is not usable for this macOS target in the current
+  Xcode environment; it reports that Power Profiler is supported only for iOS
+  and iPadOS.
+- A 60 second macOS Time Profiler launch sample before the fix produced 1,823
+  exported time-sample rows and launch logs showed repeated CoreSpotlight
+  domain delete/index activity.
+- Root cause: `SpotlightIndexer.update` was actor-reentrant while awaiting
+  CoreSpotlight. Overlapping update calls could each see the indexer as
+  unprimed and perform full domain replacement work.
+- `SpotlightIndexer` now coalesces updates behind one in-flight apply loop, so
+  concurrent updates during the first prime become one latest pending snapshot
+  and do not trigger another full domain rebuild.
+- A short macOS Time Profiler launch sample after the fix produced 104 exported
+  time-sample rows. Follow-up exact-bundle profiling clarified that launch
+  warm-up can still include the expected first-prime CoreSpotlight work, but it
+  does not persist into steady state.
+
+Further exact Release-app profiling:
+
+- Foreground launch warm-up, attached after 30 seconds for 5 minutes: 6,601
+  exported time-sample rows. Process sampling showed one short 92.5% CPU sample
+  during launch warm-up, then mostly 0-0.2% CPU; RSS settled from about 506 MB
+  to about 73 MB by the end.
+- Hidden/background launch, attached after 30 seconds for 5 minutes: 8 exported
+  time-sample rows, 0.0% CPU across process samples, RSS settled from about
+  54 MB to about 45 MB. The Mac slept during this window, which is useful
+  evidence that the hidden app did not hold the system awake.
+- Steady foreground, attached after a 3 minute warm-up for 5 minutes: 6 exported
+  time-sample rows, 0.0% CPU across process samples, RSS settled from about
+  53 MB to about 44 MB, and filtered logs showed no Spotlight, refresh, or
+  near-realtime sync activity during the sampled steady-state window. The Mac
+  also slept during this window.
+
+Artifacts from this local pass are under `.build-evidence/issue-6/`. This is
+useful regression evidence, but it does not replace the required 5 minute Xcode
+Energy Gauge or Instruments Energy Organizer runs for closing #6, especially
+the signed-in near-realtime cadence scenarios.

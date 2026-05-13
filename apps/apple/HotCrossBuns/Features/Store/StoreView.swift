@@ -19,7 +19,7 @@ import SwiftUI
 struct StoreView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.hcbReduceMotion) private var reduceMotion
 
     @State private var selection: Set<TaskMirror.ID> = []
     @State private var isInspectorPresented = true
@@ -962,7 +962,7 @@ struct NotesView: View {
 // target highlighting is scoped per-cell. Keeping it out of the parent
 // view avoids a full grid re-render on every dragEnter/Leave.
 private struct NoteCellWrapper: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     let task: TaskMirror
     let draggingID: TaskMirror.ID?
     let onTap: () -> Void
@@ -998,7 +998,7 @@ private struct NoteCellWrapper: View {
 private struct NoteCard: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     let task: TaskMirror
     let isDragging: Bool
     let onOpen: () -> Void

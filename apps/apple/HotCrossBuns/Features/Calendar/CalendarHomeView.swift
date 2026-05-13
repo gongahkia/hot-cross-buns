@@ -6,7 +6,7 @@ struct CalendarHomeView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
     @Environment(NetworkMonitor.self) private var networkMonitor
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     @Environment(\.hcbAppBackgroundConfiguration) private var backgroundConfiguration
     @Environment(\.calendarEventViewFilter) private var calendarEventViewFilter
     @State private var selectedDate = Date()
@@ -25,6 +25,7 @@ struct CalendarHomeView: View {
     @State private var availabilityDraft = ShareAvailabilityDraft()
     @State private var availabilityMessage: String?
     @State private var isWritingAvailabilityHolds = false
+    @State private var activeModeTransition: HCBTransitionMeasurement?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -70,6 +71,9 @@ struct CalendarHomeView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .hcbOpenShareAvailability)) { _ in
             openShareAvailability()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .hcbProfileNextCalendarMode)) { _ in
+            selectNextProfileMode()
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             handleICSDrop(providers)
@@ -140,6 +144,10 @@ struct CalendarHomeView: View {
             mode = visibleCalendarModes.contains(restored) ? restored : (visibleCalendarModes.first ?? .month)
         }
         .onChange(of: mode) { _, newValue in
+            activeModeTransition?.scheduleSettled(
+                after: .milliseconds(260),
+                metadata: ["mode": newValue.rawValue]
+            )
             storedMode = newValue.rawValue
         }
         .onChange(of: model.settings.hiddenCalendarViewModes) { _, _ in
@@ -147,7 +155,7 @@ struct CalendarHomeView: View {
             // the first still-visible one so the detail area doesn't render
             // a mode that's gone from the picker.
             if visibleCalendarModes.contains(mode) == false, let first = visibleCalendarModes.first {
-                mode = first
+                selectMode(first, source: "hiddenModeFallback")
             }
         }
         .onChange(of: calendarEventViewFilter.cacheKey) { _, _ in
@@ -225,41 +233,47 @@ struct CalendarHomeView: View {
 
     @ViewBuilder
     private var currentModeContent: some View {
-        switch mode {
-        case .agenda:
-            agendaContent
-        case .day:
-            DayGridView(
-                anchorDate: $selectedDate,
-                searchQuery: searchQuery,
-                availabilitySelection: availabilityGridSelection
-            )
-        case .multiDay:
-            VStack(spacing: 0) {
-                multiDayStepperBar
+        Group {
+            switch mode {
+            case .agenda:
+                agendaContent
+            case .day:
+                DayGridView(
+                    anchorDate: $selectedDate,
+                    searchQuery: searchQuery,
+                    availabilitySelection: availabilityGridSelection
+                )
+            case .multiDay:
+                VStack(spacing: 0) {
+                    multiDayStepperBar
+                    WeekGridView(
+                        anchorDate: $selectedDate,
+                        searchQuery: searchQuery,
+                        selectedEventIDs: $selectedEventIDs,
+                        multiDayCount: model.settings.multiDayCount,
+                        availabilitySelection: availabilityGridSelection
+                    )
+                }
+            case .week:
                 WeekGridView(
                     anchorDate: $selectedDate,
                     searchQuery: searchQuery,
                     selectedEventIDs: $selectedEventIDs,
-                    multiDayCount: model.settings.multiDayCount,
                     availabilitySelection: availabilityGridSelection
                 )
+            case .month:
+                MonthGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
+            case .year:
+                YearGridView(anchorDate: $selectedDate, searchQuery: searchQuery, onPickDay: { day in
+                    selectedDate = day
+                    selectMode(.day, source: "year.pickDay")
+                })
             }
-        case .week:
-            WeekGridView(
-                anchorDate: $selectedDate,
-                searchQuery: searchQuery,
-                selectedEventIDs: $selectedEventIDs,
-                availabilitySelection: availabilityGridSelection
-            )
-        case .month:
-            MonthGridView(anchorDate: $selectedDate, searchQuery: searchQuery)
-        case .year:
-            YearGridView(anchorDate: $selectedDate, searchQuery: searchQuery, onPickDay: { day in
-                selectedDate = day
-                mode = .day
-            })
         }
+        .hcbTransitionFirstContent(
+            activeModeTransition,
+            metadata: ["mode": mode.rawValue]
+        )
     }
 
     private var navigationBar: some View {
@@ -300,7 +314,7 @@ struct CalendarHomeView: View {
 
             Spacer(minLength: 0)
 
-            Picker("View", selection: $mode) {
+            Picker("View", selection: modeBinding) {
                 ForEach(visibleCalendarModes, id: \.self) { m in
                     Label(m.title, systemImage: m.systemImage).tag(m)
                 }
@@ -397,6 +411,13 @@ struct CalendarHomeView: View {
         CalendarGridMode.allCases.filter { model.settings.hiddenCalendarViewModes.contains($0.rawValue) == false }
     }
 
+    private var modeBinding: Binding<CalendarGridMode> {
+        Binding(
+            get: { mode },
+            set: { selectMode($0, source: "picker") }
+        )
+    }
+
     private var calendarCommandActions: CalendarCommandActions {
         let canNavigate = model.account != nil
         return CalendarCommandActions(
@@ -424,8 +445,31 @@ struct CalendarHomeView: View {
     // Keyboard shortcuts route here so hidden modes no-op rather than forcing
     // the picker back onto a mode the user chose to remove.
     private func selectMode(_ target: CalendarGridMode) {
+        selectMode(target, source: "command")
+    }
+
+    private func selectMode(_ target: CalendarGridMode, source: String) {
         guard visibleCalendarModes.contains(target) else { return }
+        guard mode != target else { return }
+        activeModeTransition = HCBTransitionProfiler.start(
+            "calendarMode.\(mode.rawValue)->\(target.rawValue)",
+            metadata: [
+                "from": mode.rawValue,
+                "source": source,
+                "to": target.rawValue
+            ]
+        )
         mode = target
+    }
+
+    private func selectNextProfileMode() {
+        let modes = visibleCalendarModes.isEmpty ? CalendarGridMode.allCases : visibleCalendarModes
+        guard let index = modes.firstIndex(of: mode) else {
+            selectMode(modes.first ?? .month, source: "profileScenario")
+            return
+        }
+        let next = modes[modes.index(after: index) == modes.endIndex ? modes.startIndex : modes.index(after: index)]
+        selectMode(next, source: "profileScenario")
     }
 
     private func openShareAvailability() {
@@ -1454,6 +1498,7 @@ private struct CalendarBadgeRow: View {
 
 struct AddEventSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
     @State private var selectedCalendarID: CalendarListMirror.ID?
@@ -1619,7 +1664,7 @@ struct AddEventSheet: View {
                     if editingEvent != nil, isEditing == false {
                         // View-only pass: primary button escalates to edit.
                         Button("Edit") {
-                            withAnimation(.easeInOut(duration: 0.12)) {
+                            HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeInOut(duration: 0.12)) {
                                 details = HCBTextMarkup.markdownSource(from: details)
                                 isEditing = true
                             }

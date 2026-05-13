@@ -27,6 +27,10 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
         XCTAssertTrue(settings.restoreWindowStateEnabled, "legacy caches should restore prior window sessions by default")
         XCTAssertEqual(settings.globalHotkeyBinding, .defaultQuickAdd)
         XCTAssertEqual(settings.sidebarPlacement, .left)
+        XCTAssertFalse(settings.disableAnimations, "legacy caches should keep animations enabled by default")
+        XCTAssertFalse(settings.mcpServerEnabled, "legacy caches must not expose a local MCP server by default")
+        XCTAssertEqual(settings.mcpPermissionMode, .confirmWrites)
+        XCTAssertEqual(settings.mcpPort, 8765)
     }
 
     func testEncodedSettingsRoundTripPreservesMacSurfaceFlags() throws {
@@ -49,7 +53,11 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
             menuBarAdaptiveStatusSource: .eventsAndTasks,
             menuBarAdaptiveEmptyBehavior: .clear,
             menuBarAdaptivePanelContent: .tasks,
-            sidebarPlacement: .bottom
+            disableAnimations: true,
+            sidebarPlacement: .bottom,
+            mcpServerEnabled: true,
+            mcpPermissionMode: .allowWrites,
+            mcpPort: 9876
         )
 
         let data = try JSONEncoder().encode(settings)
@@ -64,8 +72,12 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
         XCTAssertEqual(decoded.menuBarIcon, .sparkles)
         XCTAssertFalse(decoded.showDockBadge)
         XCTAssertFalse(decoded.restoreWindowStateEnabled)
+        XCTAssertTrue(decoded.disableAnimations)
         XCTAssertEqual(decoded.globalHotkeyBinding.displayLabel, "⇧⌘K")
         XCTAssertEqual(decoded.sidebarPlacement, .bottom)
+        XCTAssertTrue(decoded.mcpServerEnabled)
+        XCTAssertEqual(decoded.mcpPermissionMode, .allowWrites)
+        XCTAssertEqual(decoded.mcpPort, 9876)
     }
 
     func testMenuBarIconCatalogExposesUpToFiftyChoices() {

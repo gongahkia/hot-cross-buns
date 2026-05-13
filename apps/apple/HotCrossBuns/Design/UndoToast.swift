@@ -2,7 +2,7 @@ import SwiftUI
 
 struct UndoToast: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.hcbReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack {

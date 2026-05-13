@@ -123,7 +123,8 @@ struct MacSidebarShell: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openSettings) private var openSettings
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.hcbReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @SceneStorage("sidebarSelection") private var storedSelection: String = SidebarItem.calendar.rawValue
     @AppStorage(CalendarViewFilterState.storageKey) private var storedCalendarViewFilters: String = ""
     @AppStorage("calendar.sidebarFilters.collapsed") private var calendarSidebarFiltersCollapsed = false
@@ -134,6 +135,10 @@ struct MacSidebarShell: View {
 
     private var layoutZoomScale: CGFloat {
         CGFloat(max(layoutScaleMin, min(model.settings.uiLayoutScale, layoutScaleMax)))
+    }
+
+    private var effectiveReduceMotion: Bool {
+        reduceMotion || systemReduceMotion || model.settings.disableAnimations
     }
 
     private var textSizePoints: Double {
@@ -178,6 +183,7 @@ struct MacSidebarShell: View {
     @State private var chordKeys: [String]?
     @State private var chordTimeoutTask: Task<Void, Never>?
     @State private var isMainWindowFocused = true
+    @State private var activeSidebarTransition: HCBTransitionMeasurement?
 
     @ViewBuilder
     private var shellCore: some View {
@@ -191,9 +197,9 @@ struct MacSidebarShell: View {
                 horizontalNavigationShell(placement: model.settings.sidebarPlacement)
             }
         }
-        .animation(HCBMotion.animation(.easeInOut(duration: 0.12), reduceMotion: reduceMotion), value: model.settings.sidebarPlacement)
-        .animation(HCBMotion.animation(.easeInOut(duration: 0.12), reduceMotion: reduceMotion), value: layoutZoomScale)
-        .animation(HCBMotion.animation(.easeInOut(duration: 0.12), reduceMotion: reduceMotion), value: textSizePoints)
+        .animation(HCBMotion.animation(.easeInOut(duration: 0.12), reduceMotion: effectiveReduceMotion), value: model.settings.sidebarPlacement)
+        .animation(HCBMotion.animation(.easeInOut(duration: 0.12), reduceMotion: effectiveReduceMotion), value: layoutZoomScale)
+        .animation(HCBMotion.animation(.easeInOut(duration: 0.12), reduceMotion: effectiveReduceMotion), value: textSizePoints)
     }
 
     private var nativeLeftNavigationShell: some View {
@@ -321,13 +327,13 @@ struct MacSidebarShell: View {
                         hints: HCBChordMatcher.hudHints(current: keys, in: HCBChordRegistry.defaults)
                     )
                     .hcbScaledPadding(18)
-                    .transition(HCBMotion.transition(.move(edge: .bottom).combined(with: .opacity), reduceMotion: reduceMotion))
+                    .transition(HCBMotion.transition(.move(edge: .bottom).combined(with: .opacity), reduceMotion: effectiveReduceMotion))
                 }
             }
             .modifier(ActionCenterPresentationModifier(
                 snapshot: actionCenterSnapshot,
                 isPresented: $isActionCenterPresented,
-                reduceMotion: reduceMotion,
+                reduceMotion: effectiveReduceMotion,
                 onOpenHold: openActionCenterHold,
                 onConfirmHold: confirmActionCenterHold,
                 onCancelHoldGroup: cancelActionCenterHoldGroup,
@@ -347,30 +353,30 @@ struct MacSidebarShell: View {
                     transaction.animation = nil
                 }
             }
-            .animation(HCBMotion.animation(.easeOut(duration: 0.16), reduceMotion: reduceMotion), value: chordKeys)
+            .animation(HCBMotion.animation(.easeOut(duration: 0.16), reduceMotion: effectiveReduceMotion), value: chordKeys)
             .focusedSceneValue(\.appCommandActions, appCommandActions)
             .onAppear(perform: handleShellAppear)
             .onChange(of: model.settings.hasCompletedOnboarding) { _, _ in
                 presentFeatureTourIfNeeded()
             }
             .onReceive(NotificationCenter.default.publisher(for: .hcbOpenStoreTab)) { _ in
-                selection = .store
+                selectSidebarItem(.store, source: "notification.openStore")
             }
             .onReceive(NotificationCenter.default.publisher(for: .hcbOpenNotesTab)) { _ in
-                selection = .notes
+                selectSidebarItem(.notes, source: "notification.openNotes")
             }
             .onReceive(NotificationCenter.default.publisher(for: .hcbOpenSettingsWindow)) { _ in
-                openSettings()
+                openInstrumentedSettings(source: "notification")
             }
             .onReceive(NotificationCenter.default.publisher(for: .hcbRevealTaskInStore)) { note in
                 guard let taskID = note.object as? TaskMirror.ID else { return }
                 let targetTab: SidebarItem = model.task(id: taskID)?.dueDate == nil ? .notes : .store
-                selection = targetTab
+                selectSidebarItem(targetTab, source: "notification.revealTask")
                 tabRouter.router(for: sidebarItemKey(targetTab)).present(.editTask(taskID))
             }
             .onReceive(NotificationCenter.default.publisher(for: .hcbRevealEventInCalendar)) { note in
                 guard let eventID = note.object as? CalendarEventMirror.ID else { return }
-                selection = .calendar
+                selectSidebarItem(.calendar, source: "notification.revealEvent")
                 tabRouter.router(for: sidebarItemKey(.calendar)).present(.editEvent(eventID))
             }
             .onReceive(NotificationCenter.default.publisher(for: .hcbClipboardMessage)) { note in
@@ -404,6 +410,10 @@ struct MacSidebarShell: View {
                 model.setGlobalHotkeyRegistrationState(state)
             }
             .onChange(of: selection) { _, newValue in
+                activeSidebarTransition?.scheduleSettled(
+                    after: .milliseconds(260),
+                    metadata: ["surface": newValue.rawValue]
+                )
                 storedSelection = newValue.rawValue
                 configureCommandActions()
             }
@@ -413,14 +423,17 @@ struct MacSidebarShell: View {
                 // rendering a tab that's no longer in the sidebar.
                 if hidden.contains(selection.rawValue), selection.isHideable,
                    let first = visibleSidebarItems.first {
-                    selection = first
+                    selectSidebarItem(first, source: "hiddenSidebarFallback")
                 }
             }
             .modifier(UpdatePromptWindowObserver(sequence: updater.updatePromptSequence, openWindow: openWindow))
             .modifier(InstallGuideWindowObserver(sequence: updater.installGuideSequence, openWindow: openWindow))
             .modifier(ShellZoomObservers(zoomIn: performZoomIn, zoomOut: performZoomOut, zoomReset: performZoomReset))
             .modifier(MainWindowFocusObserver(isFocused: $isMainWindowFocused))
-            .task { await performInitialLoad() }
+            .task {
+                await performInitialLoad()
+                await runTransitionProfileScenarioIfNeeded()
+            }
             .task { await updater.performAutomaticCheckIfNeeded() }
             .onChange(of: model.settings.hasCompletedOnboarding) { _, hasCompleted in
                 // Re-present onboarding when the flag is flipped back
@@ -447,22 +460,22 @@ struct MacSidebarShell: View {
     private func routeQuickSwitcherEntity(_ entity: QuickSwitcherEntity) {
         switch entity {
         case .task(let task):
-            selection = .store
+            selectSidebarItem(.store, source: "quickSwitcher.task")
             tabRouter.router(for: sidebarItemKey(.store)).present(.editTask(task.id))
         case .event(let event):
-            selection = .calendar
+            selectSidebarItem(.calendar, source: "quickSwitcher.event")
             tabRouter.router(for: sidebarItemKey(.calendar)).present(.editEvent(event.id))
         case .taskList:
             // No single-list scope exists in StoreView today — land the user
             // in Store with the "Lists" management view selected so they can
             // click through. Better than silently switching filter.
-            selection = .store
+            selectSidebarItem(.store, source: "quickSwitcher.taskList")
             model.pendingStoreFilterKey = "lists"
         case .calendar:
             // Calendar tab has no per-calendar scope control; just land there.
-            selection = .calendar
+            selectSidebarItem(.calendar, source: "quickSwitcher.calendar")
         case .customFilter(let f):
-            selection = .store
+            selectSidebarItem(.store, source: "quickSwitcher.customFilter")
             model.pendingStoreFilterKey = "custom:\(f.id.uuidString)"
             model.markCustomFilterUsed(f.id)
         }
@@ -484,7 +497,7 @@ struct MacSidebarShell: View {
     }
 
     private func openActionCenterHold(_ hold: CalendarEventMirror) {
-        selection = .calendar
+        selectSidebarItem(.calendar, source: "actionCenter.hold")
         tabRouter.router(for: sidebarItemKey(.calendar)).present(.editEvent(hold.id))
         isActionCenterPresented = false
     }
@@ -503,7 +516,7 @@ struct MacSidebarShell: View {
 
     private func openActionCenterTask(_ task: TaskMirror) {
         let targetTab: SidebarItem = task.dueDate == nil ? .notes : .store
-        selection = targetTab
+        selectSidebarItem(targetTab, source: "actionCenter.task")
         tabRouter.router(for: sidebarItemKey(targetTab)).present(.editTask(task.id))
         isActionCenterPresented = false
     }
@@ -527,7 +540,7 @@ struct MacSidebarShell: View {
     }
 
     private func openActionCenterSettings() {
-        openSettings()
+        openInstrumentedSettings(source: "actionCenter")
         isActionCenterPresented = false
     }
 
@@ -581,10 +594,10 @@ struct MacSidebarShell: View {
         case .openApp:
             NSApp.activate(ignoringOtherApps: true)
         case .openTask(let id):
-            selection = .store
+            selectSidebarItem(.store, source: "deeplink.task")
             tabRouter.router(for: sidebarItemKey(.store)).present(.editTask(id))
         case .openEvent(let id):
-            selection = .calendar
+            selectSidebarItem(.calendar, source: "deeplink.event")
             tabRouter.router(for: sidebarItemKey(.calendar)).present(.editEvent(id))
         case .newTask(let prefill):
             // Stage the prefill before presenting — AddTaskSheet reads model
@@ -608,10 +621,10 @@ struct MacSidebarShell: View {
 
         switch identifier {
         case .task(let id):
-            selection = .store
+            selectSidebarItem(.store, source: "spotlight.task")
             tabRouter.router(for: sidebarItemKey(.store)).present(.editTask(id))
         case .event(let id):
-            selection = .calendar
+            selectSidebarItem(.calendar, source: "spotlight.event")
             tabRouter.router(for: sidebarItemKey(.calendar)).present(.editEvent(id))
         }
     }
@@ -728,7 +741,7 @@ struct MacSidebarShell: View {
     private func verticalNavigationButton(for item: SidebarItem) -> some View {
         let isSelected = selection == item
         return Button {
-            selection = item
+            selectSidebarItem(item, source: "sidebar.vertical")
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: item.systemImage)
@@ -764,7 +777,7 @@ struct MacSidebarShell: View {
     private func horizontalNavigationButton(for item: SidebarItem) -> some View {
         let isSelected = selection == item
         return Button {
-            selection = item
+            selectSidebarItem(item, source: "sidebar.horizontal")
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: item.systemImage)
@@ -840,6 +853,10 @@ struct MacSidebarShell: View {
             // sheets/inspectors hoisted out of the NavigationStack.
             selection.makeContentView(router: router)
                 .environment(\.calendarEventViewFilter, calendarEventViewFilter)
+                .hcbTransitionFirstContent(
+                    activeSidebarTransition,
+                    metadata: ["surface": selection.rawValue]
+                )
                 .withAppDestinations()
         }
         .environment(\.routerPath, router)
@@ -873,7 +890,7 @@ struct MacSidebarShell: View {
             get: { selection },
             set: { newValue in
                 if let newValue {
-                    selection = newValue
+                    selectSidebarItem(newValue, source: "sidebar.listSelection")
                 }
             }
         )
@@ -891,6 +908,11 @@ struct MacSidebarShell: View {
     private func performInitialLoad() async {
         guard HCBLaunchMode.current.skipsAppStartupWork == false else {
             selection = SidebarItem(rawValue: storedSelection) ?? .calendar
+            return
+        }
+        if HCBTransitionProfileScenario.current != nil {
+            selection = SidebarItem(rawValue: storedSelection) ?? .calendar
+            isPresentingOnboarding = false
             return
         }
         await model.loadInitialState()
@@ -951,10 +973,10 @@ struct MacSidebarShell: View {
             // If the target tab is currently hidden via Layout settings, treat
             // the keyboard shortcut as a no-op rather than auto-unhide.
             guard visibleSidebarItems.contains(item) else { return }
-            selection = item
+            selectSidebarItem(item, source: "command.switchTo")
         }
-        appCommandActions.openSettingsWindow = { openSettings() }
-        appCommandActions.openDiagnostics = { openWindow(id: "diagnostics") }
+        appCommandActions.openSettingsWindow = { openInstrumentedSettings(source: "command") }
+        appCommandActions.openDiagnostics = { openInstrumentedWindow(id: "diagnostics", source: "command") }
         appCommandActions.openCommandPalette = { presentCommandPalette() }
         appCommandActions.openHelp = { openWindow(id: "help") }
         appCommandActions.openHistory = { openWindow(id: "history") }
@@ -972,11 +994,131 @@ struct MacSidebarShell: View {
         // Merged palette — actions *and* entity search (tasks, notes, events,
         // lists, calendars, saved filters). Presenting it as a lightweight
         // panel avoids the modal sheet animation on every Cmd-P.
+        HCBTransitionProfiler.startStored(
+            key: HCBTransitionKeys.commandPalette,
+            name: "commandPalette.open",
+            metadata: ["source": "commandPalette"]
+        )
         commandPalettePanelController.present(
             model: model,
             commands: commandPaletteCommands,
             onSelectEntity: routeQuickSwitcherEntity
         )
+    }
+
+    private func runTransitionProfileScenarioIfNeeded() async {
+        guard let scenario = HCBTransitionProfileScenario.current else { return }
+        let iterations = HCBTransitionProfileScenario.iterations
+        let delay = HCBTransitionProfileScenario.stepDelay
+        let startDelay = HCBTransitionProfileScenario.startDelay
+
+        HCBTransitionProfiler.startStored(
+            key: "profile.scenario",
+            name: "profileScenario.\(scenario.rawValue)",
+            metadata: [
+                "iterations": String(iterations),
+                "scenario": scenario.rawValue,
+                "startDelayMs": String(HCBTransitionProfileScenario.startDelayMilliseconds)
+            ]
+        )
+
+        await sleepForProfile(startDelay)
+        switch scenario {
+        case .sidebar:
+            await runSidebarProfile(iterations: iterations, delay: delay)
+        case .calendarModes:
+            await runCalendarModeProfile(iterations: iterations, delay: delay)
+        case .sheets:
+            await runSheetProfile(iterations: iterations, delay: delay)
+        case .commandPalette:
+            await runCommandPaletteProfile(iterations: iterations, delay: delay)
+        case .settingsDiagnostics:
+            await runSettingsDiagnosticsProfile(iterations: iterations, delay: delay)
+        case .all:
+            await runSidebarProfile(iterations: iterations, delay: delay)
+            await runCalendarModeProfile(iterations: iterations, delay: delay)
+            await runSheetProfile(iterations: iterations, delay: delay)
+            await runCommandPaletteProfile(iterations: iterations, delay: delay)
+            await runSettingsDiagnosticsProfile(iterations: iterations, delay: delay)
+        }
+
+        HCBTransitionProfiler.markSettled(
+            for: "profile.scenario",
+            metadata: [
+                "iterations": String(iterations),
+                "scenario": scenario.rawValue
+            ]
+        )
+    }
+
+    private func runSidebarProfile(iterations: Int, delay: Duration) async {
+        let surfaces: [SidebarItem] = [.calendar, .store, .notes]
+        for index in 0..<iterations {
+            selectSidebarItem(surfaces[index % surfaces.count], source: "profileScenario.sidebar")
+            await sleepForProfile(delay)
+        }
+    }
+
+    private func runCalendarModeProfile(iterations: Int, delay: Duration) async {
+        selectSidebarItem(.calendar, source: "profileScenario.calendarModes")
+        await sleepForProfile(delay)
+        for _ in 0..<iterations {
+            NotificationCenter.default.post(name: .hcbProfileNextCalendarMode, object: nil)
+            await sleepForProfile(delay)
+        }
+    }
+
+    private func runSheetProfile(iterations: Int, delay: Duration) async {
+        let routes: [(SidebarItem, SheetDestination)] = [
+            (.store, .quickAddTask),
+            (.notes, .quickAddNote),
+            (.calendar, .quickAddEvent)
+        ]
+        for index in 0..<iterations {
+            let (item, sheet) = routes[index % routes.count]
+            presentSheet(sheet, on: item)
+            await sleepForProfile(delay)
+            let router = tabRouter.router(for: sidebarItemKey(item))
+            router.presentedSheet = nil
+            router.cancelActiveSheetTransition(metadata: ["reason": "profileScenario.dismiss"])
+            await sleepForProfile(.milliseconds(120))
+        }
+    }
+
+    private func runCommandPaletteProfile(iterations: Int, delay: Duration) async {
+        for _ in 0..<iterations {
+            presentCommandPalette()
+            await sleepForProfile(delay)
+            commandPalettePanelController.close()
+            await sleepForProfile(.milliseconds(120))
+        }
+    }
+
+    private func runSettingsDiagnosticsProfile(iterations: Int, delay: Duration) async {
+        for _ in 0..<iterations {
+            openInstrumentedSettings(source: "profileScenario.settings")
+            await sleepForProfile(delay)
+            closeKeyAuxiliaryWindow()
+            await sleepForProfile(.milliseconds(120))
+
+            openInstrumentedWindow(id: "diagnostics", source: "profileScenario.diagnostics")
+            await sleepForProfile(delay)
+            closeKeyAuxiliaryWindow()
+            await sleepForProfile(.milliseconds(120))
+        }
+    }
+
+    private func closeKeyAuxiliaryWindow() {
+        guard let window = NSApp.keyWindow, window.title != "Hot Cross Buns" else { return }
+        window.performClose(nil)
+    }
+
+    private func sleepForProfile(_ duration: Duration) async {
+        do {
+            try await Task.sleep(for: duration)
+        } catch {
+            return
+        }
     }
 
     private enum ICSRange {
@@ -1256,7 +1398,7 @@ struct MacSidebarShell: View {
                 shortcut: "Cmd+Option+D",
                 keywords: ["diagnostics", "recovery", "errors", "health"]
             ) {
-                openWindow(id: "diagnostics")
+                openInstrumentedWindow(id: "diagnostics", source: "commandPalette")
             },
             CommandPaletteCommand(
                 id: "go-calendar",
@@ -1266,7 +1408,7 @@ struct MacSidebarShell: View {
                 shortcut: "Cmd+1",
                 keywords: ["calendar", "events", "today", "forecast"]
             ) {
-                selection = .calendar
+                selectSidebarItem(.calendar, source: "commandPalette.goCalendar")
             },
             CommandPaletteCommand(
                 id: "go-store",
@@ -1276,7 +1418,7 @@ struct MacSidebarShell: View {
                 shortcut: "Cmd+2",
                 keywords: ["tasks", "kanban", "lists", "store"]
             ) {
-                selection = .store
+                selectSidebarItem(.store, source: "commandPalette.goTasks")
             },
             CommandPaletteCommand(
                 id: "go-notes",
@@ -1286,7 +1428,7 @@ struct MacSidebarShell: View {
                 shortcut: "Cmd+3",
                 keywords: ["notes", "capture", "undated", "someday"]
             ) {
-                selection = .notes
+                selectSidebarItem(.notes, source: "commandPalette.goNotes")
             },
             CommandPaletteCommand(
                 id: "open-settings",
@@ -1397,7 +1539,7 @@ struct MacSidebarShell: View {
     }
 
     private func openShareAvailabilityFromSidebar() {
-        selection = .calendar
+        selectSidebarItem(.calendar, source: "sidebar.shareAvailability")
         DispatchQueue.main.async {
             NotificationCenter.default.post(name: .hcbOpenShareAvailability, object: nil)
         }
@@ -1419,12 +1561,46 @@ struct MacSidebarShell: View {
         return components.joined(separator: ", ")
     }
 
+    private func selectSidebarItem(_ item: SidebarItem, source: String) {
+        guard selection != item else { return }
+        activeSidebarTransition = HCBTransitionProfiler.start(
+            "sidebar.\(selection.rawValue)->\(item.rawValue)",
+            metadata: [
+                "from": selection.rawValue,
+                "source": source,
+                "to": item.rawValue
+            ]
+        )
+        selection = item
+    }
+
+    private func openInstrumentedWindow(id: String, source: String) {
+        HCBTransitionProfiler.startStored(
+            key: HCBTransitionKeys.window(id),
+            name: "window.open.\(id)",
+            metadata: [
+                "source": source,
+                "window": id
+            ]
+        )
+        openWindow(id: id)
+    }
+
+    private func openInstrumentedSettings(source: String) {
+        HCBTransitionProfiler.startStored(
+            key: HCBTransitionKeys.settings,
+            name: "window.open.settings",
+            metadata: ["source": source, "window": "settings"]
+        )
+        openSettings()
+    }
+
     private func sidebarItemKey(_ item: SidebarItem) -> String {
         item.rawValue
     }
 
     private func presentSheet(_ sheet: SheetDestination, on item: SidebarItem) {
-        selection = item
+        selectSidebarItem(item, source: "sheet.\(sheet.telemetryName)")
         tabRouter.router(for: sidebarItemKey(item)).present(sheet)
     }
 
@@ -1509,9 +1685,9 @@ struct MacSidebarShell: View {
             case .addEvent:
                 presentSheet(.addEvent, on: .calendar)
             case .store:
-                selection = .store
+                selectSidebarItem(.store, source: "appIntent.store")
             case .calendar:
-                selection = .calendar
+                selectSidebarItem(.calendar, source: "appIntent.calendar")
             }
         }
     }

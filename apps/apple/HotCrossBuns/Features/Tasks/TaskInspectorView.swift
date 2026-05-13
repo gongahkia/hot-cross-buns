@@ -47,6 +47,7 @@ struct TaskDraft: Equatable {
 }
 
 struct TaskInspectorView: View {
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     @Environment(AppModel.self) private var model
     @Environment(\.openWindow) private var openWindow
     @Environment(\.routerPath) private var router
@@ -344,7 +345,7 @@ struct TaskInspectorView: View {
             }
             if isEditing == false {
                 Button("Edit") {
-                    withAnimation(.easeInOut(duration: 0.12)) {
+                    HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeInOut(duration: 0.12)) {
                         draft.notes = HCBTextMarkup.markdownSource(from: draft.notes)
                         isEditing = true
                     }

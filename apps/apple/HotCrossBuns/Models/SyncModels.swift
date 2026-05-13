@@ -111,6 +111,36 @@ enum SyncState: Equatable, Sendable {
     }
 }
 
+enum MCPPermissionMode: String, CaseIterable, Identifiable, Codable, Hashable, Sendable {
+    case readOnly
+    case confirmWrites
+    case allowWrites
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .readOnly:
+            "Read-only"
+        case .confirmWrites:
+            "Confirm writes"
+        case .allowWrites:
+            "Allow writes"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .readOnly:
+            "MCP clients can search and read Hot Cross Buns data but cannot change it."
+        case .confirmWrites:
+            "MCP clients must dry-run writes and pass the returned confirmation id before changes apply."
+        case .allowWrites:
+            "MCP clients can apply non-destructive writes directly. Deletes still require confirmation."
+        }
+    }
+}
+
 struct SyncCheckpoint: Identifiable, Hashable, Codable, Sendable {
     let id: String
     var accountID: GoogleAccount.ID
@@ -429,6 +459,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var appBackgroundTranslucencyEnabled: Bool // true = clear NSWindow + translucent app fill
     var appBackgroundOpacity: Double // 0.35-1.0, applied to the app fill over desktop/custom image
     var customBackgroundImagePath: String? // copied image in Application Support, nil = theme/window background
+    var disableAnimations: Bool // app-level Reduce Motion override for users who want no UI motion
     var shortcutOverrides: [String: HCBKeyBinding] // HCBShortcutCommand.rawValue → binding
     var sidebarPlacement: NavigationSurfacePlacement // where the app navigation surface is rendered
     var hiddenSidebarItems: Set<String> // SidebarItem.rawValues user has hidden
@@ -501,6 +532,9 @@ struct AppSettings: Hashable, Codable, Sendable {
     var dailyLocalBackupEnabled: Bool
     var dailyLocalBackupRetentionCount: Int
     var lastDailyLocalBackupAt: Date?
+    var mcpServerEnabled: Bool
+    var mcpPermissionMode: MCPPermissionMode
+    var mcpPort: Int
 
     init(
         syncMode: SyncMode,
@@ -540,6 +574,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         appBackgroundTranslucencyEnabled: Bool = false,
         appBackgroundOpacity: Double = 1.0,
         customBackgroundImagePath: String? = nil,
+        disableAnimations: Bool = false,
         shortcutOverrides: [String: HCBKeyBinding] = [:],
         sidebarPlacement: NavigationSurfacePlacement = .left,
         hiddenSidebarItems: Set<String> = [],
@@ -583,7 +618,10 @@ struct AppSettings: Hashable, Codable, Sendable {
         historyCategoryFilters: Set<String> = ["create", "edit", "delete", "complete", "duplicate", "move", "clipboard", "restore", "bulk", "other"],
         dailyLocalBackupEnabled: Bool = false,
         dailyLocalBackupRetentionCount: Int = 14,
-        lastDailyLocalBackupAt: Date? = nil
+        lastDailyLocalBackupAt: Date? = nil,
+        mcpServerEnabled: Bool = false,
+        mcpPermissionMode: MCPPermissionMode = .confirmWrites,
+        mcpPort: Int = 8765
     ) {
         self.syncMode = syncMode
         self.cloudSyncTargets = cloudSyncTargets
@@ -623,6 +661,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.appBackgroundOpacity = max(0.35, min(1.0, appBackgroundOpacity))
         let normalizedBackgroundPath = customBackgroundImagePath?.trimmingCharacters(in: .whitespacesAndNewlines)
         self.customBackgroundImagePath = (normalizedBackgroundPath?.isEmpty ?? true) ? nil : normalizedBackgroundPath
+        self.disableAnimations = disableAnimations
         self.shortcutOverrides = shortcutOverrides
         self.sidebarPlacement = sidebarPlacement
         self.hiddenSidebarItems = hiddenSidebarItems
@@ -667,6 +706,9 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.dailyLocalBackupEnabled = dailyLocalBackupEnabled
         self.dailyLocalBackupRetentionCount = max(1, min(90, dailyLocalBackupRetentionCount))
         self.lastDailyLocalBackupAt = lastDailyLocalBackupAt
+        self.mcpServerEnabled = mcpServerEnabled
+        self.mcpPermissionMode = mcpPermissionMode
+        self.mcpPort = max(1, min(65535, mcpPort))
     }
 
     enum CodingKeys: String, CodingKey {
@@ -707,6 +749,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case appBackgroundTranslucencyEnabled
         case appBackgroundOpacity
         case customBackgroundImagePath
+        case disableAnimations
         case shortcutOverrides
         case sidebarPlacement
         case hiddenSidebarItems
@@ -751,6 +794,9 @@ struct AppSettings: Hashable, Codable, Sendable {
         case dailyLocalBackupEnabled
         case dailyLocalBackupRetentionCount
         case lastDailyLocalBackupAt
+        case mcpServerEnabled
+        case mcpPermissionMode
+        case mcpPort
     }
 
     // Legacy key (0-6 ladder) read via dynamic CodingKey so it stays out of
@@ -831,6 +877,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         } else {
             customBackgroundImagePath = nil
         }
+        disableAnimations = try container.decodeIfPresent(Bool.self, forKey: .disableAnimations) ?? false
         shortcutOverrides = try container.decodeIfPresent([String: HCBKeyBinding].self, forKey: .shortcutOverrides) ?? [:]
         sidebarPlacement = try container.decodeIfPresent(NavigationSurfacePlacement.self, forKey: .sidebarPlacement) ?? .left
         hiddenSidebarItems = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenSidebarItems) ?? []
@@ -887,6 +934,10 @@ struct AppSettings: Hashable, Codable, Sendable {
         let rawBackupRetention = try container.decodeIfPresent(Int.self, forKey: .dailyLocalBackupRetentionCount) ?? 14
         dailyLocalBackupRetentionCount = max(1, min(90, rawBackupRetention))
         lastDailyLocalBackupAt = try container.decodeIfPresent(Date.self, forKey: .lastDailyLocalBackupAt)
+        mcpServerEnabled = try container.decodeIfPresent(Bool.self, forKey: .mcpServerEnabled) ?? false
+        mcpPermissionMode = try container.decodeIfPresent(MCPPermissionMode.self, forKey: .mcpPermissionMode) ?? .confirmWrites
+        let rawMCPPort = try container.decodeIfPresent(Int.self, forKey: .mcpPort) ?? 8765
+        mcpPort = max(1, min(65535, rawMCPPort))
     }
 
     enum MenuBarStyle: String, Codable, Hashable, Sendable, CaseIterable {
