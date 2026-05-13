@@ -63,6 +63,8 @@ final class AppModel {
     private let loginItemController: LoginItemController
     private let localBackupService: LocalBackupService
     @ObservationIgnored private var mcpServerController: MCPServerController?
+    @ObservationIgnored private var calendarPreparedSnapshotCache = CalendarPreparedSnapshotCache(limit: 12)
+    @ObservationIgnored private var calendarDisplayFingerprint: Int?
     @ObservationIgnored private var nearRealtimePollDiagnostics: NearRealtimePollDiagnostics?
     @ObservationIgnored private var notificationDiagnosticUpdatedAt: Date?
     @ObservationIgnored private var notificationDiagnosticDurationMilliseconds: Double?
@@ -177,6 +179,11 @@ final class AppModel {
     // stale UI. Bumping here is the one-place invariant: if snapshots
     // rebuilt, the revision advances.
     private(set) var dataRevision: UInt64 = 0
+    // Bumped only when data that can affect calendar display snapshots
+    // changes. Calendar views key prepared snapshots from this narrower
+    // revision so unrelated task/list/settings churn does not flush cached
+    // day/week/month/year work.
+    private(set) var calendarDisplayRevision: UInt64 = 0
     // True while a scheduled derived snapshot/index rebuild is in flight.
     // Prepared views use this to block interactions rather than rendering
     // stale immutable snapshots against freshly mutated source arrays.
@@ -5407,6 +5414,58 @@ final class AppModel {
         await spotlightIndexer.update(tasks: tasksNow, events: eventsNow)
     }
 
+    func cachedCalendarDaySnapshot(for key: PreparedSnapshotKey) -> CalendarDayDisplaySnapshot? {
+        let snapshot = calendarPreparedSnapshotCache.daySnapshot(for: key)
+        HCBPerformanceTelemetry.debug(
+            "calendar day snapshot cache \(snapshot == nil ? "miss" : "hit")",
+            metadata: ["key": key.rawValue]
+        )
+        return snapshot
+    }
+
+    func storeCalendarDaySnapshot(_ snapshot: CalendarDayDisplaySnapshot) {
+        calendarPreparedSnapshotCache.store(snapshot)
+    }
+
+    func cachedCalendarWeekSnapshot(for key: PreparedSnapshotKey) -> CalendarWeekDisplaySnapshot? {
+        let snapshot = calendarPreparedSnapshotCache.weekSnapshot(for: key)
+        HCBPerformanceTelemetry.debug(
+            "calendar week snapshot cache \(snapshot == nil ? "miss" : "hit")",
+            metadata: ["key": key.rawValue]
+        )
+        return snapshot
+    }
+
+    func storeCalendarWeekSnapshot(_ snapshot: CalendarWeekDisplaySnapshot) {
+        calendarPreparedSnapshotCache.store(snapshot)
+    }
+
+    func cachedCalendarAgendaSnapshot(for key: PreparedSnapshotKey) -> CalendarAgendaDisplaySnapshot? {
+        let snapshot = calendarPreparedSnapshotCache.agendaSnapshot(for: key)
+        HCBPerformanceTelemetry.debug(
+            "calendar agenda snapshot cache \(snapshot == nil ? "miss" : "hit")",
+            metadata: ["key": key.rawValue]
+        )
+        return snapshot
+    }
+
+    func storeCalendarAgendaSnapshot(_ snapshot: CalendarAgendaDisplaySnapshot) {
+        calendarPreparedSnapshotCache.store(snapshot)
+    }
+
+    func cachedCalendarYearSnapshot(for key: PreparedSnapshotKey) -> CalendarYearDisplaySnapshot? {
+        let snapshot = calendarPreparedSnapshotCache.yearSnapshot(for: key)
+        HCBPerformanceTelemetry.debug(
+            "calendar year snapshot cache \(snapshot == nil ? "miss" : "hit")",
+            metadata: ["key": key.rawValue]
+        )
+        return snapshot
+    }
+
+    func storeCalendarYearSnapshot(_ snapshot: CalendarYearDisplaySnapshot) {
+        calendarPreparedSnapshotCache.store(snapshot)
+    }
+
     // Schedules a coalesced rebuild on the next runloop tick. Multiple
     // calls within the same tick collapse to one. Used by mutation paths
     // (createTask, updateEvent, etc.) so a sync flush of dozens of upserts
@@ -5495,6 +5554,15 @@ final class AppModel {
         taskIndexByID = snapshots.taskIndexByID
         eventIndexByID = snapshots.eventIndexByID
         taskListIndexByID = snapshots.taskListIndexByID
+        if calendarDisplayFingerprint != snapshots.calendarDisplayFingerprint {
+            calendarDisplayFingerprint = snapshots.calendarDisplayFingerprint
+            calendarDisplayRevision &+= 1
+            calendarPreparedSnapshotCache.removeAll()
+            HCBPerformanceTelemetry.debug(
+                "calendar display revision advanced",
+                metadata: ["revision": "\(calendarDisplayRevision)"]
+            )
+        }
 
         // Advance the content revision only after every derived snapshot and
         // lookup map has been applied together. Prepared views key off this
@@ -5634,10 +5702,49 @@ final class AppModel {
             taskIndexByID: taskIndexByID,
             eventIndexByID: eventIndexByID,
             taskListIndexByID: Dictionary(uniqueKeysWithValues: input.taskLists.enumerated().map { ($0.element.id, $0.offset) }),
+            calendarDisplayFingerprint: calendarDisplayFingerprint(
+                input: input,
+                selectedCalendarIDs: calendarSnapshot.selectedCalendarIDs,
+                visibleTaskListIDs: visibleTaskListIDs
+            ),
             taskCount: input.tasks.count,
             eventCount: input.events.count,
             visibleTaskCount: visibleTasks.count
         )
+    }
+
+    private nonisolated static func calendarDisplayFingerprint(
+        input: DerivedAppSnapshotInput,
+        selectedCalendarIDs: Set<CalendarListMirror.ID>,
+        visibleTaskListIDs: Set<TaskListMirror.ID>
+    ) -> Int {
+        var hasher = Hasher()
+        hasher.combine(input.settings.showCompletedItemsInCalendar)
+        hasher.combine(input.settings.pastEventBehavior.rawValue)
+        hasher.combine(input.settings.overdueTaskBehavior.rawValue)
+        for entry in input.settings.colorTagBindings.sorted(by: { $0.key < $1.key }) {
+            hasher.combine(entry.key)
+            hasher.combine(entry.value)
+        }
+        for calendarID in selectedCalendarIDs.sorted() {
+            hasher.combine(calendarID)
+        }
+        for taskListID in visibleTaskListIDs.sorted() {
+            hasher.combine(taskListID)
+        }
+        for calendar in input.calendars {
+            hasher.combine(calendar.id)
+            hasher.combine(calendar.summary)
+            hasher.combine(calendar.colorHex)
+            hasher.combine(calendar.isSelected)
+        }
+        for event in input.events where selectedCalendarIDs.contains(event.calendarID) {
+            hasher.combine(event)
+        }
+        for task in input.tasks where task.dueDate != nil && task.isDeleted == false {
+            hasher.combine(task)
+        }
+        return hasher.finalize()
     }
 
     private nonisolated static func buildTaskChildrenByParentID(tasks: [TaskMirror]) -> [TaskMirror.ID: [TaskMirror.ID]] {
@@ -5691,9 +5798,99 @@ private struct DerivedAppSnapshots: Sendable {
     var taskIndexByID: [TaskMirror.ID: Int]
     var eventIndexByID: [CalendarEventMirror.ID: Int]
     var taskListIndexByID: [TaskListMirror.ID: Int]
+    var calendarDisplayFingerprint: Int
     var taskCount: Int
     var eventCount: Int
     var visibleTaskCount: Int
+}
+
+@MainActor
+private final class CalendarPreparedSnapshotCache {
+    private let daySnapshots: PreparedSnapshotLRU<CalendarDayDisplaySnapshot>
+    private let weekSnapshots: PreparedSnapshotLRU<CalendarWeekDisplaySnapshot>
+    private let agendaSnapshots: PreparedSnapshotLRU<CalendarAgendaDisplaySnapshot>
+    private let yearSnapshots: PreparedSnapshotLRU<CalendarYearDisplaySnapshot>
+
+    init(limit: Int) {
+        daySnapshots = PreparedSnapshotLRU(limit: limit)
+        weekSnapshots = PreparedSnapshotLRU(limit: limit)
+        agendaSnapshots = PreparedSnapshotLRU(limit: limit)
+        yearSnapshots = PreparedSnapshotLRU(limit: limit)
+    }
+
+    func daySnapshot(for key: PreparedSnapshotKey) -> CalendarDayDisplaySnapshot? {
+        daySnapshots.value(for: key)
+    }
+
+    func store(_ snapshot: CalendarDayDisplaySnapshot) {
+        daySnapshots.insert(snapshot, for: snapshot.key)
+    }
+
+    func weekSnapshot(for key: PreparedSnapshotKey) -> CalendarWeekDisplaySnapshot? {
+        weekSnapshots.value(for: key)
+    }
+
+    func store(_ snapshot: CalendarWeekDisplaySnapshot) {
+        weekSnapshots.insert(snapshot, for: snapshot.key)
+    }
+
+    func agendaSnapshot(for key: PreparedSnapshotKey) -> CalendarAgendaDisplaySnapshot? {
+        agendaSnapshots.value(for: key)
+    }
+
+    func store(_ snapshot: CalendarAgendaDisplaySnapshot) {
+        agendaSnapshots.insert(snapshot, for: snapshot.key)
+    }
+
+    func yearSnapshot(for key: PreparedSnapshotKey) -> CalendarYearDisplaySnapshot? {
+        yearSnapshots.value(for: key)
+    }
+
+    func store(_ snapshot: CalendarYearDisplaySnapshot) {
+        yearSnapshots.insert(snapshot, for: snapshot.key)
+    }
+
+    func removeAll() {
+        daySnapshots.removeAll()
+        weekSnapshots.removeAll()
+        agendaSnapshots.removeAll()
+        yearSnapshots.removeAll()
+    }
+}
+
+private final class PreparedSnapshotLRU<Value> {
+    private let limit: Int
+    private var values: [PreparedSnapshotKey: Value] = [:]
+    private var recency: [PreparedSnapshotKey] = []
+
+    init(limit: Int) {
+        self.limit = max(1, limit)
+    }
+
+    func value(for key: PreparedSnapshotKey) -> Value? {
+        guard let value = values[key] else { return nil }
+        touch(key)
+        return value
+    }
+
+    func insert(_ value: Value, for key: PreparedSnapshotKey) {
+        values[key] = value
+        touch(key)
+        while recency.count > limit, let evicted = recency.first {
+            recency.removeFirst()
+            values.removeValue(forKey: evicted)
+        }
+    }
+
+    func removeAll() {
+        values.removeAll()
+        recency.removeAll()
+    }
+
+    private func touch(_ key: PreparedSnapshotKey) {
+        recency.removeAll { $0 == key }
+        recency.append(key)
+    }
 }
 
 private final class EmptyGoogleOAuthTokenStore: GoogleOAuthTokenStoring, @unchecked Sendable {

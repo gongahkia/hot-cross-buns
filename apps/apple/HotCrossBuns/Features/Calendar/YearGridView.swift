@@ -64,7 +64,7 @@ struct YearGridView: View {
     private var yearSnapshotKey: PreparedSnapshotKey {
         PreparedSnapshotKeys.calendar(
             mode: .year,
-            dataRevision: model.dataRevision,
+            dataRevision: model.calendarDisplayRevision,
             selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
             visibleTaskListIDs: model.visibleTaskListIDs,
             filterKey: calendarEventViewFilter.cacheKey,
@@ -152,6 +152,10 @@ struct YearGridView: View {
     private func rebuildYearSnapshotIfNeeded() {
         let key = yearSnapshotKey
         guard preparedYearSnapshot?.key != key else { return }
+        if let snapshot = model.cachedCalendarYearSnapshot(for: key) {
+            preparedYearSnapshot = snapshot
+            return
+        }
         let input = CalendarDisplayInput(
             key: key,
             anchorDate: anchorDate,
@@ -171,11 +175,20 @@ struct YearGridView: View {
         )
         yearSnapshotBuildTask?.cancel()
         yearSnapshotBuildTask = Task { @MainActor in
+            let started = HCBPerformanceTelemetry.timestamp()
             let snapshot = await Task.detached(priority: .utility) {
                 CalendarDisplaySnapshotBuilder.yearSnapshot(input)
             }.value
             guard Task.isCancelled == false, snapshot.key == yearSnapshotKey else { return }
+            model.storeCalendarYearSnapshot(snapshot)
             preparedYearSnapshot = snapshot
+            HCBPerformanceTelemetry.debug(
+                "calendar year snapshot built",
+                metadata: [
+                    "buildMs": HCBPerformanceTelemetry.elapsedMilliseconds(since: started),
+                    "maxDayCount": "\(snapshot.maxCount)"
+                ]
+            )
         }
     }
 

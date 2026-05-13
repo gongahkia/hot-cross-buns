@@ -70,7 +70,7 @@ struct DayGridView: View {
     private var daySnapshotKey: PreparedSnapshotKey {
         PreparedSnapshotKeys.calendar(
             mode: .day,
-            dataRevision: model.dataRevision,
+            dataRevision: model.calendarDisplayRevision,
             selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
             visibleTaskListIDs: model.visibleTaskListIDs,
             filterKey: calendarEventViewFilter.cacheKey,
@@ -366,6 +366,10 @@ struct DayGridView: View {
     private func rebuildDaySnapshotIfNeeded() {
         let key = daySnapshotKey
         guard preparedDaySnapshot?.key != key else { return }
+        if let snapshot = model.cachedCalendarDaySnapshot(for: key) {
+            preparedDaySnapshot = snapshot
+            return
+        }
         let input = CalendarDisplayInput(
             key: key,
             anchorDate: anchorDate,
@@ -385,11 +389,20 @@ struct DayGridView: View {
         )
         daySnapshotBuildTask?.cancel()
         daySnapshotBuildTask = Task { @MainActor in
+            let started = HCBPerformanceTelemetry.timestamp()
             let snapshot = await Task.detached(priority: .utility) {
                 CalendarDisplaySnapshotBuilder.daySnapshot(input)
             }.value
             guard Task.isCancelled == false, snapshot.key == daySnapshotKey else { return }
+            model.storeCalendarDaySnapshot(snapshot)
             preparedDaySnapshot = snapshot
+            HCBPerformanceTelemetry.debug(
+                "calendar day snapshot built",
+                metadata: [
+                    "buildMs": HCBPerformanceTelemetry.elapsedMilliseconds(since: started),
+                    "events": "\(snapshot.allDayEvents.count + snapshot.timedEvents.count)"
+                ]
+            )
         }
     }
 

@@ -178,7 +178,7 @@ for scenario in $SCENARIOS; do
       --info \
       --debug \
       --last 3m \
-      --predicate 'subsystem == "com.gongahkia.hotcrossbuns.mac" && composedMessage CONTAINS "transition."' \
+      --predicate 'subsystem == "com.gongahkia.hotcrossbuns.mac" && (composedMessage CONTAINS "transition." || composedMessage CONTAINS "snapshot" || composedMessage CONTAINS "cache")' \
       > "$log_file" || true
 
     summarize_log "$log_file" "$summary_file"

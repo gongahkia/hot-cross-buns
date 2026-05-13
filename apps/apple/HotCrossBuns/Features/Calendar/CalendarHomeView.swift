@@ -1080,7 +1080,7 @@ struct CalendarHomeView: View {
     private var agendaSnapshotKey: PreparedSnapshotKey {
         PreparedSnapshotKeys.calendar(
             mode: .agenda,
-            dataRevision: model.dataRevision,
+            dataRevision: model.calendarDisplayRevision,
             selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
             visibleTaskListIDs: model.visibleTaskListIDs,
             filterKey: calendarEventViewFilter.cacheKey,
@@ -1093,6 +1093,10 @@ struct CalendarHomeView: View {
     private func rebuildAgendaSnapshotIfNeeded() {
         let key = agendaSnapshotKey
         guard preparedAgendaSnapshot?.key != key else { return }
+        if let snapshot = model.cachedCalendarAgendaSnapshot(for: key) {
+            preparedAgendaSnapshot = snapshot
+            return
+        }
         let input = CalendarDisplayInput(
             key: key,
             anchorDate: selectedDate,
@@ -1112,11 +1116,22 @@ struct CalendarHomeView: View {
         )
         agendaSnapshotBuildTask?.cancel()
         agendaSnapshotBuildTask = Task { @MainActor in
+            let started = HCBPerformanceTelemetry.timestamp()
             let snapshot = await Task.detached(priority: .utility) {
                 CalendarDisplaySnapshotBuilder.agendaSnapshot(input)
             }.value
             guard Task.isCancelled == false, snapshot.key == agendaSnapshotKey else { return }
+            model.storeCalendarAgendaSnapshot(snapshot)
             preparedAgendaSnapshot = snapshot
+            HCBPerformanceTelemetry.debug(
+                "calendar agenda snapshot built",
+                metadata: [
+                    "buildMs": HCBPerformanceTelemetry.elapsedMilliseconds(since: started),
+                    "days": "\(snapshot.days.count)",
+                    "events": "\(snapshot.eventMetadataByID.count)",
+                    "tasks": "\(snapshot.taskMetadataByID.count)"
+                ]
+            )
         }
     }
 

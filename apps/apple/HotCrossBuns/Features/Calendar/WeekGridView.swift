@@ -116,7 +116,7 @@ struct WeekGridView: View {
     private var weekSnapshotKey: PreparedSnapshotKey {
         PreparedSnapshotKeys.calendar(
             mode: multiDayCount == nil ? .week : .multiDay,
-            dataRevision: model.dataRevision,
+            dataRevision: model.calendarDisplayRevision,
             selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
             visibleTaskListIDs: model.visibleTaskListIDs,
             filterKey: calendarEventViewFilter.cacheKey,
@@ -904,6 +904,10 @@ struct WeekGridView: View {
     private func rebuildWeekSnapshotIfNeeded() {
         let key = weekSnapshotKey
         guard preparedWeekSnapshot?.key != key else { return }
+        if let snapshot = model.cachedCalendarWeekSnapshot(for: key) {
+            preparedWeekSnapshot = snapshot
+            return
+        }
         let input = CalendarDisplayInput(
             key: key,
             anchorDate: anchorDate,
@@ -924,11 +928,22 @@ struct WeekGridView: View {
         let count = multiDayCount
         weekSnapshotBuildTask?.cancel()
         weekSnapshotBuildTask = Task { @MainActor in
+            let started = HCBPerformanceTelemetry.timestamp()
             let snapshot = await Task.detached(priority: .utility) {
                 CalendarDisplaySnapshotBuilder.weekSnapshot(input, multiDayCount: count)
             }.value
             guard Task.isCancelled == false, snapshot.key == weekSnapshotKey else { return }
+            model.storeCalendarWeekSnapshot(snapshot)
             preparedWeekSnapshot = snapshot
+            HCBPerformanceTelemetry.debug(
+                "calendar week snapshot built",
+                metadata: [
+                    "buildMs": HCBPerformanceTelemetry.elapsedMilliseconds(since: started),
+                    "days": "\(snapshot.days.count)",
+                    "events": "\(snapshot.eventMetadataByID.count)",
+                    "tasks": "\(snapshot.taskMetadataByID.count)"
+                ]
+            )
         }
     }
 

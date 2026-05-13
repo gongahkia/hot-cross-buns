@@ -67,7 +67,7 @@ enum HCBPerformanceTelemetry {
 
     static func debug(_ message: String, metadata: [String: String] = [:]) {
         guard isEnabled else { return }
-        AppLogger.debug(message, category: .perf, metadata: metadata)
+        AppLogger.info(message, category: .perf, metadata: metadata)
     }
 }
 

@@ -359,10 +359,11 @@ struct MonthGridView: View {
     // skipping every drag-induced body re-eval.
     private var currentGridCacheKey: String {
         let selectedIds = model.calendarSnapshot.selectedCalendarIDs.sorted().joined(separator: ",")
-        // dataRevision replaces the prior model.events.count fingerprint —
+        // calendarDisplayRevision replaces the prior model.events.count fingerprint —
         // renames / reschedules / recolors with unchanged total count now
-        // bust the cache correctly.
-        return "\(selectedIds)|\(calendarEventViewFilter.cacheKey)|\(visibleTaskListKey)|\(searchQuery)|\(windowKey)|\(model.dataRevision)"
+        // bust the cache correctly while unrelated model changes keep the
+        // grid cache warm.
+        return "\(selectedIds)|\(calendarEventViewFilter.cacheKey)|\(visibleTaskListKey)|\(searchQuery)|\(windowKey)|\(model.calendarDisplayRevision)"
     }
 
     private var windowKey: String {
@@ -429,8 +430,8 @@ struct MonthGridView: View {
             tasksByDueDate: model.tasksByDueDate,
             eventByID: model.eventByIDSnapshot,
             taskByID: model.taskByIDSnapshot,
-            dataRevision: model.dataRevision,
-            eventSearchTextByID: cachedEventSearchRevision == model.dataRevision ? cachedEventSearchTextByID : [:],
+            dataRevision: model.calendarDisplayRevision,
+            eventSearchTextByID: cachedEventSearchRevision == model.calendarDisplayRevision ? cachedEventSearchTextByID : [:],
             calendarColorHexByID: model.calendarSnapshot.calendarColorHexByID,
             calendar: calendar,
             laneHeight: laneHeight,
