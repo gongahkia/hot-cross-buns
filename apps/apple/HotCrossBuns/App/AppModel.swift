@@ -5536,7 +5536,11 @@ final class AppModel {
             referenceDate: input.referenceDate
         )
         let todaySnapshot = TodaySnapshot.build(tasks: visibleTasks, events: input.events, referenceDate: input.referenceDate)
-        let calendarSnapshot = CalendarSnapshot.build(calendars: input.calendars, events: input.events, referenceDate: input.referenceDate)
+        let calendarSnapshot = CalendarSnapshot.build(
+            calendars: input.calendars,
+            events: input.events,
+            settings: input.settings
+        )
 
         // Bucket events by calendar id so grid views can skip full-corpus
         // filters while rendering.

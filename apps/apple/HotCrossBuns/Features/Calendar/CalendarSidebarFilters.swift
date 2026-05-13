@@ -210,24 +210,12 @@ struct CalendarSidebarFilters: View {
         }
     }
 
-    private var eligibleEvents: [CalendarEventMirror] {
-        let selectedIDs = model.calendarSnapshot.selectedCalendarIDs
-        return model.events.filter { event in
-            selectedIDs.contains(event.calendarID)
-                && (model.settings.showCompletedItemsInCalendar || event.status != .cancelled)
-        }
-    }
-
     private var calendarEventCounts: [CalendarListMirror.ID: Int] {
-        Dictionary(uniqueKeysWithValues: model.calendarSnapshot.selectedCalendars.map { calendar in
-            (calendar.id, model.eventsByCalendar[calendar.id]?.count ?? 0)
-        })
+        model.calendarSnapshot.eventCountsByCalendarID
     }
 
     private var colorOptions: [ColorOption] {
-        let counts = eligibleEvents.reduce(into: [String: Int]()) { result, event in
-            result[CalendarEventViewFilter.eventColorID(for: event), default: 0] += 1
-        }
+        let counts = model.calendarSnapshot.eventCountsByColorID
         let boundColorIDs = Set(model.settings.colorTagBindings.keys.map(CalendarEventViewFilter.normalizedColorID))
         let ids = Set(counts.keys).union(boundColorIDs).filter { id in
             id.isEmpty || CalendarEventColor(rawValue: id) != nil
@@ -239,29 +227,20 @@ struct CalendarSidebarFilters: View {
 
     private var tagOptions: [TagOption] {
         let bindingIndex = CalendarEventViewFilter.colorTagIndex(from: model.settings.colorTagBindings)
-        var eventIDsByTag: [String: Set<CalendarEventMirror.ID>] = [:]
-        for event in eligibleEvents {
-            for tag in CalendarEventViewFilter.literalTagNames(in: event) {
-                eventIDsByTag[tag, default: []].insert(event.id)
-            }
-            let colorID = CalendarEventViewFilter.eventColorID(for: event)
-            for (tag, boundColorID) in bindingIndex where CalendarEventViewFilter.normalizedColorID(boundColorID) == colorID {
-                eventIDsByTag[tag, default: []].insert(event.id)
-            }
-        }
-        for tag in bindingIndex.keys where eventIDsByTag[tag] == nil {
-            eventIDsByTag[tag] = []
+        var eventCountsByTag = model.calendarSnapshot.eventCountsByTagName
+        for tag in bindingIndex.keys where eventCountsByTag[tag] == nil {
+            eventCountsByTag[tag] = 0
         }
         if let visibleTagNames = state.visibleTagNames {
-            for tag in visibleTagNames where eventIDsByTag[tag] == nil {
-                eventIDsByTag[tag] = []
+            for tag in visibleTagNames where eventCountsByTag[tag] == nil {
+                eventCountsByTag[tag] = 0
             }
         }
-        return eventIDsByTag.map { entry in
+        return eventCountsByTag.map { entry in
             TagOption(
                 key: entry.key,
                 title: "#\(entry.key)",
-                count: entry.value.count,
+                count: entry.value,
                 boundColorID: bindingIndex[entry.key]
             )
         }
