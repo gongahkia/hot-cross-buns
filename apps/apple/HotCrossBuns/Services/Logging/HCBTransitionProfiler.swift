@@ -152,13 +152,23 @@ private struct HCBTransitionFirstContentModifier: ViewModifier {
     let measurement: HCBTransitionMeasurement?
     let metadata: [String: String]
 
+    private var measurementID: ObjectIdentifier? {
+        measurement.map(ObjectIdentifier.init)
+    }
+
     func body(content: Content) -> some View {
-        content.onAppear {
-            guard let measurement else { return }
-            Task { @MainActor in
-                await Task.yield()
-                measurement.markFirstContent(metadata: metadata)
+        content
+            .onAppear(perform: markFirstContent)
+            .onChange(of: measurementID) { _, _ in
+                markFirstContent()
             }
+    }
+
+    private func markFirstContent() {
+        guard let measurement else { return }
+        Task { @MainActor in
+            await Task.yield()
+            measurement.markFirstContent(metadata: metadata)
         }
     }
 }
