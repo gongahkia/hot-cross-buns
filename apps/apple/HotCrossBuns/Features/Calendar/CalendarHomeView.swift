@@ -527,7 +527,9 @@ struct CalendarHomeView: View {
         }
         let slots = AvailabilitySlotResolver.normalized(availabilityDraft.slots)
         guard slots.isEmpty == false else {
-            availabilityMessage = "Select at least one slot."
+            availabilityMessage = supportsAvailabilitySelection
+                ? "Select at least one slot."
+                : "Switch to Day, Week, or Multi-Day, then select at least one slot."
             return
         }
         guard slots.count <= AvailabilityHoldLimits.maxSlotsPerGroup else {
@@ -1230,7 +1232,7 @@ private struct ShareAvailabilityPanel: View {
             }
 
             if supportsSelection == false {
-                Label("Day, Week, or Multi-Day", systemImage: "calendar")
+                Label("Switch to Day, Week, or Multi-Day to select slots.", systemImage: "calendar")
                     .hcbFont(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1249,7 +1251,7 @@ private struct ShareAvailabilityPanel: View {
             }
 
             if draft.slots.isEmpty {
-                Text("No slots selected.")
+                Text(supportsSelection ? "No slots selected." : "Switch views to select slots.")
                     .hcbFont(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -1284,7 +1286,7 @@ private struct ShareAvailabilityPanel: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(AppColor.ember)
-            .disabled(isWriting || draft.slots.isEmpty || draft.slots.count > AvailabilityHoldLimits.maxSlotsPerGroup || calendars.isEmpty)
+            .disabled(isWriting)
         }
     }
 
