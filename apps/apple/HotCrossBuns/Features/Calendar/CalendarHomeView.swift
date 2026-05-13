@@ -451,7 +451,7 @@ struct CalendarHomeView: View {
     private func selectMode(_ target: CalendarGridMode, source: String) {
         guard visibleCalendarModes.contains(target) else { return }
         guard mode != target else { return }
-        activeModeTransition = HCBTransitionProfiler.start(
+        let transition = HCBTransitionProfiler.start(
             "calendarMode.\(mode.rawValue)->\(target.rawValue)",
             metadata: [
                 "from": mode.rawValue,
@@ -459,7 +459,12 @@ struct CalendarHomeView: View {
                 "to": target.rawValue
             ]
         )
+        activeModeTransition = transition
         mode = target
+        Task { @MainActor in
+            await Task.yield()
+            transition?.markFirstContent(metadata: ["mode": target.rawValue])
+        }
     }
 
     private func selectNextProfileMode() {
