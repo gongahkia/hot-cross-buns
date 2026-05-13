@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct PreparedSnapshotOverlay: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     var title: String = "Preparing view..."
     var message: String
 

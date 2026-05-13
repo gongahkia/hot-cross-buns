@@ -17,9 +17,17 @@ import Combine
 final class RouterPath: ObservableObject {
     @Published var path: [AppRoute] = []
     @Published var presentedSheet: SheetDestination?
+    @Published private(set) var activeSheetTransition: HCBTransitionMeasurement?
 
     func present(_ sheet: SheetDestination) {
         guard presentedSheet != sheet else { return }
+        activeSheetTransition = HCBTransitionProfiler.start(
+            "sheet.\(sheet.telemetryName)",
+            metadata: [
+                "destination": sheet.telemetryName,
+                "route_id": sheet.id
+            ]
+        )
         presentedSheet = sheet
     }
 
@@ -33,8 +41,20 @@ final class RouterPath: ObservableObject {
             path = []
         }
         if presentedSheet != nil {
+            activeSheetTransition?.cancel(metadata: ["reason": "router.reset"])
+            activeSheetTransition = nil
             presentedSheet = nil
         }
+    }
+
+    func finishActiveSheetTransition(metadata: [String: String] = [:]) {
+        activeSheetTransition?.markSettled(metadata: metadata)
+        activeSheetTransition = nil
+    }
+
+    func cancelActiveSheetTransition(metadata: [String: String] = [:]) {
+        activeSheetTransition?.cancel(metadata: metadata)
+        activeSheetTransition = nil
     }
 }
 
@@ -66,6 +86,9 @@ final class TabRouter {
             get: { router.presentedSheet },
             set: {
                 guard router.presentedSheet != $0 else { return }
+                if $0 == nil {
+                    router.cancelActiveSheetTransition(metadata: ["reason": "sheet.binding.dismiss"])
+                }
                 router.presentedSheet = $0
             }
         )
@@ -140,6 +163,32 @@ enum SheetDestination: Identifiable, Hashable {
         case .diagnostics: "diagnostics"
         }
     }
+
+    var telemetryName: String {
+        switch self {
+        case .addTask: "addTask"
+        case .editTask: "editTask"
+        case .quickAddTask: "quickAddTask"
+        case .quickAddNote: "quickAddNote"
+        case .quickAddEvent: "quickAddEvent"
+        case .addEvent: "addEvent"
+        case .editEvent: "editEvent"
+        case .addEventAt: "addEventAt"
+        case .addEventRange: "addEventRange"
+        case .quickCreate: "quickCreate"
+        case .quickCreateRange: "quickCreateRange"
+        case .quickCreateTask: "quickCreateTask"
+        case .quickCreateNote: "quickCreateNote"
+        case .convertEventToTask: "convertEventToTask"
+        case .convertEventToNote: "convertEventToNote"
+        case .convertTaskToEvent: "convertTaskToEvent"
+        case .convertTaskToNote: "convertTaskToNote"
+        case .convertNoteToTask: "convertNoteToTask"
+        case .convertNoteToEvent: "convertNoteToEvent"
+        case .syncSettings: "syncSettings"
+        case .diagnostics: "diagnostics"
+        }
+    }
 }
 
 extension View {
@@ -176,9 +225,15 @@ private struct SheetHost<Content: View>: View {
 
 private struct SheetDestinationHost: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.hcbReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     let destination: SheetDestination
     let router: RouterPath
     @State private var isDeferredContentReady = false
+
+    private var effectiveReduceMotion: Bool {
+        reduceMotion || systemReduceMotion || model.settings.disableAnimations
+    }
 
     var body: some View {
         Group {
@@ -191,15 +246,31 @@ private struct SheetDestinationHost: View {
         }
             .environment(\.routerPath, router)
             .withHCBAppearance(model.settings)
+            .hcbTransitionFirstContent(
+                router.activeSheetTransition,
+                metadata: [
+                    "destination": destination.telemetryName,
+                    "phase": destination.usesResponsiveFirstPaint && isDeferredContentReady == false ? "placeholder" : "content"
+                ]
+            )
+            .onAppear {
+                if destination.usesResponsiveFirstPaint == false {
+                    router.activeSheetTransition?.scheduleSettled(
+                        after: .milliseconds(220),
+                        metadata: ["destination": destination.telemetryName]
+                    )
+                }
+            }
             .task(id: destination.id) {
                 guard destination.usesResponsiveFirstPaint else { return }
                 isDeferredContentReady = false
                 await Task.yield()
                 try? await Task.sleep(for: .milliseconds(80))
                 guard Task.isCancelled == false else { return }
-                withAnimation(.easeOut(duration: 0.12)) {
+                HCBMotion.perform(reduceMotion: effectiveReduceMotion, animation: .easeOut(duration: 0.12)) {
                     isDeferredContentReady = true
                 }
+                router.finishActiveSheetTransition(metadata: ["destination": destination.telemetryName])
             }
     }
 

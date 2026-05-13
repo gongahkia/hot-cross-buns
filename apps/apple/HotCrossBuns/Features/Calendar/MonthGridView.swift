@@ -21,7 +21,7 @@ enum CalendarMonthScrollWindow {
 struct MonthGridView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     @Environment(\.hcbAppBackgroundConfiguration) private var backgroundConfiguration
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.calendarEventViewFilter) private var calendarEventViewFilter

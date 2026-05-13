@@ -8,6 +8,7 @@ final class SettingsTransferBundleTests: XCTestCase {
         settings.colorSchemeID = "terminal"
         settings.uiLayoutScale = 1.2
         settings.uiTextSizePoints = 15
+        settings.disableAnimations = true
         settings.showDockBadge = false
         settings.showCompletedItemsInCalendar = true
         settings.sidebarPlacement = .top

@@ -25,6 +25,7 @@ import SwiftUI
 // - Task priority / location / time-of-day — not in Google Tasks API.
 struct QuickCreatePopover: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     @Environment(AppModel.self) private var model
 
     let initialDate: Date
@@ -155,7 +156,7 @@ struct QuickCreatePopover: View {
                 .contentShape(Rectangle())
                 .onTapGesture {
                     if isDatePanelExpanded || isTaskDateCardExpanded || isTaskListCardExpanded {
-                        withAnimation(.easeInOut(duration: 0.14)) {
+                        HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeInOut(duration: 0.14)) {
                             isDatePanelExpanded = false
                             isTaskDateCardExpanded = false
                             isTaskListCardExpanded = false
@@ -419,7 +420,7 @@ struct QuickCreatePopover: View {
         VStack(alignment: .leading, spacing: 0) {
             if isDatePanelExpanded == false {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.14)) { isDatePanelExpanded = true }
+                    HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeInOut(duration: 0.14)) { isDatePanelExpanded = true }
                 } label: {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(compactDateLine)
@@ -609,7 +610,7 @@ struct QuickCreatePopover: View {
     private var taskDateCard: some View {
         VStack(spacing: 0) {
             Button {
-                withAnimation(.easeInOut(duration: 0.14)) { isTaskDateCardExpanded.toggle() }
+                HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeInOut(duration: 0.14)) { isTaskDateCardExpanded.toggle() }
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "calendar")
@@ -759,7 +760,7 @@ struct QuickCreatePopover: View {
             HStack(spacing: 10) {
                 if model.settings.quickCreateExpandedByDefault == false {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.14)) { showOptionalFields.toggle() }
+                        HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeInOut(duration: 0.14)) { showOptionalFields.toggle() }
                     } label: {
                         Label(showOptionalFields ? "Less" : "More", systemImage: showOptionalFields ? "chevron.up" : "plus")
                             .hcbFont(.caption)

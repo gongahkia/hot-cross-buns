@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AddTaskSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     @Environment(AppModel.self) private var model
     @State private var selectedTaskListID: TaskListMirror.ID?
     @State private var title = ""
@@ -106,7 +107,7 @@ struct AddTaskSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     if editingTask != nil, isEditing == false {
                         Button("Edit") {
-                            withAnimation(.easeInOut(duration: 0.12)) {
+                            HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeInOut(duration: 0.12)) {
                                 isEditing = true
                             }
                         }

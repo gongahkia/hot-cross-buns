@@ -102,6 +102,10 @@ struct HotCrossBunsApp: App {
                 .environment(networkMonitor)
                 .environment(\.globalHotkeyConfigurator, globalHotkeyConfigurator)
                 .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
+                .hcbStoredTransitionContent(
+                    key: HCBTransitionKeys.settings,
+                    metadata: ["window": "settings"]
+                )
         }
         .windowResizability(.contentMinSize)
 
@@ -150,6 +154,10 @@ struct HotCrossBunsApp: App {
                 .hcbPreferredColorScheme(appModel.settings)
                 .hcbMenuBarStatusController(appDelegate.menuBarStatusController, model: appModel)
                 .hcbWindowRestoration(.diagnostics, settings: appModel.settings)
+                .hcbStoredTransitionContent(
+                    key: HCBTransitionKeys.window("diagnostics"),
+                    metadata: ["window": "diagnostics"]
+                )
         }
         .defaultSize(width: 860, height: 680)
         .windowResizability(.contentMinSize)

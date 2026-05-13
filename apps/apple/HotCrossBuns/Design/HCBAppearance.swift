@@ -139,18 +139,29 @@ private struct HCBTextSizePointsKey: EnvironmentKey {
     static let defaultValue: Double = HCBTextSize.defaultPoints
 }
 
+private struct HCBReduceMotionKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 extension EnvironmentValues {
     var hcbTextSizePoints: Double {
         get { self[HCBTextSizePointsKey.self] }
         set { self[HCBTextSizePointsKey.self] = newValue }
     }
+
+    var hcbReduceMotion: Bool {
+        get { self[HCBReduceMotionKey.self] }
+        set { self[HCBReduceMotionKey.self] = newValue }
+    }
 }
 
 struct HCBAppearanceModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     let layoutScale: CGFloat
     let textSizePoints: Double
     let fontName: String?
     let backgroundConfiguration: HCBAppBackgroundConfiguration
+    let disableAnimations: Bool
 
     func body(content: Content) -> some View {
         content
@@ -158,6 +169,7 @@ struct HCBAppearanceModifier: ViewModifier {
             .environment(\.hcbFontFamily, fontName)
             .environment(\.hcbTextSizePoints, textSizePoints)
             .environment(\.hcbAppBackgroundConfiguration, backgroundConfiguration)
+            .environment(\.hcbReduceMotion, systemReduceMotion || disableAnimations)
     }
 }
 
@@ -183,7 +195,8 @@ extension View {
             layoutScale: CGFloat(settings.uiLayoutScale),
             textSizePoints: HCBTextSize.clamp(settings.uiTextSizePoints),
             fontName: settings.uiFontName,
-            backgroundConfiguration: HCBAppBackgroundConfiguration(settings: settings)
+            backgroundConfiguration: HCBAppBackgroundConfiguration(settings: settings),
+            disableAnimations: settings.disableAnimations
         ))
     }
 
@@ -424,7 +437,7 @@ private struct HCBFontSystemModifier: ViewModifier {
 }
 
 private struct HCBMotionAnimationModifier<Value: Equatable>: ViewModifier {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     let animation: Animation?
     let value: Value
 
@@ -434,7 +447,7 @@ private struct HCBMotionAnimationModifier<Value: Equatable>: ViewModifier {
 }
 
 private struct HCBMotionTransitionModifier: ViewModifier {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     let transition: AnyTransition
 
     func body(content: Content) -> some View {

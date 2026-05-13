@@ -149,7 +149,7 @@ struct KanbanView: View {
 private struct KanbanColumnView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     let column: PreparedKanbanColumn
     let mode: KanbanColumnMode
     let taskList: TaskListMirror?

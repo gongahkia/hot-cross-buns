@@ -37,6 +37,7 @@ enum SettingsSectionAnchor: String, Sendable {
     case sync
     case openAtLogin
     case diagnostics
+    case agentAccess
     case appearance
     case background
     case layout
@@ -96,7 +97,8 @@ enum SettingsSearchIndex {
             .init(tab: .general, anchor: .sync, title: "Sync", keywords: ["refresh", "resync", "background", "retention"]),
             .init(tab: .general, anchor: .openAtLogin, title: "Open at login", keywords: ["launch", "startup", "background"]),
             .init(tab: .general, anchor: .diagnostics, title: "Diagnostics", keywords: ["logs", "history", "support", "debug"]),
-            .init(tab: .appearance, anchor: .appearance, title: "Appearance", keywords: ["theme", "color", "font", "text"]),
+            .init(tab: .general, anchor: .agentAccess, title: "Agent access", keywords: ["mcp", "agent", "ai", "local server", "token", "permission", "openclaw"]),
+            .init(tab: .appearance, anchor: .appearance, title: "Appearance", keywords: ["theme", "color", "font", "text", "animation", "motion", "reduce motion", "disable animations"]),
             .init(tab: .appearance, anchor: .background, title: "Background", keywords: ["translucency", "opacity", "image", "wallpaper"]),
             .init(tab: .appearance, anchor: .layout, title: "Layout", keywords: ["sidebar", "navigation", "placement", "tabs", "left", "right", "top", "bottom", "scale", "calendar"]),
             .init(tab: .hotkeys, anchor: .hotkeys, title: "Hotkeys", keywords: ["shortcut", "keyboard", "command", "conflict"], status: hotkeyStatus(customShortcutCount, shortcutConflictCount)),

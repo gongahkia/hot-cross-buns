@@ -29,6 +29,8 @@ actor SpotlightIndexer {
 
     private let index: SpotlightIndexing
     private var didPrimeDomains = false
+    private var isApplyingUpdate = false
+    private var pendingUpdate: SpotlightUpdatePayload?
     private var taskFingerprints: [String: Int] = [:]
     private var eventFingerprints: [String: Int] = [:]
     private var lastSummary = SpotlightIndexingSummary(
@@ -51,6 +53,19 @@ actor SpotlightIndexer {
     }
 
     func update(tasks: [TaskMirror], events: [CalendarEventMirror]) async {
+        pendingUpdate = SpotlightUpdatePayload(tasks: tasks, events: events)
+        guard isApplyingUpdate == false else { return }
+
+        isApplyingUpdate = true
+        defer { isApplyingUpdate = false }
+
+        while let update = pendingUpdate {
+            pendingUpdate = nil
+            await applyUpdate(tasks: update.tasks, events: update.events)
+        }
+    }
+
+    private func applyUpdate(tasks: [TaskMirror], events: [CalendarEventMirror]) async {
         let started = Date()
         let activeTasks = tasks
             .filter { $0.isDeleted == false }
@@ -292,6 +307,11 @@ actor SpotlightIndexer {
         }
         return parts.joined(separator: "\n")
     }
+}
+
+private struct SpotlightUpdatePayload: Sendable {
+    var tasks: [TaskMirror]
+    var events: [CalendarEventMirror]
 }
 
 enum SpotlightIdentifier {

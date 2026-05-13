@@ -3,7 +3,7 @@ import SwiftUI
 
 struct QuickAddEventView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     @Environment(AppModel.self) private var model
 
     @State private var input: String = ""

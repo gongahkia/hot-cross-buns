@@ -4,7 +4,7 @@ import SwiftUI
 // routes are silent; this surfaces typos and malformed scripts so a user
 // firing a deep link isn't left wondering why nothing happened.
 struct DeepLinkErrorToast: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     @Binding var message: String?
     // Auto-dismiss after this delay. Longer than UndoToast (6s) since the
     // message is diagnostic text the user may want to read in full.

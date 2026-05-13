@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct GuestsSection: View {
+    @Environment(\.hcbReduceMotion) private var reduceMotion
     @Binding var attendees: [String]
     @Binding var draft: String
     @Binding var notifyGuests: Bool
@@ -35,7 +36,7 @@ struct GuestsSection: View {
                             statusSymbol: "paperplane",
                             statusTint: .secondary
                         ) {
-                            withAnimation(.easeInOut(duration: 0.12)) {
+                            HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeInOut(duration: 0.12)) {
                                 attendees.removeAll { $0 == email }
                             }
                         }
