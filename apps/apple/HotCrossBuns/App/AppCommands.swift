@@ -15,8 +15,10 @@ final class AppCommandActions {
     var refresh: () -> Void = {}
     var forceResync: () -> Void = {}
     var switchTo: (SidebarItem) -> Void = { _ in }
+    var toggleSidebar: () -> Void = {}
     var openSettingsWindow: () -> Void = {}
     var openDiagnostics: () -> Void = {}
+    var toggleActionCenter: () -> Void = {}
     var openCommandPalette: () -> Void = {}
     var openHelp: () -> Void = {}
     var openHistory: () -> Void = {}
@@ -212,6 +214,8 @@ struct AppCommands: Commands {
             Button("Force Full Resync") { actions?.forceResync() }
                 .keyboardShortcut(force.key.keyEquivalent, modifiers: force.modifiers.eventModifiers)
                 .disabled(actions == nil)
+            Button("Action Center") { actions?.toggleActionCenter() }
+                .disabled(actions == nil)
             Divider()
             let diag = binding(.diagnostics)
             Button("Diagnostics and Recovery…") { actions?.openDiagnostics() }
@@ -357,6 +361,8 @@ struct AppCommands: Commands {
                 }
             }
             Divider()
+            Button("Toggle Sidebar") { actions?.toggleSidebar() }
+                .disabled(actions == nil)
             let zIn = binding(.zoomIn)
             Button("Zoom In") { triggerZoomIn() }
                 .keyboardShortcut(zIn.key.keyEquivalent, modifiers: zIn.modifiers.eventModifiers)
