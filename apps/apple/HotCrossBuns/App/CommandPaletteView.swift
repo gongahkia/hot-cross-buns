@@ -87,6 +87,37 @@ enum QuickSwitcherEntity: Hashable, Identifiable {
     }
 }
 
+@MainActor
+final class CommandPaletteEntityCache {
+    private(set) var entities: [QuickSwitcherEntity] = []
+    private(set) var lowercaseSearchBlobs: [String] = []
+    private var snapshotKey = ""
+
+    func invalidate() {
+        snapshotKey = ""
+    }
+
+    func rebuildIfNeeded(model: AppModel, snapshotKey key: String) {
+        guard key != snapshotKey else { return }
+        snapshotKey = key
+
+        var nextEntities: [QuickSwitcherEntity] = []
+        nextEntities.reserveCapacity(model.tasks.count + model.events.count + model.taskLists.count + model.calendars.count + model.settings.customFilters.count)
+        for task in model.tasks where task.isDeleted == false { nextEntities.append(.task(task)) }
+        for event in model.events where event.status != .cancelled { nextEntities.append(.event(event)) }
+        for taskList in model.taskLists { nextEntities.append(.taskList(taskList)) }
+        for calendar in model.calendars { nextEntities.append(.calendar(calendar)) }
+        for filter in model.settings.customFilters { nextEntities.append(.customFilter(filter)) }
+
+        entities = nextEntities
+        lowercaseSearchBlobs = nextEntities.map { entity in
+            ([entity.label] + entity.keywords)
+                .joined(separator: "\n")
+                .lowercased()
+        }
+    }
+}
+
 // Union type backing the merged ranked list. Commands and entities share
 // a row renderer + numeric-shortcut handling so the UX is uniform.
 fileprivate enum PaletteItem: Identifiable {
@@ -112,22 +143,10 @@ struct CommandPaletteView: View {
     // actions such as "New Task" feel instant.
     @State private var entityResults: [PaletteItem] = []
     @State private var entityResultsQuery = ""
-    // Snapshot of the entity universe, built once and refreshed only when
-    // model.tasks / events / taskLists / calendars / customFilters counts
-    // change. Avoids re-allocating ~17k QuickSwitcherEntity values on every
-    // render. The cheap snapshotKey check makes the refresh free in the
-    // common (no-data-change) case.
-    @State private var cachedEntities: [QuickSwitcherEntity] = []
-    // Parallel lowercased label cache for the cheap substring pre-filter.
-    // Same indices as cachedEntities. Lowercasing 17k strings once on
-    // build is cheap; doing it per-keystroke for every match was the
-    // hottest cost after entity rebuild.
-    @State private var cachedLowercaseLabels: [String] = []
-    @State private var cachedLowercaseSearchBlobs: [String] = []
-    @State private var entitiesSnapshotKey: String = ""
     @FocusState private var isSearchFocused: Bool
 
     let commands: [CommandPaletteCommand]
+    let entityCache: CommandPaletteEntityCache
     let onSelectEntity: (QuickSwitcherEntity) -> Void
     var onClose: (() -> Void)?
 
@@ -169,7 +188,6 @@ struct CommandPaletteView: View {
             isSearchFocused = true
             Task { @MainActor in
                 await Task.yield()
-                rebuildCachedEntitiesIfNeeded()
                 if let staged = stagedQuery?.trimmingCharacters(in: .whitespacesAndNewlines),
                    staged.isEmpty == false {
                     entityResults = entityItems(forQuery: staged)
@@ -178,8 +196,10 @@ struct CommandPaletteView: View {
             }
         }
         .onChange(of: snapshotKey) { _, _ in
-            rebuildCachedEntitiesIfNeeded()
-            entityResults = entityItems(forQuery: entityResultsQuery)
+            entityCache.invalidate()
+            if entityResultsQuery.isEmpty == false {
+                entityResults = entityItems(forQuery: entityResultsQuery)
+            }
         }
         // Entity-search debounce: each keystroke restarts this task; commands
         // do not wait for it because they are ranked directly from `query`.
@@ -252,26 +272,6 @@ struct CommandPaletteView: View {
         "\(model.dataRevision)|\(model.settings.customFilters.count)"
     }
 
-    private func rebuildCachedEntitiesIfNeeded() {
-        let key = snapshotKey
-        guard key != entitiesSnapshotKey else { return }
-        entitiesSnapshotKey = key
-        var out: [QuickSwitcherEntity] = []
-        out.reserveCapacity(model.tasks.count + model.events.count + 32)
-        for t in model.tasks where t.isDeleted == false { out.append(.task(t)) }
-        for e in model.events where e.status != .cancelled { out.append(.event(e)) }
-        for l in model.taskLists { out.append(.taskList(l)) }
-        for c in model.calendars { out.append(.calendar(c)) }
-        for f in model.settings.customFilters { out.append(.customFilter(f)) }
-        cachedEntities = out
-        cachedLowercaseLabels = out.map { $0.label.lowercased() }
-        cachedLowercaseSearchBlobs = out.map { entity in
-            ([entity.label] + entity.keywords)
-                .joined(separator: "\n")
-                .lowercased()
-        }
-    }
-
     // Merged ranked list. Behaviour:
     //   - Commands rank synchronously from the live query.
     //   - Entities rank from the debounced query and are only shown while
@@ -316,6 +316,7 @@ struct CommandPaletteView: View {
 
     private func entityItems(forQuery q: String) -> [PaletteItem] {
         guard q.isEmpty == false else { return [] }
+        entityCache.rebuildIfNeeded(model: model, snapshotKey: snapshotKey)
         let parsed = AdvancedSearchParser.parse(q)
 
         if let pattern = parsed.regex {
@@ -326,7 +327,7 @@ struct CommandPaletteView: View {
             guard let compiled = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
                 return []
             }
-            return cachedEntities
+            return entityCache.entities
                 .filter { AdvancedSearchMatcher.regexMatches($0, compiled: compiled) }
                 .prefix(30)
                 .map { PaletteItem.entity($0) }
@@ -342,7 +343,7 @@ struct CommandPaletteView: View {
         // skip this fast path and use the full matcher (correctness first).
         let entitiesFiltered: [QuickSwitcherEntity]
         if hasStructuredFilters {
-            entitiesFiltered = cachedEntities.filter {
+            entitiesFiltered = entityCache.entities.filter {
                 AdvancedSearchMatcher.matches(
                     $0,
                     query: parsed,
@@ -353,10 +354,10 @@ struct CommandPaletteView: View {
         } else if freeText.count >= 2 {
             let lowered = freeText.lowercased()
             var hits: [QuickSwitcherEntity] = []
-            hits.reserveCapacity(min(cachedEntities.count, 500))
-            for (idx, lowerBlob) in cachedLowercaseSearchBlobs.enumerated() {
+            hits.reserveCapacity(min(entityCache.entities.count, 500))
+            for (idx, lowerBlob) in entityCache.lowercaseSearchBlobs.enumerated() {
                 if lowerBlob.contains(lowered) {
-                    hits.append(cachedEntities[idx])
+                    hits.append(entityCache.entities[idx])
                     if hits.count >= 500 { break }
                 }
             }
@@ -365,7 +366,7 @@ struct CommandPaletteView: View {
             // Single-char query — substring matching across 17k entities is
             // too noisy. Restrict to the small, stable surface (lists,
             // calendars, custom filters) so the palette stays useful.
-            entitiesFiltered = cachedEntities.filter {
+            entitiesFiltered = entityCache.entities.filter {
                 switch $0 {
                 case .taskList, .calendar, .customFilter: return true
                 case .task, .event: return false
