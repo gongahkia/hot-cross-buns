@@ -270,10 +270,27 @@
 	<section id="updates" class="updates">
   <div class="updates-head">
     <p class="eyebrow">Changelog</p>
-    <h2>Latest changes in <em>v0.3.1</em>.</h2>
+    <h2>Latest changes in <em>v4.0.0</em>.</h2>
   </div>
 
   <div class="updates-list">
+    <article class="update-entry">
+      <div class="update-meta">
+        <h3>v4.0.0</h3>
+        <p>14 May 2026</p>
+      </div>
+      <div class="update-copy">
+        <ul>
+          <li>Hardened large-account calendar performance with 15k-event benchmarks covering Google decode, full event sync, cache sidecar save/load, startup apply, derived snapshots, day bucketing, tag extraction, and prepared calendar views.</li>
+          <li>Improved Command Palette responsiveness by reusing its entity cache across opens and skipping large search indexing until a query needs it.</li>
+          <li>Added Action Center and adaptive menu bar status surfaces for pending sync, reminder, task, and availability items.</li>
+          <li>Added Share Availability holds with hold confirmation and cancellation flows, monthly-view toast guidance, and clearer availability actions.</li>
+          <li>Strengthened local security and operations around MCP access, custom OAuth credentials, cache boundaries, diagnostics, and documented follow-up hardening work.</li>
+          <li>Polished calendar editing and navigation with recurrence editing, faster end-time choices, compact time zone controls, guest rows, sidebar toggle anchoring, and refined macOS navigation controls.</li>
+        </ul>
+      </div>
+    </article>
+
     <article class="update-entry">
       <div class="update-meta">
         <h3>v0.3.1</h3>
