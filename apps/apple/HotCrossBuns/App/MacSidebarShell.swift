@@ -116,6 +116,40 @@ private struct SettingsTransferPresentationModifier: ViewModifier {
     }
 }
 
+private struct NavigationSurfaceToggleToolbarModifier: ViewModifier {
+    let placement: NavigationSurfacePlacement
+    let isPresented: Bool
+    let toggle: () -> Void
+
+    private var toolbarPlacement: ToolbarItemPlacement {
+        switch placement {
+        case .right:
+            return .primaryAction
+        case .left, .top, .bottom:
+            return .navigation
+        }
+    }
+
+    private var label: String {
+        isPresented ? "Hide navigation" : "Show navigation"
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .toolbar(removing: .sidebarToggle)
+            .toolbar {
+                ToolbarItem(placement: toolbarPlacement) {
+                    Button(action: toggle) {
+                        Image(systemName: placement.systemImage)
+                            .imageScale(.large)
+                    }
+                    .help(label)
+                    .accessibilityLabel(label)
+                }
+            }
+    }
+}
+
 struct MacSidebarShell: View {
     @Environment(AppModel.self) private var model
     @Environment(UpdaterController.self) private var updater
@@ -252,6 +286,11 @@ struct MacSidebarShell: View {
             .withHCBAppearance(model.settings)
             .environment(\.hcbShortcutOverrides, model.settings.shortcutOverrides)
             .hcbPreferredColorScheme(model.settings)
+            .modifier(NavigationSurfaceToggleToolbarModifier(
+                placement: model.settings.sidebarPlacement,
+                isPresented: isNavigationSurfacePresented,
+                toggle: toggleNavigationSurface
+            ))
             .appBackground()
             .safeAreaInset(edge: .top) {
                 AppStatusBanner(
@@ -911,6 +950,13 @@ struct MacSidebarShell: View {
             isMainWindowFocused ? "focused" : "unfocused",
             model.account?.id ?? "signed-out"
         ].joined(separator: ":")
+    }
+
+    private var isNavigationSurfacePresented: Bool {
+        if model.settings.sidebarPlacement == .left {
+            return sidebarVisibility != .detailOnly
+        }
+        return isCustomNavigationSurfacePresented
     }
 
     private func performInitialLoad() async {
