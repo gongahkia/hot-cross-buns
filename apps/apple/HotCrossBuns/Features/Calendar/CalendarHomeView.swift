@@ -24,6 +24,8 @@ struct CalendarHomeView: View {
     @State private var isShareAvailabilityShown = false
     @State private var availabilityDraft = ShareAvailabilityDraft()
     @State private var availabilityMessage: String?
+    @State private var availabilityToastMessage: String?
+    @State private var availabilityToastIsWarning = false
     @State private var isWritingAvailabilityHolds = false
     @State private var activeModeTransition: HCBTransitionMeasurement?
 
@@ -208,6 +210,16 @@ struct CalendarHomeView: View {
                 )
                 .transition(HCBMotion.transition(.move(edge: .trailing).combined(with: .opacity), reduceMotion: reduceMotion))
             }
+        }
+        .overlay {
+            BulkResultToast(
+                message: $availabilityToastMessage,
+                isWarning: availabilityToastIsWarning,
+                successTitle: "Availability",
+                warningTitle: "Availability",
+                successSymbol: "calendar.badge.plus",
+                warningSymbol: "calendar.badge.exclamationmark"
+            )
         }
         .animation(HCBMotion.animation(.easeOut(duration: 0.12), reduceMotion: reduceMotion), value: selectedEventIDs.count >= 2)
         .animation(HCBMotion.animation(.easeOut(duration: 0.16), reduceMotion: reduceMotion), value: isShareAvailabilityShown)
@@ -520,9 +532,12 @@ struct CalendarHomeView: View {
         }
         let slots = AvailabilitySlotResolver.normalized(availabilityDraft.slots)
         guard slots.isEmpty == false else {
-            availabilityMessage = supportsAvailabilitySelection
-                ? "Select at least one slot."
-                : "Switch to Day, Week, or Multi-Day, then select at least one slot."
+            if supportsAvailabilitySelection {
+                availabilityMessage = "Select at least one slot."
+            } else {
+                availabilityMessage = nil
+                showAvailabilityToast("Switch to Day, Week, or Multi-Day, then select at least one slot.", isWarning: true)
+            }
             return
         }
         isWritingAvailabilityHolds = true
@@ -552,6 +567,11 @@ struct CalendarHomeView: View {
     private func cancelAvailabilityHoldGroup(_ group: AvailabilityHoldGroup) async {
         let didCancel = await model.cancelAvailabilityHoldGroup(groupID: group.id)
         availabilityMessage = didCancel ? "Cancelled \(group.events.count) hold\(group.events.count == 1 ? "" : "s")." : (model.lastMutationError ?? "Could not cancel holds.")
+    }
+
+    private func showAvailabilityToast(_ message: String, isWarning: Bool = false) {
+        availabilityToastIsWarning = isWarning
+        availabilityToastMessage = message
     }
 
     private func availabilitySlotLabel(_ slot: AvailabilitySlot) -> String {
