@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import Foundation
 
 actor LocalBackupService {
@@ -9,11 +10,23 @@ actor LocalBackupService {
         var backupCount: Int
     }
 
+    struct EncryptionContext: Sendable {
+        var key: SymmetricKey
+        var salt: Data
+    }
+
     private struct BackupEnvelope: Codable {
         var formatVersion: Int
         var createdAt: Date
         var appVersion: String
         var state: CachedAppState
+    }
+
+    private struct EncryptedBackupEnvelope: Codable {
+        var formatVersion: Int
+        var createdAt: Date
+        var appVersion: String
+        var encryptedV1: HCBCacheCrypto.EncryptedBlob
     }
 
     private let directoryURL: URL?
@@ -27,7 +40,12 @@ actor LocalBackupService {
         self.fileManager = fileManager
     }
 
-    func writeBackup(state: CachedAppState, now: Date = Date(), retentionCount: Int) throws -> URL {
+    func writeBackup(
+        state: CachedAppState,
+        now: Date = Date(),
+        retentionCount: Int,
+        encryptionContext: EncryptionContext? = nil
+    ) throws -> URL {
         guard let directoryURL else {
             throw CocoaError(.fileNoSuchFile)
         }
@@ -41,7 +59,25 @@ actor LocalBackupService {
             appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
             state: state
         )
-        try Self.encoder.encode(envelope).write(to: destination, options: [.atomic])
+        let data: Data
+        if let encryptionContext {
+            let plaintext = try Self.encoder.encode(envelope)
+            let encrypted = try HCBCacheCrypto.encrypt(
+                plaintext,
+                key: encryptionContext.key,
+                salt: encryptionContext.salt
+            )
+            let encryptedEnvelope = EncryptedBackupEnvelope(
+                formatVersion: 2,
+                createdAt: now,
+                appVersion: envelope.appVersion,
+                encryptedV1: encrypted
+            )
+            data = try Self.encoder.encode(encryptedEnvelope)
+        } else {
+            data = try Self.encoder.encode(envelope)
+        }
+        try data.write(to: destination, options: [.atomic])
         try pruneBackups(keeping: retentionCount)
         return destination
     }

@@ -13,8 +13,7 @@ enum MarkdownHTML {
         guard markdown.isEmpty == false else { return "" }
         var lines = markdown.components(separatedBy: "\n")
         lines = groupListsInLines(lines)
-        let paragraphs = lines.joined(separator: "<br>")
-        return applyInline(paragraphs)
+        return lines.joined(separator: "<br>")
     }
 
     static func calendarHTMLToMarkdown(_ html: String) -> String {
@@ -73,7 +72,7 @@ enum MarkdownHTML {
                 buffer.append(stripped)
             } else {
                 flush()
-                result.append(line)
+                result.append(applyInline(line))
             }
         }
         flush()
@@ -103,34 +102,99 @@ enum MarkdownHTML {
     private enum ListKind { case unordered, ordered }
 
     private static func applyInline(_ text: String) -> String {
-        var value = text
-        // Links: [text](url)
-        value = value.replacingMatches(of: #"\[([^\]]+)\]\(([^)]+)\)"#) { groups in
-            guard groups.count == 3 else { return nil }
-            return "<a href=\"\(escapeAttr(groups[2]))\">\(groups[1])</a>"
+        var output = ""
+        var plain = ""
+        var index = text.startIndex
+
+        func flushPlain() {
+            guard plain.isEmpty == false else { return }
+            output += escapeText(plain)
+            plain.removeAll(keepingCapacity: true)
         }
-        // Bold: **text**
-        value = value.replacingMatches(of: #"\*\*([^\*]+)\*\*"#) { groups in
-            guard groups.count == 2 else { return nil }
-            return "<b>\(groups[1])</b>"
+
+        while index < text.endIndex {
+            if let parsed = parseLink(in: text, at: index) {
+                flushPlain()
+                if linkURLIsAllowed(parsed.url) {
+                    output += "<a href=\"\(escapeAttr(parsed.url))\">\(escapeText(parsed.label))</a>"
+                } else {
+                    output += escapeText(String(text[index..<parsed.endIndex]))
+                }
+                index = parsed.endIndex
+                continue
+            }
+
+            if text[index...].hasPrefix("**"),
+               let end = text.range(of: "**", range: text.index(index, offsetBy: 2)..<text.endIndex) {
+                flushPlain()
+                output += "<b>\(applyInline(String(text[text.index(index, offsetBy: 2)..<end.lowerBound])))</b>"
+                index = end.upperBound
+                continue
+            }
+
+            if text[index...].hasPrefix("__"),
+               let end = text.range(of: "__", range: text.index(index, offsetBy: 2)..<text.endIndex) {
+                flushPlain()
+                output += "<u>\(applyInline(String(text[text.index(index, offsetBy: 2)..<end.lowerBound])))</u>"
+                index = end.upperBound
+                continue
+            }
+
+            if text[index] == "*",
+               text[text.index(after: index)...].hasPrefix("*") == false,
+               let end = text.range(of: "*", range: text.index(after: index)..<text.endIndex),
+               text[index..<end.lowerBound].contains("\n") == false {
+                flushPlain()
+                output += "<i>\(applyInline(String(text[text.index(after: index)..<end.lowerBound])))</i>"
+                index = end.upperBound
+                continue
+            }
+
+            plain.append(text[index])
+            index = text.index(after: index)
         }
-        // Underline: __text__ (two underscores before italic single)
-        value = value.replacingMatches(of: #"__([^_]+)__"#) { groups in
-            guard groups.count == 2 else { return nil }
-            return "<u>\(groups[1])</u>"
-        }
-        // Italic: *text*
-        value = value.replacingMatches(of: #"\*([^\*\n]+)\*"#) { groups in
-            guard groups.count == 2 else { return nil }
-            return "<i>\(groups[1])</i>"
-        }
-        return value
+
+        flushPlain()
+        return output
     }
 
     private static func escapeAttr(_ value: String) -> String {
         value
             .replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+    }
+
+    private static func escapeText(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+    }
+
+    private static func parseLink(in text: String, at index: String.Index) -> (label: String, url: String, endIndex: String.Index)? {
+        guard text[index] == "[" else { return nil }
+        guard let labelEnd = text[index...].firstIndex(of: "]") else { return nil }
+        let openParen = text.index(after: labelEnd)
+        guard openParen < text.endIndex, text[openParen] == "(" else { return nil }
+        let urlStart = text.index(after: openParen)
+        guard let closeParen = text[urlStart...].firstIndex(of: ")") else { return nil }
+        return (
+            label: String(text[text.index(after: index)..<labelEnd]),
+            url: String(text[urlStart..<closeParen]),
+            endIndex: text.index(after: closeParen)
+        )
+    }
+
+    private static func linkURLIsAllowed(_ rawURL: String) -> Bool {
+        let trimmed = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false,
+              let components = URLComponents(string: trimmed),
+              let scheme = components.scheme?.lowercased() else {
+            return false
+        }
+        return ["https", "http", "mailto", "file"].contains(scheme)
     }
 
     // MARK: HTML → markdown

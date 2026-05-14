@@ -35,7 +35,9 @@ struct LocalBackupSection: View {
                     .hcbFont(.caption2)
                     .foregroundStyle(.secondary)
             } else {
-                Text("Backups are stored in Application Support on this Mac. Open the folder to remove old backups manually.")
+                Text(model.settings.cacheEncryptionEnabled
+                     ? "Backups are encrypted with your local cache key and stored in Application Support on this Mac."
+                     : "Backups are stored in Application Support on this Mac. Open the folder to remove old backups manually.")
                     .hcbFont(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -72,6 +74,9 @@ struct LocalBackupSection: View {
         }
         if summary.directoryPath.isEmpty == false {
             parts.append(summary.directoryPath)
+        }
+        if model.settings.cacheEncryptionEnabled {
+            parts.append("Encrypted")
         }
         return parts.joined(separator: " • ")
     }
