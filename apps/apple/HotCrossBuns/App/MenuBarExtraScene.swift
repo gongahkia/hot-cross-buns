@@ -837,29 +837,28 @@ enum MenuBarAdaptiveStatusResolver {
     }
 
     private static func bestEventStatus(now: Date, events: [CalendarEventMirror]) -> MenuBarAdaptiveStatus? {
-        let eligible = events
-            .filter { event in
-                event.status != .cancelled
-                    && event.isAllDay == false
-                    && event.endDate > now
-            }
-            .sorted { lhs, rhs in
-                if lhs.startDate == rhs.startDate {
-                    return lhs.summary.localizedCaseInsensitiveCompare(rhs.summary) == .orderedAscending
-                }
-                return lhs.startDate < rhs.startDate
-            }
+        var currentEvent: CalendarEventMirror?
+        var nextEvent: CalendarEventMirror?
 
-        if let current = eligible
-            .filter({ $0.startDate <= now && $0.endDate > now })
-            .sorted(by: { lhs, rhs in
-                if lhs.endDate == rhs.endDate {
-                    return lhs.summary.localizedCaseInsensitiveCompare(rhs.summary) == .orderedAscending
+        for event in events where event.status != .cancelled && event.isAllDay == false && event.endDate > now {
+            if event.startDate <= now {
+                if let existing = currentEvent {
+                    if eventSortsBeforeCurrentStatus(event, existing) {
+                        currentEvent = event
+                    }
+                } else {
+                    currentEvent = event
                 }
-                return lhs.endDate < rhs.endDate
-            })
-            .first
-        {
+            } else if let existing = nextEvent {
+                if eventSortsBeforeNextStatus(event, existing) {
+                    nextEvent = event
+                }
+            } else {
+                nextEvent = event
+            }
+        }
+
+        if let current = currentEvent {
             let label = statusLabel(
                 title: current.summary,
                 detail: "\(durationText(from: now, to: current.endDate)) left"
@@ -872,7 +871,7 @@ enum MenuBarAdaptiveStatusResolver {
             )
         }
 
-        guard let next = eligible.first(where: { $0.startDate > now }) else { return nil }
+        guard let next = nextEvent else { return nil }
         let label = statusLabel(
             title: next.summary,
             detail: "in \(durationText(from: now, to: next.startDate))"
@@ -886,24 +885,24 @@ enum MenuBarAdaptiveStatusResolver {
     }
 
     private static func bestTaskStatus(now: Date, tasks: [TaskMirror], calendar: Calendar) -> MenuBarAdaptiveStatus? {
-        guard let task = tasks
-            .filter({ task in
-                task.dueDate != nil
-                    && task.isCompleted == false
-                    && task.isDeleted == false
-                    && task.isHidden == false
-            })
-            .sorted(by: { lhs, rhs in
-                let leftDue = lhs.dueDate ?? .distantFuture
-                let rightDue = rhs.dueDate ?? .distantFuture
-                if leftDue == rightDue {
-                    return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+        var bestTask: TaskMirror?
+        var bestDueDate: Date?
+
+        for task in tasks where task.isCompleted == false && task.isDeleted == false && task.isHidden == false {
+            guard let dueDate = task.dueDate else { continue }
+            if let existingDueDate = bestDueDate, let existing = bestTask {
+                if dueDate < existingDueDate
+                    || (dueDate == existingDueDate && task.title.localizedCaseInsensitiveCompare(existing.title) == .orderedAscending) {
+                    bestTask = task
+                    bestDueDate = dueDate
                 }
-                return leftDue < rightDue
-            })
-            .first,
-            let dueDate = task.dueDate
-        else {
+            } else {
+                bestTask = task
+                bestDueDate = dueDate
+            }
+        }
+
+        guard let task = bestTask, let dueDate = bestDueDate else {
             return nil
         }
 
@@ -917,6 +916,20 @@ enum MenuBarAdaptiveStatusResolver {
             kind: .task(task.id),
             sortDate: dueDate
         )
+    }
+
+    private static func eventSortsBeforeCurrentStatus(_ lhs: CalendarEventMirror, _ rhs: CalendarEventMirror) -> Bool {
+        if lhs.endDate == rhs.endDate {
+            return lhs.summary.localizedCaseInsensitiveCompare(rhs.summary) == .orderedAscending
+        }
+        return lhs.endDate < rhs.endDate
+    }
+
+    private static func eventSortsBeforeNextStatus(_ lhs: CalendarEventMirror, _ rhs: CalendarEventMirror) -> Bool {
+        if lhs.startDate == rhs.startDate {
+            return lhs.summary.localizedCaseInsensitiveCompare(rhs.summary) == .orderedAscending
+        }
+        return lhs.startDate < rhs.startDate
     }
 
     private static func taskDueText(now: Date, dueDate: Date, calendar: Calendar) -> String {

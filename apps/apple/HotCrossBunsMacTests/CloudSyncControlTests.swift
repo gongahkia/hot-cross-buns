@@ -227,6 +227,78 @@ final class CloudSyncControlTests: XCTestCase {
         XCTAssertTrue(MockURLProtocol.capturedRequests.allSatisfy { $0.url?.path.hasPrefix("/tasks/") == false })
     }
 
+    func testSchedulerEventFullSyncMergePreservesPendingDropsCancelledSortsAndUpdatesCheckpoint() async throws {
+        var settings = AppSettings.default
+        settings.cloudSyncTargets = [.events]
+        settings.selectedCalendarIDs = ["cal"]
+        settings.hasConfiguredCalendarSelection = true
+        var state = baseState(settings: settings)
+        let formatter = ISO8601DateFormatter()
+        let pendingStart = formatter.date(from: "2026-05-01T12:00:00Z")!
+        let staleStart = formatter.date(from: "2026-05-01T08:00:00Z")!
+        state.events = [
+            CalendarEventMirror(
+                id: "stale-event",
+                calendarID: "cal",
+                summary: "Stale event",
+                details: "",
+                startDate: staleStart,
+                endDate: staleStart.addingTimeInterval(1800),
+                isAllDay: false,
+                status: .confirmed,
+                recurrence: [],
+                etag: "stale-etag",
+                updatedAt: staleStart
+            ),
+            CalendarEventMirror(
+                id: "local-pending-event",
+                calendarID: "cal",
+                summary: "Pending event",
+                details: "",
+                startDate: pendingStart,
+                endDate: pendingStart.addingTimeInterval(3600),
+                isAllDay: false,
+                status: .confirmed,
+                recurrence: [],
+                etag: nil,
+                updatedAt: pendingStart
+            )
+        ]
+
+        MockURLProtocol.requestHandler = { request in
+            let path = try XCTUnwrap(request.url?.path)
+            XCTAssertFalse(path.hasPrefix("/tasks/"), "Tasks endpoints must not be called when Events sync is disabled")
+            if path == "/calendar/v3/users/me/calendarList" {
+                return Self.jsonResponse(for: request, body: Self.calendarListJSON)
+            }
+            if path == "/calendar/v3/calendars/cal/events" {
+                return Self.jsonResponse(for: request, body: Self.unsortedEventsWithCancelledJSON)
+            }
+            XCTFail("Unexpected path \(path)")
+            return Self.jsonResponse(for: request, body: #"{}"#, statusCode: 404)
+        }
+
+        let synced = try await makeScheduler().syncNow(mode: .balanced, baseState: state)
+
+        XCTAssertEqual(synced.events.map(\.id), ["early-all-day", "local-pending-event", "late-recurring"])
+        XCTAssertFalse(synced.events.contains { $0.id == "stale-event" })
+        XCTAssertFalse(synced.events.contains { $0.id == "cancelled-event" })
+        XCTAssertTrue(synced.events.allSatisfy { $0.status != .cancelled })
+        let lateEvent = try XCTUnwrap(synced.events.first { $0.id == "late-recurring" })
+        XCTAssertEqual(lateEvent.recurrence, ["RRULE:FREQ=WEEKLY;COUNT=2"])
+        XCTAssertEqual(lateEvent.endDate, formatter.date(from: "2026-05-03T12:30:00Z"))
+        var eventCheckpoint: SyncCheckpoint?
+        for checkpoint in synced.syncCheckpoints {
+            guard checkpoint.resourceType == .calendar,
+                  checkpoint.resourceID == "cal"
+            else { continue }
+            eventCheckpoint = checkpoint
+            break
+        }
+        let checkpoint = try XCTUnwrap(eventCheckpoint)
+        XCTAssertEqual(checkpoint.calendarSyncToken, "edge-token")
+    }
+
     func testSchedulerSkipsSingleMissingCalendarAndKeepsSyncingEvents() async throws {
         var settings = AppSettings.default
         settings.cloudSyncTargets = [.events]
@@ -669,6 +741,42 @@ final class CloudSyncControlTests: XCTestCase {
         }
       ],
       "nextSyncToken": "next-token"
+    }
+    """
+
+    private static let unsortedEventsWithCancelledJSON = """
+    {
+      "items": [
+        {
+          "id": "late-recurring",
+          "summary": "Late recurring event",
+          "status": "confirmed",
+          "start": {"dateTime": "2026-05-02T12:00:00Z"},
+          "end": {"dateTime": "2026-05-03T12:30:00Z"},
+          "recurrence": ["RRULE:FREQ=WEEKLY;COUNT=2"],
+          "updated": "2026-04-30T01:10:00Z",
+          "etag": "late-etag"
+        },
+        {
+          "id": "cancelled-event",
+          "summary": "Cancelled event",
+          "status": "cancelled",
+          "start": {"dateTime": "2026-05-01T10:00:00Z"},
+          "end": {"dateTime": "2026-05-01T11:00:00Z"},
+          "updated": "2026-04-30T01:11:00Z",
+          "etag": "cancelled-etag"
+        },
+        {
+          "id": "early-all-day",
+          "summary": "Early all-day event",
+          "status": "confirmed",
+          "start": {"date": "2026-05-01"},
+          "end": {"date": "2026-05-02"},
+          "updated": "2026-04-30T01:12:00Z",
+          "etag": "early-etag"
+        }
+      ],
+      "nextSyncToken": "edge-token"
     }
     """
 

@@ -31,6 +31,19 @@ final class TagExtractorTests: XCTestCase {
         XCTAssertEqual(TagExtractor.tags(in: "task #side_project-v2"), ["side_project-v2"])
     }
 
+    func testSingleHashBoundarySemantics() {
+        XCTAssertEqual(TagExtractor.tags(in: "ship-#launch."), ["launch"])
+        XCTAssertEqual(TagExtractor.tags(in: "ship_#launch"), [])
+    }
+
+    func testTagLengthLimit() {
+        let forty = String(repeating: "a", count: 40)
+        let fortyOne = String(repeating: "a", count: 41)
+
+        XCTAssertEqual(TagExtractor.tags(in: "#\(forty)"), [forty])
+        XCTAssertEqual(TagExtractor.tags(in: "#\(fortyOne)"), [])
+    }
+
     func testStrippedRemovesTagsAndCollapsesSpaces() {
         XCTAssertEqual(TagExtractor.stripped(from: "Pay rent #personal #urgent"), "Pay rent")
         XCTAssertEqual(TagExtractor.stripped(from: "#work Review PR"), "Review PR")

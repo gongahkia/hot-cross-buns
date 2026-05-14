@@ -144,6 +144,310 @@ actor SyncScheduler {
         )
     }
 
+#if DEBUG
+    func profileEventSyncForBenchmark(mode: SyncMode, baseState: CachedAppState) async throws -> SyncSchedulerEventSyncProfile {
+        guard let accountID = baseState.account?.id else {
+            return SyncSchedulerEventSyncProfile.empty
+        }
+
+        let totalStart = DispatchTime.now().uptimeNanoseconds
+        let syncStartedAt = Date()
+        let checkpointStart = DispatchTime.now().uptimeNanoseconds
+        let checkpointIndex = indexCheckpoints(baseState.syncCheckpoints)
+        let checkpointIndexEnd = DispatchTime.now().uptimeNanoseconds
+
+        let calendarListStart = DispatchTime.now().uptimeNanoseconds
+        let calendars = try await calendarClient.listCalendars()
+        let calendarListEnd = DispatchTime.now().uptimeNanoseconds
+
+        let selectionStart = DispatchTime.now().uptimeNanoseconds
+        let selectedCalendarIDs = resolvedSelectedCalendarIDs(
+            calendars: calendars,
+            previouslyKnownCalendars: baseState.calendars,
+            settings: baseState.settings
+        )
+        let resolvedIDs = selectedCalendarIDs.isEmpty
+            ? Set(calendars.filter(\.isSelected).map(\.id))
+            : selectedCalendarIDs
+        let selectedCalendars = calendars.filter { resolvedIDs.contains($0.id) }
+        let selectionEnd = DispatchTime.now().uptimeNanoseconds
+
+        let pageCollectionStart = DispatchTime.now().uptimeNanoseconds
+        let eventResults = try await listEventsForBenchmark(
+            selectedCalendars: selectedCalendars,
+            accountID: accountID,
+            checkpointIndex: checkpointIndex,
+            syncStartedAt: syncStartedAt,
+            eventRetentionDaysBack: baseState.settings.eventRetentionDaysBack
+        )
+        let pageCollectionEnd = DispatchTime.now().uptimeNanoseconds
+
+        let checkpointCollectStart = DispatchTime.now().uptimeNanoseconds
+        let updatedCheckpoints = eventResults.map(\.checkpoint)
+        let checkpointCollectEnd = DispatchTime.now().uptimeNanoseconds
+
+        var settings = baseState.settings
+        settings.syncMode = mode
+        settings.selectedCalendarIDs = selectedCalendarIDs
+        settings.hasConfiguredCalendarSelection = baseState.settings.hasConfiguredCalendarSelection
+
+        let calendarMapStart = DispatchTime.now().uptimeNanoseconds
+        let mappedCalendars = calendars.map { calendar in
+            var calendar = calendar
+            calendar.isSelected = selectedCalendarIDs.contains(calendar.id)
+            return calendar
+        }
+        let calendarMapEnd = DispatchTime.now().uptimeNanoseconds
+
+        let mergeStart = DispatchTime.now().uptimeNanoseconds
+        let (mergedEvents, mergeProfile) = mergeEventsProfiledForBenchmark(
+            existing: baseState.events,
+            results: eventResults,
+            retentionDaysBack: settings.eventRetentionDaysBack,
+            now: syncStartedAt
+        )
+        let mergeEnd = DispatchTime.now().uptimeNanoseconds
+
+        let checkpointMergeStart = DispatchTime.now().uptimeNanoseconds
+        let mergedCheckpoints = mergeCheckpoints(
+            existing: baseState.syncCheckpoints,
+            updated: updatedCheckpoints,
+            accountID: accountID
+        )
+        let checkpointMergeEnd = DispatchTime.now().uptimeNanoseconds
+
+        let stateBuildStart = DispatchTime.now().uptimeNanoseconds
+        let syncedState = CachedAppState(
+            account: baseState.account,
+            accounts: baseState.accounts,
+            activeAccountID: baseState.activeAccountID,
+            accountWorkspaces: baseState.accountWorkspaces,
+            taskLists: baseState.taskLists,
+            tasks: baseState.tasks,
+            calendars: mappedCalendars,
+            events: mergedEvents,
+            settings: settings,
+            syncCheckpoints: mergedCheckpoints,
+            pendingMutations: baseState.pendingMutations
+        )
+        _ = syncedState.events.count
+        let stateBuildEnd = DispatchTime.now().uptimeNanoseconds
+
+        return SyncSchedulerEventSyncProfile(
+            calendarCount: calendars.count,
+            selectedCalendarCount: selectedCalendars.count,
+            resultEventCount: eventResults.reduce(0) { $0 + $1.events.count },
+            mergedEventCount: mergedEvents.count,
+            checkpointCount: mergedCheckpoints.count,
+            checkpointIndexMilliseconds: Self.milliseconds(from: checkpointStart, to: checkpointIndexEnd),
+            calendarListMilliseconds: Self.milliseconds(from: calendarListStart, to: calendarListEnd),
+            calendarFilteringMilliseconds: Self.milliseconds(from: selectionStart, to: selectionEnd),
+            eventPageCollectionMilliseconds: Self.milliseconds(from: pageCollectionStart, to: pageCollectionEnd),
+            checkpointCollectMilliseconds: Self.milliseconds(from: checkpointCollectStart, to: checkpointCollectEnd),
+            calendarMapMilliseconds: Self.milliseconds(from: calendarMapStart, to: calendarMapEnd),
+            eventMergeMilliseconds: Self.milliseconds(from: mergeStart, to: mergeEnd),
+            checkpointMergeMilliseconds: Self.milliseconds(from: checkpointMergeStart, to: checkpointMergeEnd),
+            stateBuildMilliseconds: Self.milliseconds(from: stateBuildStart, to: stateBuildEnd),
+            totalMilliseconds: Self.milliseconds(from: totalStart, to: stateBuildEnd),
+            merge: mergeProfile
+        )
+    }
+
+    private func listEventsForBenchmark(
+        selectedCalendars: [CalendarListMirror],
+        accountID: GoogleAccount.ID,
+        checkpointIndex: [String: SyncCheckpoint],
+        syncStartedAt: Date,
+        eventRetentionDaysBack: Int
+    ) async throws -> [CalendarSyncResult] {
+        let fullSyncTimeMin = Self.retentionLowerBound(daysBack: eventRetentionDaysBack, now: syncStartedAt)
+        let calendarClient = calendarClient
+        return try await withThrowingTaskGroup(of: CalendarSyncResult?.self) { group in
+            var iter = selectedCalendars.makeIterator()
+            func scheduleNext() {
+                guard let calendar = iter.next() else { return }
+                let calendarID = calendar.id
+                let cp = checkpoint(
+                    accountID: accountID,
+                    resourceType: .calendar,
+                    resourceID: calendarID,
+                    checkpointIndex: checkpointIndex
+                )
+                group.addTask {
+                    let hadSyncToken = cp?.calendarSyncToken?.isEmpty == false
+                    let page: GoogleCalendarEventsPage
+                    let didFullSync: Bool
+                    do {
+                        page = try await calendarClient.listEvents(
+                            calendarID: calendarID,
+                            syncToken: cp?.calendarSyncToken,
+                            timeMin: cp?.calendarSyncToken == nil ? fullSyncTimeMin : nil,
+                            defaultTimeZoneID: calendar.timeZoneID
+                        )
+                        didFullSync = hadSyncToken == false
+                    } catch GoogleAPIError.httpStatus(410, _) {
+                        do {
+                            page = try await calendarClient.listEvents(
+                                calendarID: calendarID,
+                                syncToken: nil,
+                                timeMin: fullSyncTimeMin,
+                                defaultTimeZoneID: calendar.timeZoneID
+                            )
+                        } catch GoogleAPIError.httpStatus(404, _) {
+                            return nil
+                        }
+                        didFullSync = true
+                    } catch GoogleAPIError.httpStatus(404, _) {
+                        return nil
+                    }
+
+                    let nextCheckpoint = SyncCheckpoint(
+                        id: SyncCheckpoint.stableID(
+                            accountID: accountID,
+                            resourceType: .calendar,
+                            resourceID: calendarID
+                        ),
+                        accountID: accountID,
+                        resourceType: .calendar,
+                        resourceID: calendarID,
+                        calendarSyncToken: page.nextSyncToken ?? cp?.calendarSyncToken,
+                        tasksUpdatedMin: nil,
+                        lastSuccessfulSyncAt: syncStartedAt
+                    )
+                    return CalendarSyncResult(
+                        calendarID: calendarID,
+                        events: page.events,
+                        didFullSync: didFullSync,
+                        checkpoint: nextCheckpoint
+                    )
+                }
+            }
+
+            for _ in 0..<Self.maxConcurrentSyncRequests {
+                scheduleNext()
+            }
+
+            var results: [CalendarSyncResult] = []
+            for try await result in group {
+                if let result {
+                    results.append(result)
+                }
+                scheduleNext()
+            }
+            return results
+        }
+    }
+
+    private func mergeEventsProfiledForBenchmark(
+        existing: [CalendarEventMirror],
+        results: [CalendarSyncResult],
+        retentionDaysBack: Int,
+        now: Date
+    ) -> ([CalendarEventMirror], SyncSchedulerEventMergeProfile) {
+        let totalStart = DispatchTime.now().uptimeNanoseconds
+        let fullSyncStart = DispatchTime.now().uptimeNanoseconds
+        let fullSyncCalendarIDs = Set(results.filter(\.didFullSync).map(\.calendarID))
+        let fullSyncEnd = DispatchTime.now().uptimeNanoseconds
+
+        let resultCountStart = DispatchTime.now().uptimeNanoseconds
+        let remoteEventCount = results.reduce(0) { $0 + $1.events.count }
+        let resultCountEnd = DispatchTime.now().uptimeNanoseconds
+
+        let dictionaryStart = DispatchTime.now().uptimeNanoseconds
+        var eventsByID: [CalendarEventMirror.ID: CalendarEventMirror] = [:]
+        eventsByID.reserveCapacity(existing.count + remoteEventCount)
+        var eventOrder: [CalendarEventMirror.ID] = []
+        eventOrder.reserveCapacity(existing.count + remoteEventCount)
+        let dictionaryEnd = DispatchTime.now().uptimeNanoseconds
+
+        func upsert(_ event: CalendarEventMirror) {
+            if eventsByID[event.id] == nil {
+                eventOrder.append(event.id)
+            }
+            eventsByID[event.id] = event
+        }
+
+        let preserveStart = DispatchTime.now().uptimeNanoseconds
+        for event in existing {
+            let isPending = OptimisticID.isPending(event.id)
+            let preservedByIncrementalSync = fullSyncCalendarIDs.contains(event.calendarID) == false
+            if isPending || preservedByIncrementalSync {
+                upsert(event)
+            }
+        }
+        let preserveEnd = DispatchTime.now().uptimeNanoseconds
+
+        let upsertStart = DispatchTime.now().uptimeNanoseconds
+        for result in results {
+            for event in result.events {
+                upsert(event)
+            }
+        }
+        let upsertEnd = DispatchTime.now().uptimeNanoseconds
+
+        let cutoffStart = DispatchTime.now().uptimeNanoseconds
+        let cutoff: Date? = {
+            guard retentionDaysBack > 0 else { return nil }
+            return Calendar.current.date(byAdding: .day, value: -retentionDaysBack, to: now)
+        }()
+        let cutoffEnd = DispatchTime.now().uptimeNanoseconds
+
+        let filterStart = DispatchTime.now().uptimeNanoseconds
+        var filtered: [CalendarEventMirror] = []
+        filtered.reserveCapacity(eventsByID.count)
+        for id in eventOrder {
+            guard let event = eventsByID[id],
+                  event.status != .cancelled
+            else { continue }
+            if let cutoff,
+               OptimisticID.isPending(event.id) == false,
+               event.endDate < cutoff,
+               (event.updatedAt ?? .distantPast) < cutoff {
+                continue
+            }
+            filtered.append(event)
+        }
+        let filterEnd = DispatchTime.now().uptimeNanoseconds
+
+        let sortCheckStart = DispatchTime.now().uptimeNanoseconds
+        let needsSort = eventsAreSortedByStartDate(filtered) == false
+        let sortCheckEnd = DispatchTime.now().uptimeNanoseconds
+
+        let sortStart = DispatchTime.now().uptimeNanoseconds
+        if needsSort {
+            filtered.sort { lhs, rhs in
+                lhs.startDate < rhs.startDate
+            }
+        }
+        let sortEnd = DispatchTime.now().uptimeNanoseconds
+
+        return (
+            filtered,
+            SyncSchedulerEventMergeProfile(
+                existingCount: existing.count,
+                remoteEventCount: remoteEventCount,
+                dictionaryCount: eventsByID.count,
+                outputCount: filtered.count,
+                fullSyncIDMilliseconds: Self.milliseconds(from: fullSyncStart, to: fullSyncEnd),
+                resultCountMilliseconds: Self.milliseconds(from: resultCountStart, to: resultCountEnd),
+                dictionarySetupMilliseconds: Self.milliseconds(from: dictionaryStart, to: dictionaryEnd),
+                preserveExistingMilliseconds: Self.milliseconds(from: preserveStart, to: preserveEnd),
+                upsertRemoteMilliseconds: Self.milliseconds(from: upsertStart, to: upsertEnd),
+                cutoffMilliseconds: Self.milliseconds(from: cutoffStart, to: cutoffEnd),
+                filterMilliseconds: Self.milliseconds(from: filterStart, to: filterEnd),
+                sortCheckMilliseconds: Self.milliseconds(from: sortCheckStart, to: sortCheckEnd),
+                sortMilliseconds: Self.milliseconds(from: sortStart, to: sortEnd),
+                didSort: needsSort,
+                totalMilliseconds: Self.milliseconds(from: totalStart, to: sortEnd)
+            )
+        )
+    }
+
+    private static func milliseconds(from start: UInt64, to end: UInt64) -> Double {
+        Double(end - start) / 1_000_000
+    }
+#endif
+
     // Concurrency cap for per-resource fan-out (task lists, calendars).
     // Before: one child task per resource, no ceiling. Users with many
     // shared calendars or task lists triggered 15+ parallel HTTP requests,
@@ -505,17 +809,30 @@ actor SyncScheduler {
     ) -> [CalendarEventMirror] {
         let fullSyncCalendarIDs = Set(results.filter(\.didFullSync).map(\.calendarID))
         var eventsByID: [CalendarEventMirror.ID: CalendarEventMirror] = [:]
+        let remoteEventCount = results.reduce(0) { $0 + $1.events.count }
+        eventsByID.reserveCapacity(existing.count + remoteEventCount)
+        var eventOrder: [CalendarEventMirror.ID] = []
+        eventOrder.reserveCapacity(existing.count + remoteEventCount)
+
+        func upsert(_ event: CalendarEventMirror) {
+            if eventsByID[event.id] == nil {
+                eventOrder.append(event.id)
+            }
+            eventsByID[event.id] = event
+        }
 
         for event in existing {
             let isPending = OptimisticID.isPending(event.id)
             let preservedByIncrementalSync = fullSyncCalendarIDs.contains(event.calendarID) == false
             if isPending || preservedByIncrementalSync {
-                eventsByID[event.id] = event
+                upsert(event)
             }
         }
 
-        for event in results.flatMap(\.events) {
-            eventsByID[event.id] = event
+        for result in results {
+            for event in result.events {
+                upsert(event)
+            }
         }
 
         // §7.02: drop events whose endDate is older than the retention window.
@@ -531,18 +848,35 @@ actor SyncScheduler {
             return Calendar.current.date(byAdding: .day, value: -retentionDaysBack, to: now)
         }()
 
-        return eventsByID.values
-            .filter { $0.status != .cancelled } // purge cancellations post-merge
-            .filter { event in
-                guard let cutoff else { return true }
-                if OptimisticID.isPending(event.id) { return true }
-                if event.endDate >= cutoff { return true }
-                if let updatedAt = event.updatedAt, updatedAt >= cutoff { return true }
-                return false
+        var merged: [CalendarEventMirror] = []
+        merged.reserveCapacity(eventsByID.count)
+        for id in eventOrder {
+            guard let event = eventsByID[id],
+                  event.status != .cancelled
+            else { continue }
+            if let cutoff,
+               OptimisticID.isPending(event.id) == false,
+               event.endDate < cutoff,
+               (event.updatedAt ?? .distantPast) < cutoff {
+                continue
             }
-            .sorted { lhs, rhs in
+            merged.append(event)
+        }
+
+        if eventsAreSortedByStartDate(merged) == false {
+            merged.sort { lhs, rhs in
                 lhs.startDate < rhs.startDate
             }
+        }
+        return merged
+    }
+
+    private func eventsAreSortedByStartDate(_ events: [CalendarEventMirror]) -> Bool {
+        guard events.count > 1 else { return true }
+        for index in 1..<events.count where events[index].startDate < events[index - 1].startDate {
+            return false
+        }
+        return true
     }
 
     private func mergeCheckpoints(
@@ -577,3 +911,79 @@ private struct CalendarSyncResult: Sendable {
     var didFullSync: Bool
     var checkpoint: SyncCheckpoint
 }
+
+#if DEBUG
+struct SyncSchedulerEventSyncProfile: Sendable {
+    var calendarCount: Int
+    var selectedCalendarCount: Int
+    var resultEventCount: Int
+    var mergedEventCount: Int
+    var checkpointCount: Int
+    var checkpointIndexMilliseconds: Double
+    var calendarListMilliseconds: Double
+    var calendarFilteringMilliseconds: Double
+    var eventPageCollectionMilliseconds: Double
+    var checkpointCollectMilliseconds: Double
+    var calendarMapMilliseconds: Double
+    var eventMergeMilliseconds: Double
+    var checkpointMergeMilliseconds: Double
+    var stateBuildMilliseconds: Double
+    var totalMilliseconds: Double
+    var merge: SyncSchedulerEventMergeProfile
+
+    static let empty = SyncSchedulerEventSyncProfile(
+        calendarCount: 0,
+        selectedCalendarCount: 0,
+        resultEventCount: 0,
+        mergedEventCount: 0,
+        checkpointCount: 0,
+        checkpointIndexMilliseconds: 0,
+        calendarListMilliseconds: 0,
+        calendarFilteringMilliseconds: 0,
+        eventPageCollectionMilliseconds: 0,
+        checkpointCollectMilliseconds: 0,
+        calendarMapMilliseconds: 0,
+        eventMergeMilliseconds: 0,
+        checkpointMergeMilliseconds: 0,
+        stateBuildMilliseconds: 0,
+        totalMilliseconds: 0,
+        merge: .empty
+    )
+}
+
+struct SyncSchedulerEventMergeProfile: Sendable {
+    var existingCount: Int
+    var remoteEventCount: Int
+    var dictionaryCount: Int
+    var outputCount: Int
+    var fullSyncIDMilliseconds: Double
+    var resultCountMilliseconds: Double
+    var dictionarySetupMilliseconds: Double
+    var preserveExistingMilliseconds: Double
+    var upsertRemoteMilliseconds: Double
+    var cutoffMilliseconds: Double
+    var filterMilliseconds: Double
+    var sortCheckMilliseconds: Double
+    var sortMilliseconds: Double
+    var didSort: Bool
+    var totalMilliseconds: Double
+
+    static let empty = SyncSchedulerEventMergeProfile(
+        existingCount: 0,
+        remoteEventCount: 0,
+        dictionaryCount: 0,
+        outputCount: 0,
+        fullSyncIDMilliseconds: 0,
+        resultCountMilliseconds: 0,
+        dictionarySetupMilliseconds: 0,
+        preserveExistingMilliseconds: 0,
+        upsertRemoteMilliseconds: 0,
+        cutoffMilliseconds: 0,
+        filterMilliseconds: 0,
+        sortCheckMilliseconds: 0,
+        sortMilliseconds: 0,
+        didSort: false,
+        totalMilliseconds: 0
+    )
+}
+#endif

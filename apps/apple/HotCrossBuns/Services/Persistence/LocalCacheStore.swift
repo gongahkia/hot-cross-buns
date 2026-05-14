@@ -150,6 +150,172 @@ actor LocalCacheStore {
         }
     }
 
+#if DEBUG
+    func profileLoadCachedStateForBenchmark() throws -> (state: CachedAppState, profile: LocalCacheStoreLoadProfile) {
+        let totalStart = DispatchTime.now().uptimeNanoseconds
+        guard let fileURL, FileManager.default.fileExists(atPath: fileURL.path) else {
+            let fallbackStart = DispatchTime.now().uptimeNanoseconds
+            let state = loadCachedState()
+            let fallbackEnd = DispatchTime.now().uptimeNanoseconds
+            return (
+                state,
+                LocalCacheStoreLoadProfile(
+                    mainReadMilliseconds: 0,
+                    mainEnvelopeDecodeMilliseconds: 0,
+                    mainDecryptMilliseconds: 0,
+                    mainDecodeMilliseconds: 0,
+                    sidecarReadMilliseconds: 0,
+                    sidecarEnvelopeDecodeMilliseconds: 0,
+                    sidecarDecryptMilliseconds: 0,
+                    sidecarPayloadDecodeMilliseconds: 0,
+                    sidecarLegacyDecodeMilliseconds: 0,
+                    sidecarApplyMilliseconds: 0,
+                    fallbackRecoveryMilliseconds: Self.milliseconds(from: fallbackStart, to: fallbackEnd),
+                    sidecarFormat: .none,
+                    totalMilliseconds: Self.milliseconds(from: totalStart, to: fallbackEnd)
+                )
+            )
+        }
+
+        let mainReadStart = DispatchTime.now().uptimeNanoseconds
+        let data = try Data(contentsOf: fileURL)
+        let mainReadEnd = DispatchTime.now().uptimeNanoseconds
+
+        let envelopeStart = DispatchTime.now().uptimeNanoseconds
+        let envelope = try? JSONDecoder.cachedAppState.decode(EncryptedEnvelope.self, from: data)
+        let envelopeEnd = DispatchTime.now().uptimeNanoseconds
+
+        let plaintext: Data
+        var mainDecryptMilliseconds = 0.0
+        if let envelope {
+            guard let key = encryptionKey else {
+                lastLoadWarning = "Local cache is encrypted; unlock to read. Google remains the source of truth."
+                cachedState = fallbackState
+                let totalEnd = DispatchTime.now().uptimeNanoseconds
+                return (
+                    fallbackState,
+                    LocalCacheStoreLoadProfile(
+                        mainReadMilliseconds: Self.milliseconds(from: mainReadStart, to: mainReadEnd),
+                        mainEnvelopeDecodeMilliseconds: Self.milliseconds(from: envelopeStart, to: envelopeEnd),
+                        mainDecryptMilliseconds: 0,
+                        mainDecodeMilliseconds: 0,
+                        sidecarReadMilliseconds: 0,
+                        sidecarEnvelopeDecodeMilliseconds: 0,
+                        sidecarDecryptMilliseconds: 0,
+                        sidecarPayloadDecodeMilliseconds: 0,
+                        sidecarLegacyDecodeMilliseconds: 0,
+                        sidecarApplyMilliseconds: 0,
+                        fallbackRecoveryMilliseconds: 0,
+                        sidecarFormat: .none,
+                        totalMilliseconds: Self.milliseconds(from: totalStart, to: totalEnd)
+                    )
+                )
+            }
+            let decryptStart = DispatchTime.now().uptimeNanoseconds
+            plaintext = try HCBCacheCrypto.decrypt(envelope.encryptedV1, key: key)
+            let decryptEnd = DispatchTime.now().uptimeNanoseconds
+            mainDecryptMilliseconds = Self.milliseconds(from: decryptStart, to: decryptEnd)
+        } else {
+            plaintext = data
+        }
+
+        let mainDecodeStart = DispatchTime.now().uptimeNanoseconds
+        var state = try JSONDecoder.cachedAppState.decode(CachedAppState.self, from: plaintext)
+        let mainDecodeEnd = DispatchTime.now().uptimeNanoseconds
+
+        let sidecar = try profileMergeEventsFromSidecar(into: state)
+        state = sidecar.state
+        lastLoadWarning = nil
+        cachedState = state
+        lastEventsHash = nil
+
+        let totalEnd = DispatchTime.now().uptimeNanoseconds
+        return (
+            state,
+            LocalCacheStoreLoadProfile(
+                mainReadMilliseconds: Self.milliseconds(from: mainReadStart, to: mainReadEnd),
+                mainEnvelopeDecodeMilliseconds: Self.milliseconds(from: envelopeStart, to: envelopeEnd),
+                mainDecryptMilliseconds: mainDecryptMilliseconds,
+                mainDecodeMilliseconds: Self.milliseconds(from: mainDecodeStart, to: mainDecodeEnd),
+                sidecarReadMilliseconds: sidecar.profile.sidecarReadMilliseconds,
+                sidecarEnvelopeDecodeMilliseconds: sidecar.profile.sidecarEnvelopeDecodeMilliseconds,
+                sidecarDecryptMilliseconds: sidecar.profile.sidecarDecryptMilliseconds,
+                sidecarPayloadDecodeMilliseconds: sidecar.profile.sidecarPayloadDecodeMilliseconds,
+                sidecarLegacyDecodeMilliseconds: sidecar.profile.sidecarLegacyDecodeMilliseconds,
+                sidecarApplyMilliseconds: sidecar.profile.sidecarApplyMilliseconds,
+                fallbackRecoveryMilliseconds: 0,
+                sidecarFormat: sidecar.profile.sidecarFormat,
+                totalMilliseconds: Self.milliseconds(from: totalStart, to: totalEnd)
+            )
+        )
+    }
+
+    func profileSaveForBenchmark(_ state: CachedAppState) throws -> LocalCacheStoreSaveProfile {
+        cachedState = state
+        let totalStart = DispatchTime.now().uptimeNanoseconds
+        guard let fileURL else {
+            return .empty
+        }
+
+        let hashStart = DispatchTime.now().uptimeNanoseconds
+        let newEventsHash = LocalCacheStore.hashEventPayloads(in: state)
+        let writeEvents = lastEventsHash != newEventsHash
+        let hashEnd = DispatchTime.now().uptimeNanoseconds
+
+        let stripStart = DispatchTime.now().uptimeNanoseconds
+        let mainState = state.withoutEventPayloads()
+        let stripEnd = DispatchTime.now().uptimeNanoseconds
+
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let snapshotStart = DispatchTime.now().uptimeNanoseconds
+        rotateSnapshotsBeforeWrite(fileURL: fileURL)
+        let snapshotEnd = DispatchTime.now().uptimeNanoseconds
+
+        let mainEncodeStart = DispatchTime.now().uptimeNanoseconds
+        let mainPayload = try JSONEncoder.cachedAppState.encode(mainState)
+        let mainEncodeEnd = DispatchTime.now().uptimeNanoseconds
+        let mainDisk = try encodedForDiskForBenchmark(payload: mainPayload)
+        let mainWriteStart = DispatchTime.now().uptimeNanoseconds
+        try mainDisk.data.write(to: fileURL, options: [.atomic])
+        let mainWriteEnd = DispatchTime.now().uptimeNanoseconds
+
+        var sidecarEncodeMilliseconds = 0.0
+        var sidecarEncryptMilliseconds = 0.0
+        var sidecarWriteMilliseconds = 0.0
+        if writeEvents, let eventsURL = eventsFileURL {
+            let sidecarEncodeStart = DispatchTime.now().uptimeNanoseconds
+            let sidecarPayload = try JSONEncoder.cachedAppState.encode(CacheEventsPayload(state: state))
+            let sidecarEncodeEnd = DispatchTime.now().uptimeNanoseconds
+            sidecarEncodeMilliseconds = Self.milliseconds(from: sidecarEncodeStart, to: sidecarEncodeEnd)
+            let sidecarDisk = try encodedForDiskForBenchmark(payload: sidecarPayload)
+            sidecarEncryptMilliseconds = sidecarDisk.encryptMilliseconds
+            let sidecarWriteStart = DispatchTime.now().uptimeNanoseconds
+            try sidecarDisk.data.write(to: eventsURL, options: [.atomic])
+            let sidecarWriteEnd = DispatchTime.now().uptimeNanoseconds
+            sidecarWriteMilliseconds = Self.milliseconds(from: sidecarWriteStart, to: sidecarWriteEnd)
+            lastEventsHash = newEventsHash
+        }
+
+        let totalEnd = DispatchTime.now().uptimeNanoseconds
+        return LocalCacheStoreSaveProfile(
+            eventsHashMilliseconds: Self.milliseconds(from: hashStart, to: hashEnd),
+            stripEventsMilliseconds: Self.milliseconds(from: stripStart, to: stripEnd),
+            snapshotRotationMilliseconds: Self.milliseconds(from: snapshotStart, to: snapshotEnd),
+            mainEncodeMilliseconds: Self.milliseconds(from: mainEncodeStart, to: mainEncodeEnd),
+            mainEncryptMilliseconds: mainDisk.encryptMilliseconds,
+            mainWriteMilliseconds: Self.milliseconds(from: mainWriteStart, to: mainWriteEnd),
+            sidecarShouldWrite: writeEvents,
+            sidecarEncodeMilliseconds: sidecarEncodeMilliseconds,
+            sidecarEncryptMilliseconds: sidecarEncryptMilliseconds,
+            sidecarWriteMilliseconds: sidecarWriteMilliseconds,
+            totalMilliseconds: Self.milliseconds(from: totalStart, to: totalEnd)
+        )
+    }
+#endif
+
     private func loadFromSnapshots() -> CachedAppState? {
         guard let fileURL else { return nil }
         for index in 1...snapshotGenerations {
@@ -193,9 +359,12 @@ actor LocalCacheStore {
 
         init(state: CachedAppState) {
             activeEvents = state.events
-            workspaceEventsByAccountID = Dictionary(
-                uniqueKeysWithValues: state.accountWorkspaces.map { ($0.accountID, $0.events) }
-            )
+            var workspaceEvents: [GoogleAccount.ID: [CalendarEventMirror]] = [:]
+            workspaceEvents.reserveCapacity(state.accountWorkspaces.count)
+            for workspace in state.accountWorkspaces where workspace.accountID != state.activeAccountID {
+                workspaceEvents[workspace.accountID] = workspace.events
+            }
+            workspaceEventsByAccountID = workspaceEvents
         }
 
         func applying(to state: CachedAppState) -> CachedAppState {
@@ -334,6 +503,104 @@ actor LocalCacheStore {
         }
     }
 
+#if DEBUG
+    private func profileMergeEventsFromSidecar(into state: CachedAppState) throws -> (state: CachedAppState, profile: LocalCacheStoreLoadProfile.SidecarProfile) {
+        guard let eventsURL = eventsFileURL,
+              FileManager.default.fileExists(atPath: eventsURL.path) else {
+            return (state, .empty)
+        }
+
+        let readStart = DispatchTime.now().uptimeNanoseconds
+        let raw = try Data(contentsOf: eventsURL)
+        let readEnd = DispatchTime.now().uptimeNanoseconds
+
+        let envelopeStart = DispatchTime.now().uptimeNanoseconds
+        let envelope = try? JSONDecoder.cachedAppState.decode(EncryptedEnvelope.self, from: raw)
+        let envelopeEnd = DispatchTime.now().uptimeNanoseconds
+
+        let plaintext: Data
+        var decryptMilliseconds = 0.0
+        if let envelope {
+            guard let key = encryptionKey else {
+                return (
+                    state,
+                    LocalCacheStoreLoadProfile.SidecarProfile(
+                        sidecarReadMilliseconds: Self.milliseconds(from: readStart, to: readEnd),
+                        sidecarEnvelopeDecodeMilliseconds: Self.milliseconds(from: envelopeStart, to: envelopeEnd),
+                        sidecarDecryptMilliseconds: 0,
+                        sidecarPayloadDecodeMilliseconds: 0,
+                        sidecarLegacyDecodeMilliseconds: 0,
+                        sidecarApplyMilliseconds: 0,
+                        sidecarFormat: .encryptedLocked
+                    )
+                )
+            }
+            let decryptStart = DispatchTime.now().uptimeNanoseconds
+            plaintext = try HCBCacheCrypto.decrypt(envelope.encryptedV1, key: key)
+            let decryptEnd = DispatchTime.now().uptimeNanoseconds
+            decryptMilliseconds = Self.milliseconds(from: decryptStart, to: decryptEnd)
+        } else {
+            plaintext = raw
+        }
+
+        let payloadDecodeStart = DispatchTime.now().uptimeNanoseconds
+        if let payload = try? JSONDecoder.cachedAppState.decode(CacheEventsPayload.self, from: plaintext) {
+            let payloadDecodeEnd = DispatchTime.now().uptimeNanoseconds
+            let applyStart = DispatchTime.now().uptimeNanoseconds
+            let merged = payload.applying(to: state)
+            let applyEnd = DispatchTime.now().uptimeNanoseconds
+            return (
+                merged,
+                LocalCacheStoreLoadProfile.SidecarProfile(
+                    sidecarReadMilliseconds: Self.milliseconds(from: readStart, to: readEnd),
+                    sidecarEnvelopeDecodeMilliseconds: Self.milliseconds(from: envelopeStart, to: envelopeEnd),
+                    sidecarDecryptMilliseconds: decryptMilliseconds,
+                    sidecarPayloadDecodeMilliseconds: Self.milliseconds(from: payloadDecodeStart, to: payloadDecodeEnd),
+                    sidecarLegacyDecodeMilliseconds: 0,
+                    sidecarApplyMilliseconds: Self.milliseconds(from: applyStart, to: applyEnd),
+                    sidecarFormat: envelope == nil ? .payload : .encryptedPayload
+                )
+            )
+        }
+        let payloadDecodeEnd = DispatchTime.now().uptimeNanoseconds
+
+        let legacyDecodeStart = DispatchTime.now().uptimeNanoseconds
+        let legacyEvents = try JSONDecoder.cachedAppState.decode([CalendarEventMirror].self, from: plaintext)
+        let legacyDecodeEnd = DispatchTime.now().uptimeNanoseconds
+        let applyStart = DispatchTime.now().uptimeNanoseconds
+        let merged = CacheEventsPayload(activeEvents: legacyEvents, workspaceEventsByAccountID: [:]).applying(to: state)
+        let applyEnd = DispatchTime.now().uptimeNanoseconds
+        return (
+            merged,
+            LocalCacheStoreLoadProfile.SidecarProfile(
+                sidecarReadMilliseconds: Self.milliseconds(from: readStart, to: readEnd),
+                sidecarEnvelopeDecodeMilliseconds: Self.milliseconds(from: envelopeStart, to: envelopeEnd),
+                sidecarDecryptMilliseconds: decryptMilliseconds,
+                sidecarPayloadDecodeMilliseconds: Self.milliseconds(from: payloadDecodeStart, to: payloadDecodeEnd),
+                sidecarLegacyDecodeMilliseconds: Self.milliseconds(from: legacyDecodeStart, to: legacyDecodeEnd),
+                sidecarApplyMilliseconds: Self.milliseconds(from: applyStart, to: applyEnd),
+                sidecarFormat: envelope == nil ? .legacyArray : .encryptedLegacyArray
+            )
+        )
+    }
+
+    private func encodedForDiskForBenchmark(payload: Data) throws -> (data: Data, encryptMilliseconds: Double) {
+        guard let key = encryptionKey else {
+            return (payload, 0)
+        }
+        let encryptStart = DispatchTime.now().uptimeNanoseconds
+        let salt = ensureSalt()
+        let blob = try HCBCacheCrypto.encrypt(payload, key: key, salt: salt)
+        let data = try JSONEncoder.cachedAppState.encode(EncryptedEnvelope(encryptedV1: blob))
+        let encryptEnd = DispatchTime.now().uptimeNanoseconds
+        return (data, Self.milliseconds(from: encryptStart, to: encryptEnd))
+    }
+
+    private static func milliseconds(from start: UInt64, to end: UInt64) -> Double {
+        Double(end - start) / 1_000_000
+    }
+#endif
+
     // Cheap order-sensitive fingerprint of the events array. Hashes (id,
     // etag, updatedAt) per event — same set of events in the same order
     // produces the same hash. With 17k events this runs in ~1ms.
@@ -381,6 +648,81 @@ actor LocalCacheStore {
         return Int64(values.fileSize ?? 0)
     }
 }
+
+#if DEBUG
+struct LocalCacheStoreLoadProfile: Sendable {
+    enum SidecarFormat: String, Sendable {
+        case none
+        case payload
+        case legacyArray
+        case encryptedPayload
+        case encryptedLegacyArray
+        case encryptedLocked
+    }
+
+    struct SidecarProfile: Sendable {
+        var sidecarReadMilliseconds: Double
+        var sidecarEnvelopeDecodeMilliseconds: Double
+        var sidecarDecryptMilliseconds: Double
+        var sidecarPayloadDecodeMilliseconds: Double
+        var sidecarLegacyDecodeMilliseconds: Double
+        var sidecarApplyMilliseconds: Double
+        var sidecarFormat: SidecarFormat
+
+        static let empty = SidecarProfile(
+            sidecarReadMilliseconds: 0,
+            sidecarEnvelopeDecodeMilliseconds: 0,
+            sidecarDecryptMilliseconds: 0,
+            sidecarPayloadDecodeMilliseconds: 0,
+            sidecarLegacyDecodeMilliseconds: 0,
+            sidecarApplyMilliseconds: 0,
+            sidecarFormat: .none
+        )
+    }
+
+    var mainReadMilliseconds: Double
+    var mainEnvelopeDecodeMilliseconds: Double
+    var mainDecryptMilliseconds: Double
+    var mainDecodeMilliseconds: Double
+    var sidecarReadMilliseconds: Double
+    var sidecarEnvelopeDecodeMilliseconds: Double
+    var sidecarDecryptMilliseconds: Double
+    var sidecarPayloadDecodeMilliseconds: Double
+    var sidecarLegacyDecodeMilliseconds: Double
+    var sidecarApplyMilliseconds: Double
+    var fallbackRecoveryMilliseconds: Double
+    var sidecarFormat: SidecarFormat
+    var totalMilliseconds: Double
+}
+
+struct LocalCacheStoreSaveProfile: Sendable {
+    var eventsHashMilliseconds: Double
+    var stripEventsMilliseconds: Double
+    var snapshotRotationMilliseconds: Double
+    var mainEncodeMilliseconds: Double
+    var mainEncryptMilliseconds: Double
+    var mainWriteMilliseconds: Double
+    var sidecarShouldWrite: Bool
+    var sidecarEncodeMilliseconds: Double
+    var sidecarEncryptMilliseconds: Double
+    var sidecarWriteMilliseconds: Double
+    var totalMilliseconds: Double
+
+    static let empty = LocalCacheStoreSaveProfile(
+        eventsHashMilliseconds: 0,
+        stripEventsMilliseconds: 0,
+        snapshotRotationMilliseconds: 0,
+        mainEncodeMilliseconds: 0,
+        mainEncryptMilliseconds: 0,
+        mainWriteMilliseconds: 0,
+        sidecarShouldWrite: false,
+        sidecarEncodeMilliseconds: 0,
+        sidecarEncryptMilliseconds: 0,
+        sidecarWriteMilliseconds: 0,
+        totalMilliseconds: 0
+    )
+}
+#endif
 
 private extension LocalCacheStore {
     static var defaultCacheFileURL: URL? {
