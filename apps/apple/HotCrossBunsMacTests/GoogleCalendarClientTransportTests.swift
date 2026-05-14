@@ -138,6 +138,149 @@ final class GoogleCalendarClientTransportTests: XCTestCase {
         XCTAssertEqual(page.events[1].details, "")
     }
 
+    func testListEventsPreservesDescriptionAndDateVariants() async throws {
+        MockURLProtocol.requestHandler = { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let body = #"""
+            {
+              "items": [
+                {
+                  "id": "plain",
+                  "summary": "Plain",
+                  "description": "  Plain notes\r\nsecond line  ",
+                  "status": "confirmed",
+                  "updated": "2026-05-01T01:02:03Z",
+                  "start": { "dateTime": "2026-05-01T09:00:00Z", "timeZone": "UTC" },
+                  "end": { "dateTime": "2026-05-01T10:00:00Z", "timeZone": "UTC" }
+                },
+                {
+                  "id": "html",
+                  "summary": "HTML",
+                  "description": "<b>Team</b> &amp; launch<br>Next",
+                  "status": "confirmed",
+                  "updated": "2026-05-01T01:02:03.123Z",
+                  "start": { "dateTime": "2026-05-01T11:00:00.123Z", "timeZone": "UTC" },
+                  "end": { "dateTime": "2026-05-01T12:00:00.123Z", "timeZone": "UTC" }
+                },
+                {
+                  "id": "entity",
+                  "summary": "Entity",
+                  "description": "Tom &amp; Jerry",
+                  "status": "confirmed",
+                  "start": { "dateTime": "2026-05-01T13:00:00+08:00", "timeZone": "Asia/Singapore" },
+                  "end": { "dateTime": "2026-05-01T14:00:00+08:00", "timeZone": "Asia/Singapore" }
+                },
+                {
+                  "id": "legacy",
+                  "summary": "Legacy",
+                  "description": "Notes before\n\nLinked task: Focus\nhcb://task/task-legacy",
+                  "status": "confirmed",
+                  "start": { "dateTime": "2026-05-02T09:00:00Z" },
+                  "end": { "dateTime": "2026-05-02T10:00:00Z" }
+                },
+                {
+                  "id": "all-day",
+                  "summary": "All day",
+                  "description": "All day notes",
+                  "status": "cancelled",
+                  "start": { "date": "2026-05-03" },
+                  "end": { "date": "2026-05-05" },
+                  "recurrence": ["RRULE:FREQ=WEEKLY;COUNT=2"]
+                }
+              ],
+              "nextSyncToken": "sync-next"
+            }
+            """#
+            return (response, Data(body.utf8))
+        }
+
+        let page = try await client.listEvents(calendarID: "primary", syncToken: nil, timeMin: nil, defaultTimeZoneID: "UTC")
+        let eventsByID = Dictionary(uniqueKeysWithValues: page.events.map { ($0.id, $0) })
+        let plain = try XCTUnwrap(eventsByID["plain"])
+        let html = try XCTUnwrap(eventsByID["html"])
+        let entity = try XCTUnwrap(eventsByID["entity"])
+        let legacy = try XCTUnwrap(eventsByID["legacy"])
+        let allDay = try XCTUnwrap(eventsByID["all-day"])
+        let internetFormatter = ISO8601DateFormatter()
+
+        XCTAssertEqual(plain.details, "Plain notes\nsecond line")
+        XCTAssertEqual(plain.startDate, try XCTUnwrap(internetFormatter.date(from: "2026-05-01T09:00:00Z")))
+        XCTAssertEqual(plain.updatedAt, try XCTUnwrap(internetFormatter.date(from: "2026-05-01T01:02:03Z")))
+        XCTAssertEqual(html.details, "**Team** & launch\nNext")
+        XCTAssertEqual(html.startDate, try XCTUnwrap(ISO8601DateFormatter.google.date(from: "2026-05-01T11:00:00.123Z")))
+        XCTAssertEqual(html.updatedAt, try XCTUnwrap(ISO8601DateFormatter.google.date(from: "2026-05-01T01:02:03.123Z")))
+        XCTAssertEqual(entity.details, "Tom & Jerry")
+        XCTAssertEqual(entity.startTimeZoneID, "Asia/Singapore")
+        XCTAssertEqual(legacy.details, "Notes before")
+        XCTAssertEqual(legacy.hcbTaskID, "task-legacy")
+        XCTAssertTrue(allDay.isAllDay)
+        XCTAssertEqual(allDay.status, .cancelled)
+        XCTAssertEqual(allDay.recurrence, ["RRULE:FREQ=WEEKLY;COUNT=2"])
+        XCTAssertEqual(Calendar.current.component(.day, from: allDay.startDate), 3)
+        XCTAssertEqual(Calendar.current.component(.day, from: allDay.endDate), 5)
+        XCTAssertEqual(page.nextSyncToken, "sync-next")
+    }
+
+    func testGoogleAPIDateDecoderParsesCommonCalendarWireForms() throws {
+        let cases: [(wire: String, expected: Date)] = [
+            ("2024-02-29", Self.utcDate(2024, 2, 29)),
+            ("2026-03-08", Self.utcDate(2026, 3, 8)),
+            ("2026-05-01T09:10:11Z", Self.utcDate(2026, 5, 1, 9, 10, 11)),
+            ("2026-05-01T09:10:11.123Z", Self.utcDate(2026, 5, 1, 9, 10, 11, millisecond: 123)),
+            ("2026-05-01T09:10:11+08:00", Self.utcDate(2026, 5, 1, 1, 10, 11)),
+            ("2026-05-01T09:10:11.123+08:00", Self.utcDate(2026, 5, 1, 1, 10, 11, millisecond: 123)),
+            ("2026-05-01T00:15:30-03:30", Self.utcDate(2026, 5, 1, 3, 45, 30)),
+            ("2026-01-01T00:30:00+14:00", Self.utcDate(2025, 12, 31, 10, 30, 0)),
+            ("2026-01-01T00:30:00-12:00", Self.utcDate(2026, 1, 1, 12, 30, 0)),
+            ("2026-03-08T02:30:00-05:00", Self.utcDate(2026, 3, 8, 7, 30, 0)),
+            ("2026-11-01T01:30:00-04:00", Self.utcDate(2026, 11, 1, 5, 30, 0))
+        ]
+
+        for testCase in cases {
+            try Self.assertGoogleDate(testCase.wire, equals: testCase.expected)
+        }
+    }
+
+    func testGoogleAPIDateDecoderPreservesFallbacksAndFailures() throws {
+        let internetFormatter = ISO8601DateFormatter()
+        internetFormatter.formatOptions = [.withInternetDateTime]
+        let fractionalFormatter = ISO8601DateFormatter()
+        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let lenientDateOnlyFormatter = DateFormatter()
+        lenientDateOnlyFormatter.calendar = Calendar(identifier: .gregorian)
+        lenientDateOnlyFormatter.locale = Locale(identifier: "en_US_POSIX")
+        lenientDateOnlyFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+        lenientDateOnlyFormatter.dateFormat = "yyyy-MM-dd"
+
+        try Self.assertGoogleDate(
+            "2026-05-01T09:00:00+0800",
+            equals: try XCTUnwrap(internetFormatter.date(from: "2026-05-01T09:00:00+0800"))
+        )
+        try Self.assertGoogleDate(
+            "2026-05-01T09:00:00.123456Z",
+            equals: try XCTUnwrap(fractionalFormatter.date(from: "2026-05-01T09:00:00.123456Z"))
+        )
+        try Self.assertGoogleDate(
+            "2026-02-29",
+            equals: try XCTUnwrap(lenientDateOnlyFormatter.date(from: "2026-02-29"))
+        )
+
+        for malformed in [
+            "not-a-date",
+            "2026-13-01",
+            "2026-05-01T09:00Z",
+            "2026-05-01T99:99:99Z"
+        ] {
+            XCTAssertThrowsError(try Self.decodedGoogleDate(malformed), malformed)
+        }
+    }
+
     func testListEventsMapsAvailabilityHoldMetadataVisibilityAndTransparency() async throws {
         MockURLProtocol.requestHandler = { request in
             XCTAssertEqual(request.httpMethod, "GET")
@@ -632,6 +775,49 @@ final class GoogleCalendarClientTransportTests: XCTestCase {
             || body.contains(value.replacingOccurrences(of: "/", with: #"\/"#))
     }
 
+    private static func assertGoogleDate(
+        _ wireValue: String,
+        equals expected: Date,
+        accuracy: TimeInterval = 0.000_001
+    ) throws {
+        let decoded = try decodedGoogleDate(wireValue)
+        XCTAssertEqual(
+            decoded.timeIntervalSince1970,
+            expected.timeIntervalSince1970,
+            accuracy: accuracy,
+            wireValue
+        )
+    }
+
+    private static func decodedGoogleDate(_ wireValue: String) throws -> Date {
+        let data = try JSONSerialization.data(withJSONObject: ["value": wireValue], options: [])
+        return try JSONDecoder.googleAPI.decode(GoogleDateDecodeBox.self, from: data).value
+    }
+
+    private static func utcDate(
+        _ year: Int,
+        _ month: Int,
+        _ day: Int,
+        _ hour: Int = 0,
+        _ minute: Int = 0,
+        _ second: Int = 0,
+        millisecond: Int = 0
+    ) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        var components = DateComponents()
+        components.calendar = calendar
+        components.timeZone = calendar.timeZone
+        components.year = year
+        components.month = month
+        components.day = day
+        components.hour = hour
+        components.minute = minute
+        components.second = second
+        components.nanosecond = millisecond * 1_000_000
+        return calendar.date(from: components)!
+    }
+
     private static func read(stream: InputStream) -> String {
         var data = Data()
         stream.open()
@@ -649,4 +835,8 @@ final class GoogleCalendarClientTransportTests: XCTestCase {
 
         return String(decoding: data, as: UTF8.self)
     }
+}
+
+private struct GoogleDateDecodeBox: Decodable {
+    var value: Date
 }

@@ -61,6 +61,87 @@ struct PerformanceDiagnosticsSnapshot: Equatable, Sendable {
     var integrations: LocalIntegrationDiagnostics
 }
 
+#if DEBUG
+struct AppModelApplyProfile: Sendable {
+    var diffSetupMilliseconds: Double
+    var assignmentMilliseconds: Double
+    var autoIncludeMilliseconds: Double
+    var rebuildSnapshotsMilliseconds: Double
+    var postApplyMilliseconds: Double
+    var totalMilliseconds: Double
+
+    static func milliseconds(from start: UInt64, to end: UInt64) -> Double {
+        Double(end - start) / 1_000_000
+    }
+}
+
+#endif
+
+struct DerivedSnapshotBuildProfile: Sendable {
+    var visibilityMilliseconds: Double
+    var taskSectionsMilliseconds: Double
+    var taskBoardMilliseconds: Double
+    var todaySnapshotMilliseconds: Double
+    var todayTaskDueMilliseconds: Double
+    var todayTaskOverdueMilliseconds: Double
+    var todayEventFilterMilliseconds: Double
+    var todayEventSortMilliseconds: Double
+    var todayScheduledEventCount: Int
+    var calendarSnapshotMilliseconds: Double
+    var calendarSetupMilliseconds: Double
+    var calendarEventScanMilliseconds: Double
+    var calendarEventVisibilityMilliseconds: Double
+    var calendarCountMilliseconds: Double
+    var calendarColorAggregationMilliseconds: Double
+    var calendarLiteralTagExtractionMilliseconds: Double
+    var calendarLiteralSummaryScanMilliseconds: Double
+    var calendarLiteralDetailsScanMilliseconds: Double
+    var calendarLiteralLocationScanMilliseconds: Double
+    var calendarLiteralRegexMatchingMilliseconds: Double
+    var calendarLiteralDeduplicationMilliseconds: Double
+    var calendarBoundTagAggregationMilliseconds: Double
+    var calendarTagCountMilliseconds: Double
+    var calendarColorMapMilliseconds: Double
+    var calendarSelectedEventCount: Int
+    var calendarVisibleEventCount: Int
+    var calendarLiteralTaggedEventCount: Int
+    var calendarBoundTaggedEventCount: Int
+    var coreSnapshotMilliseconds: Double
+    var eventsByCalendarMilliseconds: Double
+    var eventsByDayMilliseconds: Double
+    var eventHiddenFilteringMilliseconds: Double
+    var eventStartOfDayMilliseconds: Double
+    var eventStartDayNormalizationMilliseconds: Double
+    var eventEndDayNormalizationMilliseconds: Double
+    var eventSameDayProbeMilliseconds: Double
+    var eventSingleDayTimedMilliseconds: Double
+    var eventAllDayMilliseconds: Double
+    var eventMultiDayMilliseconds: Double
+    var eventDaySteppingMilliseconds: Double
+    var eventAllDaySteppingMilliseconds: Double
+    var eventMultiDaySteppingMilliseconds: Double
+    var eventBucketInsertionMilliseconds: Double
+    var eventBucketMilliseconds: Double
+    var hiddenEventCount: Int
+    var singleDayTimedEventCount: Int
+    var allDayEventCount: Int
+    var multiDayEventCount: Int
+    var taskDueBucketsMilliseconds: Double
+    var taskSidebarCountsMilliseconds: Double
+    var taskCompletionStatsMilliseconds: Double
+    var taskBucketAndStatsMilliseconds: Double
+    var taskIndexMilliseconds: Double
+    var eventIndexMilliseconds: Double
+    var idIndexMilliseconds: Double
+    var titleLookupMilliseconds: Double
+    var taskChildrenMilliseconds: Double
+    var duplicateIndexMilliseconds: Double
+    var taskListIndexMilliseconds: Double
+    var auxiliaryLookupMilliseconds: Double
+    var fingerprintMilliseconds: Double
+    var totalMilliseconds: Double
+}
+
 @MainActor
 @Observable
 final class AppModel {
@@ -79,6 +160,10 @@ final class AppModel {
     @ObservationIgnored private var nearRealtimePollDiagnostics: NearRealtimePollDiagnostics?
     @ObservationIgnored private var notificationDiagnosticUpdatedAt: Date?
     @ObservationIgnored private var notificationDiagnosticDurationMilliseconds: Double?
+    #if DEBUG
+    @ObservationIgnored private(set) var lastApplyProfileForBenchmark: AppModelApplyProfile?
+    @ObservationIgnored private(set) var lastDerivedSnapshotBuildProfileForBenchmark: DerivedSnapshotBuildProfile?
+    #endif
 
     private(set) var account: GoogleAccount?
     private(set) var connectedAccounts: [GoogleAccount] = []
@@ -4799,13 +4884,23 @@ final class AppModel {
     }
 
     private func apply(_ state: CachedAppState) {
+        #if DEBUG
+        let totalStart = DispatchTime.now().uptimeNanoseconds
+        #endif
         // Sync-diff detection: count net changes vs current in-memory state BEFORE
         // we overwrite. Skipped on cold launch (empty local) and when nothing
         // differed (steady-state poll). Only the net diff is recorded so the
         // history log isn't spammed every 30s refresh tick.
+        #if DEBUG
+        let diffStart = DispatchTime.now().uptimeNanoseconds
+        #endif
         let priorTasks = tasks
         let priorEvents = events
         let shouldEmitSyncDiff = priorTasks.isEmpty == false || priorEvents.isEmpty == false
+        #if DEBUG
+        let diffEnd = DispatchTime.now().uptimeNanoseconds
+        let assignmentStart = DispatchTime.now().uptimeNanoseconds
+        #endif
 
         account = state.account
         connectedAccounts = state.accounts
@@ -4822,11 +4917,25 @@ final class AppModel {
         pendingMutations = state.pendingMutations
         HCBColorSchemeStore.current = HCBColorScheme.scheme(id: settings.colorSchemeID, customSchemes: settings.customColorSchemes) ?? .notion
         HCBShortcutStorage.persist(settings.shortcutOverrides)
+        #if DEBUG
+        let assignmentEnd = DispatchTime.now().uptimeNanoseconds
+        let autoIncludeStart = DispatchTime.now().uptimeNanoseconds
+        #endif
         autoIncludeNewTaskLists()
+        #if DEBUG
+        let autoIncludeEnd = DispatchTime.now().uptimeNanoseconds
+        let rebuildStart = DispatchTime.now().uptimeNanoseconds
+        #endif
         rebuildSnapshots()
+        #if DEBUG
+        let rebuildEnd = DispatchTime.now().uptimeNanoseconds
+        #endif
         // apply user's configured retention cap to the audit log actor on boot / after any apply (settings could have been sync-pulled remotely too).
         let cap = settings.historyStorageCap
         Task { await MutationAuditLog.shared.setRetentionLimit(cap) }
+        #if DEBUG
+        let postApplyStart = DispatchTime.now().uptimeNanoseconds
+        #endif
 
         if shouldEmitSyncDiff {
             Self.recordSyncDiffAsync(
@@ -4836,6 +4945,17 @@ final class AppModel {
                 nextEvents: state.events
             )
         }
+        #if DEBUG
+        let totalEnd = DispatchTime.now().uptimeNanoseconds
+        lastApplyProfileForBenchmark = AppModelApplyProfile(
+            diffSetupMilliseconds: AppModelApplyProfile.milliseconds(from: diffStart, to: diffEnd),
+            assignmentMilliseconds: AppModelApplyProfile.milliseconds(from: assignmentStart, to: assignmentEnd),
+            autoIncludeMilliseconds: AppModelApplyProfile.milliseconds(from: autoIncludeStart, to: autoIncludeEnd),
+            rebuildSnapshotsMilliseconds: AppModelApplyProfile.milliseconds(from: rebuildStart, to: rebuildEnd),
+            postApplyMilliseconds: AppModelApplyProfile.milliseconds(from: postApplyStart, to: totalEnd),
+            totalMilliseconds: AppModelApplyProfile.milliseconds(from: totalStart, to: totalEnd)
+        )
+        #endif
     }
 
     // Counts sync diffs away from the main apply path. These history records
@@ -4849,12 +4969,10 @@ final class AppModel {
     ) {
         Task.detached(priority: .utility) {
             let priorTaskMap = Dictionary(uniqueKeysWithValues: priorTasks.map { ($0.id, $0) })
-            let nextTaskMap = Dictionary(uniqueKeysWithValues: nextTasks.map { ($0.id, $0) })
             let priorEventMap = Dictionary(uniqueKeysWithValues: priorEvents.map { ($0.id, $0) })
-            let nextEventMap = Dictionary(uniqueKeysWithValues: nextEvents.map { ($0.id, $0) })
 
-            let taskDiff = syncDiffCount(prior: priorTaskMap, next: nextTaskMap)
-            let eventDiff = syncDiffCount(prior: priorEventMap, next: nextEventMap)
+            let taskDiff = syncDiffCount(prior: priorTaskMap, next: nextTasks)
+            let eventDiff = syncDiffCount(prior: priorEventMap, next: nextEvents)
 
             if taskDiff > 0 {
                 await MutationAuditLog.shared.record(
@@ -4879,19 +4997,24 @@ final class AppModel {
         }
     }
 
-    nonisolated private static func syncDiffCount<V: Equatable>(
+    nonisolated private static func syncDiffCount<V: Identifiable & Equatable>(
         prior: [String: V],
-        next: [String: V]
-    ) -> Int {
+        next: [V]
+    ) -> Int where V.ID == String {
         var count = 0
-        for (id, newValue) in next {
+        var seenIDs = Set<String>()
+        seenIDs.reserveCapacity(next.count)
+
+        for newValue in next {
+            let id = newValue.id
+            seenIDs.insert(id)
             if let oldValue = prior[id] {
                 if oldValue != newValue { count += 1 }
             } else {
                 count += 1
             }
         }
-        for id in prior.keys where next[id] == nil { count += 1 }
+        for id in prior.keys where seenIDs.contains(id) == false { count += 1 }
         return count
     }
 
@@ -5594,6 +5717,9 @@ final class AppModel {
         taskIndexByID = snapshots.taskIndexByID
         eventIndexByID = snapshots.eventIndexByID
         taskListIndexByID = snapshots.taskListIndexByID
+        #if DEBUG
+        lastDerivedSnapshotBuildProfileForBenchmark = snapshots.buildProfile
+        #endif
         if calendarDisplayFingerprint != snapshots.calendarDisplayFingerprint {
             calendarDisplayFingerprint = snapshots.calendarDisplayFingerprint
             calendarDisplayRevision &+= 1
@@ -5623,6 +5749,10 @@ final class AppModel {
     }
 
     private nonisolated static func buildDerivedSnapshots(_ input: DerivedAppSnapshotInput) -> DerivedAppSnapshots {
+        #if DEBUG
+        let totalStart = DispatchTime.now().uptimeNanoseconds
+        let visibilityStart = DispatchTime.now().uptimeNanoseconds
+        #endif
         let visibleTaskListIDs = input.settings.hasConfiguredTaskListSelection
             ? input.settings.selectedTaskListIDs
             : Set(input.taskLists.map(\.id))
@@ -5635,7 +5765,15 @@ final class AppModel {
             ? input.settings.notesTabSelectedListIDs
             : visibleTaskListIDs
 
+        #if DEBUG
+        let visibilityEnd = DispatchTime.now().uptimeNanoseconds
+        let taskSectionsStart = DispatchTime.now().uptimeNanoseconds
+        #endif
         let taskSections = TaskListSectionSnapshot.build(taskLists: visibleTaskLists, tasks: visibleTasks)
+        #if DEBUG
+        let taskSectionsEnd = DispatchTime.now().uptimeNanoseconds
+        let taskBoardStart = taskSectionsEnd
+        #endif
         let taskBoardSnapshot = TaskBoardSnapshot.build(
             tasks: input.tasks,
             tasksTabVisibleListIDs: tasksTabVisibleListIDs,
@@ -5643,36 +5781,226 @@ final class AppModel {
             settings: input.settings,
             referenceDate: input.referenceDate
         )
-        let todaySnapshot = TodaySnapshot.build(tasks: visibleTasks, events: input.events, referenceDate: input.referenceDate)
+        #if DEBUG
+        let taskBoardEnd = DispatchTime.now().uptimeNanoseconds
+        let eventBucketStart = DispatchTime.now().uptimeNanoseconds
+        var eventsByCalendarNanoseconds: UInt64 = 0
+        var eventHiddenFilteringNanoseconds: UInt64 = 0
+        var eventStartDayNormalizationNanoseconds: UInt64 = 0
+        var eventEndDayNormalizationNanoseconds: UInt64 = 0
+        var eventSameDayProbeNanoseconds: UInt64 = 0
+        var eventSingleDayTimedNanoseconds: UInt64 = 0
+        var eventAllDayNanoseconds: UInt64 = 0
+        var eventMultiDayNanoseconds: UInt64 = 0
+        var eventDaySteppingNanoseconds: UInt64 = 0
+        var eventAllDaySteppingNanoseconds: UInt64 = 0
+        var eventMultiDaySteppingNanoseconds: UInt64 = 0
+        var eventBucketInsertionNanoseconds: UInt64 = 0
+        var hiddenEventCount = 0
+        var singleDayTimedEventCount = 0
+        var allDayEventCount = 0
+        var multiDayEventCount = 0
+        #endif
+
+        // Bucket events by calendar id so grid views can skip full-corpus
+        // filters while rendering.
+        struct EventDayBounds {
+            var id: CalendarEventMirror.ID
+            var isAllDay: Bool
+            var startDay: Date
+            var endDay: Date
+            var startKey: TimeInterval
+        }
+
+        let cal = Calendar.current
+        let referenceDay = cal.startOfDay(for: input.referenceDate)
+        let shouldIncludeCancelledEvents = input.settings.showCompletedItemsInCalendar
+        var eventsByCalendar: [CalendarListMirror.ID: [CalendarEventMirror.ID]] = [:]
+        eventsByCalendar.reserveCapacity(input.calendars.count)
+        var eventDayBounds: [EventDayBounds] = []
+        eventDayBounds.reserveCapacity(input.events.count)
+        var todayScheduledEvents: [CalendarEventMirror] = []
+        todayScheduledEvents.reserveCapacity(min(input.events.count, 512))
+        for event in input.events {
+            #if DEBUG
+            let eventFilterStart = DispatchTime.now().uptimeNanoseconds
+            #endif
+            let isVisibleEvent = shouldIncludeCancelledEvents || event.status != .cancelled
+            #if DEBUG
+            eventHiddenFilteringNanoseconds += DispatchTime.now().uptimeNanoseconds - eventFilterStart
+            if isVisibleEvent == false { hiddenEventCount += 1 }
+            #endif
+            guard isVisibleEvent else { continue }
+
+            #if DEBUG
+            let eventsByCalendarAppendStart = DispatchTime.now().uptimeNanoseconds
+            #endif
+            eventsByCalendar[event.calendarID, default: []].append(event.id)
+            #if DEBUG
+            eventsByCalendarNanoseconds += DispatchTime.now().uptimeNanoseconds - eventsByCalendarAppendStart
+            let startOfDayStart = DispatchTime.now().uptimeNanoseconds
+            #endif
+
+            let startDay = cal.startOfDay(for: event.startDate)
+            #if DEBUG
+            eventStartDayNormalizationNanoseconds += DispatchTime.now().uptimeNanoseconds - startOfDayStart
+            #endif
+            let endDay: Date
+            if event.isAllDay {
+                #if DEBUG
+                let endOfDayStart = DispatchTime.now().uptimeNanoseconds
+                #endif
+                endDay = cal.startOfDay(for: event.endDate)
+                #if DEBUG
+                eventEndDayNormalizationNanoseconds += DispatchTime.now().uptimeNanoseconds - endOfDayStart
+                allDayEventCount += 1
+                #endif
+            } else {
+                #if DEBUG
+                let sameDayProbeStart = DispatchTime.now().uptimeNanoseconds
+                #endif
+                let nextStartDay = cal.date(byAdding: .day, value: 1, to: startDay)
+                let isSameDayTimedEvent = event.endDate >= startDay
+                    && (nextStartDay.map { event.endDate < $0 } ?? false)
+                #if DEBUG
+                eventSameDayProbeNanoseconds += DispatchTime.now().uptimeNanoseconds - sameDayProbeStart
+                #endif
+
+                if isSameDayTimedEvent {
+                    endDay = startDay
+                    #if DEBUG
+                    singleDayTimedEventCount += 1
+                    #endif
+                } else {
+                    #if DEBUG
+                    let endOfDayStart = DispatchTime.now().uptimeNanoseconds
+                    #endif
+                    endDay = cal.startOfDay(for: event.endDate)
+                    #if DEBUG
+                    eventEndDayNormalizationNanoseconds += DispatchTime.now().uptimeNanoseconds - endOfDayStart
+                    if startDay == endDay {
+                        singleDayTimedEventCount += 1
+                    } else {
+                        multiDayEventCount += 1
+                    }
+                    #endif
+                }
+            }
+            if event.status != .cancelled && startDay == referenceDay {
+                todayScheduledEvents.append(event)
+            }
+
+            eventDayBounds.append(EventDayBounds(
+                id: event.id,
+                isAllDay: event.isAllDay,
+                startDay: startDay,
+                endDay: endDay,
+                startKey: startDay.timeIntervalSinceReferenceDate
+            ))
+        }
+
+        #if DEBUG
+        let eventsByDayStart = DispatchTime.now().uptimeNanoseconds
+        #endif
+        var eventsByDay: [TimeInterval: [CalendarEventMirror.ID]] = [:]
+        eventsByDay.reserveCapacity(eventDayBounds.count)
+        for eventDayBound in eventDayBounds {
+            #if DEBUG
+            let categoryStart = DispatchTime.now().uptimeNanoseconds
+            #endif
+
+            if eventDayBound.isAllDay == false && eventDayBound.startDay == eventDayBound.endDay {
+                #if DEBUG
+                let bucketInsertionStart = DispatchTime.now().uptimeNanoseconds
+                #endif
+                eventsByDay[eventDayBound.startKey, default: []].append(eventDayBound.id)
+                #if DEBUG
+                eventBucketInsertionNanoseconds += DispatchTime.now().uptimeNanoseconds - bucketInsertionStart
+                #endif
+                #if DEBUG
+                eventSingleDayTimedNanoseconds += DispatchTime.now().uptimeNanoseconds - categoryStart
+                #endif
+                continue
+            }
+
+            var day = eventDayBound.startDay
+            var steps = 0
+            while day <= eventDayBound.endDay && steps < 366 {
+                #if DEBUG
+                let bucketInsertionStart = DispatchTime.now().uptimeNanoseconds
+                #endif
+                eventsByDay[day.timeIntervalSinceReferenceDate, default: []].append(eventDayBound.id)
+                #if DEBUG
+                eventBucketInsertionNanoseconds += DispatchTime.now().uptimeNanoseconds - bucketInsertionStart
+                #endif
+                #if DEBUG
+                let dayStepStart = DispatchTime.now().uptimeNanoseconds
+                #endif
+                guard let next = cal.date(byAdding: .day, value: 1, to: day) else { break }
+                #if DEBUG
+                let dayStepElapsed = DispatchTime.now().uptimeNanoseconds - dayStepStart
+                eventDaySteppingNanoseconds += dayStepElapsed
+                if eventDayBound.isAllDay {
+                    eventAllDaySteppingNanoseconds += dayStepElapsed
+                } else {
+                    eventMultiDaySteppingNanoseconds += dayStepElapsed
+                }
+                #endif
+                day = next
+                steps += 1
+            }
+            #if DEBUG
+            let categoryElapsed = DispatchTime.now().uptimeNanoseconds - categoryStart
+            if eventDayBound.isAllDay {
+                eventAllDayNanoseconds += categoryElapsed
+            } else {
+                eventMultiDayNanoseconds += categoryElapsed
+            }
+            #endif
+        }
+        #if DEBUG
+        let eventBucketEnd = DispatchTime.now().uptimeNanoseconds
+        let todaySnapshotStart = eventBucketEnd
+        #endif
+        #if DEBUG
+        let todaySnapshotResult = TodaySnapshot.buildProfiled(
+            tasks: visibleTasks,
+            scheduledEvents: todayScheduledEvents,
+            referenceDate: input.referenceDate
+        )
+        let todaySnapshot = todaySnapshotResult.0
+        let todaySnapshotProfile = todaySnapshotResult.1
+        #else
+        let todaySnapshot = TodaySnapshot.build(
+            tasks: visibleTasks,
+            scheduledEvents: todayScheduledEvents,
+            referenceDate: input.referenceDate
+        )
+        #endif
+        #if DEBUG
+        let todaySnapshotEnd = DispatchTime.now().uptimeNanoseconds
+        let calendarSnapshotStart = todaySnapshotEnd
+        #endif
+        #if DEBUG
+        let calendarSnapshotResult = CalendarSnapshot.buildProfiled(
+            calendars: input.calendars,
+            events: input.events,
+            settings: input.settings
+        )
+        let calendarSnapshot = calendarSnapshotResult.0
+        let calendarSnapshotProfile = calendarSnapshotResult.1
+        #else
         let calendarSnapshot = CalendarSnapshot.build(
             calendars: input.calendars,
             events: input.events,
             settings: input.settings
         )
-
-        // Bucket events by calendar id so grid views can skip full-corpus
-        // filters while rendering.
-        var eventsByCalendar: [CalendarListMirror.ID: [CalendarEventMirror.ID]] = [:]
-        eventsByCalendar.reserveCapacity(input.calendars.count)
-        for event in input.events where input.settings.showCompletedItemsInCalendar || event.status != .cancelled {
-            eventsByCalendar[event.calendarID, default: []].append(event.id)
-        }
-
-        let cal = Calendar.current
-        var eventsByDay: [TimeInterval: [CalendarEventMirror.ID]] = [:]
-        eventsByDay.reserveCapacity(input.events.count)
-        for event in input.events where input.settings.showCompletedItemsInCalendar || event.status != .cancelled {
-            let startDay = cal.startOfDay(for: event.startDate)
-            let endDay = cal.startOfDay(for: event.endDate)
-            var day = startDay
-            var steps = 0
-            while day <= endDay && steps < 366 {
-                eventsByDay[day.timeIntervalSinceReferenceDate, default: []].append(event.id)
-                guard let next = cal.date(byAdding: .day, value: 1, to: day) else { break }
-                day = next
-                steps += 1
-            }
-        }
+        #endif
+        #if DEBUG
+        let calendarSnapshotEnd = DispatchTime.now().uptimeNanoseconds
+        let taskBucketStart = DispatchTime.now().uptimeNanoseconds
+        let taskDueBucketsStart = taskBucketStart
+        #endif
 
         var tasksByDueDate: [TimeInterval: [TaskMirror.ID]] = [:]
         for task in input.tasks where task.isDeleted == false && (input.settings.showCompletedItemsInCalendar || task.isCompleted == false) {
@@ -5681,6 +6009,10 @@ final class AppModel {
             tasksByDueDate[key, default: []].append(task.id)
         }
 
+        #if DEBUG
+        let taskDueBucketsEnd = DispatchTime.now().uptimeNanoseconds
+        let taskSidebarCountsStart = taskDueBucketsEnd
+        #endif
         var dated = 0
         var undated = 0
         for task in input.tasks where task.isCompleted == false && task.isDeleted == false {
@@ -5691,6 +6023,10 @@ final class AppModel {
             }
         }
 
+        #if DEBUG
+        let taskSidebarCountsEnd = DispatchTime.now().uptimeNanoseconds
+        let taskCompletionStatsStart = taskSidebarCountsEnd
+        #endif
         var stats: [TaskListMirror.ID: TaskListCompletionStats] = [:]
         for task in input.tasks where task.isDeleted == false {
             var entry = stats[task.taskListID] ?? TaskListCompletionStats(total: 0, completed: 0)
@@ -5698,6 +6034,11 @@ final class AppModel {
             if task.isCompleted { entry.completed += 1 }
             stats[task.taskListID] = entry
         }
+        #if DEBUG
+        let taskBucketEnd = DispatchTime.now().uptimeNanoseconds
+        let idIndexStart = DispatchTime.now().uptimeNanoseconds
+        let taskIndexStart = idIndexStart
+        #endif
 
         var taskIndexByID: [TaskMirror.ID: Int] = [:]
         var taskByIDSnapshot: [TaskMirror.ID: TaskMirror] = [:]
@@ -5708,6 +6049,10 @@ final class AppModel {
             taskByIDSnapshot[task.id] = task
         }
 
+        #if DEBUG
+        let taskIndexEnd = DispatchTime.now().uptimeNanoseconds
+        let eventIndexStart = taskIndexEnd
+        #endif
         var eventIndexByID: [CalendarEventMirror.ID: Int] = [:]
         var eventByIDSnapshot: [CalendarEventMirror.ID: CalendarEventMirror] = [:]
         eventIndexByID.reserveCapacity(input.events.count)
@@ -5716,6 +6061,118 @@ final class AppModel {
             eventIndexByID[event.id] = index
             eventByIDSnapshot[event.id] = event
         }
+        #if DEBUG
+        let idIndexEnd = DispatchTime.now().uptimeNanoseconds
+        let auxiliaryStart = DispatchTime.now().uptimeNanoseconds
+        let titleLookupStart = auxiliaryStart
+        #endif
+
+        let taskListTitleByID = Dictionary(uniqueKeysWithValues: input.taskLists.map { ($0.id, $0.title) })
+        let calendarTitleByID = Dictionary(uniqueKeysWithValues: input.calendars.map { ($0.id, $0.summary) })
+        #if DEBUG
+        let titleLookupEnd = DispatchTime.now().uptimeNanoseconds
+        let taskChildrenStart = titleLookupEnd
+        #endif
+        let taskChildrenByParentID = buildTaskChildrenByParentID(tasks: input.tasks)
+        #if DEBUG
+        let taskChildrenEnd = DispatchTime.now().uptimeNanoseconds
+        let duplicateIndexStart = taskChildrenEnd
+        #endif
+        let duplicateIndex = DuplicateIndex.build(
+            tasks: input.tasks,
+            dismissedGroupKeys: input.settings.dismissedDuplicateGroups
+        )
+        #if DEBUG
+        let duplicateIndexEnd = DispatchTime.now().uptimeNanoseconds
+        let taskListIndexStart = duplicateIndexEnd
+        #endif
+        let taskListIndexByID = Dictionary(uniqueKeysWithValues: input.taskLists.enumerated().map { ($0.element.id, $0.offset) })
+        #if DEBUG
+        let auxiliaryEnd = DispatchTime.now().uptimeNanoseconds
+        let taskListIndexEnd = auxiliaryEnd
+        let fingerprintStart = DispatchTime.now().uptimeNanoseconds
+        #endif
+
+        let displayFingerprint = calendarDisplayFingerprint(
+            input: input,
+            selectedCalendarIDs: calendarSnapshot.selectedCalendarIDs,
+            visibleTaskListIDs: visibleTaskListIDs
+        )
+        #if DEBUG
+        let fingerprintEnd = DispatchTime.now().uptimeNanoseconds
+        let coreSnapshotMilliseconds =
+            AppModelApplyProfile.milliseconds(from: taskSectionsStart, to: taskSectionsEnd)
+            + AppModelApplyProfile.milliseconds(from: taskBoardStart, to: taskBoardEnd)
+            + AppModelApplyProfile.milliseconds(from: todaySnapshotStart, to: todaySnapshotEnd)
+            + AppModelApplyProfile.milliseconds(from: calendarSnapshotStart, to: calendarSnapshotEnd)
+        let buildProfile = DerivedSnapshotBuildProfile(
+            visibilityMilliseconds: AppModelApplyProfile.milliseconds(from: visibilityStart, to: visibilityEnd),
+            taskSectionsMilliseconds: AppModelApplyProfile.milliseconds(from: taskSectionsStart, to: taskSectionsEnd),
+            taskBoardMilliseconds: AppModelApplyProfile.milliseconds(from: taskBoardStart, to: taskBoardEnd),
+            todaySnapshotMilliseconds: AppModelApplyProfile.milliseconds(from: todaySnapshotStart, to: todaySnapshotEnd),
+            todayTaskDueMilliseconds: todaySnapshotProfile.dueTaskMilliseconds,
+            todayTaskOverdueMilliseconds: todaySnapshotProfile.overdueTaskMilliseconds,
+            todayEventFilterMilliseconds: todaySnapshotProfile.eventFilterMilliseconds,
+            todayEventSortMilliseconds: todaySnapshotProfile.eventSortMilliseconds,
+            todayScheduledEventCount: todaySnapshotProfile.scheduledEventCount,
+            calendarSnapshotMilliseconds: AppModelApplyProfile.milliseconds(from: calendarSnapshotStart, to: calendarSnapshotEnd),
+            calendarSetupMilliseconds: calendarSnapshotProfile.setupMilliseconds,
+            calendarEventScanMilliseconds: calendarSnapshotProfile.eventScanMilliseconds,
+            calendarEventVisibilityMilliseconds: calendarSnapshotProfile.eventVisibilityMilliseconds,
+            calendarCountMilliseconds: calendarSnapshotProfile.calendarCountMilliseconds,
+            calendarColorAggregationMilliseconds: calendarSnapshotProfile.colorAggregationMilliseconds,
+            calendarLiteralTagExtractionMilliseconds: calendarSnapshotProfile.literalTagExtractionMilliseconds,
+            calendarLiteralSummaryScanMilliseconds: calendarSnapshotProfile.literalSummaryScanMilliseconds,
+            calendarLiteralDetailsScanMilliseconds: calendarSnapshotProfile.literalDetailsScanMilliseconds,
+            calendarLiteralLocationScanMilliseconds: calendarSnapshotProfile.literalLocationScanMilliseconds,
+            calendarLiteralRegexMatchingMilliseconds: calendarSnapshotProfile.literalRegexMatchingMilliseconds,
+            calendarLiteralDeduplicationMilliseconds: calendarSnapshotProfile.literalDeduplicationMilliseconds,
+            calendarBoundTagAggregationMilliseconds: calendarSnapshotProfile.boundTagAggregationMilliseconds,
+            calendarTagCountMilliseconds: calendarSnapshotProfile.tagCountMilliseconds,
+            calendarColorMapMilliseconds: calendarSnapshotProfile.colorMapMilliseconds,
+            calendarSelectedEventCount: calendarSnapshotProfile.selectedEventCount,
+            calendarVisibleEventCount: calendarSnapshotProfile.visibleEventCount,
+            calendarLiteralTaggedEventCount: calendarSnapshotProfile.literalTaggedEventCount,
+            calendarBoundTaggedEventCount: calendarSnapshotProfile.boundTaggedEventCount,
+            coreSnapshotMilliseconds: coreSnapshotMilliseconds,
+            eventsByCalendarMilliseconds: Double(eventsByCalendarNanoseconds) / 1_000_000,
+            eventsByDayMilliseconds: AppModelApplyProfile.milliseconds(from: eventsByDayStart, to: eventBucketEnd),
+            eventHiddenFilteringMilliseconds: Double(eventHiddenFilteringNanoseconds) / 1_000_000,
+            eventStartOfDayMilliseconds: Double(eventStartDayNormalizationNanoseconds + eventEndDayNormalizationNanoseconds) / 1_000_000,
+            eventStartDayNormalizationMilliseconds: Double(eventStartDayNormalizationNanoseconds) / 1_000_000,
+            eventEndDayNormalizationMilliseconds: Double(eventEndDayNormalizationNanoseconds) / 1_000_000,
+            eventSameDayProbeMilliseconds: Double(eventSameDayProbeNanoseconds) / 1_000_000,
+            eventSingleDayTimedMilliseconds: Double(eventSingleDayTimedNanoseconds) / 1_000_000,
+            eventAllDayMilliseconds: Double(eventAllDayNanoseconds) / 1_000_000,
+            eventMultiDayMilliseconds: Double(eventMultiDayNanoseconds) / 1_000_000,
+            eventDaySteppingMilliseconds: Double(eventDaySteppingNanoseconds) / 1_000_000,
+            eventAllDaySteppingMilliseconds: Double(eventAllDaySteppingNanoseconds) / 1_000_000,
+            eventMultiDaySteppingMilliseconds: Double(eventMultiDaySteppingNanoseconds) / 1_000_000,
+            eventBucketInsertionMilliseconds: Double(eventBucketInsertionNanoseconds) / 1_000_000,
+            eventBucketMilliseconds: AppModelApplyProfile.milliseconds(from: eventBucketStart, to: eventBucketEnd),
+            hiddenEventCount: hiddenEventCount,
+            singleDayTimedEventCount: singleDayTimedEventCount,
+            allDayEventCount: allDayEventCount,
+            multiDayEventCount: multiDayEventCount,
+            taskDueBucketsMilliseconds: AppModelApplyProfile.milliseconds(from: taskDueBucketsStart, to: taskDueBucketsEnd),
+            taskSidebarCountsMilliseconds: AppModelApplyProfile.milliseconds(from: taskSidebarCountsStart, to: taskSidebarCountsEnd),
+            taskCompletionStatsMilliseconds: AppModelApplyProfile.milliseconds(from: taskCompletionStatsStart, to: taskBucketEnd),
+            taskBucketAndStatsMilliseconds: AppModelApplyProfile.milliseconds(from: taskBucketStart, to: taskBucketEnd),
+            taskIndexMilliseconds: AppModelApplyProfile.milliseconds(from: taskIndexStart, to: taskIndexEnd),
+            eventIndexMilliseconds: AppModelApplyProfile.milliseconds(from: eventIndexStart, to: idIndexEnd),
+            idIndexMilliseconds: AppModelApplyProfile.milliseconds(from: idIndexStart, to: idIndexEnd),
+            titleLookupMilliseconds: AppModelApplyProfile.milliseconds(from: titleLookupStart, to: titleLookupEnd),
+            taskChildrenMilliseconds: AppModelApplyProfile.milliseconds(from: taskChildrenStart, to: taskChildrenEnd),
+            duplicateIndexMilliseconds: AppModelApplyProfile.milliseconds(from: duplicateIndexStart, to: duplicateIndexEnd),
+            taskListIndexMilliseconds: AppModelApplyProfile.milliseconds(from: taskListIndexStart, to: taskListIndexEnd),
+            auxiliaryLookupMilliseconds: AppModelApplyProfile.milliseconds(from: auxiliaryStart, to: auxiliaryEnd),
+            fingerprintMilliseconds: AppModelApplyProfile.milliseconds(from: fingerprintStart, to: fingerprintEnd),
+            totalMilliseconds: AppModelApplyProfile.milliseconds(from: totalStart, to: fingerprintEnd)
+        )
+        let optionalBuildProfile: DerivedSnapshotBuildProfile? = buildProfile
+        #else
+        let optionalBuildProfile: DerivedSnapshotBuildProfile? = nil
+        #endif
 
         return DerivedAppSnapshots(
             visibleTaskListIDs: visibleTaskListIDs,
@@ -5730,26 +6187,20 @@ final class AppModel {
             undatedOpenTaskCount: undated,
             openTaskCountForSidebar: dated + undated,
             taskListCompletionStats: stats,
-            taskListTitleByID: Dictionary(uniqueKeysWithValues: input.taskLists.map { ($0.id, $0.title) }),
-            calendarTitleByID: Dictionary(uniqueKeysWithValues: input.calendars.map { ($0.id, $0.summary) }),
-            taskChildrenByParentID: buildTaskChildrenByParentID(tasks: input.tasks),
-            duplicateIndex: DuplicateIndex.build(
-                tasks: input.tasks,
-                dismissedGroupKeys: input.settings.dismissedDuplicateGroups
-            ),
+            taskListTitleByID: taskListTitleByID,
+            calendarTitleByID: calendarTitleByID,
+            taskChildrenByParentID: taskChildrenByParentID,
+            duplicateIndex: duplicateIndex,
             taskByIDSnapshot: taskByIDSnapshot,
             eventByIDSnapshot: eventByIDSnapshot,
             taskIndexByID: taskIndexByID,
             eventIndexByID: eventIndexByID,
-            taskListIndexByID: Dictionary(uniqueKeysWithValues: input.taskLists.enumerated().map { ($0.element.id, $0.offset) }),
-            calendarDisplayFingerprint: calendarDisplayFingerprint(
-                input: input,
-                selectedCalendarIDs: calendarSnapshot.selectedCalendarIDs,
-                visibleTaskListIDs: visibleTaskListIDs
-            ),
+            taskListIndexByID: taskListIndexByID,
+            calendarDisplayFingerprint: displayFingerprint,
             taskCount: input.tasks.count,
             eventCount: input.events.count,
-            visibleTaskCount: visibleTasks.count
+            visibleTaskCount: visibleTasks.count,
+            buildProfile: optionalBuildProfile
         )
     }
 
@@ -5842,6 +6293,7 @@ private struct DerivedAppSnapshots: Sendable {
     var taskCount: Int
     var eventCount: Int
     var visibleTaskCount: Int
+    var buildProfile: DerivedSnapshotBuildProfile?
 }
 
 @MainActor

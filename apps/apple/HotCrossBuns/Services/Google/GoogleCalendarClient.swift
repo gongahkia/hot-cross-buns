@@ -84,7 +84,10 @@ struct GoogleCalendarClient: Sendable {
                     queryItems: queryItems
                 )
 
-                events.append(contentsOf: response.items.map { $0.mirror(calendarID: calendarID, defaultTimeZoneID: defaultTimeZoneID) })
+                events.reserveCapacity(events.count + response.items.count)
+                for item in response.items {
+                    events.append(item.mirror(calendarID: calendarID, defaultTimeZoneID: defaultTimeZoneID))
+                }
                 nextSyncToken = response.nextSyncToken ?? nextSyncToken
                 pageToken = response.nextPageToken
             } while pageToken != nil
@@ -367,6 +370,51 @@ struct GoogleCalendarClient: Sendable {
     }
 }
 
+#if DEBUG
+struct GoogleCalendarEventDecodeProfile: Sendable {
+    var decodedItemCount: Int
+    var mappedEventCount: Int
+    var nextSyncToken: String?
+    var decodeMilliseconds: Double
+    var mirrorMilliseconds: Double
+    var totalMilliseconds: Double
+}
+
+extension GoogleCalendarClient {
+    static func decodeAndMapEventsForBenchmark(
+        data: Data,
+        calendarID: String,
+        defaultTimeZoneID: String? = nil
+    ) throws -> GoogleCalendarEventDecodeProfile {
+        let totalStart = DispatchTime.now().uptimeNanoseconds
+        let decodeStart = DispatchTime.now().uptimeNanoseconds
+        let response = try JSONDecoder.googleAPI.decode(GoogleEventsResponse.self, from: data)
+        let decodeEnd = DispatchTime.now().uptimeNanoseconds
+
+        var mappedEvents: [CalendarEventMirror] = []
+        mappedEvents.reserveCapacity(response.items.count)
+        let mirrorStart = DispatchTime.now().uptimeNanoseconds
+        for item in response.items {
+            mappedEvents.append(item.mirror(calendarID: calendarID, defaultTimeZoneID: defaultTimeZoneID))
+        }
+        let mirrorEnd = DispatchTime.now().uptimeNanoseconds
+
+        return GoogleCalendarEventDecodeProfile(
+            decodedItemCount: response.items.count,
+            mappedEventCount: mappedEvents.count,
+            nextSyncToken: response.nextSyncToken,
+            decodeMilliseconds: Self.milliseconds(from: decodeStart, to: decodeEnd),
+            mirrorMilliseconds: Self.milliseconds(from: mirrorStart, to: mirrorEnd),
+            totalMilliseconds: Self.milliseconds(from: totalStart, to: mirrorEnd)
+        )
+    }
+
+    private static func milliseconds(from start: UInt64, to end: UInt64) -> Double {
+        Double(end - start) / 1_000_000
+    }
+}
+#endif
+
 struct GoogleCalendarEventsPage: Sendable {
     var events: [CalendarEventMirror]
     var nextSyncToken: String?
@@ -412,6 +460,10 @@ private struct GoogleEventDTO: Decodable, Sendable {
     var transparency: String?
     var visibility: String?
     var extendedProperties: GoogleEventExtendedPropertiesDTO?
+    private static let legacyBacklinkRegex = try? NSRegularExpression(
+        pattern: "(?m)(?:^|\\n)Linked task:[^\\n]*\\nhcb://task/([^\\s<]+)",
+        options: []
+    )
 
     func mirror(calendarID: String, defaultTimeZoneID: String? = nil) -> CalendarEventMirror {
         let fallbackDate = updated ?? Date()
@@ -423,12 +475,7 @@ private struct GoogleEventDTO: Decodable, Sendable {
         // write, the stripped description gets written back — completing the
         // migration to extendedProperties.private.
         let (scrubbedDescription, legacyTaskID) = GoogleEventDTO.stripLegacyBacklink(description ?? "")
-        let renderedDetails: String
-        if scrubbedDescription.isEmpty == false {
-            renderedDetails = MarkdownHTML.calendarHTMLToMarkdown(scrubbedDescription)
-        } else {
-            renderedDetails = ""
-        }
+        let renderedDetails = GoogleEventDTO.renderedDescription(from: scrubbedDescription)
         let privateProperties = extendedProperties?.privateProperties ?? [:]
         let hcbTaskID = privateProperties["hcbTaskID"] ?? legacyTaskID
         let availabilityHold = AvailabilityHoldMetadata(privateProperties: privateProperties)
@@ -499,10 +546,9 @@ private struct GoogleEventDTO: Decodable, Sendable {
     // field and is being retired in favour of extendedProperties.private.
     fileprivate static func stripLegacyBacklink(_ raw: String) -> (scrubbed: String, taskID: String?) {
         guard raw.isEmpty == false,
-              let regex = try? NSRegularExpression(
-                pattern: "(?m)(?:^|\\n)Linked task:[^\\n]*\\nhcb://task/([^\\s<]+)",
-                options: []
-              )
+              raw.contains("Linked task:"),
+              raw.contains("hcb://task/"),
+              let regex = legacyBacklinkRegex
         else {
             return (raw, nil)
         }
@@ -521,6 +567,16 @@ private struct GoogleEventDTO: Decodable, Sendable {
             .replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return (scrubbed, taskID)
+    }
+
+    private static func renderedDescription(from raw: String) -> String {
+        guard raw.isEmpty == false else { return "" }
+        guard raw.contains("<") || raw.contains("&") else {
+            return raw
+                .replacingOccurrences(of: "\r\n", with: "\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return MarkdownHTML.calendarHTMLToMarkdown(raw)
     }
 
     fileprivate static func resolveDate(dateTime: Date?, dateOnly: Date?, fallback: Date) -> Date {

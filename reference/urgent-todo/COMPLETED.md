@@ -143,6 +143,12 @@ Closes the correctness + hot-path-bloat set from the static audit.
 - Calendar events endpoint page size 250 → 2500; `SyncScheduler` fan-out bounded to a 5-wide sliding TaskGroup window. See `e53bf4f`.
 - `NotesView.orderedTasks` uses Set membership instead of O(n²) Array.contains; `StoreView.completedCount` reads `taskListCompletionStats` instead of refiltering tasks; release cache encoder drops `.prettyPrinted` + `.sortedKeys`. See `371626a`.
 
+## §7.02 Performance — fourth pass (large accounts, 2026-05-14)
+
+- Added a 15k-event benchmark/regression suite covering cache sidecar roundtrip, AppModel apply/derived rebuild, prepared calendar snapshots, Google decode/listEvents, full event sync, and menu bar status.
+- Hardened hot paths: fast Google wire-date parsing with Foundation fallbacks, allocation-light event decode/mirror, insertion-preserving sync merge with sortedness check, no duplicate active workspace events in the cache sidecar, shared visible-event/day bucketing passes, cached/fast tag extraction, and O(n) menu bar status selection.
+- Synthetic backend/cache/sync/derived-loop timings are substantially lower, but release readiness still requires SwiftUI Instruments validation for launch, scrolling, calendar transitions, and sync while the UI is under load.
+
 ## §10 Cybersecurity hardening — audit pass 1
 
 First focused pass. Reviewer swept four surfaces; two came back clean, two got fixes.

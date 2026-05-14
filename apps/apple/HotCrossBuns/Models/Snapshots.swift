@@ -1,5 +1,46 @@
 import Foundation
 
+struct TodaySnapshotBuildProfile: Sendable {
+    var dueTaskMilliseconds: Double
+    var overdueTaskMilliseconds: Double
+    var eventFilterMilliseconds: Double
+    var eventSortMilliseconds: Double
+    var totalMilliseconds: Double
+    var inputEventCount: Int
+    var scheduledEventCount: Int
+
+    static func milliseconds(from start: UInt64, to end: UInt64) -> Double {
+        Double(end - start) / 1_000_000
+    }
+}
+
+struct CalendarSnapshotBuildProfile: Sendable {
+    var setupMilliseconds: Double
+    var eventScanMilliseconds: Double
+    var eventVisibilityMilliseconds: Double
+    var calendarCountMilliseconds: Double
+    var colorAggregationMilliseconds: Double
+    var literalTagExtractionMilliseconds: Double
+    var literalSummaryScanMilliseconds: Double
+    var literalDetailsScanMilliseconds: Double
+    var literalLocationScanMilliseconds: Double
+    var literalRegexMatchingMilliseconds: Double
+    var literalDeduplicationMilliseconds: Double
+    var boundTagAggregationMilliseconds: Double
+    var tagCountMilliseconds: Double
+    var colorMapMilliseconds: Double
+    var totalMilliseconds: Double
+    var inputEventCount: Int
+    var selectedEventCount: Int
+    var visibleEventCount: Int
+    var literalTaggedEventCount: Int
+    var boundTaggedEventCount: Int
+
+    static func milliseconds(from start: UInt64, to end: UInt64) -> Double {
+        Double(end - start) / 1_000_000
+    }
+}
+
 struct TodaySnapshot: Equatable, Sendable {
     var date: Date
     var dueTasks: [TaskMirror]
@@ -13,6 +54,69 @@ struct TodaySnapshot: Equatable, Sendable {
         events: [CalendarEventMirror],
         referenceDate: Date,
         calendar: Calendar = .current
+    ) -> TodaySnapshot {
+        buildSnapshot(
+            tasks: tasks,
+            events: events,
+            scheduledEvents: nil,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+    }
+
+    static func build(
+        tasks: [TaskMirror],
+        scheduledEvents: [CalendarEventMirror],
+        referenceDate: Date,
+        calendar: Calendar = .current
+    ) -> TodaySnapshot {
+        buildSnapshot(
+            tasks: tasks,
+            events: nil,
+            scheduledEvents: scheduledEvents,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+    }
+
+    #if DEBUG
+    static func buildProfiled(
+        tasks: [TaskMirror],
+        events: [CalendarEventMirror],
+        referenceDate: Date,
+        calendar: Calendar = .current
+    ) -> (TodaySnapshot, TodaySnapshotBuildProfile) {
+        buildSnapshotProfiled(
+            tasks: tasks,
+            events: events,
+            scheduledEvents: nil,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+    }
+
+    static func buildProfiled(
+        tasks: [TaskMirror],
+        scheduledEvents: [CalendarEventMirror],
+        referenceDate: Date,
+        calendar: Calendar = .current
+    ) -> (TodaySnapshot, TodaySnapshotBuildProfile) {
+        buildSnapshotProfiled(
+            tasks: tasks,
+            events: nil,
+            scheduledEvents: scheduledEvents,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+    }
+    #endif
+
+    private static func buildSnapshot(
+        tasks: [TaskMirror],
+        events: [CalendarEventMirror]?,
+        scheduledEvents: [CalendarEventMirror]?,
+        referenceDate: Date,
+        calendar: Calendar
     ) -> TodaySnapshot {
         let dueTasks = tasks.filter { task in
             guard !task.isCompleted, !task.isDeleted, let dueDate = task.dueDate else {
@@ -28,19 +132,79 @@ struct TodaySnapshot: Equatable, Sendable {
             return dueDate < calendar.startOfDay(for: referenceDate)
         }.count
 
-        let scheduledEvents = events.filter { event in
+        let resolvedEvents = scheduledEvents ?? events?.filter { event in
             event.status != .cancelled && calendar.isDate(event.startDate, inSameDayAs: referenceDate)
-        }.sorted { lhs, rhs in
+        } ?? []
+        let sortedEvents = resolvedEvents.sorted { lhs, rhs in
             lhs.startDate < rhs.startDate
         }
 
         return TodaySnapshot(
             date: referenceDate,
             dueTasks: dueTasks,
-            scheduledEvents: scheduledEvents,
+            scheduledEvents: sortedEvents,
             overdueCount: overdueCount
         )
     }
+
+    #if DEBUG
+    private static func buildSnapshotProfiled(
+        tasks: [TaskMirror],
+        events: [CalendarEventMirror]?,
+        scheduledEvents: [CalendarEventMirror]?,
+        referenceDate: Date,
+        calendar: Calendar
+    ) -> (TodaySnapshot, TodaySnapshotBuildProfile) {
+        let totalStart = DispatchTime.now().uptimeNanoseconds
+        let dueStart = totalStart
+        let dueTasks = tasks.filter { task in
+            guard !task.isCompleted, !task.isDeleted, let dueDate = task.dueDate else {
+                return false
+            }
+            return calendar.isDate(dueDate, inSameDayAs: referenceDate)
+        }
+
+        let dueEnd = DispatchTime.now().uptimeNanoseconds
+        let overdueStart = dueEnd
+        let referenceStart = calendar.startOfDay(for: referenceDate)
+        let overdueCount = tasks.filter { task in
+            guard !task.isCompleted, !task.isDeleted, let dueDate = task.dueDate else {
+                return false
+            }
+            return dueDate < referenceStart
+        }.count
+
+        let overdueEnd = DispatchTime.now().uptimeNanoseconds
+        let eventFilterStart = overdueEnd
+        let resolvedEvents = scheduledEvents ?? events?.filter { event in
+            event.status != .cancelled && calendar.isDate(event.startDate, inSameDayAs: referenceDate)
+        } ?? []
+
+        let eventFilterEnd = DispatchTime.now().uptimeNanoseconds
+        let eventSortStart = eventFilterEnd
+        let sortedEvents = resolvedEvents.sorted { lhs, rhs in
+            lhs.startDate < rhs.startDate
+        }
+
+        let eventSortEnd = DispatchTime.now().uptimeNanoseconds
+        let snapshot = TodaySnapshot(
+            date: referenceDate,
+            dueTasks: dueTasks,
+            scheduledEvents: sortedEvents,
+            overdueCount: overdueCount
+        )
+        let profile = TodaySnapshotBuildProfile(
+            dueTaskMilliseconds: TodaySnapshotBuildProfile.milliseconds(from: dueStart, to: dueEnd),
+            overdueTaskMilliseconds: TodaySnapshotBuildProfile.milliseconds(from: overdueStart, to: overdueEnd),
+            eventFilterMilliseconds: TodaySnapshotBuildProfile.milliseconds(from: eventFilterStart, to: eventFilterEnd),
+            eventSortMilliseconds: TodaySnapshotBuildProfile.milliseconds(from: eventSortStart, to: eventSortEnd),
+            totalMilliseconds: TodaySnapshotBuildProfile.milliseconds(from: totalStart, to: eventSortEnd),
+            inputEventCount: events?.count ?? scheduledEvents?.count ?? 0,
+            scheduledEventCount: sortedEvents.count
+        )
+        return (snapshot, profile)
+    }
+    #endif
 }
 
 struct CalendarSnapshot: Equatable, Sendable {
@@ -65,45 +229,251 @@ struct CalendarSnapshot: Equatable, Sendable {
         events: [CalendarEventMirror],
         settings: AppSettings
     ) -> CalendarSnapshot {
+        buildSnapshot(calendars: calendars, events: events, settings: settings).snapshot
+    }
+
+    #if DEBUG
+    static func buildProfiled(
+        calendars: [CalendarListMirror],
+        events: [CalendarEventMirror],
+        settings: AppSettings
+    ) -> (CalendarSnapshot, CalendarSnapshotBuildProfile) {
+        let result = buildSnapshot(calendars: calendars, events: events, settings: settings)
+        return (result.snapshot, result.profile)
+    }
+    #endif
+
+    private static func buildSnapshot(
+        calendars: [CalendarListMirror],
+        events: [CalendarEventMirror],
+        settings: AppSettings
+    ) -> (snapshot: CalendarSnapshot, profile: CalendarSnapshotBuildProfile) {
+        #if DEBUG
+        let totalStart = DispatchTime.now().uptimeNanoseconds
+        let setupStart = totalStart
+        #endif
         let selectedCalendars = calendars.filter(\.isSelected)
         let selectedIDs = Set(selectedCalendars.map(\.id))
         var eventCountsByCalendarID: [CalendarListMirror.ID: Int] = [:]
         var eventCountsByColorID: [String: Int] = [:]
         var eventCountsByTagName: [String: Int] = [:]
         let colorTagIndex = colorTagIndex(from: settings.colorTagBindings)
+        let boundTagsByColorID = boundTagsByColorID(from: colorTagIndex)
+        #if DEBUG
+        let setupEnd = DispatchTime.now().uptimeNanoseconds
+        let eventScanStart = setupEnd
+        var selectedEventCount = 0
+        var visibleEventCount = 0
+        var literalTaggedEventCount = 0
+        var boundTaggedEventCount = 0
+        var eventVisibilityNanoseconds: UInt64 = 0
+        var calendarCountNanoseconds: UInt64 = 0
+        var colorAggregationNanoseconds: UInt64 = 0
+        var literalTagExtractionNanoseconds: UInt64 = 0
+        var literalTagExtractionProfile = LiteralTagExtractionProfile()
+        var boundTagAggregationNanoseconds: UInt64 = 0
+        var tagCountNanoseconds: UInt64 = 0
+        #endif
 
-        for event in events where selectedIDs.contains(event.calendarID)
-            && (settings.showCompletedItemsInCalendar || event.status != .cancelled) {
+        for event in events where selectedIDs.contains(event.calendarID) {
+            #if DEBUG
+            selectedEventCount += 1
+            let visibilityStart = DispatchTime.now().uptimeNanoseconds
+            #endif
+            let isVisibleEvent = settings.showCompletedItemsInCalendar || event.status != .cancelled
+            #if DEBUG
+            eventVisibilityNanoseconds += DispatchTime.now().uptimeNanoseconds - visibilityStart
+            #endif
+            guard isVisibleEvent else {
+                continue
+            }
+            #if DEBUG
+            visibleEventCount += 1
+            let calendarCountStart = DispatchTime.now().uptimeNanoseconds
+            #endif
             eventCountsByCalendarID[event.calendarID, default: 0] += 1
+            #if DEBUG
+            calendarCountNanoseconds += DispatchTime.now().uptimeNanoseconds - calendarCountStart
+            let colorAggregationStart = DispatchTime.now().uptimeNanoseconds
+            #endif
             let colorID = eventColorID(for: event)
             eventCountsByColorID[colorID, default: 0] += 1
+            #if DEBUG
+            colorAggregationNanoseconds += DispatchTime.now().uptimeNanoseconds - colorAggregationStart
+            let boundTags = boundTagsByColorID[colorID] ?? []
+            if boundTags.isEmpty == false { boundTaggedEventCount += 1 }
+            let hasLiteralTagMarker = hasPotentialLiteralTag(in: event)
+            guard hasLiteralTagMarker || boundTags.isEmpty == false else { continue }
+            let literalTagExtractionStart = DispatchTime.now().uptimeNanoseconds
+            #else
+            let boundTags = boundTagsByColorID[colorID] ?? []
+            guard hasPotentialLiteralTag(in: event) || boundTags.isEmpty == false else { continue }
+            #endif
 
+            #if DEBUG
+            var eventTagNames = literalTagNames(in: event, profile: &literalTagExtractionProfile)
+            #else
             var eventTagNames = literalTagNames(in: event)
-            for (tag, boundColorID) in colorTagIndex where normalizedColorID(boundColorID) == colorID {
-                eventTagNames.insert(tag)
-            }
+            #endif
+            #if DEBUG
+            literalTagExtractionNanoseconds += DispatchTime.now().uptimeNanoseconds - literalTagExtractionStart
+            if eventTagNames.isEmpty == false { literalTaggedEventCount += 1 }
+            let boundTagAggregationStart = DispatchTime.now().uptimeNanoseconds
+            #endif
+            eventTagNames.formUnion(boundTags)
+            #if DEBUG
+            boundTagAggregationNanoseconds += DispatchTime.now().uptimeNanoseconds - boundTagAggregationStart
+            let tagCountStart = DispatchTime.now().uptimeNanoseconds
+            #endif
             for tag in eventTagNames {
                 eventCountsByTagName[tag, default: 0] += 1
             }
+            #if DEBUG
+            tagCountNanoseconds += DispatchTime.now().uptimeNanoseconds - tagCountStart
+            #endif
         }
+        #if DEBUG
+        let eventScanEnd = DispatchTime.now().uptimeNanoseconds
+        let colorMapStart = eventScanEnd
+        #endif
 
-        return CalendarSnapshot(
+        let calendarColorHexByID = Dictionary(uniqueKeysWithValues: calendars.map { ($0.id, $0.colorHex) })
+        #if DEBUG
+        let colorMapEnd = DispatchTime.now().uptimeNanoseconds
+        #endif
+        let snapshot = CalendarSnapshot(
             selectedCalendars: selectedCalendars,
             selectedCalendarIDs: selectedIDs,
-            calendarColorHexByID: Dictionary(uniqueKeysWithValues: calendars.map { ($0.id, $0.colorHex) }),
+            calendarColorHexByID: calendarColorHexByID,
             eventCountsByCalendarID: eventCountsByCalendarID,
             eventCountsByColorID: eventCountsByColorID,
             eventCountsByTagName: eventCountsByTagName
         )
+        #if DEBUG
+        let profile = CalendarSnapshotBuildProfile(
+            setupMilliseconds: CalendarSnapshotBuildProfile.milliseconds(from: setupStart, to: setupEnd),
+            eventScanMilliseconds: CalendarSnapshotBuildProfile.milliseconds(from: eventScanStart, to: eventScanEnd),
+            eventVisibilityMilliseconds: Double(eventVisibilityNanoseconds) / 1_000_000,
+            calendarCountMilliseconds: Double(calendarCountNanoseconds) / 1_000_000,
+            colorAggregationMilliseconds: Double(colorAggregationNanoseconds) / 1_000_000,
+            literalTagExtractionMilliseconds: Double(literalTagExtractionNanoseconds) / 1_000_000,
+            literalSummaryScanMilliseconds: Double(literalTagExtractionProfile.summaryScanNanoseconds) / 1_000_000,
+            literalDetailsScanMilliseconds: Double(literalTagExtractionProfile.detailsScanNanoseconds) / 1_000_000,
+            literalLocationScanMilliseconds: Double(literalTagExtractionProfile.locationScanNanoseconds) / 1_000_000,
+            literalRegexMatchingMilliseconds: Double(literalTagExtractionProfile.regexMatchingNanoseconds) / 1_000_000,
+            literalDeduplicationMilliseconds: Double(literalTagExtractionProfile.deduplicationNanoseconds) / 1_000_000,
+            boundTagAggregationMilliseconds: Double(boundTagAggregationNanoseconds) / 1_000_000,
+            tagCountMilliseconds: Double(tagCountNanoseconds) / 1_000_000,
+            colorMapMilliseconds: CalendarSnapshotBuildProfile.milliseconds(from: colorMapStart, to: colorMapEnd),
+            totalMilliseconds: CalendarSnapshotBuildProfile.milliseconds(from: totalStart, to: DispatchTime.now().uptimeNanoseconds),
+            inputEventCount: events.count,
+            selectedEventCount: selectedEventCount,
+            visibleEventCount: visibleEventCount,
+            literalTaggedEventCount: literalTaggedEventCount,
+            boundTaggedEventCount: boundTaggedEventCount
+        )
+        #else
+        let profile = CalendarSnapshotBuildProfile(
+            setupMilliseconds: 0,
+            eventScanMilliseconds: 0,
+            eventVisibilityMilliseconds: 0,
+            calendarCountMilliseconds: 0,
+            colorAggregationMilliseconds: 0,
+            literalTagExtractionMilliseconds: 0,
+            literalSummaryScanMilliseconds: 0,
+            literalDetailsScanMilliseconds: 0,
+            literalLocationScanMilliseconds: 0,
+            literalRegexMatchingMilliseconds: 0,
+            literalDeduplicationMilliseconds: 0,
+            boundTagAggregationMilliseconds: 0,
+            tagCountMilliseconds: 0,
+            colorMapMilliseconds: 0,
+            totalMilliseconds: 0,
+            inputEventCount: 0,
+            selectedEventCount: 0,
+            visibleEventCount: 0,
+            literalTaggedEventCount: 0,
+            boundTaggedEventCount: 0
+        )
+        #endif
+        return (snapshot, profile)
     }
 
     private static func eventColorID(for event: CalendarEventMirror) -> String {
         CalendarEventColor.from(colorId: event.colorId).rawValue
     }
 
-    private static func literalTagNames(in event: CalendarEventMirror) -> Set<String> {
-        let fields = [event.summary, event.details, event.location]
-        return Set(fields.flatMap(TagExtractor.tags).map(normalizedTagName).filter { $0.isEmpty == false })
+    private static func hasPotentialLiteralTag(in event: CalendarEventMirror) -> Bool {
+        event.summary.contains("#") || event.details.contains("#") || event.location.contains("#")
+    }
+
+    private struct LiteralTagExtractionProfile {
+        var summaryScanNanoseconds: UInt64 = 0
+        var detailsScanNanoseconds: UInt64 = 0
+        var locationScanNanoseconds: UInt64 = 0
+        var regexMatchingNanoseconds: UInt64 = 0
+        var deduplicationNanoseconds: UInt64 = 0
+    }
+
+    private enum LiteralTagField {
+        case summary
+        case details
+        case location
+    }
+
+    private static func literalTagNames(
+        in event: CalendarEventMirror,
+        profile: UnsafeMutablePointer<LiteralTagExtractionProfile>? = nil
+    ) -> Set<String> {
+        guard hasPotentialLiteralTag(in: event) else { return [] }
+        let setStart = profile.map { _ in DispatchTime.now().uptimeNanoseconds } ?? 0
+        var tags: Set<String> = []
+        tags.reserveCapacity(2)
+        if let profile {
+            profile.pointee.deduplicationNanoseconds += DispatchTime.now().uptimeNanoseconds - setStart
+        }
+        insertLiteralTagNames(in: event.summary, field: .summary, into: &tags, profile: profile)
+        insertLiteralTagNames(in: event.details, field: .details, into: &tags, profile: profile)
+        insertLiteralTagNames(in: event.location, field: .location, into: &tags, profile: profile)
+        return tags
+    }
+
+    private static func insertLiteralTagNames(
+        in text: String,
+        field: LiteralTagField,
+        into tags: inout Set<String>,
+        profile: UnsafeMutablePointer<LiteralTagExtractionProfile>? = nil
+    ) {
+        guard text.contains("#") else { return }
+        let scanStart = profile.map { _ in DispatchTime.now().uptimeNanoseconds } ?? 0
+        let extractedTags: [String]
+        if let profile {
+            let result = TagExtractor.tagsProfiled(in: text)
+            extractedTags = result.tags
+            profile.pointee.regexMatchingNanoseconds += result.profile.regexNanoseconds
+        } else {
+            extractedTags = TagExtractor.tags(in: text)
+        }
+        let scanEnd = profile.map { _ in DispatchTime.now().uptimeNanoseconds } ?? 0
+        if let profile {
+            switch field {
+            case .summary:
+                profile.pointee.summaryScanNanoseconds += scanEnd - scanStart
+            case .details:
+                profile.pointee.detailsScanNanoseconds += scanEnd - scanStart
+            case .location:
+                profile.pointee.locationScanNanoseconds += scanEnd - scanStart
+            }
+        }
+        for tag in extractedTags {
+            let deduplicationStart = profile.map { _ in DispatchTime.now().uptimeNanoseconds } ?? 0
+            let normalized = normalizedTagName(tag)
+            guard normalized.isEmpty == false else { continue }
+            tags.insert(normalized)
+            if let profile {
+                profile.pointee.deduplicationNanoseconds += DispatchTime.now().uptimeNanoseconds - deduplicationStart
+            }
+        }
     }
 
     private static func colorTagIndex(from bindings: [String: String]) -> [String: String] {
@@ -112,6 +482,12 @@ struct CalendarSnapshot: Equatable, Sendable {
             let tagName = normalizedTagName(entry.value)
             guard colorID.isEmpty == false, tagName.isEmpty == false else { return }
             result[tagName] = colorID
+        }
+    }
+
+    private static func boundTagsByColorID(from colorTagIndex: [String: String]) -> [String: [String]] {
+        colorTagIndex.reduce(into: [String: [String]]()) { result, entry in
+            result[entry.value, default: []].append(entry.key)
         }
     }
 

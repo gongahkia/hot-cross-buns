@@ -18,7 +18,8 @@ final class CalendarViewFilterTests: XCTestCase {
         summary: String = "Planning",
         details: String = "",
         location: String = "",
-        colorId: String? = nil
+        colorId: String? = nil,
+        status: CalendarEventStatus = .confirmed
     ) -> CalendarEventMirror {
         CalendarEventMirror(
             id: id,
@@ -28,7 +29,7 @@ final class CalendarViewFilterTests: XCTestCase {
             startDate: day(2026, 5, 11, hour: 9),
             endDate: day(2026, 5, 11, hour: 10),
             isAllDay: false,
-            status: .confirmed,
+            status: status,
             recurrence: [],
             etag: nil,
             updatedAt: nil,
@@ -120,6 +121,93 @@ final class CalendarViewFilterTests: XCTestCase {
 
         XCTAssertTrue(CalendarEventViewFilter.literalTagNames(in: event).isEmpty)
         XCTAssertTrue(filter.allows(event))
+    }
+
+    func testCalendarSnapshotCountsLiteralAndColorBoundTags() {
+        let calendars = [
+            CalendarListMirror(
+                id: "work",
+                summary: "Work",
+                colorHex: "#d50000",
+                isSelected: true,
+                accessRole: "owner"
+            ),
+            CalendarListMirror(
+                id: "personal",
+                summary: "Personal",
+                colorHex: "#039be5",
+                isSelected: false,
+                accessRole: "reader"
+            )
+        ]
+        var settings = AppSettings.default
+        settings.colorTagBindings = [CalendarEventColor.sage.rawValue: "#Marketing"]
+
+        let snapshot = CalendarSnapshot.build(
+            calendars: calendars,
+            events: [
+                event(
+                    id: "literal",
+                    summary: "Launch #Ops",
+                    details: "Prep #Roadmap",
+                    location: "Room #11-07",
+                    colorId: CalendarEventColor.sage.rawValue
+                ),
+                event(id: "mapped", colorId: CalendarEventColor.sage.rawValue),
+                event(
+                    id: "cancelled",
+                    summary: "Cancelled #Ops",
+                    colorId: CalendarEventColor.sage.rawValue,
+                    status: .cancelled
+                ),
+                event(
+                    id: "hidden-calendar",
+                    calendarID: "personal",
+                    summary: "Hidden #Ops",
+                    colorId: CalendarEventColor.sage.rawValue
+                )
+            ],
+            settings: settings
+        )
+
+        XCTAssertEqual(snapshot.selectedCalendarIDs, ["work"])
+        XCTAssertEqual(snapshot.eventCountsByCalendarID["work"], 2)
+        XCTAssertNil(snapshot.eventCountsByCalendarID["personal"])
+        XCTAssertEqual(snapshot.eventCountsByColorID[CalendarEventColor.sage.rawValue], 2)
+        XCTAssertEqual(snapshot.eventCountsByTagName["ops"], 1)
+        XCTAssertEqual(snapshot.eventCountsByTagName["roadmap"], 1)
+        XCTAssertEqual(snapshot.eventCountsByTagName["marketing"], 2)
+        XCTAssertNil(snapshot.eventCountsByTagName["11-07"])
+    }
+
+    func testCalendarSnapshotCountsUntaggedEventsAndDeduplicatesLiteralTags() {
+        let calendars = [
+            CalendarListMirror(
+                id: "work",
+                summary: "Work",
+                colorHex: "#d50000",
+                isSelected: true,
+                accessRole: "owner"
+            )
+        ]
+
+        let snapshot = CalendarSnapshot.build(
+            calendars: calendars,
+            events: [
+                event(
+                    id: "duplicate-tag",
+                    summary: "Launch #Ops",
+                    details: "Prep #ops",
+                    location: "Room #Ops"
+                ),
+                event(id: "untagged", summary: "Planning")
+            ],
+            settings: .default
+        )
+
+        XCTAssertEqual(snapshot.eventCountsByCalendarID["work"], 2)
+        XCTAssertEqual(snapshot.eventCountsByColorID[CalendarEventColor.defaultColor.rawValue], 2)
+        XCTAssertEqual(snapshot.eventCountsByTagName["ops"], 1)
     }
 
     func testSectionsCombineWithAndSemantics() {

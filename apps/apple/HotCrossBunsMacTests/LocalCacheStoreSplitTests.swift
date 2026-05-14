@@ -243,6 +243,37 @@ final class LocalCacheStoreSplitTests: XCTestCase {
         )
     }
 
+    func testPlaintextSidecarDoesNotDuplicateActiveWorkspaceEvents() async throws {
+        let store = LocalCacheStore(fileURL: mainFileURL)
+        let state = makeMultiAccountState(
+            activeEvents: [makeEvent(id: "personal-event")],
+            inactiveEvents: [makeEvent(id: "work-event")]
+        )
+
+        await store.save(state)
+
+        struct Payload: Decodable {
+            var activeEvents: [CalendarEventMirror]
+            var workspaceEventsByAccountID: [GoogleAccount.ID: [CalendarEventMirror]]
+        }
+        let payload = try JSONDecoder.testCacheDecoder.decode(Payload.self, from: sidecarBytes())
+        XCTAssertEqual(payload.activeEvents.map(\.id), ["personal-event"])
+        XCTAssertNil(payload.workspaceEventsByAccountID[GoogleAccount.preview.id])
+        XCTAssertEqual(payload.workspaceEventsByAccountID["work-account"]?.map(\.id), ["work-event"])
+
+        let reloader = LocalCacheStore(fileURL: mainFileURL)
+        let loaded = await reloader.loadCachedState()
+        XCTAssertEqual(loaded.events.map(\.id), ["personal-event"])
+        XCTAssertEqual(
+            loaded.accountWorkspaces.first { $0.accountID == GoogleAccount.preview.id }?.events.map(\.id),
+            ["personal-event"]
+        )
+        XCTAssertEqual(
+            loaded.accountWorkspaces.first { $0.accountID == "work-account" }?.events.map(\.id),
+            ["work-event"]
+        )
+    }
+
     func testInactiveWorkspaceEventChangeTriggersSidecarRewrite() async throws {
         let store = LocalCacheStore(fileURL: mainFileURL)
         let state1 = makeMultiAccountState(
