@@ -82,6 +82,164 @@ final class MCPServerControllerTests: XCTestCase {
         XCTAssertNotNil(errorBody["error"])
     }
 
+    func testRequestSizeLimitsRejectBeforeAuthAndJSONParsing() async throws {
+        let controller = controller()
+
+        let oversizedHeader = await controller.handleHTTPRequest(
+            data: rawHTTPRequest(lines: [
+                "POST /mcp HTTP/1.1",
+                "Host: \(String(repeating: "a", count: MCPServerController.maxHTTPHeaderBytes))",
+                "Content-Length: 2"
+            ], body: Data("{}".utf8)),
+            remoteIsLocal: true
+        )
+        XCTAssertEqual(oversizedHeader.status, 413)
+
+        let oversizedDeclaredBody = await controller.handleHTTPRequest(
+            data: rawHTTPRequest(lines: [
+                "POST /mcp HTTP/1.1",
+                "Host: 127.0.0.1",
+                "Content-Length: \(MCPServerController.maxHTTPBodyBytes + 1)"
+            ], body: Data()),
+            remoteIsLocal: true
+        )
+        XCTAssertEqual(oversizedDeclaredBody.status, 413)
+
+        let oversizedActualBody = await controller.handleHTTPRequest(
+            data: httpRequest(headers: [:], body: Data(repeating: 65, count: MCPServerController.maxHTTPBodyBytes + 1)),
+            remoteIsLocal: true
+        )
+        XCTAssertEqual(oversizedActualBody.status, 413)
+
+        let oversizedJSONRPCBody = await controller.handleJSONRPCBody(Data(repeating: 65, count: MCPServerController.maxHTTPBodyBytes + 1))
+        XCTAssertEqual(oversizedJSONRPCBody.status, 413)
+    }
+
+    func testMalformedContentLengthRequestsAreRejected() async throws {
+        let controller = controller()
+
+        let badLength = await controller.handleHTTPRequest(
+            data: rawHTTPRequest(lines: [
+                "POST /mcp HTTP/1.1",
+                "Host: 127.0.0.1",
+                "Content-Length: abc",
+                "Authorization: Bearer test-token"
+            ], body: Data()),
+            remoteIsLocal: true
+        )
+        XCTAssertEqual(badLength.status, 400)
+
+        let duplicateLength = await controller.handleHTTPRequest(
+            data: rawHTTPRequest(lines: [
+                "POST /mcp HTTP/1.1",
+                "Host: 127.0.0.1",
+                "Content-Length: 0",
+                "Content-Length: 0",
+                "Authorization: Bearer test-token"
+            ], body: Data()),
+            remoteIsLocal: true
+        )
+        XCTAssertEqual(duplicateLength.status, 400)
+
+        let duplicateAuthorization = await controller.handleHTTPRequest(
+            data: rawHTTPRequest(lines: [
+                "POST /mcp HTTP/1.1",
+                "Host: 127.0.0.1",
+                "Content-Length: 0",
+                "Authorization: Bearer test-token",
+                "Authorization: Bearer test-token"
+            ], body: Data()),
+            remoteIsLocal: true
+        )
+        XCTAssertEqual(duplicateAuthorization.status, 400)
+
+        var requestWithExtraBytes = httpRequest(headers: ["Authorization": "Bearer test-token"], body: rpc("tools/list"))
+        requestWithExtraBytes.append(Data("GET /mcp HTTP/1.1\r\n\r\n".utf8))
+        let extraBytes = await controller.handleHTTPRequest(
+            data: requestWithExtraBytes,
+            remoteIsLocal: true
+        )
+        XCTAssertEqual(extraBytes.status, 400)
+    }
+
+    func testRateLimitAppliesPerClientAndPublishesActivity() async throws {
+        var activities: [MCPActivityEntry] = []
+        let controller = MCPServerController(
+            toolService: HCBToolService(model: AppModel.preview),
+            tokenProvider: { "test-token" },
+            rateLimitConfiguration: MCPRateLimitConfiguration(maxRequests: 2, windowSeconds: 60),
+            onStatus: { _ in },
+            onActivity: { activity in
+                activities.append(activity)
+            }
+        )
+
+        let request = httpRequest(headers: ["Authorization": "Bearer test-token"], body: rpc("tools/list"))
+        let first = await controller.handleHTTPRequest(data: request, remoteIsLocal: true, now: Date(timeIntervalSince1970: 10), clientKey: "client-a")
+        let second = await controller.handleHTTPRequest(data: request, remoteIsLocal: true, now: Date(timeIntervalSince1970: 11), clientKey: "client-a")
+        let third = await controller.handleHTTPRequest(data: request, remoteIsLocal: true, now: Date(timeIntervalSince1970: 12), clientKey: "client-a")
+        let otherClient = await controller.handleHTTPRequest(data: request, remoteIsLocal: true, now: Date(timeIntervalSince1970: 12), clientKey: "client-b")
+
+        XCTAssertEqual(first.status, 200)
+        XCTAssertEqual(second.status, 200)
+        XCTAssertEqual(third.status, 429)
+        XCTAssertEqual(otherClient.status, 200)
+        await Task.yield()
+        XCTAssertTrue(activities.contains { $0.outcome == .rateLimited && $0.detail == "Request limit reached" })
+    }
+
+    func testWriteCallsEmitAuditMetadataWithoutArgumentValues() async throws {
+        let audit = MCPAuditCapture()
+        var activities: [MCPActivityEntry] = []
+        let model = AppModel.preview
+        var settings = model.settings
+        settings.mcpPermissionMode = .confirmWrites
+        settings.cloudSyncTargets = []
+        model.updateSettings(settings)
+        let controller = MCPServerController(
+            toolService: HCBToolService(model: model),
+            tokenProvider: { "test-token" },
+            onStatus: { _ in },
+            onActivity: { activity in
+                activities.append(activity)
+            },
+            auditRecorder: { entry, metadata in
+                await audit.record(entry: entry, metadata: metadata)
+            }
+        )
+
+        let response = try await postJSON(controller, object: [
+            "jsonrpc": "2.0",
+            "id": "dry-run",
+            "method": "tools/call",
+            "params": [
+                "name": "hcb_create_note",
+                "arguments": [
+                    "title": "Private launch note",
+                    "notes": "Do not write this literal to audit metadata.",
+                    "dryRun": true
+                ]
+            ]
+        ], headers: [
+            "Authorization": "Bearer test-token",
+            "User-Agent": "MCPTest/1.0"
+        ])
+
+        XCTAssertEqual(response.status, 200)
+        await Task.yield()
+        XCTAssertTrue(activities.contains { $0.toolName == "hcb_create_note" && $0.outcome == .dryRun })
+
+        let records = await audit.records()
+        let record = try XCTUnwrap(records.first)
+        XCTAssertEqual(record.entry.toolName, "hcb_create_note")
+        XCTAssertEqual(record.metadata["client"], "MCPTest/1.0")
+        XCTAssertEqual(record.metadata["dryRunRequested"], "true")
+        XCTAssertEqual(record.metadata["confirmationIssued"], "true")
+        XCTAssertEqual(record.metadata["argumentKeys"], "dryRun,notes,title")
+        XCTAssertFalse(record.metadata.values.contains { $0.contains("Private launch note") })
+        XCTAssertFalse(record.metadata.values.contains { $0.contains("Do not write this literal") })
+    }
+
     func testLoopbackListenerAcceptsAuthorizedJSONRPC() async throws {
         let port = try freeLocalPort()
         let running = expectation(description: "MCP server starts")
@@ -125,10 +283,14 @@ final class MCPServerControllerTests: XCTestCase {
         )
     }
 
-    private func postJSON(_ controller: MCPServerController, object: [String: Any]) async throws -> HTTPResponse {
+    private func postJSON(
+        _ controller: MCPServerController,
+        object: [String: Any],
+        headers: [String: String] = ["Authorization": "Bearer test-token"]
+    ) async throws -> HTTPResponse {
         let body = try JSONSerialization.data(withJSONObject: object)
         return await controller.handleHTTPRequest(
-            data: httpRequest(headers: ["Authorization": "Bearer test-token"], body: body),
+            data: httpRequest(headers: headers, body: body),
             remoteIsLocal: true
         )
     }
@@ -151,6 +313,15 @@ final class MCPServerControllerTests: XCTestCase {
         for (key, value) in headers {
             lines.append("\(key): \(value)")
         }
+        lines.append("")
+        lines.append("")
+        var data = Data(lines.joined(separator: "\r\n").utf8)
+        data.append(body)
+        return data
+    }
+
+    private func rawHTTPRequest(lines: [String], body: Data) -> Data {
+        var lines = lines
         lines.append("")
         lines.append("")
         var data = Data(lines.joined(separator: "\r\n").utf8)
@@ -189,5 +360,17 @@ final class MCPServerControllerTests: XCTestCase {
         }
         XCTAssertEqual(nameStatus, 0)
         return Int(UInt16(bigEndian: boundAddress.sin_port))
+    }
+}
+
+private actor MCPAuditCapture {
+    private var stored: [(entry: MCPActivityEntry, metadata: [String: String])] = []
+
+    func record(entry: MCPActivityEntry, metadata: [String: String]) {
+        stored.append((entry, metadata))
+    }
+
+    func records() -> [(entry: MCPActivityEntry, metadata: [String: String])] {
+        stored
     }
 }

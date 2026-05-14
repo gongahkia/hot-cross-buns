@@ -36,6 +36,51 @@ struct AgentAccessSection: View {
                 .hcbFont(.caption)
                 .foregroundStyle(.secondary)
 
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("Recent MCP activity", systemImage: "waveform.path.ecg")
+                        .hcbFont(.caption)
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Button {
+                        model.clearMCPRecentActivity()
+                    } label: {
+                        Label("Clear", systemImage: "xmark.circle")
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(model.mcpRecentActivity.isEmpty)
+                }
+
+                if model.mcpRecentActivity.isEmpty {
+                    Text("No MCP activity this launch.")
+                        .hcbFont(.caption2)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(Array(model.mcpRecentActivity.prefix(6))) { entry in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Image(systemName: entry.outcome.symbolName)
+                                .foregroundStyle(outcomeForegroundStyle(entry.outcome))
+                                .frame(width: 16)
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 6) {
+                                    Text(entry.title)
+                                        .hcbFont(.caption)
+                                        .lineLimit(1)
+                                    Text(entry.outcome.title)
+                                        .hcbFont(.caption2)
+                                        .foregroundStyle(outcomeForegroundStyle(entry.outcome))
+                                }
+                                Text("\(entry.detail) - \(entry.client) - \(entry.timestamp, style: .relative)")
+                                    .hcbFont(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+
             HStack {
                 Button {
                     copyClientConfiguration()
@@ -103,6 +148,17 @@ struct AgentAccessSection: View {
             AnyShapeStyle(AppColor.ember)
         case .stopped:
             AnyShapeStyle(Color.secondary)
+        }
+    }
+
+    private func outcomeForegroundStyle(_ outcome: MCPActivityOutcome) -> AnyShapeStyle {
+        switch outcome {
+        case .applied, .succeeded, .dryRun:
+            AnyShapeStyle(AppColor.moss)
+        case .confirmationRequired, .rateLimited:
+            AnyShapeStyle(Color.orange)
+        case .denied, .invalid, .failed:
+            AnyShapeStyle(AppColor.ember)
         }
     }
 

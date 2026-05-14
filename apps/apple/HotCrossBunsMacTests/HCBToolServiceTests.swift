@@ -60,6 +60,21 @@ final class HCBToolServiceTests: XCTestCase {
         XCTAssertTrue(model.tasks.contains { $0.title == "Agent note" && $0.dueDate == nil })
     }
 
+    func testConfirmWritesDoesNotMintConfirmationForRealWriteAttempt() async throws {
+        let service = HCBToolService(model: previewModel(permissionMode: .confirmWrites, syncTargets: []))
+
+        do {
+            _ = try await service.callTool(
+                name: "hcb_create_note",
+                arguments: ["title": "No preview"]
+            )
+            XCTFail("Expected confirmation requirement")
+        } catch let error as HCBToolError {
+            XCTAssertEqual(error, .confirmationRequired("Dry-run confirmation is required before this write can apply.", nil))
+            XCTAssertNil(error.confirmationId)
+        }
+    }
+
     func testConfirmWritesCanCreateDatedTaskAndEventAfterDryRun() async throws {
         let model = previewModel(permissionMode: .confirmWrites, syncTargets: [])
         let service = HCBToolService(model: model)
@@ -128,7 +143,8 @@ final class HCBToolServiceTests: XCTestCase {
             )
             XCTFail("Expected confirmation mismatch")
         } catch let error as HCBToolError {
-            XCTAssertEqual(error.confirmationId == nil, false)
+            XCTAssertEqual(error, .confirmationMismatch)
+            XCTAssertNil(error.confirmationId)
         }
     }
 
@@ -139,8 +155,19 @@ final class HCBToolServiceTests: XCTestCase {
             _ = try await service.callTool(name: "hcb_delete_task", arguments: ["id": "task-1"])
             XCTFail("Expected confirmation requirement")
         } catch let error as HCBToolError {
-            XCTAssertNotNil(error.confirmationId)
+            XCTAssertNil(error.confirmationId)
         }
+
+        let dryRun = try await service.callTool(
+            name: "hcb_delete_task",
+            arguments: ["id": "task-1", "dryRun": true]
+        )
+        let confirmationId = try XCTUnwrap(dryRun["confirmationId"] as? String)
+        let applied = try await service.callTool(
+            name: "hcb_delete_task",
+            arguments: ["id": "task-1", "confirmationId": confirmationId]
+        )
+        XCTAssertEqual(applied["applied"] as? Bool, true)
     }
 
     func testInvalidIdsAndCredentialLikePatchFieldsAreHandledSafely() async throws {
@@ -157,14 +184,29 @@ final class HCBToolServiceTests: XCTestCase {
             name: "hcb_update_task",
             arguments: [
                 "id": "task-1",
-                "patch": ["title": "New title", "apiKey": "secret-value"],
+                "patch": [
+                    "title": "New title",
+                    "apiKey": "secret-value",
+                    "nested": [
+                        "refreshToken": "nested-secret-value",
+                        "children": [
+                            ["clientSecret": "array-secret-value"]
+                        ]
+                    ]
+                ],
                 "dryRun": true
             ]
         )
         let item = try XCTUnwrap(dryRun["item"] as? [String: Any])
         let patch = try XCTUnwrap(item["patch"] as? [String: Any])
         XCTAssertEqual(patch["apiKey"] as? String, "[redacted]")
+        let nested = try XCTUnwrap(patch["nested"] as? [String: Any])
+        XCTAssertEqual(nested["refreshToken"] as? String, "[redacted]")
+        let children = try XCTUnwrap(nested["children"] as? [[String: Any]])
+        XCTAssertEqual(children.first?["clientSecret"] as? String, "[redacted]")
         XCTAssertFalse(MCPServerController.jsonString(dryRun).contains("secret-value"))
+        XCTAssertFalse(MCPServerController.jsonString(dryRun).contains("nested-secret-value"))
+        XCTAssertFalse(MCPServerController.jsonString(dryRun).contains("array-secret-value"))
     }
 
     private func previewModel(

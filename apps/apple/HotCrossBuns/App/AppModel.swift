@@ -126,6 +126,7 @@ final class AppModel {
     private(set) var loadingOverlay: LoadingOverlayState?
     private(set) var localBackupSummary: LocalBackupService.BackupSummary?
     private(set) var mcpServerStatus: MCPServerStatus = .stopped
+    private(set) var mcpRecentActivity: [MCPActivityEntry] = []
     private(set) var taskLists: [TaskListMirror] = []
     private(set) var tasks: [TaskMirror] = []
     private(set) var calendars: [CalendarListMirror] = []
@@ -2747,6 +2748,10 @@ final class AppModel {
         return json
     }
 
+    func clearMCPRecentActivity() {
+        mcpRecentActivity = []
+    }
+
     private func reconcileMCPServer() {
         guard settings.mcpServerEnabled else {
             mcpServerController?.stop()
@@ -2755,11 +2760,24 @@ final class AppModel {
         }
         if mcpServerController == nil {
             let toolService = HCBToolService(model: self)
-            mcpServerController = MCPServerController(toolService: toolService) { [weak self] status in
-                self?.mcpServerStatus = status
-            }
+            mcpServerController = MCPServerController(
+                toolService: toolService,
+                onStatus: { [weak self] status in
+                    self?.mcpServerStatus = status
+                },
+                onActivity: { [weak self] activity in
+                    self?.recordMCPActivity(activity)
+                }
+            )
         }
         mcpServerController?.start(port: settings.mcpPort)
+    }
+
+    private func recordMCPActivity(_ activity: MCPActivityEntry) {
+        mcpRecentActivity.insert(activity, at: 0)
+        if mcpRecentActivity.count > 20 {
+            mcpRecentActivity.removeLast(mcpRecentActivity.count - 20)
+        }
     }
 
     func setRawGoogleDiagnosticsEnabled(_ isEnabled: Bool) {
