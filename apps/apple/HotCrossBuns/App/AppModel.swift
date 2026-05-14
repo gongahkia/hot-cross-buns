@@ -19,6 +19,17 @@ struct LocalAttachmentDiagnostic: Identifiable, Equatable {
     var health: LocalAttachmentHealth
 }
 
+private enum LocalBackupEncryptionError: LocalizedError {
+    case missingKeyOrSalt
+
+    var errorDescription: String? {
+        switch self {
+        case .missingKeyOrSalt:
+            "Cache encryption is enabled, but the local backup encryption key is unavailable."
+        }
+    }
+}
+
 enum LocalAttachmentRepairError: LocalizedError {
     case replacementUnavailable(LocalAttachmentHealth)
 
@@ -2808,7 +2819,8 @@ final class AppModel {
         let backupURL = try await localBackupService.writeBackup(
             state: currentCachedState(),
             now: Date(),
-            retentionCount: max(settings.dailyLocalBackupRetentionCount, 14)
+            retentionCount: max(settings.dailyLocalBackupRetentionCount, 14),
+            encryptionContext: try await localBackupEncryptionContext()
         )
         let result = try PortableExportArchive.importState(from: archiveURL)
         applyImportedState(result.state, options: options)
@@ -5261,7 +5273,8 @@ final class AppModel {
             _ = try await localBackupService.writeBackup(
                 state: currentCachedState(),
                 now: now,
-                retentionCount: settings.dailyLocalBackupRetentionCount
+                retentionCount: settings.dailyLocalBackupRetentionCount,
+                encryptionContext: try await localBackupEncryptionContext()
             )
             settings.lastDailyLocalBackupAt = now
             localBackupSummary = await localBackupService.summary()
@@ -5274,6 +5287,15 @@ final class AppModel {
             localBackupSummary = await localBackupService.summary()
             return false
         }
+    }
+
+    private func localBackupEncryptionContext() async throws -> LocalBackupService.EncryptionContext? {
+        guard settings.cacheEncryptionEnabled else { return nil }
+        guard let key = HCBCacheKeychain.load(),
+              let salt = await cacheStore.currentSalt() else {
+            throw LocalBackupEncryptionError.missingKeyOrSalt
+        }
+        return LocalBackupService.EncryptionContext(key: key, salt: salt)
     }
 
     // Synchronous flush. Use only from explicit-flush sites (logout,

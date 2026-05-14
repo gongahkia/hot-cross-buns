@@ -42,4 +42,25 @@ final class AppIntentRoutingTests: XCTestCase {
         _ = try await OpenHotCrossBunsStoreIntent().perform()
         XCTAssertEqual(AppIntentHandoff.consumeAll(), [.store])
     }
+
+    func testSharedInboxSanitizesOversizedTextForWrite() throws {
+        let item = SharedInboxItem(
+            text: String(repeating: "a", count: SharedInboxDefaults.maxTextBytes + 128),
+            createdAt: Date(),
+            source: "com.gongahkia.hotcrossbuns.mac.share"
+        )
+
+        let sanitized = try XCTUnwrap(SharedInboxDefaults.sanitizedForWrite(item))
+        XCTAssertLessThanOrEqual(sanitized.text.utf8.count, SharedInboxDefaults.maxTextBytes)
+    }
+
+    func testSharedInboxRejectsUntrustedSourceForWrite() {
+        let item = SharedInboxItem(
+            text: "hello",
+            createdAt: Date(),
+            source: "com.example.other"
+        )
+
+        XCTAssertNil(SharedInboxDefaults.sanitizedForWrite(item))
+    }
 }

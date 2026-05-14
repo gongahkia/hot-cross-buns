@@ -22,6 +22,21 @@ final class MarkdownHTMLTests: XCTestCase {
         XCTAssertEqual(html, "See <a href=\"https://example.com\">docs</a>")
     }
 
+    func testLiteralHTMLEscapesWhenTranspilingMarkdown() {
+        let html = MarkdownHTML.markdownToCalendarHTML("Meet <script>alert(1)</script> & review")
+        XCTAssertEqual(html, "Meet &lt;script&gt;alert(1)&lt;/script&gt; &amp; review")
+    }
+
+    func testLinkLabelAndAttributeEscapeWhenTranspilingMarkdown() {
+        let html = MarkdownHTML.markdownToCalendarHTML("[<b>docs</b>](https://example.com?a=1&b=2)")
+        XCTAssertEqual(html, #"<a href="https://example.com?a=1&amp;b=2">&lt;b&gt;docs&lt;/b&gt;</a>"#)
+    }
+
+    func testUnsafeLinkSchemeStaysPlainText() {
+        let html = MarkdownHTML.markdownToCalendarHTML("See [bad](javascript:alert) later")
+        XCTAssertEqual(html, "See [bad](javascript:alert) later")
+    }
+
     func testLocalImagePointerTranspilesAsCalendarLink() {
         let url = URL(fileURLWithPath: "/Users/example/Pictures/launch plan (v1).png")
         let pointer = LocalFileAttachment.markdownPointer(for: url, kind: .image)
