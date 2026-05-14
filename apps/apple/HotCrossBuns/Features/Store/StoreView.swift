@@ -9,7 +9,7 @@ import SwiftUI
 //    to that column's list).
 //  - Inspector (Cmd+I) for the selected task.
 //  - List rename / delete / create — reused by both the Kanban column menu
-//    and the "New List" toolbar button.
+//    and the inline "New List" board affordance.
 //  - BulkResult toast + bulk-action bar on multi-select.
 //
 // What moved:
@@ -55,54 +55,20 @@ struct StoreView: View {
                     .appBackground()
                     .inspectorColumnWidth(min: 340, ideal: 380, max: 520)
             }
-            .toolbar {
-                // must sit below .inspector so toolbar hosts at the window level (matches NotesView). attaching .toolbar above .inspector scopes it inside the main column and makes buttons hover over the inspector's header bar.
-                ToolbarItemGroup {
-                    if selection.count > 1 {
-                        bulkActionButtons
-                    }
-                    if model.pendingMutations.count > 0 {
-                        PendingSyncPill(count: model.pendingMutations.count)
-                    }
-                    // When a single task is open in the inspector, suppress
-                    // the creation toolbar — the inspector's own close button
-                    // is the path back, and these actions reading as hovering
-                    // over the task pane looked visually confused.
-                    if isInspectorPresented && selection.count == 1 {
-                        EmptyView()
-                    } else {
-                        Button {
-                            newListTitle = ""
-                            isCreatingList = true
-                        } label: {
-                            Label("New List", systemImage: "plus.rectangle.on.rectangle")
-                        }
-                        .help("Create a new Google Tasks list")
-                        .disabled(isDisconnected || isMutatingList)
-                        .popover(isPresented: $isCreatingList, arrowEdge: .bottom) {
-                            ListCreateSheet(
-                                title: $newListTitle,
-                                onCancel: {
-                                    isCreatingList = false
-                                    newListTitle = ""
-                                },
-                                onCreate: { Task { await createNewList() } }
-                            )
-                        }
-                        Button {
-                            router?.present(.quickCreateTask(listID: nil))
-                        } label: {
-                            Label("New Task", systemImage: "plus")
-                        }
-                        .help("Create a new task")
-                        .disabled(isDisconnected)
-                    }
-                }
-            }
             .sheet(isPresented: $isBulkMoveSheetPresented) {
                 BulkMoveSheet(taskIDs: Array(selection)) { movedCount in
                     if movedCount > 0 { selection = [] }
                 }
+            }
+            .sheet(isPresented: $isCreatingList) {
+                ListCreateSheet(
+                    title: $newListTitle,
+                    onCancel: {
+                        isCreatingList = false
+                        newListTitle = ""
+                    },
+                    onCreate: { Task { await createNewList() } }
+                )
             }
             .sheet(item: $snoozeCustomTask) { task in
                 SnoozePickerSheet(task: task) { newDate in
@@ -160,19 +126,6 @@ struct StoreView: View {
             deleteSelectedTasks: { Task { await deleteSelection() } },
             canDeleteSelectedTasks: selection.isEmpty == false
         )
-    }
-
-    @ViewBuilder
-    private var bulkActionButtons: some View {
-        Text("\(selection.count) selected")
-            .hcbFont(.caption, weight: .semibold)
-            .foregroundStyle(.secondary)
-        Button {
-            selection = []
-        } label: {
-            Label("Clear selection", systemImage: "xmark.circle")
-        }
-        .help("Clear selection")
     }
 
     private func deleteSelection() async {
@@ -681,8 +634,8 @@ struct NotesView: View {
     // a TaskInspectorView for that note. Cleared when the user taps Close.
     @State private var selectedNoteID: TaskMirror.ID?
     @State private var isNoteInspectorPresented: Bool = true
-    // List management state — mirrors StoreView's New-List flow so the Notes
-    // toolbar can offer the same create-new-Google-Tasks-list affordance.
+    // List management state mirrors StoreView's New-List flow so the Notes
+    // board can offer the same create-new-Google-Tasks-list affordance.
     @State private var isCreatingList: Bool = false
     @State private var newListTitle: String = ""
     @State private var isMutatingList: Bool = false
@@ -733,41 +686,15 @@ struct NotesView: View {
                 .appBackground()
                 .inspectorColumnWidth(min: 340, ideal: 380, max: 520)
         }
-        .toolbar {
-            ToolbarItemGroup {
-                // Mirror StoreView: suppress the create toolbar while a note
-                // is open in the inspector so toolbar controls don't hover
-                // above the task pane the user is editing.
-                if isNoteInspectorPresented && selectedNoteID != nil {
-                    EmptyView()
-                } else {
-                    Button {
-                        newListTitle = ""
-                        isCreatingList = true
-                    } label: {
-                        Label("New List", systemImage: "plus.rectangle.on.rectangle")
-                    }
-                    .help("Create a new Google Tasks list")
-                    .disabled(model.account == nil || isMutatingList)
-                    .popover(isPresented: $isCreatingList, arrowEdge: .bottom) {
-                        ListCreateSheet(
-                            title: $newListTitle,
-                            onCancel: {
-                                isCreatingList = false
-                                newListTitle = ""
-                            },
-                            onCreate: { Task { await createNewListFromNotes() } }
-                        )
-                    }
-                    Button {
-                        router?.present(.quickCreateNote(listID: nil))
-                    } label: {
-                        Label("New Note", systemImage: "plus")
-                    }
-                    .help("Capture a thought without a due date. Adding a due date later moves it into the Tasks tab.")
-                    .disabled(model.account == nil)
-                }
-            }
+        .sheet(isPresented: $isCreatingList) {
+            ListCreateSheet(
+                title: $newListTitle,
+                onCancel: {
+                    isCreatingList = false
+                    newListTitle = ""
+                },
+                onCreate: { Task { await createNewListFromNotes() } }
+            )
         }
         .onAppear {
             rebuildOrderIfNeeded(force: true)
@@ -835,6 +762,10 @@ struct NotesView: View {
                     ),
                     selection: $kanbanSelection,
                     availableColumnModes: notesKanbanModes,
+                    onNewList: {
+                        newListTitle = ""
+                        isCreatingList = true
+                    },
                     onCreateTaskInList: { listID in
                         router?.present(.quickCreateNote(listID: listID))
                     },

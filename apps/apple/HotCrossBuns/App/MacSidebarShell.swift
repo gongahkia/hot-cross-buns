@@ -176,6 +176,7 @@ struct MacSidebarShell: View {
     @State private var pendingSettingsImport: SettingsTransferBundle?
     @State private var isPresentingFeatureTour = false
     @State private var isActionCenterPresented = false
+    @State private var isCustomNavigationSurfacePresented = true
     // Leader-key chord state (§6.9). `nil` = inactive; non-nil = collecting
     // keys after a ⌘K press. timeoutTask cancels the collecting state after
     // 3s of inactivity so a stray leader press doesn't lock out single-key
@@ -209,14 +210,17 @@ struct MacSidebarShell: View {
             detail
         }
         .navigationSplitViewStyle(.balanced)
+        .toolbar(removing: .sidebarToggle)
     }
 
     private var trailingNavigationShell: some View {
         HStack(spacing: 0) {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            Divider()
-            trailingSidebar
+            if isCustomNavigationSurfacePresented {
+                Divider()
+                trailingSidebar
+            }
         }
     }
 
@@ -224,15 +228,19 @@ struct MacSidebarShell: View {
     private func horizontalNavigationShell(placement: NavigationSurfacePlacement) -> some View {
         VStack(spacing: 0) {
             if placement == .top {
-                horizontalNavigationBar
-                Divider()
+                if isCustomNavigationSurfacePresented {
+                    horizontalNavigationBar
+                    Divider()
+                }
                 detail
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 detail
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                Divider()
-                horizontalNavigationBar
+                if isCustomNavigationSurfacePresented {
+                    Divider()
+                    horizontalNavigationBar
+                }
             }
         }
     }
@@ -975,8 +983,10 @@ struct MacSidebarShell: View {
             guard visibleSidebarItems.contains(item) else { return }
             selectSidebarItem(item, source: "command.switchTo")
         }
+        appCommandActions.toggleSidebar = { toggleNavigationSurface() }
         appCommandActions.openSettingsWindow = { openInstrumentedSettings(source: "command") }
         appCommandActions.openDiagnostics = { openInstrumentedWindow(id: "diagnostics", source: "command") }
+        appCommandActions.toggleActionCenter = { isActionCenterPresented.toggle() }
         appCommandActions.openCommandPalette = { presentCommandPalette() }
         appCommandActions.openHelp = { openWindow(id: "help") }
         appCommandActions.openHistory = { openWindow(id: "history") }
@@ -1004,6 +1014,14 @@ struct MacSidebarShell: View {
             commands: commandPaletteCommands,
             onSelectEntity: routeQuickSwitcherEntity
         )
+    }
+
+    private func toggleNavigationSurface() {
+        if model.settings.sidebarPlacement == .left {
+            sidebarVisibility = sidebarVisibility == .detailOnly ? .all : .detailOnly
+        } else {
+            isCustomNavigationSurfacePresented.toggle()
+        }
     }
 
     private func runTransitionProfileScenarioIfNeeded() async {
@@ -1391,6 +1409,16 @@ struct MacSidebarShell: View {
                 Task { await model.forceFullResync() }
             },
             CommandPaletteCommand(
+                id: "action-center",
+                title: "Action Center",
+                subtitle: "Review pending sync, reminder, and availability items",
+                symbol: "bell.badge",
+                shortcut: "",
+                keywords: ["action", "center", "notifications", "reminders", "pending", "review"]
+            ) {
+                isActionCenterPresented.toggle()
+            },
+            CommandPaletteCommand(
                 id: "open-diagnostics",
                 title: "Diagnostics and Recovery",
                 subtitle: "Open sync health and reset tools",
@@ -1429,6 +1457,16 @@ struct MacSidebarShell: View {
                 keywords: ["notes", "capture", "undated", "someday"]
             ) {
                 selectSidebarItem(.notes, source: "commandPalette.goNotes")
+            },
+            CommandPaletteCommand(
+                id: "toggle-sidebar",
+                title: "Toggle Sidebar",
+                subtitle: "Show or hide the navigation surface",
+                symbol: "sidebar.left",
+                shortcut: "",
+                keywords: ["sidebar", "navigation", "show", "hide", "toggle"]
+            ) {
+                toggleNavigationSurface()
             },
             CommandPaletteCommand(
                 id: "open-settings",
@@ -1818,40 +1856,10 @@ private struct ActionCenterPresentationModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    toolbarButton
-                }
-            }
             .overlay(alignment: .trailing) {
                 drawerOverlay
             }
             .animation(HCBMotion.animation(.easeOut(duration: 0.16), reduceMotion: reduceMotion), value: isPresented)
-    }
-
-    private var toolbarButton: some View {
-        Button {
-            isPresented.toggle()
-        } label: {
-            ZStack(alignment: .topTrailing) {
-                Image(systemName: snapshot.isEmpty ? "bell" : "bell.badge")
-                    .imageScale(.large)
-                if snapshot.actionableCount > 0 {
-                    Text(badgeText(snapshot.actionableCount))
-                        .font(.system(size: 9, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(Capsule().fill(AppColor.ember))
-                        .offset(x: 8, y: -8)
-                        .accessibilityHidden(true)
-                }
-            }
-            .frame(width: 24, height: 24)
-        }
-        .help(snapshot.actionableCount == 0 ? "Notifications" : "\(snapshot.actionableCount) notification\(snapshot.actionableCount == 1 ? "" : "s")")
-        .accessibilityLabel(snapshot.actionableCount == 0 ? "Notifications" : "Notifications, \(snapshot.actionableCount) items")
     }
 
     @ViewBuilder
@@ -1882,10 +1890,6 @@ private struct ActionCenterPresentationModifier: ViewModifier {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
         }
-    }
-
-    private func badgeText(_ count: Int) -> String {
-        count > 99 ? "99+" : "\(count)"
     }
 }
 

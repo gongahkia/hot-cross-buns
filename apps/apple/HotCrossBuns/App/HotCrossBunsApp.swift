@@ -80,6 +80,7 @@ struct HotCrossBunsApp: App {
         }
         .defaultSize(width: 1100, height: 720)
         .windowResizability(.contentMinSize)
+        .windowToolbarStyle(UnifiedWindowToolbarStyle(showsTitle: false))
         .commands {
             AppCommands()
             CommandGroup(after: .appInfo) {

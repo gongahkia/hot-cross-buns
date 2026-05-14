@@ -237,7 +237,9 @@ private struct SheetDestinationHost: View {
 
     var body: some View {
         Group {
-            // Show a lightweight shell first so click/drag creation feels immediate while heavier editors hydrate.
+            // Show a lightweight shell first only for heavier editors. Quick-create
+            // content is compact enough to render directly; the placeholder flash is
+            // more distracting than useful there.
             if destination.usesResponsiveFirstPaint, isDeferredContentReady == false {
                 ResponsiveSheetPlaceholder(destination: destination)
             } else {
@@ -461,12 +463,13 @@ private extension SheetDestination {
              .addEvent,
              .editEvent,
              .addEventAt,
-             .addEventRange,
-             .quickCreate,
+             .addEventRange:
+            true
+        case .quickCreate,
              .quickCreateRange,
              .quickCreateTask,
              .quickCreateNote:
-            true
+            false
         case .quickAddTask,
              .quickAddNote,
              .quickAddEvent,

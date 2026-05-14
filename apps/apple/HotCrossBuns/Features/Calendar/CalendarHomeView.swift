@@ -51,24 +51,6 @@ struct CalendarHomeView: View {
             }
         }
         .focusedSceneValue(\.calendarCommandActions, calendarCommandActions)
-        // Adding a .toolbar here serves two jobs: (a) provides the + button
-        // for event/task quick-create parity with the Tasks and Notes tabs,
-        // (b) gets SwiftUI to render the native macOS titlebar so the
-        // traffic-light cluster integrates with the sidebar top the same way
-        // Tasks/Notes do — CalendarHomeView previously had no .toolbar, so
-        // the window used a borderless titlebar and the sidebar appeared to
-        // start below the lights on Calendar but above them on Tasks/Notes.
-        .toolbar {
-            ToolbarItem {
-                Button {
-                    router?.present(.quickCreate(Date(), allDay: true))
-                } label: {
-                    Label("New Event or Task", systemImage: "plus")
-                }
-                .help("Open the quick-create popover to add an event or task")
-                .disabled(model.account == nil)
-            }
-        }
         .onReceive(NotificationCenter.default.publisher(for: .hcbOpenShareAvailability)) { _ in
             openShareAvailability()
         }
@@ -314,6 +296,17 @@ struct CalendarHomeView: View {
 
             Spacer(minLength: 0)
 
+            Button {
+                router?.present(.quickCreate(Date(), allDay: true))
+            } label: {
+                Label("New Event or Task", systemImage: "plus")
+                    .labelStyle(.iconOnly)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help("Open quick create")
+            .accessibilityLabel("New event or task")
+
             Picker("View", selection: modeBinding) {
                 ForEach(visibleCalendarModes, id: \.self) { m in
                     Label(m.title, systemImage: m.systemImage).tag(m)
@@ -490,12 +483,7 @@ struct CalendarHomeView: View {
     }
 
     private func addAvailabilitySlot(_ slot: AvailabilitySlot) {
-        let normalized = AvailabilitySlotResolver.normalized(availabilityDraft.slots + [slot])
-        guard normalized.count <= AvailabilityHoldLimits.maxSlotsPerGroup else {
-            availabilityMessage = "Maximum \(AvailabilityHoldLimits.maxSlotsPerGroup) slots per hold group."
-            return
-        }
-        availabilityDraft.slots = normalized
+        availabilityDraft.slots = AvailabilitySlotResolver.normalized(availabilityDraft.slots + [slot])
         availabilityMessage = "Added \(availabilitySlotLabel(slot))."
     }
 
@@ -535,10 +523,6 @@ struct CalendarHomeView: View {
             availabilityMessage = supportsAvailabilitySelection
                 ? "Select at least one slot."
                 : "Switch to Day, Week, or Multi-Day, then select at least one slot."
-            return
-        }
-        guard slots.count <= AvailabilityHoldLimits.maxSlotsPerGroup else {
-            availabilityMessage = "Maximum \(AvailabilityHoldLimits.maxSlotsPerGroup) slots per hold group."
             return
         }
         isWritingAvailabilityHolds = true
@@ -1265,7 +1249,7 @@ private struct ShareAvailabilityPanel: View {
                 Text("Selected Slots")
                     .hcbFont(.subheadline, weight: .semibold)
                 Spacer(minLength: 0)
-                Text("\(draft.slots.count)/\(AvailabilityHoldLimits.maxSlotsPerGroup)")
+                Text("\(draft.slots.count) selected")
                     .hcbFont(.caption, weight: .semibold)
                     .foregroundStyle(.secondary)
             }
