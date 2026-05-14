@@ -1,0 +1,121 @@
+MCP hardening concerns
+======================
+
+Context
+-------
+
+Hot Cross Buns is becoming a user-facing product with a local MCP integration
+surface. The MCP server is local-first, but local clients are not inherently
+trusted. This file captures the high-level hardening concerns to keep in view
+while implementing the next security pass.
+
+Concerns
+--------
+
+1. Permission semantics must be unambiguous.
+   - Confirm-writes mode must require an explicit dry-run preview before a real
+     write can apply.
+   - Confirmation IDs should only be minted by dry-run requests.
+   - A non-dry-run write without a prior confirmation must not receive a usable
+     confirmation ID.
+
+2. Local does not mean trusted.
+   - Any local process with the bearer token can call the server.
+   - The implementation should assume copied, stale, or malicious client config
+     can exist.
+   - Strict auth, origin checks, predictable failures, and defensive request
+     limits matter even for loopback-only access.
+
+3. HTTP request parsing is attack surface.
+   - Enforce maximum header, body, and aggregate request sizes before JSON
+     decoding.
+   - Reject oversized requests with 413 Payload Too Large.
+   - Handle bad or excessive Content-Length values without unbounded buffering.
+
+4. Tool responses must stay sanitized.
+   - Never expose Google OAuth tokens, cache encryption keys, Keychain material,
+     bearer tokens, raw credential config, or secret-like patch fields.
+   - Keep error payloads and JSON-RPC details sanitized too.
+   - Redaction needs to be recursive so nested patch dictionaries and arrays
+     cannot leak credential-like values.
+
+5. Write tools need consistent dry-run behavior.
+   - Read-only mode denies all writes, including dry-runs.
+   - Confirm-writes mode requires dry-run confirmation before every write.
+   - Allow-writes mode may permit non-destructive writes, but destructive tools
+     should still require dry-run confirmation.
+
+6. Async Swift server tests can be flaky if not kept deterministic.
+   - Prefer direct request/controller tests where available.
+   - Avoid timing-sensitive port binding unless needed.
+   - Keep MainActor and async boundaries explicit.
+
+7. Protect existing user work in the dirty tree.
+   - The current worktree already has unrelated modified Swift UI files.
+   - Do not revert or rewrite those changes while working on MCP hardening.
+
+8. MCP writes need user-visible provenance.
+   - Existing mutation audit entries prove that data changed, but the MCP
+     boundary also needs source/tool/outcome logging for dry-runs, denials, and
+     failed attempts.
+   - Audit metadata must not store full MCP arguments or user content.
+
+9. Users need runtime visibility.
+   - Settings should show whether the server is running, which clients are
+     active this launch, and recent MCP outcomes such as dry-run, applied,
+     denied, failed, and rate-limited.
+
+10. Abuse testing must exercise the running app.
+   - Unit tests cover controller branches, but release hardening also needs a
+     real curl/client smoke pass against the local endpoint.
+   - Manual rate-limit testing should be opt-in because it intentionally bursts
+     requests at the local server.
+
+Current pass notes
+------------------
+
+- Confirm-writes mode now only mints confirmation IDs from explicit dry-run
+  requests.
+- Real write attempts without a prior dry-run now fail with no confirmation ID.
+- Real write attempts with an invalid or mismatched confirmation ID now fail as
+  confirmation mismatches.
+- Destructive tools still require dry-run confirmation even in allow-writes
+  mode.
+- HTTP request parsing now enforces header, body, and total request size caps
+  before JSON parsing.
+- Oversized requests return 413 Payload Too Large.
+- Malformed Content-Length, duplicate headers, and extra bytes after a request
+  fail closed as bad requests.
+- Bearer token comparison uses constant-time byte comparison.
+- Unexpected internal JSON-RPC errors no longer expose arbitrary localized error
+  text to clients.
+- MCP write attempts now emit audit records with client, tool, outcome,
+  argument keys, dry-run/confirmation/applied flags, and sanitized error codes.
+  The audit path intentionally omits full arguments, task titles, notes, event
+  details, and bearer tokens.
+- Settings now shows recent MCP activity for the current launch, including
+  client label, tool/method, outcome, and rate-limit events.
+- Request rate limiting is enforced per local client connection key with a
+  default cap of 120 requests per 60 seconds; exceeded requests return 429 Too
+  Many Requests with Retry-After.
+- Patch redaction now recurses through nested dictionaries and arrays and
+  covers token, secret, credential, key, authorization, and password-like fields.
+- `scripts/mcp-abuse-smoke.sh` adds a real curl smoke pass for authorized
+  requests, bad tokens, bad origins, malformed JSON, safe dry-run writes,
+  oversized bodies, and optional rate-limit bursts against the running app.
+
+Residual concerns after this pass
+---------------------------------
+
+- A malicious local client that already has the bearer token can still read all
+  data exposed by read tools. That is inherent in the configured MCP trust
+  model; the remaining mitigation is clear Settings visibility, token reset,
+  read-only mode, and future per-client scoping if product requirements demand
+  it.
+- The current manual MCP-client validation is documented instead of fully
+  automated because the repository does not vendor a concrete third-party MCP
+  client binary. The curl smoke test exercises the same HTTP boundary against
+  the running app, and a real interactive client pass is called out in docs.
+- Rate limiting is in-memory and resets when the app restarts. That is
+  acceptable for a local desktop endpoint, but persistent abuse counters would
+  be needed if the server ever becomes remotely reachable.

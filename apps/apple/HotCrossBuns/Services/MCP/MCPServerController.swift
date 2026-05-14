@@ -29,10 +29,125 @@ enum MCPServerStatus: Equatable {
     }
 }
 
+enum MCPActivityOutcome: String, Sendable {
+    case succeeded
+    case dryRun
+    case applied
+    case denied
+    case confirmationRequired
+    case invalid
+    case failed
+    case rateLimited
+
+    var title: String {
+        switch self {
+        case .succeeded: "Succeeded"
+        case .dryRun: "Dry-run"
+        case .applied: "Applied"
+        case .denied: "Denied"
+        case .confirmationRequired: "Confirm"
+        case .invalid: "Invalid"
+        case .failed: "Failed"
+        case .rateLimited: "Limited"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .succeeded: "checkmark.circle"
+        case .dryRun: "eye"
+        case .applied: "checkmark.seal"
+        case .denied: "hand.raised"
+        case .confirmationRequired: "key"
+        case .invalid: "exclamationmark.triangle"
+        case .failed: "xmark.octagon"
+        case .rateLimited: "speedometer"
+        }
+    }
+}
+
+struct MCPActivityEntry: Identifiable, Equatable, Sendable {
+    let id: UUID
+    let timestamp: Date
+    let client: String
+    let method: String
+    let toolName: String?
+    let outcome: MCPActivityOutcome
+    let detail: String
+    let isWrite: Bool
+
+    init(
+        id: UUID = UUID(),
+        timestamp: Date = Date(),
+        client: String,
+        method: String,
+        toolName: String?,
+        outcome: MCPActivityOutcome,
+        detail: String,
+        isWrite: Bool
+    ) {
+        self.id = id
+        self.timestamp = timestamp
+        self.client = client
+        self.method = method
+        self.toolName = toolName
+        self.outcome = outcome
+        self.detail = detail
+        self.isWrite = isWrite
+    }
+
+    var title: String {
+        if let toolName {
+            return toolName
+        }
+        return method
+    }
+}
+
+struct MCPRateLimitConfiguration: Equatable, Sendable {
+    var maxRequests: Int
+    var windowSeconds: TimeInterval
+
+    static let `default` = MCPRateLimitConfiguration(maxRequests: 120, windowSeconds: 60)
+}
+
+private final class MCPRateLimiter: @unchecked Sendable {
+    private let configuration: MCPRateLimitConfiguration
+    private let lock = NSLock()
+    private var timestampsByClient: [String: [Date]] = [:]
+
+    init(configuration: MCPRateLimitConfiguration) {
+        self.configuration = configuration
+    }
+
+    func allows(clientKey: String, now: Date) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let cutoff = now.addingTimeInterval(-configuration.windowSeconds)
+        var timestamps = (timestampsByClient[clientKey] ?? []).filter { $0 >= cutoff }
+        guard timestamps.count < configuration.maxRequests else {
+            timestampsByClient[clientKey] = timestamps
+            return false
+        }
+        timestamps.append(now)
+        timestampsByClient[clientKey] = timestamps
+        return true
+    }
+}
+
 final class MCPServerController {
+    static let maxHTTPHeaderBytes = 16 * 1024
+    static let maxHTTPBodyBytes = 1 * 1024 * 1024
+    static let maxHTTPRequestBytes = maxHTTPHeaderBytes + maxHTTPBodyBytes + 4
+
     private let toolService: HCBToolService
     private let tokenProvider: () throws -> String
     private let onStatus: @MainActor (MCPServerStatus) -> Void
+    private let onActivity: @MainActor (MCPActivityEntry) -> Void
+    private let auditRecorder: @Sendable (MCPActivityEntry, [String: String]) async -> Void
+    private let rateLimitConfiguration: MCPRateLimitConfiguration
+    private let rateLimiter: MCPRateLimiter
     private let queue = DispatchQueue(label: "com.gongahkia.hotcrossbuns.mcp-server")
     private var listener: NWListener?
     private var activePort: Int?
@@ -40,11 +155,25 @@ final class MCPServerController {
     init(
         toolService: HCBToolService,
         tokenProvider: @escaping () throws -> String = HCBMCPTokenStore.loadOrCreateToken,
-        onStatus: @escaping @MainActor (MCPServerStatus) -> Void
+        rateLimitConfiguration: MCPRateLimitConfiguration = .default,
+        onStatus: @escaping @MainActor (MCPServerStatus) -> Void,
+        onActivity: @escaping @MainActor (MCPActivityEntry) -> Void = { _ in },
+        auditRecorder: @escaping @Sendable (MCPActivityEntry, [String: String]) async -> Void = { entry, metadata in
+            MutationAuditLog.shared.record(
+                kind: "mcp.write.\(entry.outcome.rawValue)",
+                resourceID: entry.toolName ?? entry.method,
+                summary: "MCP \(entry.title) \(entry.outcome.title.lowercased())",
+                metadata: metadata
+            )
+        }
     ) {
         self.toolService = toolService
         self.tokenProvider = tokenProvider
+        self.rateLimitConfiguration = rateLimitConfiguration
+        self.rateLimiter = MCPRateLimiter(configuration: rateLimitConfiguration)
         self.onStatus = onStatus
+        self.onActivity = onActivity
+        self.auditRecorder = auditRecorder
     }
 
     func start(port: Int) {
@@ -98,15 +227,46 @@ final class MCPServerController {
         publish(.stopped)
     }
 
-    func handleHTTPRequest(data: Data, remoteIsLocal: Bool, now: Date = Date()) async -> HTTPResponse {
+    func handleHTTPRequest(
+        data: Data,
+        remoteIsLocal: Bool,
+        now: Date = Date(),
+        clientDescription: String = "Local client",
+        clientKey: String = "loopback"
+    ) async -> HTTPResponse {
         guard remoteIsLocal else {
             return .plain(status: 403, body: "Forbidden")
         }
-        guard let request = HTTPRequest(data: data) else {
+        let request: HTTPRequest
+        switch HTTPRequest.parse(data: data) {
+        case .complete(let parsed):
+            request = parsed
+        case .tooLarge:
+            return .plain(status: 413, body: "Payload Too Large")
+        case .incomplete, .malformed:
             return .plain(status: 400, body: "Bad Request")
         }
         guard request.path == "/mcp" else {
             return .plain(status: 404, body: "Not Found")
+        }
+        let displayClient = Self.clientDescription(for: request.headers, fallback: clientDescription)
+        guard rateLimiter.allows(clientKey: clientKey, now: now) else {
+            let activity = MCPActivityEntry(
+                timestamp: now,
+                client: displayClient,
+                method: "HTTP",
+                toolName: nil,
+                outcome: .rateLimited,
+                detail: "Request limit reached",
+                isWrite: false
+            )
+            publish(activity)
+            AppLogger.warn("mcp request rate limited", category: .mcp, metadata: ["client": displayClient])
+            return .plain(
+                status: 429,
+                body: "Too Many Requests",
+                headers: ["Retry-After": String(Int(rateLimitConfiguration.windowSeconds.rounded(.up)))]
+            )
         }
         guard request.method == "POST" else {
             return .plain(status: 405, body: "MCP Streamable HTTP GET/SSE is not implemented in Hot Cross Buns v1.")
@@ -116,16 +276,23 @@ final class MCPServerController {
         }
         do {
             let token = try tokenProvider()
-            guard request.headers["authorization"] == "Bearer \(token)" else {
+            guard Self.authorizationMatches(request.headers["authorization"], token: token) else {
                 return .plain(status: 401, body: "Unauthorized", headers: ["WWW-Authenticate": "Bearer"])
             }
         } catch {
             return .plain(status: 500, body: "MCP token unavailable")
         }
-        return await handleJSONRPCBody(request.body, now: now)
+        return await handleJSONRPCBody(request.body, now: now, clientDescription: displayClient)
     }
 
-    func handleJSONRPCBody(_ body: Data, now: Date = Date()) async -> HTTPResponse {
+    func handleJSONRPCBody(
+        _ body: Data,
+        now: Date = Date(),
+        clientDescription: String = "Local client"
+    ) async -> HTTPResponse {
+        guard body.count <= Self.maxHTTPBodyBytes else {
+            return .plain(status: 413, body: "Payload Too Large")
+        }
         guard
             let object = try? JSONSerialization.jsonObject(with: body),
             let request = object as? [String: Any],
@@ -136,6 +303,9 @@ final class MCPServerController {
         }
 
         let id = request["id"]
+        let params = request["params"] as? [String: Any] ?? [:]
+        let toolName = Self.toolName(method: method, params: params)
+        let isWrite = toolName.map(HCBToolService.isWriteTool) ?? false
         if id == nil {
             if method == "notifications/initialized" {
                 return .empty(status: 202)
@@ -144,9 +314,29 @@ final class MCPServerController {
         }
 
         do {
-            let result = try await handle(method: method, params: request["params"] as? [String: Any] ?? [:])
+            let result = try await handle(method: method, params: params)
+            let activity = Self.activityEntry(
+                timestamp: now,
+                client: clientDescription,
+                method: method,
+                toolName: toolName,
+                isWrite: isWrite,
+                result: result
+            )
+            publish(activity)
+            await recordWriteAuditIfNeeded(activity, params: params, result: result, error: nil)
             return jsonRPCResult(id: id, result: result)
         } catch let error as HCBToolError {
+            let activity = Self.activityEntry(
+                timestamp: now,
+                client: clientDescription,
+                method: method,
+                toolName: toolName,
+                isWrite: isWrite,
+                error: error
+            )
+            publish(activity)
+            await recordWriteAuditIfNeeded(activity, params: params, result: nil, error: error)
             return jsonRPCError(
                 id: id,
                 code: errorCode(for: error),
@@ -155,7 +345,18 @@ final class MCPServerController {
                 status: 200
             )
         } catch {
-            return jsonRPCError(id: id, code: -32603, message: error.localizedDescription, status: 200)
+            let activity = MCPActivityEntry(
+                timestamp: now,
+                client: clientDescription,
+                method: method,
+                toolName: toolName,
+                outcome: .failed,
+                detail: "Internal error",
+                isWrite: isWrite
+            )
+            publish(activity)
+            await recordWriteAuditIfNeeded(activity, params: params, result: nil, error: nil)
+            return jsonRPCError(id: id, code: -32603, message: "Internal error", status: 200)
         }
     }
 
@@ -227,15 +428,36 @@ final class MCPServerController {
                 connection.cancel()
                 return
             }
-            if let request = HTTPRequest(data: next), next.count >= request.totalLength {
+            switch HTTPRequest.parse(data: next) {
+            case .complete:
                 let remoteIsLocal = Self.endpointIsLocal(connection.endpoint)
+                let endpointDescription = Self.endpointDescription(connection.endpoint)
                 Task {
-                    let response = await self.handleHTTPRequest(data: next, remoteIsLocal: remoteIsLocal)
+                    let response = await self.handleHTTPRequest(
+                        data: next,
+                        remoteIsLocal: remoteIsLocal,
+                        clientDescription: endpointDescription,
+                        clientKey: endpointDescription
+                    )
                     connection.send(content: response.data, completion: .contentProcessed { _ in
                         connection.cancel()
                     })
                 }
                 return
+            case .tooLarge:
+                let response = HTTPResponse.plain(status: 413, body: "Payload Too Large")
+                connection.send(content: response.data, completion: .contentProcessed { _ in
+                    connection.cancel()
+                })
+                return
+            case .malformed:
+                let response = HTTPResponse.plain(status: 400, body: "Bad Request")
+                connection.send(content: response.data, completion: .contentProcessed { _ in
+                    connection.cancel()
+                })
+                return
+            case .incomplete:
+                break
             }
             if isComplete {
                 connection.cancel()
@@ -251,10 +473,167 @@ final class MCPServerController {
         }
     }
 
+    private func publish(_ activity: MCPActivityEntry) {
+        Task { @MainActor in
+            onActivity(activity)
+        }
+    }
+
     private func originIsAllowed(_ origin: String?) -> Bool {
         guard let origin, origin.isEmpty == false else { return true }
         guard let url = URL(string: origin), let host = url.host?.lowercased() else { return false }
         return host == "127.0.0.1" || host == "localhost" || host == "::1"
+    }
+
+    private func recordWriteAuditIfNeeded(
+        _ activity: MCPActivityEntry,
+        params: [String: Any],
+        result: [String: Any]?,
+        error: HCBToolError?
+    ) async {
+        guard activity.isWrite else { return }
+        var metadata: [String: String] = [
+            "client": activity.client,
+            "method": activity.method,
+            "outcome": activity.outcome.rawValue
+        ]
+        if let toolName = activity.toolName {
+            metadata["tool"] = toolName
+        }
+        let arguments = params["arguments"] as? [String: Any] ?? [:]
+        metadata["argumentKeys"] = Self.argumentKeysDescription(arguments)
+        metadata["dryRunRequested"] = String((arguments["dryRun"] as? Bool) == true)
+        metadata["confirmationSupplied"] = String(arguments["confirmationId"] != nil)
+        if let structured = result?["structuredContent"] as? [String: Any] {
+            metadata["applied"] = String((structured["applied"] as? Bool) == true)
+            metadata["dryRun"] = String((structured["dryRun"] as? Bool) == true)
+            metadata["requiresConfirmation"] = String((structured["requiresConfirmation"] as? Bool) == true)
+            metadata["confirmationIssued"] = String(structured["confirmationId"] != nil)
+        }
+        if let error {
+            metadata["error"] = Self.auditErrorDescription(error)
+        }
+        await auditRecorder(activity, metadata)
+    }
+
+    private static func toolName(method: String, params: [String: Any]) -> String? {
+        guard method == "tools/call" else { return nil }
+        return params["name"] as? String
+    }
+
+    private static func activityEntry(
+        timestamp: Date,
+        client: String,
+        method: String,
+        toolName: String?,
+        isWrite: Bool,
+        result: [String: Any]
+    ) -> MCPActivityEntry {
+        let structured = result["structuredContent"] as? [String: Any]
+        let dryRun = structured?["dryRun"] as? Bool == true
+        let applied = structured?["applied"] as? Bool == true
+        let requiresConfirmation = structured?["requiresConfirmation"] as? Bool == true
+        let outcome: MCPActivityOutcome
+        let detail: String
+        if dryRun {
+            outcome = .dryRun
+            detail = requiresConfirmation ? "Dry-run confirmation issued" : "Dry-run preview returned"
+        } else if applied {
+            outcome = .applied
+            detail = "Write applied"
+        } else if requiresConfirmation {
+            outcome = .confirmationRequired
+            detail = "Confirmation required"
+        } else {
+            outcome = .succeeded
+            detail = isWrite ? "Write request completed" : "Read request completed"
+        }
+        return MCPActivityEntry(
+            timestamp: timestamp,
+            client: client,
+            method: method,
+            toolName: toolName,
+            outcome: outcome,
+            detail: detail,
+            isWrite: isWrite
+        )
+    }
+
+    private static func activityEntry(
+        timestamp: Date,
+        client: String,
+        method: String,
+        toolName: String?,
+        isWrite: Bool,
+        error: HCBToolError
+    ) -> MCPActivityEntry {
+        let outcome: MCPActivityOutcome
+        switch error {
+        case .permissionDenied:
+            outcome = .denied
+        case .confirmationRequired:
+            outcome = .confirmationRequired
+        case .mutationFailed:
+            outcome = .failed
+        case .unknownTool, .invalidArguments, .confirmationMismatch, .notFound:
+            outcome = .invalid
+        }
+        return MCPActivityEntry(
+            timestamp: timestamp,
+            client: client,
+            method: method,
+            toolName: toolName,
+            outcome: outcome,
+            detail: auditErrorDescription(error),
+            isWrite: isWrite
+        )
+    }
+
+    private static func argumentKeysDescription(_ arguments: [String: Any]) -> String {
+        let keys = arguments.keys.sorted()
+        return keys.isEmpty ? "none" : keys.joined(separator: ",")
+    }
+
+    private static func auditErrorDescription(_ error: HCBToolError) -> String {
+        switch error {
+        case .unknownTool:
+            return "unknownTool"
+        case .invalidArguments:
+            return "invalidArguments"
+        case .permissionDenied:
+            return "permissionDenied"
+        case .confirmationRequired:
+            return "confirmationRequired"
+        case .confirmationMismatch:
+            return "confirmationMismatch"
+        case .notFound:
+            return "notFound"
+        case .mutationFailed:
+            return "mutationFailed"
+        }
+    }
+
+    private static func clientDescription(for headers: [String: String], fallback: String) -> String {
+        let userAgent = sanitizedHeader(headers["user-agent"])
+        let origin = sanitizedHeader(headers["origin"].flatMap { URL(string: $0)?.host })
+        switch (userAgent, origin) {
+        case let (.some(userAgent), .some(origin)):
+            return "\(userAgent) @ \(origin)"
+        case let (.some(userAgent), nil):
+            return userAgent
+        default:
+            return fallback
+        }
+    }
+
+    private static func sanitizedHeader(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let cleaned = value
+            .replacingOccurrences(of: "\r", with: "")
+            .replacingOccurrences(of: "\n", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard cleaned.isEmpty == false else { return nil }
+        return String(cleaned.prefix(80))
     }
 
     private func jsonRPCResult(id: Any?, result: [String: Any]) -> HTTPResponse {
@@ -314,6 +693,30 @@ final class MCPServerController {
         }
     }
 
+    private static func endpointDescription(_ endpoint: NWEndpoint) -> String {
+        guard case .hostPort(let host, let port) = endpoint else { return "Local client" }
+        return "\(host):\(port.rawValue)"
+    }
+
+    private static func authorizationMatches(_ value: String?, token: String) -> Bool {
+        guard let value, value.hasPrefix("Bearer ") else { return false }
+        let candidate = String(value.dropFirst("Bearer ".count))
+        return constantTimeEquals(candidate, token)
+    }
+
+    private static func constantTimeEquals(_ lhs: String, _ rhs: String) -> Bool {
+        let left = Array(lhs.utf8)
+        let right = Array(rhs.utf8)
+        let count = max(left.count, right.count)
+        var difference = left.count ^ right.count
+        for index in 0..<count {
+            let leftByte = index < left.count ? left[index] : 0
+            let rightByte = index < right.count ? right[index] : 0
+            difference |= Int(leftByte ^ rightByte)
+        }
+        return difference == 0
+    }
+
     static func jsonString(_ object: Any) -> String {
         let compatible = HCBMCPJSONCompatibility.convert(object)
         guard JSONSerialization.isValidJSONObject(compatible),
@@ -371,6 +774,8 @@ struct HTTPResponse {
         case 403: "Forbidden"
         case 404: "Not Found"
         case 405: "Method Not Allowed"
+        case 413: "Payload Too Large"
+        case 429: "Too Many Requests"
         case 500: "Internal Server Error"
         default: "HTTP"
         }
@@ -378,35 +783,78 @@ struct HTTPResponse {
 }
 
 private struct HTTPRequest {
+    enum ParseResult {
+        case complete(HTTPRequest)
+        case incomplete
+        case malformed
+        case tooLarge
+    }
+
     var method: String
     var path: String
     var headers: [String: String]
     var body: Data
     var totalLength: Int
 
-    init?(data: Data) {
-        guard let headerEnd = data.range(of: Data("\r\n\r\n".utf8)) else { return nil }
+    static func parse(data: Data) -> ParseResult {
+        guard data.count <= MCPServerController.maxHTTPRequestBytes else {
+            return .tooLarge
+        }
+        guard let headerEnd = data.range(of: Data("\r\n\r\n".utf8)) else {
+            return data.count > MCPServerController.maxHTTPHeaderBytes ? .tooLarge : .incomplete
+        }
+        guard headerEnd.lowerBound <= MCPServerController.maxHTTPHeaderBytes else {
+            return .tooLarge
+        }
         let headerData = data[..<headerEnd.lowerBound]
-        guard let headerText = String(data: headerData, encoding: .utf8) else { return nil }
+        guard let headerText = String(data: headerData, encoding: .utf8) else { return .malformed }
         let lines = headerText.components(separatedBy: "\r\n")
-        guard let requestLine = lines.first else { return nil }
+        guard let requestLine = lines.first, requestLine.isEmpty == false else { return .malformed }
         let parts = requestLine.split(separator: " ", maxSplits: 2).map(String.init)
-        guard parts.count >= 2 else { return nil }
-        method = parts[0].uppercased()
-        path = parts[1]
+        guard parts.count >= 2 else { return .malformed }
         var parsedHeaders: [String: String] = [:]
         for line in lines.dropFirst() {
-            guard let colon = line.firstIndex(of: ":") else { continue }
+            guard line.isEmpty == false else { continue }
+            guard let colon = line.firstIndex(of: ":") else { return .malformed }
             let name = line[..<colon].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             let value = line[line.index(after: colon)...].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard name.isEmpty == false else { return .malformed }
+            if parsedHeaders[name] != nil {
+                return .malformed
+            }
             parsedHeaders[name] = value
         }
-        headers = parsedHeaders
         let bodyStart = headerEnd.upperBound
-        let length = Int(headers["content-length"] ?? "0") ?? 0
-        totalLength = bodyStart + length
-        guard data.count >= totalLength else { return nil }
-        body = data[bodyStart..<totalLength]
+        guard let length = parseContentLength(parsedHeaders["content-length"]) else {
+            return .malformed
+        }
+        guard length <= MCPServerController.maxHTTPBodyBytes else {
+            return .tooLarge
+        }
+        guard bodyStart <= MCPServerController.maxHTTPRequestBytes,
+              length <= MCPServerController.maxHTTPRequestBytes - bodyStart else {
+            return .tooLarge
+        }
+        let totalLength = bodyStart + length
+        guard data.count >= totalLength else {
+            return .incomplete
+        }
+        guard data.count == totalLength else {
+            return .malformed
+        }
+        return .complete(HTTPRequest(
+            method: parts[0].uppercased(),
+            path: parts[1],
+            headers: parsedHeaders,
+            body: Data(data[bodyStart..<totalLength]),
+            totalLength: totalLength
+        ))
+    }
+
+    private static func parseContentLength(_ raw: String?) -> Int? {
+        guard let raw, raw.isEmpty == false else { return 0 }
+        guard raw.allSatisfy(\.isNumber), let length = Int(raw) else { return nil }
+        return length
     }
 }
 

@@ -63,6 +63,26 @@ Tool responses include `applied`, `dryRun`, `requiresConfirmation`, optional `co
 
 The MCP server binds only to `127.0.0.1`. It rejects non-local connections and unexpected browser origins. It does not return Google OAuth tokens, cache encryption keys, Keychain material, raw credential config, or raw Google diagnostic payloads.
 
+Write attempts are recorded in the encrypted mutation audit log with the MCP client, tool name, outcome, and argument keys only. The audit metadata intentionally excludes task titles, notes, event details, bearer tokens, and full tool arguments. Settings also shows current server status and recent MCP activity for the current launch.
+
+The HTTP boundary caps request headers and JSON-RPC bodies, rejects malformed duplicate headers and trailing request bytes, compares bearer tokens without early-exit string comparison, and rate-limits requests per local client connection.
+
+## Manual abuse smoke tests
+
+With the app running and Local MCP server enabled, copy the bearer token from Settings -> Agent access and run:
+
+```sh
+HCB_MCP_TOKEN='<copied-token>' scripts/mcp-abuse-smoke.sh
+```
+
+Set `HCB_MCP_URL` if the port is not the default `8765`. The script uses real `curl` requests against the running app and checks authorized JSON-RPC, unauthorized tokens, rejected origins, malformed JSON, dry-run write behavior, and oversized body rejection. To exercise the rate limiter with a burst of real requests:
+
+```sh
+HCB_MCP_TOKEN='<copied-token>' HCB_MCP_RUN_RATE_LIMIT=1 scripts/mcp-abuse-smoke.sh
+```
+
+For an interactive MCP-client pass, connect a real HTTP MCP client to the copied Settings config, call `tools/list`, run one read tool, run one write tool with `dryRun: true`, and confirm the Settings activity list plus the Diagnostics audit log show the client/tool/outcome without raw argument values.
+
 ## OpenClaw-style setup
 
 Use the copied Settings config when your client accepts HTTP MCP servers. For clients that manage MCP entries by command, configure the URL as:

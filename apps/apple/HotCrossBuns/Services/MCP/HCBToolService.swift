@@ -142,6 +142,23 @@ final class HCBToolService {
         ]
     }
 
+    nonisolated static let writeToolNames: Set<String> = [
+        "hcb_create_task",
+        "hcb_create_note",
+        "hcb_create_event",
+        "hcb_update_task",
+        "hcb_update_event",
+        "hcb_complete_task",
+        "hcb_reopen_task",
+        "hcb_move_task",
+        "hcb_delete_task",
+        "hcb_delete_event"
+    ]
+
+    nonisolated static func isWriteTool(_ name: String) -> Bool {
+        writeToolNames.contains(name)
+    }
+
     func callTool(name: String, arguments: [String: Any]) async throws -> [String: Any] {
         switch name {
         case "hcb_search":
@@ -513,12 +530,14 @@ final class HCBToolService {
         }
 
         guard requiresConfirmation else { return nil }
-        guard let id = string("confirmationId", in: arguments),
-              consumeConfirmation(id: id, toolName: toolName, arguments: arguments) else {
-            let newId = storeConfirmation(toolName: toolName, arguments: arguments)
-            throw HCBToolError.confirmationRequired("Dry-run confirmation is required before this write can apply.", newId)
+        if let id = string("confirmationId", in: arguments) {
+            guard consumeConfirmation(id: id, toolName: toolName, arguments: arguments) else {
+                throw HCBToolError.confirmationMismatch
+            }
+            return nil
+        } else {
+            throw HCBToolError.confirmationRequired("Dry-run confirmation is required before this write can apply.", nil)
         }
-        return nil
     }
 
     private func storeConfirmation(toolName: String, arguments: [String: Any]) -> String {
@@ -844,14 +863,34 @@ private extension Dictionary where Key == String, Value == Any {
     func redactedForMCP() -> [String: Any] {
         var out: [String: Any] = [:]
         for (key, value) in self {
-            let lower = key.lowercased()
-            if lower.contains("token") || lower.contains("secret") || lower.contains("credential") || lower.contains("key") {
+            if Self.isSensitiveMCPKey(key) {
                 out[key] = "[redacted]"
             } else {
-                out[key] = value
+                out[key] = Self.redactedMCPValue(value)
             }
         }
         return out
+    }
+
+    private static func redactedMCPValue(_ value: Any) -> Any {
+        switch value {
+        case let dict as [String: Any]:
+            return dict.redactedForMCP()
+        case let array as [Any]:
+            return array.map(redactedMCPValue)
+        default:
+            return value
+        }
+    }
+
+    private static func isSensitiveMCPKey(_ key: String) -> Bool {
+        let lower = key.lowercased()
+        return lower.contains("token")
+            || lower.contains("secret")
+            || lower.contains("credential")
+            || lower.contains("key")
+            || lower.contains("authorization")
+            || lower.contains("password")
     }
 
     func jsonCompatible() -> [String: Any] {
