@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class CommandPalettePanelController: NSObject, NSWindowDelegate {
     private var panel: NSPanel?
+    private let entityCache = CommandPaletteEntityCache()
 
     func present(
         model: AppModel,
@@ -14,6 +15,7 @@ final class CommandPalettePanelController: NSObject, NSWindowDelegate {
 
         let content = CommandPaletteView(
             commands: commands,
+            entityCache: entityCache,
             onSelectEntity: onSelectEntity,
             onClose: { [weak self] in
                 self?.close()
