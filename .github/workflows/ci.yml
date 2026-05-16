@@ -23,3 +23,27 @@ jobs:
           test ! -d services/server
           test ! -f docker-compose.yml
           ! grep -R "services/server" README.md docs
+
+  macos-tests:
+    name: macOS Build And Tests
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build and run macOS XCTest suite
+        run: |
+          xcodebuild \
+            -project apps/apple/HotCrossBuns.xcodeproj \
+            -scheme HotCrossBunsMac \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath build/apple/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            test
+
+      - name: Verify checked-in project did not change
+        run: git diff --exit-code -- apps/apple/HotCrossBuns.xcodeproj/project.pbxproj
