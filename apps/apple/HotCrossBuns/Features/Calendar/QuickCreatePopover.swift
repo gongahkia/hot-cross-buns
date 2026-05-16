@@ -2,8 +2,7 @@ import SwiftUI
 
 // Single unified popover for click-to-create + drag-to-create events and
 // tasks. Apple-Calendar-inspired layout: title row with color swatch,
-// location row, collapsible date section (click the summary to expand,
-// tap outside the date panel to collapse), invitees, notes.
+// location row, collapsible date section, invitees, notes.
 //
 // Default: all top-level fields are visible up-front. The date section
 // itself toggles on click. Users who want the pre-§7.01 compact
@@ -53,8 +52,7 @@ struct QuickCreatePopover: View {
     // AppSettings.quickCreateExpandedByDefault is false. True by default so
     // the popover starts fully detailed.
     @State private var showOptionalFields: Bool = true
-    // Inner date-panel expansion. Independent of the outer collapse. Click
-    // anywhere in the popover body that is not the date panel to collapse.
+    // Inner date-panel expansion. Independent of the outer compact mode.
     @State private var isDatePanelExpanded: Bool = false
 
     // Editable event fields
@@ -84,10 +82,7 @@ struct QuickCreatePopover: View {
     @State private var taskDueDate: Date = Date()
     @State private var hasDueDate: Bool = true
     // Per-section expansion for the task popover (Apple Reminders style).
-    // Tapping a card expands it; tapping anywhere outside the card in the
-    // popover body collapses it.
     @State private var isTaskDateCardExpanded: Bool = false
-    @State private var isTaskListCardExpanded: Bool = false
 
     private struct TaskListTagMatch {
         let list: TaskListMirror
@@ -149,20 +144,6 @@ struct QuickCreatePopover: View {
                 }
                 .hcbScaledPadding(.horizontal, 14)
                 .hcbScaledPadding(.vertical, 12)
-                // Empty-area taps inside the scroll view collapse the
-                // date panel. Interactive widgets (pickers, buttons,
-                // fields) consume their own taps first so they don't
-                // trigger this gesture.
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    if isDatePanelExpanded || isTaskDateCardExpanded || isTaskListCardExpanded {
-                        HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeInOut(duration: 0.14)) {
-                            isDatePanelExpanded = false
-                            isTaskDateCardExpanded = false
-                            isTaskListCardExpanded = false
-                        }
-                    }
-                }
             }
             .frame(maxHeight: 520)
             Divider()
@@ -414,8 +395,8 @@ struct QuickCreatePopover: View {
         )
     }
 
-    // Click-to-expand date panel. Collapsed: one-line summary + hint.
-    // Expanded: editable fields. Outer body's tapGesture collapses.
+    // Collapsed: one-line summary + hint. Expanded: editable fields with an
+    // explicit collapse control for keyboard and VoiceOver users.
     private var datePanel: some View {
         VStack(alignment: .leading, spacing: 0) {
             if isDatePanelExpanded == false {
@@ -438,11 +419,6 @@ struct QuickCreatePopover: View {
             } else {
                 expandedDatePanel
                     .hcbScaledPadding(10)
-                    .contentShape(Rectangle())
-                    // Swallow taps inside the expanded panel so the
-                    // outer ScrollView's collapse gesture doesn't fire
-                    // when the user interacts with a picker/toggle.
-                    .onTapGesture { /* no-op */ }
             }
         }
         .background(
@@ -477,6 +453,15 @@ struct QuickCreatePopover: View {
 
     private var expandedDatePanel: some View {
         VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Label("Date and time", systemImage: "calendar")
+                    .hcbFont(.caption, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                collapseEditorButton("Collapse date options") {
+                    isDatePanelExpanded = false
+                }
+            }
             Toggle("All Day", isOn: $isAllDay)
                 .toggleStyle(.switch)
                 .tint(Color.accentColor)
@@ -542,6 +527,19 @@ struct QuickCreatePopover: View {
         }
     }
 
+    private func collapseEditorButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button {
+            HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeInOut(duration: 0.14), action)
+        } label: {
+            Label(title, systemImage: "chevron.up")
+                .labelStyle(.iconOnly)
+        }
+        .buttonStyle(.borderless)
+        .controlSize(.small)
+        .help(title)
+        .accessibilityLabel(title)
+    }
+
     private func alertLabel(for minutes: Int) -> String {
         switch minutes {
         case 0: return "At time"
@@ -605,38 +603,47 @@ struct QuickCreatePopover: View {
         )
     }
 
-    // Date card — collapsed shows Date label + toggle + subtitle; tap
-    // card to expand the inline DatePicker.
+    // Date card — collapsed shows Date label + toggle + subtitle; the
+    // disclosure button expands the inline DatePicker.
     private var taskDateCard: some View {
         VStack(spacing: 0) {
-            Button {
-                HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeInOut(duration: 0.14)) { isTaskDateCardExpanded.toggle() }
-            } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "calendar")
-                        .hcbFont(.body)
-                        .foregroundStyle(.secondary)
-                        .hcbScaledFrame(width: 22)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Date")
-                            .hcbFont(.body)
-                            .foregroundStyle(AppColor.ink)
-                        if hasDueDate {
-                            Text(taskDueDate.formatted(.dateTime.weekday(.wide).day().month(.wide).year()))
-                                .hcbFont(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
+            HStack(spacing: 10) {
+                Button {
+                    HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeInOut(duration: 0.14)) {
+                        isTaskDateCardExpanded.toggle()
                     }
-                    Spacer(minLength: 8)
-                    Toggle("", isOn: $hasDueDate)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .tint(Color.accentColor)
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "calendar")
+                            .hcbFont(.body)
+                            .foregroundStyle(.secondary)
+                            .hcbScaledFrame(width: 22)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Date")
+                                .hcbFont(.body)
+                                .foregroundStyle(AppColor.ink)
+                            if hasDueDate {
+                                Text(taskDueDate.formatted(.dateTime.weekday(.wide).day().month(.wide).year()))
+                                    .hcbFont(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer(minLength: 8)
+                        Image(systemName: isTaskDateCardExpanded ? "chevron.up" : "chevron.down")
+                            .hcbFont(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
                 }
-                .hcbScaledPadding(10)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .accessibilityLabel(isTaskDateCardExpanded ? "Collapse task date" : "Expand task date")
+
+                Toggle("", isOn: $hasDueDate)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .tint(Color.accentColor)
             }
-            .buttonStyle(.plain)
+            .hcbScaledPadding(10)
             if isTaskDateCardExpanded, hasDueDate {
                 Divider().hcbScaledPadding(.horizontal, 10)
                 HStack {
@@ -646,7 +653,6 @@ struct QuickCreatePopover: View {
                         .datePickerStyle(.stepperField)
                 }
                 .hcbScaledPadding(10)
-                .onTapGesture { /* swallow */ }
             }
         }
         .background(

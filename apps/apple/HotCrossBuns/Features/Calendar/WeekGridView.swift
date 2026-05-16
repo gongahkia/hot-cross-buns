@@ -172,11 +172,14 @@ struct WeekGridView: View {
         // GeometryReader closures have shown propagation gaps).
         let capturedRouter = router
         return HStack(spacing: 0) {
-            Text("All-day")
-                .hcbFont(.caption2, weight: .semibold)
-                .foregroundStyle(.secondary)
-                .hcbScaledFrame(width: 54, alignment: .trailing)
-                .hcbScaledPadding(.trailing, 6)
+            HStack(spacing: 3) {
+                Text("All-day")
+                    .hcbFont(.caption2, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                weekAllDayCreateMenu(days: snapshot.days, router: capturedRouter)
+            }
+            .hcbScaledFrame(width: 54, alignment: .trailing)
+            .hcbScaledPadding(.trailing, 4)
             GeometryReader { geo in
                 let columnWidth = geo.size.width / CGFloat(max(snapshot.days.count, 1))
                 let laneHeight: CGFloat = 22
@@ -247,6 +250,25 @@ struct WeekGridView: View {
         .frame(minHeight: stripHeight, idealHeight: stripHeight, maxHeight: stripHeight)
         .clipped()
         .hcbScaledPadding(.vertical, 4)
+    }
+
+    private func weekAllDayCreateMenu(days: [Date], router capturedRouter: RouterPath?) -> some View {
+        Menu {
+            ForEach(Array(days.enumerated()), id: \.offset) { _, day in
+                let dayStart = calendar.startOfDay(for: day)
+                Button(dayStart.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())) {
+                    capturedRouter?.present(.quickCreate(dayStart, allDay: true))
+                }
+            }
+        } label: {
+            Image(systemName: "plus.circle")
+                .imageScale(.small)
+        }
+        .menuStyle(.borderlessButton)
+        .controlSize(.mini)
+        .fixedSize()
+        .help("New all-day event")
+        .accessibilityLabel("New all-day event")
     }
 
     private func hiddenAllDaySpanCount(onColumn column: Int, spans: [CalendarWeekDisplaySnapshot.AllDaySpan]) -> Int {
@@ -416,7 +438,7 @@ struct WeekGridView: View {
         // reliable router reference (see allDayStrip for rationale).
         let capturedRouter = router
         return HStack(alignment: .top, spacing: 0) {
-            hoursColumn
+            hoursColumn(days: snapshot.days, router: capturedRouter)
             GeometryReader { geo in
                 let columnWidth = geo.size.width / CGFloat(max(snapshot.days.count, 1))
                 let totalHeight = CGFloat(hourEnd - hourStart) * hourHeight
@@ -577,21 +599,54 @@ struct WeekGridView: View {
         }
     }
 
-    private var hoursColumn: some View {
+    private func hoursColumn(days: [Date], router capturedRouter: RouterPath?) -> some View {
         VStack(spacing: 0) {
             ForEach(hourStart..<hourEnd, id: \.self) { hour in
-                HStack {
-                    Spacer()
+                HStack(spacing: 4) {
                     Text(labelForHour(hour))
                         .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
                         .offset(y: -6)
-                        .hcbScaledPadding(.trailing, 6)
+                    weekTimedSlotMenu(hour: hour, days: days, router: capturedRouter)
                 }
                 .frame(height: hourHeight, alignment: .top)
             }
         }
         .hcbScaledFrame(width: 54)
+    }
+
+    private func weekTimedSlotMenu(hour: Int, days: [Date], router capturedRouter: RouterPath?) -> some View {
+        Menu {
+            ForEach(Array(days.enumerated()), id: \.offset) { _, day in
+                let dayStart = calendar.startOfDay(for: day)
+                let start = calendar.date(byAdding: .hour, value: hour, to: dayStart) ?? dayStart
+                Button(start.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())) {
+                    createTimedSlot(start: start, router: capturedRouter)
+                }
+            }
+        } label: {
+            Image(systemName: "plus.circle")
+                .imageScale(.small)
+        }
+        .menuStyle(.borderlessButton)
+        .controlSize(.mini)
+        .fixedSize()
+        .help(weekTimedSlotActionTitle(hour: hour))
+        .accessibilityLabel(weekTimedSlotAccessibilityLabel(hour: hour))
+    }
+
+    private func weekTimedSlotActionTitle(hour: Int) -> String {
+        let dayStart = calendar.startOfDay(for: anchorDate)
+        let start = calendar.date(byAdding: .hour, value: hour, to: dayStart) ?? dayStart
+        let time = start.formatted(.dateTime.hour().minute())
+        return availabilitySelection == nil ? "New event at \(time)" : "Select availability at \(time)"
+    }
+
+    private func weekTimedSlotAccessibilityLabel(hour: Int) -> String {
+        let dayStart = calendar.startOfDay(for: anchorDate)
+        let start = calendar.date(byAdding: .hour, value: hour, to: dayStart) ?? dayStart
+        let time = start.formatted(.dateTime.hour().minute())
+        return availabilitySelection == nil ? "New event at \(time)" : "Select availability at \(time)"
     }
 
     private var gridLines: some View {
@@ -620,20 +675,7 @@ struct WeekGridView: View {
                 dayStart: startOfDay,
                 calendar: calendar,
                 onTap: { start in
-                    if let availabilitySelection {
-                        let end = calendar.date(
-                            byAdding: .minute,
-                            value: max(15, availabilitySelection.defaultDurationMinutes),
-                            to: start
-                        ) ?? start.addingTimeInterval(1800)
-                        selectAvailabilitySlot(
-                            AvailabilitySlot(startDate: start, endDate: end),
-                            using: availabilitySelection
-                        )
-                        return
-                    }
-                    flashTimedStart(start)
-                    capturedRouter?.present(.quickCreate(start, allDay: false))
+                    createTimedSlot(start: start, router: capturedRouter)
                 }
             )
             .dropDestination(for: DraggedTask.self) { items, location in
@@ -683,6 +725,23 @@ struct WeekGridView: View {
         .frame(width: width)
         .offset(x: xOffset)
         .animation(HCBMotion.animation(.easeOut(duration: 0.18), reduceMotion: calendarGridReduceMotion), value: flashTimedSlot)
+    }
+
+    private func createTimedSlot(start: Date, router capturedRouter: RouterPath?) {
+        if let availabilitySelection {
+            let end = calendar.date(
+                byAdding: .minute,
+                value: max(15, availabilitySelection.defaultDurationMinutes),
+                to: start
+            ) ?? start.addingTimeInterval(1800)
+            selectAvailabilitySlot(
+                AvailabilitySlot(startDate: start, endDate: end),
+                using: availabilitySelection
+            )
+            return
+        }
+        flashTimedStart(start)
+        capturedRouter?.present(.quickCreate(start, allDay: false))
     }
 
     // Tap-only hit-test layer for each day column. Multi-day drag is now

@@ -1278,6 +1278,7 @@ struct MonthGridView: View {
                             .fill(snapshot.isToday ? AppColor.ember.opacity(0.25) : .clear)
                     )
                 Spacer(minLength: 0)
+                monthCellCreateMenu(dayStart: dayStart, dateLabel: snapshot.accessibilityDateLabel)
             }
             if bandReserve > 0 {
                 Color.clear.frame(height: bandReserve)
@@ -1411,6 +1412,25 @@ struct MonthGridView: View {
             }
             return true
         }
+    }
+
+    private func monthCellCreateMenu(dayStart: Date, dateLabel: String) -> some View {
+        Menu {
+            Button("New event...") {
+                router?.present(.quickCreate(dayStart, allDay: false))
+            }
+            Button("New all-day event...") {
+                router?.present(.quickCreate(dayStart, allDay: true))
+            }
+        } label: {
+            Image(systemName: "plus.circle")
+                .imageScale(.small)
+        }
+        .menuStyle(.borderlessButton)
+        .controlSize(.mini)
+        .fixedSize()
+        .help("Create on \(dateLabel)")
+        .accessibilityLabel("Create on \(dateLabel)")
     }
 
     // How many band events for this specific day are visible in the overlay
