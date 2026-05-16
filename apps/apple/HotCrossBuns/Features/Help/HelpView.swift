@@ -150,8 +150,8 @@ struct HelpView: View {
             HelpSectionData(
                 title: hcbHelpString("Store"),
                 entries: [
-                    .init(title: nil, detail: hcbHelpString("Tasks, notes, smart filters, stale-list review, and saved custom filters all live here."), kind: .bullet),
-                    .init(title: nil, detail: hcbHelpString("The toolbar filter menu switches between All / Overdue / Today / Next 7 / No Date / Notes / Stale Lists / saved custom filters."), kind: .bullet),
+                    .init(title: nil, detail: hcbHelpString("Tasks and notes share the Store surface and sync through Google Tasks."), kind: .bullet),
+                    .init(title: nil, detail: hcbHelpString("Saved custom filters can be configured in Settings and pinned to the menu bar."), kind: .bullet),
                     .init(title: nil, detail: hcbHelpString("Notes are undated tasks. They still sync through Google Tasks."), kind: .bullet)
                 ]
             ),

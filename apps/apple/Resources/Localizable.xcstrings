@@ -25396,72 +25396,72 @@
         }
       }
     },
-    "Tasks, notes, smart filters, stale-list review, and saved custom filters all live here.": {
+    "Tasks and notes share the Store surface and sync through Google Tasks.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tasks, notes, smart filters, stale-list review, and saved custom filters all live here."
+            "value": "Tasks and notes share the Store surface and sync through Google Tasks."
           }
         },
         "ms": {
           "stringUnit": {
-            "state": "translated",
-            "value": "Tugasan, nota, penapis pintar, semakan senarai lapuk dan penapis tersuai yang disimpan semuanya ada di sini."
+            "state": "new",
+            "value": "Tasks and notes share the Store surface and sync through Google Tasks."
           }
         },
         "ta": {
           "stringUnit": {
-            "state": "translated",
-            "value": "பணிகள், குறிப்புகள், ஸ்மார்ட் ஃபில்டர்கள், பழைய பட்டியல் மதிப்பாய்வு மற்றும் சேமித்த தனிப்பயன் வடிப்பான்கள் அனைத்தும் இங்கே உள்ளன."
+            "state": "new",
+            "value": "Tasks and notes share the Store surface and sync through Google Tasks."
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "translated",
-            "value": "任务、注释、智能过滤器、过时列表审查和保存的自定义过滤器都在这里。"
+            "state": "new",
+            "value": "Tasks and notes share the Store surface and sync through Google Tasks."
           }
         },
         "id": {
           "stringUnit": {
             "state": "new",
-            "value": "Tasks, notes, smart filters, stale-list review, and saved custom filters all live here."
+            "value": "Tasks and notes share the Store surface and sync through Google Tasks."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "new",
-            "value": "Tasks, notes, smart filters, stale-list review, and saved custom filters all live here."
+            "value": "Tasks and notes share the Store surface and sync through Google Tasks."
           }
         },
         "th": {
           "stringUnit": {
             "state": "new",
-            "value": "Tasks, notes, smart filters, stale-list review, and saved custom filters all live here."
+            "value": "Tasks and notes share the Store surface and sync through Google Tasks."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "new",
-            "value": "Tasks, notes, smart filters, stale-list review, and saved custom filters all live here."
+            "value": "Tasks and notes share the Store surface and sync through Google Tasks."
           }
         },
         "ko": {
           "stringUnit": {
             "state": "new",
-            "value": "Tasks, notes, smart filters, stale-list review, and saved custom filters all live here."
+            "value": "Tasks and notes share the Store surface and sync through Google Tasks."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "new",
-            "value": "Tasks, notes, smart filters, stale-list review, and saved custom filters all live here."
+            "value": "Tasks and notes share the Store surface and sync through Google Tasks."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "new",
-            "value": "Tasks, notes, smart filters, stale-list review, and saved custom filters all live here."
+            "value": "Tasks and notes share the Store surface and sync through Google Tasks."
           }
         }
       }
@@ -25850,72 +25850,72 @@
         }
       }
     },
-    "The toolbar filter menu switches between All / Overdue / Today / Next 7 / No Date / Notes / Stale Lists / saved custom filters.": {
+    "Saved custom filters can be configured in Settings and pinned to the menu bar.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The toolbar filter menu switches between All / Overdue / Today / Next 7 / No Date / Notes / Stale Lists / saved custom filters."
+            "value": "Saved custom filters can be configured in Settings and pinned to the menu bar."
           }
         },
         "ms": {
           "stringUnit": {
-            "state": "translated",
-            "value": "Menu penapis bar alat bertukar antara Semua / Tertunggak / Hari Ini / 7 Seterusnya / Tiada Tarikh / Nota / Senarai Lapuk / penapis tersuai yang disimpan."
+            "state": "new",
+            "value": "Saved custom filters can be configured in Settings and pinned to the menu bar."
           }
         },
         "ta": {
           "stringUnit": {
-            "state": "translated",
-            "value": "கருவிப்பட்டி வடிகட்டி மெனு அனைத்தும் / காலாவதி / இன்று / அடுத்த 7 / தேதி இல்லை / குறிப்புகள் / பழைய பட்டியல்கள் / சேமிக்கப்பட்ட தனிப்பயன் வடிப்பான்களுக்கு இடையே மாறுகிறது."
+            "state": "new",
+            "value": "Saved custom filters can be configured in Settings and pinned to the menu bar."
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "translated",
-            "value": "工具栏过滤器菜单在“全部”/“过期”/“今天”/“下一个 7”/“无日期”/“注释”/“过时列表”/“已保存的自定义过滤器”之间切换。"
+            "state": "new",
+            "value": "Saved custom filters can be configured in Settings and pinned to the menu bar."
           }
         },
         "id": {
           "stringUnit": {
             "state": "new",
-            "value": "The toolbar filter menu switches between All / Overdue / Today / Next 7 / No Date / Notes / Stale Lists / saved custom filters."
+            "value": "Saved custom filters can be configured in Settings and pinned to the menu bar."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "new",
-            "value": "The toolbar filter menu switches between All / Overdue / Today / Next 7 / No Date / Notes / Stale Lists / saved custom filters."
+            "value": "Saved custom filters can be configured in Settings and pinned to the menu bar."
           }
         },
         "th": {
           "stringUnit": {
             "state": "new",
-            "value": "The toolbar filter menu switches between All / Overdue / Today / Next 7 / No Date / Notes / Stale Lists / saved custom filters."
+            "value": "Saved custom filters can be configured in Settings and pinned to the menu bar."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "new",
-            "value": "The toolbar filter menu switches between All / Overdue / Today / Next 7 / No Date / Notes / Stale Lists / saved custom filters."
+            "value": "Saved custom filters can be configured in Settings and pinned to the menu bar."
           }
         },
         "ko": {
           "stringUnit": {
             "state": "new",
-            "value": "The toolbar filter menu switches between All / Overdue / Today / Next 7 / No Date / Notes / Stale Lists / saved custom filters."
+            "value": "Saved custom filters can be configured in Settings and pinned to the menu bar."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "new",
-            "value": "The toolbar filter menu switches between All / Overdue / Today / Next 7 / No Date / Notes / Stale Lists / saved custom filters."
+            "value": "Saved custom filters can be configured in Settings and pinned to the menu bar."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "new",
-            "value": "The toolbar filter menu switches between All / Overdue / Today / Next 7 / No Date / Notes / Stale Lists / saved custom filters."
+            "value": "Saved custom filters can be configured in Settings and pinned to the menu bar."
           }
         }
       }

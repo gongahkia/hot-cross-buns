@@ -198,12 +198,6 @@ final class AppModel {
     var pendingEventPrefill: DeepLinkEventPrefill?
     // Query pre-populated into the command palette when a search deep link fires.
     var pendingPaletteQuery: String?
-    // TODO: prune — dead after the Calendar/Tasks/Notes sidebar refactor.
-    // QuickSwitcherView + MenuBarExtraScene still write this, but no view
-    // reads it (the Tasks tab no longer exposes filter scopes). Delete the
-    // field once those writers are updated to route to the appropriate
-    // Kanban group-by mode, or dropped entirely.
-    var pendingStoreFilterKey: String?
     // Populated on first launch-time check; DiagnosticsView surfaces.
     private(set) var keychainHealth: KeychainHealth = .unknown
     private(set) var customOAuthClientConfiguration: GoogleOAuthClientConfiguration?
@@ -2759,27 +2753,6 @@ final class AppModel {
         }
         guard next != settings.perSurfaceFontOverrides else { return }
         settings.perSurfaceFontOverrides = next
-        scheduleCacheSave()
-    }
-
-    // TODO: prune — dead after the Calendar/Tasks/Notes sidebar refactor.
-    // No caller remains; StoreViewMode + hiddenStoreViewModes follow. Safe
-    // to delete alongside the enum file and the AppSettings field.
-    func setStoreViewModeHidden(_ mode: StoreViewMode, hidden: Bool) {
-        var next = settings.hiddenStoreViewModes
-        if hidden {
-            // Same invariant as Calendar: at least one view mode stays visible
-            // so the Store tab doesn't render an empty detail pane.
-            let wouldRemainVisible = StoreViewMode.allCases.contains { other in
-                other != mode && next.contains(other.rawValue) == false
-            }
-            guard wouldRemainVisible else { return }
-            next.insert(mode.rawValue)
-        } else {
-            next.remove(mode.rawValue)
-        }
-        guard next != settings.hiddenStoreViewModes else { return }
-        settings.hiddenStoreViewModes = next
         scheduleCacheSave()
     }
 

@@ -513,17 +513,12 @@ struct MacSidebarShell: View {
             selectSidebarItem(.calendar, source: "quickSwitcher.event")
             tabRouter.router(for: sidebarItemKey(.calendar)).present(.editEvent(event.id))
         case .taskList:
-            // No single-list scope exists in StoreView today — land the user
-            // in Store with the "Lists" management view selected so they can
-            // click through. Better than silently switching filter.
             selectSidebarItem(.store, source: "quickSwitcher.taskList")
-            model.pendingStoreFilterKey = "lists"
         case .calendar:
             // Calendar tab has no per-calendar scope control; just land there.
             selectSidebarItem(.calendar, source: "quickSwitcher.calendar")
         case .customFilter(let f):
             selectSidebarItem(.store, source: "quickSwitcher.customFilter")
-            model.pendingStoreFilterKey = "custom:\(f.id.uuidString)"
             model.markCustomFilterUsed(f.id)
         }
     }

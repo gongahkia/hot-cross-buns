@@ -1,7 +1,7 @@
 import Foundation
 
-// Top-level layout mode for the Notes tab. Mirrors StoreViewMode's pattern
-// but stays independent since notes have their own defaults and set of
+// Top-level layout mode for the Notes tab. Kept independent from Tasks
+// since notes have their own defaults and set of
 // reasonable modes (no by-due-date column — notes are undated).
 enum NotesViewMode: String, CaseIterable, Hashable, Codable, Sendable {
     case grid       // flat Trello-style card grid (default, pre-refactor behavior)
