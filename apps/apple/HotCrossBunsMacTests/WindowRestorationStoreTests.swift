@@ -68,4 +68,22 @@ final class WindowRestorationStoreTests: XCTestCase {
         XCTAssertTrue(store.openWindowIDs().isEmpty)
         XCTAssertEqual(store.frame(for: .history), frame)
     }
+
+    func testMainWindowSelectionAcceptsMainSceneIdentifier() {
+        XCTAssertTrue(HCBMainWindowPresenter.isMainWindow(
+            identifierRawValue: HCBWindowSceneID.main.rawValue,
+            title: "History"
+        ))
+    }
+
+    func testMainWindowSelectionUsesExactTitleFallback() {
+        XCTAssertTrue(HCBMainWindowPresenter.isMainWindow(
+            identifierRawValue: nil,
+            title: "Hot Cross Buns"
+        ))
+        XCTAssertFalse(HCBMainWindowPresenter.isMainWindow(
+            identifierRawValue: nil,
+            title: "Hot Cross Buns Help"
+        ))
+    }
 }

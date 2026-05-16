@@ -60,6 +60,12 @@ struct HotCrossBunsApp: App {
     }
 
     var body: some Scene {
+        // The planner is intentionally a singleton `Window`, not a
+        // `WindowGroup`: all Dock, menu-bar, Services, deep-link, and App
+        // Intent entry points return to one source-list workspace backed by
+        // the shared AppModel. Duplicate planner windows would make selection,
+        // sheet, sync, and undo state ambiguous; HCBMainWindowPresenter owns
+        // reopening/focusing this scene from AppKit surfaces.
         Window("Hot Cross Buns", id: "main") {
             MacSidebarShell()
                 .environment(appModel)

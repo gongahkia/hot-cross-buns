@@ -8,6 +8,8 @@ extension View {
 }
 
 private struct HCBMenuBarStatusControllerHost: View {
+    @Environment(\.openWindow) private var openWindow
+
     let controller: HCBMenuBarStatusController
     let model: AppModel
 
@@ -15,7 +17,10 @@ private struct HCBMenuBarStatusControllerHost: View {
         Color.clear
             .frame(width: 0, height: 0)
             .accessibilityHidden(true)
-            .onAppear { controller.configure(model: model) }
+            .onAppear {
+                HCBMainWindowPresenter.shared.configure(openWindow: openWindow)
+                controller.configure(model: model)
+            }
             .onChange(of: model.settings.showMenuBarExtra) { _, _ in
                 controller.configure(model: model)
             }
@@ -324,10 +329,7 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
 
     @objc private func openMainWindow() {
         hidePanel()
-        NSApp.activate(ignoringOtherApps: true)
-        if let window = NSApp.windows.first(where: { $0.canBecomeMain }) {
-            window.makeKeyAndOrderFront(nil)
-        }
+        HCBMainWindowPresenter.shared.show()
     }
 
     @objc private func openSettings() {
@@ -1938,6 +1940,7 @@ private struct MenuBarQuickAddRow: View {
 
 private struct MenuBarPinnedFilters: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openWindow) private var openWindow
 
     // Up to 3 matching tasks are shown inline per pinned filter — enough
     // to be useful at a glance without letting the popover grow unbounded.
@@ -2029,10 +2032,7 @@ private struct MenuBarPinnedFilters: View {
     private func openFilter(_ f: CustomFilterDefinition) {
         model.markCustomFilterUsed(f.id)
         NotificationCenter.default.post(name: .hcbOpenStoreTab, object: nil)
-        NSApp.activate(ignoringOtherApps: true)
-        if let window = NSApp.windows.first(where: { $0.canBecomeMain }) {
-            window.makeKeyAndOrderFront(nil)
-        }
+        HCBMainWindowPresenter.shared.show(openWindow: openWindow)
     }
 }
 
@@ -2165,10 +2165,7 @@ private struct MenuBarQuickActions: View {
     }
 
     private func bringAppToFront() {
-        NSApp.activate(ignoringOtherApps: true)
-        if let window = NSApp.windows.first(where: { $0.canBecomeMain }) {
-            window.makeKeyAndOrderFront(nil)
-        }
+        HCBMainWindowPresenter.shared.show(openWindow: openWindow)
     }
 }
 

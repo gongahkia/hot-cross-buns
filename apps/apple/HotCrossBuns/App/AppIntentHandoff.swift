@@ -22,6 +22,14 @@ enum AppIntentHandoff {
         UserDefaults.standard.set(existing, forKey: pendingRoutesKey)
     }
 
+    static var hasPendingRoutes: Bool {
+        if let queued = UserDefaults.standard.stringArray(forKey: pendingRoutesKey),
+           queued.isEmpty == false {
+            return true
+        }
+        return UserDefaults.standard.string(forKey: legacyRouteKey) != nil
+    }
+
     static func consumeAll() -> [AppIntentRoute] {
         var rawValues: [String] = []
         if let queued = UserDefaults.standard.stringArray(forKey: pendingRoutesKey) {

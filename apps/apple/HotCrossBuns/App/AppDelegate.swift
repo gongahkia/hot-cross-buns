@@ -27,6 +27,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func applicationDidBecomeActive(_ notification: Notification) {
+        guard HCBLaunchMode.current != .unitTest, AppIntentHandoff.hasPendingRoutes else { return }
+        HCBMainWindowPresenter.shared.show()
+    }
+
     // Called by macOS when the user invokes the Services menu entry on a
     // text selection. The selector shape matches the Info.plist NSMessage
     // "handleCreateTaskService".
@@ -50,7 +55,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             source: Bundle.main.bundleIdentifier
         )
         SharedInboxDefaults.append(item)
-        NSApplication.shared.activate(ignoringOtherApps: true)
+        HCBMainWindowPresenter.shared.show()
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        HCBMainWindowPresenter.shared.show()
+        return false
     }
 
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
@@ -87,22 +97,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func dockNewTask() {
         AppIntentHandoff.save(.addTask)
-        NSApp.activate(ignoringOtherApps: true)
+        HCBMainWindowPresenter.shared.show()
     }
 
     @objc private func dockNewEvent() {
         AppIntentHandoff.save(.addEvent)
-        NSApp.activate(ignoringOtherApps: true)
+        HCBMainWindowPresenter.shared.show()
     }
 
     @objc private func dockGoToCalendar() {
         AppIntentHandoff.save(.calendar)
-        NSApp.activate(ignoringOtherApps: true)
+        HCBMainWindowPresenter.shared.show()
     }
 
     @objc private func dockGoToStore() {
         AppIntentHandoff.save(.store)
-        NSApp.activate(ignoringOtherApps: true)
+        HCBMainWindowPresenter.shared.show()
     }
 
     func configureGlobalHotkey(enabled: Bool, binding: GlobalHotkeyBinding) -> GlobalHotkeyRegistrationState {

@@ -50,6 +50,54 @@ struct WindowFrameSnapshot: Codable, Equatable, Sendable {
     }
 }
 
+@MainActor
+final class HCBMainWindowPresenter {
+    static let shared = HCBMainWindowPresenter()
+
+    private var openWindow: OpenWindowAction?
+
+    private init() {}
+
+    func configure(openWindow: OpenWindowAction) {
+        self.openWindow = openWindow
+    }
+
+    func show(openWindow: OpenWindowAction? = nil) {
+        if let openWindow {
+            configure(openWindow: openWindow)
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        if Self.focusExistingMainWindow() {
+            return
+        }
+
+        self.openWindow?(id: HCBWindowSceneID.main.rawValue)
+        Task { @MainActor in
+            await Task.yield()
+            NSApp.activate(ignoringOtherApps: true)
+            _ = Self.focusExistingMainWindow()
+        }
+    }
+
+    @discardableResult
+    static func focusExistingMainWindow() -> Bool {
+        guard let window = firstMainWindow(in: NSApp.windows) else { return false }
+        window.makeKeyAndOrderFront(nil)
+        return true
+    }
+
+    static func firstMainWindow(in windows: [NSWindow]) -> NSWindow? {
+        windows.first { window in
+            isMainWindow(identifierRawValue: window.identifier?.rawValue, title: window.title)
+        }
+    }
+
+    nonisolated static func isMainWindow(identifierRawValue: String?, title: String) -> Bool {
+        identifierRawValue == HCBWindowSceneID.main.rawValue || title == "Hot Cross Buns"
+    }
+}
+
 final class WindowRestorationStore {
     static let shared = WindowRestorationStore()
 

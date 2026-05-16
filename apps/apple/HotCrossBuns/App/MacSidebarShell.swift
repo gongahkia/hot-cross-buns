@@ -634,7 +634,7 @@ struct MacSidebarShell: View {
     private func dispatchDeepLinkAction(_ action: HCBDeepLinkAction) {
         switch action {
         case .openApp:
-            NSApp.activate(ignoringOtherApps: true)
+            HCBMainWindowPresenter.shared.show()
         case .openTask(let id):
             selectSidebarItem(.store, source: "deeplink.task")
             tabRouter.router(for: sidebarItemKey(.store)).present(.editTask(id))
