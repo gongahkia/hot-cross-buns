@@ -167,6 +167,17 @@ struct MonthGridView: View {
         var id: Date { weekStart }
     }
 
+    private struct MonthBandRenderItem: Identifiable {
+        var id: String
+        var band: CalendarGridLayout.MonthBand
+        var accessibilityLabel: String
+        var colorHex: String?
+        var frameWidth: CGFloat
+        var xOffset: CGFloat
+        var yOffset: CGFloat
+        var dragPayload: DraggedEvent
+    }
+
     private struct MonthGridCachePayload: Sendable {
         var key: String
         var anchorDate: Date
@@ -1206,44 +1217,82 @@ struct MonthGridView: View {
         cellWidth: CGFloat
     ) -> some View {
         let dayNumberReserve: CGFloat = 24 // matches the hcbScaledPadding(6) + day-number row height
+        let renderItems = monthBandRenderItems(
+            bands: bands,
+            accessibilityLabels: accessibilityLabels,
+            colorHexes: colorHexes,
+            cellWidth: cellWidth,
+            dayNumberReserve: dayNumberReserve
+        )
         return ZStack(alignment: .topLeading) {
-            ForEach(bands) { band in
-                if band.lane < maxVisibleLanes {
-                    CalendarEventPreviewButton(event: band.event) {
-                        Text(band.event.summary)
-                            .hcbFont(.caption2)
-                            .lineLimit(1)
-                            .hcbScaledPadding(.horizontal, 6)
-                            .hcbScaledPadding(.vertical, 2)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(calendarColor(hex: colorHexes[band.id]).opacity(monthEventFillOpacity))
-                            )
-                            .foregroundStyle(AppColor.ink)
-                    }
-                    .accessibilityLabel(accessibilityLabels[band.id] ?? band.event.summary)
-                    .frame(width: cellWidth * CGFloat(band.endColumn - band.startColumn + 1) - 4)
-                    .offset(
-                        x: cellWidth * CGFloat(band.startColumn) + 2,
-                        y: dayNumberReserve + CGFloat(band.lane) * (laneHeight + laneSpacing)
-                    )
-                    .draggable(DraggedEvent(
-                        eventID: band.event.id,
-                        calendarID: band.event.calendarID,
-                        durationMinutes: Int(max(band.event.endDate.timeIntervalSince(band.event.startDate) / 60, 15)),
-                        isAllDay: band.event.isAllDay
-                    )) {
-                        Text(band.event.summary)
-                            .hcbFont(.caption)
-                            .hcbScaledPadding(.horizontal, 8)
-                            .hcbScaledPadding(.vertical, 4)
-                            .background(Capsule().fill(calendarColor(hex: colorHexes[band.id]).opacity(0.35)))
-                    }
-                }
+            ForEach(renderItems) { item in
+                monthBandTile(item)
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    private func monthBandRenderItems(
+        bands: [CalendarGridLayout.MonthBand],
+        accessibilityLabels: [String: String],
+        colorHexes: [String: String],
+        cellWidth: CGFloat,
+        dayNumberReserve: CGFloat
+    ) -> [MonthBandRenderItem] {
+        bands.compactMap { band in
+            guard band.lane < maxVisibleLanes else { return nil }
+            let durationMinutes = Int(max(band.event.endDate.timeIntervalSince(band.event.startDate) / 60, 15))
+            return MonthBandRenderItem(
+                id: band.id,
+                band: band,
+                accessibilityLabel: accessibilityLabels[band.id] ?? band.event.summary,
+                colorHex: colorHexes[band.id],
+                frameWidth: cellWidth * CGFloat(band.endColumn - band.startColumn + 1) - 4,
+                xOffset: cellWidth * CGFloat(band.startColumn) + 2,
+                yOffset: dayNumberReserve + CGFloat(band.lane) * (laneHeight + laneSpacing),
+                dragPayload: DraggedEvent(
+                    eventID: band.event.id,
+                    calendarID: band.event.calendarID,
+                    durationMinutes: durationMinutes,
+                    isAllDay: band.event.isAllDay
+                )
+            )
+        }
+    }
+
+    private func monthBandTile(_ item: MonthBandRenderItem) -> some View {
+        let fillColor = calendarColor(hex: item.colorHex)
+        return CalendarEventPreviewButton(event: item.band.event) {
+            monthBandLabel(title: item.band.event.summary, fillColor: fillColor)
+        }
+        .accessibilityLabel(item.accessibilityLabel)
+        .frame(width: item.frameWidth)
+        .offset(x: item.xOffset, y: item.yOffset)
+        .draggable(item.dragPayload) {
+            monthBandDragPreview(title: item.band.event.summary, fillColor: fillColor)
+        }
+    }
+
+    private func monthBandLabel(title: String, fillColor: Color) -> some View {
+        Text(title)
+            .hcbFont(.caption2)
+            .lineLimit(1)
+            .hcbScaledPadding(.horizontal, 6)
+            .hcbScaledPadding(.vertical, 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(fillColor.opacity(monthEventFillOpacity))
+            )
+            .foregroundStyle(AppColor.ink)
+    }
+
+    private func monthBandDragPreview(title: String, fillColor: Color) -> some View {
+        Text(title)
+            .hcbFont(.caption)
+            .hcbScaledPadding(.horizontal, 8)
+            .hcbScaledPadding(.vertical, 4)
+            .background(Capsule().fill(fillColor.opacity(0.35)))
     }
 
     private func monthCell(snapshot: MonthDaySnapshot, bandReserve: CGFloat) -> some View {
