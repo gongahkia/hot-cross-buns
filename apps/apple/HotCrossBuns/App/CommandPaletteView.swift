@@ -23,7 +23,7 @@ struct CommandPaletteCommand: Identifiable {
 // and icons discriminate in the row, and `kind:note` / `kind:task` in the
 // DSL filters to one or the other.
 
-enum QuickSwitcherEntity: Hashable, Identifiable {
+enum QuickSwitcherEntity: Hashable, Identifiable, Sendable {
     case task(TaskMirror)
     case event(CalendarEventMirror)
     case taskList(TaskListMirror)
@@ -87,34 +87,199 @@ enum QuickSwitcherEntity: Hashable, Identifiable {
     }
 }
 
-@MainActor
-final class CommandPaletteEntityCache {
-    private(set) var entities: [QuickSwitcherEntity] = []
-    private(set) var lowercaseSearchBlobs: [String] = []
-    private var snapshotKey = ""
+struct CommandPaletteEntitySnapshot: Sendable {
+    let key: String
+    let tasks: [TaskMirror]
+    let events: [CalendarEventMirror]
+    let taskLists: [TaskListMirror]
+    let calendars: [CalendarListMirror]
+    let customFilters: [CustomFilterDefinition]
 
-    func invalidate() {
-        snapshotKey = ""
+    init(
+        key: String,
+        tasks: [TaskMirror],
+        events: [CalendarEventMirror],
+        taskLists: [TaskListMirror],
+        calendars: [CalendarListMirror],
+        customFilters: [CustomFilterDefinition]
+    ) {
+        self.key = key
+        self.tasks = tasks
+        self.events = events
+        self.taskLists = taskLists
+        self.calendars = calendars
+        self.customFilters = customFilters
     }
 
-    func rebuildIfNeeded(model: AppModel, snapshotKey key: String) {
-        guard key != snapshotKey else { return }
-        snapshotKey = key
+    @MainActor
+    init(model: AppModel, key: String) {
+        self.init(
+            key: key,
+            tasks: model.tasks,
+            events: model.events,
+            taskLists: model.taskLists,
+            calendars: model.calendars,
+            customFilters: model.settings.customFilters
+        )
+    }
+}
 
-        var nextEntities: [QuickSwitcherEntity] = []
-        nextEntities.reserveCapacity(model.tasks.count + model.events.count + model.taskLists.count + model.calendars.count + model.settings.customFilters.count)
-        for task in model.tasks where task.isDeleted == false { nextEntities.append(.task(task)) }
-        for event in model.events where event.status != .cancelled { nextEntities.append(.event(event)) }
-        for taskList in model.taskLists { nextEntities.append(.taskList(taskList)) }
-        for calendar in model.calendars { nextEntities.append(.calendar(calendar)) }
-        for filter in model.settings.customFilters { nextEntities.append(.customFilter(filter)) }
+struct CommandPaletteEntitySearchResult: Sendable {
+    let snapshotKey: String
+    let query: String
+    let entities: [QuickSwitcherEntity]
+}
 
-        entities = nextEntities
-        lowercaseSearchBlobs = nextEntities.map { entity in
-            ([entity.label] + entity.keywords)
-                .joined(separator: "\n")
-                .lowercased()
+private struct CommandPaletteEntityIndex: Sendable {
+    let snapshotKey: String
+    let entities: [QuickSwitcherEntity]
+    let lowercaseSearchBlobs: [String]
+    let calendars: [CalendarListMirror]
+    let taskLists: [TaskListMirror]
+}
+
+actor CommandPaletteEntityCache {
+    private var index: CommandPaletteEntityIndex?
+
+    func prepare(snapshot: CommandPaletteEntitySnapshot) async {
+        _ = try? await index(for: snapshot)
+    }
+
+    func search(snapshot: CommandPaletteEntitySnapshot, query: String) async throws -> CommandPaletteEntitySearchResult {
+        let index = try await index(for: snapshot)
+        let entities = try Self.searchEntities(in: index, query: query)
+        return CommandPaletteEntitySearchResult(snapshotKey: index.snapshotKey, query: query, entities: entities)
+    }
+
+    private func index(for snapshot: CommandPaletteEntitySnapshot) async throws -> CommandPaletteEntityIndex {
+        if let index, index.snapshotKey == snapshot.key {
+            return index
         }
+
+        let next = try Self.buildIndex(snapshot: snapshot)
+        index = next
+        return next
+    }
+
+    private static func buildIndex(snapshot: CommandPaletteEntitySnapshot) throws -> CommandPaletteEntityIndex {
+        var entities: [QuickSwitcherEntity] = []
+        entities.reserveCapacity(
+            snapshot.tasks.count
+                + snapshot.events.count
+                + snapshot.taskLists.count
+                + snapshot.calendars.count
+                + snapshot.customFilters.count
+        )
+
+        for (offset, task) in snapshot.tasks.enumerated() {
+            if offset.isMultiple(of: 256) { try Task.checkCancellation() }
+            if task.isDeleted == false { entities.append(.task(task)) }
+        }
+        for (offset, event) in snapshot.events.enumerated() {
+            if offset.isMultiple(of: 256) { try Task.checkCancellation() }
+            if event.status != .cancelled { entities.append(.event(event)) }
+        }
+        for taskList in snapshot.taskLists { entities.append(.taskList(taskList)) }
+        for calendar in snapshot.calendars { entities.append(.calendar(calendar)) }
+        for filter in snapshot.customFilters { entities.append(.customFilter(filter)) }
+
+        var lowercaseSearchBlobs: [String] = []
+        lowercaseSearchBlobs.reserveCapacity(entities.count)
+        for (offset, entity) in entities.enumerated() {
+            if offset.isMultiple(of: 256) { try Task.checkCancellation() }
+            lowercaseSearchBlobs.append(
+                ([entity.label] + entity.keywords)
+                    .joined(separator: "\n")
+                    .lowercased()
+            )
+        }
+
+        return CommandPaletteEntityIndex(
+            snapshotKey: snapshot.key,
+            entities: entities,
+            lowercaseSearchBlobs: lowercaseSearchBlobs,
+            calendars: snapshot.calendars,
+            taskLists: snapshot.taskLists
+        )
+    }
+
+    private static func searchEntities(in index: CommandPaletteEntityIndex, query: String) throws -> [QuickSwitcherEntity] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard q.isEmpty == false else { return [] }
+        let parsed = AdvancedSearchParser.parse(q)
+
+        if let pattern = parsed.regex {
+            guard let compiled = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+                return []
+            }
+            var matches: [QuickSwitcherEntity] = []
+            matches.reserveCapacity(30)
+            for entity in index.entities {
+                if matches.count >= 30 { break }
+                if matches.count.isMultiple(of: 16) { try Task.checkCancellation() }
+                if AdvancedSearchMatcher.regexMatches(entity, compiled: compiled) {
+                    matches.append(entity)
+                }
+            }
+            return matches
+        }
+
+        let freeText = parsed.freeText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasStructuredFilters = CommandPaletteSearchRules.hasStructuredFilters(parsed)
+
+        let entitiesFiltered: [QuickSwitcherEntity]
+        if hasStructuredFilters {
+            var hits: [QuickSwitcherEntity] = []
+            hits.reserveCapacity(min(index.entities.count, 500))
+            for (offset, entity) in index.entities.enumerated() {
+                if offset.isMultiple(of: 256) { try Task.checkCancellation() }
+                if AdvancedSearchMatcher.matches(
+                    entity,
+                    query: parsed,
+                    calendars: index.calendars,
+                    taskLists: index.taskLists
+                ) {
+                    hits.append(entity)
+                }
+            }
+            entitiesFiltered = hits
+        } else if freeText.count >= 2 {
+            let lowered = freeText.lowercased()
+            var hits: [QuickSwitcherEntity] = []
+            hits.reserveCapacity(min(index.entities.count, 500))
+            for (idx, lowerBlob) in index.lowercaseSearchBlobs.enumerated() {
+                if idx.isMultiple(of: 256) { try Task.checkCancellation() }
+                if lowerBlob.contains(lowered) {
+                    hits.append(index.entities[idx])
+                    if hits.count >= 500 { break }
+                }
+            }
+            entitiesFiltered = hits
+        } else {
+            entitiesFiltered = index.entities.filter {
+                switch $0 {
+                case .taskList, .calendar, .customFilter: return true
+                case .task, .event: return false
+                }
+            }
+        }
+
+        if freeText.isEmpty {
+            return Array(
+                entitiesFiltered
+                    .sorted { $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending }
+                    .prefix(30)
+            )
+        }
+
+        let ranked = FuzzySearcher.rank(
+            entitiesFiltered,
+            query: freeText,
+            labelForItem: { $0.label },
+            keywordsForItem: { $0.keywords },
+            limit: 38
+        )
+        return ranked.map { $0.item }
     }
 }
 
@@ -133,6 +298,44 @@ fileprivate enum PaletteItem: Identifiable {
 
 }
 
+private enum CommandPaletteSearchRules {
+    static func hasStructuredFilters(_ q: AdvancedSearchQuery) -> Bool {
+        q != .empty && (
+            q.regex != nil
+            || q.titleContains.isEmpty == false
+            || q.tagsAll.isEmpty == false
+            || q.listMatch != nil
+            || q.calendarMatch != nil
+            || q.attendeeMatch != nil
+            || q.kind != nil
+            || q.requireNotes
+            || q.requireLocation
+            || q.requireDue
+            || q.requireCompleted
+            || q.requireOverdue
+        )
+    }
+
+    // True when the parsed query carries only free text (no field operators
+    // / bare keywords / regex). Drives the "should I include commands?"
+    // decision — entity-filter-heavy queries suppress commands so the list
+    // isn't noisy.
+    static func hasFreeTextOnly(_ q: AdvancedSearchQuery) -> Bool {
+        q.regex == nil
+            && q.titleContains.isEmpty
+            && q.tagsAll.isEmpty
+            && q.listMatch == nil
+            && q.calendarMatch == nil
+            && q.attendeeMatch == nil
+            && q.kind == nil
+            && q.requireNotes == false
+            && q.requireLocation == false
+            && q.requireDue == false
+            && q.requireCompleted == false
+            && q.requireOverdue == false
+    }
+}
+
 struct CommandPaletteView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
@@ -143,6 +346,7 @@ struct CommandPaletteView: View {
     // actions such as "New Task" feel instant.
     @State private var entityResults: [PaletteItem] = []
     @State private var entityResultsQuery = ""
+    @State private var entityResultsSnapshotKey = ""
     @FocusState private var isSearchFocused: Bool
 
     let commands: [CommandPaletteCommand]
@@ -179,41 +383,38 @@ struct CommandPaletteView: View {
             // Honour any deep-link-staged query: hotcrossbuns://search?q=… sets
             // model.pendingPaletteQuery before toggling the palette open. Clear
             // after consuming so a subsequent manual open starts blank.
-            let stagedQuery = model.pendingPaletteQuery
             if let staged = model.pendingPaletteQuery, staged.isEmpty == false {
                 query = staged
-                entityResultsQuery = staged
                 model.pendingPaletteQuery = nil
             }
             isSearchFocused = true
             Task { @MainActor in
                 await Task.yield()
-                if let staged = stagedQuery?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   staged.isEmpty == false {
-                    entityResults = entityItems(forQuery: staged)
-                }
                 isSearchFocused = true
             }
         }
-        .onChange(of: snapshotKey) { _, _ in
-            entityCache.invalidate()
-            if entityResultsQuery.isEmpty == false {
-                entityResults = entityItems(forQuery: entityResultsQuery)
-            }
+        .task(id: snapshotKey) {
+            await entityCache.prepare(snapshot: entitySnapshot)
         }
         // Entity-search debounce: each keystroke restarts this task; commands
         // do not wait for it because they are ranked directly from `query`.
-        .task(id: query) {
+        .task(id: entitySearchTaskID) {
             let liveQuery = trimmedQuery
+            let snapshot = entitySnapshot
             guard liveQuery.isEmpty == false else {
                 entityResultsQuery = ""
+                entityResultsSnapshotKey = snapshot.key
                 entityResults = []
                 return
             }
             do {
                 try await Task.sleep(for: .milliseconds(150))
-                entityResultsQuery = liveQuery
-                entityResults = entityItems(forQuery: liveQuery)
+                let result = try await entityCache.search(snapshot: snapshot, query: liveQuery)
+                try Task.checkCancellation()
+                guard result.snapshotKey == snapshotKey, result.query == trimmedQuery else { return }
+                entityResultsQuery = result.query
+                entityResultsSnapshotKey = result.snapshotKey
+                entityResults = result.entities.map { PaletteItem.entity($0) }
             } catch {
                 // task cancelled by next keystroke — drop, the next one runs.
             }
@@ -272,6 +473,14 @@ struct CommandPaletteView: View {
         "\(model.dataRevision)|\(model.settings.customFilters.count)"
     }
 
+    private var entitySnapshot: CommandPaletteEntitySnapshot {
+        CommandPaletteEntitySnapshot(model: model, key: snapshotKey)
+    }
+
+    private var entitySearchTaskID: String {
+        "\(snapshotKey)|\(trimmedQuery)"
+    }
+
     // Merged ranked list. Behaviour:
     //   - Commands rank synchronously from the live query.
     //   - Entities rank from the debounced query and are only shown while
@@ -285,13 +494,13 @@ struct CommandPaletteView: View {
         let q = trimmedQuery
         guard q.isEmpty == false else { return [] }
         let commands = commandItems(forQuery: q)
-        guard entityResultsQuery == q else { return commands }
+        guard entityResultsQuery == q, entityResultsSnapshotKey == snapshotKey else { return commands }
         return commands + entityResults
     }
 
     private var isEntitySearchPending: Bool {
         let q = trimmedQuery
-        return q.isEmpty == false && entityResultsQuery != q
+        return q.isEmpty == false && (entityResultsQuery != q || entityResultsSnapshotKey != snapshotKey)
     }
 
     private func commandItems(forQuery q: String) -> [PaletteItem] {
@@ -299,7 +508,8 @@ struct CommandPaletteView: View {
         let parsed = AdvancedSearchParser.parse(q)
         let freeText = parsed.freeText.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard parsed.regex == nil, (hasStructuredFilters(parsed) == false || hasFreeTextOnly(parsed)) else {
+        guard parsed.regex == nil,
+              (CommandPaletteSearchRules.hasStructuredFilters(parsed) == false || CommandPaletteSearchRules.hasFreeTextOnly(parsed)) else {
             return []
         }
 
@@ -314,129 +524,39 @@ struct CommandPaletteView: View {
         .map { PaletteItem.command($0.item) }
     }
 
-    private func entityItems(forQuery q: String) -> [PaletteItem] {
-        guard q.isEmpty == false else { return [] }
-        entityCache.rebuildIfNeeded(model: model, snapshotKey: snapshotKey)
-        let parsed = AdvancedSearchParser.parse(q)
-
-        if let pattern = parsed.regex {
-            // Compile the regex ONCE per query, not once per entity. The
-            // palette runs against the full entity universe (thousands at
-            // scale) and compiling inside the per-entity filter was the
-            // dominant cost of regex searches.
-            guard let compiled = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-                return []
-            }
-            return entityCache.entities
-                .filter { AdvancedSearchMatcher.regexMatches($0, compiled: compiled) }
-                .prefix(30)
-                .map { PaletteItem.entity($0) }
-        }
-
-        let freeText = parsed.freeText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let hasStructuredFilters = hasStructuredFilters(parsed)
-
-        // Pre-filter pool. The hot path here is free-text without structured
-        // filters: walk cachedLowercaseLabels (one .contains per item) to
-        // shrink the pool from ~17k to typically <500 BEFORE the heavier
-        // AdvancedSearchMatcher / FuzzySearcher passes. Structured filters
-        // skip this fast path and use the full matcher (correctness first).
-        let entitiesFiltered: [QuickSwitcherEntity]
-        if hasStructuredFilters {
-            entitiesFiltered = entityCache.entities.filter {
-                AdvancedSearchMatcher.matches(
-                    $0,
-                    query: parsed,
-                    calendars: model.calendars,
-                    taskLists: model.taskLists
-                )
-            }
-        } else if freeText.count >= 2 {
-            let lowered = freeText.lowercased()
-            var hits: [QuickSwitcherEntity] = []
-            hits.reserveCapacity(min(entityCache.entities.count, 500))
-            for (idx, lowerBlob) in entityCache.lowercaseSearchBlobs.enumerated() {
-                if lowerBlob.contains(lowered) {
-                    hits.append(entityCache.entities[idx])
-                    if hits.count >= 500 { break }
-                }
-            }
-            entitiesFiltered = hits
-        } else {
-            // Single-char query — substring matching across 17k entities is
-            // too noisy. Restrict to the small, stable surface (lists,
-            // calendars, custom filters) so the palette stays useful.
-            entitiesFiltered = entityCache.entities.filter {
-                switch $0 {
-                case .taskList, .calendar, .customFilter: return true
-                case .task, .event: return false
-                }
-            }
-        }
-
-        if freeText.isEmpty {
-            // Operator-only query — alphabetic by label, entity-only.
-            return entitiesFiltered
-                .sorted { $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending }
-                .prefix(30)
-                .map { PaletteItem.entity($0) }
-        }
-
-        let ranked = FuzzySearcher.rank(
-            entitiesFiltered,
-            query: freeText,
-            labelForItem: { $0.label },
-            keywordsForItem: { $0.keywords },
-            limit: 38
-        )
-        return ranked.map { PaletteItem.entity($0.item) }
-    }
-
-    private func hasStructuredFilters(_ q: AdvancedSearchQuery) -> Bool {
-        q != .empty && (
-            q.regex != nil
-            || q.titleContains.isEmpty == false
-            || q.tagsAll.isEmpty == false
-            || q.listMatch != nil
-            || q.calendarMatch != nil
-            || q.attendeeMatch != nil
-            || q.kind != nil
-            || q.requireNotes
-            || q.requireLocation
-            || q.requireDue
-            || q.requireCompleted
-            || q.requireOverdue
-        )
-    }
-
-    // True when the parsed query carries only free text (no field operators
-    // / bare keywords / regex). Drives the "should I include commands?"
-    // decision — entity-filter-heavy queries suppress commands so the list
-    // isn't noisy.
-    private func hasFreeTextOnly(_ q: AdvancedSearchQuery) -> Bool {
-        q.regex == nil
-            && q.titleContains.isEmpty
-            && q.tagsAll.isEmpty
-            && q.listMatch == nil
-            && q.calendarMatch == nil
-            && q.attendeeMatch == nil
-            && q.kind == nil
-            && q.requireNotes == false
-            && q.requireLocation == false
-            && q.requireDue == false
-            && q.requireCompleted == false
-            && q.requireOverdue == false
-    }
-
     private func executeFirstMatch() {
         if trimmedQuery.isEmpty, let first = recentCommands.first {
             select(.command(first))
             return
         }
         // Commands are local and should win immediately when they match the
-        // live query. Fall back to entity ranking for entity-only searches.
-        if let first = commandItems(forQuery: trimmedQuery).first ?? entityItems(forQuery: trimmedQuery).first {
+        // live query. If entity results are still warming, finish that search
+        // asynchronously instead of rebuilding the index on the main actor.
+        if let first = commandItems(forQuery: trimmedQuery).first {
             select(first)
+            return
+        }
+        if entityResultsQuery == trimmedQuery,
+           entityResultsSnapshotKey == snapshotKey,
+           let first = entityResults.first {
+            select(first)
+            return
+        }
+
+        let liveQuery = trimmedQuery
+        let snapshot = entitySnapshot
+        Task {
+            do {
+                let result = try await entityCache.search(snapshot: snapshot, query: liveQuery)
+                try Task.checkCancellation()
+                guard let first = result.entities.first else { return }
+                await MainActor.run {
+                    guard trimmedQuery == liveQuery, snapshotKey == result.snapshotKey else { return }
+                    select(.entity(first))
+                }
+            } catch {
+                // Search was cancelled or superseded.
+            }
         }
     }
 

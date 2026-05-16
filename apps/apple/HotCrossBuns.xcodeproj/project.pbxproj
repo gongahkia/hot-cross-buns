@@ -89,6 +89,7 @@
 		538765B3D8C24FF163A7FB79 /* DuplicateIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E0559A8D3FFE9C8765064F7 /* DuplicateIndex.swift */; };
 		53E6931013FCFB5C1A0858EE /* UndoAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22EC7CE0BFC4074C6B02F03B /* UndoAction.swift */; };
 		544D58C739821D0804A7721E /* GlobalHotkeyEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 052D85C55BFE31785899E623 /* GlobalHotkeyEnvironment.swift */; };
+		55912D1820AF24D39328BB52 /* CommandPaletteEntityCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 778359DE69D98030BEE1A1D9 /* CommandPaletteEntityCacheTests.swift */; };
 		56A5E9DA168CBC40ECD439C8 /* CustomColorSchemeEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3C2D7E54B993DACBD948BAD /* CustomColorSchemeEditor.swift */; };
 		5799529EE7641C550A7EBC2F /* MarkdownLiveEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEB5FC8D64F589CCFA37D0F0 /* MarkdownLiveEditor.swift */; };
 		57C28D13661010694743BE77 /* PastCleanupFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA27E7B048E0458EA4A20B22 /* PastCleanupFilter.swift */; };
@@ -401,6 +402,7 @@
 		73C6AC21EF221365170C0EA0 /* PermissionPrimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionPrimerView.swift; sourceTree = "<group>"; };
 		7469A7E227891C69E6A7BCC1 /* AdvancedSearchQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedSearchQuery.swift; sourceTree = "<group>"; };
 		7774EBE15499EA73F8FD95DD /* DuplicateReviewWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuplicateReviewWindow.swift; sourceTree = "<group>"; };
+		778359DE69D98030BEE1A1D9 /* CommandPaletteEntityCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteEntityCacheTests.swift; sourceTree = "<group>"; };
 		789C6E4688F23FCD6DA9A6D0 /* RecurrenceUntilRewriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceUntilRewriter.swift; sourceTree = "<group>"; };
 		7A8E603703D051876757E55F /* DeepLinkErrorToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkErrorToast.swift; sourceTree = "<group>"; };
 		7C08F7D58524C666E5C34AED /* MutationAuditLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MutationAuditLog.swift; sourceTree = "<group>"; };
@@ -902,6 +904,7 @@
 				5E7CCAAA53D6C1875F338A5B /* CalendarGridLayoutTests.swift */,
 				408409D2AEF133FA67392454 /* CalendarViewFilterTests.swift */,
 				93E688E332EB1AD0516754E4 /* CloudSyncControlTests.swift */,
+				778359DE69D98030BEE1A1D9 /* CommandPaletteEntityCacheTests.swift */,
 				A59BC37092CD2A812114D355 /* ConversionMapperTests.swift */,
 				F8744975197402E661FA13A2 /* CustomFilterTests.swift */,
 				EC34E08C7F6A754ACBE7ED0C /* DiagnosticBundleTests.swift */,
@@ -1580,6 +1583,7 @@
 				0C684E4902EA8C1B8C94322E /* CalendarGridLayoutTests.swift in Sources */,
 				4BDF6FC9B42F0DADB8E9D6EE /* CalendarViewFilterTests.swift in Sources */,
 				40E3593FBA77960BA94511CF /* CloudSyncControlTests.swift in Sources */,
+				55912D1820AF24D39328BB52 /* CommandPaletteEntityCacheTests.swift in Sources */,
 				FE216A2BBE372EE6C0DD54FD /* ConversionMapperTests.swift in Sources */,
 				E98AEB930CC53067A2C2BCE3 /* CustomFilterTests.swift in Sources */,
 				022E0EA4BE1699F339F0240E /* DiagnosticBundleTests.swift in Sources */,
