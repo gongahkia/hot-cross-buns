@@ -464,10 +464,6 @@ struct AppSettings: Hashable, Codable, Sendable {
     var sidebarPlacement: NavigationSurfacePlacement // where the app navigation surface is rendered
     var hiddenSidebarItems: Set<String> // SidebarItem.rawValues user has hidden
     var hiddenCalendarViewModes: Set<String> // CalendarGridMode.rawValues user has hidden from Calendar picker
-    // TODO: prune — dead after the Calendar/Tasks/Notes sidebar refactor.
-    // StoreView is Kanban-only; the hide/show picker went with it. Drop
-    // alongside StoreViewMode + setStoreViewModeHidden.
-    var hiddenStoreViewModes: Set<String>
     var perSurfaceFontOverrides: [String: HCBSurfaceFontOverride] // HCBSurface.rawValue → override
     var cacheEncryptionEnabled: Bool // §6.12 — whether LocalCacheStore should encrypt at rest
     var auditLogEncryptionEnabled: Bool // whether MutationAuditLog should encrypt history at rest
@@ -579,7 +575,6 @@ struct AppSettings: Hashable, Codable, Sendable {
         sidebarPlacement: NavigationSurfacePlacement = .left,
         hiddenSidebarItems: Set<String> = [],
         hiddenCalendarViewModes: Set<String> = [],
-        hiddenStoreViewModes: Set<String> = [],
         perSurfaceFontOverrides: [String: HCBSurfaceFontOverride] = [:],
         cacheEncryptionEnabled: Bool = false,
         auditLogEncryptionEnabled: Bool = false,
@@ -666,7 +661,6 @@ struct AppSettings: Hashable, Codable, Sendable {
         self.sidebarPlacement = sidebarPlacement
         self.hiddenSidebarItems = hiddenSidebarItems
         self.hiddenCalendarViewModes = hiddenCalendarViewModes
-        self.hiddenStoreViewModes = hiddenStoreViewModes
         self.perSurfaceFontOverrides = perSurfaceFontOverrides
         self.cacheEncryptionEnabled = cacheEncryptionEnabled
         self.auditLogEncryptionEnabled = auditLogEncryptionEnabled
@@ -754,7 +748,6 @@ struct AppSettings: Hashable, Codable, Sendable {
         case sidebarPlacement
         case hiddenSidebarItems
         case hiddenCalendarViewModes
-        case hiddenStoreViewModes
         case perSurfaceFontOverrides
         case cacheEncryptionEnabled
         case auditLogEncryptionEnabled
@@ -882,7 +875,6 @@ struct AppSettings: Hashable, Codable, Sendable {
         sidebarPlacement = try container.decodeIfPresent(NavigationSurfacePlacement.self, forKey: .sidebarPlacement) ?? .left
         hiddenSidebarItems = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenSidebarItems) ?? []
         hiddenCalendarViewModes = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenCalendarViewModes) ?? []
-        hiddenStoreViewModes = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenStoreViewModes) ?? []
         perSurfaceFontOverrides = try container.decodeIfPresent([String: HCBSurfaceFontOverride].self, forKey: .perSurfaceFontOverrides) ?? [:]
         cacheEncryptionEnabled = try container.decodeIfPresent(Bool.self, forKey: .cacheEncryptionEnabled) ?? false
         auditLogEncryptionEnabled = try container.decodeIfPresent(Bool.self, forKey: .auditLogEncryptionEnabled) ?? false

@@ -2027,10 +2027,6 @@ private struct MenuBarPinnedFilters: View {
     }
 
     private func openFilter(_ f: CustomFilterDefinition) {
-        // Stage the filter key on the shared model, switch the main window
-        // to the Store tab, and raise the app. StoreView consumes the key
-        // on appear (see consumePendingStoreFilter).
-        model.pendingStoreFilterKey = "custom:\(f.id.uuidString)"
         model.markCustomFilterUsed(f.id)
         NotificationCenter.default.post(name: .hcbOpenStoreTab, object: nil)
         NSApp.activate(ignoringOtherApps: true)

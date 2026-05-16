@@ -10,7 +10,7 @@ import Foundation
 //  - hotcrossbuns://search?q=
 //  - hotcrossbuns://open                          → activate the app
 //
-// Safety invariants (see URGENT-TODO §6.3):
+// Safety invariants:
 //  - No URL may commit a write directly. `new/*` prefills a sheet; the user must
 //    still hit Enter / Create. This file returns a typed action; the caller
 //    (MacSidebarShell) presents the sheet.
