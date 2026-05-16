@@ -69,6 +69,34 @@ final class AccessibilityFoundationsTests: XCTestCase {
         XCTAssertTrue(notes.contains(".accessibilityLabel(noteAccessibilityLabel)"))
     }
 
+    func testQuickCreateAndMapPreviewAvoidGestureOnlyControls() throws {
+        let quickCreate = try String(contentsOf: repoRoot.appending(path: "apps/apple/HotCrossBuns/Features/Calendar/QuickCreatePopover.swift"))
+        XCTAssertFalse(quickCreate.contains(".onTapGesture { /* no-op */ }"))
+        XCTAssertFalse(quickCreate.contains(".onTapGesture { /* swallow */ }"))
+        XCTAssertFalse(quickCreate.contains("isTaskListCardExpanded"))
+        XCTAssertTrue(quickCreate.contains("Collapse date options"))
+        XCTAssertTrue(quickCreate.contains("Expand task date"))
+
+        let mapPreview = try String(contentsOf: repoRoot.appending(path: "apps/apple/HotCrossBuns/Features/Calendar/LocationMapPreview.swift"))
+        XCTAssertFalse(mapPreview.contains(".onTapGesture { isPresentingFullView = true }"))
+        XCTAssertTrue(mapPreview.contains(".accessibilityLabel(\"Open full map\")"))
+        XCTAssertTrue(mapPreview.contains("fullMapAccessibilityHint"))
+
+        let dayGrid = try String(contentsOf: repoRoot.appending(path: "apps/apple/HotCrossBuns/Features/Calendar/DayGridView.swift"))
+        XCTAssertTrue(dayGrid.contains("dayTimedSlotButtons"))
+        XCTAssertTrue(dayGrid.contains("timedSlotAccessibilityLabel"))
+
+        let weekGrid = try String(contentsOf: repoRoot.appending(path: "apps/apple/HotCrossBuns/Features/Calendar/WeekGridView.swift"))
+        XCTAssertTrue(weekGrid.contains("weekAllDayCreateMenu"))
+        XCTAssertTrue(weekGrid.contains("weekTimedSlotMenu"))
+
+        let monthGrid = try String(contentsOf: repoRoot.appending(path: "apps/apple/HotCrossBuns/Features/Calendar/MonthGridView.swift"))
+        XCTAssertTrue(monthGrid.contains("monthCellCreateMenu"))
+
+        let actionCenter = try String(contentsOf: repoRoot.appending(path: "apps/apple/HotCrossBuns/Features/Status/ActionCenter.swift"))
+        XCTAssertFalse(actionCenter.contains("onTapGesture"))
+    }
+
     private var repoRoot: URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

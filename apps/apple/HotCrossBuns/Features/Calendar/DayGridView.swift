@@ -174,39 +174,9 @@ struct DayGridView: View {
                                         dayStart: dayStart,
                                         calendar: calendar
                                     )
-                                    if let availabilitySelection {
-                                        let end = calendar.date(
-                                            byAdding: .minute,
-                                            value: max(15, availabilitySelection.defaultDurationMinutes),
-                                            to: start
-                                        ) ?? start.addingTimeInterval(1800)
-                                        selectAvailabilitySlot(
-                                            AvailabilitySlot(startDate: start, endDate: end),
-                                            using: availabilitySelection
-                                        )
-                                        return
-                                    }
-                                    flashTimedStart(start)
-                                    capturedRouter?.present(.quickCreate(start, allDay: false))
+                                    createTimedSlot(start: start, router: capturedRouter)
                                 }
                         )
-                        .overlay(alignment: .topLeading) {
-                            // Momentary tint over the tapped hour slot so the
-                            // click lands visibly before the popover paints.
-                            if let flash = flashTimedSlot {
-                                let minutesIntoDay = flash.timeIntervalSince(dayStart) / 60.0
-                                let startHourOffset = Double(hourStart) * 60.0
-                                let y = CGFloat(max(0, minutesIntoDay - startHourOffset)) / 60.0 * hourHeight
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(AppColor.ember.opacity(0.22))
-                                    .frame(height: hourHeight * 0.5)
-                                    .offset(x: 56, y: y)
-                                    .padding(.trailing, 8)
-                                    .allowsHitTesting(false)
-                                    .transition(.opacity)
-                            }
-                        }
-                        .animation(HCBMotion.animation(.easeOut(duration: 0.18), reduceMotion: calendarGridReduceMotion), value: flashTimedSlot)
                     GeometryReader { geo in
                         ZStack(alignment: .topLeading) {
                             availabilitySlotOverlays(
@@ -222,6 +192,8 @@ struct DayGridView: View {
                     }
                     .frame(height: CGFloat(hourEnd - hourStart) * hourHeight)
                     .allowsHitTesting(true)
+                    dayTimedSlotButtons(dayStart: dayStart, router: capturedRouter)
+                    timedSlotFlashOverlay(dayStart: dayStart)
                     if let offset = currentTimeOffset() {
                         Rectangle()
                             .fill(AppColor.ember)
@@ -232,6 +204,81 @@ struct DayGridView: View {
                 .frame(minHeight: CGFloat(hourEnd - hourStart) * hourHeight)
             }
         }
+    }
+
+    @ViewBuilder
+    private func timedSlotFlashOverlay(dayStart: Date) -> some View {
+        // Momentary tint over the tapped hour slot so the click lands visibly
+        // before the popover paints.
+        if let flash = flashTimedSlot {
+            let minutesIntoDay = flash.timeIntervalSince(dayStart) / 60.0
+            let startHourOffset = Double(hourStart) * 60.0
+            let y = CGFloat(max(0, minutesIntoDay - startHourOffset)) / 60.0 * hourHeight
+            RoundedRectangle(cornerRadius: 6)
+                .fill(AppColor.ember.opacity(0.22))
+                .frame(height: hourHeight * 0.5)
+                .offset(x: 56, y: y)
+                .padding(.trailing, 8)
+                .allowsHitTesting(false)
+                .transition(.opacity)
+                .animation(HCBMotion.animation(.easeOut(duration: 0.18), reduceMotion: calendarGridReduceMotion), value: flashTimedSlot)
+        }
+    }
+
+    private func dayTimedSlotButtons(dayStart: Date, router capturedRouter: RouterPath?) -> some View {
+        VStack(spacing: 0) {
+            ForEach(hourStart..<hourEnd, id: \.self) { hour in
+                let start = calendar.date(byAdding: .hour, value: hour, to: dayStart) ?? dayStart
+                HStack {
+                    Spacer(minLength: 0)
+                    Button {
+                        createTimedSlot(start: start, router: capturedRouter)
+                    } label: {
+                        Image(systemName: "plus.circle")
+                            .imageScale(.small)
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.mini)
+                    .help(timedSlotActionTitle(for: start))
+                    .accessibilityLabel(timedSlotAccessibilityLabel(for: start))
+                }
+                .hcbScaledFrame(width: 54, height: hourHeight, alignment: .topTrailing)
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private func createTimedSlot(start: Date, router capturedRouter: RouterPath?) {
+        if let availabilitySelection {
+            let end = calendar.date(
+                byAdding: .minute,
+                value: max(15, availabilitySelection.defaultDurationMinutes),
+                to: start
+            ) ?? start.addingTimeInterval(1800)
+            selectAvailabilitySlot(
+                AvailabilitySlot(startDate: start, endDate: end),
+                using: availabilitySelection
+            )
+            return
+        }
+        flashTimedStart(start)
+        capturedRouter?.present(.quickCreate(start, allDay: false))
+    }
+
+    private func timedSlotActionTitle(for start: Date) -> String {
+        let time = start.formatted(.dateTime.hour().minute())
+        if availabilitySelection != nil {
+            return "Select availability at \(time)"
+        }
+        return "New event at \(time)"
+    }
+
+    private func timedSlotAccessibilityLabel(for start: Date) -> String {
+        let dateTime = start.formatted(.dateTime.weekday(.wide).month(.wide).day().hour().minute())
+        if availabilitySelection != nil {
+            return "Select availability on \(dateTime)"
+        }
+        return "New event on \(dateTime)"
     }
 
     private var hourGridBackground: some View {

@@ -37,27 +37,31 @@ struct LocationMapPreview: View {
     var body: some View {
         Group {
             if let coord = coordinate {
-                Map(initialPosition: .region(region(for: coord))) {
-                    Marker(resolvedLocation.isEmpty ? locationText : resolvedLocation, coordinate: coord)
-                        .tint(AppColor.ember)
+                Button {
+                    isPresentingFullView = true
+                } label: {
+                    Map(initialPosition: .region(region(for: coord))) {
+                        Marker(resolvedLocation.isEmpty ? locationText : resolvedLocation, coordinate: coord)
+                            .tint(AppColor.ember)
+                    }
+                    .allowsHitTesting(false)
                 }
+                .buttonStyle(.plain)
                 .frame(height: 140)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)
                         .strokeBorder(AppColor.cardStroke, lineWidth: 0.6)
                 )
-                // Tap the map body itself (not a button) expands. Keeps the
-                // target large for trackpad clicks; the corner chip is a
-                // discoverability hint rather than the only affordance.
                 .contentShape(RoundedRectangle(cornerRadius: 10))
-                .onTapGesture { isPresentingFullView = true }
                 .overlay(alignment: .topLeading) {
                     expandChip
                 }
                 .overlay(alignment: .topTrailing) {
                     mapsChip(coord: coord)
                 }
+                .accessibilityLabel("Open full map")
+                .accessibilityHint(fullMapAccessibilityHint)
             } else if isGeocoding {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
@@ -75,6 +79,13 @@ struct LocationMapPreview: View {
         .sheet(isPresented: $isPresentingFullView) {
             LocationFullView(locationText: $locationText, isEditable: isEditable)
         }
+    }
+
+    private var fullMapAccessibilityHint: String {
+        let label = resolvedLocation.isEmpty ? locationText : resolvedLocation
+        return label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "Shows the location in a larger map view."
+            : "Shows \(label) in a larger map view."
     }
 
     private var expandChip: some View {
