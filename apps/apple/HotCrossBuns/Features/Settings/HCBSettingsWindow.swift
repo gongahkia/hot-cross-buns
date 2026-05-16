@@ -402,8 +402,8 @@ private struct GeneralTab: View {
                     Text("Inspect logs, mutation history, sync queues, and support bundles.")
                         .hcbFont(.footnote)
                         .foregroundStyle(.secondary)
-                    Toggle("Include raw Google payloads in local logs", isOn: rawGoogleDiagnosticsBinding)
-                    Text("Off by default. When enabled, future local logs may include task and event payload snippets for troubleshooting; tokens are still redacted.")
+                    Toggle("Include field-redacted Google payloads in local logs", isOn: rawGoogleDiagnosticsBinding)
+                    Text("Off by default. When enabled, future local logs may include troubleshooting snippets with known titles, notes, summaries, locations, attendees, links, and tokens redacted before export.")
                         .hcbFont(.footnote)
                         .foregroundStyle(.secondary)
                 }

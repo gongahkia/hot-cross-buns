@@ -471,7 +471,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var perSurfaceFontOverrides: [String: HCBSurfaceFontOverride] // HCBSurface.rawValue → override
     var cacheEncryptionEnabled: Bool // §6.12 — whether LocalCacheStore should encrypt at rest
     var auditLogEncryptionEnabled: Bool // whether MutationAuditLog should encrypt history at rest
-    var rawGoogleDiagnosticsEnabled: Bool // local-only raw Google payload snippets in Diagnostics logs
+    var rawGoogleDiagnosticsEnabled: Bool // local-only field-redacted Google payload snippets in Diagnostics logs
     var taskTemplates: [TaskTemplate] // §6.13 — local-only task templates with variable expansion
     var eventRetentionDaysBack: Int // §7.02 — drop events with endDate older than (now - N days) during sync merge; 0 = keep forever
     var completedTaskRetentionDaysBack: Int // drop completed tasks older than (now - N days) during sync merge; 0 = keep forever
