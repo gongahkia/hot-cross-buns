@@ -222,7 +222,7 @@ enum GoogleDiagnostics {
 
     private static func snippetMetadata(_ data: Data, prefix: String) -> [String: String] {
         let raw = String(data: data, encoding: .utf8) ?? "<non-utf8 \(data.count) bytes>"
-        let redacted = redactSecrets(raw)
+        let redacted = DiagnosticPrivacyRedactor.redactPayloadSnippet(raw)
         let truncated = redacted.count > rawSnippetLimit
         let snippet = String(redacted.prefix(rawSnippetLimit))
             .replacingOccurrences(of: "\\", with: "\\\\")
@@ -234,21 +234,6 @@ enum GoogleDiagnostics {
             "\(prefix)SnippetBytes": String(data.count),
             "\(prefix)SnippetTruncated": String(truncated)
         ]
-    }
-
-    private static func redactSecrets(_ raw: String) -> String {
-        var output = raw
-        output = redactPattern(#"ya29\.[A-Za-z0-9_\-]+"#, in: output, replacement: "ya29.<redacted>")
-        output = redactPattern(#"Bearer [A-Za-z0-9._\-]+"#, in: output, replacement: "Bearer <redacted>")
-        return output
-    }
-
-    private static func redactPattern(_ pattern: String, in text: String, replacement: String) -> String {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-            return text
-        }
-        let range = NSRange(location: 0, length: (text as NSString).length)
-        return regex.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: replacement)
     }
 
     private static func shouldRedactPathPart(_ part: String, previous: String) -> Bool {
@@ -277,5 +262,143 @@ enum GoogleDiagnostics {
         default:
             return "id"
         }
+    }
+}
+
+enum DiagnosticPrivacyRedactor {
+    private static let scalarSensitiveFields: Set<String> = [
+        "description",
+        "displayName",
+        "email",
+        "hangoutLink",
+        "htmlLink",
+        "location",
+        "notes",
+        "summary",
+        "title",
+        "uri"
+    ]
+    private static let aggregateSensitiveFields: Set<String> = [
+        "attendees",
+        "conferenceData",
+        "creator",
+        "entryPoints",
+        "organizer"
+    ]
+    private static let allSensitiveFields = scalarSensitiveFields.union(aggregateSensitiveFields)
+
+    static func redactDiagnosticText(_ text: String) -> String {
+        redactSecrets(redactJSONFieldStrings(in: text))
+    }
+
+    static func redactPayloadSnippet(_ raw: String) -> String {
+        if let redactedJSON = redactJSONObject(raw) {
+            return redactSecrets(redactedJSON)
+        }
+        return redactDiagnosticText(raw)
+    }
+
+    private static func redactJSONObject(_ raw: String) -> String? {
+        guard let data = raw.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data)
+        else { return nil }
+
+        let redacted = redactJSONValue(object, fieldName: nil)
+        if JSONSerialization.isValidJSONObject(redacted),
+           let data = try? JSONSerialization.data(withJSONObject: redacted, options: [.sortedKeys]),
+           let string = String(data: data, encoding: .utf8) {
+            return string
+        }
+        if let scalar = redacted as? String {
+            return scalar
+        }
+        return nil
+    }
+
+    private static func redactJSONValue(_ value: Any, fieldName: String?) -> Any {
+        if let fieldName, aggregateSensitiveFields.contains(fieldName) {
+            return redactedAggregateDescription(value)
+        }
+        if let fieldName, scalarSensitiveFields.contains(fieldName) {
+            return "<redacted>"
+        }
+
+        if let dictionary = value as? [String: Any] {
+            return dictionary.reduce(into: [String: Any]()) { result, pair in
+                result[pair.key] = redactJSONValue(pair.value, fieldName: pair.key)
+            }
+        }
+        if let array = value as? [Any] {
+            return array.map { redactJSONValue($0, fieldName: nil) }
+        }
+        return value
+    }
+
+    private static func redactedAggregateDescription(_ value: Any) -> String {
+        if let array = value as? [Any] {
+            return "<redacted \(array.count) item\(array.count == 1 ? "" : "s")>"
+        }
+        return "<redacted>"
+    }
+
+    private static func redactJSONFieldStrings(in text: String) -> String {
+        allSensitiveFields.reduce(text) { output, field in
+            let escapedField = NSRegularExpression.escapedPattern(for: field)
+            let plainPattern = #"(\b""# + escapedField + #""\s*:\s*)"((?:[^"\\]|\\.)*)""#
+            let escapedPattern = #"(\\\""# + escapedField + #"\\\"\s*:\s*)\\\"((?:(?!\\\").)*)\\\""#
+            let plainRedacted = redactPattern(plainPattern, in: output) { match in
+                "\(match[1])\"<redacted>\""
+            }
+            return redactPattern(escapedPattern, in: plainRedacted) { match in
+                "\(match[1])\\\"<redacted>\\\""
+            }
+        }
+    }
+
+    private static func redactSecrets(_ raw: String) -> String {
+        var output = raw
+        output = redactPattern(#"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"#, in: output) { match in
+            redactEmail(match[0])
+        }
+        output = redactPattern(#"ya29\.[A-Za-z0-9_\-]+"#, in: output) { _ in "ya29.<redacted>" }
+        output = redactPattern(#"Bearer [A-Za-z0-9._\-]+"#, in: output) { _ in "Bearer <redacted>" }
+        return output
+    }
+
+    private static func redactEmail(_ email: String) -> String {
+        guard let at = email.firstIndex(of: "@") else { return "<redacted>" }
+        let local = email[..<at]
+        let domain = email[email.index(after: at)...]
+        return "\(local.prefix(2))***@\(domain)"
+    }
+
+    private static func redactPattern(
+        _ pattern: String,
+        in text: String,
+        replacement: ([String]) -> String
+    ) -> String {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return text
+        }
+        let nsText = text as NSString
+        var result = ""
+        var lastEnd = 0
+        regex.enumerateMatches(in: text, options: [], range: NSRange(location: 0, length: nsText.length)) { match, _, _ in
+            guard let match else { return }
+            if match.range.location > lastEnd {
+                result += nsText.substring(with: NSRange(location: lastEnd, length: match.range.location - lastEnd))
+            }
+            let groups = (0..<match.numberOfRanges).map { index -> String in
+                let range = match.range(at: index)
+                guard range.location != NSNotFound else { return "" }
+                return nsText.substring(with: range)
+            }
+            result += replacement(groups)
+            lastEnd = match.range.location + match.range.length
+        }
+        if lastEnd < nsText.length {
+            result += nsText.substring(with: NSRange(location: lastEnd, length: nsText.length - lastEnd))
+        }
+        return result
     }
 }

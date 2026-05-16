@@ -24,9 +24,8 @@ struct DiagnosticBundleEnvironment {
 // zip reliably, and a single .txt covers the issue-report use case
 // without extraction friction.
 //
-// Redacts email addresses (keep first 2 chars) and any string that
-// looks like an OAuth access token (ya29.<base64ish>) so the bundle
-// can be pasted into a public issue safely.
+// Redacts personal payload fields, email addresses, and OAuth-looking
+// access tokens so the bundle can be pasted into a support issue safely.
 enum DiagnosticBundle {
     @MainActor
     static func build(
@@ -121,7 +120,7 @@ enum DiagnosticBundle {
         lines.append("Cache path: \(cachePath)")
         lines.append("Onboarding complete: \(model.settings.hasCompletedOnboarding)")
         lines.append("Local reminders: \(model.settings.enableLocalNotifications)")
-        lines.append("Raw Google payload logs: \(model.settings.rawGoogleDiagnosticsEnabled ? "Enabled" : "Disabled")")
+        lines.append("Field-redacted Google payload logs: \(model.settings.rawGoogleDiagnosticsEnabled ? "Enabled" : "Disabled")")
         lines.append("Log folder: \(logDirectoryPath ?? "Unavailable")")
         if let summary = notificationSummary {
             lines.append("Reminders scheduled: events=\(summary.scheduledEvents) tasks=\(summary.scheduledTasks) deferred_events=\(summary.deferredEvents) deferred_tasks=\(summary.deferredTasks) window=\(summary.windowDays)d")
@@ -138,16 +137,8 @@ enum DiagnosticBundle {
         return f.string(from: Date())
     }
 
-    // Email addresses get local part truncated; OAuth access tokens
-    // (ya29.…) get masked. Both show presence without leaking values.
     private static func redact(_ blob: String) -> String {
-        var redacted = blob
-        redacted = redactPattern(#"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"#, in: redacted) { match in
-            redactEmail(match)
-        }
-        redacted = redactPattern(#"ya29\.[A-Za-z0-9_\-]+"#, in: redacted) { _ in "ya29.<redacted>" }
-        redacted = redactPattern(#"Bearer [A-Za-z0-9._\-]+"#, in: redacted) { _ in "Bearer <redacted>" }
-        return redacted
+        DiagnosticPrivacyRedactor.redactDiagnosticText(blob)
     }
 
     private static func redactEmail(_ email: String) -> String {
@@ -156,25 +147,6 @@ enum DiagnosticBundle {
         let domain = email[email.index(after: at)...]
         let prefix = local.prefix(2)
         return "\(prefix)***@\(domain)"
-    }
-
-    private static func redactPattern(_ pattern: String, in text: String, replacement: (String) -> String) -> String {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return text }
-        let nsText = text as NSString
-        var result = ""
-        var lastEnd = 0
-        regex.enumerateMatches(in: text, options: [], range: NSRange(location: 0, length: nsText.length)) { match, _, _ in
-            guard let match else { return }
-            if match.range.location > lastEnd {
-                result += nsText.substring(with: NSRange(location: lastEnd, length: match.range.location - lastEnd))
-            }
-            result += replacement(nsText.substring(with: match.range))
-            lastEnd = match.range.location + match.range.length
-        }
-        if lastEnd < nsText.length {
-            result += nsText.substring(with: NSRange(location: lastEnd, length: nsText.length - lastEnd))
-        }
-        return result
     }
 }
 

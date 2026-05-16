@@ -301,7 +301,7 @@ final class GoogleTasksClientTransportTests: XCTestCase {
         XCTAssertFalse(log.contains("responseBodySnippet"))
     }
 
-    func testGoogleTransportRawModeAddsLocalPayloadSnippetsWithoutAuthTokens() async throws {
+    func testGoogleTransportRawModeAddsFieldRedactedLocalPayloadSnippets() async throws {
         GoogleDiagnostics.setRawPayloadLoggingEnabled(true)
         XCTAssertTrue(GoogleDiagnostics.isRawPayloadLoggingEnabled)
         MockURLProtocol.requestHandler = { request in
@@ -325,10 +325,13 @@ final class GoogleTasksClientTransportTests: XCTestCase {
         let log = googleLogText()
         XCTAssertTrue(log.contains("requestBodySnippet="), log)
         XCTAssertTrue(log.contains("responseBodySnippet="), log)
-        XCTAssertTrue(log.contains("Raw Task"), log)
-        XCTAssertTrue(log.contains("Raw Notes"), log)
+        XCTAssertTrue(log.contains(#""title":"<redacted>""#), log)
+        XCTAssertTrue(log.contains(#""notes":"<redacted>""#), log)
+        XCTAssertTrue(log.contains(#""status":"needsAction""#), log)
         XCTAssertTrue(log.contains("requestBodySnippetTruncated=false"), log)
         XCTAssertTrue(log.contains("responseBodySnippetTruncated=false"), log)
+        XCTAssertFalse(log.contains("Raw Task"), log)
+        XCTAssertFalse(log.contains("Raw Notes"), log)
         XCTAssertFalse(log.contains("Bearer test-token"))
         XCTAssertFalse(log.contains("test-token"))
     }
