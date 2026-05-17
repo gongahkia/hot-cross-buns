@@ -411,6 +411,8 @@ struct ActionCenterDrawer: View {
                 Image(systemName: "xmark")
             }
             .buttonStyle(.borderless)
+            .keyboardShortcut(.cancelAction)
+            .help("Close notifications")
             .accessibilityLabel("Close notifications")
         }
         .hcbScaledPadding(.horizontal, 16)

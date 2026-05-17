@@ -40,10 +40,13 @@ enum HCBShortcutCommand: String, CaseIterable, Identifiable {
     case calendarGoToDate
     case calendarDuplicateEvent
     case calendarFocusSearch
+    case calendarShareAvailability
     case calendarViewAgenda
     case calendarViewDay
     case calendarViewWeek
     case calendarViewMonth
+    case calendarViewMultiDay
+    case calendarViewYear
     // Task inspector
     case taskSaveAndClose
     case taskQuickSave
@@ -80,10 +83,13 @@ enum HCBShortcutCommand: String, CaseIterable, Identifiable {
         case .calendarGoToDate: "Go to Date…"
         case .calendarDuplicateEvent: "Duplicate Event"
         case .calendarFocusSearch: "Focus Calendar Search"
+        case .calendarShareAvailability: "Share Availability…"
         case .calendarViewAgenda: "Switch to Agenda View"
         case .calendarViewDay: "Switch to Day View"
         case .calendarViewWeek: "Switch to Week View"
         case .calendarViewMonth: "Switch to Month View"
+        case .calendarViewMultiDay: "Switch to Multi-Day View"
+        case .calendarViewYear: "Switch to Year View"
         case .taskSaveAndClose: "Save and Close Task"
         case .taskQuickSave: "Save Task"
         case .taskDelete: "Delete Task"
@@ -105,7 +111,9 @@ enum HCBShortcutCommand: String, CaseIterable, Identifiable {
         case .calendarPrevious, .calendarToday,
              .calendarNext, .calendarJumpBack, .calendarJumpForward,
              .calendarGoToDate, .calendarDuplicateEvent, .calendarFocusSearch,
-             .calendarViewAgenda, .calendarViewDay, .calendarViewWeek, .calendarViewMonth:
+             .calendarShareAvailability, .calendarViewAgenda, .calendarViewDay,
+             .calendarViewWeek, .calendarViewMonth, .calendarViewMultiDay,
+             .calendarViewYear:
             .calendar
         case .taskSaveAndClose, .taskQuickSave, .taskDelete, .taskDuplicate:
             .taskInspector
@@ -140,10 +148,13 @@ enum HCBShortcutCommand: String, CaseIterable, Identifiable {
         case .calendarGoToDate: .init(key: .char("g"), modifiers: [.command, .shift])
         case .calendarDuplicateEvent: .init(key: .char("d"), modifiers: [.command])
         case .calendarFocusSearch: .init(key: .char("f"), modifiers: [.command])
+        case .calendarShareAvailability: .init(key: .char("a"), modifiers: [.command, .shift])
         case .calendarViewAgenda: .init(key: .char("1"), modifiers: [.command, .option])
         case .calendarViewDay: .init(key: .char("2"), modifiers: [.command, .option])
         case .calendarViewWeek: .init(key: .char("3"), modifiers: [.command, .option])
         case .calendarViewMonth: .init(key: .char("4"), modifiers: [.command, .option])
+        case .calendarViewMultiDay: .init(key: .char("5"), modifiers: [.command, .option])
+        case .calendarViewYear: .init(key: .char("6"), modifiers: [.command, .option])
         case .taskSaveAndClose: .init(key: .returnKey, modifiers: [.command, .shift])
         case .taskQuickSave: .init(key: .returnKey, modifiers: [.command])
         case .taskDelete: .init(key: .delete, modifiers: [.command])

@@ -349,6 +349,36 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
         XCTAssertTrue(state.message.contains(proposed.displayLabel))
     }
 
+    @MainActor
+    func testCalendarPolishShortcutsExposeMacDefaultsWithoutConflicts() {
+        XCTAssertEqual(HCBShortcutCommand.calendarShareAvailability.group, .calendar)
+        XCTAssertEqual(HCBShortcutCommand.calendarShareAvailability.title, "Share Availability…")
+        XCTAssertEqual(HCBShortcutCommand.calendarShareAvailability.defaultBinding.displayLabel, "⇧⌘A")
+
+        XCTAssertEqual(HCBShortcutCommand.calendarViewMultiDay.group, .calendar)
+        XCTAssertEqual(HCBShortcutCommand.calendarViewMultiDay.title, "Switch to Multi-Day View")
+        XCTAssertEqual(HCBShortcutCommand.calendarViewMultiDay.defaultBinding.displayLabel, "⌥⌘5")
+
+        XCTAssertEqual(HCBShortcutCommand.calendarViewYear.group, .calendar)
+        XCTAssertEqual(HCBShortcutCommand.calendarViewYear.title, "Switch to Year View")
+        XCTAssertEqual(HCBShortcutCommand.calendarViewYear.defaultBinding.displayLabel, "⌥⌘6")
+
+        for command in [
+            HCBShortcutCommand.calendarShareAvailability,
+            .calendarViewMultiDay,
+            .calendarViewYear
+        ] {
+            XCTAssertTrue(
+                hcbConflictingCommands(
+                    proposed: command.defaultBinding,
+                    for: command,
+                    overrides: [:]
+                ).isEmpty,
+                "\(command.title) should not reuse an existing default shortcut."
+            )
+        }
+    }
+
     func testDisconnectImpactWarnsWithoutClaimingGoogleDeletion() {
         let summary = DisconnectImpactSummary(
             accountName: "Ada Lovelace",

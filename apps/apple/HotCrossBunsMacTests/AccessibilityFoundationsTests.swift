@@ -97,6 +97,34 @@ final class AccessibilityFoundationsTests: XCTestCase {
         XCTAssertFalse(actionCenter.contains("onTapGesture"))
     }
 
+    func testCalendarMacControlPolishHasDiscoverableCommandsAndCancelActions() throws {
+        let appCommands = try String(contentsOf: repoRoot.appending(path: "apps/apple/HotCrossBuns/App/AppCommands.swift"))
+        XCTAssertTrue(appCommands.contains("Button(\"Share Availability…\")"))
+        XCTAssertTrue(appCommands.contains("Button(\"Multi-Day View\")"))
+        XCTAssertTrue(appCommands.contains("Button(\"Year View\")"))
+        XCTAssertTrue(appCommands.contains(".calendarShareAvailability"))
+        XCTAssertTrue(appCommands.contains(".calendarViewMultiDay"))
+        XCTAssertTrue(appCommands.contains(".calendarViewYear"))
+        XCTAssertTrue(appCommands.contains("calendarActions.canShareAvailability == false"))
+        XCTAssertTrue(appCommands.contains("calendarActions.canShowMultiDay == false"))
+        XCTAssertTrue(appCommands.contains("calendarActions.canShowYear == false"))
+
+        let calendarHome = try String(contentsOf: repoRoot.appending(path: "apps/apple/HotCrossBuns/Features/Calendar/CalendarHomeView.swift"))
+        XCTAssertTrue(calendarHome.contains("ViewThatFits(in: .horizontal)"))
+        XCTAssertTrue(calendarHome.contains("calendarViewModeControl"))
+        XCTAssertTrue(calendarHome.contains("Label(\"Share Availability\", systemImage: \"calendar.badge.clock\")"))
+        XCTAssertTrue(calendarHome.contains(".disabled(canOpenShareAvailability == false)"))
+        XCTAssertTrue(calendarHome.contains("canShareAvailability: canNavigate && canOpenShareAvailability"))
+        XCTAssertTrue(calendarHome.contains("canShowMultiDay: canNavigate && visibleCalendarModes.contains(.multiDay)"))
+        XCTAssertTrue(calendarHome.contains("canShowYear: canNavigate && visibleCalendarModes.contains(.year)"))
+        XCTAssertTrue(calendarHome.contains(".keyboardShortcut(.cancelAction)"))
+        XCTAssertTrue(calendarHome.contains(".help(\"Close Share Availability\")"))
+
+        let actionCenter = try String(contentsOf: repoRoot.appending(path: "apps/apple/HotCrossBuns/Features/Status/ActionCenter.swift"))
+        XCTAssertTrue(actionCenter.contains(".keyboardShortcut(.cancelAction)"))
+        XCTAssertTrue(actionCenter.contains(".help(\"Close notifications\")"))
+    }
+
     private var repoRoot: URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

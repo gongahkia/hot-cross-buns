@@ -309,6 +309,18 @@ struct CalendarHomeView: View {
             Spacer(minLength: 0)
 
             Button {
+                openShareAvailability()
+            } label: {
+                Label("Share Availability", systemImage: "calendar.badge.clock")
+                    .labelStyle(.iconOnly)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help("Share availability")
+            .accessibilityLabel("Share availability")
+            .disabled(canOpenShareAvailability == false)
+
+            Button {
                 router?.present(.quickCreate(Date(), allDay: true))
             } label: {
                 Label("New Event or Task", systemImage: "plus")
@@ -319,14 +331,7 @@ struct CalendarHomeView: View {
             .help("Open quick create")
             .accessibilityLabel("New event or task")
 
-            Picker("View", selection: modeBinding) {
-                ForEach(visibleCalendarModes, id: \.self) { m in
-                    Label(m.title, systemImage: m.systemImage).tag(m)
-                }
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .fixedSize()
+            calendarViewModeControl
         }
         .hcbScaledPadding(.horizontal, 16)
         .hcbScaledPadding(.vertical, 10)
@@ -338,6 +343,32 @@ struct CalendarHomeView: View {
             }
         }
         .disabled(model.account == nil)
+    }
+
+    private var calendarViewModeControl: some View {
+        ViewThatFits(in: .horizontal) {
+            Picker("View", selection: modeBinding) {
+                calendarViewModePickerOptions
+            }
+            .pickerStyle(.segmented)
+            .fixedSize()
+
+            Picker("View", selection: modeBinding) {
+                calendarViewModePickerOptions
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .fixedSize()
+        }
+        .help("Choose calendar view")
+        .accessibilityLabel("Calendar view")
+    }
+
+    @ViewBuilder
+    private var calendarViewModePickerOptions: some View {
+        ForEach(visibleCalendarModes, id: \.self) { mode in
+            Label(mode.title, systemImage: mode.systemImage).tag(mode)
+        }
     }
 
     private var usesReadableCalendarChrome: Bool {
@@ -358,6 +389,10 @@ struct CalendarHomeView: View {
             return model.calendars.filter { $0.accessRole == "owner" || $0.accessRole == "writer" }
         }
         return writable
+    }
+
+    private var canOpenShareAvailability: Bool {
+        model.account != nil && writableCalendars.isEmpty == false
     }
 
     private var supportsAvailabilitySelection: Bool {
@@ -435,15 +470,21 @@ struct CalendarHomeView: View {
             focusSearch: {
                 NotificationCenter.default.post(name: .hcbFocusCalendarSearch, object: nil)
             },
+            shareAvailability: { openShareAvailability() },
             showAgenda: { selectMode(.agenda) },
             showDay: { selectMode(.day) },
             showWeek: { selectMode(.week) },
             showMonth: { selectMode(.month) },
+            showMultiDay: { selectMode(.multiDay) },
+            showYear: { selectMode(.year) },
             canNavigate: canNavigate,
+            canShareAvailability: canNavigate && canOpenShareAvailability,
             canShowAgenda: canNavigate && visibleCalendarModes.contains(.agenda),
             canShowDay: canNavigate && visibleCalendarModes.contains(.day),
             canShowWeek: canNavigate && visibleCalendarModes.contains(.week),
-            canShowMonth: canNavigate && visibleCalendarModes.contains(.month)
+            canShowMonth: canNavigate && visibleCalendarModes.contains(.month),
+            canShowMultiDay: canNavigate && visibleCalendarModes.contains(.multiDay),
+            canShowYear: canNavigate && visibleCalendarModes.contains(.year)
         )
     }
 
@@ -1215,6 +1256,8 @@ private struct ShareAvailabilityPanel: View {
                 Image(systemName: "xmark")
             }
             .buttonStyle(.plain)
+            .keyboardShortcut(.cancelAction)
+            .help("Close Share Availability")
             .accessibilityLabel("Close Share Availability")
         }
     }

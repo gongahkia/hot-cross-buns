@@ -81,15 +81,21 @@ struct CalendarCommandActions {
     var jumpForward: () -> Void
     var goToDate: () -> Void
     var focusSearch: () -> Void
+    var shareAvailability: () -> Void
     var showAgenda: () -> Void
     var showDay: () -> Void
     var showWeek: () -> Void
     var showMonth: () -> Void
+    var showMultiDay: () -> Void
+    var showYear: () -> Void
     var canNavigate: Bool
+    var canShareAvailability: Bool
     var canShowAgenda: Bool
     var canShowDay: Bool
     var canShowWeek: Bool
     var canShowMonth: Bool
+    var canShowMultiDay: Bool
+    var canShowYear: Bool
 }
 
 @MainActor
@@ -305,6 +311,11 @@ struct AppCommands: Commands {
                         .keyboardShortcut(focusSearch.key.keyEquivalent, modifiers: focusSearch.modifiers.eventModifiers)
                         .disabled(calendarActions.canNavigate == false)
 
+                    let shareAvailability = binding(.calendarShareAvailability)
+                    Button("Share Availability…") { calendarActions.shareAvailability() }
+                        .keyboardShortcut(shareAvailability.key.keyEquivalent, modifiers: shareAvailability.modifiers.eventModifiers)
+                        .disabled(calendarActions.canShareAvailability == false)
+
                     Divider()
 
                     let agenda = binding(.calendarViewAgenda)
@@ -326,6 +337,16 @@ struct AppCommands: Commands {
                     Button("Month View") { calendarActions.showMonth() }
                         .keyboardShortcut(month.key.keyEquivalent, modifiers: month.modifiers.eventModifiers)
                         .disabled(calendarActions.canShowMonth == false)
+
+                    let multiDay = binding(.calendarViewMultiDay)
+                    Button("Multi-Day View") { calendarActions.showMultiDay() }
+                        .keyboardShortcut(multiDay.key.keyEquivalent, modifiers: multiDay.modifiers.eventModifiers)
+                        .disabled(calendarActions.canShowMultiDay == false)
+
+                    let year = binding(.calendarViewYear)
+                    Button("Year View") { calendarActions.showYear() }
+                        .keyboardShortcut(year.key.keyEquivalent, modifiers: year.modifiers.eventModifiers)
+                        .disabled(calendarActions.canShowYear == false)
                 }
 
                 if let calendarEventEditorActions {
