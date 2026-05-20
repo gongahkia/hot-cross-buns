@@ -194,6 +194,7 @@ struct SyncChangeSet: Equatable, Sendable {
     var calendars = RowChanges()
     var events = RowChanges()
     var checkpoints = RowChanges()
+    var pendingMutations = RowChanges()
     var affectedDayKeys: Set<TimeInterval> = []
     var affectedCalendarIDs: Set<CalendarListMirror.ID> = []
     var affectedTaskListIDs: Set<TaskListMirror.ID> = []
@@ -208,6 +209,7 @@ struct SyncChangeSet: Equatable, Sendable {
             || calendars.hasChanges
             || events.hasChanges
             || checkpoints.hasChanges
+            || pendingMutations.hasChanges
     }
 
     var requiresDerivedSnapshotRebuild: Bool {
@@ -218,12 +220,22 @@ struct SyncChangeSet: Equatable, Sendable {
             || settingsChanged
     }
 
+    var canApplyEventOnlyDerivedUpdate: Bool {
+        events.hasChanges
+            && taskLists.hasChanges == false
+            && tasks.hasChanges == false
+            && calendars.hasChanges == false
+            && settingsChanged == false
+    }
+
     var canUseNarrowCalendarInvalidation: Bool {
         affectedDayKeys.isEmpty == false
             && calendars.hasChanges == false
             && settingsChanged == false
     }
 }
+
+typealias CachePersistenceChangeSet = SyncChangeSet
 
 enum SyncResourceType: String, Hashable, Codable, Sendable {
     case taskList

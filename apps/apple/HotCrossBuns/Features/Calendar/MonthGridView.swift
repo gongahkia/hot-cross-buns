@@ -125,6 +125,8 @@ struct MonthGridView: View {
     @State private var windowLastMonthStart: Date = Date()
     @State private var lastObservedScrollOffset: CGFloat = .nan
 
+    private var calendarStore: CalendarStore { model.calendarStore }
+
     private struct DragSelection: Equatable {
         var start: Date
         var end: Date
@@ -227,14 +229,14 @@ struct MonthGridView: View {
         cachedWeekSnapshots.isEmpty == false
             && isGridCachePreparing == false
             && renderedGridKey == currentGridCacheKey
-            && model.isRebuildingDerivedSnapshots == false
+            && calendarStore.isRebuildingDerivedSnapshots == false
     }
 
     private var shouldShowGridPreparationOverlay: Bool {
-        cachedWeekSnapshots.isEmpty
+            cachedWeekSnapshots.isEmpty
             || isGridCachePreparing
             || renderedGridKey != currentGridCacheKey
-            || model.isRebuildingDerivedSnapshots
+            || calendarStore.isRebuildingDerivedSnapshots
     }
 
     // Replaces the paged month grid. A LazyVStack of week rows inside a
@@ -366,8 +368,8 @@ struct MonthGridView: View {
     // O(selectedCalendars) — and triggers a rebuild only on real changes,
     // skipping every drag-induced body re-eval.
     private var currentGridCacheKey: String {
-        let selectedIds = model.calendarSnapshot.selectedCalendarIDs.sorted().joined(separator: ",")
-        // calendarDisplayRevision replaces the prior model.events.count fingerprint —
+        let selectedIds = calendarStore.calendarSnapshot.selectedCalendarIDs.sorted().joined(separator: ",")
+        // calendarDisplayRevision replaces the prior all-events count fingerprint.
         // renames / reschedules / recolors with unchanged total count now
         // bust the cache correctly while unrelated model changes keep the
         // grid cache warm.
@@ -380,7 +382,7 @@ struct MonthGridView: View {
     }
 
     private var currentCalendarRevisionKey: String {
-        model.calendarDisplayRevisionKey(for: windowDates, calendar: calendar)
+        calendarStore.calendarDisplayRevisionKey(for: windowDates, calendar: calendar)
     }
 
     private var windowDates: [Date] {
@@ -390,7 +392,7 @@ struct MonthGridView: View {
     }
 
     private var visibleTaskListKey: String {
-        model.visibleTaskListIDs.sorted().joined(separator: ",")
+        calendarStore.visibleTaskListIDs.sorted().joined(separator: ",")
     }
 
     private var monthWindowPreferenceKey: String {
@@ -404,7 +406,7 @@ struct MonthGridView: View {
             Text("Preparing calendar…")
                 .hcbFont(.subheadline, weight: .semibold)
                 .foregroundStyle(AppColor.ink)
-            Text("Optimizing \(model.events.count.formatted()) events for smooth scrolling.")
+            Text("Optimizing \(calendarStore.events.count.formatted()) events for smooth scrolling.")
                 .hcbFont(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -440,32 +442,36 @@ struct MonthGridView: View {
         let rangeEnd = weekStarts.last.flatMap {
             calendar.date(byAdding: .day, value: 6, to: $0)
         } ?? rangeStart
-        let payload = MonthGridCachePayload(
-            key: key,
-            anchorDate: anchorDate,
-            weekStarts: weekStarts,
-            selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
-            eventViewFilter: calendarEventViewFilter,
-            visibleTaskListIDs: model.visibleTaskListIDs,
-            searchQuery: searchQuery,
-            visibleRange: model.calendarVisibleRangeProjection(
-                kind: .month,
-                start: rangeStart,
-                end: rangeEnd,
-                calendar: calendar
-            ),
-            dataRevision: currentCalendarRevisionKey,
-            eventSearchTextByID: cachedEventSearchRevision == currentCalendarRevisionKey ? cachedEventSearchTextByID : [:],
-            calendarColorHexByID: model.calendarSnapshot.calendarColorHexByID,
-            calendar: calendar,
-            laneHeight: laneHeight,
-            laneSpacing: laneSpacing,
-            maxVisibleLanes: maxVisibleLanes
-        )
 
         gridCacheBuildTask?.cancel()
         isGridCachePreparing = true
         gridCacheBuildTask = Task { @MainActor in
+            let revisionKey = currentCalendarRevisionKey
+            let visibleRange = await model.calendarVisibleRangeProjectionFromQuery(
+                kind: .month,
+                start: rangeStart,
+                end: rangeEnd,
+                eventViewFilter: calendarEventViewFilter,
+                searchQuery: searchQuery,
+                calendar: calendar
+            )
+            let payload = MonthGridCachePayload(
+                key: key,
+                anchorDate: anchorDate,
+                weekStarts: weekStarts,
+                selectedCalendarIDs: calendarStore.calendarSnapshot.selectedCalendarIDs,
+                eventViewFilter: calendarEventViewFilter,
+                visibleTaskListIDs: calendarStore.visibleTaskListIDs,
+                searchQuery: searchQuery,
+                visibleRange: visibleRange,
+                dataRevision: revisionKey,
+                eventSearchTextByID: cachedEventSearchRevision == revisionKey ? cachedEventSearchTextByID : [:],
+                calendarColorHexByID: calendarStore.calendarSnapshot.calendarColorHexByID,
+                calendar: calendar,
+                laneHeight: laneHeight,
+                laneSpacing: laneSpacing,
+                maxVisibleLanes: maxVisibleLanes
+            )
             let result = await Task.detached(priority: .utility) {
                 Self.buildMonthGridCache(payload)
             }.value
@@ -1316,6 +1322,7 @@ struct MonthGridView: View {
         let allEventsToday = snapshot.allEvents
         let events = snapshot.timedEvents
         let tasks = snapshot.tasks
+        let isDenseMonth = allEventsToday.count + tasks.count >= CalendarDensityRendering.denseMonthItemThreshold
         // +N more counts the hidden band events too so users see them accounted for.
         let hiddenBandEvents = max(0, allEventsToday.count - events.count - visibleBandCount(for: dayStart, in: day, allEventsToday: allEventsToday))
         let rowStride = laneHeight + laneSpacing
@@ -1323,12 +1330,12 @@ struct MonthGridView: View {
         let verticalPadding: CGFloat = 8
         let availableRowArea = max(0, fixedRowHeight - verticalPadding - dayNumberReserve - bandReserve)
         let availableRows = max(0, Int(floor((availableRowArea + laneSpacing) / rowStride)))
-        let needsMoreButton = hiddenBandEvents > 0 || events.count + tasks.count > availableRows
+        let needsMoreButton = isDenseMonth || hiddenBandEvents > 0 || events.count + tasks.count > availableRows
         let visibleItemRows = needsMoreButton ? max(0, availableRows - 1) : availableRows
-        let visibleEventCount = min(events.count, visibleItemRows)
-        let visibleTaskCount = min(tasks.count, max(0, visibleItemRows - visibleEventCount))
-        let hiddenEvents = max(0, events.count - visibleEventCount) + hiddenBandEvents
-        let hiddenTasks = max(0, tasks.count - visibleTaskCount)
+        let visibleEventCount = isDenseMonth ? 0 : min(events.count, visibleItemRows)
+        let visibleTaskCount = isDenseMonth ? 0 : min(tasks.count, max(0, visibleItemRows - visibleEventCount))
+        let hiddenEvents = isDenseMonth ? allEventsToday.count : max(0, events.count - visibleEventCount) + hiddenBandEvents
+        let hiddenTasks = isDenseMonth ? tasks.count : max(0, tasks.count - visibleTaskCount)
         return VStack(alignment: .leading, spacing: 3) {
             HStack {
                 Text(snapshot.dayLabel)
@@ -1347,58 +1354,62 @@ struct MonthGridView: View {
             if bandReserve > 0 {
                 Color.clear.frame(height: bandReserve)
             }
-            ForEach(events.prefix(visibleEventCount), id: \.id) { event in
-                CalendarEventPreviewButton(event: event) {
-                    Text(snapshot.eventLabels[event.id] ?? event.summary)
-                        .hcbFont(.caption2)
-                        .lineLimit(1)
-                        .hcbScaledPadding(.horizontal, 6)
-                        .hcbScaledPadding(.vertical, 2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(calendarColor(for: event, in: snapshot).opacity(monthEventFillOpacity))
-                        )
-                        .foregroundStyle(AppColor.ink)
-                }
-                .accessibilityLabel(snapshot.eventAccessibilityLabels[event.id] ?? event.summary)
-                .draggable(DraggedEvent(
-                    eventID: event.id,
-                    calendarID: event.calendarID,
-                    durationMinutes: Int(max(event.endDate.timeIntervalSince(event.startDate) / 60, 15)),
-                    isAllDay: event.isAllDay
-                )) {
-                    Text(event.summary)
-                        .hcbFont(.caption)
-                        .hcbScaledPadding(.horizontal, 8)
-                        .hcbScaledPadding(.vertical, 4)
-                        .background(Capsule().fill(calendarColor(for: event, in: snapshot).opacity(0.35)))
-                }
-            }
-            ForEach(tasks.prefix(visibleTaskCount)) { task in
-                HStack(spacing: 3) {
-                    CalendarTaskCheckbox(task: task, size: 9)
-                    CalendarTaskPreviewButton(task: task) {
-                        Text(task.title)
+            if isDenseMonth {
+                denseMonthSummary(events: allEventsToday, tasks: tasks)
+            } else {
+                ForEach(events.prefix(visibleEventCount), id: \.id) { event in
+                    CalendarEventPreviewButton(event: event) {
+                        Text(snapshot.eventLabels[event.id] ?? event.summary)
                             .hcbFont(.caption2)
                             .lineLimit(1)
+                            .hcbScaledPadding(.horizontal, 6)
+                            .hcbScaledPadding(.vertical, 2)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(calendarColor(for: event, in: snapshot).opacity(monthEventFillOpacity))
+                            )
+                            .foregroundStyle(AppColor.ink)
+                    }
+                    .accessibilityLabel(snapshot.eventAccessibilityLabels[event.id] ?? event.summary)
+                    .draggable(DraggedEvent(
+                        eventID: event.id,
+                        calendarID: event.calendarID,
+                        durationMinutes: Int(max(event.endDate.timeIntervalSince(event.startDate) / 60, 15)),
+                        isAllDay: event.isAllDay
+                    )) {
+                        Text(event.summary)
+                            .hcbFont(.caption)
+                            .hcbScaledPadding(.horizontal, 8)
+                            .hcbScaledPadding(.vertical, 4)
+                            .background(Capsule().fill(calendarColor(for: event, in: snapshot).opacity(0.35)))
                     }
                 }
-                .hcbScaledPadding(.horizontal, 6)
-                .hcbScaledPadding(.vertical, 2)
-                .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(AppColor.ember.opacity(monthTaskFillOpacity))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 4)
-                        .strokeBorder(AppColor.ember.opacity(monthTaskStrokeOpacity), lineWidth: 0.6)
-                )
-                .foregroundStyle(AppColor.ink)
-                .strikethrough(task.isCompleted, color: .secondary)
-                .opacity(task.isCompleted ? 0.55 : 1.0)
+                ForEach(tasks.prefix(visibleTaskCount)) { task in
+                    HStack(spacing: 3) {
+                        CalendarTaskCheckbox(task: task, size: 9)
+                        CalendarTaskPreviewButton(task: task) {
+                            Text(task.title)
+                                .hcbFont(.caption2)
+                                .lineLimit(1)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                    }
+                    .hcbScaledPadding(.horizontal, 6)
+                    .hcbScaledPadding(.vertical, 2)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(AppColor.ember.opacity(monthTaskFillOpacity))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .strokeBorder(AppColor.ember.opacity(monthTaskStrokeOpacity), lineWidth: 0.6)
+                    )
+                    .foregroundStyle(AppColor.ink)
+                    .strikethrough(task.isCompleted, color: .secondary)
+                    .opacity(task.isCompleted ? 0.55 : 1.0)
+                }
             }
             Spacer(minLength: 0)
         }
@@ -1497,6 +1508,34 @@ struct MonthGridView: View {
         .accessibilityLabel("Create on \(dateLabel)")
     }
 
+    private func denseMonthSummary(events: [CalendarEventMirror], tasks: [TaskMirror]) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if events.isEmpty == false {
+                Label("\(events.count) events", systemImage: "square.grid.3x3.fill")
+                    .hcbFont(.caption2, weight: .semibold)
+                    .lineLimit(1)
+            }
+            if tasks.isEmpty == false {
+                Label("\(tasks.count) tasks", systemImage: "checklist")
+                    .hcbFont(.caption2, weight: .semibold)
+                    .lineLimit(1)
+            }
+        }
+        .foregroundStyle(AppColor.ink)
+        .hcbScaledPadding(.horizontal, 6)
+        .hcbScaledPadding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(AppColor.blue.opacity(usesReadableMonthBackings ? 0.24 : 0.14))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 4)
+                .strokeBorder(AppColor.blue.opacity(0.35), lineWidth: 0.6)
+        )
+        .accessibilityHidden(true)
+    }
+
     // How many band events for this specific day are visible in the overlay
     // (counted against maxVisibleLanes). Used to compute +N more accurately.
     private func visibleBandCount(for dayStart: Date, in day: Date, allEventsToday: [CalendarEventMirror]) -> Int {
@@ -1506,7 +1545,7 @@ struct MonthGridView: View {
     }
 
     private func rescheduleDroppedEvent(_ dropped: DraggedEvent, to dayStart: Date) async {
-        guard let event = model.event(id: dropped.eventID) else { return }
+        guard let event = calendarStore.event(id: dropped.eventID) else { return }
         let newStart: Date
         let newEnd: Date
         if event.isAllDay {
@@ -1540,7 +1579,7 @@ struct MonthGridView: View {
     }
 
     private func retargetDroppedTask(_ dropped: DraggedTask, to dayStart: Date) async {
-        guard let task = model.task(id: dropped.taskID) else { return }
+        guard let task = calendarStore.task(id: dropped.taskID) else { return }
         _ = await model.updateTask(
             task,
             title: task.title,

@@ -20,6 +20,8 @@ struct CalendarSidebarFilters: View {
         var id: String { key }
     }
 
+    private var calendarStore: CalendarStore { model.calendarStore }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
@@ -56,7 +58,7 @@ struct CalendarSidebarFilters: View {
             setAll: { state.visibleCalendarIDs = nil },
             setNone: { state.visibleCalendarIDs = [] }
         ) {
-            ForEach(model.calendarSnapshot.selectedCalendars) { calendar in
+            ForEach(calendarStore.calendarSnapshot.selectedCalendars) { calendar in
                 filterRow(
                     title: calendar.summary,
                     count: calendarEventCounts[calendar.id, default: 0],
@@ -211,12 +213,12 @@ struct CalendarSidebarFilters: View {
     }
 
     private var calendarEventCounts: [CalendarListMirror.ID: Int] {
-        model.calendarSnapshot.eventCountsByCalendarID
+        calendarStore.calendarSnapshot.eventCountsByCalendarID
     }
 
     private var colorOptions: [ColorOption] {
-        let counts = model.calendarSnapshot.eventCountsByColorID
-        let boundColorIDs = Set(model.settings.colorTagBindings.keys.map(CalendarEventViewFilter.normalizedColorID))
+        let counts = calendarStore.calendarSnapshot.eventCountsByColorID
+        let boundColorIDs = Set(calendarStore.settings.colorTagBindings.keys.map(CalendarEventViewFilter.normalizedColorID))
         let ids = Set(counts.keys).union(boundColorIDs).filter { id in
             id.isEmpty || CalendarEventColor(rawValue: id) != nil
         }
@@ -226,8 +228,8 @@ struct CalendarSidebarFilters: View {
     }
 
     private var tagOptions: [TagOption] {
-        let bindingIndex = CalendarEventViewFilter.colorTagIndex(from: model.settings.colorTagBindings)
-        var eventCountsByTag = model.calendarSnapshot.eventCountsByTagName
+        let bindingIndex = CalendarEventViewFilter.colorTagIndex(from: calendarStore.settings.colorTagBindings)
+        var eventCountsByTag = calendarStore.calendarSnapshot.eventCountsByTagName
         for tag in bindingIndex.keys where eventCountsByTag[tag] == nil {
             eventCountsByTag[tag] = 0
         }
@@ -251,7 +253,7 @@ struct CalendarSidebarFilters: View {
     }
 
     private var availableCalendarIDs: Set<CalendarListMirror.ID> {
-        Set(model.calendarSnapshot.selectedCalendars.map(\.id))
+        Set(calendarStore.calendarSnapshot.selectedCalendars.map(\.id))
     }
 
     private var availableColorIDs: Set<String> {

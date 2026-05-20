@@ -25,6 +25,9 @@ final class LocalCacheDatabaseStore: @unchecked Sendable {
             try db.execute(sql: "PRAGMA foreign_keys = ON")
             try db.execute(sql: "PRAGMA journal_mode = WAL")
             try db.execute(sql: "PRAGMA synchronous = NORMAL")
+            try db.execute(sql: "PRAGMA temp_store = MEMORY")
+            try db.execute(sql: "PRAGMA cache_size = -65536")
+            try db.execute(sql: "PRAGMA mmap_size = 268435456")
         }
         dbQueue = try DatabaseQueue(path: fileURL.path, configuration: configuration)
         try Self.migrator.migrate(dbQueue)
@@ -83,9 +86,13 @@ final class LocalCacheDatabaseStore: @unchecked Sendable {
         failAfterWritingEntitiesForTesting: Bool = false
     ) throws -> LocalCacheDatabaseSaveProfile {
         let totalStart = Self.timestamp()
+        let hasStateBeforeEncode = try dbQueue.read { db in
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM cache_state WHERE id = 1") == 1
+        }
         let encodeStart = Self.timestamp()
         let encoded = try EncodedState(
             state: result.state,
+            changeSet: hasStateBeforeEncode ? result.changeSet : nil,
             encryptionKey: encryptionKey,
             salt: salt
         )
@@ -95,13 +102,16 @@ final class LocalCacheDatabaseStore: @unchecked Sendable {
         let writeCounts = try dbQueue.write { db in
             let hasState = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM cache_state WHERE id = 1") == 1
             guard hasState else {
+                let fullEncoded = hasStateBeforeEncode
+                    ? try EncodedState(state: result.state, encryptionKey: encryptionKey, salt: salt)
+                    : encoded
                 try Self.replaceDatabaseContents(
                     db,
-                    encoded: encoded,
+                    encoded: fullEncoded,
                     failAfterWritingEntitiesForTesting: failAfterWritingEntitiesForTesting
                 )
                 return IncrementalWriteCounts(
-                    upserted: encoded.totalEntityRows,
+                    upserted: fullEncoded.totalEntityRows,
                     deleted: 0,
                     unchangedSkipped: 0
                 )
@@ -130,6 +140,22 @@ final class LocalCacheDatabaseStore: @unchecked Sendable {
             incrementalUpsertedRows: writeCounts.upserted,
             incrementalDeletedRows: writeCounts.deleted,
             incrementalUnchangedSkippedRows: writeCounts.unchangedSkipped
+        )
+    }
+
+    @discardableResult
+    func commit(
+        state: CachedAppState,
+        changeSet: CachePersistenceChangeSet,
+        encryptionKey: SymmetricKey? = nil,
+        salt: Data? = nil,
+        failAfterWritingEntitiesForTesting: Bool = false
+    ) throws -> LocalCacheDatabaseSaveProfile {
+        try applySyncResult(
+            SyncApplyResult(state: state, changeSet: changeSet),
+            encryptionKey: encryptionKey,
+            salt: salt,
+            failAfterWritingEntitiesForTesting: failAfterWritingEntitiesForTesting
         )
     }
 
@@ -268,6 +294,7 @@ final class LocalCacheDatabaseStore: @unchecked Sendable {
         selectedCalendarIDs: Set<CalendarListMirror.ID>,
         eventViewFilter: CalendarEventViewFilter = CalendarEventViewFilter(),
         includeCancelled: Bool = false,
+        requiresEventDetails: Bool = false,
         encryptionKey: SymmetricKey? = nil,
         calendar: Calendar = .current
     ) throws -> CalendarVisibleRangeProjection {
@@ -278,6 +305,7 @@ final class LocalCacheDatabaseStore: @unchecked Sendable {
             selectedCalendarIDs: selectedCalendarIDs,
             eventViewFilter: eventViewFilter,
             includeCancelled: includeCancelled,
+            requiresEventDetails: requiresEventDetails,
             encryptionKey: encryptionKey,
             calendar: calendar
         )
@@ -289,12 +317,73 @@ final class LocalCacheDatabaseStore: @unchecked Sendable {
         selectedCalendarIDs: Set<CalendarListMirror.ID>,
         eventViewFilter: CalendarEventViewFilter = CalendarEventViewFilter(),
         includeCancelled: Bool = false,
+        requiresEventDetails: Bool = false,
         encryptionKey: SymmetricKey? = nil,
         calendar: Calendar = .current
     ) throws -> CalendarVisibleRangeProjection {
         let storageAccountID = accountID ?? Self.unscopedAccountID
         return try dbQueue.read { db in
             let effectiveCalendarIDs = selectedCalendarIDs.intersection(eventViewFilter.visibleCalendarIDs ?? selectedCalendarIDs)
+            var eventPredicates = [
+                "d.account_id = ?",
+                "d.day_key >= ?",
+                "d.day_key <= ?"
+            ]
+            var eventArguments: StatementArguments = [
+                storageAccountID,
+                range.start.timeIntervalSinceReferenceDate,
+                range.end.timeIntervalSinceReferenceDate
+            ]
+            Self.appendActiveEventPredicate(columnPrefix: "d.", includeCancelled: includeCancelled, predicates: &eventPredicates, arguments: &eventArguments)
+            Self.appendSelectedCalendarPredicate(
+                column: "d.calendar_id",
+                selectedCalendarIDs: effectiveCalendarIDs,
+                predicates: &eventPredicates,
+                arguments: &eventArguments
+            )
+            if let visibleColorIDs = eventViewFilter.visibleColorIDs {
+                if visibleColorIDs.isEmpty {
+                    eventPredicates.append("0 = 1")
+                } else {
+                    let sortedIDs = visibleColorIDs.sorted()
+                    eventPredicates.append("d.color_id IN (\(Self.placeholders(count: sortedIDs.count)))")
+                    for id in sortedIDs {
+                        eventArguments += [id]
+                    }
+                }
+            }
+            if range.kind == .year,
+               requiresEventDetails == false,
+               eventViewFilter.visibleTagNames == nil {
+                let countRows = try Row.fetchAll(
+                    db,
+                    sql: """
+                        SELECT d.day_key, COUNT(d.event_id) AS event_count
+                        FROM cache_calendar_event_days d
+                        WHERE \(eventPredicates.joined(separator: " AND "))
+                        GROUP BY d.day_key
+                        ORDER BY d.day_key ASC
+                        """,
+                    arguments: eventArguments
+                )
+                var eventCountsByDay: [TimeInterval: Int] = [:]
+                eventCountsByDay.reserveCapacity(countRows.count)
+                for row in countRows {
+                    eventCountsByDay[row["day_key"]] = row["event_count"]
+                }
+                return CalendarVisibleRangeProjection(
+                    range: range,
+                    revisionKey: try Self.calendarRevisionKey(db, accountID: storageAccountID, dayKeys: range.dayKeys),
+                    eventsByDay: [:],
+                    eventCountsByDay: eventCountsByDay,
+                    tasksByDueDate: [:],
+                    eventByID: [:],
+                    taskByID: [:],
+                    eventSearchTextByID: [:],
+                    taskSearchTextByID: [:]
+                )
+            }
+            let searchTextSelection = range.kind == .year ? "'' AS search_text" : "r.search_text"
             let rows = try Row.fetchAll(
                 db,
                 sql: """
@@ -308,16 +397,14 @@ final class LocalCacheDatabaseStore: @unchecked Sendable {
                         r.start_date,
                         r.end_date,
                         r.is_all_day,
-                        r.search_text
+                        \(searchTextSelection)
                     FROM cache_calendar_event_days d
                     JOIN cache_event_render_index r
                         ON r.account_id = d.account_id AND r.id = d.event_id
-                    WHERE d.account_id = ?
-                        AND d.day_key >= ?
-                        AND d.day_key <= ?
-                    ORDER BY d.day_key ASC, r.start_date ASC, r.id ASC
+                    WHERE \(eventPredicates.joined(separator: " AND "))
+                    ORDER BY d.day_key ASC, d.event_id ASC
                     """,
-                arguments: [storageAccountID, range.start.timeIntervalSinceReferenceDate, range.end.timeIntervalSinceReferenceDate]
+                arguments: eventArguments
             )
 
             var eventByID: [CalendarEventMirror.ID: CalendarEventMirror] = [:]
@@ -336,10 +423,7 @@ final class LocalCacheDatabaseStore: @unchecked Sendable {
                 let eventID: String = row["event_id"]
                 let calendarID: String = row["calendar_id"]
                 let status: String = row["status"]
-                guard includeCancelled || status != CalendarEventStatus.cancelled.rawValue else { continue }
-                guard effectiveCalendarIDs.contains(calendarID) else { continue }
                 let colorID: String = row["color_id"]
-                guard eventViewFilter.visibleColorIDs?.contains(colorID) ?? true else { continue }
                 if let visibleTagNames = eventViewFilter.visibleTagNames {
                     let eventTagNames = Self.eventTagNames(
                         literalTags: literalTagsByEventID[eventID] ?? [],
@@ -437,6 +521,190 @@ final class LocalCacheDatabaseStore: @unchecked Sendable {
                 taskSearchTextByID: taskSearchTextByID
             )
         }
+    }
+
+    func events(
+        ids: [CalendarEventMirror.ID],
+        accountID: String? = nil,
+        encryptionKey: SymmetricKey? = nil
+    ) throws -> [CalendarEventMirror] {
+        guard ids.isEmpty == false else { return [] }
+        return try dbQueue.read { db in
+            try Self.fetchEvents(
+                db,
+                accountID: accountID ?? Self.unscopedAccountID,
+                ids: ids,
+                encryptionKey: encryptionKey
+            )
+        }
+    }
+
+    func events(
+        in interval: DateInterval,
+        accountID: String? = nil,
+        calendarIDs: Set<CalendarListMirror.ID>? = nil,
+        eventViewFilter: CalendarEventViewFilter = CalendarEventViewFilter(),
+        includeCancelled: Bool = false,
+        encryptionKey: SymmetricKey? = nil
+    ) throws -> [CalendarEventMirror] {
+        guard interval.end > interval.start else { return [] }
+        let storageAccountID = accountID ?? Self.unscopedAccountID
+        return try dbQueue.read { db in
+            let effectiveCalendarIDs = calendarIDs.map { ids in
+                ids.intersection(eventViewFilter.visibleCalendarIDs ?? ids)
+            } ?? eventViewFilter.visibleCalendarIDs
+            var predicates = [
+                "account_id = ?",
+                "start_date < ?",
+                "end_date > ?"
+            ]
+            var arguments: StatementArguments = [
+                storageAccountID,
+                interval.end.timeIntervalSince1970,
+                interval.start.timeIntervalSince1970
+            ]
+            Self.appendActiveEventPredicate(includeCancelled: includeCancelled, predicates: &predicates, arguments: &arguments)
+            Self.appendSelectedCalendarPredicate(
+                column: "calendar_id",
+                selectedCalendarIDs: effectiveCalendarIDs,
+                predicates: &predicates,
+                arguments: &arguments
+            )
+            if let visibleColorIDs = eventViewFilter.visibleColorIDs {
+                if visibleColorIDs.isEmpty {
+                    predicates.append("0 = 1")
+                } else {
+                    let sortedIDs = visibleColorIDs.sorted()
+                    predicates.append("color_id IN (\(Self.placeholders(count: sortedIDs.count)))")
+                    for id in sortedIDs {
+                        arguments += [id]
+                    }
+                }
+            }
+            let ids = try String.fetchAll(
+                db,
+                sql: """
+                    SELECT id
+                    FROM cache_event_render_index
+                    WHERE \(predicates.joined(separator: " AND "))
+                    ORDER BY start_date ASC, summary COLLATE NOCASE ASC, id ASC
+                    """,
+                arguments: arguments
+            )
+            return try Self.fetchEvents(
+                db,
+                accountID: storageAccountID,
+                ids: ids,
+                encryptionKey: encryptionKey
+            )
+            .filter { event in
+                eventViewFilter.allows(event)
+                    && (includeCancelled || event.status != .cancelled)
+                    && (calendarIDs?.contains(event.calendarID) ?? true)
+                    && event.startDate < interval.end
+                    && event.endDate > interval.start
+            }
+        }
+    }
+
+    func hasMatchingEvent(
+        accountID: String? = nil,
+        calendarID: CalendarListMirror.ID,
+        summary: String,
+        startDate: Date,
+        isAllDay: Bool,
+        tolerance: TimeInterval
+    ) throws -> Bool {
+        let storageAccountID = accountID ?? Self.unscopedAccountID
+        let lowerBound = startDate.addingTimeInterval(-tolerance).timeIntervalSince1970
+        let upperBound = startDate.addingTimeInterval(tolerance).timeIntervalSince1970
+        return try dbQueue.read { db in
+            let match = try Int.fetchOne(
+                db,
+                sql: """
+                    SELECT 1
+                    FROM cache_event_render_index
+                    WHERE account_id = ?
+                        AND calendar_id = ?
+                        AND status <> ?
+                        AND is_all_day = ?
+                        AND summary = ? COLLATE NOCASE
+                        AND start_date > ?
+                        AND start_date < ?
+                    LIMIT 1
+                    """,
+                arguments: [
+                    storageAccountID,
+                    calendarID,
+                    CalendarEventStatus.cancelled.rawValue,
+                    isAllDay ? 1 : 0,
+                    summary,
+                    lowerBound,
+                    upperBound
+                ]
+            )
+            return match != nil
+        }
+    }
+
+    func availabilityHoldGroups(
+        accountID: String? = nil,
+        encryptionKey: SymmetricKey? = nil
+    ) throws -> [AvailabilityHoldGroup] {
+        let storageAccountID = accountID ?? Self.unscopedAccountID
+        return try dbQueue.read { db in
+            let ids = try String.fetchAll(
+                db,
+                sql: """
+                    SELECT id
+                    FROM cache_event_render_index
+                    WHERE account_id = ?
+                        AND availability_hold_group_id IS NOT NULL
+                        AND status <> ?
+                    ORDER BY start_date ASC, id ASC
+                    """,
+                arguments: [storageAccountID, CalendarEventStatus.cancelled.rawValue]
+            )
+            if ids.isEmpty == false {
+                let events = try Self.fetchEvents(
+                    db,
+                    accountID: storageAccountID,
+                    ids: ids,
+                    encryptionKey: encryptionKey
+                )
+                return Self.availabilityHoldGroups(from: events)
+            }
+
+            let fallbackRows = try Self.fetchStoredEventRows(db, encryptionKey: encryptionKey)
+            let fallbackEvents = try fallbackRows
+                .filter { $0.accountID == storageAccountID }
+                .map { row in
+                    try PayloadCoder.decode(CalendarEventMirror.self, from: row.payload, encryptionKey: encryptionKey)
+                }
+            return Self.availabilityHoldGroups(from: fallbackEvents)
+        }
+    }
+
+    func blockingEvents(
+        for slot: AvailabilitySlot,
+        accountID: String? = nil,
+        calendarIDs: Set<CalendarListMirror.ID>,
+        encryptionKey: SymmetricKey? = nil
+    ) throws -> [CalendarEventMirror] {
+        let interval = DateInterval(start: slot.startDate, end: slot.endDate)
+        let candidates = try events(
+            in: interval,
+            accountID: accountID,
+            calendarIDs: calendarIDs,
+            eventViewFilter: CalendarEventViewFilter(),
+            includeCancelled: false,
+            encryptionKey: encryptionKey
+        )
+        return AvailabilitySlotResolver.blockingEvents(
+            for: slot,
+            events: candidates,
+            calendarIDs: calendarIDs
+        )
     }
 
 #if DEBUG
@@ -639,27 +907,50 @@ struct CalendarAggregateCounts: Equatable, Sendable {
 }
 
 enum LocalCacheRowHasher {
-    static let algorithmIdentifier = "hcb-cache-row-sha256-v1"
-
     static func hash<T: Encodable>(_ value: T, kind: String) throws -> String {
         try hash(canonicalPayload: JSONEncoder.cacheDatabaseCanonical.encode(value), kind: kind)
     }
 
-    static func hash(canonicalPayload: Data, kind: String) -> String {
-        var input = Data()
-        input.append(Data(algorithmIdentifier.utf8))
-        input.append(0x0A)
-        input.append(Data(kind.utf8))
-        input.append(0x0A)
-        input.append(Data(String(canonicalPayload.count).utf8))
-        input.append(0x0A)
-        input.append(canonicalPayload)
-        return SHA256.hash(data: input).map { String(format: "%02x", $0) }.joined()
+    static func hash(canonicalPayload: Data, kind _: String) -> String {
+        var hasher = SHA256()
+        hasher.update(data: canonicalPayload)
+        return hexString(for: hasher.finalize())
+    }
+
+    private static func hexString<D: Sequence>(for digest: D) -> String where D.Element == UInt8 {
+        let table = Array("0123456789abcdef".utf8)
+        var bytes: [UInt8] = []
+        bytes.reserveCapacity(64)
+        for byte in digest {
+            bytes.append(table[Int(byte >> 4)])
+            bytes.append(table[Int(byte & 0x0F)])
+        }
+        return String(decoding: bytes, as: UTF8.self)
     }
 }
 
 private extension LocalCacheDatabaseStore {
     static let unscopedAccountID = "__hcb_unscoped__"
+
+    static func availabilityHoldGroups(from events: [CalendarEventMirror]) -> [AvailabilityHoldGroup] {
+        let holds = events.filter { $0.status != .cancelled && $0.availabilityHold != nil }
+        let grouped = Dictionary(grouping: holds) { $0.availabilityHold?.groupID ?? "" }
+        return grouped.compactMap { groupID, events in
+            guard groupID.isEmpty == false,
+                  let metadata = events.compactMap(\.availabilityHold).first
+            else { return nil }
+            return AvailabilityHoldGroup(
+                id: groupID,
+                metadata: metadata,
+                events: events.sorted { $0.startDate < $1.startDate }
+            )
+        }
+        .sorted { lhs, rhs in
+            let left = lhs.events.first?.startDate ?? lhs.metadata.createdAt
+            let right = rhs.events.first?.startDate ?? rhs.metadata.createdAt
+            return left < right
+        }
+    }
 
     struct IncrementalWriteCounts {
         var upserted: Int = 0
@@ -946,6 +1237,31 @@ private extension LocalCacheDatabaseStore {
                     ON cache_side_effect_dirty_queue(target, enqueued_at);
                 """)
         }
+        migrator.registerMigration("cache-db-v4-calendar-query-indexes") { db in
+            try db.execute(sql: """
+                CREATE INDEX IF NOT EXISTS idx_cache_calendar_event_index_color
+                    ON cache_calendar_event_index(account_id, color_id, status, calendar_id, event_id);
+                CREATE INDEX IF NOT EXISTS idx_cache_calendar_event_days_range_event
+                    ON cache_calendar_event_days(account_id, day_key, event_id, calendar_id, status, color_id);
+                """)
+        }
+        migrator.registerMigration("cache-db-v5-calendar-query-event-metadata") { db in
+            try db.execute(sql: """
+                ALTER TABLE cache_event_render_index
+                    ADD COLUMN transparency TEXT NOT NULL DEFAULT 'opaque';
+                ALTER TABLE cache_event_render_index
+                    ADD COLUMN availability_hold_group_id TEXT;
+                CREATE INDEX IF NOT EXISTS idx_cache_event_render_overlap
+                    ON cache_event_render_index(account_id, calendar_id, status, start_date, end_date, transparency);
+                CREATE INDEX IF NOT EXISTS idx_cache_event_render_hold_group
+                    ON cache_event_render_index(account_id, availability_hold_group_id, status, start_date);
+                """)
+        }
+        migrator.registerMigration("cache-db-v6-drop-unused-base-cache-indexes") { db in
+            for index in Self.obsoleteBulkWriteIndexes {
+                try db.execute(sql: "DROP INDEX IF EXISTS \(index)")
+            }
+        }
         return migrator
     }
 
@@ -954,6 +1270,7 @@ private extension LocalCacheDatabaseStore {
         encoded: EncodedState,
         failAfterWritingEntitiesForTesting: Bool
     ) throws {
+        try dropBulkWriteIndexes(db)
         for table in [
             "cache_side_effect_dirty_queue",
             "cache_event_render_index",
@@ -1000,6 +1317,78 @@ private extension LocalCacheDatabaseStore {
 
         if failAfterWritingEntitiesForTesting {
             throw CacheDatabaseError.injectedRollback
+        }
+
+        try createBulkWriteIndexes(db)
+    }
+
+    static let bulkWriteIndexes: [(name: String, sql: String)] = [
+        (
+            "idx_cache_calendar_event_days_event",
+            "CREATE INDEX IF NOT EXISTS idx_cache_calendar_event_days_event ON cache_calendar_event_days(account_id, event_id)"
+        ),
+        (
+            "idx_cache_calendar_event_days_range",
+            "CREATE INDEX IF NOT EXISTS idx_cache_calendar_event_days_range ON cache_calendar_event_days(account_id, day_key, calendar_id, status)"
+        ),
+        (
+            "idx_cache_calendar_event_index_calendar",
+            "CREATE INDEX IF NOT EXISTS idx_cache_calendar_event_index_calendar ON cache_calendar_event_index(account_id, calendar_id, status, color_id)"
+        ),
+        (
+            "idx_cache_calendar_event_tags_tag",
+            "CREATE INDEX IF NOT EXISTS idx_cache_calendar_event_tags_tag ON cache_calendar_event_tags(account_id, tag_name, event_id)"
+        ),
+        (
+            "idx_cache_task_render_due",
+            "CREATE INDEX IF NOT EXISTS idx_cache_task_render_due ON cache_task_render_index(account_id, due_date, task_list_id, is_deleted, is_hidden)"
+        ),
+        (
+            "idx_cache_event_render_start",
+            "CREATE INDEX IF NOT EXISTS idx_cache_event_render_start ON cache_event_render_index(account_id, start_date, calendar_id, status)"
+        ),
+        (
+            "idx_cache_dirty_target",
+            "CREATE INDEX IF NOT EXISTS idx_cache_dirty_target ON cache_side_effect_dirty_queue(target, enqueued_at)"
+        ),
+        (
+            "idx_cache_calendar_event_index_color",
+            "CREATE INDEX IF NOT EXISTS idx_cache_calendar_event_index_color ON cache_calendar_event_index(account_id, color_id, status, calendar_id, event_id)"
+        ),
+        (
+            "idx_cache_calendar_event_days_range_event",
+            "CREATE INDEX IF NOT EXISTS idx_cache_calendar_event_days_range_event ON cache_calendar_event_days(account_id, day_key, event_id, calendar_id, status, color_id)"
+        ),
+        (
+            "idx_cache_event_render_overlap",
+            "CREATE INDEX IF NOT EXISTS idx_cache_event_render_overlap ON cache_event_render_index(account_id, calendar_id, status, start_date, end_date, transparency)"
+        ),
+        (
+            "idx_cache_event_render_hold_group",
+            "CREATE INDEX IF NOT EXISTS idx_cache_event_render_hold_group ON cache_event_render_index(account_id, availability_hold_group_id, status, start_date)"
+        )
+    ]
+
+    static let obsoleteBulkWriteIndexes = [
+        "idx_cache_events_calendar_start",
+        "idx_cache_events_content_hash",
+        "idx_cache_tasks_list_updated",
+        "idx_cache_checkpoints_resource",
+        "idx_cache_pending_resource"
+    ]
+
+    static func dropBulkWriteIndexes(_ db: Database) throws {
+        for index in obsoleteBulkWriteIndexes {
+            try db.execute(sql: "DROP INDEX IF EXISTS \(index)")
+        }
+        for index in bulkWriteIndexes {
+            try db.execute(sql: "DROP INDEX IF EXISTS \(index.name)")
+        }
+    }
+
+    static func createBulkWriteIndexes(_ db: Database) throws {
+        for index in bulkWriteIndexes {
+            try db.execute(sql: index.sql)
         }
     }
 
@@ -1118,11 +1507,26 @@ private extension LocalCacheDatabaseStore {
             ids: changeSet.checkpoints.inserted.union(changeSet.checkpoints.updated)
         ))
 
+        counts.deleted += try deleteRows(
+            db,
+            table: "cache_pending_mutations",
+            idColumn: "id",
+            accountID: accountID,
+            ids: changeSet.pendingMutations.deleted
+        )
+        counts.add(try upsertPendingMutationRows(
+            db,
+            accountID: accountID,
+            rows: encoded.pendingMutations,
+            ids: changeSet.pendingMutations.inserted.union(changeSet.pendingMutations.updated)
+        ))
+
         counts.unchangedSkipped += changeSet.taskLists.unchanged.count
             + changeSet.tasks.unchanged.count
             + changeSet.calendars.unchanged.count
             + changeSet.events.unchanged.count
             + changeSet.checkpoints.unchanged.count
+            + changeSet.pendingMutations.unchanged.count
 
         if failAfterWritingEntitiesForTesting {
             throw CacheDatabaseError.injectedRollback
@@ -1347,6 +1751,47 @@ private extension LocalCacheDatabaseStore {
         return counts
     }
 
+    static func upsertPendingMutationRows(
+        _ db: Database,
+        accountID: String,
+        rows: [EncodedState.PendingMutationRow],
+        ids: Set<String>
+    ) throws -> IncrementalWriteCounts {
+        guard ids.isEmpty == false else { return IncrementalWriteCounts() }
+        var counts = IncrementalWriteCounts()
+        let statement = try db.makeStatement(sql: """
+            INSERT INTO cache_pending_mutations
+                (account_id, id, position, resource_type, resource_id, created_at, payload, content_hash)
+            VALUES
+                (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(account_id, id) DO UPDATE SET
+                position = excluded.position,
+                resource_type = excluded.resource_type,
+                resource_id = excluded.resource_id,
+                created_at = excluded.created_at,
+                payload = excluded.payload,
+                content_hash = excluded.content_hash
+            """)
+        for row in rows where row.accountID == accountID && ids.contains(row.id) {
+            if try existingScopedHash(db, table: "cache_pending_mutations", accountID: row.accountID, idColumn: "id", id: row.id) == row.contentHash {
+                counts.unchangedSkipped += 1
+                continue
+            }
+            try statement.execute(arguments: [
+                row.accountID,
+                row.id,
+                row.position,
+                row.resourceType,
+                row.resourceID,
+                row.createdAt,
+                row.payload,
+                row.contentHash
+            ])
+            counts.upserted += 1
+        }
+        return counts
+    }
+
     static func deleteRows(
         _ db: Database,
         table: String,
@@ -1377,13 +1822,14 @@ private extension LocalCacheDatabaseStore {
         ] {
             try db.execute(sql: "DELETE FROM \(table)")
         }
-        try upsertTaskSearchAndRenderRows(db, rows: taskRows)
-        try upsertEventSearchAndRenderRows(db, rows: eventRows)
+        try upsertTaskSearchAndRenderRows(db, rows: taskRows, deleteExistingRows: false)
+        try upsertEventSearchAndRenderRows(db, rows: eventRows, deleteExistingRows: false)
     }
 
     static func upsertTaskSearchAndRenderRows(
         _ db: Database,
-        rows: [EncodedState.TaskRow]
+        rows: [EncodedState.TaskRow],
+        deleteExistingRows: Bool = true
     ) throws {
         guard rows.isEmpty == false else { return }
         let renderStatement = try db.makeStatement(sql: """
@@ -1411,7 +1857,9 @@ private extension LocalCacheDatabaseStore {
                 (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """)
         for row in rows {
-            try deleteTaskSearchAndRenderRows(db, accountID: row.accountID, ids: [row.id])
+            if deleteExistingRows {
+                try deleteTaskSearchAndRenderRows(db, accountID: row.accountID, ids: [row.id])
+            }
             try renderStatement.execute(arguments: [
                 row.accountID,
                 row.id,
@@ -1461,14 +1909,15 @@ private extension LocalCacheDatabaseStore {
 
     static func upsertEventSearchAndRenderRows(
         _ db: Database,
-        rows: [EncodedState.EventRow]
+        rows: [EncodedState.EventRow],
+        deleteExistingRows: Bool = true
     ) throws {
         guard rows.isEmpty == false else { return }
         let renderStatement = try db.makeStatement(sql: """
             INSERT INTO cache_event_render_index
-                (account_id, id, calendar_id, summary, start_date, end_date, is_all_day, status, color_id, search_text, content_hash)
+                (account_id, id, calendar_id, summary, start_date, end_date, is_all_day, status, color_id, search_text, content_hash, transparency, availability_hold_group_id)
             VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(account_id, id) DO UPDATE SET
                 calendar_id = excluded.calendar_id,
                 summary = excluded.summary,
@@ -1478,7 +1927,9 @@ private extension LocalCacheDatabaseStore {
                 status = excluded.status,
                 color_id = excluded.color_id,
                 search_text = excluded.search_text,
-                content_hash = excluded.content_hash
+                content_hash = excluded.content_hash,
+                transparency = excluded.transparency,
+                availability_hold_group_id = excluded.availability_hold_group_id
             """)
         let searchStatement = try db.makeStatement(sql: """
             INSERT INTO cache_event_search_fts
@@ -1487,7 +1938,9 @@ private extension LocalCacheDatabaseStore {
                 (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """)
         for row in rows {
-            try deleteEventSearchAndRenderRows(db, accountID: row.accountID, ids: [row.id])
+            if deleteExistingRows {
+                try deleteEventSearchAndRenderRows(db, accountID: row.accountID, ids: [row.id])
+            }
             try renderStatement.execute(arguments: [
                 row.accountID,
                 row.id,
@@ -1499,7 +1952,9 @@ private extension LocalCacheDatabaseStore {
                 row.status,
                 row.colorID,
                 row.searchText,
-                row.contentHash
+                row.contentHash,
+                row.transparency,
+                row.availabilityHoldGroupID
             ])
             try searchStatement.execute(arguments: [
                 row.accountID,
@@ -1548,12 +2003,14 @@ private extension LocalCacheDatabaseStore {
         ] {
             try db.execute(sql: "DELETE FROM \(table)")
         }
-        try insertCalendarDerivedRows(db, rows: rows)
+        try insertCalendarDerivedRows(db, rows: rows, updateCounts: false)
+        try rebuildCalendarCountTables(db)
     }
 
     static func insertCalendarDerivedRows(
         _ db: Database,
-        rows: [EncodedState.EventRow]
+        rows: [EncodedState.EventRow],
+        updateCounts: Bool = true
     ) throws {
         guard rows.isEmpty == false else { return }
 
@@ -1609,8 +2066,66 @@ private extension LocalCacheDatabaseStore {
             for tagName in row.tagNames.sorted() {
                 try tagStatement.execute(arguments: [row.accountID, row.id, tagName])
             }
-            try applyCalendarCountDelta(db, row: row, delta: 1)
+            if updateCounts {
+                try applyCalendarCountDelta(db, row: row, delta: 1)
+            }
         }
+    }
+
+    static func rebuildCalendarCountTables(_ db: Database) throws {
+        for table in [
+            "cache_calendar_tag_counts",
+            "cache_calendar_color_counts",
+            "cache_calendar_calendar_counts"
+        ] {
+            try db.execute(sql: "DELETE FROM \(table)")
+        }
+
+        let cancelled = CalendarEventStatus.cancelled.rawValue
+        try db.execute(
+            sql: """
+                INSERT INTO cache_calendar_calendar_counts
+                    (account_id, calendar_id, active_count, all_count)
+                SELECT
+                    account_id,
+                    calendar_id,
+                    SUM(CASE WHEN status <> ? THEN 1 ELSE 0 END),
+                    COUNT(*)
+                FROM cache_calendar_event_index
+                GROUP BY account_id, calendar_id
+                """,
+            arguments: [cancelled]
+        )
+        try db.execute(
+            sql: """
+                INSERT INTO cache_calendar_color_counts
+                    (account_id, color_id, active_count, all_count)
+                SELECT
+                    account_id,
+                    color_id,
+                    SUM(CASE WHEN status <> ? THEN 1 ELSE 0 END),
+                    COUNT(*)
+                FROM cache_calendar_event_index
+                GROUP BY account_id, color_id
+                """,
+            arguments: [cancelled]
+        )
+        try db.execute(
+            sql: """
+                INSERT INTO cache_calendar_tag_counts
+                    (account_id, tag_name, active_count, all_count)
+                SELECT
+                    t.account_id,
+                    t.tag_name,
+                    SUM(CASE WHEN i.status <> ? THEN 1 ELSE 0 END),
+                    COUNT(*)
+                FROM cache_calendar_event_tags t
+                JOIN cache_calendar_event_index i
+                    ON i.account_id = t.account_id AND i.event_id = t.event_id
+                GROUP BY t.account_id, t.tag_name
+                """,
+            arguments: [cancelled]
+        )
     }
 
     static func removeCalendarDerivedRows(
@@ -1654,6 +2169,8 @@ private extension LocalCacheDatabaseStore {
                 location: "",
                 attendeeText: "",
                 meetLink: "",
+                transparency: CalendarEventTransparency.opaque.rawValue,
+                availabilityHoldGroupID: nil,
                 tagNames: Set(tagRows.map { row -> String in row["tag_name"] }),
                 dayKeys: [],
                 searchText: "",
@@ -1814,17 +2331,23 @@ private extension LocalCacheDatabaseStore {
     ) throws -> String {
         guard dayKeys.isEmpty == false else { return "0" }
         var revisions: [TimeInterval: Int] = [:]
+        revisions.reserveCapacity(dayKeys.count)
+        var arguments: StatementArguments = [accountID]
         for dayKey in dayKeys {
-            let revision = try Int.fetchOne(
-                db,
-                sql: """
-                    SELECT revision
-                    FROM cache_calendar_day_revisions
-                    WHERE account_id = ? AND day_key = ?
-                    """,
-                arguments: [accountID, dayKey]
-            ) ?? 0
-            revisions[dayKey] = revision
+            arguments += [dayKey]
+        }
+        let rows = try Row.fetchAll(
+            db,
+            sql: """
+                SELECT day_key, revision
+                FROM cache_calendar_day_revisions
+                WHERE account_id = ?
+                    AND day_key IN (\(placeholders(count: dayKeys.count)))
+                """,
+            arguments: arguments
+        )
+        for row in rows {
+            revisions[row["day_key"]] = row["revision"]
         }
         return dayKeys
             .map { key in "\(Int(key)):\(revisions[key] ?? 0)" }
@@ -1911,70 +2434,41 @@ private extension LocalCacheDatabaseStore {
         includeCancelled: Bool,
         colorTagBindings: [String: String]
     ) throws -> CalendarAggregateCounts {
-        let indexRows = try Row.fetchAll(
+        if let selectedCalendarIDs, selectedCalendarIDs.isEmpty {
+            return .empty
+        }
+
+        let eventCountsByCalendarID = try fetchCalendarCounts(
             db,
-            sql: """
-                SELECT event_id, calendar_id, status, color_id
-                FROM cache_calendar_event_index
-                WHERE account_id = ?
-                """,
-            arguments: [accountID]
+            accountID: accountID,
+            selectedCalendarIDs: selectedCalendarIDs,
+            includeCancelled: includeCancelled
         )
-
-        struct IncludedEvent {
-            var id: String
-            var calendarID: String
-            var colorID: String
-        }
-
-        var included: [IncludedEvent] = []
-        included.reserveCapacity(indexRows.count)
-        var eventCountsByCalendarID: [CalendarListMirror.ID: Int] = [:]
-        var eventCountsByColorID: [String: Int] = [:]
-
-        for row in indexRows {
-            let status: String = row["status"]
-            guard includeCancelled || status != CalendarEventStatus.cancelled.rawValue else { continue }
-            let calendarID: String = row["calendar_id"]
-            if let selectedCalendarIDs, selectedCalendarIDs.contains(calendarID) == false {
-                continue
-            }
-            let eventID: String = row["event_id"]
-            let colorID: String = row["color_id"]
-            included.append(IncludedEvent(id: eventID, calendarID: calendarID, colorID: colorID))
-            eventCountsByCalendarID[calendarID, default: 0] += 1
-            eventCountsByColorID[colorID, default: 0] += 1
-        }
-
-        let includedIDs = Set(included.map(\.id))
-        let tagRows = try Row.fetchAll(
+        let eventCountsByColorID = try fetchColorCounts(
             db,
-            sql: """
-                SELECT event_id, tag_name
-                FROM cache_calendar_event_tags
-                WHERE account_id = ?
-                """,
-            arguments: [accountID]
+            accountID: accountID,
+            selectedCalendarIDs: selectedCalendarIDs,
+            includeCancelled: includeCancelled
         )
-        var literalEventIDsByTag: [String: Set<String>] = [:]
-        for row in tagRows {
-            let eventID: String = row["event_id"]
-            guard includedIDs.contains(eventID) else { continue }
-            let tagName: String = row["tag_name"]
-            literalEventIDsByTag[tagName, default: []].insert(eventID)
-        }
-
-        var eventCountsByTagName = literalEventIDsByTag.mapValues(\.count)
+        var eventCountsByTagName = try fetchLiteralTagCounts(
+            db,
+            accountID: accountID,
+            selectedCalendarIDs: selectedCalendarIDs,
+            includeCancelled: includeCancelled
+        )
         let colorTagIndex = CalendarEventViewFilter.colorTagIndex(from: colorTagBindings)
         for (tagName, colorID) in colorTagIndex {
-            let literalEventIDs = literalEventIDsByTag[tagName] ?? []
-            let boundCount = included.reduce(0) { count, event in
-                guard event.colorID == colorID, literalEventIDs.contains(event.id) == false else {
-                    return count
-                }
-                return count + 1
+            let boundCount = try fetchColorBoundTagCount(
+                db,
+                accountID: accountID,
+                tagName: tagName,
+                colorID: colorID,
+                selectedCalendarIDs: selectedCalendarIDs,
+                includeCancelled: includeCancelled
+            )
+            if boundCount > 0 {
+                eventCountsByTagName[tagName, default: 0] += boundCount
             }
-            eventCountsByTagName[tagName, default: 0] += boundCount
         }
 
         return CalendarAggregateCounts(
@@ -1982,6 +2476,204 @@ private extension LocalCacheDatabaseStore {
             eventCountsByColorID: eventCountsByColorID,
             eventCountsByTagName: eventCountsByTagName
         )
+    }
+
+    static func fetchCalendarCounts(
+        _ db: Database,
+        accountID: String,
+        selectedCalendarIDs: Set<CalendarListMirror.ID>?,
+        includeCancelled: Bool
+    ) throws -> [CalendarListMirror.ID: Int] {
+        let countColumn = includeCancelled ? "all_count" : "active_count"
+        var predicates = ["account_id = ?", "\(countColumn) > 0"]
+        var arguments: StatementArguments = [accountID]
+        appendSelectedCalendarPredicate(
+            column: "calendar_id",
+            selectedCalendarIDs: selectedCalendarIDs,
+            predicates: &predicates,
+            arguments: &arguments
+        )
+        return try fetchStringIntMap(
+            db,
+            sql: """
+                SELECT calendar_id AS key, \(countColumn) AS value
+                FROM cache_calendar_calendar_counts
+                WHERE \(predicates.joined(separator: " AND "))
+                """,
+            arguments: arguments
+        )
+    }
+
+    static func fetchColorCounts(
+        _ db: Database,
+        accountID: String,
+        selectedCalendarIDs: Set<CalendarListMirror.ID>?,
+        includeCancelled: Bool
+    ) throws -> [String: Int] {
+        if selectedCalendarIDs == nil {
+            let countColumn = includeCancelled ? "all_count" : "active_count"
+            return try fetchStringIntMap(
+                db,
+                sql: """
+                    SELECT color_id AS key, \(countColumn) AS value
+                    FROM cache_calendar_color_counts
+                    WHERE account_id = ? AND \(countColumn) > 0
+                    """,
+                arguments: [accountID]
+            )
+        }
+
+        var predicates = ["account_id = ?"]
+        var arguments: StatementArguments = [accountID]
+        appendActiveEventPredicate(includeCancelled: includeCancelled, predicates: &predicates, arguments: &arguments)
+        appendSelectedCalendarPredicate(
+            column: "calendar_id",
+            selectedCalendarIDs: selectedCalendarIDs,
+            predicates: &predicates,
+            arguments: &arguments
+        )
+        return try fetchStringIntMap(
+            db,
+            sql: """
+                SELECT color_id AS key, COUNT(*) AS value
+                FROM cache_calendar_event_index
+                WHERE \(predicates.joined(separator: " AND "))
+                GROUP BY color_id
+                """,
+            arguments: arguments
+        )
+    }
+
+    static func fetchLiteralTagCounts(
+        _ db: Database,
+        accountID: String,
+        selectedCalendarIDs: Set<CalendarListMirror.ID>?,
+        includeCancelled: Bool
+    ) throws -> [String: Int] {
+        if selectedCalendarIDs == nil {
+            let countColumn = includeCancelled ? "all_count" : "active_count"
+            return try fetchStringIntMap(
+                db,
+                sql: """
+                    SELECT tag_name AS key, \(countColumn) AS value
+                    FROM cache_calendar_tag_counts
+                    WHERE account_id = ? AND \(countColumn) > 0
+                    """,
+                arguments: [accountID]
+            )
+        }
+
+        var predicates = ["i.account_id = ?"]
+        var arguments: StatementArguments = [accountID]
+        appendActiveEventPredicate(columnPrefix: "i.", includeCancelled: includeCancelled, predicates: &predicates, arguments: &arguments)
+        appendSelectedCalendarPredicate(
+            column: "i.calendar_id",
+            selectedCalendarIDs: selectedCalendarIDs,
+            predicates: &predicates,
+            arguments: &arguments
+        )
+        return try fetchStringIntMap(
+            db,
+            sql: """
+                SELECT t.tag_name AS key, COUNT(*) AS value
+                FROM cache_calendar_event_tags t
+                JOIN cache_calendar_event_index i
+                    ON i.account_id = t.account_id AND i.event_id = t.event_id
+                WHERE \(predicates.joined(separator: " AND "))
+                GROUP BY t.tag_name
+                """,
+            arguments: arguments
+        )
+    }
+
+    static func fetchColorBoundTagCount(
+        _ db: Database,
+        accountID: String,
+        tagName: String,
+        colorID: String,
+        selectedCalendarIDs: Set<CalendarListMirror.ID>?,
+        includeCancelled: Bool
+    ) throws -> Int {
+        var predicates = ["i.account_id = ?"]
+        var arguments: StatementArguments = [accountID]
+        appendActiveEventPredicate(columnPrefix: "i.", includeCancelled: includeCancelled, predicates: &predicates, arguments: &arguments)
+        appendSelectedCalendarPredicate(
+            column: "i.calendar_id",
+            selectedCalendarIDs: selectedCalendarIDs,
+            predicates: &predicates,
+            arguments: &arguments
+        )
+        predicates.append("i.color_id = ?")
+        arguments += [colorID]
+        predicates.append("""
+            NOT EXISTS (
+                SELECT 1
+                FROM cache_calendar_event_tags t
+                WHERE t.account_id = i.account_id
+                    AND t.event_id = i.event_id
+                    AND t.tag_name = ?
+            )
+            """)
+        arguments += [tagName]
+
+        return try Int.fetchOne(
+            db,
+            sql: """
+                SELECT COUNT(*)
+                FROM cache_calendar_event_index i
+                WHERE \(predicates.joined(separator: " AND "))
+                """,
+            arguments: arguments
+        ) ?? 0
+    }
+
+    static func fetchStringIntMap(
+        _ db: Database,
+        sql: String,
+        arguments: StatementArguments
+    ) throws -> [String: Int] {
+        let rows = try Row.fetchAll(db, sql: sql, arguments: arguments)
+        var values: [String: Int] = [:]
+        values.reserveCapacity(rows.count)
+        for row in rows {
+            let value: Int = row["value"]
+            guard value > 0 else { continue }
+            values[row["key"] as String] = value
+        }
+        return values
+    }
+
+    static func appendActiveEventPredicate(
+        columnPrefix: String = "",
+        includeCancelled: Bool,
+        predicates: inout [String],
+        arguments: inout StatementArguments
+    ) {
+        guard includeCancelled == false else { return }
+        predicates.append("\(columnPrefix)status <> ?")
+        arguments += [CalendarEventStatus.cancelled.rawValue]
+    }
+
+    static func appendSelectedCalendarPredicate(
+        column: String,
+        selectedCalendarIDs: Set<CalendarListMirror.ID>?,
+        predicates: inout [String],
+        arguments: inout StatementArguments
+    ) {
+        guard let selectedCalendarIDs else { return }
+        guard selectedCalendarIDs.isEmpty == false else {
+            predicates.append("0 = 1")
+            return
+        }
+        let sortedIDs = selectedCalendarIDs.sorted()
+        predicates.append("\(column) IN (\(placeholders(count: sortedIDs.count)))")
+        for id in sortedIDs {
+            arguments += [id]
+        }
+    }
+
+    static func placeholders(count: Int) -> String {
+        Array(repeating: "?", count: count).joined(separator: ", ")
     }
 
     static func searchEntities(
@@ -2496,6 +3188,8 @@ private extension LocalCacheDatabaseStore {
                 location: event.location,
                 attendeeText: Self.attendeeSearchText(for: event),
                 meetLink: event.meetLink,
+                transparency: event.transparency.rawValue,
+                availabilityHoldGroupID: event.availabilityHold?.groupID,
                 tagNames: CalendarEventViewFilter.literalTagNames(in: event),
                 dayKeys: calendarEventDayKeys(for: event, calendar: .current),
                 searchText: [event.summary, event.details, event.location, Self.attendeeSearchText(for: event), event.meetLink].joined(separator: "\n"),
@@ -2760,6 +3454,8 @@ private struct EncodedState {
         var location: String
         var attendeeText: String
         var meetLink: String
+        var transparency: String
+        var availabilityHoldGroupID: String?
         var tagNames: Set<String>
         var dayKeys: [TimeInterval]
         var searchText: String
@@ -2816,9 +3512,14 @@ private struct EncodedState {
     }
 
     init(state cachedState: CachedAppState, encryptionKey: SymmetricKey?, salt: Data?) throws {
+        try self.init(state: cachedState, changeSet: nil, encryptionKey: encryptionKey, salt: salt)
+    }
+
+    init(state cachedState: CachedAppState, changeSet: SyncChangeSet?, encryptionKey: SymmetricKey?, salt: Data?) throws {
         if encryptionKey != nil, salt == nil {
             throw LocalCacheDatabaseStore.CacheDatabaseError.missingEncryptionSalt
         }
+        let rowFilter = RowFilter(changeSet: changeSet)
         let metadataState = cachedState.databaseMetadataSnapshot()
         let statePayload = try PayloadCoder.encode(
             metadataState,
@@ -2855,6 +3556,7 @@ private struct EncodedState {
                 events: workspace.events,
                 syncCheckpoints: workspace.syncCheckpoints,
                 pendingMutations: workspace.pendingMutations,
+                rowFilter: rowFilter,
                 encryptionKey: encryptionKey,
                 salt: salt
             )
@@ -2875,9 +3577,65 @@ private struct EncodedState {
                 events: cachedState.events,
                 syncCheckpoints: cachedState.syncCheckpoints,
                 pendingMutations: cachedState.pendingMutations,
+                rowFilter: rowFilter,
                 encryptionKey: encryptionKey,
                 salt: salt
             )
+        }
+    }
+
+    struct RowFilter {
+        var taskListIDs: Set<String>?
+        var taskIDs: Set<String>?
+        var calendarIDs: Set<String>?
+        var eventIDs: Set<String>?
+        var checkpointIDs: Set<String>?
+        var pendingMutationIDs: Set<String>?
+
+        init(changeSet: SyncChangeSet?) {
+            guard let changeSet else {
+                taskListIDs = nil
+                taskIDs = nil
+                calendarIDs = nil
+                eventIDs = nil
+                checkpointIDs = nil
+                pendingMutationIDs = nil
+                return
+            }
+            taskListIDs = Self.encodedIDs(changeSet.taskLists)
+            taskIDs = Self.encodedIDs(changeSet.tasks)
+            calendarIDs = Self.encodedIDs(changeSet.calendars)
+            eventIDs = Self.encodedIDs(changeSet.events)
+            checkpointIDs = Self.encodedIDs(changeSet.checkpoints)
+            pendingMutationIDs = Self.encodedIDs(changeSet.pendingMutations)
+        }
+
+        private static func encodedIDs(_ changes: SyncChangeSet.RowChanges) -> Set<String> {
+            changes.inserted.union(changes.updated)
+        }
+
+        func includesTaskList(_ id: String) -> Bool {
+            taskListIDs?.contains(id) ?? true
+        }
+
+        func includesTask(_ id: String) -> Bool {
+            taskIDs?.contains(id) ?? true
+        }
+
+        func includesCalendar(_ id: String) -> Bool {
+            calendarIDs?.contains(id) ?? true
+        }
+
+        func includesEvent(_ id: String) -> Bool {
+            eventIDs?.contains(id) ?? true
+        }
+
+        func includesCheckpoint(_ id: String) -> Bool {
+            checkpointIDs?.contains(id) ?? true
+        }
+
+        func includesPendingMutation(_ id: String) -> Bool {
+            pendingMutationIDs?.contains(id) ?? true
         }
     }
 
@@ -2889,14 +3647,17 @@ private struct EncodedState {
         events: [CalendarEventMirror],
         syncCheckpoints: [SyncCheckpoint],
         pendingMutations: [PendingMutation],
+        rowFilter: RowFilter,
         encryptionKey: SymmetricKey?,
         salt: Data?
     ) throws {
-        self.taskLists += try taskLists.enumerated().map { index, taskList in
+        self.taskLists += try taskLists.enumerated().compactMap { index, taskList in
+            guard rowFilter.includesTaskList(taskList.id) else { return nil }
             let encoded = try PayloadCoder.encode(taskList, kind: "taskList", encryptionKey: encryptionKey, salt: salt)
             return EntityRow(accountID: accountID, id: taskList.id, position: index, payload: encoded.payload, contentHash: encoded.contentHash)
         }
-        self.tasks += try tasks.enumerated().map { index, task in
+        self.tasks += try tasks.enumerated().compactMap { index, task in
+            guard rowFilter.includesTask(task.id) else { return nil }
             let encoded = try PayloadCoder.encode(task, kind: "task", encryptionKey: encryptionKey, salt: salt)
             return TaskRow(
                 accountID: accountID,
@@ -2918,11 +3679,13 @@ private struct EncodedState {
                 contentHash: encoded.contentHash
             )
         }
-        self.calendars += try calendars.enumerated().map { index, calendar in
+        self.calendars += try calendars.enumerated().compactMap { index, calendar in
+            guard rowFilter.includesCalendar(calendar.id) else { return nil }
             let encoded = try PayloadCoder.encode(calendar, kind: "calendar", encryptionKey: encryptionKey, salt: salt)
             return EntityRow(accountID: accountID, id: calendar.id, position: index, payload: encoded.payload, contentHash: encoded.contentHash)
         }
-        self.events += try events.enumerated().map { index, event in
+        self.events += try events.enumerated().compactMap { index, event in
+            guard rowFilter.includesEvent(event.id) else { return nil }
             let encoded = try PayloadCoder.encode(event, kind: "event", encryptionKey: encryptionKey, salt: salt)
             return EventRow(
                 accountID: accountID,
@@ -2941,6 +3704,8 @@ private struct EncodedState {
                 location: event.location,
                 attendeeText: LocalCacheDatabaseStore.attendeeSearchText(for: event),
                 meetLink: event.meetLink,
+                transparency: event.transparency.rawValue,
+                availabilityHoldGroupID: event.availabilityHold?.groupID,
                 tagNames: CalendarEventViewFilter.literalTagNames(in: event),
                 dayKeys: LocalCacheDatabaseStore.calendarEventDayKeys(for: event, calendar: .current),
                 searchText: [
@@ -2954,7 +3719,8 @@ private struct EncodedState {
                 contentHash: encoded.contentHash
             )
         }
-        self.syncCheckpoints += try syncCheckpoints.enumerated().map { index, checkpoint in
+        self.syncCheckpoints += try syncCheckpoints.enumerated().compactMap { index, checkpoint in
+            guard rowFilter.includesCheckpoint(checkpoint.id) else { return nil }
             let encoded = try PayloadCoder.encode(checkpoint, kind: "syncCheckpoint", encryptionKey: encryptionKey, salt: salt)
             return CheckpointRow(
                 accountID: accountID,
@@ -2967,11 +3733,13 @@ private struct EncodedState {
                 contentHash: encoded.contentHash
             )
         }
-        self.pendingMutations += try pendingMutations.enumerated().map { index, mutation in
+        self.pendingMutations += try pendingMutations.enumerated().compactMap { index, mutation in
+            let mutationID = mutation.id.uuidString
+            guard rowFilter.includesPendingMutation(mutationID) else { return nil }
             let encoded = try PayloadCoder.encode(mutation, kind: "pendingMutation", encryptionKey: encryptionKey, salt: salt)
             return PendingMutationRow(
                 accountID: accountID,
-                id: mutation.id.uuidString,
+                id: mutationID,
                 position: index,
                 resourceType: mutation.resourceType.rawValue,
                 resourceID: mutation.resourceID,
@@ -3156,9 +3924,17 @@ private enum PayloadCoder {
                 throw LocalCacheDatabaseStore.CacheDatabaseError.encryptedStoreLocked
             }
             let plaintext = try HCBCacheCrypto.decrypt(envelope.encryptedV1, key: encryptionKey)
-            return try JSONDecoder.cacheDatabase.decode(T.self, from: plaintext)
+            return try decodePayload(T.self, from: plaintext)
         }
-        return try JSONDecoder.cacheDatabase.decode(T.self, from: data)
+        return try decodePayload(T.self, from: data)
+    }
+
+    private static func decodePayload<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
+        do {
+            return try JSONDecoder.cacheDatabase.decode(T.self, from: data)
+        } catch {
+            return try JSONDecoder.cacheDatabaseLegacyISO8601.decode(T.self, from: data)
+        }
     }
 }
 
@@ -3198,14 +3974,19 @@ private extension Dictionary where Value: Collection {
 private extension JSONEncoder {
     static var cacheDatabaseCanonical: JSONEncoder {
         let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.sortedKeys]
+        encoder.dateEncodingStrategy = .secondsSince1970
         return encoder
     }
 }
 
 private extension JSONDecoder {
     static var cacheDatabase: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
+        return decoder
+    }
+
+    static var cacheDatabaseLegacyISO8601: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return decoder

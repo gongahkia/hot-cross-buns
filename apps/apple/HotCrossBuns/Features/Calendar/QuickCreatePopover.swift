@@ -89,6 +89,9 @@ struct QuickCreatePopover: View {
         let tag: String
     }
 
+    private var calendarStore: CalendarStore { model.calendarStore }
+    private var taskStore: TaskStore { model.taskStore }
+
     enum CreateMode: String, Hashable { case event, task, birthday }
 
     init(
@@ -153,11 +156,11 @@ struct QuickCreatePopover: View {
         .background(.regularMaterial)
         .task {
             // mode/hasDueDate/isAllDay/startDate/endDate/taskDueDate are seeded in init() to avoid a first-frame flash. Only model-dependent seeds run here.
-            selectedListID = initialTaskListID ?? model.taskLists.first?.id
-            selectedCalendarID = model.calendarSnapshot.selectedCalendars.first?.id ?? model.calendars.first?.id
+            selectedListID = initialTaskListID ?? taskStore.taskLists.first?.id
+            selectedCalendarID = calendarStore.calendarSnapshot.selectedCalendars.first?.id ?? calendarStore.calendars.first?.id
             applyDefaultEventTimeZoneIfNeeded()
             summaryFocused = true
-            showOptionalFields = model.settings.quickCreateExpandedByDefault
+            showOptionalFields = calendarStore.settings.quickCreateExpandedByDefault
         }
         .onChange(of: summary) { _, newValue in
             applyColorTagAutoColor(title: newValue)
@@ -185,13 +188,13 @@ struct QuickCreatePopover: View {
     // so we never overwrite their choice for the rest of the session.
     private func applyColorTagAutoColor(title: String) {
         guard mode == .event,
-              model.settings.colorTagAutoApplyEnabled,
+              calendarStore.settings.colorTagAutoApplyEnabled,
               userManuallyPickedColor == false
         else { return }
         if let resolution = ColorTagResolver.resolve(
             title: title,
-            bindings: model.settings.colorTagBindings,
-            policy: model.settings.colorTagMatchPolicy
+            bindings: calendarStore.settings.colorTagBindings,
+            policy: calendarStore.settings.colorTagMatchPolicy
         ) {
             let newColor = CalendarEventColor.from(colorId: resolution.colorId)
             if newColor != eventColor { eventColor = newColor }
@@ -210,7 +213,7 @@ struct QuickCreatePopover: View {
             if selectedListID != match.list.id { selectedListID = match.list.id }
             autoAppliedTaskListTag = match.tag
         } else if autoAppliedTaskListTag != nil {
-            selectedListID = initialTaskListID ?? model.taskLists.first?.id
+            selectedListID = initialTaskListID ?? taskStore.taskLists.first?.id
             autoAppliedTaskListTag = nil
         }
     }
@@ -223,20 +226,20 @@ struct QuickCreatePopover: View {
             }
             autoAppliedCalendarTag = resolution.matchedTag
         } else if autoAppliedCalendarTag != nil {
-            selectedCalendarID = model.calendarSnapshot.selectedCalendars.first?.id ?? model.calendars.first?.id
+            selectedCalendarID = calendarStore.calendarSnapshot.selectedCalendars.first?.id ?? calendarStore.calendars.first?.id
             autoAppliedCalendarTag = nil
         }
     }
 
     private func calendarTagResolution(in title: String) -> CalendarTagResolver.Resolution? {
-        CalendarTagResolver.resolve(title: title, calendars: model.calendarSnapshot.selectedCalendars)
-            ?? CalendarTagResolver.resolve(title: title, calendars: model.calendars)
+        CalendarTagResolver.resolve(title: title, calendars: calendarStore.calendarSnapshot.selectedCalendars)
+            ?? CalendarTagResolver.resolve(title: title, calendars: calendarStore.calendars)
     }
 
     private func taskListTagMatch(in title: String) -> TaskListTagMatch? {
         let tags = TagExtractor.tags(in: title)
         guard tags.isEmpty == false else { return nil }
-        let listsByTagKey = model.taskLists.reduce(into: [String: TaskListMirror]()) { result, list in
+        let listsByTagKey = taskStore.taskLists.reduce(into: [String: TaskListMirror]()) { result, list in
             let key = taskListTagKey(for: list.title)
             guard key.isEmpty == false, result[key] == nil else { return }
             result[key] = list
@@ -272,7 +275,7 @@ struct QuickCreatePopover: View {
     }
 
     private var effectiveExpanded: Bool {
-        model.settings.quickCreateExpandedByDefault || showOptionalFields
+        calendarStore.settings.quickCreateExpandedByDefault || showOptionalFields
     }
 
     private var nativeControlFill: Color {
@@ -673,7 +676,7 @@ struct QuickCreatePopover: View {
                 .foregroundStyle(AppColor.ink)
             Spacer(minLength: 8)
             Menu {
-                ForEach(model.taskLists) { list in
+                ForEach(taskStore.taskLists) { list in
                     Button(list.title) { selectTaskListManually(list.id) }
                 }
             } label: {
@@ -764,7 +767,7 @@ struct QuickCreatePopover: View {
                 .background(AppColor.blue.opacity(0.08))
             }
             HStack(spacing: 10) {
-                if model.settings.quickCreateExpandedByDefault == false {
+                if calendarStore.settings.quickCreateExpandedByDefault == false {
                     Button {
                         HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeInOut(duration: 0.14)) { showOptionalFields.toggle() }
                     } label: {
@@ -803,7 +806,7 @@ struct QuickCreatePopover: View {
         switch mode {
         case .event, .birthday:
             Menu {
-                ForEach(model.calendars) { cal in
+                ForEach(calendarStore.calendars) { cal in
                     Button(cal.summary) { selectCalendarManually(cal.id) }
                 }
             } label: {
@@ -815,7 +818,7 @@ struct QuickCreatePopover: View {
             .fixedSize()
         case .task:
             Menu {
-                ForEach(model.taskLists) { list in
+                ForEach(taskStore.taskLists) { list in
                     Button(list.title) { selectTaskListManually(list.id) }
                 }
             } label: {
@@ -838,11 +841,11 @@ struct QuickCreatePopover: View {
 
     private var currentListTitle: String {
         guard let selectedListID else { return "Inbox" }
-        return model.taskListTitle(for: selectedListID, fallback: "Inbox")
+        return calendarStore.taskListTitle(for: selectedListID, fallback: "Inbox")
     }
 
     private var currentCalendarTitle: String {
-        model.calendars.first(where: { $0.id == selectedCalendarID })?.summary ?? "Calendar"
+        calendarStore.calendars.first(where: { $0.id == selectedCalendarID })?.summary ?? "Calendar"
     }
 
     private var eventTimeZone: TimeZone {
@@ -871,7 +874,7 @@ struct QuickCreatePopover: View {
               userManuallyPickedEventTimeZone == false
         else { return }
         let calendarTimeZoneID = selectedCalendarID
-            .flatMap { id in model.calendars.first(where: { $0.id == id })?.timeZoneID }
+            .flatMap { id in calendarStore.calendars.first(where: { $0.id == id })?.timeZoneID }
         let resolved = TimezoneSupport.validatedIdentifier(calendarTimeZoneID) ?? TimezoneSupport.currentIdentifier
         let oldValue = eventTimeZoneID
         if oldValue != resolved, isAllDay == false {

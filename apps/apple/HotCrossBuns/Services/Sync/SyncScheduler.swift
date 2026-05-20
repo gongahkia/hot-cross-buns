@@ -804,11 +804,11 @@ actor SyncScheduler {
         let syncedTaskListIDs = Set(taskResults.map(\.taskListID))
         if syncedTaskListIDs.isEmpty == false {
             let touchedIDs = Set(taskResults.flatMap(\.tasks).map(\.id))
-            let finalByID = Dictionary(uniqueKeysWithValues: syncedState.tasks.map { ($0.id, $0) })
+            let finalIDs = Set(syncedState.tasks.map(\.id))
             let deletedIDs = Set<String>(baseState.tasks.compactMap { task in
                 guard syncedTaskListIDs.contains(task.taskListID),
                       OptimisticID.isPending(task.id) == false,
-                      finalByID[task.id] == nil
+                      finalIDs.contains(task.id) == false
                 else { return nil }
                 return task.id
             })
@@ -839,11 +839,11 @@ actor SyncScheduler {
         let syncedCalendarIDs = Set(eventResults.map(\.calendarID))
         if syncedCalendarIDs.isEmpty == false {
             let touchedIDs = Set(eventResults.flatMap(\.events).map(\.id))
-            let finalByID = Dictionary(uniqueKeysWithValues: syncedState.events.map { ($0.id, $0) })
+            let finalIDs = Set(syncedState.events.map(\.id))
             let deletedIDs = Set<String>(baseState.events.compactMap { event in
                 guard syncedCalendarIDs.contains(event.calendarID),
                       OptimisticID.isPending(event.id) == false,
-                      finalByID[event.id] == nil
+                      finalIDs.contains(event.id) == false
                 else { return nil }
                 return event.id
             })
@@ -898,11 +898,20 @@ actor SyncScheduler {
         kind: String,
         etag: (T) -> String?
     ) -> SyncChangeSet.RowChanges where T.ID == String {
-        let existingByID = Dictionary(uniqueKeysWithValues: existing.map { ($0.id, $0) })
-        let finalByID = Dictionary(uniqueKeysWithValues: final.map { ($0.id, $0) })
+        let neededIDs = touchedIDs.union(deletedIDs)
+        var existingByID: [String: T] = [:]
+        var finalByID: [String: T] = [:]
+        existingByID.reserveCapacity(neededIDs.count)
+        finalByID.reserveCapacity(neededIDs.count)
+        for row in existing where neededIDs.contains(row.id) {
+            existingByID[row.id] = row
+        }
+        for row in final where neededIDs.contains(row.id) {
+            finalByID[row.id] = row
+        }
         var changes = SyncChangeSet.RowChanges()
 
-        for id in touchedIDs.union(deletedIDs) {
+        for id in neededIDs {
             let old = existingByID[id]
             let new = finalByID[id]
             switch (old, new) {
@@ -946,9 +955,18 @@ actor SyncScheduler {
         existing: [TaskMirror],
         final: [TaskMirror]
     ) {
-        let existingByID = Dictionary(uniqueKeysWithValues: existing.map { ($0.id, $0) })
-        let finalByID = Dictionary(uniqueKeysWithValues: final.map { ($0.id, $0) })
-        for id in changeSet.tasks.inserted.union(changeSet.tasks.updated).union(changeSet.tasks.deleted) {
+        let changedIDs = changeSet.tasks.inserted.union(changeSet.tasks.updated).union(changeSet.tasks.deleted)
+        var existingByID: [TaskMirror.ID: TaskMirror] = [:]
+        var finalByID: [TaskMirror.ID: TaskMirror] = [:]
+        existingByID.reserveCapacity(changedIDs.count)
+        finalByID.reserveCapacity(changedIDs.count)
+        for task in existing where changedIDs.contains(task.id) {
+            existingByID[task.id] = task
+        }
+        for task in final where changedIDs.contains(task.id) {
+            finalByID[task.id] = task
+        }
+        for id in changedIDs {
             let old = existingByID[id]
             let new = finalByID[id]
             if let old {
@@ -967,9 +985,18 @@ actor SyncScheduler {
         existing: [CalendarEventMirror],
         final: [CalendarEventMirror]
     ) {
-        let existingByID = Dictionary(uniqueKeysWithValues: existing.map { ($0.id, $0) })
-        let finalByID = Dictionary(uniqueKeysWithValues: final.map { ($0.id, $0) })
-        for id in changeSet.events.inserted.union(changeSet.events.updated).union(changeSet.events.deleted) {
+        let changedIDs = changeSet.events.inserted.union(changeSet.events.updated).union(changeSet.events.deleted)
+        var existingByID: [CalendarEventMirror.ID: CalendarEventMirror] = [:]
+        var finalByID: [CalendarEventMirror.ID: CalendarEventMirror] = [:]
+        existingByID.reserveCapacity(changedIDs.count)
+        finalByID.reserveCapacity(changedIDs.count)
+        for event in existing where changedIDs.contains(event.id) {
+            existingByID[event.id] = event
+        }
+        for event in final where changedIDs.contains(event.id) {
+            finalByID[event.id] = event
+        }
+        for id in changedIDs {
             let old = existingByID[id]
             let new = finalByID[id]
             if let old {

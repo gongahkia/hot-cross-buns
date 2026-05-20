@@ -1,6 +1,176 @@
 import Foundation
 import CryptoKit
 
+protocol CalendarQuerying: Sendable {
+    func visibleRangeProjection(
+        accountID: String?,
+        kind: CalendarVisibleRangeKind,
+        anchorDate: Date,
+        dayCount: Int?,
+        selectedCalendarIDs: Set<CalendarListMirror.ID>,
+        eventViewFilter: CalendarEventViewFilter,
+        includeCancelled: Bool,
+        requiresEventDetails: Bool,
+        calendar: Calendar
+    ) async throws -> CalendarVisibleRangeProjection
+
+    func visibleRangeProjection(
+        accountID: String?,
+        range: CalendarVisibleRange,
+        selectedCalendarIDs: Set<CalendarListMirror.ID>,
+        eventViewFilter: CalendarEventViewFilter,
+        includeCancelled: Bool,
+        requiresEventDetails: Bool,
+        calendar: Calendar
+    ) async throws -> CalendarVisibleRangeProjection
+
+    func aggregateCounts(
+        accountID: String?,
+        selectedCalendarIDs: Set<CalendarListMirror.ID>?,
+        includeCancelled: Bool,
+        colorTagBindings: [String: String]
+    ) async throws -> CalendarAggregateCounts
+
+    func events(ids: [CalendarEventMirror.ID], accountID: String?) async throws -> [CalendarEventMirror]
+
+    func events(
+        in interval: DateInterval,
+        accountID: String?,
+        calendarIDs: Set<CalendarListMirror.ID>?,
+        eventViewFilter: CalendarEventViewFilter,
+        includeCancelled: Bool
+    ) async throws -> [CalendarEventMirror]
+
+    func hasMatchingEvent(
+        accountID: String?,
+        calendarID: CalendarListMirror.ID,
+        summary: String,
+        startDate: Date,
+        isAllDay: Bool,
+        tolerance: TimeInterval
+    ) async throws -> Bool
+
+    func availabilityHoldGroups(accountID: String?) async throws -> [AvailabilityHoldGroup]
+
+    func blockingEvents(
+        for slot: AvailabilitySlot,
+        accountID: String?,
+        calendarIDs: Set<CalendarListMirror.ID>
+    ) async throws -> [CalendarEventMirror]
+}
+
+struct LocalCacheCalendarQueryService: CalendarQuerying {
+    let cacheStore: LocalCacheStore
+
+    func visibleRangeProjection(
+        accountID: String?,
+        kind: CalendarVisibleRangeKind,
+        anchorDate: Date,
+        dayCount: Int?,
+        selectedCalendarIDs: Set<CalendarListMirror.ID>,
+        eventViewFilter: CalendarEventViewFilter,
+        includeCancelled: Bool,
+        requiresEventDetails: Bool,
+        calendar: Calendar
+    ) async throws -> CalendarVisibleRangeProjection {
+        try await cacheStore.calendarVisibleRangeProjection(
+            accountID: accountID,
+            kind: kind,
+            anchorDate: anchorDate,
+            dayCount: dayCount,
+            selectedCalendarIDs: selectedCalendarIDs,
+            eventViewFilter: eventViewFilter,
+            includeCancelled: includeCancelled,
+            requiresEventDetails: requiresEventDetails,
+            calendar: calendar
+        )
+    }
+
+    func visibleRangeProjection(
+        accountID: String?,
+        range: CalendarVisibleRange,
+        selectedCalendarIDs: Set<CalendarListMirror.ID>,
+        eventViewFilter: CalendarEventViewFilter,
+        includeCancelled: Bool,
+        requiresEventDetails: Bool,
+        calendar: Calendar
+    ) async throws -> CalendarVisibleRangeProjection {
+        try await cacheStore.calendarVisibleRangeProjection(
+            accountID: accountID,
+            range: range,
+            selectedCalendarIDs: selectedCalendarIDs,
+            eventViewFilter: eventViewFilter,
+            includeCancelled: includeCancelled,
+            requiresEventDetails: requiresEventDetails,
+            calendar: calendar
+        )
+    }
+
+    func aggregateCounts(
+        accountID: String?,
+        selectedCalendarIDs: Set<CalendarListMirror.ID>?,
+        includeCancelled: Bool,
+        colorTagBindings: [String: String]
+    ) async throws -> CalendarAggregateCounts {
+        try await cacheStore.calendarAggregateCounts(
+            accountID: accountID,
+            selectedCalendarIDs: selectedCalendarIDs,
+            includeCancelled: includeCancelled,
+            colorTagBindings: colorTagBindings
+        )
+    }
+
+    func events(ids: [CalendarEventMirror.ID], accountID: String?) async throws -> [CalendarEventMirror] {
+        try await cacheStore.events(ids: ids, accountID: accountID)
+    }
+
+    func events(
+        in interval: DateInterval,
+        accountID: String?,
+        calendarIDs: Set<CalendarListMirror.ID>?,
+        eventViewFilter: CalendarEventViewFilter,
+        includeCancelled: Bool
+    ) async throws -> [CalendarEventMirror] {
+        try await cacheStore.events(
+            in: interval,
+            accountID: accountID,
+            calendarIDs: calendarIDs,
+            eventViewFilter: eventViewFilter,
+            includeCancelled: includeCancelled
+        )
+    }
+
+    func hasMatchingEvent(
+        accountID: String?,
+        calendarID: CalendarListMirror.ID,
+        summary: String,
+        startDate: Date,
+        isAllDay: Bool,
+        tolerance: TimeInterval
+    ) async throws -> Bool {
+        try await cacheStore.hasMatchingEvent(
+            accountID: accountID,
+            calendarID: calendarID,
+            summary: summary,
+            startDate: startDate,
+            isAllDay: isAllDay,
+            tolerance: tolerance
+        )
+    }
+
+    func availabilityHoldGroups(accountID: String?) async throws -> [AvailabilityHoldGroup] {
+        try await cacheStore.availabilityHoldGroups(accountID: accountID)
+    }
+
+    func blockingEvents(
+        for slot: AvailabilitySlot,
+        accountID: String?,
+        calendarIDs: Set<CalendarListMirror.ID>
+    ) async throws -> [CalendarEventMirror] {
+        try await cacheStore.blockingEvents(for: slot, accountID: accountID, calendarIDs: calendarIDs)
+    }
+}
+
 actor LocalCacheStore {
     enum StorageBackend {
         case sqlite
@@ -14,6 +184,8 @@ actor LocalCacheStore {
     private(set) var lastLoadWarning: String?
     private let snapshotGenerations = 3
     private var databaseStore: LocalCacheDatabaseStore?
+    private var hasLoadedState = false
+    private var forceNextFullDatabaseSave = false
     // §6.12 — when non-nil, cache writes encrypt and reads decrypt via AES-GCM.
     // The caller (AppModel) sets this after loading the key from Keychain.
     // When nil but the file on disk is encrypted, load returns fallback with
@@ -60,6 +232,9 @@ actor LocalCacheStore {
 
     func setEncryptionKey(_ key: SymmetricKey?) {
         encryptionKey = key
+        if hasLoadedState {
+            forceNextFullDatabaseSave = true
+        }
     }
 
     // Loads salt from sidecar; when absent, generates a fresh one.
@@ -92,20 +267,25 @@ actor LocalCacheStore {
     // encrypted file won't linger.
     func dropEncryption() throws {
         encryptionKey = nil
+        forceNextFullDatabaseSave = true
         if let saltURL {
             try? FileManager.default.removeItem(at: saltURL)
         }
         // Force a plaintext rewrite of current in-memory state.
-        save(cachedState)
+        try saveToDatabase(cachedState)
+        forceNextFullDatabaseSave = false
     }
 
     func loadCachedState() -> CachedAppState {
+        let state: CachedAppState
         switch storageBackend {
         case .jsonSidecar:
-            return loadJSONSidecarCachedState()
+            state = loadJSONSidecarCachedState()
         case .sqlite:
-            return loadSQLiteBackedCachedState()
+            state = loadSQLiteBackedCachedState()
         }
+        hasLoadedState = true
+        return state
     }
 
     private func loadSQLiteBackedCachedState() -> CachedAppState {
@@ -528,6 +708,7 @@ actor LocalCacheStore {
     }
 
     func save(_ state: CachedAppState) {
+        let previousState = cachedState
         cachedState = state
 
         switch storageBackend {
@@ -538,13 +719,36 @@ actor LocalCacheStore {
                 return
             }
             do {
-                try saveToDatabase(state)
+                if forceNextFullDatabaseSave || Self.requiresFullDatabaseSave(previous: previousState, next: state) {
+                    try saveToDatabase(state)
+                    forceNextFullDatabaseSave = false
+                } else {
+                    let changeSet = CachePersistenceChangeSet.persistenceDiff(previous: previousState, next: state)
+                    let salt = encryptionKey == nil ? nil : ensureSalt()
+                    try database().commit(state: state, changeSet: changeSet, encryptionKey: encryptionKey, salt: salt)
+                }
             } catch {
                 AppLogger.warn("sqlite cache write failed, writing JSON fallback", category: .cache, metadata: [
                     "error": String(describing: error)
                 ])
                 saveJSONSidecar(state)
             }
+        }
+    }
+
+    func commit(state: CachedAppState, changeSet: CachePersistenceChangeSet) throws {
+        switch storageBackend {
+        case .jsonSidecar:
+            saveJSONSidecar(state)
+            cachedState = state
+        case .sqlite:
+            guard databaseFileURL != nil else {
+                cachedState = state
+                return
+            }
+            let salt = encryptionKey == nil ? nil : ensureSalt()
+            try database().commit(state: state, changeSet: changeSet, encryptionKey: encryptionKey, salt: salt)
+            cachedState = state
         }
     }
 
@@ -558,9 +762,7 @@ actor LocalCacheStore {
                 cachedState = result.state
                 return
             }
-            let salt = encryptionKey == nil ? nil : ensureSalt()
-            try database().applySyncResult(result, encryptionKey: encryptionKey, salt: salt)
-            cachedState = result.state
+            try commit(state: result.state, changeSet: result.changeSet)
         }
     }
 
@@ -647,6 +849,7 @@ actor LocalCacheStore {
         selectedCalendarIDs: Set<CalendarListMirror.ID>,
         eventViewFilter: CalendarEventViewFilter = CalendarEventViewFilter(),
         includeCancelled: Bool = false,
+        requiresEventDetails: Bool = false,
         calendar: Calendar = .current
     ) throws -> CalendarVisibleRangeProjection {
         guard case .sqlite = storageBackend, databaseFileURL != nil else {
@@ -660,8 +863,143 @@ actor LocalCacheStore {
             selectedCalendarIDs: selectedCalendarIDs,
             eventViewFilter: eventViewFilter,
             includeCancelled: includeCancelled,
+            requiresEventDetails: requiresEventDetails,
             encryptionKey: encryptionKey,
             calendar: calendar
+        )
+    }
+
+    func calendarVisibleRangeProjection(
+        accountID: String? = nil,
+        range: CalendarVisibleRange,
+        selectedCalendarIDs: Set<CalendarListMirror.ID>,
+        eventViewFilter: CalendarEventViewFilter = CalendarEventViewFilter(),
+        includeCancelled: Bool = false,
+        requiresEventDetails: Bool = false,
+        calendar: Calendar = .current
+    ) throws -> CalendarVisibleRangeProjection {
+        guard case .sqlite = storageBackend, databaseFileURL != nil else {
+            return CalendarVisibleRangeProjection(
+                range: range,
+                revisionKey: "0",
+                eventsByDay: [:],
+                tasksByDueDate: [:],
+                eventByID: [:],
+                taskByID: [:],
+                eventSearchTextByID: [:],
+                taskSearchTextByID: [:]
+            )
+        }
+        return try database().calendarVisibleRangeProjection(
+            accountID: accountID ?? cachedState.activeAccountID,
+            range: range,
+            selectedCalendarIDs: selectedCalendarIDs,
+            eventViewFilter: eventViewFilter,
+            includeCancelled: includeCancelled,
+            requiresEventDetails: requiresEventDetails,
+            encryptionKey: encryptionKey,
+            calendar: calendar
+        )
+    }
+
+    func events(ids: [CalendarEventMirror.ID], accountID: String? = nil) throws -> [CalendarEventMirror] {
+        guard case .sqlite = storageBackend, databaseFileURL != nil else {
+            let wanted = Set(ids)
+            let byID = Dictionary(uniqueKeysWithValues: cachedState.events.filter { wanted.contains($0.id) }.map { ($0.id, $0) })
+            return ids.compactMap { byID[$0] }
+        }
+        return try database().events(
+            ids: ids,
+            accountID: accountID ?? cachedState.activeAccountID,
+            encryptionKey: encryptionKey
+        )
+    }
+
+    func events(
+        in interval: DateInterval,
+        accountID: String? = nil,
+        calendarIDs: Set<CalendarListMirror.ID>? = nil,
+        eventViewFilter: CalendarEventViewFilter = CalendarEventViewFilter(),
+        includeCancelled: Bool = false
+    ) throws -> [CalendarEventMirror] {
+        guard case .sqlite = storageBackend, databaseFileURL != nil else {
+            return cachedState.events
+                .filter { event in
+                    (includeCancelled || event.status != .cancelled)
+                        && (calendarIDs?.contains(event.calendarID) ?? true)
+                        && eventViewFilter.allows(event)
+                        && event.startDate < interval.end
+                        && event.endDate > interval.start
+                }
+                .sorted { lhs, rhs in
+                    if lhs.startDate != rhs.startDate { return lhs.startDate < rhs.startDate }
+                    return lhs.id < rhs.id
+                }
+        }
+        return try database().events(
+            in: interval,
+            accountID: accountID ?? cachedState.activeAccountID,
+            calendarIDs: calendarIDs,
+            eventViewFilter: eventViewFilter,
+            includeCancelled: includeCancelled,
+            encryptionKey: encryptionKey
+        )
+    }
+
+    func hasMatchingEvent(
+        accountID: String? = nil,
+        calendarID: CalendarListMirror.ID,
+        summary: String,
+        startDate: Date,
+        isAllDay: Bool,
+        tolerance: TimeInterval
+    ) throws -> Bool {
+        guard case .sqlite = storageBackend, databaseFileURL != nil else {
+            return cachedState.events.contains { event in
+                event.calendarID == calendarID
+                    && event.status != .cancelled
+                    && event.isAllDay == isAllDay
+                    && event.summary.caseInsensitiveCompare(summary) == .orderedSame
+                    && abs(event.startDate.timeIntervalSince(startDate)) < tolerance
+            }
+        }
+        return try database().hasMatchingEvent(
+            accountID: accountID ?? cachedState.activeAccountID,
+            calendarID: calendarID,
+            summary: summary,
+            startDate: startDate,
+            isAllDay: isAllDay,
+            tolerance: tolerance
+        )
+    }
+
+    func availabilityHoldGroups(accountID: String? = nil) throws -> [AvailabilityHoldGroup] {
+        guard case .sqlite = storageBackend, databaseFileURL != nil else {
+            return Self.availabilityHoldGroups(from: cachedState.events)
+        }
+        return try database().availabilityHoldGroups(
+            accountID: accountID ?? cachedState.activeAccountID,
+            encryptionKey: encryptionKey
+        )
+    }
+
+    func blockingEvents(
+        for slot: AvailabilitySlot,
+        accountID: String? = nil,
+        calendarIDs: Set<CalendarListMirror.ID>
+    ) throws -> [CalendarEventMirror] {
+        guard case .sqlite = storageBackend, databaseFileURL != nil else {
+            return AvailabilitySlotResolver.blockingEvents(
+                for: slot,
+                events: cachedState.events,
+                calendarIDs: calendarIDs
+            )
+        }
+        return try database().blockingEvents(
+            for: slot,
+            accountID: accountID ?? cachedState.activeAccountID,
+            calendarIDs: calendarIDs,
+            encryptionKey: encryptionKey
         )
     }
 
@@ -997,6 +1335,35 @@ private struct EventPayloadFingerprint: Encodable {
 }
 
 private extension LocalCacheStore {
+    static func availabilityHoldGroups(from events: [CalendarEventMirror]) -> [AvailabilityHoldGroup] {
+        let holds = events.filter { $0.status != .cancelled && $0.availabilityHold != nil }
+        let grouped = Dictionary(grouping: holds) { $0.availabilityHold?.groupID ?? "" }
+        return grouped.compactMap { groupID, events in
+            guard groupID.isEmpty == false,
+                  let metadata = events.compactMap(\.availabilityHold).first
+            else { return nil }
+            return AvailabilityHoldGroup(
+                id: groupID,
+                metadata: metadata,
+                events: events.sorted { $0.startDate < $1.startDate }
+            )
+        }
+        .sorted { lhs, rhs in
+            let left = lhs.events.first?.startDate ?? lhs.metadata.createdAt
+            let right = rhs.events.first?.startDate ?? rhs.metadata.createdAt
+            return left < right
+        }
+    }
+
+    static func requiresFullDatabaseSave(previous: CachedAppState, next: CachedAppState) -> Bool {
+        if previous.schemaVersion != next.schemaVersion { return true }
+        if previous.activeAccountID != next.activeAccountID { return true }
+        if previous.account?.id != next.account?.id { return true }
+        if previous.accounts.map(\.id) != next.accounts.map(\.id) { return true }
+        if previous.accountWorkspaces.map(\.accountID) != next.accountWorkspaces.map(\.accountID) { return true }
+        return false
+    }
+
     static var defaultCacheFileURL: URL? {
         guard let appSupportURL = FileManager.default.urls(
             for: .applicationSupportDirectory,
@@ -1009,6 +1376,209 @@ private extension LocalCacheStore {
         return appSupportURL
             .appending(path: appDirectoryName, directoryHint: .isDirectory)
             .appending(path: "cache-state.json")
+    }
+}
+
+private extension SyncChangeSet {
+    static func persistenceDiff(previous: CachedAppState, next: CachedAppState) -> SyncChangeSet {
+        var changeSet = SyncChangeSet.empty
+        changeSet.taskLists = rowChanges(previous: previous.taskLists, next: next.taskLists)
+        changeSet.tasks = rowChanges(previous: previous.tasks, next: next.tasks)
+        changeSet.calendars = rowChanges(previous: previous.calendars, next: next.calendars)
+        changeSet.events = rowChanges(previous: previous.events, next: next.events)
+        changeSet.checkpoints = rowChanges(previous: previous.syncCheckpoints, next: next.syncCheckpoints)
+        changeSet.pendingMutations = pendingMutationChanges(previous: previous.pendingMutations, next: next.pendingMutations)
+        changeSet.settingsChanged = previous.settings != next.settings
+        changeSet.checkpointChanged = changeSet.checkpoints.hasChanges
+
+        changeSet.affectedTaskListIDs.formUnion(changeSet.taskLists.inserted)
+        changeSet.affectedTaskListIDs.formUnion(changeSet.taskLists.updated)
+        changeSet.affectedTaskListIDs.formUnion(changeSet.taskLists.deleted)
+        changeSet.affectedCalendarIDs.formUnion(changeSet.calendars.inserted)
+        changeSet.affectedCalendarIDs.formUnion(changeSet.calendars.updated)
+        changeSet.affectedCalendarIDs.formUnion(changeSet.calendars.deleted)
+        addAffectedTaskState(to: &changeSet, previous: previous.tasks, next: next.tasks)
+        addAffectedEventState(to: &changeSet, previous: previous.events, next: next.events)
+        return changeSet
+    }
+
+    static func rowChanges<T: Identifiable & Equatable>(
+        previous: [T],
+        next: [T]
+    ) -> SyncChangeSet.RowChanges where T.ID == String {
+        if previous.count == next.count {
+            var changes = SyncChangeSet.RowChanges()
+            var orderedIDsMatch = true
+            for index in previous.indices {
+                let oldValue = previous[index]
+                let newValue = next[index]
+                guard oldValue.id == newValue.id else {
+                    orderedIDsMatch = false
+                    break
+                }
+                if oldValue != newValue {
+                    changes.updated.insert(oldValue.id)
+                }
+            }
+            if orderedIDsMatch {
+                return changes
+            }
+        }
+
+        var previousByID: [String: T] = [:]
+        previousByID.reserveCapacity(previous.count)
+        for row in previous {
+            previousByID[row.id] = row
+        }
+
+        var nextByID: [String: T] = [:]
+        nextByID.reserveCapacity(next.count)
+        for row in next {
+            nextByID[row.id] = row
+        }
+
+        var changes = SyncChangeSet.RowChanges()
+        for (id, oldValue) in previousByID {
+            guard let newValue = nextByID[id] else {
+                changes.deleted.insert(id)
+                continue
+            }
+            if oldValue != newValue {
+                changes.updated.insert(id)
+            }
+        }
+        for id in nextByID.keys where previousByID[id] == nil {
+            changes.inserted.insert(id)
+        }
+        return changes
+    }
+
+    static func pendingMutationChanges(
+        previous: [PendingMutation],
+        next: [PendingMutation]
+    ) -> SyncChangeSet.RowChanges {
+        if previous.count == next.count {
+            var changes = SyncChangeSet.RowChanges()
+            var orderedIDsMatch = true
+            for index in previous.indices {
+                let oldValue = previous[index]
+                let newValue = next[index]
+                guard oldValue.id == newValue.id else {
+                    orderedIDsMatch = false
+                    break
+                }
+                if oldValue != newValue {
+                    changes.updated.insert(oldValue.id.uuidString)
+                }
+            }
+            if orderedIDsMatch {
+                return changes
+            }
+        }
+
+        var previousByID: [String: PendingMutation] = [:]
+        previousByID.reserveCapacity(previous.count)
+        for mutation in previous {
+            previousByID[mutation.id.uuidString] = mutation
+        }
+
+        var nextByID: [String: PendingMutation] = [:]
+        nextByID.reserveCapacity(next.count)
+        for mutation in next {
+            nextByID[mutation.id.uuidString] = mutation
+        }
+
+        var changes = SyncChangeSet.RowChanges()
+        for (id, oldValue) in previousByID {
+            guard let newValue = nextByID[id] else {
+                changes.deleted.insert(id)
+                continue
+            }
+            if oldValue != newValue {
+                changes.updated.insert(id)
+            }
+        }
+        for id in nextByID.keys where previousByID[id] == nil {
+            changes.inserted.insert(id)
+        }
+        return changes
+    }
+
+    static func addAffectedTaskState(
+        to changeSet: inout SyncChangeSet,
+        previous: [TaskMirror],
+        next: [TaskMirror]
+    ) {
+        let changedIDs = changeSet.tasks.inserted.union(changeSet.tasks.updated).union(changeSet.tasks.deleted)
+        guard changedIDs.isEmpty == false else { return }
+        var previousByID: [TaskMirror.ID: TaskMirror] = [:]
+        var nextByID: [TaskMirror.ID: TaskMirror] = [:]
+        for task in previous where changedIDs.contains(task.id) {
+            previousByID[task.id] = task
+        }
+        for task in next where changedIDs.contains(task.id) {
+            nextByID[task.id] = task
+        }
+        for id in changedIDs {
+            if let old = previousByID[id] {
+                changeSet.affectedTaskListIDs.insert(old.taskListID)
+                changeSet.affectedDayKeys.formUnion(dayKeys(forTask: old))
+            }
+            if let new = nextByID[id] {
+                changeSet.affectedTaskListIDs.insert(new.taskListID)
+                changeSet.affectedDayKeys.formUnion(dayKeys(forTask: new))
+            }
+        }
+    }
+
+    static func addAffectedEventState(
+        to changeSet: inout SyncChangeSet,
+        previous: [CalendarEventMirror],
+        next: [CalendarEventMirror]
+    ) {
+        let changedIDs = changeSet.events.inserted.union(changeSet.events.updated).union(changeSet.events.deleted)
+        guard changedIDs.isEmpty == false else { return }
+        var previousByID: [CalendarEventMirror.ID: CalendarEventMirror] = [:]
+        var nextByID: [CalendarEventMirror.ID: CalendarEventMirror] = [:]
+        for event in previous where changedIDs.contains(event.id) {
+            previousByID[event.id] = event
+        }
+        for event in next where changedIDs.contains(event.id) {
+            nextByID[event.id] = event
+        }
+        for id in changedIDs {
+            if let old = previousByID[id] {
+                changeSet.affectedCalendarIDs.insert(old.calendarID)
+                changeSet.affectedDayKeys.formUnion(dayKeys(forEvent: old))
+            }
+            if let new = nextByID[id] {
+                changeSet.affectedCalendarIDs.insert(new.calendarID)
+                changeSet.affectedDayKeys.formUnion(dayKeys(forEvent: new))
+            }
+        }
+    }
+
+    static func dayKeys(forTask task: TaskMirror, calendar: Calendar = .current) -> Set<TimeInterval> {
+        guard let dueDate = task.dueDate else { return [] }
+        return [calendar.startOfDay(for: dueDate).timeIntervalSinceReferenceDate]
+    }
+
+    static func dayKeys(forEvent event: CalendarEventMirror, calendar: Calendar = .current) -> Set<TimeInterval> {
+        guard event.status != .cancelled else { return [] }
+        let startDay = calendar.startOfDay(for: event.startDate)
+        let endDay = CalendarGridLayout.eventEndDay(event: event, calendar: calendar)
+        guard startDay <= endDay else { return [] }
+
+        var keys: Set<TimeInterval> = []
+        var cursor = startDay
+        var steps = 0
+        while cursor <= endDay && steps < 366 {
+            keys.insert(cursor.timeIntervalSinceReferenceDate)
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+            steps += 1
+        }
+        return keys
     }
 }
 

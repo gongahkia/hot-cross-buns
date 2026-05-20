@@ -11,19 +11,21 @@ struct EventContextMenu: View {
     var onConvertToNote: (() -> Void)? = nil
     var onDelete: (() -> Void)? = nil
 
+    private var calendarStore: CalendarStore { model.calendarStore }
+
     private var currentEvent: CalendarEventMirror {
-        model.event(id: event.id) ?? event
+        calendarStore.event(id: event.id) ?? event
     }
 
     private var movableCalendars: [CalendarListMirror] {
         let event = currentEvent
-        return model.calendars.filter {
+        return calendarStore.calendars.filter {
             $0.id != event.calendarID && ($0.accessRole == "owner" || $0.accessRole == "writer")
         }
     }
 
     private var calendarTitle: String? {
-        model.calendars.first(where: { $0.id == currentEvent.calendarID })?.summary
+        calendarStore.calendars.first(where: { $0.id == currentEvent.calendarID })?.summary
     }
 
     var body: some View {

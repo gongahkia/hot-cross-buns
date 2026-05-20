@@ -215,6 +215,56 @@ final class PreparedCalendarSnapshotBuilderTests: XCTestCase {
         XCTAssertNotEqual(staleResult.key, newerKey)
     }
 
+    func testDenseDaySnapshotCapsRichTimedLayoutButKeepsFullEventList() {
+        let events = (0..<360).map { index in
+            event(
+                id: "dense-\(index)",
+                summary: "Dense event \(index)",
+                start: day(2026, 5, 11, hour: 8 + (index % 8), minute: (index % 4) * 15),
+                end: day(2026, 5, 11, hour: 9 + (index % 8), minute: (index % 4) * 15)
+            )
+        }
+        let input = calendarInput(
+            key: PreparedSnapshotKey("dense-day"),
+            anchor: day(2026, 5, 11),
+            events: events,
+            tasks: [],
+            selectedCalendarIDs: ["primary"]
+        )
+
+        let snapshot = CalendarDisplaySnapshotBuilder.daySnapshot(input)
+
+        XCTAssertEqual(snapshot.timedEvents.count, 360)
+        XCTAssertEqual(snapshot.laidOutTimedEvents.count, CalendarDensityRendering.dayTimedEventLimit)
+        XCTAssertTrue(snapshot.density.usesDenseTimedRendering)
+        XCTAssertEqual(snapshot.density.hiddenTimedEventCount, 360 - CalendarDensityRendering.dayTimedEventLimit)
+    }
+
+    func testDenseWeekSnapshotCapsPerDayTimedLayout() {
+        let events = (0..<300).map { index in
+            event(
+                id: "week-dense-\(index)",
+                summary: "Week dense \(index)",
+                start: day(2026, 5, 12, hour: 7 + (index % 10), minute: (index % 4) * 15),
+                end: day(2026, 5, 12, hour: 8 + (index % 10), minute: (index % 4) * 15)
+            )
+        }
+        let input = calendarInput(
+            key: PreparedSnapshotKey("dense-week"),
+            anchor: day(2026, 5, 12),
+            events: events,
+            tasks: [],
+            selectedCalendarIDs: ["primary"]
+        )
+        let tuesdayKey = CalendarDisplaySnapshotBuilder.dayKey(day(2026, 5, 12), calendar: calendar)
+
+        let snapshot = CalendarDisplaySnapshotBuilder.weekSnapshot(input)
+
+        XCTAssertEqual(snapshot.timedEventsByDay[tuesdayKey]?.count, 300)
+        XCTAssertEqual(snapshot.laidOutTimedEventsByDay[tuesdayKey]?.count, CalendarDensityRendering.weekTimedEventLimit)
+        XCTAssertEqual(snapshot.densityByDay[tuesdayKey]?.hiddenTimedEventCount, 300 - CalendarDensityRendering.weekTimedEventLimit)
+    }
+
     private func calendarInput(
         key: PreparedSnapshotKey,
         anchor: Date,

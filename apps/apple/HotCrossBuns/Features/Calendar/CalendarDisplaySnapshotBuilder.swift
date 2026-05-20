@@ -41,6 +41,7 @@ struct CalendarVisibleRangeProjection: Equatable, Sendable {
     var range: CalendarVisibleRange
     var revisionKey: String
     var eventsByDay: [TimeInterval: [CalendarEventMirror.ID]]
+    var eventCountsByDay: [TimeInterval: Int] = [:]
     var tasksByDueDate: [TimeInterval: [TaskMirror.ID]]
     var eventByID: [CalendarEventMirror.ID: CalendarEventMirror]
     var taskByID: [TaskMirror.ID: TaskMirror]
@@ -92,6 +93,54 @@ struct CalendarTaskDisplayMetadata: Equatable, Sendable {
     var accessibilityLabel: String
 }
 
+enum CalendarDensityRendering {
+    static let denseDayEventThreshold = 120
+    static let denseMonthItemThreshold = 80
+    static let dayTimedEventLimit = 72
+    static let weekTimedEventLimit = 48
+    static let allDayEventLimit = 24
+}
+
+struct CalendarDayDensitySummary: Equatable, Sendable {
+    var allDayEventCount: Int
+    var timedEventCount: Int
+    var taskCount: Int
+    var visibleAllDayEventLimit: Int
+    var visibleTimedEventLimit: Int
+
+    var totalItemCount: Int {
+        allDayEventCount + timedEventCount + taskCount
+    }
+
+    var visibleAllDayEventCount: Int {
+        min(allDayEventCount, visibleAllDayEventLimit)
+    }
+
+    var visibleTimedEventCount: Int {
+        min(timedEventCount, visibleTimedEventLimit)
+    }
+
+    var hiddenAllDayEventCount: Int {
+        max(0, allDayEventCount - visibleAllDayEventCount)
+    }
+
+    var hiddenTimedEventCount: Int {
+        max(0, timedEventCount - visibleTimedEventCount)
+    }
+
+    var usesDenseTimedRendering: Bool {
+        timedEventCount >= CalendarDensityRendering.denseDayEventThreshold
+    }
+
+    var usesDenseAllDayRendering: Bool {
+        allDayEventCount > visibleAllDayEventLimit
+    }
+
+    var usesDenseMonthRendering: Bool {
+        totalItemCount >= CalendarDensityRendering.denseMonthItemThreshold
+    }
+}
+
 struct CalendarDayDisplaySnapshot: Equatable, Sendable {
     var key: PreparedSnapshotKey
     var dayStart: Date
@@ -99,6 +148,7 @@ struct CalendarDayDisplaySnapshot: Equatable, Sendable {
     var allDayEvents: [CalendarEventMirror]
     var timedEvents: [CalendarEventMirror]
     var laidOutTimedEvents: [CalendarGridLayout.LaidOutEvent]
+    var density: CalendarDayDensitySummary
     var eventMetadataByID: [CalendarEventMirror.ID: CalendarEventDisplayMetadata]
 }
 
@@ -130,6 +180,7 @@ struct CalendarWeekDisplaySnapshot: Equatable, Sendable {
     var allDaySpans: [AllDaySpan]
     var allDayEventsByDay: [TimeInterval: [CalendarEventMirror]]
     var tasksByDay: [TimeInterval: [TaskMirror]]
+    var densityByDay: [TimeInterval: CalendarDayDensitySummary]
     var eventMetadataByID: [CalendarEventMirror.ID: CalendarEventDisplayMetadata]
     var taskMetadataByID: [TaskMirror.ID: CalendarTaskDisplayMetadata]
 }
@@ -180,6 +231,16 @@ enum CalendarDisplaySnapshotBuilder {
         let timedEvents = visible
             .filter { $0.isAllDay == false }
             .sorted { $0.startDate < $1.startDate }
+        let density = CalendarDayDensitySummary(
+            allDayEventCount: allDayEvents.count,
+            timedEventCount: timedEvents.count,
+            taskCount: 0,
+            visibleAllDayEventLimit: CalendarDensityRendering.allDayEventLimit,
+            visibleTimedEventLimit: CalendarDensityRendering.dayTimedEventLimit
+        )
+        let timedEventsForLayout = density.usesDenseTimedRendering
+            ? Array(timedEvents.prefix(density.visibleTimedEventLimit))
+            : timedEvents
         let metadata = metadataByEventID(for: visible, input: input)
 
         return CalendarDayDisplaySnapshot(
@@ -188,7 +249,8 @@ enum CalendarDisplaySnapshotBuilder {
             dayEnd: dayEnd,
             allDayEvents: allDayEvents,
             timedEvents: timedEvents,
-            laidOutTimedEvents: CalendarGridLayout.layout(eventsInDay: timedEvents, calendar: input.calendar),
+            laidOutTimedEvents: CalendarGridLayout.layout(eventsInDay: timedEventsForLayout, calendar: input.calendar),
+            density: density,
             eventMetadataByID: metadata
         )
     }
@@ -212,6 +274,7 @@ enum CalendarDisplaySnapshotBuilder {
                 allDaySpans: [],
                 allDayEventsByDay: [:],
                 tasksByDay: [:],
+                densityByDay: [:],
                 eventMetadataByID: [:],
                 taskMetadataByID: [:]
             )
@@ -221,6 +284,8 @@ enum CalendarDisplaySnapshotBuilder {
         let allDaySpans = layoutAllDaySpans(visible, days: days, calendar: input.calendar)
         var timedEventsByDay: [TimeInterval: [CalendarEventMirror]] = [:]
         var allDayEventsByDay: [TimeInterval: [CalendarEventMirror]] = [:]
+        var densityByDay: [TimeInterval: CalendarDayDensitySummary] = [:]
+        let tasksByDay = tasksByDay(input, days: days)
 
         for day in days {
             let dayStart = input.calendar.startOfDay(for: day)
@@ -238,12 +303,22 @@ enum CalendarDisplaySnapshotBuilder {
                     if lhs.startDate != rhs.startDate { return lhs.startDate < rhs.startDate }
                     return lhs.summary.localizedCaseInsensitiveCompare(rhs.summary) == .orderedAscending
                 }
+            densityByDay[key] = CalendarDayDensitySummary(
+                allDayEventCount: allDayEventsByDay[key]?.count ?? 0,
+                timedEventCount: timedEventsByDay[key]?.count ?? 0,
+                taskCount: tasksByDay[key]?.count ?? 0,
+                visibleAllDayEventLimit: CalendarDensityRendering.allDayEventLimit,
+                visibleTimedEventLimit: CalendarDensityRendering.weekTimedEventLimit
+            )
         }
 
-        let laidOutTimedEventsByDay = timedEventsByDay.mapValues {
-            CalendarGridLayout.layout(eventsInDay: $0, calendar: input.calendar)
-        }
-        let tasksByDay = tasksByDay(input, days: days)
+        let laidOutTimedEventsByDay = Dictionary(uniqueKeysWithValues: timedEventsByDay.map { key, dayEvents in
+            let density = densityByDay[key]
+            let layoutEvents = density?.usesDenseTimedRendering == true
+                ? Array(dayEvents.prefix(density?.visibleTimedEventLimit ?? CalendarDensityRendering.weekTimedEventLimit))
+                : dayEvents
+            return (key, CalendarGridLayout.layout(eventsInDay: layoutEvents, calendar: input.calendar))
+        })
         let dayLabels = days.map { day in
             CalendarWeekDisplaySnapshot.DayLabel(
                 day: day,
@@ -262,6 +337,7 @@ enum CalendarDisplaySnapshotBuilder {
             allDaySpans: allDaySpans,
             allDayEventsByDay: allDayEventsByDay,
             tasksByDay: tasksByDay,
+            densityByDay: densityByDay,
             eventMetadataByID: metadataByEventID(for: visible, input: input),
             taskMetadataByID: metadataByTaskID(for: Array(tasksByDay.values.joined()), input: input)
         )
@@ -322,6 +398,28 @@ enum CalendarDisplaySnapshotBuilder {
         }
 
         let endInclusive = input.calendar.date(byAdding: .day, value: -1, to: yearEnd) ?? yearStart
+        let query = input.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if query.isEmpty,
+           input.settings.pastEventBehavior != .hide,
+           input.visibleRange.eventCountsByDay.isEmpty == false {
+            let months = (1...12).compactMap { month -> CalendarYearDisplaySnapshot.Month? in
+                guard let monthStart = input.calendar.date(from: DateComponents(year: year, month: month, day: 1)) else { return nil }
+                return CalendarYearDisplaySnapshot.Month(
+                    monthStart: monthStart,
+                    monthNumber: month,
+                    monthName: monthStart.formatted(.dateTime.month(.wide)),
+                    cells: CalendarGridLayout.monthCells(for: monthStart, calendar: input.calendar)
+                )
+            }
+            return CalendarYearDisplaySnapshot(
+                key: input.key,
+                year: year,
+                months: months,
+                countsByDay: input.visibleRange.eventCountsByDay,
+                maxCount: input.visibleRange.eventCountsByDay.values.max() ?? 0
+            )
+        }
+
         let visible = visibleEvents(input, from: yearStart, to: endInclusive)
         var countsByDay: [TimeInterval: Int] = [:]
         for event in visible {

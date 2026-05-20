@@ -58,6 +58,8 @@ struct WeekGridView: View {
     @State private var preparedWeekSnapshot: CalendarWeekDisplaySnapshot?
     @State private var weekSnapshotBuildTask: Task<Void, Never>?
 
+    private var calendarStore: CalendarStore { model.calendarStore }
+
     private struct WeekDaySelection: Equatable {
         var startCol: Int
         var endCol: Int
@@ -78,7 +80,7 @@ struct WeekGridView: View {
 
     var body: some View {
         ZStack {
-            if let snapshot = preparedWeekSnapshot, snapshot.key == weekSnapshotKey, model.isRebuildingDerivedSnapshots == false {
+            if let snapshot = preparedWeekSnapshot, snapshot.key == weekSnapshotKey, calendarStore.isRebuildingDerivedSnapshots == false {
                 VStack(spacing: 0) {
                     weekHeader(snapshot)
                     Divider()
@@ -116,13 +118,13 @@ struct WeekGridView: View {
     private var weekSnapshotKey: PreparedSnapshotKey {
         PreparedSnapshotKeys.calendar(
             mode: multiDayCount == nil ? .week : .multiDay,
-            dataRevision: model.calendarDisplayRevisionKey(for: weekDays, calendar: calendar),
-            selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
-            visibleTaskListIDs: model.visibleTaskListIDs,
+            dataRevision: calendarStore.calendarDisplayRevisionKey(for: weekDays, calendar: calendar),
+            selectedCalendarIDs: calendarStore.calendarSnapshot.selectedCalendarIDs,
+            visibleTaskListIDs: calendarStore.visibleTaskListIDs,
             filterKey: calendarEventViewFilter.cacheKey,
             searchQuery: searchQuery,
             rangeKey: PreparedSnapshotKeys.dateRangeKey(weekDays),
-            settings: model.settings
+            settings: calendarStore.settings
         )
     }
 
@@ -332,7 +334,7 @@ struct WeekGridView: View {
     }
 
     private func copyEventMarkdown(_ event: CalendarEventMirror) {
-        let title = model.calendars.first(where: { $0.id == event.calendarID })?.summary
+        let title = calendarStore.calendars.first(where: { $0.id == event.calendarID })?.summary
         let md = EventMarkdownExporter.markdown(for: event, calendarTitle: title)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(md, forType: .string)
@@ -667,6 +669,8 @@ struct WeekGridView: View {
     ) -> some View {
         let startOfDay = calendar.startOfDay(for: day)
         let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay
+        let dayStartKey = CalendarDisplaySnapshotBuilder.dayKey(startOfDay, calendar: calendar)
+        let density = snapshot.densityByDay[dayStartKey]
         let capturedRouter = router
 
         return ZStack(alignment: .topLeading) {
@@ -703,8 +707,25 @@ struct WeekGridView: View {
                     dayStart: startOfDay,
                     dayEnd: endOfDay,
                     columnWidth: width,
+                    isDense: density?.usesDenseTimedRendering == true,
                     snapshot: snapshot
                 )
+            }
+            if let density, density.hiddenTimedEventCount > 0 {
+                MonthMoreButton(
+                    count: density.hiddenTimedEventCount,
+                    day: startOfDay,
+                    events: snapshot.timedEventsByDay[dayStartKey] ?? [],
+                    tasks: [],
+                    calendarColor: { calendarColor(for: $0, in: snapshot) }
+                )
+                .frame(width: max(width - 8, 80), height: 24, alignment: .leading)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(AppColor.cardStroke.opacity(0.45), lineWidth: 0.6)
+                )
+                .offset(x: 4, y: CGFloat(hourEnd - hourStart) * hourHeight - 32)
             }
             // Momentary tint at the tapped hour slot so users see their
             // click register before the popover paints. Drawn above event
@@ -820,7 +841,7 @@ struct WeekGridView: View {
     private func scheduleTaskAsEvent(_ dropped: DraggedTask, dropY: CGFloat, dayStart: Date) async {
         let start = CalendarDropComputer.snappedStart(for: dropY, hourHeight: hourHeight, dayStart: dayStart, calendar: calendar)
         let end = CalendarDropComputer.defaultEndDate(from: start, calendar: calendar)
-        let destinationCalendar = primaryEditableCalendarID() ?? model.calendarSnapshot.selectedCalendars.first?.id
+        let destinationCalendar = primaryEditableCalendarID() ?? calendarStore.calendarSnapshot.selectedCalendars.first?.id
         guard let calendarID = destinationCalendar else { return }
         // Backlink travels in Google's native extendedProperties.private bag
         // (HCB-only; invisible in google.com web UI) — not in the event
@@ -839,7 +860,7 @@ struct WeekGridView: View {
 
     private func rescheduleEvent(_ dropped: DraggedEvent, dropY: CGFloat, dayStart: Date) async {
         guard dropped.isAllDay == false else { return }
-        guard let event = model.event(id: dropped.eventID) else { return }
+        guard let event = calendarStore.event(id: dropped.eventID) else { return }
         let snappedStart = CalendarDropComputer.snappedStart(for: dropY, hourHeight: hourHeight, dayStart: dayStart, calendar: calendar)
         guard let newEnd = calendar.date(byAdding: .minute, value: dropped.durationMinutes, to: snappedStart) else { return }
         if event.startDate == snappedStart && event.endDate == newEnd { return }
@@ -859,14 +880,16 @@ struct WeekGridView: View {
     }
 
     private func primaryEditableCalendarID() -> CalendarListMirror.ID? {
-        model.calendarSnapshot.selectedCalendars.first(where: { $0.accessRole == "owner" || $0.accessRole == "writer" })?.id
+        calendarStore.calendarSnapshot.selectedCalendars.first(where: { $0.accessRole == "owner" || $0.accessRole == "writer" })?.id
     }
 
+    @ViewBuilder
     private func eventTile(
         placed: CalendarGridLayout.LaidOutEvent,
         dayStart: Date,
         dayEnd: Date,
         columnWidth: CGFloat,
+        isDense: Bool,
         snapshot: CalendarWeekDisplaySnapshot
     ) -> some View {
         let clampedStart = max(placed.event.startDate, dayStart)
@@ -882,58 +905,95 @@ struct WeekGridView: View {
         let fill = calendarColor(for: placed.event, in: snapshot)
         let fullDurationMinutes = Int(max(placed.event.endDate.timeIntervalSince(placed.event.startDate) / 60, 15))
 
-        return CalendarEventPreviewButton(event: placed.event) {
-            VStack(alignment: .leading, spacing: 2) {
+        if isDense {
+            Button {
+                router?.present(.editEvent(placed.event.id))
+            } label: {
                 Text(placed.event.summary)
-                    .hcbFont(.caption, weight: .semibold)
-                    .lineLimit(height > 38 ? 2 : 1)
-                if height > 34 {
-                    Text(snapshot.eventMetadataByID[placed.event.id]?.timeRangeLabel ?? "")
-                        .hcbFont(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+                    .hcbFont(.caption2, weight: .semibold)
+                    .lineLimit(1)
+                    .hcbScaledPadding(.horizontal, 5)
+                    .hcbScaledPadding(.vertical, 3)
+                    .frame(width: tileWidth, height: tileHeight, alignment: .topLeading)
+                    .clipped()
+                    .background(
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(fill.opacity(0.18))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 5)
+                            .strokeBorder(fill.opacity(0.42), lineWidth: 0.6)
+                    )
             }
-            .hcbScaledPadding(.horizontal, 6)
-            .hcbScaledPadding(.vertical, 4)
-            .frame(width: tileWidth, height: tileHeight, alignment: .topLeading)
-            .clipped()
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(fill.opacity(0.2))
+            .buttonStyle(.plain)
+            .offset(x: xOffsetWithinDay + 1, y: yOffset)
+            .overlay(
+                RoundedRectangle(cornerRadius: 5)
+                    .strokeBorder(selectedEventIDs.contains(placed.event.id) ? AppColor.blue : Color.clear, lineWidth: 2)
+                    .frame(width: tileWidth, height: tileHeight)
+                    .offset(x: xOffsetWithinDay + 1, y: yOffset)
+                    .allowsHitTesting(false)
             )
+            .simultaneousGesture(
+                TapGesture().modifiers(.command).onEnded {
+                    toggleSelection(placed.event.id)
+                }
+            )
+            .accessibilityLabel(snapshot.eventMetadataByID[placed.event.id]?.accessibilityLabel ?? placed.event.summary)
+        } else {
+            CalendarEventPreviewButton(event: placed.event) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(placed.event.summary)
+                        .hcbFont(.caption, weight: .semibold)
+                        .lineLimit(height > 38 ? 2 : 1)
+                    if height > 34 {
+                        Text(snapshot.eventMetadataByID[placed.event.id]?.timeRangeLabel ?? "")
+                            .hcbFont(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                .hcbScaledPadding(.horizontal, 6)
+                .hcbScaledPadding(.vertical, 4)
+                .frame(width: tileWidth, height: tileHeight, alignment: .topLeading)
+                .clipped()
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(fill.opacity(0.2))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .strokeBorder(fill.opacity(0.55), lineWidth: 0.8)
+                )
+            }
+            .offset(x: xOffsetWithinDay + 1, y: yOffset)
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
-                    .strokeBorder(fill.opacity(0.55), lineWidth: 0.8)
+                    .strokeBorder(selectedEventIDs.contains(placed.event.id) ? AppColor.blue : Color.clear, lineWidth: 2)
+                    .frame(width: tileWidth, height: tileHeight)
+                    .offset(x: xOffsetWithinDay + 1, y: yOffset)
+                    .allowsHitTesting(false)
             )
-        }
-        .offset(x: xOffsetWithinDay + 1, y: yOffset)
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(selectedEventIDs.contains(placed.event.id) ? AppColor.blue : Color.clear, lineWidth: 2)
-                .frame(width: tileWidth, height: tileHeight)
-                .offset(x: xOffsetWithinDay + 1, y: yOffset)
-                .allowsHitTesting(false)
-        )
-        .simultaneousGesture(
-            TapGesture().modifiers(.command).onEnded {
-                toggleSelection(placed.event.id)
+            .simultaneousGesture(
+                TapGesture().modifiers(.command).onEnded {
+                    toggleSelection(placed.event.id)
+                }
+            )
+            .accessibilityLabel(snapshot.eventMetadataByID[placed.event.id]?.accessibilityLabel ?? placed.event.summary)
+            .accessibilityHint("Opens event details")
+            .modifier(EventHoverPreviewModifier(event: placed.event))
+            .draggable(DraggedEvent(
+                eventID: placed.event.id,
+                calendarID: placed.event.calendarID,
+                durationMinutes: fullDurationMinutes,
+                isAllDay: placed.event.isAllDay
+            )) {
+                Text(placed.event.summary)
+                    .hcbFont(.caption, weight: .semibold)
+                    .hcbScaledPadding(.horizontal, 10)
+                    .hcbScaledPadding(.vertical, 6)
+                    .background(Capsule().fill(fill.opacity(0.35)))
             }
-        )
-        .accessibilityLabel(snapshot.eventMetadataByID[placed.event.id]?.accessibilityLabel ?? placed.event.summary)
-        .accessibilityHint("Opens event details")
-        .modifier(EventHoverPreviewModifier(event: placed.event))
-        .draggable(DraggedEvent(
-            eventID: placed.event.id,
-            calendarID: placed.event.calendarID,
-            durationMinutes: fullDurationMinutes,
-            isAllDay: placed.event.isAllDay
-        )) {
-            Text(placed.event.summary)
-                .hcbFont(.caption, weight: .semibold)
-                .hcbScaledPadding(.horizontal, 10)
-                .hcbScaledPadding(.vertical, 6)
-                .background(Capsule().fill(fill.opacity(0.35)))
         }
     }
 
@@ -963,29 +1023,29 @@ struct WeekGridView: View {
     private func rebuildWeekSnapshotIfNeeded() {
         let key = weekSnapshotKey
         guard preparedWeekSnapshot?.key != key else { return }
-        if let snapshot = model.cachedCalendarWeekSnapshot(for: key) {
+        if let snapshot = calendarStore.cachedCalendarWeekSnapshot(for: key) {
             preparedWeekSnapshot = snapshot
             return
         }
-        let input = model.calendarDisplayInput(
-            key: key,
-            kind: .week,
-            anchorDate: anchorDate,
-            dayCount: multiDayCount,
-            eventViewFilter: calendarEventViewFilter,
-            searchQuery: searchQuery,
-            referenceDate: Date(),
-            calendar: calendar
-        )
         let count = multiDayCount
         weekSnapshotBuildTask?.cancel()
         weekSnapshotBuildTask = Task { @MainActor in
             let started = HCBPerformanceTelemetry.timestamp()
+            let input = await model.calendarDisplayInputFromQuery(
+                key: key,
+                kind: .week,
+                anchorDate: anchorDate,
+                dayCount: count,
+                eventViewFilter: calendarEventViewFilter,
+                searchQuery: searchQuery,
+                referenceDate: Date(),
+                calendar: calendar
+            )
             let snapshot = await Task.detached(priority: .utility) {
                 CalendarDisplaySnapshotBuilder.weekSnapshot(input, multiDayCount: count)
             }.value
             guard Task.isCancelled == false, snapshot.key == weekSnapshotKey else { return }
-            model.storeCalendarWeekSnapshot(snapshot)
+            calendarStore.storeCalendarWeekSnapshot(snapshot)
             preparedWeekSnapshot = snapshot
             HCBPerformanceTelemetry.debug(
                 "calendar week snapshot built",

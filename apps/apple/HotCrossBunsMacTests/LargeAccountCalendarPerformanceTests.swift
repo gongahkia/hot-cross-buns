@@ -88,6 +88,55 @@ final class LargeAccountCalendarPerformanceTests: XCTestCase {
         XCTAssertEqual(loaded.events.first?.id, state.events.first?.id)
         XCTAssertEqual(loaded.events.last?.id, state.events.last?.id)
         XCTAssertEqual(try store.rowCountForTesting(table: "cache_events"), 15_000)
+        XCTAssertLessThan(saveMs, 3_000, "15k-event SQLite full rebuild should stay under 3s")
+    }
+
+    func testLocalCacheDatabaseOneEventCommitLargeAccountBenchmark() async throws {
+        let tempDir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appending(path: "hcb-large-db-commit-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let cacheFile = tempDir.appending(path: "cache-state.json")
+        let dbFile = tempDir.appending(path: "cache-state.sqlite")
+        let state = LargeAccountCalendarFixture.makeState(eventCount: 15_000)
+        let store = LocalCacheStore(fileURL: cacheFile)
+        await store.save(state)
+
+        let databaseBefore = try LocalCacheDatabaseStore(fileURL: dbFile)
+        let untouchedID = state.events.first { $0.id != state.events[state.events.count / 2].id }!.id
+        let changedID = state.events[state.events.count / 2].id
+        let untouchedHashBefore = try XCTUnwrap(databaseBefore.contentHashForTesting(table: "cache_events", accountID: "large-account", id: untouchedID))
+        let changedHashBefore = try XCTUnwrap(databaseBefore.contentHashForTesting(table: "cache_events", accountID: "large-account", id: changedID))
+
+        var updatedEvents = state.events
+        updatedEvents[state.events.count / 2].summary += " local edit"
+        updatedEvents[state.events.count / 2].etag = "local-edit-v2"
+        let updated = CachedAppState(
+            account: state.account,
+            accounts: state.accounts,
+            activeAccountID: state.activeAccountID,
+            taskLists: state.taskLists,
+            tasks: state.tasks,
+            calendars: state.calendars,
+            events: updatedEvents,
+            settings: state.settings,
+            syncCheckpoints: state.syncCheckpoints,
+            pendingMutations: state.pendingMutations,
+            schemaVersion: state.schemaVersion
+        )
+
+        let (_, commitMs) = await timedAsync("cache.db.commitOneEvent.15k") {
+            await store.save(updated)
+        }
+
+        let databaseAfter = try LocalCacheDatabaseStore(fileURL: dbFile)
+        let untouchedHashAfter = try XCTUnwrap(databaseAfter.contentHashForTesting(table: "cache_events", accountID: "large-account", id: untouchedID))
+        let changedHashAfter = try XCTUnwrap(databaseAfter.contentHashForTesting(table: "cache_events", accountID: "large-account", id: changedID))
+        XCTAssertEqual(untouchedHashAfter, untouchedHashBefore)
+        XCTAssertNotEqual(changedHashAfter, changedHashBefore)
+        XCTAssertEqual(try databaseAfter.rowCountForTesting(table: "cache_events"), 15_000)
+        XCTAssertLessThan(commitMs, 200, "one-event SQLite local commit should stay under 200ms")
     }
 
     func testCalendarVisibleRangeDatabaseQueriesLargeAccountBenchmark() throws {
@@ -152,12 +201,46 @@ final class LargeAccountCalendarPerformanceTests: XCTestCase {
             )
         }
 
-        print("HCBLargeAccountBenchmark cache.dbVisibleRangeCounts dayEvents=\(day.eventByID.count) weekEvents=\(week.eventByID.count) monthEvents=\(month.eventByID.count) agendaEvents=\(agenda.eventByID.count) yearEvents=\(year.eventByID.count) dayMs=\(format(dayMs)) weekMs=\(format(weekMs)) monthMs=\(format(monthMs)) agendaMs=\(format(agendaMs)) yearMs=\(format(yearMs))")
+        let yearEventCount = year.eventByID.isEmpty
+            ? year.eventCountsByDay.values.reduce(0, +)
+            : year.eventByID.count
+        print("HCBLargeAccountBenchmark cache.dbVisibleRangeCounts dayEvents=\(day.eventByID.count) weekEvents=\(week.eventByID.count) monthEvents=\(month.eventByID.count) agendaEvents=\(agenda.eventByID.count) yearEvents=\(yearEventCount) dayMs=\(format(dayMs)) weekMs=\(format(weekMs)) monthMs=\(format(monthMs)) agendaMs=\(format(agendaMs)) yearMs=\(format(yearMs))")
         XCTAssertGreaterThan(day.eventByID.count, 300)
         XCTAssertGreaterThan(week.eventByID.count, day.eventByID.count)
         XCTAssertGreaterThan(month.eventByID.count, week.eventByID.count)
         XCTAssertGreaterThan(agenda.eventByID.count, week.eventByID.count)
-        XCTAssertGreaterThan(year.eventByID.count, month.eventByID.count)
+        XCTAssertGreaterThan(yearEventCount, month.eventByID.count)
+        XCTAssertLessThan(yearMs, 150, "year visible-range DB query should stay under 150ms")
+    }
+
+    func testCalendarRenderingSourcesDoNotReintroduceFullEventScans() throws {
+        let appleDir = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let calendarDir = appleDir.appending(path: "HotCrossBuns/Features/Calendar")
+        let files = [
+            "CalendarHomeView.swift",
+            "DayGridView.swift",
+            "WeekGridView.swift",
+            "MonthGridView.swift",
+            "YearGridView.swift"
+        ]
+        let forbidden = [
+            "calendarStore.events.filter",
+            "calendarStore.events.contains",
+            "events: calendarStore.events",
+            "return calendarStore.events"
+        ]
+
+        for file in files {
+            let source = try String(contentsOf: calendarDir.appending(path: file), encoding: .utf8)
+            for pattern in forbidden {
+                XCTAssertFalse(
+                    source.contains(pattern),
+                    "\(file) reintroduced a full calendarStore.events scan via \(pattern)"
+                )
+            }
+        }
     }
 
     @MainActor
@@ -188,6 +271,74 @@ final class LargeAccountCalendarPerformanceTests: XCTestCase {
         XCTAssertFalse(model.isRebuildingDerivedSnapshots)
     }
 
+    @MainActor
+    func testAppModelEventOnlySyncApplySkipsFullDerivedRebuild() async throws {
+        let eventCount = 8_000
+        var state = LargeAccountCalendarFixture.makeState(eventCount: eventCount, calendarCount: 1)
+        state.settings.cloudSyncTargets = [.events]
+        state.settings.selectedCalendarIDs = ["cal-0"]
+        state.settings.hasConfiguredCalendarSelection = true
+        state.syncCheckpoints = [
+            SyncCheckpoint(
+                id: SyncCheckpoint.stableID(accountID: "large-account", resourceType: .calendar, resourceID: "cal-0"),
+                accountID: "large-account",
+                resourceType: .calendar,
+                resourceID: "cal-0",
+                calendarSyncToken: "previous-token",
+                tasksUpdatedMin: nil,
+                lastSuccessfulSyncAt: LargeAccountCalendarFixture.denseDay
+            )
+        ]
+        let changedIndex = try XCTUnwrap(state.events.firstIndex { event in
+            event.calendarID == "cal-0" && event.status != .cancelled
+        })
+        var changedEvent = state.events[changedIndex]
+        changedEvent.summary += " #narrow-sync"
+        changedEvent.etag = "\(changedEvent.etag ?? "event")-narrow"
+        changedEvent.updatedAt = LargeAccountCalendarFixture.denseDay.addingTimeInterval(3_600)
+
+        let model = makeModel(cachedState: state)
+        await model.loadInitialState()
+        let beforeRevision = model.calendarDisplayRevisionKey(for: [changedEvent.startDate])
+        let beforeTagCount = model.calendarSnapshot.eventCountsByTagName["narrow-sync"] ?? 0
+
+        let calendarListData = try LargeAccountCalendarFixture.calendarListResponseData(calendars: state.calendars)
+        let incrementalEventsData = try LargeAccountCalendarFixture.eventsResponseData(events: [changedEvent])
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json", "Date": "Thu, 14 May 2026 02:00:00 GMT"]
+            )!
+            switch request.url?.path {
+            case "/calendar/v3/users/me/calendarList":
+                return (response, calendarListData)
+            case "/calendar/v3/calendars/cal-0/events":
+                return (response, incrementalEventsData)
+            default:
+                XCTFail("Unexpected request \(request.url?.absoluteString ?? "<nil>")")
+                return (response, Data(#"{"items":[]}"#.utf8))
+            }
+        }
+
+        let outcome = await model.refreshNow()
+        guard case .succeeded = outcome else {
+            XCTFail("Expected event-only refresh to succeed")
+            return
+        }
+
+        let afterRevision = model.calendarDisplayRevisionKey(for: [changedEvent.startDate])
+        XCTAssertEqual(model.event(id: changedEvent.id)?.summary, changedEvent.summary)
+        XCTAssertEqual(model.calendarSnapshot.eventCountsByTagName["narrow-sync"], beforeTagCount + 1)
+        XCTAssertNotEqual(afterRevision, beforeRevision)
+        XCTAssertTrue(model.lastApplyUsedEventOnlyDerivedUpdateForBenchmark)
+        if let eventOnlyProfile = model.lastEventOnlyApplyProfileForBenchmark {
+            print("HCBLargeAccountBenchmark appModel.eventOnlyApply lookupMs=\(format(eventOnlyProfile.lookupMilliseconds)) indexMs=\(format(eventOnlyProfile.indexMilliseconds)) snapshotMapMs=\(format(eventOnlyProfile.snapshotMapMilliseconds)) bucketMs=\(format(eventOnlyProfile.bucketMilliseconds)) todayMs=\(format(eventOnlyProfile.todayMilliseconds)) totalMs=\(format(eventOnlyProfile.totalMilliseconds))")
+        }
+        XCTAssertLessThan(model.lastApplyProfileForBenchmark?.rebuildSnapshotsMilliseconds ?? .greatestFiniteMagnitude, 20)
+    }
+
     func testPreparedCalendarSnapshotsLargeAccountBenchmark() {
         let state = LargeAccountCalendarFixture.makeState(eventCount: 15_000)
         let input = LargeAccountCalendarFixture.displayInput(
@@ -209,9 +360,12 @@ final class LargeAccountCalendarPerformanceTests: XCTestCase {
             CalendarDisplaySnapshotBuilder.yearSnapshot(input)
         }
 
-        print("HCBLargeAccountBenchmark snapshotCounts day=\(day.allDayEvents.count + day.timedEvents.count) weekEvents=\(week.eventMetadataByID.count) agendaEvents=\(agenda.eventMetadataByID.count) yearDays=\(year.countsByDay.count) dayMs=\(format(dayMs)) weekMs=\(format(weekMs)) agendaMs=\(format(agendaMs)) yearMs=\(format(yearMs))")
+        print("HCBLargeAccountBenchmark snapshotCounts day=\(day.allDayEvents.count + day.timedEvents.count) dayLaidOut=\(day.laidOutTimedEvents.count) dayHidden=\(day.density.hiddenTimedEventCount) weekEvents=\(week.eventMetadataByID.count) weekDenseHidden=\(week.densityByDay.values.map(\.hiddenTimedEventCount).max() ?? 0) agendaEvents=\(agenda.eventMetadataByID.count) yearDays=\(year.countsByDay.count) dayMs=\(format(dayMs)) weekMs=\(format(weekMs)) agendaMs=\(format(agendaMs)) yearMs=\(format(yearMs))")
         XCTAssertGreaterThan(day.timedEvents.count, 300)
+        XCTAssertEqual(day.laidOutTimedEvents.count, CalendarDensityRendering.dayTimedEventLimit)
+        XCTAssertGreaterThan(day.density.hiddenTimedEventCount, 300)
         XCTAssertGreaterThan(week.eventMetadataByID.count, day.timedEvents.count)
+        XCTAssertLessThanOrEqual(week.laidOutTimedEventsByDay.values.map(\.count).max() ?? 0, CalendarDensityRendering.weekTimedEventLimit)
         XCTAssertGreaterThan(agenda.days.flatMap(\.events).count, week.eventMetadataByID.count)
         XCTAssertGreaterThan(year.countsByDay.count, 300)
         XCTAssertTrue(day.timedEvents.allSatisfy { $0.status != .cancelled })

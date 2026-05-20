@@ -162,24 +162,19 @@ final class LocalCacheDatabaseStoreTests: XCTestCase {
 
     func testStableRowHashUsesDeterministicSHA256AndIsStored() throws {
         let event = makeEvent(id: "event-hash")
-        let payload = try JSONEncoder.cacheDatabaseTestCanonical.encode(event)
-        var input = Data(LocalCacheRowHasher.algorithmIdentifier.utf8)
-        input.append(0x0A)
-        input.append(Data("event".utf8))
-        input.append(0x0A)
-        input.append(Data(String(payload.count).utf8))
-        input.append(0x0A)
-        input.append(payload)
-        let expected = SHA256.hash(data: input).map { String(format: "%02x", $0) }.joined()
+        let state = makeState(eventSuffix: "hash", checkpointToken: "token-hash", events: [event])
+        let persistedEvent = try XCTUnwrap(state.events.first { $0.id == event.id })
+        let payload = try JSONEncoder.cacheDatabaseTestCanonical.encode(persistedEvent)
+        let expected = SHA256.hash(data: payload).map { String(format: "%02x", $0) }.joined()
 
-        let hash1 = try LocalCacheRowHasher.hash(event, kind: "event")
-        let hash2 = try LocalCacheRowHasher.hash(event, kind: "event")
+        let hash1 = try LocalCacheRowHasher.hash(persistedEvent, kind: "event")
+        let hash2 = try LocalCacheRowHasher.hash(persistedEvent, kind: "event")
         XCTAssertEqual(hash1, expected)
         XCTAssertEqual(hash1, hash2)
         XCTAssertEqual(hash1.count, 64)
 
         let store = try LocalCacheDatabaseStore(fileURL: dbURL)
-        try store.save(makeState(eventSuffix: "hash", checkpointToken: "token-hash", events: [event]))
+        try store.save(state)
         let stored = try store.contentHashForTesting(table: "cache_events", accountID: "account-1", id: "event-hash")
         XCTAssertEqual(stored, hash1)
     }
@@ -669,8 +664,7 @@ final class LocalCacheDatabaseStoreTests: XCTestCase {
 private extension JSONEncoder {
     static var cacheDatabaseTestCanonical: JSONEncoder {
         let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.sortedKeys]
+        encoder.dateEncodingStrategy = .secondsSince1970
         return encoder
     }
 }

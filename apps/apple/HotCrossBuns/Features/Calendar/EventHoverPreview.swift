@@ -4,8 +4,10 @@ struct EventHoverPreview: View {
     @Environment(AppModel.self) private var model
     let event: CalendarEventMirror
 
+    private var calendarStore: CalendarStore { model.calendarStore }
+
     private var hydratedEvent: CalendarEventMirror {
-        model.event(id: event.id) ?? event
+        calendarStore.event(id: event.id) ?? event
     }
 
     var body: some View {
@@ -22,7 +24,7 @@ struct EventHoverPreview: View {
             VStack(alignment: .leading, spacing: 4) {
                 Label(timeLabel, systemImage: "clock")
                     .hcbFont(.subheadline)
-                if let cal = model.calendars.first(where: { $0.id == event.calendarID }) {
+                if let cal = calendarStore.calendars.first(where: { $0.id == event.calendarID }) {
                     Label(cal.summary, systemImage: "calendar")
                         .hcbFont(.caption)
                         .foregroundStyle(.secondary)
@@ -52,7 +54,7 @@ struct EventHoverPreview: View {
         if let hex = CalendarEventColor.from(colorId: event.colorId).hex {
             return Color(hex: hex)
         }
-        if let cal = model.calendars.first(where: { $0.id == event.calendarID }) {
+        if let cal = calendarStore.calendars.first(where: { $0.id == event.calendarID }) {
             return Color(hex: cal.colorHex)
         }
         return AppColor.blue
@@ -82,8 +84,10 @@ struct CalendarEventPreviewButton<Label: View>: View {
     @State private var isPresented = false
     @State private var isConfirmingDelete = false
 
+    private var calendarStore: CalendarStore { model.calendarStore }
+
     private var hydratedEvent: CalendarEventMirror {
-        model.event(id: event.id) ?? event
+        calendarStore.event(id: event.id) ?? event
     }
 
     var body: some View {
@@ -146,8 +150,10 @@ struct CalendarTaskPreviewButton<Label: View>: View {
     @State private var isConfirmingDelete = false
     @State private var snoozeCustomTask: TaskMirror?
 
+    private var calendarStore: CalendarStore { model.calendarStore }
+
     private var listName: String {
-        model.taskListTitle(for: task.taskListID)
+        calendarStore.taskListTitle(for: task.taskListID)
     }
 
     var body: some View {
@@ -319,12 +325,14 @@ struct CalendarEventDismissButton: View {
     let event: CalendarEventMirror
     var size: CGFloat = 10
 
+    private var calendarStore: CalendarStore { model.calendarStore }
+
     private var currentEvent: CalendarEventMirror {
-        model.event(id: event.id) ?? event
+        calendarStore.event(id: event.id) ?? event
     }
 
     private var canWrite: Bool {
-        guard let calendar = model.calendars.first(where: { $0.id == currentEvent.calendarID }) else { return false }
+        guard let calendar = calendarStore.calendars.first(where: { $0.id == currentEvent.calendarID }) else { return false }
         return calendar.accessRole == "owner" || calendar.accessRole == "writer"
     }
 
@@ -354,8 +362,10 @@ struct CalendarTaskCheckbox: View {
     let task: TaskMirror
     var size: CGFloat = 10
 
+    private var calendarStore: CalendarStore { model.calendarStore }
+
     private var currentTask: TaskMirror {
-        model.task(id: task.id) ?? task
+        calendarStore.task(id: task.id) ?? task
     }
 
     var body: some View {

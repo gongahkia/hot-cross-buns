@@ -26,13 +26,16 @@ struct CalendarHomeView: View {
     @State private var availabilityMessage: String?
     @State private var availabilityToastMessage: String?
     @State private var availabilityToastIsWarning = false
+    @State private var cachedAvailabilityHoldGroups: [AvailabilityHoldGroup] = []
     @State private var isWritingAvailabilityHolds = false
     @State private var activeModeTransition: HCBTransitionMeasurement?
+
+    private var calendarStore: CalendarStore { model.calendarStore }
 
     var body: some View {
         VStack(spacing: 0) {
             CalendarDropChipsStrip(
-                calendars: model.calendars,
+                calendars: calendarStore.calendars,
                 onDrop: { droppedEvent, destinationCalendarID in
                     Task {
                         await handleCrossCalendarDrop(droppedEvent, destinationCalendarID: destinationCalendarID)
@@ -48,7 +51,7 @@ struct CalendarHomeView: View {
         }
         .appBackground()
         .transaction { transaction in
-            if case .syncing = model.syncState {
+            if case .syncing = calendarStore.syncState {
                 transaction.animation = nil
             }
         }
@@ -134,7 +137,7 @@ struct CalendarHomeView: View {
             )
             storedMode = newValue.rawValue
         }
-        .onChange(of: model.settings.hiddenCalendarViewModes) { _, _ in
+        .onChange(of: calendarStore.settings.hiddenCalendarViewModes) { _, _ in
             // if the user just hid the currently-selected mode, fall back to
             // the first still-visible one so the detail area doesn't render
             // a mode that's gone from the picker.
@@ -144,11 +147,21 @@ struct CalendarHomeView: View {
         }
         .onChange(of: calendarEventViewFilter.cacheKey) { _, _ in
             selectedEventIDs = selectedEventIDs.filter { eventID in
-                model.event(id: eventID).map(calendarEventViewFilter.allows) ?? false
+                calendarStore.event(id: eventID).map(calendarEventViewFilter.allows) ?? false
             }
         }
         .onChange(of: agendaSnapshotKey) { _, _ in
             if mode == .agenda { rebuildAgendaSnapshotIfNeeded() }
+        }
+        .onChange(of: isShareAvailabilityShown) { _, shown in
+            if shown {
+                Task { await refreshAvailabilityHoldGroups() }
+            }
+        }
+        .onChange(of: calendarStore.calendarDisplayRevision) { _, _ in
+            if isShareAvailabilityShown {
+                Task { await refreshAvailabilityHoldGroups() }
+            }
         }
         .onDisappear {
             agendaSnapshotBuildTask?.cancel()
@@ -158,11 +171,11 @@ struct CalendarHomeView: View {
     @ViewBuilder
     private var contentArea: some View {
         Group {
-            if model.account == nil && model.authState == .authenticating {
+            if calendarStore.account == nil && calendarStore.authState == .authenticating {
                 restoringPrompt
-            } else if model.account == nil {
+            } else if calendarStore.account == nil {
                 connectPrompt
-            } else if model.calendarSnapshot.selectedCalendars.isEmpty {
+            } else if calendarStore.calendarSnapshot.selectedCalendars.isEmpty {
                 calendarsEmptyPrompt
             } else {
                 activeCalendarSurface
@@ -189,7 +202,7 @@ struct CalendarHomeView: View {
                 ShareAvailabilityPanel(
                     draft: $availabilityDraft,
                     calendars: writableCalendars,
-                    holdGroups: availabilityHoldGroups,
+                    holdGroups: cachedAvailabilityHoldGroups,
                     snippet: availabilitySnippet,
                     message: availabilityMessage,
                     supportsSelection: supportsAvailabilitySelection,
@@ -244,7 +257,7 @@ struct CalendarHomeView: View {
                         anchorDate: $selectedDate,
                         searchQuery: searchQuery,
                         selectedEventIDs: $selectedEventIDs,
-                        multiDayCount: model.settings.multiDayCount,
+                        multiDayCount: calendarStore.settings.multiDayCount,
                         availabilitySelection: availabilityGridSelection
                     )
                 }
@@ -342,7 +355,7 @@ struct CalendarHomeView: View {
                     .overlay(AppColor.cream.opacity(0.24))
             }
         }
-        .disabled(model.account == nil)
+        .disabled(calendarStore.account == nil)
     }
 
     private var calendarViewModeControl: some View {
@@ -376,23 +389,29 @@ struct CalendarHomeView: View {
     }
 
     private var selectedEvents: [CalendarEventMirror] {
-        model.events.filter { selectedEventIDs.contains($0.id) && calendarEventViewFilter.allows($0) }
+        selectedEventIDs
+            .compactMap { calendarStore.event(id: $0) }
+            .filter(calendarEventViewFilter.allows)
+            .sorted { lhs, rhs in
+                if lhs.startDate != rhs.startDate { return lhs.startDate < rhs.startDate }
+                return lhs.id < rhs.id
+            }
     }
 
     private var writableCalendars: [CalendarListMirror] {
-        let selectedIDs = model.calendarSnapshot.selectedCalendarIDs
-        let writable = model.calendars.filter { calendar in
+        let selectedIDs = calendarStore.calendarSnapshot.selectedCalendarIDs
+        let writable = calendarStore.calendars.filter { calendar in
             (calendar.accessRole == "owner" || calendar.accessRole == "writer")
                 && (selectedIDs.isEmpty || selectedIDs.contains(calendar.id))
         }
         if writable.isEmpty {
-            return model.calendars.filter { $0.accessRole == "owner" || $0.accessRole == "writer" }
+            return calendarStore.calendars.filter { $0.accessRole == "owner" || $0.accessRole == "writer" }
         }
         return writable
     }
 
     private var canOpenShareAvailability: Bool {
-        model.account != nil && writableCalendars.isEmpty == false
+        calendarStore.account != nil && writableCalendars.isEmpty == false
     }
 
     private var supportsAvailabilitySelection: Bool {
@@ -424,31 +443,11 @@ struct CalendarHomeView: View {
         )
     }
 
-    private var availabilityHoldGroups: [AvailabilityHoldGroup] {
-        let holds = model.events.filter { $0.status != .cancelled && $0.availabilityHold != nil }
-        let grouped = Dictionary(grouping: holds) { $0.availabilityHold?.groupID ?? "" }
-        return grouped.compactMap { groupID, events in
-            guard groupID.isEmpty == false,
-                  let metadata = events.compactMap(\.availabilityHold).first
-            else { return nil }
-            return AvailabilityHoldGroup(
-                id: groupID,
-                metadata: metadata,
-                events: events.sorted { $0.startDate < $1.startDate }
-            )
-        }
-        .sorted { lhs, rhs in
-            let left = lhs.events.first?.startDate ?? lhs.metadata.createdAt
-            let right = rhs.events.first?.startDate ?? rhs.metadata.createdAt
-            return left < right
-        }
-    }
-
     // CalendarGridMode.allCases filtered by user-hidden set from Layout settings.
     // If the user hides every mode, allCases still returns something — the
     // AppModel.setCalendarViewModeHidden setter refuses to hide the last one.
     private var visibleCalendarModes: [CalendarGridMode] {
-        CalendarGridMode.allCases.filter { model.settings.hiddenCalendarViewModes.contains($0.rawValue) == false }
+        CalendarGridMode.allCases.filter { calendarStore.settings.hiddenCalendarViewModes.contains($0.rawValue) == false }
     }
 
     private var modeBinding: Binding<CalendarGridMode> {
@@ -459,7 +458,7 @@ struct CalendarHomeView: View {
     }
 
     private var calendarCommandActions: CalendarCommandActions {
-        let canNavigate = model.account != nil
+        let canNavigate = calendarStore.account != nil
         return CalendarCommandActions(
             previous: { shift(by: -1) },
             today: { selectedDate = Date() },
@@ -528,11 +527,17 @@ struct CalendarHomeView: View {
             availabilityDraft.calendarID = writableCalendars.first?.id
         }
         if let calendarID = availabilityDraft.calendarID,
-           let calendarTimeZone = model.calendars.first(where: { $0.id == calendarID })?.timeZoneID {
+           let calendarTimeZone = calendarStore.calendars.first(where: { $0.id == calendarID })?.timeZoneID {
             availabilityDraft.timeZoneID = calendarTimeZone
         }
         isShareAvailabilityShown = true
         availabilityMessage = nil
+        Task { await refreshAvailabilityHoldGroups() }
+    }
+
+    @MainActor
+    private func refreshAvailabilityHoldGroups() async {
+        cachedAvailabilityHoldGroups = await model.availabilityHoldGroupsFromQuery()
     }
 
     private func addAvailabilitySlot(_ slot: AvailabilitySlot) {
@@ -547,15 +552,31 @@ struct CalendarHomeView: View {
 
     private func isAvailabilitySlotAvailable(_ slot: AvailabilitySlot) -> Bool {
         guard slot.endDate > slot.startDate else { return false }
-        var calendarIDs = model.calendarSnapshot.selectedCalendarIDs.isEmpty
-            ? Set(model.calendars.map(\.id))
-            : model.calendarSnapshot.selectedCalendarIDs
+        var calendarIDs = calendarStore.calendarSnapshot.selectedCalendarIDs.isEmpty
+            ? Set(calendarStore.calendars.map(\.id))
+            : calendarStore.calendarSnapshot.selectedCalendarIDs
         if let holdCalendarID = availabilityDraft.calendarID ?? writableCalendars.first?.id {
             calendarIDs.insert(holdCalendarID)
         }
+        let calendar = Calendar.current
+        let lastDay = calendar.startOfDay(for: slot.endDate)
+        var cursor = calendar.startOfDay(for: slot.startDate)
+        var seen: Set<CalendarEventMirror.ID> = []
+        var candidates: [CalendarEventMirror] = []
+        var steps = 0
+        while cursor <= lastDay && steps < 366 {
+            for eventID in calendarStore.eventIDs(on: cursor, calendar: calendar) where seen.insert(eventID).inserted {
+                if let event = calendarStore.event(id: eventID) {
+                    candidates.append(event)
+                }
+            }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+            steps += 1
+        }
         return AvailabilitySlotResolver.blockingEvents(
             for: slot,
-            events: model.events,
+            events: candidates,
             calendarIDs: calendarIDs
         ).isEmpty
     }
@@ -595,19 +616,19 @@ struct CalendarHomeView: View {
                 availabilityDraft.slots = []
                 availabilityMessage = "Created \(slots.count) hold\(slots.count == 1 ? "" : "s")."
             } else {
-                availabilityMessage = model.lastMutationError ?? "Could not create holds."
+                availabilityMessage = calendarStore.lastMutationError ?? "Could not create holds."
             }
         }
     }
 
     private func confirmAvailabilityHold(_ hold: CalendarEventMirror) async {
         let didConfirm = await model.confirmAvailabilityHold(hold)
-        availabilityMessage = didConfirm ? "Confirmed \(hold.summary)." : (model.lastMutationError ?? "Could not confirm hold.")
+        availabilityMessage = didConfirm ? "Confirmed \(hold.summary)." : (calendarStore.lastMutationError ?? "Could not confirm hold.")
     }
 
     private func cancelAvailabilityHoldGroup(_ group: AvailabilityHoldGroup) async {
         let didCancel = await model.cancelAvailabilityHoldGroup(groupID: group.id)
-        availabilityMessage = didCancel ? "Cancelled \(group.events.count) hold\(group.events.count == 1 ? "" : "s")." : (model.lastMutationError ?? "Could not cancel holds.")
+        availabilityMessage = didCancel ? "Cancelled \(group.events.count) hold\(group.events.count == 1 ? "" : "s")." : (calendarStore.lastMutationError ?? "Could not cancel holds.")
     }
 
     private func showAvailabilityToast(_ message: String, isWarning: Bool = false) {
@@ -629,7 +650,7 @@ struct CalendarHomeView: View {
         case .day:
             return selectedDate.formatted(.dateTime.weekday(.wide).month(.wide).day().year())
         case .multiDay:
-            let count = max(2, min(7, model.settings.multiDayCount))
+            let count = max(2, min(7, calendarStore.settings.multiDayCount))
             let first = calendar.startOfDay(for: selectedDate)
             let last = calendar.date(byAdding: .day, value: count - 1, to: first) ?? first
             return "\(first.formatted(.dateTime.month(.abbreviated).day())) – \(last.formatted(.dateTime.month(.abbreviated).day().year()))"
@@ -653,28 +674,28 @@ struct CalendarHomeView: View {
     private var multiDayStepperBar: some View {
         HStack(spacing: 12) {
             Button {
-                var next = model.settings
+                var next = calendarStore.settings
                 next.multiDayCount = max(2, next.multiDayCount - 1)
                 model.updateSettings(next)
             } label: {
                 Image(systemName: "minus.circle")
             }
             .buttonStyle(.plain)
-            .disabled(model.settings.multiDayCount <= 2)
+            .disabled(calendarStore.settings.multiDayCount <= 2)
             .help("Fewer days")
-            Text("\(model.settings.multiDayCount) days")
+            Text("\(calendarStore.settings.multiDayCount) days")
                 .hcbFont(.caption, weight: .semibold)
                 .monospacedDigit()
                 .frame(minWidth: 50)
             Button {
-                var next = model.settings
+                var next = calendarStore.settings
                 next.multiDayCount = min(7, next.multiDayCount + 1)
                 model.updateSettings(next)
             } label: {
                 Image(systemName: "plus.circle")
             }
             .buttonStyle(.plain)
-            .disabled(model.settings.multiDayCount >= 7)
+            .disabled(calendarStore.settings.multiDayCount >= 7)
             .help("More days")
             Spacer(minLength: 8)
         }
@@ -718,8 +739,8 @@ struct CalendarHomeView: View {
         ContentUnavailableView {
             Label("No calendars selected", systemImage: "calendar.badge.exclamationmark")
         } description: {
-            if model.calendars.isEmpty {
-                if case .syncing = model.syncState {
+            if calendarStore.calendars.isEmpty {
+                if case .syncing = calendarStore.syncState {
                     Text("Loading calendars from Google…")
                 } else {
                     Text("We haven't seen any calendars yet. Try Refresh, or check Settings → Calendars.")
@@ -728,7 +749,7 @@ struct CalendarHomeView: View {
                 Text("Pick at least one calendar in Settings → Calendars to see events here.")
             }
         } actions: {
-            if model.calendars.isEmpty {
+            if calendarStore.calendars.isEmpty {
                 Button("Refresh") {
                     Task { await model.refreshNow() }
                 }
@@ -746,7 +767,7 @@ struct CalendarHomeView: View {
     }
 
     private func handleICSDrop(_ providers: [NSItemProvider]) -> Bool {
-        let calendarID = model.calendarSnapshot.selectedCalendars.first?.id ?? model.calendars.first?.id
+        let calendarID = calendarStore.calendarSnapshot.selectedCalendars.first?.id ?? calendarStore.calendars.first?.id
         guard let calendarID else {
             importResultMessage = "No calendar selected to import events into."
             return true
@@ -815,13 +836,26 @@ struct CalendarHomeView: View {
         targetCalendarID: CalendarListMirror.ID
     ) -> Bool {
         let tolerance: TimeInterval = 60
-        return model.events.contains { existing in
-            guard existing.calendarID == targetCalendarID else { return false }
-            guard existing.status != .cancelled else { return false }
-            guard existing.isAllDay == draft.isAllDay else { return false }
-            guard existing.summary.caseInsensitiveCompare(draft.summary) == .orderedSame else { return false }
-            return abs(existing.startDate.timeIntervalSince(draft.startDate)) < tolerance
+        let calendar = Calendar.current
+        let candidateDays = [
+            calendar.date(byAdding: .day, value: -1, to: draft.startDate),
+            draft.startDate,
+            calendar.date(byAdding: .day, value: 1, to: draft.startDate)
+        ].compactMap { $0 }
+        var seen: Set<CalendarEventMirror.ID> = []
+        for day in candidateDays {
+            for eventID in calendarStore.eventIDs(on: day, calendar: calendar) where seen.insert(eventID).inserted {
+                guard let existing = calendarStore.event(id: eventID) else { continue }
+                guard existing.calendarID == targetCalendarID else { continue }
+                guard existing.status != .cancelled else { continue }
+                guard existing.isAllDay == draft.isAllDay else { continue }
+                guard existing.summary.caseInsensitiveCompare(draft.summary) == .orderedSame else { continue }
+                if abs(existing.startDate.timeIntervalSince(draft.startDate)) < tolerance {
+                    return true
+                }
+            }
         }
+        return false
     }
 
     private func loadFileURL(from provider: NSItemProvider) async -> URL? {
@@ -834,7 +868,7 @@ struct CalendarHomeView: View {
 
     private func handleCrossCalendarDrop(_ dropped: DraggedEvent, destinationCalendarID: CalendarListMirror.ID) async {
         guard destinationCalendarID != dropped.calendarID else { return }
-        guard let event = model.event(id: dropped.eventID) else { return }
+        guard let event = calendarStore.event(id: dropped.eventID) else { return }
         let summary = event.summary
         let isRecurring = CalendarEventInstance.isRecurring(event)
         if isRecurring {
@@ -870,7 +904,7 @@ struct CalendarHomeView: View {
 
     private func performCrossCalendarMove(_ request: CrossCalendarMoveRequest, scope: AppModel.RecurringEventScope) async {
         pendingCrossCalendarMove = nil
-        guard let event = model.event(id: request.eventID) else { return }
+        guard let event = calendarStore.event(id: request.eventID) else { return }
         _ = await model.updateEvent(
             event,
             summary: event.summary,
@@ -897,7 +931,7 @@ struct CalendarHomeView: View {
         case .agenda, .day:
             selectedDate = calendar.date(byAdding: .day, value: direction, to: selectedDate) ?? selectedDate
         case .multiDay:
-            let step = max(1, model.settings.multiDayCount)
+            let step = max(1, calendarStore.settings.multiDayCount)
             selectedDate = calendar.date(byAdding: .day, value: direction * step, to: selectedDate) ?? selectedDate
         case .week:
             selectedDate = calendar.date(byAdding: .weekOfYear, value: direction, to: selectedDate) ?? selectedDate
@@ -929,7 +963,7 @@ struct CalendarHomeView: View {
     // Range: 14 days starting at selectedDate. DatePicker at top scrolls range.
     private var agendaContent: some View {
         Group {
-            if let snapshot = preparedAgendaSnapshot, snapshot.key == agendaSnapshotKey, model.isRebuildingDerivedSnapshots == false {
+            if let snapshot = preparedAgendaSnapshot, snapshot.key == agendaSnapshotKey, calendarStore.isRebuildingDerivedSnapshots == false {
                 List {
                     Section {
                         DatePicker("Agenda starts", selection: $selectedDate, displayedComponents: [.date])
@@ -986,16 +1020,17 @@ struct CalendarHomeView: View {
     }
 
     private func agendaEventsByDay(for range: [Date]) -> [Date: [CalendarEventMirror]] {
-        // Use the prebuilt model.eventsByDay IDs (rebuildSnapshots already walks
+        // Use the prebuilt calendarStore day IDs (rebuildSnapshots already walks
         // the full event corpus once) instead of re-iterating on every body
         // eval. Apply calendar-selection filter per lookup; sort per day.
         guard range.isEmpty == false else { return [:] }
-        let selectedIDs = model.calendarSnapshot.selectedCalendarIDs
+        let calendar = Calendar.current
+        let selectedIDs = calendarStore.calendarSnapshot.selectedCalendarIDs
         var bucket: [Date: [CalendarEventMirror]] = [:]
         for day in range {
-            let key = day.timeIntervalSinceReferenceDate
-            guard let eventIDs = model.eventsByDay[key], eventIDs.isEmpty == false else { continue }
-            let entries = eventIDs.compactMap { model.event(id: $0) }
+            let eventIDs = calendarStore.eventIDs(on: day, calendar: calendar)
+            guard eventIDs.isEmpty == false else { continue }
+            let entries = eventIDs.compactMap { calendarStore.event(id: $0) }
             let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
             let filtered = entries.filter { event in
                 selectedIDs.contains(event.calendarID)
@@ -1017,15 +1052,16 @@ struct CalendarHomeView: View {
     }
 
     private func agendaTasksByDay(for range: [Date]) -> [Date: [TaskMirror]] {
-        // Use model.tasksByDueDate IDs; rebuildSnapshots already walks tasks
+        // Use calendarStore due-date IDs; rebuildSnapshots already walks tasks
         // once and applies the completed-item calendar setting. We only need
         // to filter to the visible task-list set and sort alphabetically per day.
-        let visibleLists = model.visibleTaskListIDs
+        let calendar = Calendar.current
+        let visibleLists = calendarStore.visibleTaskListIDs
         var bucket: [Date: [TaskMirror]] = [:]
         for day in range {
-            let key = day.timeIntervalSinceReferenceDate
-            guard let taskIDs = model.tasksByDueDate[key], taskIDs.isEmpty == false else { continue }
-            let entries = taskIDs.compactMap { model.task(id: $0) }
+            let taskIDs = calendarStore.taskIDs(dueOn: day, calendar: calendar)
+            guard taskIDs.isEmpty == false else { continue }
+            let entries = taskIDs.compactMap { calendarStore.task(id: $0) }
             let filtered = entries.filter { visibleLists.contains($0.taskListID) }
             guard filtered.isEmpty == false else { continue }
             bucket[day] = filtered.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
@@ -1064,7 +1100,7 @@ struct CalendarHomeView: View {
                         .hcbFont(.subheadline)
                         .strikethrough(task.isCompleted)
                         .foregroundStyle(AppColor.ink)
-                    let listTitle = metadata?.listTitle ?? model.taskListTitle(for: task.taskListID, fallback: "")
+                    let listTitle = metadata?.listTitle ?? calendarStore.taskListTitle(for: task.taskListID, fallback: "")
                     if listTitle.isEmpty == false {
                         Text(listTitle)
                             .hcbFont(.caption2)
@@ -1102,11 +1138,12 @@ struct CalendarHomeView: View {
         let calendar = Calendar.current
         let startOfDay = calendar.startOfDay(for: date)
         let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) ?? startOfDay
-        let selectedCalendarIDs = model.calendarSnapshot.selectedCalendarIDs
+        let selectedCalendarIDs = calendarStore.calendarSnapshot.selectedCalendarIDs
 
-        return model.events
+        return calendarStore.eventIDs(on: startOfDay, calendar: calendar)
+            .compactMap { calendarStore.event(id: $0) }
             .filter { event in
-                (model.settings.showCompletedItemsInCalendar || event.status != .cancelled)
+                (calendarStore.settings.showCompletedItemsInCalendar || event.status != .cancelled)
                     && selectedCalendarIDs.contains(event.calendarID)
                     && calendarEventViewFilter.allows(event)
                     && event.startDate < endOfDay
@@ -1121,7 +1158,7 @@ struct CalendarHomeView: View {
         if let hex = CalendarEventColor.from(colorId: event.colorId).hex {
             return Color(hex: hex)
         }
-        guard let hex = model.calendarSnapshot.calendarColorHexByID[event.calendarID] else {
+        guard let hex = calendarStore.calendarSnapshot.calendarColorHexByID[event.calendarID] else {
             return AppColor.blue
         }
         return Color(hex: hex)
@@ -1130,40 +1167,40 @@ struct CalendarHomeView: View {
     private var agendaSnapshotKey: PreparedSnapshotKey {
         PreparedSnapshotKeys.calendar(
             mode: .agenda,
-            dataRevision: model.calendarDisplayRevisionKey(for: agendaDays(), calendar: .current),
-            selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
-            visibleTaskListIDs: model.visibleTaskListIDs,
+            dataRevision: calendarStore.calendarDisplayRevisionKey(for: agendaDays(), calendar: .current),
+            selectedCalendarIDs: calendarStore.calendarSnapshot.selectedCalendarIDs,
+            visibleTaskListIDs: calendarStore.visibleTaskListIDs,
             filterKey: calendarEventViewFilter.cacheKey,
             searchQuery: searchQuery,
             rangeKey: PreparedSnapshotKeys.dateRangeKey(agendaDays()),
-            settings: model.settings
+            settings: calendarStore.settings
         )
     }
 
     private func rebuildAgendaSnapshotIfNeeded() {
         let key = agendaSnapshotKey
         guard preparedAgendaSnapshot?.key != key else { return }
-        if let snapshot = model.cachedCalendarAgendaSnapshot(for: key) {
+        if let snapshot = calendarStore.cachedCalendarAgendaSnapshot(for: key) {
             preparedAgendaSnapshot = snapshot
             return
         }
-        let input = model.calendarDisplayInput(
-            key: key,
-            kind: .agenda,
-            anchorDate: selectedDate,
-            eventViewFilter: calendarEventViewFilter,
-            searchQuery: searchQuery,
-            referenceDate: Date(),
-            calendar: .current
-        )
         agendaSnapshotBuildTask?.cancel()
         agendaSnapshotBuildTask = Task { @MainActor in
             let started = HCBPerformanceTelemetry.timestamp()
+            let input = await model.calendarDisplayInputFromQuery(
+                key: key,
+                kind: .agenda,
+                anchorDate: selectedDate,
+                eventViewFilter: calendarEventViewFilter,
+                searchQuery: searchQuery,
+                referenceDate: Date(),
+                calendar: .current
+            )
             let snapshot = await Task.detached(priority: .utility) {
                 CalendarDisplaySnapshotBuilder.agendaSnapshot(input)
             }.value
             guard Task.isCancelled == false, snapshot.key == agendaSnapshotKey else { return }
-            model.storeCalendarAgendaSnapshot(snapshot)
+            calendarStore.storeCalendarAgendaSnapshot(snapshot)
             preparedAgendaSnapshot = snapshot
             HCBPerformanceTelemetry.debug(
                 "calendar agenda snapshot built",
@@ -1191,12 +1228,6 @@ private struct ShareAvailabilityDraft: Equatable {
     var timeZoneID: String = TimezoneSupport.currentIdentifier
     var calendarID: CalendarListMirror.ID?
     var slots: [AvailabilitySlot] = []
-}
-
-private struct AvailabilityHoldGroup: Identifiable, Equatable {
-    var id: String
-    var metadata: AvailabilityHoldMetadata
-    var events: [CalendarEventMirror]
 }
 
 private struct ShareAvailabilityPanel: View {
@@ -1613,6 +1644,8 @@ struct AddEventSheet: View {
     // fields if they need to change calendar/notes).
     @State private var isBirthdayMode: Bool = false
 
+    private var calendarStore: CalendarStore { model.calendarStore }
+
     init(prefilledStart: Date? = nil, prefilledIsAllDay: Bool = false, prefilledEnd: Date? = nil) {
         let start = prefilledStart ?? Date()
         let defaultEnd = prefilledIsAllDay ? start : start.addingTimeInterval(3600)
@@ -1656,7 +1689,7 @@ struct AddEventSheet: View {
     var body: some View {
         NavigationStack {
             Group {
-                if model.calendars.isEmpty {
+                if calendarStore.calendars.isEmpty {
                     ContentUnavailableView(
                         "No calendars loaded",
                         systemImage: "calendar.badge.exclamationmark",
@@ -1889,7 +1922,7 @@ struct AddEventSheet: View {
             Divider()
             Button {
                 guard let existing = editingEvent else { return }
-                let calendarTitle = model.calendars.first(where: { $0.id == existing.calendarID })?.summary
+                let calendarTitle = calendarStore.calendars.first(where: { $0.id == existing.calendarID })?.summary
                 let markdown = EventMarkdownExporter.markdown(for: existing, calendarTitle: calendarTitle)
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(markdown, forType: .string)
@@ -1933,7 +1966,7 @@ struct AddEventSheet: View {
         // Close the sheet IMMEDIATELY. model.deleteEvent optimistically strips
         // the event from the mirror before awaiting the Google API; while the
         // await is in flight the router's .editEvent route re-evaluates
-        // model.event(id:), sees nil, and swaps the sheet content to
+        // the routed event lookup sees nil and swaps the sheet content to
         // "Event not found" — a 5-15s phantom dialog the user can't dismiss.
         // Closing first lets the delete + undo toast land cleanly.
         dismiss()
@@ -1996,7 +2029,7 @@ struct AddEventSheet: View {
                 guestsBlock
                 repeatBlock
                 meetBlock
-                if editingEvent == nil, model.settings.eventTemplates.isEmpty == false {
+                if editingEvent == nil, calendarStore.settings.eventTemplates.isEmpty == false {
                     templateBlock
                 }
             }
@@ -2158,7 +2191,7 @@ struct AddEventSheet: View {
     private var calendarBlock: some View {
         sectionCard("Calendar") {
             Picker("Calendar", selection: $selectedCalendarID) {
-                ForEach(model.calendars) { calendar in
+                ForEach(calendarStore.calendars) { calendar in
                     Text(calendar.summary).tag(Optional(calendar.id))
                 }
             }
@@ -2212,7 +2245,7 @@ struct AddEventSheet: View {
     private var templateBlock: some View {
         sectionCard("Template") {
             Menu {
-                ForEach(model.settings.eventTemplates) { template in
+                ForEach(calendarStore.settings.eventTemplates) { template in
                     Button(template.name) { applyTemplate(template) }
                 }
             } label: {
@@ -2349,7 +2382,7 @@ struct AddEventSheet: View {
 
     private var readCalendarCard: some View {
         sectionCard("Calendar") {
-            let cal = model.calendars.first(where: { $0.id == selectedCalendarID })
+            let cal = calendarStore.calendars.first(where: { $0.id == selectedCalendarID })
             HStack(spacing: 8) {
                 if let hex = cal?.colorHex {
                     Circle()
@@ -2428,7 +2461,7 @@ struct AddEventSheet: View {
     }
 
     private var defaultCalendarID: CalendarListMirror.ID? {
-        model.calendarSnapshot.selectedCalendars.first?.id ?? model.calendars.first?.id
+        calendarStore.calendarSnapshot.selectedCalendars.first?.id ?? calendarStore.calendars.first?.id
     }
 
     private var startTimeZone: TimeZone {
@@ -2498,7 +2531,7 @@ struct AddEventSheet: View {
     private func applyDefaultTimeZoneIfNeeded() {
         guard editingEvent == nil, userManuallyPickedTimeZone == false else { return }
         let calendarTimeZoneID = selectedCalendarID
-            .flatMap { id in model.calendars.first(where: { $0.id == id })?.timeZoneID }
+            .flatMap { id in calendarStore.calendars.first(where: { $0.id == id })?.timeZoneID }
         let resolved = TimezoneSupport.validatedIdentifier(calendarTimeZoneID) ?? TimezoneSupport.currentIdentifier
         let old = startTimeZoneID
         if old != resolved, isAllDay == false {
@@ -2550,15 +2583,15 @@ struct AddEventSheet: View {
     }
 
     private func resolveCalendar(_ ref: String) -> CalendarListMirror? {
-        if let exact = model.calendars.first(where: { $0.id == ref }) { return exact }
-        return model.calendars.first(where: { $0.summary.localizedCaseInsensitiveCompare(ref) == .orderedSame })
+        if let exact = calendarStore.calendars.first(where: { $0.id == ref }) { return exact }
+        return calendarStore.calendars.first(where: { $0.summary.localizedCaseInsensitiveCompare(ref) == .orderedSame })
     }
 
     private var canCreate: Bool {
         summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             && selectedCalendarID != nil
             && (isBirthdayMode || isValidDateRange)
-            && model.account != nil
+            && calendarStore.account != nil
     }
 
     private var isValidDateRange: Bool {
@@ -2610,11 +2643,11 @@ struct AddEventSheet: View {
     }
 
     private func quickCreateColorTagResolution(for parsed: ParsedQuickAddEvent) -> ColorTagResolver.Resolution? {
-        guard model.settings.colorTagAutoApplyEnabled else { return nil }
+        guard calendarStore.settings.colorTagAutoApplyEnabled else { return nil }
         return ColorTagResolver.resolve(
             title: parsed.summary,
-            bindings: model.settings.colorTagBindings,
-            policy: model.settings.colorTagMatchPolicy
+            bindings: calendarStore.settings.colorTagBindings,
+            policy: calendarStore.settings.colorTagMatchPolicy
         )
     }
 
@@ -2624,8 +2657,8 @@ struct AddEventSheet: View {
     }
 
     private func quickCreateCalendarTagResolution(for parsed: ParsedQuickAddEvent) -> CalendarTagResolver.Resolution? {
-        CalendarTagResolver.resolve(title: parsed.summary, calendars: model.calendarSnapshot.selectedCalendars)
-            ?? CalendarTagResolver.resolve(title: parsed.summary, calendars: model.calendars)
+        CalendarTagResolver.resolve(title: parsed.summary, calendars: calendarStore.calendarSnapshot.selectedCalendars)
+            ?? CalendarTagResolver.resolve(title: parsed.summary, calendars: calendarStore.calendars)
     }
 
     private func quickCreateColorTint(_ color: CalendarEventColor) -> Color {

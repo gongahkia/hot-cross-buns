@@ -2,8 +2,8 @@ import SwiftUI
 
 // §7.01 Phase D3 — year overview. 4 columns × 3 rows of mini-months.
 // Each day cell shades by event-count heatmap; clicking a day jumps to
-// Day view via onPickDay. Reuses existing model.events and the calendar-
-// selection pipeline — no new backend plumbing.
+// Day view via onPickDay. Reuses the calendar surface store and the calendar-
+// selection pipeline, so year heatmap updates do not observe unrelated app state.
 struct YearGridView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.hcbAppBackgroundConfiguration) private var backgroundConfiguration
@@ -15,6 +15,7 @@ struct YearGridView: View {
     @State private var yearSnapshotBuildTask: Task<Void, Never>?
 
     private let calendar = Calendar.current
+    private var calendarStore: CalendarStore { model.calendarStore }
     private var usesReadableMonthBackings: Bool {
         backgroundConfiguration.customImagePath != nil || backgroundConfiguration.isTranslucent
     }
@@ -25,7 +26,7 @@ struct YearGridView: View {
 
     var body: some View {
         Group {
-            if let snapshot = preparedYearSnapshot, snapshot.key == yearSnapshotKey, model.isRebuildingDerivedSnapshots == false {
+            if let snapshot = preparedYearSnapshot, snapshot.key == yearSnapshotKey, calendarStore.isRebuildingDerivedSnapshots == false {
                 GeometryReader { proxy in
                     let outerPadding: CGFloat = 16
                     let gridSpacing: CGFloat = 16
@@ -64,13 +65,13 @@ struct YearGridView: View {
     private var yearSnapshotKey: PreparedSnapshotKey {
         PreparedSnapshotKeys.calendar(
             mode: .year,
-            dataRevision: model.calendarDisplayRevisionKey(forYearContaining: anchorDate, calendar: calendar),
-            selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
-            visibleTaskListIDs: model.visibleTaskListIDs,
+            dataRevision: calendarStore.calendarDisplayRevisionKey(forYearContaining: anchorDate, calendar: calendar),
+            selectedCalendarIDs: calendarStore.calendarSnapshot.selectedCalendarIDs,
+            visibleTaskListIDs: calendarStore.visibleTaskListIDs,
             filterKey: calendarEventViewFilter.cacheKey,
             searchQuery: searchQuery,
             rangeKey: PreparedSnapshotKeys.yearKey(anchorDate, calendar: calendar),
-            settings: model.settings
+            settings: calendarStore.settings
         )
     }
 
@@ -152,27 +153,27 @@ struct YearGridView: View {
     private func rebuildYearSnapshotIfNeeded() {
         let key = yearSnapshotKey
         guard preparedYearSnapshot?.key != key else { return }
-        if let snapshot = model.cachedCalendarYearSnapshot(for: key) {
+        if let snapshot = calendarStore.cachedCalendarYearSnapshot(for: key) {
             preparedYearSnapshot = snapshot
             return
         }
-        let input = model.calendarDisplayInput(
-            key: key,
-            kind: .year,
-            anchorDate: anchorDate,
-            eventViewFilter: calendarEventViewFilter,
-            searchQuery: searchQuery,
-            referenceDate: Date(),
-            calendar: calendar
-        )
         yearSnapshotBuildTask?.cancel()
         yearSnapshotBuildTask = Task { @MainActor in
             let started = HCBPerformanceTelemetry.timestamp()
+            let input = await model.calendarDisplayInputFromQuery(
+                key: key,
+                kind: .year,
+                anchorDate: anchorDate,
+                eventViewFilter: calendarEventViewFilter,
+                searchQuery: searchQuery,
+                referenceDate: Date(),
+                calendar: calendar
+            )
             let snapshot = await Task.detached(priority: .utility) {
                 CalendarDisplaySnapshotBuilder.yearSnapshot(input)
             }.value
             guard Task.isCancelled == false, snapshot.key == yearSnapshotKey else { return }
-            model.storeCalendarYearSnapshot(snapshot)
+            calendarStore.storeCalendarYearSnapshot(snapshot)
             preparedYearSnapshot = snapshot
             HCBPerformanceTelemetry.debug(
                 "calendar year snapshot built",

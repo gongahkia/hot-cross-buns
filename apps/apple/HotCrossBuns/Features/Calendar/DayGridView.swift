@@ -29,6 +29,8 @@ struct DayGridView: View {
     @State private var preparedDaySnapshot: CalendarDayDisplaySnapshot?
     @State private var daySnapshotBuildTask: Task<Void, Never>?
 
+    private var calendarStore: CalendarStore { model.calendarStore }
+
     private struct TimedDrag: Equatable {
         var startY: CGFloat
         var endY: CGFloat
@@ -36,7 +38,7 @@ struct DayGridView: View {
 
     var body: some View {
         ZStack {
-            if let snapshot = preparedDaySnapshot, snapshot.key == daySnapshotKey, model.isRebuildingDerivedSnapshots == false {
+            if let snapshot = preparedDaySnapshot, snapshot.key == daySnapshotKey, calendarStore.isRebuildingDerivedSnapshots == false {
                 eventsColumn(snapshot)
                     .frame(maxWidth: .infinity)
                     .hcbScaledPadding(12)
@@ -70,13 +72,13 @@ struct DayGridView: View {
     private var daySnapshotKey: PreparedSnapshotKey {
         PreparedSnapshotKeys.calendar(
             mode: .day,
-            dataRevision: model.calendarDisplayRevisionKey(for: [dayStart], calendar: calendar),
-            selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
-            visibleTaskListIDs: model.visibleTaskListIDs,
+            dataRevision: calendarStore.calendarDisplayRevisionKey(for: [dayStart], calendar: calendar),
+            selectedCalendarIDs: calendarStore.calendarSnapshot.selectedCalendarIDs,
+            visibleTaskListIDs: calendarStore.visibleTaskListIDs,
             filterKey: calendarEventViewFilter.cacheKey,
             searchQuery: searchQuery,
             rangeKey: PreparedSnapshotKeys.dateKey(anchorDate, calendar: calendar),
-            settings: model.settings
+            settings: calendarStore.settings
         )
     }
 
@@ -92,19 +94,17 @@ struct DayGridView: View {
                     Text("ALL-DAY")
                         .hcbFont(.caption2, weight: .bold)
                         .foregroundStyle(.secondary)
-                    ForEach(snapshot.allDayEvents) { event in
-                        CalendarEventPreviewButton(event: event) {
-                            Text(event.summary)
-                                .hcbFont(.caption, weight: .medium)
-                                .lineLimit(1)
-                                .opacity(snapshot.eventMetadataByID[event.id]?.opacity ?? 1.0)
-                                .hcbScaledPadding(.horizontal, 8)
-                                .hcbScaledPadding(.vertical, 4)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Capsule().fill(calendarColor(for: event, in: snapshot).opacity(0.25)))
-                                .foregroundStyle(AppColor.ink)
-                        }
-                        .accessibilityLabel("\(event.summary), all day")
+                    ForEach(snapshot.allDayEvents.prefix(snapshot.density.visibleAllDayEventCount)) { event in
+                        allDayEventTile(event, snapshot: snapshot)
+                    }
+                    if snapshot.density.hiddenAllDayEventCount > 0 {
+                        MonthMoreButton(
+                            count: snapshot.density.hiddenAllDayEventCount,
+                            day: snapshot.dayStart,
+                            events: snapshot.allDayEvents,
+                            tasks: [],
+                            calendarColor: { calendarColor(for: $0, in: snapshot) }
+                        )
                     }
                 }
             }
@@ -187,6 +187,11 @@ struct DayGridView: View {
                             ForEach(Array(snapshot.laidOutTimedEvents.enumerated()), id: \.offset) { _, placed in
                                 eventTile(placed, availableWidth: geo.size.width - 56, snapshot: snapshot)
                                     .opacity(snapshot.eventMetadataByID[placed.event.id]?.opacity ?? 1.0)
+                            }
+                            if snapshot.density.hiddenTimedEventCount > 0 {
+                                denseTimedOverflowButton(snapshot)
+                                    .frame(width: max(geo.size.width - 64, 120), height: 26, alignment: .leading)
+                                    .offset(x: 56, y: CGFloat(hourEnd - hourStart) * hourHeight - 34)
                             }
                         }
                     }
@@ -312,6 +317,38 @@ struct DayGridView: View {
         CalendarHourLabelCache.label(for: hour)
     }
 
+    private func allDayEventTile(_ event: CalendarEventMirror, snapshot: CalendarDayDisplaySnapshot) -> some View {
+        let fill = calendarColor(for: event, in: snapshot)
+        return CalendarEventPreviewButton(event: event) {
+            Text(event.summary)
+                .hcbFont(.caption, weight: .medium)
+                .lineLimit(1)
+                .opacity(snapshot.eventMetadataByID[event.id]?.opacity ?? 1.0)
+                .hcbScaledPadding(.horizontal, 8)
+                .hcbScaledPadding(.vertical, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Capsule().fill(fill.opacity(0.25)))
+                .foregroundStyle(AppColor.ink)
+        }
+        .accessibilityLabel("\(event.summary), all day")
+    }
+
+    private func denseTimedOverflowButton(_ snapshot: CalendarDayDisplaySnapshot) -> some View {
+        MonthMoreButton(
+            count: snapshot.density.hiddenTimedEventCount,
+            day: snapshot.dayStart,
+            events: snapshot.timedEvents,
+            tasks: [],
+            calendarColor: { calendarColor(for: $0, in: snapshot) }
+        )
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .strokeBorder(AppColor.cardStroke.opacity(0.45), lineWidth: 0.6)
+        )
+    }
+
+    @ViewBuilder
     private func eventTile(
         _ placed: CalendarGridLayout.LaidOutEvent,
         availableWidth: CGFloat,
@@ -330,33 +367,54 @@ struct DayGridView: View {
         let tileHeight = max(height - 2, 1)
         let fill = calendarColor(for: event, in: snapshot)
 
-        return CalendarEventPreviewButton(event: event) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(event.summary)
-                    .hcbFont(.caption, weight: .semibold)
-                    .lineLimit(height > 38 ? 2 : 1)
-                if height > 38 {
-                    Text(snapshot.eventMetadataByID[event.id]?.timeRangeLabel ?? "")
-                        .hcbFont(.caption2)
-                        .foregroundStyle(.secondary)
+        if snapshot.density.usesDenseTimedRendering {
+            Button {
+                router?.present(.editEvent(event.id))
+            } label: {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(event.summary)
+                        .hcbFont(.caption2, weight: .semibold)
                         .lineLimit(1)
                 }
-                if height > 60, slotWidth > 120, event.location.isEmpty == false {
-                    Text(event.location)
-                        .hcbFont(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+                .hcbScaledPadding(.horizontal, 5)
+                .hcbScaledPadding(.vertical, 3)
+                .frame(width: tileWidth, height: tileHeight, alignment: .topLeading)
+                .clipped()
+                .background(RoundedRectangle(cornerRadius: 5).fill(fill.opacity(0.18)))
+                .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(fill.opacity(0.42), lineWidth: 0.6))
             }
-            .hcbScaledPadding(.horizontal, 8)
-            .hcbScaledPadding(.vertical, 4)
-            .frame(width: tileWidth, height: tileHeight, alignment: .topLeading)
-            .clipped()
-            .background(RoundedRectangle(cornerRadius: 8).fill(fill.opacity(0.22)))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(fill.opacity(0.55), lineWidth: 0.8))
+            .buttonStyle(.plain)
+            .offset(x: 56 + xOffsetWithinDay, y: yOffset)
+            .accessibilityLabel(snapshot.eventMetadataByID[event.id]?.accessibilityLabel ?? event.summary)
+        } else {
+            CalendarEventPreviewButton(event: event) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(event.summary)
+                        .hcbFont(.caption, weight: .semibold)
+                        .lineLimit(height > 38 ? 2 : 1)
+                    if height > 38 {
+                        Text(snapshot.eventMetadataByID[event.id]?.timeRangeLabel ?? "")
+                            .hcbFont(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    if height > 60, slotWidth > 120, event.location.isEmpty == false {
+                        Text(event.location)
+                            .hcbFont(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                .hcbScaledPadding(.horizontal, 8)
+                .hcbScaledPadding(.vertical, 4)
+                .frame(width: tileWidth, height: tileHeight, alignment: .topLeading)
+                .clipped()
+                .background(RoundedRectangle(cornerRadius: 8).fill(fill.opacity(0.22)))
+                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(fill.opacity(0.55), lineWidth: 0.8))
+            }
+            .offset(x: 56 + xOffsetWithinDay, y: yOffset)
+            .accessibilityLabel(snapshot.eventMetadataByID[event.id]?.accessibilityLabel ?? event.summary)
         }
-        .offset(x: 56 + xOffsetWithinDay, y: yOffset)
-        .accessibilityLabel(snapshot.eventMetadataByID[event.id]?.accessibilityLabel ?? event.summary)
     }
 
     @ViewBuilder
@@ -413,27 +471,27 @@ struct DayGridView: View {
     private func rebuildDaySnapshotIfNeeded() {
         let key = daySnapshotKey
         guard preparedDaySnapshot?.key != key else { return }
-        if let snapshot = model.cachedCalendarDaySnapshot(for: key) {
+        if let snapshot = calendarStore.cachedCalendarDaySnapshot(for: key) {
             preparedDaySnapshot = snapshot
             return
         }
-        let input = model.calendarDisplayInput(
-            key: key,
-            kind: .day,
-            anchorDate: anchorDate,
-            eventViewFilter: calendarEventViewFilter,
-            searchQuery: searchQuery,
-            referenceDate: Date(),
-            calendar: calendar
-        )
         daySnapshotBuildTask?.cancel()
         daySnapshotBuildTask = Task { @MainActor in
             let started = HCBPerformanceTelemetry.timestamp()
+            let input = await model.calendarDisplayInputFromQuery(
+                key: key,
+                kind: .day,
+                anchorDate: anchorDate,
+                eventViewFilter: calendarEventViewFilter,
+                searchQuery: searchQuery,
+                referenceDate: Date(),
+                calendar: calendar
+            )
             let snapshot = await Task.detached(priority: .utility) {
                 CalendarDisplaySnapshotBuilder.daySnapshot(input)
             }.value
             guard Task.isCancelled == false, snapshot.key == daySnapshotKey else { return }
-            model.storeCalendarDaySnapshot(snapshot)
+            calendarStore.storeCalendarDaySnapshot(snapshot)
             preparedDaySnapshot = snapshot
             HCBPerformanceTelemetry.debug(
                 "calendar day snapshot built",

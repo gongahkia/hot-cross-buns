@@ -43,6 +43,12 @@ struct AvailabilityGridSelection {
     var isSlotAvailable: (AvailabilitySlot) -> Bool
 }
 
+struct AvailabilityHoldGroup: Identifiable, Equatable, Sendable {
+    var id: String
+    var metadata: AvailabilityHoldMetadata
+    var events: [CalendarEventMirror]
+}
+
 enum AvailabilityHoldLimits {
     static let maxSlotsPerGroup = 24
 }
