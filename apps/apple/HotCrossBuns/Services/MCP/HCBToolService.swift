@@ -162,7 +162,7 @@ final class HCBToolService {
     func callTool(name: String, arguments: [String: Any]) async throws -> [String: Any] {
         switch name {
         case "hcb_search":
-            return try search(arguments)
+            return try await search(arguments)
         case "hcb_today":
             return today()
         case "hcb_week":
@@ -202,10 +202,43 @@ final class HCBToolService {
 
     // MARK: - Reads
 
-    private func search(_ arguments: [String: Any]) throws -> [String: Any] {
+    private func search(_ arguments: [String: Any]) async throws -> [String: Any] {
         let query = try requiredString("query", in: arguments)
         let scope = string("scope", in: arguments) ?? "all"
         let limit = normalizedLimit(arguments["limit"])
+        let cacheScope: LocalCacheEntitySearchScope
+        switch scope {
+        case "tasks":
+            cacheScope = .tasks
+        case "notes":
+            cacheScope = .notes
+        case "events":
+            cacheScope = .events
+        default:
+            cacheScope = .all
+        }
+        if scope != "lists", scope != "calendars",
+           let databaseEntities = try await model.searchEntities(query: query, scope: cacheScope, limit: limit) {
+            let scopedEntities = databaseEntities.filter { entity in
+                switch (scope, entity) {
+                case ("tasks", .task(let task)):
+                    return task.dueDate != nil
+                case ("notes", .task(let task)):
+                    return task.dueDate == nil
+                case ("events", .event):
+                    return true
+                case ("all", _):
+                    return true
+                default:
+                    return scope == "all"
+                }
+            }
+            return success(
+                message: "Found \(scopedEntities.count) result\(scopedEntities.count == 1 ? "" : "s").",
+                items: scopedEntities.map(sanitize)
+            )
+        }
+
         let parsed = AdvancedSearchParser.parse(query)
         let freeText = parsed.freeText.trimmingCharacters(in: .whitespacesAndNewlines)
 

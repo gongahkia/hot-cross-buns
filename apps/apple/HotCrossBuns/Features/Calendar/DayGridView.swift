@@ -70,7 +70,7 @@ struct DayGridView: View {
     private var daySnapshotKey: PreparedSnapshotKey {
         PreparedSnapshotKeys.calendar(
             mode: .day,
-            dataRevision: model.calendarDisplayRevision,
+            dataRevision: model.calendarDisplayRevisionKey(for: [dayStart], calendar: calendar),
             selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
             visibleTaskListIDs: model.visibleTaskListIDs,
             filterKey: calendarEventViewFilter.cacheKey,
@@ -417,20 +417,12 @@ struct DayGridView: View {
             preparedDaySnapshot = snapshot
             return
         }
-        let input = CalendarDisplayInput(
+        let input = model.calendarDisplayInput(
             key: key,
+            kind: .day,
             anchorDate: anchorDate,
-            selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
             eventViewFilter: calendarEventViewFilter,
-            visibleTaskListIDs: model.visibleTaskListIDs,
             searchQuery: searchQuery,
-            eventsByDay: model.eventsByDay,
-            tasksByDueDate: model.tasksByDueDate,
-            eventByID: model.eventByIDSnapshot,
-            taskByID: model.taskByIDSnapshot,
-            calendarColorHexByID: model.calendarSnapshot.calendarColorHexByID,
-            taskListTitleByID: model.taskListTitleByID,
-            settings: model.settings,
             referenceDate: Date(),
             calendar: calendar
         )

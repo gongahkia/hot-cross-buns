@@ -46,6 +46,7 @@
 		1F0EAE7D0AB522B5BA989377 /* EventBulkActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D137D2E12066C5E9B77CEDA /* EventBulkActionBar.swift */; };
 		200CB3413E3917BC9D0CC25F /* RecurrenceEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9062C2E730F1E70F0DCBDADA /* RecurrenceEditor.swift */; };
 		2280EEE6CF4070EA9056DEE5 /* GoogleTasksClientTransportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09882AE6212AFABA6285AACF /* GoogleTasksClientTransportTests.swift */; };
+		2334DBC44C143A594963175A /* LocalCacheDatabaseStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDC88A846791A8F57481D1E /* LocalCacheDatabaseStore.swift */; };
 		23DEF8936535B7AAA96AB9D9 /* DraggedTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2EDEC1CEE956716394335F3 /* DraggedTask.swift */; };
 		2520B85F92EAE261CAEE3A4B /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FF54DB319263C6A1FD8A97D /* CommandPaletteView.swift */; };
 		26F27A606CAB73AC71A858D5 /* GlobalHotkey.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5BB15E1D51900AFA2203B2D /* GlobalHotkey.swift */; };
@@ -102,7 +103,7 @@
 		62D9B18EA384C519A73569BB /* CalendarViewFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 445055F956E8870F1B8DC2E9 /* CalendarViewFilter.swift */; };
 		63F95290D2E706E05C1A9029 /* LocationFullView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADEF77C927632A04783BF515 /* LocationFullView.swift */; };
 		64E4A1BA0CF04097F8D1C9CB /* GoToDateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9EE90AE73008CDCBB548450 /* GoToDateSheet.swift */; };
-		6781A77091B43C2BBAAEC36A /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 8630D5999C10C8D0FF9DB5A1 /* GoogleSignInSwift */; };
+		6781A77091B43C2BBAAEC36A /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = A52E5E4859F66796AFABAB97 /* GoogleSignIn */; };
 		69B576B38783EF27E236A00E /* ReleaseConfigGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8127C3548EA95EFE65DEFC21 /* ReleaseConfigGateTests.swift */; };
 		6BDBD1855A8378E737D6EE21 /* MenuBarExtraScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F6D2A903ACFF04A22993160 /* MenuBarExtraScene.swift */; };
 		6C767E7BC697FE433BF5AAA2 /* HCBDeepLinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 203E4B8B99B16857BB9E1C19 /* HCBDeepLinkRouter.swift */; };
@@ -155,12 +156,13 @@
 		90939888F987285A40E2C421 /* ModelPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB9745E7FFF1CDB75E4D4820 /* ModelPersistenceTests.swift */; };
 		9167E1BAB8A8328329A8AE07 /* WeekGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 365DC96473F7469BD2250779 /* WeekGridView.swift */; };
 		9304E230B950CAA96B423A7E /* CompletionSoundLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF5492117613EE47D9AB1848 /* CompletionSoundLibrary.swift */; };
-		930995A716E764A31379E6C7 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = A52E5E4859F66796AFABAB97 /* GoogleSignIn */; };
+		930995A716E764A31379E6C7 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 623EB4829C1AFC332F6596F0 /* GRDB */; };
 		93306BD12C07C443CE082AFB /* TaskDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB94773FE862AC2922886257 /* TaskDraftTests.swift */; };
 		942FC7B6DBF1A45426C259D1 /* TaskBulkActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33A7C862FCE08662E355A0FA /* TaskBulkActionBar.swift */; };
 		955573546C6EE1A304362928 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2DAF9EC4D904A84E8BC06FC /* ShareViewController.swift */; };
 		981EAEC817813AB5AC211094 /* OptimisticWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9947809DE2CC9C0058C3BA2 /* OptimisticWriterTests.swift */; };
 		9ABDB68F86970E1A10FE8184 /* ForecastBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD3A5E1617A36FD0134FB67E /* ForecastBuilder.swift */; };
+		9C3F9576AA8386A7EADA8DF8 /* LocalCacheDatabaseStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AE000B6379E67CF155DE59A /* LocalCacheDatabaseStoreTests.swift */; };
 		9C9BFE48B53DBF5D2FECD34A /* InsertTaskTemplateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3C281076BBBC06FADE80BBB /* InsertTaskTemplateSheet.swift */; };
 		9CB6F05B30F36FB5D60CFC8D /* QuickCreatePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 681B9DB65E8B12860BF51B3D /* QuickCreatePopover.swift */; };
 		9D509BB5F19F366E80487377 /* RouterPath.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF08213B82A11D35A48E9669 /* RouterPath.swift */; };
@@ -209,6 +211,7 @@
 		BF9F51B5BE9485A0564A99AC /* CacheSchemaVersioningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA7DF4809F264613EBB2B93A /* CacheSchemaVersioningTests.swift */; };
 		BFA45D24358F6B2E8F93D30B /* NotesViewMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = E030E437CE4902BA4DEA017F /* NotesViewMode.swift */; };
 		C22F4B23E5FBAB647FF3F156 /* GoogleAccount.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC17D333E0AC22B77270A396 /* GoogleAccount.swift */; };
+		C25B990AEBE9FDF6C1892C1F /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 8630D5999C10C8D0FF9DB5A1 /* GoogleSignInSwift */; };
 		C3DFA8E26F161309235094CE /* MockURLProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5959B85AC017728D7F460355 /* MockURLProtocol.swift */; };
 		C41F7F38C17AC47EAA0F6517 /* SpotlightIndexerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCB11FE7D6BC9E0309D80F0B /* SpotlightIndexerTests.swift */; };
 		C4720F814B33100AA71170A2 /* CalendarDisplaySnapshotBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84B36AC6D500BDE14863A4E9 /* CalendarDisplaySnapshotBuilder.swift */; };
@@ -310,6 +313,7 @@
 		09D39CEECF9AC57283BF8021 /* YearGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YearGridView.swift; sourceTree = "<group>"; };
 		09D526E7EC054A5BAA2ED4E3 /* CalendarDropComputer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarDropComputer.swift; sourceTree = "<group>"; };
 		0A50310DEBE007A0508A6907 /* ColorTagMatchPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorTagMatchPolicy.swift; sourceTree = "<group>"; };
+		0AE000B6379E67CF155DE59A /* LocalCacheDatabaseStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCacheDatabaseStoreTests.swift; sourceTree = "<group>"; };
 		0EF85250959558DF48B98023 /* UpdatesSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdatesSection.swift; sourceTree = "<group>"; };
 		0F4517375C8E849B9FBA844C /* CustomFiltersSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomFiltersSection.swift; sourceTree = "<group>"; };
 		1002C76B1614FACBF7D37818 /* SidebarItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItem.swift; sourceTree = "<group>"; };
@@ -326,6 +330,7 @@
 		1CAF6D9612BB1055989F1FC4 /* TaskBoardDisplaySnapshotBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskBoardDisplaySnapshotBuilder.swift; sourceTree = "<group>"; };
 		1CD03A9C296FAC6BEBC942B0 /* HotCrossBunsShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HotCrossBunsShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		1D137D2E12066C5E9B77CEDA /* EventBulkActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventBulkActionBar.swift; sourceTree = "<group>"; };
+		1EDC88A846791A8F57481D1E /* LocalCacheDatabaseStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCacheDatabaseStore.swift; sourceTree = "<group>"; };
 		2002D7708472ABD091154D2C /* SettingsTransferBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTransferBundle.swift; sourceTree = "<group>"; };
 		203E4B8B99B16857BB9E1C19 /* HCBDeepLinkRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HCBDeepLinkRouter.swift; sourceTree = "<group>"; };
 		22DB41A975AB784A9EBDD654 /* CalendarEventInstanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventInstanceTests.swift; sourceTree = "<group>"; };
@@ -561,8 +566,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				930995A716E764A31379E6C7 /* GoogleSignIn in Frameworks */,
-				6781A77091B43C2BBAAEC36A /* GoogleSignInSwift in Frameworks */,
+				930995A716E764A31379E6C7 /* GRDB in Frameworks */,
+				6781A77091B43C2BBAAEC36A /* GoogleSignIn in Frameworks */,
+				C25B990AEBE9FDF6C1892C1F /* GoogleSignInSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -927,6 +933,7 @@
 				CDAD0C012D8B9B6623C44F25 /* ICSImporterTests.swift */,
 				E1F9819BB9588096043C4039 /* KanbanGroupingTests.swift */,
 				951530106076C50F526D2A28 /* LargeAccountCalendarPerformanceTests.swift */,
+				0AE000B6379E67CF155DE59A /* LocalCacheDatabaseStoreTests.swift */,
 				8A6422563D35AC92FBC1BFEC /* LocalCacheStoreSplitTests.swift */,
 				7E1914111389946DFA7D57E1 /* LocalNotificationSchedulerTests.swift */,
 				16A222520E37F1BD9721EF0B /* MarkdownHTMLTests.swift */,
@@ -1080,6 +1087,7 @@
 				44E4CDC1A1234A242228D7CD /* HCBCacheCrypto.swift */,
 				C52D7AE4A4A66334A5044478 /* HCBCacheKeychain.swift */,
 				D15328714AA8BA30BCFD4667 /* LocalBackupService.swift */,
+				1EDC88A846791A8F57481D1E /* LocalCacheDatabaseStore.swift */,
 				4D35E61D1B3B91A6E21DCC27 /* LocalCacheStore.swift */,
 				835C22A6F8FF88C02CDD31B6 /* SystemCrashReportReader.swift */,
 			);
@@ -1277,6 +1285,7 @@
 			);
 			name = HotCrossBunsMac;
 			packageProductDependencies = (
+				623EB4829C1AFC332F6596F0 /* GRDB */,
 				A52E5E4859F66796AFABAB97 /* GoogleSignIn */,
 				8630D5999C10C8D0FF9DB5A1 /* GoogleSignInSwift */,
 			);
@@ -1343,6 +1352,7 @@
 			mainGroup = 502678EDD2E8BD49CBFE5942;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				C8DAD84BBE555AE769394E37 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
 				3738D232C4A04D71CA27F7A7 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -1488,6 +1498,7 @@
 				BAAB9B86676422906D9F9B60 /* LoadingView.swift in Sources */,
 				B5A901533E6BE949C73277E4 /* LocalBackupSection.swift in Sources */,
 				8B6A0367D19F60C9561939CC /* LocalBackupService.swift in Sources */,
+				2334DBC44C143A594963175A /* LocalCacheDatabaseStore.swift in Sources */,
 				5049BDF0BCBF8FAE6B9344DB /* LocalCacheStore.swift in Sources */,
 				05D2E8C1B772FA0D7DF885CB /* LocalNotificationScheduler.swift in Sources */,
 				63F95290D2E706E05C1A9029 /* LocationFullView.swift in Sources */,
@@ -1606,6 +1617,7 @@
 				06FE121137213164AD3251BB /* ICSImporterTests.swift in Sources */,
 				AF02EC6FCF69EF4B3DBB5FE2 /* KanbanGroupingTests.swift in Sources */,
 				113EC4F026B2DB64EB1B8567 /* LargeAccountCalendarPerformanceTests.swift in Sources */,
+				9C3F9576AA8386A7EADA8DF8 /* LocalCacheDatabaseStoreTests.swift in Sources */,
 				13ADF7834A85DBE7D5D79905 /* LocalCacheStoreSplitTests.swift in Sources */,
 				A533C4E4E484B4B03C7254F0 /* LocalNotificationSchedulerTests.swift in Sources */,
 				5C259E787C74BE3370D1A627 /* MCPServerControllerTests.swift in Sources */,
@@ -1951,9 +1963,22 @@
 				minimumVersion = 9.1.0;
 			};
 		};
+		C8DAD84BBE555AE769394E37 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 6.29.3;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		623EB4829C1AFC332F6596F0 /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C8DAD84BBE555AE769394E37 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
 		8630D5999C10C8D0FF9DB5A1 /* GoogleSignInSwift */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 3738D232C4A04D71CA27F7A7 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;

@@ -9,7 +9,10 @@ struct GoogleTasksClient: Sendable {
 
     func listTaskLists() async throws -> [TaskListMirror] {
         do {
-            let response: GoogleTaskListsResponse = try await transport.get(path: "/tasks/v1/users/@me/lists")
+            let response: GoogleTaskListsResponse = try await transport.get(
+                path: "/tasks/v1/users/@me/lists",
+                queryItems: [URLQueryItem(name: "fields", value: Self.taskListsFields)]
+            )
             let lists = response.items.map(\.mirror)
             AppLogger.info("google task lists listed", category: .google, metadata: ["count": String(lists.count)])
             return lists
@@ -81,7 +84,8 @@ struct GoogleTasksClient: Sendable {
             URLQueryItem(name: "showCompleted", value: "true"),
             URLQueryItem(name: "showDeleted", value: "true"),
             URLQueryItem(name: "showHidden", value: "true"),
-            URLQueryItem(name: "maxResults", value: "100")
+            URLQueryItem(name: "maxResults", value: "100"),
+            URLQueryItem(name: "fields", value: Self.tasksFields)
         ]
         var pageToken: String?
         var tasks: [TaskMirror] = []
@@ -291,6 +295,15 @@ struct GoogleTasksClient: Sendable {
         ])
         return mirror
     }
+
+    private static let taskListsFields = [
+        "items(id,title,updated,etag)"
+    ].joined(separator: ",")
+
+    private static let tasksFields = [
+        "nextPageToken",
+        "items(id,title,notes,status,due,completed,deleted,hidden,parent,position,etag,updated)"
+    ].joined(separator: ",")
 }
 
 // §14 — Paginated Tasks fetch result. `serverDate` carries the Date header

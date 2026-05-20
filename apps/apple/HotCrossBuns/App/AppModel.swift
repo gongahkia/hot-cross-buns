@@ -275,6 +275,7 @@ final class AppModel {
     // revision so unrelated task/list/settings churn does not flush cached
     // day/week/month/year work.
     private(set) var calendarDisplayRevision: UInt64 = 0
+    @ObservationIgnored private var calendarDayDisplayRevisions: [TimeInterval: UInt64] = [:]
     // True while a scheduled derived snapshot/index rebuild is in flight.
     // Prepared views use this to block interactions rather than rendering
     // stale immutable snapshots against freshly mutated source arrays.
@@ -383,7 +384,7 @@ final class AppModel {
     }
 
     static var preview: AppModel {
-        let model = AppModel.bootstrap()
+        let model = AppModel.testHostBootstrap()
         model.installPreviewData()
         return model
     }
@@ -615,21 +616,18 @@ final class AppModel {
         syncFailureKind = nil
         await replayPendingMutations()
         do {
-            let syncedState = try await syncScheduler.syncNow(
+            let syncResult = try await syncScheduler.syncNowWithChangeSet(
                 mode: settings.syncMode,
                 baseState: currentCachedState()
             )
-            apply(syncedState)
+            try await cacheStore.commitSyncResult(syncResult)
+            let syncedState = syncResult.state
+            apply(syncResult)
             authState = syncedState.account.map(AuthState.signedIn) ?? .signedOut
             syncState = .synced(at: Date())
             isSyncPaused = false
             syncFailureKind = nil
             await dismissLoadingOverlayBeforeFollowUpWork()
-            // Force-flush: completed sync state must hit disk so a crash
-            // before the next mutation doesn't lose the freshly-fetched
-            // events. (replayPendingMutations runs again next launch
-            // anyway but unnecessary refetch is wasteful.)
-            await saveCurrentState()
             await synchronizeLocalNotifications()
             await runDailyLocalBackupIfNeeded()
             let duration = Int(Date().timeIntervalSince(started) * 1000)
@@ -4802,6 +4800,58 @@ final class AppModel {
         return tasks[index]
     }
 
+    func searchEntities(
+        query: String,
+        scope: LocalCacheEntitySearchScope = .all,
+        limit: Int = 40
+    ) async throws -> [QuickSwitcherEntity]? {
+        guard let results = try await cacheStore.searchEntities(query: query, scope: scope, limit: limit) else {
+            return nil
+        }
+        var entities: [QuickSwitcherEntity] = []
+        entities.reserveCapacity(results.tasks.count + results.events.count)
+        entities += results.tasks.map(QuickSwitcherEntity.task)
+        entities += results.events.map(QuickSwitcherEntity.event)
+
+        if scope == .all {
+            entities += containerSearchEntities(query: query, limit: max(0, limit - entities.count))
+        }
+        return Array(entities.prefix(limit))
+    }
+
+    private func containerSearchEntities(query: String, limit: Int) -> [QuickSwitcherEntity] {
+        guard limit > 0 else { return [] }
+        let parsed = AdvancedSearchParser.parse(query)
+        guard parsed.regex == nil else { return [] }
+        let freeText = parsed.freeText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let containers: [QuickSwitcherEntity] =
+            taskLists.map(QuickSwitcherEntity.taskList)
+            + calendars.map(QuickSwitcherEntity.calendar)
+            + settings.customFilters.map(QuickSwitcherEntity.customFilter)
+        let structurallyFiltered = containers.filter {
+            AdvancedSearchMatcher.matches(
+                $0,
+                query: parsed,
+                calendars: calendars,
+                taskLists: taskLists
+            )
+        }
+        if freeText.isEmpty {
+            return Array(
+                structurallyFiltered
+                    .sorted { $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending }
+                    .prefix(limit)
+            )
+        }
+        return FuzzySearcher.rank(
+            structurallyFiltered,
+            query: freeText,
+            labelForItem: { $0.label },
+            keywordsForItem: { $0.keywords },
+            limit: limit
+        ).map(\.item)
+    }
+
     func event(id: CalendarEventMirror.ID) -> CalendarEventMirror? {
         guard let index = eventIndexByID[id],
               events.indices.contains(index),
@@ -4857,6 +4907,14 @@ final class AppModel {
     }
 
     private func apply(_ state: CachedAppState) {
+        apply(state, changeSet: nil)
+    }
+
+    private func apply(_ result: SyncApplyResult) {
+        apply(result.state, changeSet: result.changeSet)
+    }
+
+    private func apply(_ state: CachedAppState, changeSet: SyncChangeSet?) {
         #if DEBUG
         let totalStart = DispatchTime.now().uptimeNanoseconds
         #endif
@@ -4874,32 +4932,49 @@ final class AppModel {
         let diffEnd = DispatchTime.now().uptimeNanoseconds
         let assignmentStart = DispatchTime.now().uptimeNanoseconds
         #endif
+        let shouldAssignAll = changeSet == nil
+        let shouldAssignTaskLists = shouldAssignAll || changeSet?.taskLists.hasChanges == true
+        let shouldAssignTasks = shouldAssignAll || changeSet?.tasks.hasChanges == true
+        let shouldAssignCalendars = shouldAssignAll || changeSet?.calendars.hasChanges == true
+        let shouldAssignEvents = shouldAssignAll || changeSet?.events.hasChanges == true
+        let shouldAssignSettings = shouldAssignAll || changeSet?.settingsChanged == true
+        let shouldAssignCheckpoints = shouldAssignAll || changeSet?.checkpointChanged == true
+        let shouldAssignPendingMutations = shouldAssignAll || state.pendingMutations != pendingMutations
+        let shouldRebuildDerivedSnapshots = shouldAssignAll || changeSet?.requiresDerivedSnapshotRebuild == true
 
         account = state.account
         connectedAccounts = state.accounts
         activeAccountID = state.activeAccountID
-        accountWorkspaces = state.accountWorkspaces
+        if shouldAssignAll || state.accountWorkspaces != accountWorkspaces {
+            accountWorkspaces = state.accountWorkspaces
+        }
         authService.setActiveAccountID(state.activeAccountID)
-        taskLists = state.taskLists
-        tasks = state.tasks
-        calendars = state.calendars
-        events = state.events
-        settings = state.settings
+        if shouldAssignTaskLists { taskLists = state.taskLists }
+        if shouldAssignTasks { tasks = state.tasks }
+        if shouldAssignCalendars { calendars = state.calendars }
+        if shouldAssignEvents { events = state.events }
+        if shouldAssignSettings { settings = state.settings }
         GoogleDiagnostics.setRawPayloadLoggingEnabled(settings.rawGoogleDiagnosticsEnabled)
-        syncCheckpoints = state.syncCheckpoints
-        pendingMutations = state.pendingMutations
+        if shouldAssignCheckpoints { syncCheckpoints = state.syncCheckpoints }
+        if shouldAssignPendingMutations { pendingMutations = state.pendingMutations }
         HCBColorSchemeStore.current = HCBColorScheme.scheme(id: settings.colorSchemeID, customSchemes: settings.customColorSchemes) ?? .notion
         HCBShortcutStorage.persist(settings.shortcutOverrides)
         #if DEBUG
         let assignmentEnd = DispatchTime.now().uptimeNanoseconds
         let autoIncludeStart = DispatchTime.now().uptimeNanoseconds
         #endif
-        autoIncludeNewTaskLists()
+        if shouldAssignAll || shouldAssignTaskLists {
+            autoIncludeNewTaskLists()
+        }
         #if DEBUG
         let autoIncludeEnd = DispatchTime.now().uptimeNanoseconds
         let rebuildStart = DispatchTime.now().uptimeNanoseconds
         #endif
-        rebuildSnapshots()
+        if shouldRebuildDerivedSnapshots {
+            rebuildSnapshots(syncChangeSet: changeSet)
+        } else {
+            isRebuildingDerivedSnapshots = false
+        }
         #if DEBUG
         let rebuildEnd = DispatchTime.now().uptimeNanoseconds
         #endif
@@ -4910,7 +4985,10 @@ final class AppModel {
         let postApplyStart = DispatchTime.now().uptimeNanoseconds
         #endif
 
-        if shouldEmitSyncDiff {
+        let shouldRecordSyncDiff = changeSet.map {
+            $0.tasks.hasChanges || $0.events.hasChanges
+        } ?? true
+        if shouldEmitSyncDiff && shouldRecordSyncDiff {
             Self.recordSyncDiffAsync(
                 priorTasks: priorTasks,
                 priorEvents: priorEvents,
@@ -5449,6 +5527,12 @@ final class AppModel {
         await notificationScheduler.lastSummary
     }
 
+    func rebuildLocalIntegrationIndexesForDiagnostics() async {
+        try? await cacheStore.enqueueSideEffectRebuild(targets: Set(LocalIntegrationDirtyTarget.allCases))
+        await runNotificationSync(requestAuthorization: false)
+        await runSpotlightSync()
+    }
+
     func recordNearRealtimePollDiagnostic(
         delaySeconds: Double,
         attempt: Int,
@@ -5512,15 +5596,38 @@ final class AppModel {
         // Snapshot on main actor at fire time — reflects the latest state
         // regardless of how many mutations piled up during the debounce.
         let started = Date()
-        let tasksNow = tasks
-        let eventsNow = events
         let settingsNow = settings
-        await notificationScheduler.synchronize(
-            tasks: tasksNow,
-            events: eventsNow,
-            settings: settingsNow,
-            requestAuthorization: requestAuthorization
-        )
+        let dirtyItems = (try? await cacheStore.sideEffectDirtyItems(target: .notification, limit: 500)) ?? []
+        let lastNotificationSummary = await notificationScheduler.lastSummary
+        let requiresFullRebuild = dirtyItems.contains(where: \.isFullRebuild)
+            || requestAuthorization
+            || settingsNow.enableLocalNotifications == false
+            || lastNotificationSummary == nil
+
+        if dirtyItems.isEmpty == false, requiresFullRebuild == false {
+            let dirty = dirtyResourceIDs(from: dirtyItems)
+            await notificationScheduler.synchronizeDirty(
+                changedTasks: dirty.upsertedTaskIDs.compactMap { task(id: $0) },
+                deletedTaskIDs: dirty.deletedTaskIDs,
+                changedEvents: dirty.upsertedEventIDs.compactMap { event(id: $0) },
+                deletedEventIDs: dirty.deletedEventIDs,
+                settings: settingsNow,
+                requestAuthorization: false
+            )
+            try? await cacheStore.markSideEffectDirtyItemsProcessed(dirtyItems)
+        } else {
+            let tasksNow = tasks
+            let eventsNow = events
+            await notificationScheduler.synchronize(
+                tasks: tasksNow,
+                events: eventsNow,
+                settings: settingsNow,
+                requestAuthorization: requestAuthorization
+            )
+            if dirtyItems.isEmpty == false {
+                try? await cacheStore.markSideEffectDirtyItemsProcessed(dirtyItems)
+            }
+        }
         lastNotificationScheduleSummary = await notificationScheduler.lastSummary
         notificationDiagnosticUpdatedAt = Date()
         notificationDiagnosticDurationMilliseconds = Date().timeIntervalSince(started) * 1000
@@ -5545,9 +5652,223 @@ final class AppModel {
     }
 
     private func runSpotlightSync() async {
-        let tasksNow = tasks
-        let eventsNow = events
-        await spotlightIndexer.update(tasks: tasksNow, events: eventsNow)
+        let dirtyItems = (try? await cacheStore.sideEffectDirtyItems(target: .spotlight, limit: 500)) ?? []
+        let isSpotlightPrimed = await spotlightIndexer.isPrimed()
+        let requiresFullRebuild = dirtyItems.contains(where: \.isFullRebuild) || isSpotlightPrimed == false
+        if dirtyItems.isEmpty == false, requiresFullRebuild == false {
+            let dirty = dirtyResourceIDs(from: dirtyItems)
+            await spotlightIndexer.applyDirty(
+                changedTasks: dirty.upsertedTaskIDs.compactMap { task(id: $0) },
+                deletedTaskIDs: dirty.deletedTaskIDs,
+                changedEvents: dirty.upsertedEventIDs.compactMap { event(id: $0) },
+                deletedEventIDs: dirty.deletedEventIDs
+            )
+            try? await cacheStore.markSideEffectDirtyItemsProcessed(dirtyItems)
+        } else {
+            let tasksNow = tasks
+            let eventsNow = events
+            await spotlightIndexer.update(tasks: tasksNow, events: eventsNow)
+            if dirtyItems.isEmpty == false {
+                try? await cacheStore.markSideEffectDirtyItemsProcessed(dirtyItems)
+            }
+        }
+    }
+
+    private func dirtyResourceIDs(
+        from items: [LocalIntegrationDirtyItem]
+    ) -> (
+        upsertedTaskIDs: Set<TaskMirror.ID>,
+        deletedTaskIDs: Set<TaskMirror.ID>,
+        upsertedEventIDs: Set<CalendarEventMirror.ID>,
+        deletedEventIDs: Set<CalendarEventMirror.ID>
+    ) {
+        var upsertedTaskIDs: Set<TaskMirror.ID> = []
+        var deletedTaskIDs: Set<TaskMirror.ID> = []
+        var upsertedEventIDs: Set<CalendarEventMirror.ID> = []
+        var deletedEventIDs: Set<CalendarEventMirror.ID> = []
+        for item in items {
+            guard let resourceType = item.resourceType, let resourceID = item.resourceID else { continue }
+            switch (resourceType, item.operation) {
+            case (.task, .upsert):
+                upsertedTaskIDs.insert(resourceID)
+            case (.task, .delete):
+                deletedTaskIDs.insert(resourceID)
+            case (.event, .upsert):
+                upsertedEventIDs.insert(resourceID)
+            case (.event, .delete):
+                deletedEventIDs.insert(resourceID)
+            default:
+                break
+            }
+        }
+        return (upsertedTaskIDs, deletedTaskIDs, upsertedEventIDs, deletedEventIDs)
+    }
+
+    func calendarDisplayRevisionKey(for dates: [Date], calendar: Calendar = .current) -> String {
+        let dayKeys = Set(dates.map { calendar.startOfDay(for: $0).timeIntervalSinceReferenceDate })
+        return calendarDisplayRevisionKey(forDayKeys: dayKeys)
+    }
+
+    func calendarDisplayRevisionKey(forYearContaining date: Date, calendar: Calendar = .current) -> String {
+        guard let yearStart = calendar.date(from: DateComponents(year: calendar.component(.year, from: date), month: 1, day: 1)),
+              let nextYear = calendar.date(from: DateComponents(year: calendar.component(.year, from: date) + 1, month: 1, day: 1))
+        else {
+            return calendarDisplayRevisionKey(for: [date], calendar: calendar)
+        }
+        var dayKeys: Set<TimeInterval> = []
+        var cursor = yearStart
+        while cursor < nextYear {
+            dayKeys.insert(calendar.startOfDay(for: cursor).timeIntervalSinceReferenceDate)
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+        }
+        return calendarDisplayRevisionKey(forDayKeys: dayKeys)
+    }
+
+    func calendarVisibleRangeProjection(
+        kind: CalendarVisibleRangeKind,
+        anchorDate: Date,
+        dayCount: Int? = nil,
+        calendar: Calendar = .current
+    ) -> CalendarVisibleRangeProjection {
+        let range = calendarVisibleRange(kind: kind, anchorDate: anchorDate, dayCount: dayCount, calendar: calendar)
+        return calendarVisibleRangeProjection(range: range)
+    }
+
+    func calendarVisibleRangeProjection(
+        kind: CalendarVisibleRangeKind,
+        start: Date,
+        end: Date,
+        calendar: Calendar = .current
+    ) -> CalendarVisibleRangeProjection {
+        calendarVisibleRangeProjection(
+            range: CalendarVisibleRange(kind: kind, start: start, end: end, calendar: calendar)
+        )
+    }
+
+    private func calendarVisibleRangeProjection(range: CalendarVisibleRange) -> CalendarVisibleRangeProjection {
+        let dayKeySet = Set(range.dayKeys)
+        var visibleEventsByDay: [TimeInterval: [CalendarEventMirror.ID]] = [:]
+        var visibleEventByID: [CalendarEventMirror.ID: CalendarEventMirror] = [:]
+        var visibleTasksByDueDate: [TimeInterval: [TaskMirror.ID]] = [:]
+        var visibleTaskByID: [TaskMirror.ID: TaskMirror] = [:]
+
+        for key in range.dayKeys {
+            let eventIDs = eventsByDay[key] ?? []
+            if eventIDs.isEmpty == false {
+                visibleEventsByDay[key] = eventIDs
+            }
+            for eventID in eventIDs {
+                if let event = eventByIDSnapshot[eventID] {
+                    visibleEventByID[eventID] = event
+                }
+            }
+
+            let taskIDs = tasksByDueDate[key] ?? []
+            if taskIDs.isEmpty == false {
+                visibleTasksByDueDate[key] = taskIDs
+            }
+            for taskID in taskIDs {
+                if let task = taskByIDSnapshot[taskID] {
+                    visibleTaskByID[taskID] = task
+                }
+            }
+        }
+
+        return CalendarVisibleRangeProjection(
+            range: range,
+            revisionKey: calendarDisplayRevisionKey(forDayKeys: dayKeySet),
+            eventsByDay: visibleEventsByDay,
+            tasksByDueDate: visibleTasksByDueDate,
+            eventByID: visibleEventByID,
+            taskByID: visibleTaskByID,
+            eventSearchTextByID: Dictionary(uniqueKeysWithValues: visibleEventByID.values.map { event in
+                (event.id, "\(event.summary)\n\(event.details)\n\(event.location)")
+            }),
+            taskSearchTextByID: Dictionary(uniqueKeysWithValues: visibleTaskByID.values.map { task in
+                (task.id, "\(task.title)\n\(task.notes)")
+            })
+        )
+    }
+
+    func calendarDisplayInput(
+        key: PreparedSnapshotKey,
+        kind: CalendarVisibleRangeKind,
+        anchorDate: Date,
+        dayCount: Int? = nil,
+        eventViewFilter: CalendarEventViewFilter,
+        searchQuery: String,
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> CalendarDisplayInput {
+        CalendarDisplayInput(
+            key: key,
+            anchorDate: anchorDate,
+            selectedCalendarIDs: calendarSnapshot.selectedCalendarIDs,
+            eventViewFilter: eventViewFilter,
+            visibleTaskListIDs: visibleTaskListIDs,
+            searchQuery: searchQuery,
+            visibleRange: calendarVisibleRangeProjection(
+                kind: kind,
+                anchorDate: anchorDate,
+                dayCount: dayCount,
+                calendar: calendar
+            ),
+            calendarColorHexByID: calendarSnapshot.calendarColorHexByID,
+            taskListTitleByID: taskListTitleByID,
+            settings: settings,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+    }
+
+    private func calendarVisibleRange(
+        kind: CalendarVisibleRangeKind,
+        anchorDate: Date,
+        dayCount: Int?,
+        calendar: Calendar
+    ) -> CalendarVisibleRange {
+        let anchorStart = calendar.startOfDay(for: anchorDate)
+        switch kind {
+        case .day:
+            return CalendarVisibleRange(kind: kind, start: anchorStart, end: anchorStart, calendar: calendar)
+        case .week:
+            let days = dayCount.map { count in
+                (0..<max(1, count)).compactMap { calendar.date(byAdding: .day, value: $0, to: anchorStart) }
+            } ?? CalendarGridLayout.weekDays(containing: anchorDate, calendar: calendar)
+            guard let first = days.first, let last = days.last else {
+                return CalendarVisibleRange(kind: kind, start: anchorStart, end: anchorStart, calendar: calendar)
+            }
+            return CalendarVisibleRange(kind: kind, start: first, end: last, calendar: calendar)
+        case .month:
+            let cells = CalendarGridLayout.monthCells(for: anchorDate, calendar: calendar)
+            guard let first = cells.first, let last = cells.last else {
+                return CalendarVisibleRange(kind: kind, start: anchorStart, end: anchorStart, calendar: calendar)
+            }
+            return CalendarVisibleRange(kind: kind, start: first, end: last, calendar: calendar)
+        case .year:
+            guard let yearStart = calendar.date(from: DateComponents(year: calendar.component(.year, from: anchorDate), month: 1, day: 1)),
+                  let nextYear = calendar.date(from: DateComponents(year: calendar.component(.year, from: anchorDate) + 1, month: 1, day: 1)),
+                  let yearEnd = calendar.date(byAdding: .day, value: -1, to: nextYear) else {
+                return CalendarVisibleRange(kind: kind, start: anchorStart, end: anchorStart, calendar: calendar)
+            }
+            return CalendarVisibleRange(kind: kind, start: yearStart, end: yearEnd, calendar: calendar)
+        case .agenda:
+            let count = max(1, dayCount ?? 14)
+            let end = calendar.date(byAdding: .day, value: count - 1, to: anchorStart) ?? anchorStart
+            return CalendarVisibleRange(kind: kind, start: anchorStart, end: end, calendar: calendar)
+        }
+    }
+
+    private func calendarDisplayRevisionKey(forDayKeys dayKeys: Set<TimeInterval>) -> String {
+        guard dayKeys.isEmpty == false else {
+            return "\(calendarDisplayRevision)"
+        }
+        let dayRevisionPart = dayKeys
+            .sorted()
+            .map { key in "\(Int(key)):\(calendarDayDisplayRevisions[key] ?? 0)" }
+            .joined(separator: ",")
+        return "\(calendarDisplayRevision)[\(dayRevisionPart)]"
     }
 
     func cachedCalendarDaySnapshot(for key: PreparedSnapshotKey) -> CalendarDayDisplaySnapshot? {
@@ -5624,7 +5945,7 @@ final class AppModel {
         }
     }
 
-    private func rebuildSnapshots(referenceDate: Date = Date()) {
+    private func rebuildSnapshots(referenceDate: Date = Date(), syncChangeSet: SyncChangeSet? = nil) {
         // Synchronous-flush variant. Prefer scheduleRebuildSnapshots() for
         // mutation hot paths so multiple rapid mutations coalesce. Use
         // this only when a downstream caller needs snapshots populated
@@ -5636,7 +5957,7 @@ final class AppModel {
         isRebuildingDerivedSnapshots = true
         let started = ContinuousClock.now
         let snapshots = Self.buildDerivedSnapshots(derivedSnapshotInput(referenceDate: referenceDate))
-        applyDerivedSnapshots(snapshots)
+        applyDerivedSnapshots(snapshots, syncChangeSet: syncChangeSet)
         isRebuildingDerivedSnapshots = false
         logDerivedSnapshotRebuild(started: started, snapshots: snapshots)
     }
@@ -5650,7 +5971,7 @@ final class AppModel {
                 Self.buildDerivedSnapshots(input)
             }.value
             guard let self, Task.isCancelled == false else { return }
-            self.applyDerivedSnapshots(snapshots)
+            self.applyDerivedSnapshots(snapshots, syncChangeSet: nil)
             self.isRebuildingDerivedSnapshots = false
             self.snapshotRebuildTask = nil
             self.logDerivedSnapshotRebuild(started: started, snapshots: snapshots)
@@ -5668,7 +5989,7 @@ final class AppModel {
         )
     }
 
-    private func applyDerivedSnapshots(_ snapshots: DerivedAppSnapshots) {
+    private func applyDerivedSnapshots(_ snapshots: DerivedAppSnapshots, syncChangeSet: SyncChangeSet?) {
         visibleTaskListIDs = snapshots.visibleTaskListIDs
         taskSections = snapshots.taskSections
         taskBoardSnapshot = snapshots.taskBoardSnapshot
@@ -5695,12 +6016,27 @@ final class AppModel {
         #endif
         if calendarDisplayFingerprint != snapshots.calendarDisplayFingerprint {
             calendarDisplayFingerprint = snapshots.calendarDisplayFingerprint
-            calendarDisplayRevision &+= 1
-            calendarPreparedSnapshotCache.removeAll()
-            HCBPerformanceTelemetry.debug(
-                "calendar display revision advanced",
-                metadata: ["revision": "\(calendarDisplayRevision)"]
-            )
+            if let syncChangeSet,
+               syncChangeSet.canUseNarrowCalendarInvalidation {
+                for dayKey in syncChangeSet.affectedDayKeys {
+                    calendarDayDisplayRevisions[dayKey, default: 0] &+= 1
+                }
+                HCBPerformanceTelemetry.debug(
+                    "calendar day revisions advanced",
+                    metadata: [
+                        "days": "\(syncChangeSet.affectedDayKeys.count)",
+                        "globalRevision": "\(calendarDisplayRevision)"
+                    ]
+                )
+            } else {
+                calendarDisplayRevision &+= 1
+                calendarDayDisplayRevisions.removeAll()
+                calendarPreparedSnapshotCache.removeAll()
+                HCBPerformanceTelemetry.debug(
+                    "calendar display revision advanced",
+                    metadata: ["revision": "\(calendarDisplayRevision)"]
+                )
+            }
         }
 
         // Advance the content revision only after every derived snapshot and

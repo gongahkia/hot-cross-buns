@@ -32,7 +32,7 @@ final class LargeAccountCalendarPerformanceTests: XCTestCase {
         let mainFile = tempDir.appending(path: "cache-state.json")
         let eventsFile = tempDir.appending(path: "cache-events.json")
         let state = LargeAccountCalendarFixture.makeState(eventCount: 15_000)
-        let store = LocalCacheStore(fileURL: mainFile)
+        let store = LocalCacheStore(fileURL: mainFile, storageBackend: .jsonSidecar)
 
         let (saveProfile, saveMs) = try await timedAsync("cache.save.15k") {
             try await store.profileSaveForBenchmark(state)
@@ -43,7 +43,7 @@ final class LargeAccountCalendarPerformanceTests: XCTestCase {
         XCTAssertTrue(mainDecoded.events.isEmpty, "large event payloads must stay in the split sidecar")
         XCTAssertTrue(FileManager.default.fileExists(atPath: eventsFile.path))
 
-        let reloader = LocalCacheStore(fileURL: mainFile)
+        let reloader = LocalCacheStore(fileURL: mainFile, storageBackend: .jsonSidecar)
         let (loadResult, loadMs) = try await timedAsync("cache.load.15k") {
             try await reloader.profileLoadCachedStateForBenchmark()
         }
@@ -57,6 +57,107 @@ final class LargeAccountCalendarPerformanceTests: XCTestCase {
         XCTAssertEqual(loaded.events.count, state.events.count)
         XCTAssertEqual(loaded.events.first?.id, state.events.first?.id)
         XCTAssertEqual(loaded.events.last?.id, state.events.last?.id)
+    }
+
+    func testLocalCacheDatabaseRoundTripsLargeAccountBenchmark() throws {
+        let tempDir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appending(path: "hcb-large-db-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let dbFile = tempDir.appending(path: "cache-state.sqlite")
+        let state = LargeAccountCalendarFixture.makeState(eventCount: 15_000)
+        let store = try LocalCacheDatabaseStore(fileURL: dbFile)
+
+        let (saveProfile, saveMs) = try timed("cache.db.write.15k") {
+            try store.save(state)
+        }
+
+        let reloader = try LocalCacheDatabaseStore(fileURL: dbFile)
+        let (loadResult, loadMs) = try timed("cache.db.load.15k") {
+            try reloader.loadProfiled()
+        }
+        let loaded = loadResult.state
+        let loadProfile = loadResult.profile
+        let dbBytes = (try? dbFile.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+
+        print("HCBLargeAccountBenchmark cache.dbBytes=\(dbBytes) saveMs=\(format(saveMs)) loadMs=\(format(loadMs))")
+        print("HCBLargeAccountBenchmark cache.dbWriteBreakdown accounts=\(saveProfile.accountRows) workspaces=\(saveProfile.workspaceRows) taskLists=\(saveProfile.taskListRows) tasks=\(saveProfile.taskRows) calendars=\(saveProfile.calendarRows) events=\(saveProfile.eventRows) checkpoints=\(saveProfile.checkpointRows) pending=\(saveProfile.pendingMutationRows) encodeHashMs=\(format(saveProfile.encodeAndHashMilliseconds)) txMs=\(format(saveProfile.transactionMilliseconds)) totalMs=\(format(saveProfile.totalMilliseconds))")
+        print("HCBLargeAccountBenchmark cache.dbLoadBreakdown accounts=\(loadProfile.accountRows) workspaces=\(loadProfile.workspaceRows) taskLists=\(loadProfile.taskListRows) tasks=\(loadProfile.taskRows) calendars=\(loadProfile.calendarRows) events=\(loadProfile.eventRows) checkpoints=\(loadProfile.checkpointRows) pending=\(loadProfile.pendingMutationRows) fetchDecodeMs=\(format(loadProfile.fetchAndDecodeMilliseconds)) rebuildMs=\(format(loadProfile.rebuildStateMilliseconds)) totalMs=\(format(loadProfile.totalMilliseconds))")
+        XCTAssertEqual(loaded.events.count, state.events.count)
+        XCTAssertEqual(loaded.events.first?.id, state.events.first?.id)
+        XCTAssertEqual(loaded.events.last?.id, state.events.last?.id)
+        XCTAssertEqual(try store.rowCountForTesting(table: "cache_events"), 15_000)
+    }
+
+    func testCalendarVisibleRangeDatabaseQueriesLargeAccountBenchmark() throws {
+        let originalTimeZone = NSTimeZone.default
+        NSTimeZone.default = TimeZone(identifier: "UTC")!
+        defer { NSTimeZone.default = originalTimeZone }
+
+        let tempDir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appending(path: "hcb-visible-range-db-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let state = LargeAccountCalendarFixture.makeState(eventCount: 15_000)
+        let store = try LocalCacheDatabaseStore(fileURL: tempDir.appending(path: "cache-state.sqlite"))
+        try store.save(state)
+        let selectedCalendarIDs = Set(state.calendars.map(\.id))
+
+        let (day, dayMs) = try timed("cache.db.visibleRange.day.15k") {
+            try store.calendarVisibleRangeProjection(
+                accountID: "large-account",
+                kind: .day,
+                anchorDate: LargeAccountCalendarFixture.denseDay,
+                selectedCalendarIDs: selectedCalendarIDs,
+                calendar: calendar
+            )
+        }
+        let (week, weekMs) = try timed("cache.db.visibleRange.week.15k") {
+            try store.calendarVisibleRangeProjection(
+                accountID: "large-account",
+                kind: .week,
+                anchorDate: LargeAccountCalendarFixture.denseDay,
+                selectedCalendarIDs: selectedCalendarIDs,
+                calendar: calendar
+            )
+        }
+        let (month, monthMs) = try timed("cache.db.visibleRange.month.15k") {
+            try store.calendarVisibleRangeProjection(
+                accountID: "large-account",
+                kind: .month,
+                anchorDate: LargeAccountCalendarFixture.denseDay,
+                selectedCalendarIDs: selectedCalendarIDs,
+                calendar: calendar
+            )
+        }
+        let (agenda, agendaMs) = try timed("cache.db.visibleRange.agenda.15k") {
+            try store.calendarVisibleRangeProjection(
+                accountID: "large-account",
+                kind: .agenda,
+                anchorDate: LargeAccountCalendarFixture.denseDay,
+                dayCount: 14,
+                selectedCalendarIDs: selectedCalendarIDs,
+                calendar: calendar
+            )
+        }
+        let (year, yearMs) = try timed("cache.db.visibleRange.year.15k") {
+            try store.calendarVisibleRangeProjection(
+                accountID: "large-account",
+                kind: .year,
+                anchorDate: LargeAccountCalendarFixture.denseDay,
+                selectedCalendarIDs: selectedCalendarIDs,
+                calendar: calendar
+            )
+        }
+
+        print("HCBLargeAccountBenchmark cache.dbVisibleRangeCounts dayEvents=\(day.eventByID.count) weekEvents=\(week.eventByID.count) monthEvents=\(month.eventByID.count) agendaEvents=\(agenda.eventByID.count) yearEvents=\(year.eventByID.count) dayMs=\(format(dayMs)) weekMs=\(format(weekMs)) monthMs=\(format(monthMs)) agendaMs=\(format(agendaMs)) yearMs=\(format(yearMs))")
+        XCTAssertGreaterThan(day.eventByID.count, 300)
+        XCTAssertGreaterThan(week.eventByID.count, day.eventByID.count)
+        XCTAssertGreaterThan(month.eventByID.count, week.eventByID.count)
+        XCTAssertGreaterThan(agenda.eventByID.count, week.eventByID.count)
+        XCTAssertGreaterThan(year.eventByID.count, month.eventByID.count)
     }
 
     @MainActor
@@ -206,6 +307,72 @@ final class LargeAccountCalendarPerformanceTests: XCTestCase {
         )
         XCTAssertEqual(synced.syncCheckpoints.count, 1)
         XCTAssertEqual(synced.syncCheckpoints.first?.calendarSyncToken, "large-sync-token")
+    }
+
+    func testSyncSchedulerSmallIncrementalVsFullEventApplyBenchmark() async throws {
+        let eventCount = 8_000
+        var fullBase = LargeAccountCalendarFixture.makeState(eventCount: eventCount, calendarCount: 1)
+        fullBase.settings.cloudSyncTargets = [.events]
+        fullBase.settings.selectedCalendarIDs = ["cal-0"]
+        fullBase.settings.hasConfiguredCalendarSelection = true
+        fullBase.events = []
+
+        var incrementalBase = LargeAccountCalendarFixture.makeState(eventCount: eventCount, calendarCount: 1)
+        incrementalBase.settings.cloudSyncTargets = [.events]
+        incrementalBase.settings.selectedCalendarIDs = ["cal-0"]
+        incrementalBase.settings.hasConfiguredCalendarSelection = true
+        incrementalBase.syncCheckpoints = [
+            SyncCheckpoint(
+                id: SyncCheckpoint.stableID(accountID: "large-account", resourceType: .calendar, resourceID: "cal-0"),
+                accountID: "large-account",
+                resourceType: .calendar,
+                resourceID: "cal-0",
+                calendarSyncToken: "previous-token",
+                tasksUpdatedMin: nil,
+                lastSuccessfulSyncAt: LargeAccountCalendarFixture.denseDay
+            )
+        ]
+        var changedEvent = incrementalBase.events[eventCount / 2]
+        changedEvent.summary += " updated"
+        changedEvent.etag = "\(changedEvent.etag ?? "event")-v2"
+        changedEvent.updatedAt = LargeAccountCalendarFixture.denseDay.addingTimeInterval(3600)
+
+        let calendarListData = try LargeAccountCalendarFixture.calendarListResponseData(calendars: incrementalBase.calendars)
+        let fullEventsData = try LargeAccountCalendarFixture.eventsResponseData(events: incrementalBase.events)
+        let incrementalEventsData = try LargeAccountCalendarFixture.eventsResponseData(events: [changedEvent])
+
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json", "Date": "Thu, 14 May 2026 02:00:00 GMT"]
+            )!
+            switch request.url?.path {
+            case "/calendar/v3/users/me/calendarList":
+                return (response, calendarListData)
+            case "/calendar/v3/calendars/cal-0/events":
+                let query = Dictionary(uniqueKeysWithValues: (URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+                return (response, query["syncToken"] == nil ? fullEventsData : incrementalEventsData)
+            default:
+                XCTFail("Unexpected request \(request.url?.absoluteString ?? "<nil>")")
+                return (response, Data(#"{"items":[]}"#.utf8))
+            }
+        }
+
+        let scheduler = makeScheduler()
+        let (fullResult, fullMs) = try await timedAsync("sync.fullEvents.\(eventCount).changeSet") {
+            try await scheduler.syncNowWithChangeSet(mode: .balanced, baseState: fullBase)
+        }
+        let (incrementalResult, incrementalMs) = try await timedAsync("sync.incrementalOneEvent.\(eventCount).changeSet") {
+            try await scheduler.syncNowWithChangeSet(mode: .balanced, baseState: incrementalBase)
+        }
+
+        print("HCBLargeAccountBenchmark sync.compare fullMs=\(format(fullMs)) incrementalMs=\(format(incrementalMs)) fullInserted=\(fullResult.changeSet.events.inserted.count) incrementalUpdated=\(incrementalResult.changeSet.events.updated.count) incrementalUnchanged=\(incrementalResult.changeSet.events.unchanged.count)")
+        XCTAssertEqual(fullResult.changeSet.events.inserted.count, fullResult.state.events.count)
+        XCTAssertEqual(incrementalResult.changeSet.events.updated, [changedEvent.id])
+        XCTAssertEqual(incrementalResult.state.events.count, fullResult.state.events.count)
+        XCTAssertLessThan(incrementalResult.changeSet.events.updated.count, fullResult.changeSet.events.inserted.count)
     }
 
     func testSyncSchedulerFullEventApplyBreakdownBenchmark() async throws {
@@ -390,6 +557,18 @@ private enum LargeAccountCalendarFixture {
         searchQuery: String = ""
     ) -> CalendarDisplayInput {
         let indexes = buildIndexes(events: state.events, tasks: state.tasks)
+        let eventByID = Dictionary(uniqueKeysWithValues: state.events.map { ($0.id, $0) })
+        let taskByID = Dictionary(uniqueKeysWithValues: state.tasks.map { ($0.id, $0) })
+        let range = CalendarVisibleRange(kind: .year, start: yearStart, end: calendar.date(byAdding: .day, value: 420, to: yearStart)!, calendar: calendar)
+        let visibleRange = CalendarVisibleRangeProjection(
+            range: range,
+            revisionKey: "large-account",
+            eventsByDay: indexes.eventsByDay,
+            tasksByDueDate: indexes.tasksByDueDate,
+            eventByID: eventByID,
+            taskByID: taskByID
+        )
+
         return CalendarDisplayInput(
             key: key,
             anchorDate: anchorDate,
@@ -397,10 +576,7 @@ private enum LargeAccountCalendarFixture {
             eventViewFilter: CalendarEventViewFilter(),
             visibleTaskListIDs: state.settings.selectedTaskListIDs,
             searchQuery: searchQuery,
-            eventsByDay: indexes.eventsByDay,
-            tasksByDueDate: indexes.tasksByDueDate,
-            eventByID: Dictionary(uniqueKeysWithValues: state.events.map { ($0.id, $0) }),
-            taskByID: Dictionary(uniqueKeysWithValues: state.tasks.map { ($0.id, $0) }),
+            visibleRange: visibleRange,
             calendarColorHexByID: Dictionary(uniqueKeysWithValues: state.calendars.map { ($0.id, $0.colorHex) }),
             taskListTitleByID: Dictionary(uniqueKeysWithValues: state.taskLists.map { ($0.id, $0.title) }),
             settings: state.settings,

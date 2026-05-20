@@ -101,7 +101,7 @@ struct MonthGridView: View {
     @State private var isGridCachePreparing = false
     @State private var pendingAnchorScroll: PendingAnchorScroll?
     @State private var cachedEventSearchTextByID: [CalendarEventMirror.ID: String] = [:]
-    @State private var cachedEventSearchRevision: UInt64 = 0
+    @State private var cachedEventSearchRevision: String = ""
     @State private var gridCacheBuildTask: Task<Void, Never>?
     // Rolling window of week-start dates rendered by the ScrollView. Rebuilt
     // by buildWindow() when the anchor lands outside the current window.
@@ -186,11 +186,8 @@ struct MonthGridView: View {
         var eventViewFilter: CalendarEventViewFilter
         var visibleTaskListIDs: Set<TaskListMirror.ID>
         var searchQuery: String
-        var eventsByDay: [TimeInterval: [CalendarEventMirror.ID]]
-        var tasksByDueDate: [TimeInterval: [TaskMirror.ID]]
-        var eventByID: [CalendarEventMirror.ID: CalendarEventMirror]
-        var taskByID: [TaskMirror.ID: TaskMirror]
-        var dataRevision: UInt64
+        var visibleRange: CalendarVisibleRangeProjection
+        var dataRevision: String
         var eventSearchTextByID: [CalendarEventMirror.ID: String]
         var calendarColorHexByID: [CalendarListMirror.ID: String]
         var calendar: Calendar
@@ -203,7 +200,7 @@ struct MonthGridView: View {
         var key: String
         var weekSnapshots: [MonthWeekSnapshot]
         var eventSearchTextByID: [CalendarEventMirror.ID: String]
-        var eventSearchRevision: UInt64
+        var eventSearchRevision: String
         var visibleEventCount: Int
         var visibleTaskCount: Int
         var buildDurationMilliseconds: String
@@ -374,12 +371,22 @@ struct MonthGridView: View {
         // renames / reschedules / recolors with unchanged total count now
         // bust the cache correctly while unrelated model changes keep the
         // grid cache warm.
-        return "\(selectedIds)|\(calendarEventViewFilter.cacheKey)|\(visibleTaskListKey)|\(searchQuery)|\(windowKey)|\(model.calendarDisplayRevision)"
+        return "\(selectedIds)|\(calendarEventViewFilter.cacheKey)|\(visibleTaskListKey)|\(searchQuery)|\(windowKey)|\(currentCalendarRevisionKey)"
     }
 
     private var windowKey: String {
         guard let first = weekStarts.first else { return "empty" }
         return "\(Int(first.timeIntervalSince1970))-\(weekStarts.count)"
+    }
+
+    private var currentCalendarRevisionKey: String {
+        model.calendarDisplayRevisionKey(for: windowDates, calendar: calendar)
+    }
+
+    private var windowDates: [Date] {
+        weekStarts.flatMap { weekStart in
+            (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: weekStart) }
+        }
     }
 
     private var visibleTaskListKey: String {
@@ -429,6 +436,10 @@ struct MonthGridView: View {
         guard key != cachedGridKey else { return }
         cachedGridKey = key
         let requestedAt = HCBPerformanceTelemetry.timestamp()
+        let rangeStart = weekStarts.first ?? anchorDate
+        let rangeEnd = weekStarts.last.flatMap {
+            calendar.date(byAdding: .day, value: 6, to: $0)
+        } ?? rangeStart
         let payload = MonthGridCachePayload(
             key: key,
             anchorDate: anchorDate,
@@ -437,12 +448,14 @@ struct MonthGridView: View {
             eventViewFilter: calendarEventViewFilter,
             visibleTaskListIDs: model.visibleTaskListIDs,
             searchQuery: searchQuery,
-            eventsByDay: model.eventsByDay,
-            tasksByDueDate: model.tasksByDueDate,
-            eventByID: model.eventByIDSnapshot,
-            taskByID: model.taskByIDSnapshot,
-            dataRevision: model.calendarDisplayRevision,
-            eventSearchTextByID: cachedEventSearchRevision == model.calendarDisplayRevision ? cachedEventSearchTextByID : [:],
+            visibleRange: model.calendarVisibleRangeProjection(
+                kind: .month,
+                start: rangeStart,
+                end: rangeEnd,
+                calendar: calendar
+            ),
+            dataRevision: currentCalendarRevisionKey,
+            eventSearchTextByID: cachedEventSearchRevision == currentCalendarRevisionKey ? cachedEventSearchTextByID : [:],
             calendarColorHexByID: model.calendarSnapshot.calendarColorHexByID,
             calendar: calendar,
             laneHeight: laneHeight,
@@ -532,15 +545,17 @@ struct MonthGridView: View {
         let last = payload.calendar.startOfDay(for: rangeEnd)
         while cursor <= last {
             let key = cursor.timeIntervalSinceReferenceDate
-            for eventID in payload.eventsByDay[key] ?? [] where seen.insert(eventID).inserted {
-                guard let event = payload.eventByID[eventID],
+            for eventID in payload.visibleRange.eventsByDay[key] ?? [] where seen.insert(eventID).inserted {
+                guard let event = payload.visibleRange.eventByID[eventID],
                       payload.selectedCalendarIDs.contains(event.calendarID) else { continue }
                 guard payload.eventViewFilter.allows(event) else { continue }
                 let matchesSearch: Bool
                 if q.isEmpty {
                     matchesSearch = true
                 } else {
-                    let searchText = eventSearchTextByID[event.id] ?? normalizedEventSearchText(event)
+                    let searchText = eventSearchTextByID[event.id]
+                        ?? payload.visibleRange.eventSearchTextByID[event.id].map(normalizedSearchText)
+                        ?? normalizedEventSearchText(event)
                     eventSearchTextByID[event.id] = searchText
                     matchesSearch = searchText.contains(q)
                 }
@@ -745,8 +760,8 @@ struct MonthGridView: View {
         let last = payload.calendar.startOfDay(for: rangeEnd)
         while cursor <= last {
             let key = dayKey(for: cursor, calendar: payload.calendar)
-            let tasks = (payload.tasksByDueDate[key] ?? [])
-                .compactMap { payload.taskByID[$0] }
+            let tasks = (payload.visibleRange.tasksByDueDate[key] ?? [])
+                .compactMap { payload.visibleRange.taskByID[$0] }
                 .filter { payload.visibleTaskListIDs.contains($0.taskListID) }
             if tasks.isEmpty == false {
                 tasksByDay[key] = tasks

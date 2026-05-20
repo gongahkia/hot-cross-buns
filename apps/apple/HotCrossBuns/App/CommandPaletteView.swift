@@ -40,7 +40,7 @@ enum QuickSwitcherEntity: Hashable, Identifiable, Sendable {
         }
     }
 
-    fileprivate var label: String {
+    var label: String {
         switch self {
         case .task(let t): return TagExtractor.stripped(from: t.title)
         case .event(let e): return e.summary
@@ -50,7 +50,7 @@ enum QuickSwitcherEntity: Hashable, Identifiable, Sendable {
         }
     }
 
-    fileprivate var keywords: [String] {
+    var keywords: [String] {
         switch self {
         case .task(let t):
             return TagExtractor.tags(in: t.title) + [t.notes]
@@ -409,12 +409,21 @@ struct CommandPaletteView: View {
             }
             do {
                 try await Task.sleep(for: .milliseconds(150))
-                let result = try await entityCache.search(snapshot: snapshot, query: liveQuery)
+                let entities: [QuickSwitcherEntity]
+                let resultSnapshotKey: String
+                if let databaseEntities = try await model.searchEntities(query: liveQuery, limit: 38) {
+                    entities = databaseEntities
+                    resultSnapshotKey = snapshot.key
+                } else {
+                    let result = try await entityCache.search(snapshot: snapshot, query: liveQuery)
+                    entities = result.entities
+                    resultSnapshotKey = result.snapshotKey
+                }
                 try Task.checkCancellation()
-                guard result.snapshotKey == snapshotKey, result.query == trimmedQuery else { return }
-                entityResultsQuery = result.query
-                entityResultsSnapshotKey = result.snapshotKey
-                entityResults = result.entities.map { PaletteItem.entity($0) }
+                guard resultSnapshotKey == snapshotKey, liveQuery == trimmedQuery else { return }
+                entityResultsQuery = liveQuery
+                entityResultsSnapshotKey = resultSnapshotKey
+                entityResults = entities.map { PaletteItem.entity($0) }
             } catch {
                 // task cancelled by next keystroke — drop, the next one runs.
             }
@@ -547,11 +556,20 @@ struct CommandPaletteView: View {
         let snapshot = entitySnapshot
         Task {
             do {
-                let result = try await entityCache.search(snapshot: snapshot, query: liveQuery)
+                let entities: [QuickSwitcherEntity]
+                let resultSnapshotKey: String
+                if let databaseEntities = try await model.searchEntities(query: liveQuery, limit: 38) {
+                    entities = databaseEntities
+                    resultSnapshotKey = snapshot.key
+                } else {
+                    let result = try await entityCache.search(snapshot: snapshot, query: liveQuery)
+                    entities = result.entities
+                    resultSnapshotKey = result.snapshotKey
+                }
                 try Task.checkCancellation()
-                guard let first = result.entities.first else { return }
+                guard let first = entities.first else { return }
                 await MainActor.run {
-                    guard trimmedQuery == liveQuery, snapshotKey == result.snapshotKey else { return }
+                    guard trimmedQuery == liveQuery, snapshotKey == resultSnapshotKey else { return }
                     select(.entity(first))
                 }
             } catch {

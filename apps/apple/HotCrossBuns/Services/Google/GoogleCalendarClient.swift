@@ -9,7 +9,10 @@ struct GoogleCalendarClient: Sendable {
 
     func listCalendars() async throws -> [CalendarListMirror] {
         do {
-            let response: GoogleCalendarListResponse = try await transport.get(path: "/calendar/v3/users/me/calendarList")
+            let response: GoogleCalendarListResponse = try await transport.get(
+                path: "/calendar/v3/users/me/calendarList",
+                queryItems: [URLQueryItem(name: "fields", value: Self.calendarListFields)]
+            )
             let calendars = response.items.map(calendarMirror)
             AppLogger.info("google calendars listed", category: .google, metadata: ["count": String(calendars.count)])
             return calendars
@@ -57,7 +60,8 @@ struct GoogleCalendarClient: Sendable {
             // trips of ~1s each. 2500 keeps most calendars to a single
             // request. Response size scales but decode cost is linear in
             // events either way.
-            URLQueryItem(name: "maxResults", value: "2500")
+            URLQueryItem(name: "maxResults", value: "2500"),
+            URLQueryItem(name: "fields", value: Self.eventsFields)
         ]
         var pageToken: String?
         var events: [CalendarEventMirror] = []
@@ -113,6 +117,16 @@ struct GoogleCalendarClient: Sendable {
             nextSyncToken: nextSyncToken
         )
     }
+
+    private static let calendarListFields = [
+        "items(id,summary,backgroundColor,selected,accessRole,etag,defaultReminders(method,minutes),timeZone)"
+    ].joined(separator: ",")
+
+    private static let eventsFields = [
+        "nextPageToken",
+        "nextSyncToken",
+        "items(id,summary,description,location,status,start,end,recurrence,reminders(useDefault,overrides(method,minutes)),attendees(email,displayName,responseStatus),etag,updated,conferenceData(entryPoints(entryPointType,uri,label),conferenceSolution(key(type),name),conferenceId),htmlLink,colorId,transparency,visibility,extendedProperties)"
+    ].joined(separator: ",")
 
     func insertEvent(
         calendarID: String,

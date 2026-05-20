@@ -19,8 +19,12 @@ actor SyncScheduler {
     }
 
     func syncNow(mode: SyncMode, baseState: CachedAppState) async throws -> CachedAppState {
+        try await syncNowWithChangeSet(mode: mode, baseState: baseState).state
+    }
+
+    func syncNowWithChangeSet(mode: SyncMode, baseState: CachedAppState) async throws -> SyncApplyResult {
         guard let accountID = baseState.account?.id else {
-            return baseState
+            return SyncApplyResult(state: baseState, changeSet: .empty)
         }
 
         let syncStartedAt = Date()
@@ -110,7 +114,7 @@ actor SyncScheduler {
                 || selectedTaskListIDs.isEmpty == false
         }
 
-        return CachedAppState(
+        let syncedState = CachedAppState(
             account: baseState.account,
             accounts: baseState.accounts,
             activeAccountID: baseState.activeAccountID,
@@ -142,6 +146,18 @@ actor SyncScheduler {
             ),
             pendingMutations: baseState.pendingMutations
         )
+
+        let changeSet = makeChangeSet(
+            baseState: baseState,
+            syncedState: syncedState,
+            syncedTaskLists: shouldSyncTasks ? taskLists : nil,
+            taskResults: taskResults,
+            syncedCalendars: shouldSyncEvents ? calendars : nil,
+            eventResults: eventResults,
+            updatedCheckpoints: updatedCheckpoints
+        )
+
+        return SyncApplyResult(state: syncedState, changeSet: changeSet)
     }
 
 #if DEBUG
@@ -758,6 +774,238 @@ actor SyncScheduler {
         }
 
         return checkpointsByID
+    }
+
+    private func makeChangeSet(
+        baseState: CachedAppState,
+        syncedState: CachedAppState,
+        syncedTaskLists: [TaskListMirror]?,
+        taskResults: [TaskListSyncResult],
+        syncedCalendars: [CalendarListMirror]?,
+        eventResults: [CalendarSyncResult],
+        updatedCheckpoints: [SyncCheckpoint]
+    ) -> SyncChangeSet {
+        var changeSet = SyncChangeSet.empty
+
+        if let syncedTaskLists {
+            let touchedIDs = Set(syncedTaskLists.map(\.id))
+            let finalIDs = Set(syncedState.taskLists.map(\.id))
+            let deletedIDs = Set(baseState.taskLists.map(\.id)).subtracting(finalIDs)
+            changeSet.taskLists = Self.rowChanges(
+                existing: baseState.taskLists,
+                final: syncedState.taskLists,
+                touchedIDs: touchedIDs,
+                deletedIDs: deletedIDs,
+                kind: "taskList",
+                etag: \.etag
+            )
+        }
+
+        let syncedTaskListIDs = Set(taskResults.map(\.taskListID))
+        if syncedTaskListIDs.isEmpty == false {
+            let touchedIDs = Set(taskResults.flatMap(\.tasks).map(\.id))
+            let finalByID = Dictionary(uniqueKeysWithValues: syncedState.tasks.map { ($0.id, $0) })
+            let deletedIDs = Set<String>(baseState.tasks.compactMap { task in
+                guard syncedTaskListIDs.contains(task.taskListID),
+                      OptimisticID.isPending(task.id) == false,
+                      finalByID[task.id] == nil
+                else { return nil }
+                return task.id
+            })
+            changeSet.tasks = Self.rowChanges(
+                existing: baseState.tasks,
+                final: syncedState.tasks,
+                touchedIDs: touchedIDs,
+                deletedIDs: deletedIDs,
+                kind: "task",
+                etag: \.etag
+            )
+        }
+
+        if let syncedCalendars {
+            let touchedIDs = Set(syncedCalendars.map(\.id))
+            let finalIDs = Set(syncedState.calendars.map(\.id))
+            let deletedIDs = Set(baseState.calendars.map(\.id)).subtracting(finalIDs)
+            changeSet.calendars = Self.rowChanges(
+                existing: baseState.calendars,
+                final: syncedState.calendars,
+                touchedIDs: touchedIDs,
+                deletedIDs: deletedIDs,
+                kind: "calendar",
+                etag: \.etag
+            )
+        }
+
+        let syncedCalendarIDs = Set(eventResults.map(\.calendarID))
+        if syncedCalendarIDs.isEmpty == false {
+            let touchedIDs = Set(eventResults.flatMap(\.events).map(\.id))
+            let finalByID = Dictionary(uniqueKeysWithValues: syncedState.events.map { ($0.id, $0) })
+            let deletedIDs = Set<String>(baseState.events.compactMap { event in
+                guard syncedCalendarIDs.contains(event.calendarID),
+                      OptimisticID.isPending(event.id) == false,
+                      finalByID[event.id] == nil
+                else { return nil }
+                return event.id
+            })
+            changeSet.events = Self.rowChanges(
+                existing: baseState.events,
+                final: syncedState.events,
+                touchedIDs: touchedIDs,
+                deletedIDs: deletedIDs,
+                kind: "event",
+                etag: \.etag
+            )
+        }
+
+        let touchedCheckpointIDs = Set(updatedCheckpoints.map(\.id))
+        changeSet.checkpoints = Self.rowChanges(
+            existing: baseState.syncCheckpoints,
+            final: syncedState.syncCheckpoints,
+            touchedIDs: touchedCheckpointIDs,
+            deletedIDs: [],
+            kind: "syncCheckpoint",
+            etag: { _ in nil }
+        )
+        changeSet.checkpointChanged = changeSet.checkpoints.hasChanges
+        changeSet.settingsChanged = baseState.settings != syncedState.settings
+
+        changeSet.affectedTaskListIDs.formUnion(changeSet.taskLists.inserted)
+        changeSet.affectedTaskListIDs.formUnion(changeSet.taskLists.updated)
+        changeSet.affectedTaskListIDs.formUnion(changeSet.taskLists.deleted)
+        changeSet.affectedCalendarIDs.formUnion(changeSet.calendars.inserted)
+        changeSet.affectedCalendarIDs.formUnion(changeSet.calendars.updated)
+        changeSet.affectedCalendarIDs.formUnion(changeSet.calendars.deleted)
+
+        Self.addAffectedTaskState(
+            to: &changeSet,
+            existing: baseState.tasks,
+            final: syncedState.tasks
+        )
+        Self.addAffectedEventState(
+            to: &changeSet,
+            existing: baseState.events,
+            final: syncedState.events
+        )
+
+        return changeSet
+    }
+
+    private static func rowChanges<T: Identifiable & Encodable>(
+        existing: [T],
+        final: [T],
+        touchedIDs: Set<String>,
+        deletedIDs: Set<String>,
+        kind: String,
+        etag: (T) -> String?
+    ) -> SyncChangeSet.RowChanges where T.ID == String {
+        let existingByID = Dictionary(uniqueKeysWithValues: existing.map { ($0.id, $0) })
+        let finalByID = Dictionary(uniqueKeysWithValues: final.map { ($0.id, $0) })
+        var changes = SyncChangeSet.RowChanges()
+
+        for id in touchedIDs.union(deletedIDs) {
+            let old = existingByID[id]
+            let new = finalByID[id]
+            switch (old, new) {
+            case (nil, nil):
+                continue
+            case (nil, .some):
+                changes.inserted.insert(id)
+            case (.some, nil):
+                changes.deleted.insert(id)
+            case let (.some(oldValue), .some(newValue)):
+                if rowsMatch(oldValue, newValue, kind: kind, etag: etag) {
+                    changes.unchanged.insert(id)
+                } else {
+                    changes.updated.insert(id)
+                }
+            }
+        }
+
+        return changes
+    }
+
+    private static func rowsMatch<T: Encodable>(
+        _ oldValue: T,
+        _ newValue: T,
+        kind: String,
+        etag: (T) -> String?
+    ) -> Bool {
+        if let oldEtag = etag(oldValue), oldEtag.isEmpty == false,
+           let newEtag = etag(newValue), newEtag.isEmpty == false {
+            return oldEtag == newEtag
+        }
+        return rowHash(oldValue, kind: kind) == rowHash(newValue, kind: kind)
+    }
+
+    private static func rowHash<T: Encodable>(_ value: T, kind: String) -> String {
+        (try? LocalCacheRowHasher.hash(value, kind: kind)) ?? String(describing: value)
+    }
+
+    private static func addAffectedTaskState(
+        to changeSet: inout SyncChangeSet,
+        existing: [TaskMirror],
+        final: [TaskMirror]
+    ) {
+        let existingByID = Dictionary(uniqueKeysWithValues: existing.map { ($0.id, $0) })
+        let finalByID = Dictionary(uniqueKeysWithValues: final.map { ($0.id, $0) })
+        for id in changeSet.tasks.inserted.union(changeSet.tasks.updated).union(changeSet.tasks.deleted) {
+            let old = existingByID[id]
+            let new = finalByID[id]
+            if let old {
+                changeSet.affectedTaskListIDs.insert(old.taskListID)
+                changeSet.affectedDayKeys.formUnion(dayKeys(forTask: old))
+            }
+            if let new {
+                changeSet.affectedTaskListIDs.insert(new.taskListID)
+                changeSet.affectedDayKeys.formUnion(dayKeys(forTask: new))
+            }
+        }
+    }
+
+    private static func addAffectedEventState(
+        to changeSet: inout SyncChangeSet,
+        existing: [CalendarEventMirror],
+        final: [CalendarEventMirror]
+    ) {
+        let existingByID = Dictionary(uniqueKeysWithValues: existing.map { ($0.id, $0) })
+        let finalByID = Dictionary(uniqueKeysWithValues: final.map { ($0.id, $0) })
+        for id in changeSet.events.inserted.union(changeSet.events.updated).union(changeSet.events.deleted) {
+            let old = existingByID[id]
+            let new = finalByID[id]
+            if let old {
+                changeSet.affectedCalendarIDs.insert(old.calendarID)
+                changeSet.affectedDayKeys.formUnion(dayKeys(forEvent: old))
+            }
+            if let new {
+                changeSet.affectedCalendarIDs.insert(new.calendarID)
+                changeSet.affectedDayKeys.formUnion(dayKeys(forEvent: new))
+            }
+        }
+    }
+
+    private static func dayKeys(forTask task: TaskMirror, calendar: Calendar = .current) -> Set<TimeInterval> {
+        guard let dueDate = task.dueDate else { return [] }
+        return [calendar.startOfDay(for: dueDate).timeIntervalSinceReferenceDate]
+    }
+
+    private static func dayKeys(forEvent event: CalendarEventMirror, calendar: Calendar = .current) -> Set<TimeInterval> {
+        guard event.status != .cancelled else {
+            return []
+        }
+        let startDay = calendar.startOfDay(for: event.startDate)
+        let endDay = CalendarGridLayout.eventEndDay(event: event, calendar: calendar)
+        guard startDay <= endDay else { return [] }
+
+        var keys: Set<TimeInterval> = []
+        var cursor = startDay
+        var steps = 0
+        while cursor <= endDay && steps < 366 {
+            keys.insert(cursor.timeIntervalSinceReferenceDate)
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+            steps += 1
+        }
+        return keys
     }
 
     private func mergeTasks(

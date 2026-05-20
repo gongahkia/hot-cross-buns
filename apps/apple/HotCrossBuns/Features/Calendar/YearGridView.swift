@@ -64,7 +64,7 @@ struct YearGridView: View {
     private var yearSnapshotKey: PreparedSnapshotKey {
         PreparedSnapshotKeys.calendar(
             mode: .year,
-            dataRevision: model.calendarDisplayRevision,
+            dataRevision: model.calendarDisplayRevisionKey(forYearContaining: anchorDate, calendar: calendar),
             selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
             visibleTaskListIDs: model.visibleTaskListIDs,
             filterKey: calendarEventViewFilter.cacheKey,
@@ -156,20 +156,12 @@ struct YearGridView: View {
             preparedYearSnapshot = snapshot
             return
         }
-        let input = CalendarDisplayInput(
+        let input = model.calendarDisplayInput(
             key: key,
+            kind: .year,
             anchorDate: anchorDate,
-            selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
             eventViewFilter: calendarEventViewFilter,
-            visibleTaskListIDs: model.visibleTaskListIDs,
             searchQuery: searchQuery,
-            eventsByDay: model.eventsByDay,
-            tasksByDueDate: model.tasksByDueDate,
-            eventByID: model.eventByIDSnapshot,
-            taskByID: model.taskByIDSnapshot,
-            calendarColorHexByID: model.calendarSnapshot.calendarColorHexByID,
-            taskListTitleByID: model.taskListTitleByID,
-            settings: model.settings,
             referenceDate: Date(),
             calendar: calendar
         )

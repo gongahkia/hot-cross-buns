@@ -40,6 +40,31 @@ enum PreparedSnapshotKeys {
         ])
     }
 
+    static func calendar(
+        mode: CalendarGridMode,
+        dataRevision: String,
+        selectedCalendarIDs: Set<CalendarListMirror.ID>,
+        visibleTaskListIDs: Set<TaskListMirror.ID>,
+        filterKey: String,
+        searchQuery: String,
+        rangeKey: String,
+        settings: AppSettings
+    ) -> PreparedSnapshotKey {
+        PreparedSnapshotKey([
+            "surface=calendar",
+            "mode=\(mode.rawValue)",
+            "rev=\(dataRevision)",
+            "cal=\(selectedCalendarIDs.sorted().joined(separator: ","))",
+            "tasks=\(visibleTaskListIDs.sorted().joined(separator: ","))",
+            "filter=\(filterKey)",
+            "search=\(normalizedSearch(searchQuery))",
+            "range=\(rangeKey)",
+            "past=\(settings.pastEventBehavior.rawValue)",
+            "showDone=\(settings.showCompletedItemsInCalendar)",
+            "overdue=\(settings.overdueTaskBehavior.rawValue)"
+        ])
+    }
+
     static func taskBoard(
         surface: TaskBoardSurface,
         dataRevision: UInt64,
@@ -78,4 +103,3 @@ enum TaskBoardSurface: String, Sendable {
     case tasks
     case notes
 }
-

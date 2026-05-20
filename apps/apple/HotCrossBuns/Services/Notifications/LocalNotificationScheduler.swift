@@ -142,6 +142,71 @@ actor LocalNotificationScheduler {
         )
     }
 
+    func synchronizeDirty(
+        changedTasks: [TaskMirror],
+        deletedTaskIDs: Set<String>,
+        changedEvents: [CalendarEventMirror],
+        deletedEventIDs: Set<String>,
+        settings: AppSettings,
+        requestAuthorization: Bool = false,
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) async {
+        guard settings.enableLocalNotifications else {
+            await removeScheduledNotifications()
+            lastSummary = nil
+            return
+        }
+
+        let isAuthorized = await hasAuthorization(requestAuthorization: requestAuthorization)
+        guard isAuthorized else {
+            return
+        }
+
+        let changedTaskIDs = Set(changedTasks.map(\.id))
+        let changedEventIDs = Set(changedEvents.map(\.id))
+        removeScheduledNotifications(
+            taskIDs: deletedTaskIDs.union(changedTaskIDs),
+            eventIDs: deletedEventIDs.union(changedEventIDs)
+        )
+
+        let windowEnd = calendar.date(byAdding: .day, value: Self.schedulingWindowDays, to: referenceDate) ?? referenceDate
+        let eventNotifications = changedEvents
+            .compactMap { eventNotificationRequest(for: $0, referenceDate: referenceDate, calendar: calendar) }
+            .filter { $0.sortDate < windowEnd }
+            .sorted { $0.sortDate < $1.sortDate }
+        let taskNotifications = changedTasks
+            .flatMap { taskNotificationRequests(for: $0, settings: settings, referenceDate: referenceDate, calendar: calendar) }
+            .filter { $0.sortDate < windowEnd }
+            .sorted { $0.sortDate < $1.sortDate }
+
+        var failedEvents = 0
+        var failedTasks = 0
+        let eventIdentifiers = Set(eventNotifications.map(\.request.identifier))
+        for notification in eventNotifications + taskNotifications {
+            do {
+                try await add(notification.request)
+            } catch {
+                if eventIdentifiers.contains(notification.request.identifier) {
+                    failedEvents += 1
+                } else {
+                    failedTasks += 1
+                }
+            }
+        }
+
+        lastSummary = NotificationScheduleSummary(
+            scheduledEvents: eventNotifications.count - failedEvents,
+            scheduledTasks: taskNotifications.count - failedTasks,
+            deferredEvents: 0,
+            deferredTasks: 0,
+            failedEvents: failedEvents,
+            failedTasks: failedTasks,
+            windowDays: Self.schedulingWindowDays,
+            computedAt: Date()
+        )
+    }
+
     func authorizationOutcome(requestAuthorization: Bool) async -> NotificationAuthorizationOutcome {
         let authorizationStatus = await notificationCenter.authorizationStatus()
 
@@ -254,6 +319,15 @@ actor LocalNotificationScheduler {
 
         notificationCenter.removePendingNotificationRequests(withIdentifiers: identifiers)
         notificationCenter.removeDeliveredNotifications(withIdentifiers: identifiers)
+    }
+
+    private func removeScheduledNotifications(taskIDs: Set<String>, eventIDs: Set<String>) {
+        var identifiers = taskIDs.map { Self.notificationPrefix + "task." + $0 }
+        identifiers += eventIDs.map { Self.notificationPrefix + "event." + $0 }
+        let uniqueIdentifiers = Array(Set(identifiers))
+        guard uniqueIdentifiers.isEmpty == false else { return }
+        notificationCenter.removePendingNotificationRequests(withIdentifiers: uniqueIdentifiers)
+        notificationCenter.removeDeliveredNotifications(withIdentifiers: uniqueIdentifiers)
     }
 
     private func pendingNotificationRequests() async -> [UNNotificationRequest] {

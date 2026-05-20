@@ -4,7 +4,12 @@ struct EventHoverPreview: View {
     @Environment(AppModel.self) private var model
     let event: CalendarEventMirror
 
+    private var hydratedEvent: CalendarEventMirror {
+        model.event(id: event.id) ?? event
+    }
+
     var body: some View {
+        let event = hydratedEvent
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 RoundedRectangle(cornerRadius: 3)
@@ -43,6 +48,7 @@ struct EventHoverPreview: View {
     }
 
     private var accent: Color {
+        let event = hydratedEvent
         if let hex = CalendarEventColor.from(colorId: event.colorId).hex {
             return Color(hex: hex)
         }
@@ -53,6 +59,7 @@ struct EventHoverPreview: View {
     }
 
     private var timeLabel: String {
+        let event = hydratedEvent
         if event.isAllDay {
             return "All day · \(event.startDate.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))"
         }
@@ -75,7 +82,12 @@ struct CalendarEventPreviewButton<Label: View>: View {
     @State private var isPresented = false
     @State private var isConfirmingDelete = false
 
+    private var hydratedEvent: CalendarEventMirror {
+        model.event(id: event.id) ?? event
+    }
+
     var body: some View {
+        let event = hydratedEvent
         Button {
             isPresented = true
         } label: {
@@ -307,14 +319,19 @@ struct CalendarEventDismissButton: View {
     let event: CalendarEventMirror
     var size: CGFloat = 10
 
+    private var currentEvent: CalendarEventMirror {
+        model.event(id: event.id) ?? event
+    }
+
     private var canWrite: Bool {
-        guard let calendar = model.calendars.first(where: { $0.id == event.calendarID }) else { return false }
+        guard let calendar = model.calendars.first(where: { $0.id == currentEvent.calendarID }) else { return false }
         return calendar.accessRole == "owner" || calendar.accessRole == "writer"
     }
 
     var body: some View {
         if canWrite {
             Button {
+                let event = currentEvent
                 Task { _ = await model.dismissEvent(event) }
             } label: {
                 Image(systemName: "circle")

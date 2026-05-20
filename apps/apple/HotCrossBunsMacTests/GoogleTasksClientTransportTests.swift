@@ -29,6 +29,25 @@ final class GoogleTasksClientTransportTests: XCTestCase {
         super.tearDown()
     }
 
+    func testListTaskListsRequestsPartialResponseFields() async throws {
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let queryItems = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let query = Dictionary(uniqueKeysWithValues: queryItems.map { ($0.name, $0.value ?? "") })
+            XCTAssertEqual(request.url?.path, "/tasks/v1/users/@me/lists")
+            XCTAssertEqual(query["fields"], "items(id,title,updated,etag)")
+            return (response, #"{"items":[]}"#.data(using: .utf8)!)
+        }
+
+        let lists = try await client.listTaskLists()
+        XCTAssertTrue(lists.isEmpty)
+    }
+
     func testInsertTaskPostsJSONBodyWithAuthHeader() async throws {
         MockURLProtocol.requestHandler = { request in
             let response = HTTPURLResponse(
@@ -191,6 +210,8 @@ final class GoogleTasksClientTransportTests: XCTestCase {
             let query = Dictionary(uniqueKeysWithValues: queryItems.map { ($0.name, $0.value ?? "") })
             XCTAssertNil(query["updatedMin"])
             XCTAssertEqual(query["completedMin"], ISO8601DateFormatter.google.string(from: completedMin))
+            XCTAssertTrue(query["fields"]?.contains("nextPageToken") == true)
+            XCTAssertTrue(query["fields"]?.contains("items(id,title,notes,status,due,completed,deleted,hidden,parent,position,etag,updated)") == true)
             return (response, #"{"items":[]}"#.data(using: .utf8)!)
         }
 

@@ -25,6 +25,9 @@ final class GoogleCalendarClientTransportTests: XCTestCase {
         MockURLProtocol.requestHandler = { request in
             XCTAssertEqual(request.httpMethod, "GET")
             XCTAssertEqual(request.url?.path, "/calendar/v3/users/me/calendarList")
+            let query = Dictionary(uniqueKeysWithValues: (URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+            XCTAssertTrue(query["fields"]?.contains("items(id,summary,backgroundColor,selected,accessRole,etag") == true)
+            XCTAssertTrue(query["fields"]?.contains("defaultReminders(method,minutes)") == true)
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: 200,
@@ -78,6 +81,10 @@ final class GoogleCalendarClientTransportTests: XCTestCase {
             XCTAssertEqual(query["maxResults"], "2500")
             XCTAssertEqual(query["syncToken"], "sync-123")
             XCTAssertNil(query["timeMin"])
+            XCTAssertTrue(query["fields"]?.contains("nextPageToken") == true)
+            XCTAssertTrue(query["fields"]?.contains("nextSyncToken") == true)
+            XCTAssertTrue(query["fields"]?.contains("items(id,summary,description") == true)
+            XCTAssertTrue(query["fields"]?.contains("reminders(useDefault,overrides(method,minutes))") == true)
             if requestCount == 1 {
                 XCTAssertNil(query["pageToken"])
             } else {

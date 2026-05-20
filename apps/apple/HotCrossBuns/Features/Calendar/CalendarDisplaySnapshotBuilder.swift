@@ -1,5 +1,67 @@
 import Foundation
 
+enum CalendarVisibleRangeKind: String, Hashable, Sendable {
+    case day
+    case week
+    case month
+    case year
+    case agenda
+}
+
+struct CalendarVisibleRange: Equatable, Sendable {
+    var kind: CalendarVisibleRangeKind
+    var start: Date
+    var end: Date
+    var dayKeys: [TimeInterval]
+
+    init(
+        kind: CalendarVisibleRangeKind,
+        start: Date,
+        end: Date,
+        calendar: Calendar
+    ) {
+        let normalizedStart = calendar.startOfDay(for: start)
+        let normalizedEnd = calendar.startOfDay(for: end)
+        self.kind = kind
+        self.start = normalizedStart
+        self.end = normalizedEnd
+
+        var keys: [TimeInterval] = []
+        var cursor = normalizedStart
+        while cursor <= normalizedEnd {
+            keys.append(cursor.timeIntervalSinceReferenceDate)
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+        }
+        dayKeys = keys
+    }
+}
+
+struct CalendarVisibleRangeProjection: Equatable, Sendable {
+    var range: CalendarVisibleRange
+    var revisionKey: String
+    var eventsByDay: [TimeInterval: [CalendarEventMirror.ID]]
+    var tasksByDueDate: [TimeInterval: [TaskMirror.ID]]
+    var eventByID: [CalendarEventMirror.ID: CalendarEventMirror]
+    var taskByID: [TaskMirror.ID: TaskMirror]
+    var eventSearchTextByID: [CalendarEventMirror.ID: String] = [:]
+    var taskSearchTextByID: [TaskMirror.ID: String] = [:]
+
+    static func empty(kind: CalendarVisibleRangeKind, anchorDate: Date, calendar: Calendar) -> CalendarVisibleRangeProjection {
+        let day = calendar.startOfDay(for: anchorDate)
+        return CalendarVisibleRangeProjection(
+            range: CalendarVisibleRange(kind: kind, start: day, end: day, calendar: calendar),
+            revisionKey: "0",
+            eventsByDay: [:],
+            tasksByDueDate: [:],
+            eventByID: [:],
+            taskByID: [:],
+            eventSearchTextByID: [:],
+            taskSearchTextByID: [:]
+        )
+    }
+}
+
 struct CalendarDisplayInput: Sendable {
     var key: PreparedSnapshotKey
     var anchorDate: Date
@@ -7,10 +69,7 @@ struct CalendarDisplayInput: Sendable {
     var eventViewFilter: CalendarEventViewFilter
     var visibleTaskListIDs: Set<TaskListMirror.ID>
     var searchQuery: String
-    var eventsByDay: [TimeInterval: [CalendarEventMirror.ID]]
-    var tasksByDueDate: [TimeInterval: [TaskMirror.ID]]
-    var eventByID: [CalendarEventMirror.ID: CalendarEventMirror]
-    var taskByID: [TaskMirror.ID: TaskMirror]
+    var visibleRange: CalendarVisibleRangeProjection
     var calendarColorHexByID: [CalendarListMirror.ID: String]
     var taskListTitleByID: [TaskListMirror.ID: String]
     var settings: AppSettings
@@ -311,12 +370,12 @@ enum CalendarDisplaySnapshotBuilder {
         var cursor = first
         while cursor <= last {
             let key = dayKey(cursor, calendar: input.calendar)
-            for eventID in input.eventsByDay[key] ?? [] where seen.insert(eventID).inserted {
-                guard let event = input.eventByID[eventID] else { continue }
+            for eventID in input.visibleRange.eventsByDay[key] ?? [] where seen.insert(eventID).inserted {
+                guard let event = input.visibleRange.eventByID[eventID] else { continue }
                 guard input.selectedCalendarIDs.contains(event.calendarID) else { continue }
                 guard input.eventViewFilter.allows(event) else { continue }
                 guard input.settings.shouldHidePastEvent(event, now: input.referenceDate) == false else { continue }
-                guard query.isEmpty || matchesSearch(event, query: query) else { continue }
+                guard query.isEmpty || matchesSearch(event, query: query, projection: input.visibleRange) else { continue }
                 events.append(event)
             }
             guard let next = input.calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
@@ -325,8 +384,15 @@ enum CalendarDisplaySnapshotBuilder {
         return events
     }
 
-    private static func matchesSearch(_ event: CalendarEventMirror, query: String) -> Bool {
-        event.summary.localizedCaseInsensitiveContains(query)
+    private static func matchesSearch(
+        _ event: CalendarEventMirror,
+        query: String,
+        projection: CalendarVisibleRangeProjection
+    ) -> Bool {
+        if let searchText = projection.eventSearchTextByID[event.id] {
+            return searchText.localizedCaseInsensitiveContains(query)
+        }
+        return event.summary.localizedCaseInsensitiveContains(query)
             || event.details.localizedCaseInsensitiveContains(query)
             || event.location.localizedCaseInsensitiveContains(query)
     }
@@ -335,8 +401,8 @@ enum CalendarDisplaySnapshotBuilder {
         var result: [TimeInterval: [TaskMirror]] = [:]
         for day in days {
             let key = dayKey(day, calendar: input.calendar)
-            let tasks = (input.tasksByDueDate[key] ?? [])
-                .compactMap { input.taskByID[$0] }
+            let tasks = (input.visibleRange.tasksByDueDate[key] ?? [])
+                .compactMap { input.visibleRange.taskByID[$0] }
                 .filter { input.visibleTaskListIDs.contains($0.taskListID) }
                 .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
             if tasks.isEmpty == false {
@@ -453,4 +519,3 @@ enum CalendarDisplaySnapshotBuilder {
         return "\(event.summary), \(start) to \(end)"
     }
 }
-

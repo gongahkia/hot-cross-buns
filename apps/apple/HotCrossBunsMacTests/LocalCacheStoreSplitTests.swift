@@ -26,7 +26,7 @@ final class LocalCacheStoreSplitTests: XCTestCase {
     // MARK: - Split
 
     func testSaveWritesEventsToSidecarAndStripsThemFromMain() async throws {
-        let store = LocalCacheStore(fileURL: mainFileURL)
+        let store = LocalCacheStore(fileURL: mainFileURL, storageBackend: .jsonSidecar)
         let state = makeState(events: [makeEvent(id: "e1"), makeEvent(id: "e2")])
         await store.save(state)
 
@@ -46,13 +46,13 @@ final class LocalCacheStoreSplitTests: XCTestCase {
     }
 
     func testLoadMergesEventsFromSidecar() async throws {
-        let store = LocalCacheStore(fileURL: mainFileURL)
+        let store = LocalCacheStore(fileURL: mainFileURL, storageBackend: .jsonSidecar)
         let original = makeState(events: [makeEvent(id: "a"), makeEvent(id: "b"), makeEvent(id: "c")])
         await store.save(original)
 
         // Fresh store instance against the same files — simulates a relaunch
         // with the cache already on disk.
-        let reloader = LocalCacheStore(fileURL: mainFileURL)
+        let reloader = LocalCacheStore(fileURL: mainFileURL, storageBackend: .jsonSidecar)
         let loaded = await reloader.loadCachedState()
 
         XCTAssertEqual(loaded.events.count, 3)
@@ -63,7 +63,7 @@ final class LocalCacheStoreSplitTests: XCTestCase {
     // MARK: - Hash-skip
 
     func testRedundantSaveSkipsSidecarWrite() async throws {
-        let store = LocalCacheStore(fileURL: mainFileURL)
+        let store = LocalCacheStore(fileURL: mainFileURL, storageBackend: .jsonSidecar)
         let state = makeState(events: [makeEvent(id: "x"), makeEvent(id: "y")])
         await store.save(state)
         let firstBytes = try sidecarBytes()
@@ -77,7 +77,7 @@ final class LocalCacheStoreSplitTests: XCTestCase {
     }
 
     func testEventsChangeTriggersSidecarRewrite() async throws {
-        let store = LocalCacheStore(fileURL: mainFileURL)
+        let store = LocalCacheStore(fileURL: mainFileURL, storageBackend: .jsonSidecar)
         let state1 = makeState(events: [makeEvent(id: "a")])
         await store.save(state1)
         let firstBytes = try sidecarBytes()
@@ -92,7 +92,7 @@ final class LocalCacheStoreSplitTests: XCTestCase {
     }
 
     func testEtagChangeOnSameIdTriggersSidecarRewrite() async throws {
-        let store = LocalCacheStore(fileURL: mainFileURL)
+        let store = LocalCacheStore(fileURL: mainFileURL, storageBackend: .jsonSidecar)
         let state1 = makeState(events: [makeEvent(id: "a", etag: "v1")])
         await store.save(state1)
         let firstBytes = try sidecarBytes()
@@ -108,7 +108,7 @@ final class LocalCacheStoreSplitTests: XCTestCase {
     }
 
     func testNonEventStateChangesDoNotRewriteSidecar() async throws {
-        let store = LocalCacheStore(fileURL: mainFileURL)
+        let store = LocalCacheStore(fileURL: mainFileURL, storageBackend: .jsonSidecar)
         let state = makeState(events: [makeEvent(id: "z")])
         await store.save(state)
         let firstBytes = try sidecarBytes()
@@ -134,7 +134,7 @@ final class LocalCacheStoreSplitTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: eventsFileURL.path),
                        "precondition: sidecar absent")
 
-        let store = LocalCacheStore(fileURL: mainFileURL)
+        let store = LocalCacheStore(fileURL: mainFileURL, storageBackend: .jsonSidecar)
         let loaded = await store.loadCachedState()
 
         XCTAssertEqual(loaded.events.count, 2)
@@ -147,7 +147,7 @@ final class LocalCacheStoreSplitTests: XCTestCase {
         let legacyState = makeState(events: [makeEvent(id: "m1")])
         try JSONEncoder.testCacheEncoder.encode(legacyState).write(to: mainFileURL)
 
-        let store = LocalCacheStore(fileURL: mainFileURL)
+        let store = LocalCacheStore(fileURL: mainFileURL, storageBackend: .jsonSidecar)
         let loaded = await store.loadCachedState()
         await store.save(loaded)
 
@@ -167,7 +167,7 @@ final class LocalCacheStoreSplitTests: XCTestCase {
         try JSONEncoder.testCacheEncoder.encode(legacyState).write(to: mainFileURL)
         try Data("not json".utf8).write(to: eventsFileURL)
 
-        let store = LocalCacheStore(fileURL: mainFileURL)
+        let store = LocalCacheStore(fileURL: mainFileURL, storageBackend: .jsonSidecar)
         let loaded = await store.loadCachedState()
 
         XCTAssertEqual(loaded.events.count, 1)
@@ -179,7 +179,7 @@ final class LocalCacheStoreSplitTests: XCTestCase {
 
     func testEncryptedSidecarRoundtrip() async throws {
         let key = SymmetricKey(size: .bits256)
-        let store = LocalCacheStore(fileURL: mainFileURL)
+        let store = LocalCacheStore(fileURL: mainFileURL, storageBackend: .jsonSidecar)
         await store.setEncryptionKey(key)
         let state = makeState(events: [makeEvent(id: "encA"), makeEvent(id: "encB")])
         await store.save(state)
@@ -191,7 +191,7 @@ final class LocalCacheStoreSplitTests: XCTestCase {
                      "encrypted sidecar should not parse as plaintext events array")
 
         // Fresh store, same key → load decrypts and returns events.
-        let reloader = LocalCacheStore(fileURL: mainFileURL)
+        let reloader = LocalCacheStore(fileURL: mainFileURL, storageBackend: .jsonSidecar)
         await reloader.setEncryptionKey(key)
         let loaded = await reloader.loadCachedState()
         XCTAssertEqual(loaded.events.count, 2)
@@ -230,10 +230,10 @@ final class LocalCacheStoreSplitTests: XCTestCase {
             syncCheckpoints: personal.syncCheckpoints,
             pendingMutations: personal.pendingMutations
         )
-        let store = LocalCacheStore(fileURL: mainFileURL)
+        let store = LocalCacheStore(fileURL: mainFileURL, storageBackend: .jsonSidecar)
 
         await store.save(state)
-        let reloader = LocalCacheStore(fileURL: mainFileURL)
+        let reloader = LocalCacheStore(fileURL: mainFileURL, storageBackend: .jsonSidecar)
         let loaded = await reloader.loadCachedState()
 
         XCTAssertEqual(loaded.events.map(\.id), ["personal-event"])
@@ -244,7 +244,7 @@ final class LocalCacheStoreSplitTests: XCTestCase {
     }
 
     func testPlaintextSidecarDoesNotDuplicateActiveWorkspaceEvents() async throws {
-        let store = LocalCacheStore(fileURL: mainFileURL)
+        let store = LocalCacheStore(fileURL: mainFileURL, storageBackend: .jsonSidecar)
         let state = makeMultiAccountState(
             activeEvents: [makeEvent(id: "personal-event")],
             inactiveEvents: [makeEvent(id: "work-event")]
@@ -261,7 +261,7 @@ final class LocalCacheStoreSplitTests: XCTestCase {
         XCTAssertNil(payload.workspaceEventsByAccountID[GoogleAccount.preview.id])
         XCTAssertEqual(payload.workspaceEventsByAccountID["work-account"]?.map(\.id), ["work-event"])
 
-        let reloader = LocalCacheStore(fileURL: mainFileURL)
+        let reloader = LocalCacheStore(fileURL: mainFileURL, storageBackend: .jsonSidecar)
         let loaded = await reloader.loadCachedState()
         XCTAssertEqual(loaded.events.map(\.id), ["personal-event"])
         XCTAssertEqual(
@@ -275,7 +275,7 @@ final class LocalCacheStoreSplitTests: XCTestCase {
     }
 
     func testInactiveWorkspaceEventChangeTriggersSidecarRewrite() async throws {
-        let store = LocalCacheStore(fileURL: mainFileURL)
+        let store = LocalCacheStore(fileURL: mainFileURL, storageBackend: .jsonSidecar)
         let state1 = makeMultiAccountState(
             activeEvents: [makeEvent(id: "personal-event")],
             inactiveEvents: [makeEvent(id: "work-event", etag: "v1")]
@@ -299,7 +299,7 @@ final class LocalCacheStoreSplitTests: XCTestCase {
 
     func testEncryptedMultiAccountSidecarRoundtripPreservesInactiveWorkspaceEvents() async throws {
         let key = SymmetricKey(size: .bits256)
-        let store = LocalCacheStore(fileURL: mainFileURL)
+        let store = LocalCacheStore(fileURL: mainFileURL, storageBackend: .jsonSidecar)
         await store.setEncryptionKey(key)
         let state = makeMultiAccountState(
             activeEvents: [makeEvent(id: "personal-event")],
@@ -310,7 +310,7 @@ final class LocalCacheStoreSplitTests: XCTestCase {
         let raw = try Data(contentsOf: eventsFileURL)
         XCTAssertNil(try? JSONDecoder.testCacheDecoder.decode([CalendarEventMirror].self, from: raw))
 
-        let reloader = LocalCacheStore(fileURL: mainFileURL)
+        let reloader = LocalCacheStore(fileURL: mainFileURL, storageBackend: .jsonSidecar)
         await reloader.setEncryptionKey(key)
         let loaded = await reloader.loadCachedState()
 

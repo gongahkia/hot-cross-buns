@@ -527,6 +527,15 @@ struct DiagnosticsView: View {
             }
             .disabled(isWorking || model.account == nil)
 
+            Button {
+                runRecoveryAction {
+                    await model.rebuildLocalIntegrationIndexesForDiagnostics()
+                }
+            } label: {
+                Label("Rebuild Spotlight and reminders", systemImage: "magnifyingglass.circle")
+            }
+            .disabled(isWorking)
+
             Button(role: .destructive) {
                 confirmation = .clearCache
             } label: {

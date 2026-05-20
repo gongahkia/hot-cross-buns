@@ -2,11 +2,18 @@ import Foundation
 import CryptoKit
 
 actor LocalCacheStore {
+    enum StorageBackend {
+        case sqlite
+        case jsonSidecar
+    }
+
     private let fileURL: URL?
+    private let storageBackend: StorageBackend
     private let fallbackState: CachedAppState
     private var cachedState: CachedAppState
     private(set) var lastLoadWarning: String?
     private let snapshotGenerations = 3
+    private var databaseStore: LocalCacheDatabaseStore?
     // §6.12 — when non-nil, cache writes encrypt and reads decrypt via AES-GCM.
     // The caller (AppModel) sets this after loading the key from Keychain.
     // When nil but the file on disk is encrypted, load returns fallback with
@@ -21,10 +28,16 @@ actor LocalCacheStore {
     // written one, the events file write is skipped entirely. Set to nil
     // on load so the first save after launch writes events unconditionally
     // (handles legacy-monolithic → split migration).
-    private var lastEventsHash: Int?
+    private var lastEventsHash: String?
 
     private var eventsFileURL: URL? {
         fileURL?.deletingLastPathComponent().appending(path: "cache-events.json")
+    }
+
+    private var databaseFileURL: URL? {
+        guard let fileURL else { return nil }
+        let base = fileURL.pathExtension.isEmpty ? fileURL : fileURL.deletingPathExtension()
+        return base.appendingPathExtension("sqlite")
     }
 
     // Sidecar: stores the salt used to derive the current encryption key.
@@ -36,9 +49,11 @@ actor LocalCacheStore {
 
     init(
         fileURL: URL? = LocalCacheStore.defaultCacheFileURL,
-        cachedState: CachedAppState = .empty
+        cachedState: CachedAppState = .empty,
+        storageBackend: StorageBackend = .sqlite
     ) {
         self.fileURL = fileURL
+        self.storageBackend = storageBackend
         self.fallbackState = cachedState
         self.cachedState = cachedState
     }
@@ -85,6 +100,61 @@ actor LocalCacheStore {
     }
 
     func loadCachedState() -> CachedAppState {
+        switch storageBackend {
+        case .jsonSidecar:
+            return loadJSONSidecarCachedState()
+        case .sqlite:
+            return loadSQLiteBackedCachedState()
+        }
+    }
+
+    private func loadSQLiteBackedCachedState() -> CachedAppState {
+        guard let databaseFileURL else {
+            return cachedState
+        }
+
+        if FileManager.default.fileExists(atPath: databaseFileURL.path) {
+            do {
+                let state = try database().load(encryptionKey: encryptionKey)
+                try? database().repairSearchAndRenderTablesIfEmpty(encryptionKey: encryptionKey)
+                lastLoadWarning = nil
+                cachedState = state
+                lastEventsHash = nil
+                return state
+            } catch LocalCacheDatabaseStore.CacheDatabaseError.encryptedStoreLocked {
+                lastLoadWarning = "Local cache is encrypted; unlock to read. Google remains the source of truth."
+                cachedState = fallbackState
+                return fallbackState
+            } catch {
+                AppLogger.error("sqlite cache load failed, trying JSON fallback", category: .cache, metadata: [
+                    "error": String(describing: error)
+                ])
+                let fallback = loadJSONSidecarCachedState()
+                if fallbackHasUsableState(fallback) {
+                    lastLoadWarning = "SQLite cache could not be read; restored from legacy JSON cache."
+                }
+                return fallback
+            }
+        }
+
+        let state = loadJSONSidecarCachedState()
+        guard hasLegacyCacheArtifacts() else {
+            return state
+        }
+
+        do {
+            try saveToDatabase(state)
+            AppLogger.info("migrated JSON cache to SQLite", category: .cache)
+        } catch {
+            AppLogger.warn("JSON to SQLite cache migration failed", category: .cache, metadata: [
+                "error": String(describing: error)
+            ])
+            lastLoadWarning = "Local cache loaded from legacy JSON; SQLite migration will retry on the next save."
+        }
+        return state
+    }
+
+    private func loadJSONSidecarCachedState() -> CachedAppState {
         guard let fileURL, FileManager.default.fileExists(atPath: fileURL.path) else {
             // Even the primary cache is missing — try our rotated snapshots
             // before falling all the way back to empty state.
@@ -148,6 +218,48 @@ actor LocalCacheStore {
             cachedState = recovered
             return recovered
         }
+    }
+
+    private func database() throws -> LocalCacheDatabaseStore {
+        if let databaseStore {
+            return databaseStore
+        }
+        guard let databaseFileURL else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        let store = try LocalCacheDatabaseStore(fileURL: databaseFileURL)
+        databaseStore = store
+        return store
+    }
+
+    private func saveToDatabase(_ state: CachedAppState) throws {
+        let salt = encryptionKey == nil ? nil : ensureSalt()
+        try database().save(state, encryptionKey: encryptionKey, salt: salt)
+    }
+
+    private func hasLegacyCacheArtifacts() -> Bool {
+        if let fileURL, FileManager.default.fileExists(atPath: fileURL.path) {
+            return true
+        }
+        if let eventsFileURL, FileManager.default.fileExists(atPath: eventsFileURL.path) {
+            return true
+        }
+        guard let fileURL else { return false }
+        return (1...snapshotGenerations).contains { index in
+            FileManager.default.fileExists(atPath: snapshotURL(at: index, basedOn: fileURL).path)
+        }
+    }
+
+    private func fallbackHasUsableState(_ state: CachedAppState) -> Bool {
+        state.account != nil
+            || state.accounts.isEmpty == false
+            || state.accountWorkspaces.isEmpty == false
+            || state.taskLists.isEmpty == false
+            || state.tasks.isEmpty == false
+            || state.calendars.isEmpty == false
+            || state.events.isEmpty == false
+            || state.syncCheckpoints.isEmpty == false
+            || state.pendingMutations.isEmpty == false
     }
 
 #if DEBUG
@@ -418,6 +530,144 @@ actor LocalCacheStore {
     func save(_ state: CachedAppState) {
         cachedState = state
 
+        switch storageBackend {
+        case .jsonSidecar:
+            saveJSONSidecar(state)
+        case .sqlite:
+            guard databaseFileURL != nil else {
+                return
+            }
+            do {
+                try saveToDatabase(state)
+            } catch {
+                AppLogger.warn("sqlite cache write failed, writing JSON fallback", category: .cache, metadata: [
+                    "error": String(describing: error)
+                ])
+                saveJSONSidecar(state)
+            }
+        }
+    }
+
+    func commitSyncResult(_ result: SyncApplyResult) throws {
+        switch storageBackend {
+        case .jsonSidecar:
+            saveJSONSidecar(result.state)
+            cachedState = result.state
+        case .sqlite:
+            guard databaseFileURL != nil else {
+                cachedState = result.state
+                return
+            }
+            let salt = encryptionKey == nil ? nil : ensureSalt()
+            try database().applySyncResult(result, encryptionKey: encryptionKey, salt: salt)
+            cachedState = result.state
+        }
+    }
+
+    func repairCalendarDerivedTables() throws {
+        guard case .sqlite = storageBackend, databaseFileURL != nil else { return }
+        try database().repairCalendarDerivedTables(encryptionKey: encryptionKey)
+    }
+
+    func repairSearchAndRenderTables() throws {
+        guard case .sqlite = storageBackend, databaseFileURL != nil else { return }
+        try database().repairSearchAndRenderTables(encryptionKey: encryptionKey)
+    }
+
+    func repairSearchAndRenderTablesIfEmpty() throws {
+        guard case .sqlite = storageBackend, databaseFileURL != nil else { return }
+        try database().repairSearchAndRenderTablesIfEmpty(encryptionKey: encryptionKey)
+    }
+
+    func searchEntities(
+        query: String,
+        scope: LocalCacheEntitySearchScope = .all,
+        limit: Int = 40
+    ) throws -> LocalCacheEntitySearchResults? {
+        guard case .sqlite = storageBackend, databaseFileURL != nil else {
+            return nil
+        }
+        try Task.checkCancellation()
+        let results = try database().searchEntities(
+            accountID: cachedState.activeAccountID,
+            query: query,
+            scope: scope,
+            limit: limit,
+            encryptionKey: encryptionKey
+        )
+        try Task.checkCancellation()
+        return results
+    }
+
+    func enqueueSideEffectRebuild(
+        targets: Set<LocalIntegrationDirtyTarget> = Set(LocalIntegrationDirtyTarget.allCases)
+    ) throws {
+        guard case .sqlite = storageBackend, databaseFileURL != nil else { return }
+        try database().enqueueSideEffectRebuild(
+            accountID: cachedState.activeAccountID,
+            targets: targets
+        )
+    }
+
+    func sideEffectDirtyItems(
+        target: LocalIntegrationDirtyTarget,
+        limit: Int = 200
+    ) throws -> [LocalIntegrationDirtyItem] {
+        guard case .sqlite = storageBackend, databaseFileURL != nil else { return [] }
+        return try database().sideEffectDirtyItems(target: target, limit: limit)
+    }
+
+    func markSideEffectDirtyItemsProcessed(_ items: [LocalIntegrationDirtyItem]) throws {
+        guard case .sqlite = storageBackend, databaseFileURL != nil else { return }
+        try database().markSideEffectDirtyItemsProcessed(items)
+    }
+
+    func calendarAggregateCounts(
+        accountID: String? = nil,
+        selectedCalendarIDs: Set<CalendarListMirror.ID>? = nil,
+        includeCancelled: Bool = false,
+        colorTagBindings: [String: String] = [:]
+    ) throws -> CalendarAggregateCounts {
+        guard case .sqlite = storageBackend, databaseFileURL != nil else {
+            return .empty
+        }
+        return try database().calendarAggregateCounts(
+            accountID: accountID ?? cachedState.activeAccountID,
+            selectedCalendarIDs: selectedCalendarIDs,
+            includeCancelled: includeCancelled,
+            colorTagBindings: colorTagBindings
+        )
+    }
+
+    func calendarVisibleRangeProjection(
+        accountID: String? = nil,
+        kind: CalendarVisibleRangeKind,
+        anchorDate: Date,
+        dayCount: Int? = nil,
+        selectedCalendarIDs: Set<CalendarListMirror.ID>,
+        eventViewFilter: CalendarEventViewFilter = CalendarEventViewFilter(),
+        includeCancelled: Bool = false,
+        calendar: Calendar = .current
+    ) throws -> CalendarVisibleRangeProjection {
+        guard case .sqlite = storageBackend, databaseFileURL != nil else {
+            return .empty(kind: kind, anchorDate: anchorDate, calendar: calendar)
+        }
+        return try database().calendarVisibleRangeProjection(
+            accountID: accountID ?? cachedState.activeAccountID,
+            kind: kind,
+            anchorDate: anchorDate,
+            dayCount: dayCount,
+            selectedCalendarIDs: selectedCalendarIDs,
+            eventViewFilter: eventViewFilter,
+            includeCancelled: includeCancelled,
+            encryptionKey: encryptionKey,
+            calendar: calendar
+        )
+    }
+
+    private func saveJSONSidecar(_ state: CachedAppState) {
+        cachedState = state
+
         guard let fileURL else {
             return
         }
@@ -602,38 +852,44 @@ actor LocalCacheStore {
 #endif
 
     // Cheap order-sensitive fingerprint of the events array. Hashes (id,
-    // etag, updatedAt) per event — same set of events in the same order
-    // produces the same hash. With 17k events this runs in ~1ms.
+    // etag, updatedAt) per event with SHA-256, not Swift Hasher, so the
+    // same event payloads produce the same digest across launches.
     // Internal (not fileprivate) so tests can verify the exact bust /
     // skip semantics independently of the actor's save path.
-    static func hashEvents(_ events: [CalendarEventMirror]) -> Int {
-        var hasher = Hasher()
-        hasher.combine(events.count)
-        for event in events {
-            hasher.combine(event.id)
-            hasher.combine(event.etag)
-            hasher.combine(event.updatedAt)
+    static func hashEvents(_ events: [CalendarEventMirror]) -> String {
+        let fingerprints = events.map {
+            EventFingerprint(id: $0.id, etag: $0.etag, updatedAt: $0.updatedAt)
         }
-        return hasher.finalize()
+        let payload = (try? JSONEncoder.cacheFingerprint.encode(fingerprints)) ?? Data()
+        return LocalCacheRowHasher.hash(canonicalPayload: payload, kind: "eventSidecarFingerprint")
     }
 
-    static func hashEventPayloads(in state: CachedAppState) -> Int {
-        var hasher = Hasher()
-        hasher.combine(hashEvents(state.events))
-        for workspace in state.accountWorkspaces.sorted(by: { $0.accountID < $1.accountID }) {
-            hasher.combine(workspace.accountID)
-            hasher.combine(hashEvents(workspace.events))
-        }
-        return hasher.finalize()
+    static func hashEventPayloads(in state: CachedAppState) -> String {
+        let fingerprints = EventPayloadFingerprint(
+            activeEventsHash: hashEvents(state.events),
+            workspaceEventHashes: state.accountWorkspaces
+                .sorted(by: { $0.accountID < $1.accountID })
+                .map { .init(accountID: $0.accountID, eventsHash: hashEvents($0.events)) }
+        )
+        let payload = (try? JSONEncoder.cacheFingerprint.encode(fingerprints)) ?? Data()
+        return LocalCacheRowHasher.hash(canonicalPayload: payload, kind: "eventSidecarPayload")
     }
 
     func cacheFilePath() -> String? {
-        fileURL?.path
+        switch storageBackend {
+        case .sqlite:
+            databaseFileURL?.path
+        case .jsonSidecar:
+            fileURL?.path
+        }
     }
 
     func cacheFootprintBytes() -> Int64 {
         [
             fileURL,
+            databaseFileURL,
+            databaseFileURL.map { URL(fileURLWithPath: $0.path + "-wal") },
+            databaseFileURL.map { URL(fileURLWithPath: $0.path + "-shm") },
             eventsFileURL,
             saltURL
         ]
@@ -724,6 +980,22 @@ struct LocalCacheStoreSaveProfile: Sendable {
 }
 #endif
 
+private struct EventFingerprint: Encodable {
+    var id: String
+    var etag: String?
+    var updatedAt: Date?
+}
+
+private struct EventPayloadFingerprint: Encodable {
+    struct WorkspaceEvents: Encodable {
+        var accountID: GoogleAccount.ID
+        var eventsHash: String
+    }
+
+    var activeEventsHash: String
+    var workspaceEventHashes: [WorkspaceEvents]
+}
+
 private extension LocalCacheStore {
     static var defaultCacheFileURL: URL? {
         guard let appSupportURL = FileManager.default.urls(
@@ -759,6 +1031,13 @@ private extension JSONEncoder {
         #if DEBUG
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         #endif
+        return encoder
+    }
+
+    static var cacheFingerprint: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.sortedKeys]
         return encoder
     }
 }

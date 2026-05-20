@@ -161,6 +161,70 @@ extension SyncCheckpoint {
     }
 }
 
+struct SyncApplyResult: Sendable {
+    var state: CachedAppState
+    var changeSet: SyncChangeSet
+}
+
+struct SyncChangeSet: Equatable, Sendable {
+    struct RowChanges: Equatable, Sendable {
+        var inserted: Set<String> = []
+        var updated: Set<String> = []
+        var deleted: Set<String> = []
+        var unchanged: Set<String> = []
+
+        var hasChanges: Bool {
+            inserted.isEmpty == false || updated.isEmpty == false || deleted.isEmpty == false
+        }
+
+        var touched: Set<String> {
+            inserted.union(updated).union(deleted).union(unchanged)
+        }
+
+        mutating func formUnion(_ other: RowChanges) {
+            inserted.formUnion(other.inserted)
+            updated.formUnion(other.updated)
+            deleted.formUnion(other.deleted)
+            unchanged.formUnion(other.unchanged)
+        }
+    }
+
+    var taskLists = RowChanges()
+    var tasks = RowChanges()
+    var calendars = RowChanges()
+    var events = RowChanges()
+    var checkpoints = RowChanges()
+    var affectedDayKeys: Set<TimeInterval> = []
+    var affectedCalendarIDs: Set<CalendarListMirror.ID> = []
+    var affectedTaskListIDs: Set<TaskListMirror.ID> = []
+    var settingsChanged = false
+    var checkpointChanged = false
+
+    static let empty = SyncChangeSet()
+
+    var hasRowChanges: Bool {
+        taskLists.hasChanges
+            || tasks.hasChanges
+            || calendars.hasChanges
+            || events.hasChanges
+            || checkpoints.hasChanges
+    }
+
+    var requiresDerivedSnapshotRebuild: Bool {
+        taskLists.hasChanges
+            || tasks.hasChanges
+            || calendars.hasChanges
+            || events.hasChanges
+            || settingsChanged
+    }
+
+    var canUseNarrowCalendarInvalidation: Bool {
+        affectedDayKeys.isEmpty == false
+            && calendars.hasChanges == false
+            && settingsChanged == false
+    }
+}
+
 enum SyncResourceType: String, Hashable, Codable, Sendable {
     case taskList
     case calendar

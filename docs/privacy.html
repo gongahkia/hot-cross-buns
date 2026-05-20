@@ -51,8 +51,8 @@
       <h2>Where local data lives</h2>
       <p>By default the app keeps a local cache under <code>~/Library/Application Support/com.gongahkia.hotcrossbuns.mac/</code>.</p>
       <ul>
-        <li><code>cache-state.json</code>: account metadata, active-account state, per-account settings, sync checkpoints, pending offline mutations, and non-event mirrors</li>
-        <li><code>cache-events.json</code>: active and inactive account calendar event mirrors stored separately so routine saves stay small</li>
+        <li><code>cache-state.sqlite</code>: account metadata, active-account state, per-account settings, sync checkpoints, pending offline mutations, task mirrors, calendar mirrors, and event mirrors</li>
+        <li><code>cache-state.json</code> and <code>cache-events.json</code>: legacy cache sidecars that are migrated into SQLite on first load and used only as fallback inputs</li>
         <li><code>cache-state.salt</code>: encryption salt when cache encryption is enabled</li>
         <li><code>crash.log</code>: local crash note written on certain fatal crashes</li>
       </ul>

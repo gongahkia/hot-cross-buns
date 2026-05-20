@@ -52,6 +52,10 @@ actor SpotlightIndexer {
         lastSummary
     }
 
+    func isPrimed() -> Bool {
+        didPrimeDomains
+    }
+
     func update(tasks: [TaskMirror], events: [CalendarEventMirror]) async {
         pendingUpdate = SpotlightUpdatePayload(tasks: tasks, events: events)
         guard isApplyingUpdate == false else { return }
@@ -62,6 +66,66 @@ actor SpotlightIndexer {
         while let update = pendingUpdate {
             pendingUpdate = nil
             await applyUpdate(tasks: update.tasks, events: update.events)
+        }
+    }
+
+    func applyDirty(
+        changedTasks: [TaskMirror],
+        deletedTaskIDs: Set<String>,
+        changedEvents: [CalendarEventMirror],
+        deletedEventIDs: Set<String>
+    ) async {
+        guard didPrimeDomains else {
+            return
+        }
+        let started = Date()
+        do {
+            var deletedIdentifiers: [String] = []
+            deletedIdentifiers += deletedTaskIDs.map { Self.taskURLScheme + $0 }
+            deletedIdentifiers += deletedEventIDs.map { Self.eventURLScheme + $0 }
+
+            let activeChangedTasks = changedTasks.filter { $0.isDeleted == false }
+            let removedChangedTaskIDs = Set(changedTasks.filter(\.isDeleted).map(\.id))
+            deletedIdentifiers += removedChangedTaskIDs.map { Self.taskURLScheme + $0 }
+
+            let activeChangedEvents = changedEvents.filter { $0.status != .cancelled }
+            let removedChangedEventIDs = Set(changedEvents.filter { $0.status == .cancelled }.map(\.id))
+            deletedIdentifiers += removedChangedEventIDs.map { Self.eventURLScheme + $0 }
+
+            let uniqueDeletedIdentifiers = Array(Set(deletedIdentifiers))
+            if uniqueDeletedIdentifiers.isEmpty == false {
+                try await index.deleteSearchableItems(withIdentifiers: uniqueDeletedIdentifiers)
+            }
+
+            if activeChangedTasks.isEmpty == false {
+                try await index.indexSearchableItems(activeChangedTasks.map(taskItem))
+            }
+            if activeChangedEvents.isEmpty == false {
+                try await index.indexSearchableItems(activeChangedEvents.map(eventItem))
+            }
+
+            for id in deletedTaskIDs.union(removedChangedTaskIDs) {
+                taskFingerprints[id] = nil
+            }
+            for task in activeChangedTasks {
+                taskFingerprints[task.id] = Self.taskFingerprint(task)
+            }
+            for id in deletedEventIDs.union(removedChangedEventIDs) {
+                eventFingerprints[id] = nil
+            }
+            for event in activeChangedEvents {
+                eventFingerprints[event.id] = Self.eventFingerprint(event)
+            }
+
+            recordSummary(
+                started: started,
+                indexedTaskCount: activeChangedTasks.count,
+                indexedEventCount: activeChangedEvents.count,
+                deletedItemCount: uniqueDeletedIdentifiers.count,
+                rebuiltDomains: false
+            )
+        } catch {
+            // best effort
         }
     }
 

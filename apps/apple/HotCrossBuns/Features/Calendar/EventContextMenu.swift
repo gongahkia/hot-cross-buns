@@ -11,17 +11,23 @@ struct EventContextMenu: View {
     var onConvertToNote: (() -> Void)? = nil
     var onDelete: (() -> Void)? = nil
 
+    private var currentEvent: CalendarEventMirror {
+        model.event(id: event.id) ?? event
+    }
+
     private var movableCalendars: [CalendarListMirror] {
-        model.calendars.filter {
+        let event = currentEvent
+        return model.calendars.filter {
             $0.id != event.calendarID && ($0.accessRole == "owner" || $0.accessRole == "writer")
         }
     }
 
     private var calendarTitle: String? {
-        model.calendars.first(where: { $0.id == event.calendarID })?.summary
+        model.calendars.first(where: { $0.id == currentEvent.calendarID })?.summary
     }
 
     var body: some View {
+        let event = currentEvent
         if let onOpen {
             Button("Open…", action: onOpen)
         }
@@ -104,7 +110,7 @@ struct EventContextMenu: View {
     }
 
     private var googleEventURL: URL? {
-        guard let htmlLink = event.htmlLink else { return nil }
+        guard let htmlLink = currentEvent.htmlLink else { return nil }
         return URL(string: htmlLink)
     }
 
@@ -118,6 +124,7 @@ struct EventContextMenu: View {
     }
 
     private func move(to calendarID: CalendarListMirror.ID) async {
+        let event = currentEvent
         _ = await model.updateEvent(
             event,
             summary: event.summary,
@@ -137,6 +144,7 @@ struct EventContextMenu: View {
     }
 
     private func exportICS() {
+        let event = currentEvent
         let content = EventICSExporter.ics(for: event)
         let panel = NSSavePanel()
         let sanitized = event.summary

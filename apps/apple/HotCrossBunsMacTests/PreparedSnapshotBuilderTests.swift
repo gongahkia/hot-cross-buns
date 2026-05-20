@@ -241,6 +241,16 @@ final class PreparedCalendarSnapshotBuilderTests: XCTestCase {
             tasksByDueDate[calendar.startOfDay(for: due).timeIntervalSinceReferenceDate, default: []].append(task.id)
         }
 
+        let range = CalendarVisibleRange(kind: .month, start: day(2026, 1, 1), end: day(2026, 12, 31), calendar: calendar)
+        let visibleRange = CalendarVisibleRangeProjection(
+            range: range,
+            revisionKey: "test",
+            eventsByDay: eventsByDay,
+            tasksByDueDate: tasksByDueDate,
+            eventByID: Dictionary(uniqueKeysWithValues: events.map { ($0.id, $0) }),
+            taskByID: taskByID
+        )
+
         return CalendarDisplayInput(
             key: key,
             anchorDate: anchor,
@@ -248,10 +258,7 @@ final class PreparedCalendarSnapshotBuilderTests: XCTestCase {
             eventViewFilter: CalendarEventViewFilter(),
             visibleTaskListIDs: visibleTaskListIDs,
             searchQuery: searchQuery,
-            eventsByDay: eventsByDay,
-            tasksByDueDate: tasksByDueDate,
-            eventByID: Dictionary(uniqueKeysWithValues: events.map { ($0.id, $0) }),
-            taskByID: taskByID,
+            visibleRange: visibleRange,
             calendarColorHexByID: ["primary": "#448AFF", "secondary": "#FF7043"],
             taskListTitleByID: ["list-a": "Inbox", "list-b": "Hidden"],
             settings: settings,

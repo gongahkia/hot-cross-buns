@@ -580,6 +580,146 @@ final class CloudSyncControlTests: XCTestCase {
         XCTAssertEqual(Set(synced.tasks.map(\.id)), ["recent-completed", "old-open"])
     }
 
+    func testSyncChangeSetReportsNarrowChangedEventAndTask() async throws {
+        var settings = AppSettings.default
+        settings.cloudSyncTargets = CloudSyncTarget.all
+        settings.selectedTaskListIDs = ["list"]
+        settings.hasConfiguredTaskListSelection = true
+        settings.selectedCalendarIDs = ["cal"]
+        settings.hasConfiguredCalendarSelection = true
+        var state = baseState(settings: settings)
+        state.syncCheckpoints = [
+            SyncCheckpoint(
+                id: SyncCheckpoint.stableID(accountID: GoogleAccount.preview.id, resourceType: .taskList, resourceID: "list"),
+                accountID: GoogleAccount.preview.id,
+                resourceType: .taskList,
+                resourceID: "list",
+                calendarSyncToken: nil,
+                tasksUpdatedMin: Date(timeIntervalSince1970: 1_714_000_000),
+                lastSuccessfulSyncAt: Date(timeIntervalSince1970: 1_714_000_000)
+            ),
+            SyncCheckpoint(
+                id: SyncCheckpoint.stableID(accountID: GoogleAccount.preview.id, resourceType: .calendar, resourceID: "cal"),
+                accountID: GoogleAccount.preview.id,
+                resourceType: .calendar,
+                resourceID: "cal",
+                calendarSyncToken: "prev-token",
+                tasksUpdatedMin: nil,
+                lastSuccessfulSyncAt: Date(timeIntervalSince1970: 1_714_000_000)
+            )
+        ]
+
+        MockURLProtocol.requestHandler = { request in
+            switch request.url?.path {
+            case "/tasks/v1/users/@me/lists":
+                return Self.jsonResponse(for: request, body: Self.taskListsJSON)
+            case "/tasks/v1/lists/list/tasks":
+                let query = Self.query(for: request)
+                XCTAssertNotNil(query["updatedMin"])
+                return Self.jsonResponse(for: request, body: Self.changedCachedTaskJSON)
+            case "/calendar/v3/users/me/calendarList":
+                return Self.jsonResponse(for: request, body: Self.calendarListJSON)
+            case "/calendar/v3/calendars/cal/events":
+                let query = Self.query(for: request)
+                XCTAssertEqual(query["syncToken"], "prev-token")
+                return Self.jsonResponse(for: request, body: Self.changedCachedEventJSON)
+            default:
+                XCTFail("Unexpected path \(request.url?.path ?? "<nil>")")
+                return Self.jsonResponse(for: request, body: #"{}"#, statusCode: 404)
+            }
+        }
+
+        let result = try await makeScheduler().syncNowWithChangeSet(mode: .balanced, baseState: state)
+        let changeSet = result.changeSet
+
+        XCTAssertEqual(changeSet.taskLists.unchanged, ["list"])
+        XCTAssertEqual(changeSet.calendars.unchanged, ["cal"])
+        XCTAssertEqual(changeSet.tasks.updated, ["cached-task"])
+        XCTAssertEqual(changeSet.events.updated, ["cached-event"])
+        XCTAssertTrue(changeSet.tasks.inserted.isEmpty)
+        XCTAssertTrue(changeSet.events.deleted.isEmpty)
+        XCTAssertEqual(changeSet.affectedTaskListIDs, ["list"])
+        XCTAssertEqual(changeSet.affectedCalendarIDs, ["cal"])
+        XCTAssertTrue(changeSet.checkpointChanged)
+        XCTAssertEqual(result.state.tasks.first { $0.id == "cached-task" }?.title, "Changed task")
+        XCTAssertEqual(result.state.events.first { $0.id == "cached-event" }?.summary, "Changed event")
+
+        let eventDay = Self.dayKey(state.events[0].startDate)
+        XCTAssertTrue(changeSet.affectedDayKeys.contains(eventDay))
+    }
+
+    func testSyncChangeSetReportsDeletedMovedAndMultiDayEventDays() async throws {
+        var settings = AppSettings.default
+        settings.cloudSyncTargets = [.events]
+        settings.selectedCalendarIDs = ["cal"]
+        settings.hasConfiguredCalendarSelection = true
+        var state = baseState(settings: settings)
+        state.events = [
+            CalendarEventMirror(
+                id: "moved-event",
+                calendarID: "cal",
+                summary: "Moved event",
+                details: "",
+                startDate: Self.date("2026-05-01T10:00:00Z"),
+                endDate: Self.date("2026-05-01T11:00:00Z"),
+                isAllDay: false,
+                status: .confirmed,
+                recurrence: [],
+                etag: "move-v1",
+                updatedAt: Self.date("2026-05-01T00:00:00Z")
+            ),
+            CalendarEventMirror(
+                id: "multi-day",
+                calendarID: "cal",
+                summary: "Multi day",
+                details: "",
+                startDate: Self.date("2026-05-10T00:00:00Z"),
+                endDate: Self.date("2026-05-13T00:00:00Z"),
+                isAllDay: true,
+                status: .confirmed,
+                recurrence: [],
+                etag: "multi-v1",
+                updatedAt: Self.date("2026-05-09T00:00:00Z")
+            )
+        ]
+        state.syncCheckpoints = [
+            SyncCheckpoint(
+                id: SyncCheckpoint.stableID(accountID: GoogleAccount.preview.id, resourceType: .calendar, resourceID: "cal"),
+                accountID: GoogleAccount.preview.id,
+                resourceType: .calendar,
+                resourceID: "cal",
+                calendarSyncToken: "prev-token",
+                tasksUpdatedMin: nil,
+                lastSuccessfulSyncAt: Date(timeIntervalSince1970: 1_714_000_000)
+            )
+        ]
+
+        MockURLProtocol.requestHandler = { request in
+            switch request.url?.path {
+            case "/calendar/v3/users/me/calendarList":
+                return Self.jsonResponse(for: request, body: Self.calendarListJSON)
+            case "/calendar/v3/calendars/cal/events":
+                return Self.jsonResponse(for: request, body: Self.movedAndDeletedEventsJSON)
+            default:
+                XCTFail("Unexpected path \(request.url?.path ?? "<nil>")")
+                return Self.jsonResponse(for: request, body: #"{}"#, statusCode: 404)
+            }
+        }
+
+        let result = try await makeScheduler().syncNowWithChangeSet(mode: .balanced, baseState: state)
+        let changeSet = result.changeSet
+
+        XCTAssertEqual(changeSet.events.updated, ["moved-event"])
+        XCTAssertEqual(changeSet.events.deleted, ["multi-day"])
+        XCTAssertEqual(result.state.events.map(\.id), ["moved-event"])
+        XCTAssertTrue(changeSet.affectedDayKeys.contains(Self.dayKey(Self.date("2026-05-01T12:00:00Z"))))
+        XCTAssertTrue(changeSet.affectedDayKeys.contains(Self.dayKey(Self.date("2026-05-03T12:00:00Z"))))
+        XCTAssertTrue(changeSet.affectedDayKeys.contains(Self.dayKey(Self.date("2026-05-10T12:00:00Z"))))
+        XCTAssertTrue(changeSet.affectedDayKeys.contains(Self.dayKey(Self.date("2026-05-11T12:00:00Z"))))
+        XCTAssertTrue(changeSet.affectedDayKeys.contains(Self.dayKey(Self.date("2026-05-12T12:00:00Z"))))
+        XCTAssertFalse(changeSet.affectedDayKeys.contains(Self.dayKey(Self.date("2026-05-13T12:00:00Z"))))
+    }
+
     private func makeScheduler() -> SyncScheduler {
         let transport = GoogleAPITransport(
             baseURL: URL(string: "https://example.test")!,
@@ -684,6 +824,14 @@ final class CloudSyncControlTests: XCTestCase {
         )
     }
 
+    private static func date(_ value: String) -> Date {
+        ISO8601DateFormatter().date(from: value)!
+    }
+
+    private static func dayKey(_ value: Date) -> TimeInterval {
+        Calendar.current.startOfDay(for: value).timeIntervalSinceReferenceDate
+    }
+
     private static let taskListsJSON = """
     {
       "items": [
@@ -696,6 +844,14 @@ final class CloudSyncControlTests: XCTestCase {
     {
       "items": [
         {"id": "remote-task", "title": "Remote task", "status": "needsAction", "updated": "2026-04-30T01:00:00Z", "etag": "remote-task-etag"}
+      ]
+    }
+    """
+
+    private static let changedCachedTaskJSON = """
+    {
+      "items": [
+        {"id": "cached-task", "title": "Changed task", "status": "needsAction", "due": "2026-04-30T00:00:00.000Z", "updated": "2026-04-30T02:30:00Z", "etag": "changed-task-etag"}
       ]
     }
     """
@@ -741,6 +897,49 @@ final class CloudSyncControlTests: XCTestCase {
         }
       ],
       "nextSyncToken": "next-token"
+    }
+    """
+
+    private static let changedCachedEventJSON = """
+    {
+      "items": [
+        {
+          "id": "cached-event",
+          "summary": "Changed event",
+          "status": "confirmed",
+          "start": {"dateTime": "2026-04-30T02:00:00Z"},
+          "end": {"dateTime": "2026-04-30T03:00:00Z"},
+          "updated": "2026-04-30T02:30:00Z",
+          "etag": "changed-event-etag"
+        }
+      ],
+      "nextSyncToken": "next-token"
+    }
+    """
+
+    private static let movedAndDeletedEventsJSON = """
+    {
+      "items": [
+        {
+          "id": "moved-event",
+          "summary": "Moved event",
+          "status": "confirmed",
+          "start": {"dateTime": "2026-05-03T10:00:00Z"},
+          "end": {"dateTime": "2026-05-03T11:00:00Z"},
+          "updated": "2026-05-02T00:00:00Z",
+          "etag": "move-v2"
+        },
+        {
+          "id": "multi-day",
+          "summary": "Multi day",
+          "status": "cancelled",
+          "start": {"date": "2026-05-10"},
+          "end": {"date": "2026-05-13"},
+          "updated": "2026-05-12T00:00:00Z",
+          "etag": "multi-v2"
+        }
+      ],
+      "nextSyncToken": "move-token"
     }
     """
 

@@ -89,7 +89,7 @@ The app uses a NavigationSplitView sidebar shell with a full CommandMenu (`⌘N`
 
 ## Local Cache
 
-The current cache is a JSON app-state snapshot in Application Support under `~/Library/Application Support/com.gongahkia.hotcrossbuns.mac/`. It is intentionally small and replaceable: it preserves account metadata, task/calendar mirrors, sync checkpoints, pending mutation placeholders, and user settings so launch does not depend on an immediate Google round trip. Event mirrors live in a `cache-events.json` sidecar so routine saves stay smaller. A SQLite-backed cache can replace this once offline mutation replay needs stronger migrations.
+The current cache is a SQLite database in Application Support under `~/Library/Application Support/com.gongahkia.hotcrossbuns.mac/`. It preserves account metadata, task/calendar mirrors, sync checkpoints, pending mutation placeholders, and user settings so launch does not depend on an immediate Google round trip. Existing `cache-state.json` and `cache-events.json` sidecars are migrated into the database on first load, then kept as legacy fallback inputs.
 
 OAuth tokens live in the macOS Keychain. Optional cache encryption uses AES-256-GCM for the local cache files only; Google remains the source of truth for synced tasks and events. The app does not ship a third-party analytics SDK or cloud crash reporter.
 

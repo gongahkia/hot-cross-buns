@@ -1130,7 +1130,7 @@ struct CalendarHomeView: View {
     private var agendaSnapshotKey: PreparedSnapshotKey {
         PreparedSnapshotKeys.calendar(
             mode: .agenda,
-            dataRevision: model.calendarDisplayRevision,
+            dataRevision: model.calendarDisplayRevisionKey(for: agendaDays(), calendar: .current),
             selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
             visibleTaskListIDs: model.visibleTaskListIDs,
             filterKey: calendarEventViewFilter.cacheKey,
@@ -1147,20 +1147,12 @@ struct CalendarHomeView: View {
             preparedAgendaSnapshot = snapshot
             return
         }
-        let input = CalendarDisplayInput(
+        let input = model.calendarDisplayInput(
             key: key,
+            kind: .agenda,
             anchorDate: selectedDate,
-            selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
             eventViewFilter: calendarEventViewFilter,
-            visibleTaskListIDs: model.visibleTaskListIDs,
             searchQuery: searchQuery,
-            eventsByDay: model.eventsByDay,
-            tasksByDueDate: model.tasksByDueDate,
-            eventByID: model.eventByIDSnapshot,
-            taskByID: model.taskByIDSnapshot,
-            calendarColorHexByID: model.calendarSnapshot.calendarColorHexByID,
-            taskListTitleByID: model.taskListTitleByID,
-            settings: model.settings,
             referenceDate: Date(),
             calendar: .current
         )

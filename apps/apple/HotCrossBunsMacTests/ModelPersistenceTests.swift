@@ -170,7 +170,7 @@ final class ModelPersistenceTests: XCTestCase {
         XCTAssertEqual(loadedState.calendars.count, CachedAppState.preview.calendars.count)
         XCTAssertEqual(loadedState.events.count, CachedAppState.preview.events.count)
         let cacheFilePath = await store.cacheFilePath()
-        XCTAssertEqual(cacheFilePath, fileURL.path)
+        XCTAssertEqual(cacheFilePath, fileURL.deletingPathExtension().appendingPathExtension("sqlite").path)
     }
 
     func testCachedAppStateMigratesLegacyAccountIntoAccountCatalog() throws {

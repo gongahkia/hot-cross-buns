@@ -116,7 +116,7 @@ struct WeekGridView: View {
     private var weekSnapshotKey: PreparedSnapshotKey {
         PreparedSnapshotKeys.calendar(
             mode: multiDayCount == nil ? .week : .multiDay,
-            dataRevision: model.calendarDisplayRevision,
+            dataRevision: model.calendarDisplayRevisionKey(for: weekDays, calendar: calendar),
             selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
             visibleTaskListIDs: model.visibleTaskListIDs,
             filterKey: calendarEventViewFilter.cacheKey,
@@ -967,20 +967,13 @@ struct WeekGridView: View {
             preparedWeekSnapshot = snapshot
             return
         }
-        let input = CalendarDisplayInput(
+        let input = model.calendarDisplayInput(
             key: key,
+            kind: .week,
             anchorDate: anchorDate,
-            selectedCalendarIDs: model.calendarSnapshot.selectedCalendarIDs,
+            dayCount: multiDayCount,
             eventViewFilter: calendarEventViewFilter,
-            visibleTaskListIDs: model.visibleTaskListIDs,
             searchQuery: searchQuery,
-            eventsByDay: model.eventsByDay,
-            tasksByDueDate: model.tasksByDueDate,
-            eventByID: model.eventByIDSnapshot,
-            taskByID: model.taskByIDSnapshot,
-            calendarColorHexByID: model.calendarSnapshot.calendarColorHexByID,
-            taskListTitleByID: model.taskListTitleByID,
-            settings: model.settings,
             referenceDate: Date(),
             calendar: calendar
         )
