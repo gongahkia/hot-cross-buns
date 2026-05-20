@@ -160,6 +160,180 @@ final class LocalCacheDatabaseStoreTests: XCTestCase {
         XCTAssertEqual(loaded.syncCheckpoints.first?.calendarSyncToken, "token-before")
     }
 
+    func testExplicitLocalEventEditCommitsOnlyTouchedEventAndPendingMutationRows() throws {
+        let untouchedEvent = makeEvent(id: "event-keep")
+        var changedEvent = makeEvent(id: "event-edit")
+        let originalChangedEvent = changedEvent
+        let task = makeTask(id: "task-keep")
+        let original = makeState(
+            eventSuffix: "explicit-event",
+            checkpointToken: "token-before",
+            events: [untouchedEvent, originalChangedEvent],
+            tasks: [task],
+            pendingMutations: []
+        )
+        let store = try LocalCacheDatabaseStore(fileURL: dbURL)
+        try store.save(original)
+
+        let untouchedEventHashBefore = try XCTUnwrap(store.contentHashForTesting(table: "cache_events", accountID: "account-1", id: untouchedEvent.id))
+        let changedEventHashBefore = try XCTUnwrap(store.contentHashForTesting(table: "cache_events", accountID: "account-1", id: changedEvent.id))
+        let taskHashBefore = try XCTUnwrap(store.contentHashForTesting(table: "cache_tasks", accountID: "account-1", id: task.id))
+
+        changedEvent.summary = "Edited locally"
+        changedEvent.etag = "event-edit-v2"
+        let mutation = PendingMutation(
+            id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
+            accountID: "account-1",
+            createdAt: Date(timeIntervalSince1970: 1_700_010_000),
+            resourceType: .event,
+            resourceID: changedEvent.id,
+            action: .update,
+            payload: Data(#"{"summary":"Edited locally"}"#.utf8)
+        )
+        let updated = makeState(
+            eventSuffix: "explicit-event",
+            checkpointToken: "token-before",
+            events: [untouchedEvent, changedEvent],
+            tasks: [task],
+            pendingMutations: [mutation]
+        )
+        let changeSet = LocalCacheChangeSetBuilder.combined(
+            LocalCacheChangeSetBuilder.eventUpdated(old: originalChangedEvent, new: changedEvent),
+            LocalCacheChangeSetBuilder.pendingMutationInserted(mutation)
+        )
+
+        let profile = try store.commit(state: updated, changeSet: changeSet)
+
+        let untouchedEventHashAfter = try XCTUnwrap(store.contentHashForTesting(table: "cache_events", accountID: "account-1", id: untouchedEvent.id))
+        let changedEventHashAfter = try XCTUnwrap(store.contentHashForTesting(table: "cache_events", accountID: "account-1", id: changedEvent.id))
+        let taskHashAfter = try XCTUnwrap(store.contentHashForTesting(table: "cache_tasks", accountID: "account-1", id: task.id))
+        let pendingHash = try XCTUnwrap(store.contentHashForTesting(table: "cache_pending_mutations", accountID: "account-1", id: mutation.id.uuidString))
+
+        XCTAssertEqual(untouchedEventHashAfter, untouchedEventHashBefore)
+        XCTAssertNotEqual(changedEventHashAfter, changedEventHashBefore)
+        XCTAssertEqual(taskHashAfter, taskHashBefore)
+        XCTAssertFalse(pendingHash.isEmpty)
+        XCTAssertEqual(try store.rowCountForTesting(table: "cache_pending_mutations"), 1)
+        XCTAssertEqual(profile.incrementalDeletedRows, 0)
+    }
+
+    func testLocalEventChangeSetIncludesOldAndNewMovedMultiDayKeys() throws {
+        let originalTimeZone = NSTimeZone.default
+        NSTimeZone.default = TimeZone(identifier: "UTC")!
+        defer { NSTimeZone.default = originalTimeZone }
+
+        let movedOld = makeEvent(
+            id: "event-moved",
+            startDate: date(2026, 5, 1, hour: 10),
+            endDate: date(2026, 5, 1, hour: 11)
+        )
+        let movedNew = makeEvent(
+            id: "event-moved",
+            startDate: date(2026, 5, 3, hour: 10),
+            endDate: date(2026, 5, 3, hour: 11)
+        )
+        let movedChangeSet = LocalCacheChangeSetBuilder.eventUpdated(old: movedOld, new: movedNew)
+        XCTAssertTrue(movedChangeSet.affectedDayKeys.contains(dayKey(2026, 5, 1)))
+        XCTAssertTrue(movedChangeSet.affectedDayKeys.contains(dayKey(2026, 5, 3)))
+
+        let multiOld = makeEvent(
+            id: "event-multi",
+            startDate: date(2026, 5, 10),
+            endDate: date(2026, 5, 13),
+            isAllDay: true
+        )
+        let multiNew = makeEvent(
+            id: "event-multi",
+            startDate: date(2026, 5, 12),
+            endDate: date(2026, 5, 15),
+            isAllDay: true
+        )
+        let multiChangeSet = LocalCacheChangeSetBuilder.eventUpdated(old: multiOld, new: multiNew)
+        XCTAssertTrue(multiChangeSet.affectedDayKeys.contains(dayKey(2026, 5, 10)))
+        XCTAssertTrue(multiChangeSet.affectedDayKeys.contains(dayKey(2026, 5, 11)))
+        XCTAssertTrue(multiChangeSet.affectedDayKeys.contains(dayKey(2026, 5, 12)))
+        XCTAssertTrue(multiChangeSet.affectedDayKeys.contains(dayKey(2026, 5, 13)))
+        XCTAssertTrue(multiChangeSet.affectedDayKeys.contains(dayKey(2026, 5, 14)))
+        XCTAssertFalse(multiChangeSet.affectedDayKeys.contains(dayKey(2026, 5, 15)))
+    }
+
+    func testExplicitTaskSchedulingChangeIncludesAffectedCalendarDaysAndBumpsRevisions() throws {
+        let originalTimeZone = NSTimeZone.default
+        NSTimeZone.default = TimeZone(identifier: "UTC")!
+        defer { NSTimeZone.default = originalTimeZone }
+
+        let oldDue = date(2026, 4, 18, hour: 9)
+        let newDue = date(2026, 4, 20, hour: 9)
+        var task = makeTask(id: "task-scheduled", dueDate: oldDue)
+        let originalTask = task
+        let original = makeState(
+            eventSuffix: "task-schedule",
+            checkpointToken: "token-before",
+            events: [],
+            tasks: [originalTask],
+            pendingMutations: []
+        )
+        let store = try LocalCacheDatabaseStore(fileURL: dbURL)
+        try store.save(original)
+
+        let oldKey = dayKey(2026, 4, 18)
+        let newKey = dayKey(2026, 4, 20)
+        let oldRevisionBefore = try store.calendarDayRevisionForTesting(dayKey: oldKey)
+        let newRevisionBefore = try store.calendarDayRevisionForTesting(dayKey: newKey)
+
+        task.dueDate = newDue
+        task.updatedAt = Date(timeIntervalSince1970: 1_700_011_000)
+        let updated = makeState(
+            eventSuffix: "task-schedule",
+            checkpointToken: "token-before",
+            events: [],
+            tasks: [task],
+            pendingMutations: []
+        )
+        let changeSet = LocalCacheChangeSetBuilder.taskUpdated(old: originalTask, new: task)
+
+        XCTAssertTrue(changeSet.affectedDayKeys.contains(oldKey))
+        XCTAssertTrue(changeSet.affectedDayKeys.contains(newKey))
+
+        try store.commit(state: updated, changeSet: changeSet)
+
+        XCTAssertGreaterThan(try store.calendarDayRevisionForTesting(dayKey: oldKey), oldRevisionBefore)
+        XCTAssertGreaterThan(try store.calendarDayRevisionForTesting(dayKey: newKey), newRevisionBefore)
+    }
+
+    func testDerivedDiffFallbackSaveStillHandlesBroadAccountReplacement() async throws {
+        let original = makeState(eventSuffix: "fallback-before", checkpointToken: "token-before")
+        let replacementAccount = GoogleAccount(
+            id: "account-2",
+            email: "other@example.com",
+            displayName: "Other",
+            grantedScopes: [GoogleScope.tasks, GoogleScope.calendar],
+            authProvider: .customDesktopOAuth
+        )
+        let replacement = CachedAppState(
+            account: replacementAccount,
+            accounts: [replacementAccount],
+            activeAccountID: replacementAccount.id,
+            taskLists: [TaskListMirror(id: "tasks-other", title: "Other", updatedAt: Date(timeIntervalSince1970: 1_700_020_000), etag: nil)],
+            tasks: [makeTask(id: "task-other", dueDate: nil)],
+            calendars: [CalendarListMirror(id: "calendar-other", summary: "Other", colorHex: "#00ACC1", isSelected: true, accessRole: "owner")],
+            events: [makeEvent(id: "event-other")],
+            settings: original.settings,
+            syncCheckpoints: [],
+            pendingMutations: []
+        )
+        let store = LocalCacheStore(fileURL: jsonURL)
+
+        await store.save(original)
+        await store.save(replacement)
+
+        let reloader = LocalCacheStore(fileURL: jsonURL)
+        let loaded = await reloader.loadCachedState()
+        XCTAssertEqual(loaded.activeAccountID, replacementAccount.id)
+        XCTAssertEqual(loaded.events.map(\.id), ["event-other"])
+        XCTAssertEqual(loaded.tasks.map(\.id), ["task-other"])
+    }
+
     func testStableRowHashUsesDeterministicSHA256AndIsStored() throws {
         let event = makeEvent(id: "event-hash")
         let state = makeState(eventSuffix: "hash", checkpointToken: "token-hash", events: [event])
@@ -487,7 +661,8 @@ final class LocalCacheDatabaseStoreTests: XCTestCase {
         eventSuffix: String,
         checkpointToken: String,
         events explicitEvents: [CalendarEventMirror]? = nil,
-        tasks explicitTasks: [TaskMirror]? = nil
+        tasks explicitTasks: [TaskMirror]? = nil,
+        pendingMutations explicitPendingMutations: [PendingMutation]? = nil
     ) -> CachedAppState {
         let account = GoogleAccount(
             id: "account-1",
@@ -564,7 +739,7 @@ final class LocalCacheDatabaseStoreTests: XCTestCase {
             events: events,
             settings: settings,
             syncCheckpoints: [checkpoint],
-            pendingMutations: [mutation]
+            pendingMutations: explicitPendingMutations ?? [mutation]
         )
     }
 

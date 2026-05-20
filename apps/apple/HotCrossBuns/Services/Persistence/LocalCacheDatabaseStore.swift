@@ -1405,6 +1405,14 @@ private extension LocalCacheDatabaseStore {
 
         let accountID = encoded.activeStorageAccountID
 
+        let changedTaskIDs = changeSet.tasks.deleted
+            .union(changeSet.tasks.inserted)
+            .union(changeSet.tasks.updated)
+        let oldAffectedTaskDayKeys = try taskDueDayKeysForTasks(
+            db,
+            accountID: accountID,
+            ids: changeSet.tasks.deleted.union(changeSet.tasks.updated)
+        )
         counts.deleted += try deleteRows(
             db,
             table: "cache_task_lists",
@@ -1435,9 +1443,14 @@ private extension LocalCacheDatabaseStore {
             ids: changeSet.tasks.inserted.union(changeSet.tasks.updated)
         ))
         let changedTaskRows = encoded.tasks.filter {
-            $0.accountID == accountID && changeSet.tasks.inserted.union(changeSet.tasks.updated).contains($0.id)
+            $0.accountID == accountID && changedTaskIDs.contains($0.id)
         }
         try upsertTaskSearchAndRenderRows(db, rows: changedTaskRows)
+        try bumpCalendarRevisions(
+            db,
+            accountID: accountID,
+            dayKeys: oldAffectedTaskDayKeys.union(taskDueDayKeys(for: changedTaskRows))
+        )
 
         counts.deleted += try deleteRows(
             db,
@@ -2273,6 +2286,39 @@ private extension LocalCacheDatabaseStore {
             }
         }
         return keys
+    }
+
+    static func taskDueDayKeysForTasks(
+        _ db: Database,
+        accountID: String,
+        ids: Set<String>,
+        calendar: Calendar = .current
+    ) throws -> Set<TimeInterval> {
+        guard ids.isEmpty == false else { return [] }
+        var keys: Set<TimeInterval> = []
+        for id in ids {
+            let rows = try Row.fetchAll(
+                db,
+                sql: "SELECT due_date FROM cache_task_render_index WHERE account_id = ? AND id = ? AND due_date IS NOT NULL",
+                arguments: [accountID, id]
+            )
+            for row in rows {
+                let dueInterval: Double = row["due_date"]
+                keys.insert(calendar.startOfDay(for: Date(timeIntervalSince1970: dueInterval)).timeIntervalSinceReferenceDate)
+            }
+        }
+        return keys
+    }
+
+    static func taskDueDayKeys(
+        for rows: [EncodedState.TaskRow],
+        calendar: Calendar = .current
+    ) -> Set<TimeInterval> {
+        Set(rows.compactMap { row in
+            row.dueDate.map { dueInterval in
+                calendar.startOfDay(for: Date(timeIntervalSince1970: dueInterval)).timeIntervalSinceReferenceDate
+            }
+        })
     }
 
     static func bumpCalendarRevisions(

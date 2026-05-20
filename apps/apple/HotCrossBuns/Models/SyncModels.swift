@@ -237,6 +237,163 @@ struct SyncChangeSet: Equatable, Sendable {
 
 typealias CachePersistenceChangeSet = SyncChangeSet
 
+extension SyncChangeSet {
+    mutating func formUnion(_ other: SyncChangeSet) {
+        taskLists.formUnion(other.taskLists)
+        tasks.formUnion(other.tasks)
+        calendars.formUnion(other.calendars)
+        events.formUnion(other.events)
+        checkpoints.formUnion(other.checkpoints)
+        pendingMutations.formUnion(other.pendingMutations)
+        affectedDayKeys.formUnion(other.affectedDayKeys)
+        affectedCalendarIDs.formUnion(other.affectedCalendarIDs)
+        affectedTaskListIDs.formUnion(other.affectedTaskListIDs)
+        settingsChanged = settingsChanged || other.settingsChanged
+        checkpointChanged = checkpointChanged || other.checkpointChanged
+    }
+
+    func unioning(_ other: SyncChangeSet) -> SyncChangeSet {
+        var copy = self
+        copy.formUnion(other)
+        return copy
+    }
+}
+
+enum LocalCacheChangeSetBuilder {
+    static func eventInserted(_ event: CalendarEventMirror) -> CachePersistenceChangeSet {
+        var changeSet = CachePersistenceChangeSet.empty
+        changeSet.events.inserted.insert(event.id)
+        addAffectedEvent(event, to: &changeSet)
+        return changeSet
+    }
+
+    static func eventUpdated(old: CalendarEventMirror?, new: CalendarEventMirror) -> CachePersistenceChangeSet {
+        var changeSet = CachePersistenceChangeSet.empty
+        if let old, old.id != new.id {
+            changeSet.events.deleted.insert(old.id)
+            changeSet.events.inserted.insert(new.id)
+        } else {
+            changeSet.events.updated.insert(new.id)
+        }
+        if let old {
+            addAffectedEvent(old, to: &changeSet)
+        }
+        addAffectedEvent(new, to: &changeSet)
+        return changeSet
+    }
+
+    static func eventDeleted(_ event: CalendarEventMirror) -> CachePersistenceChangeSet {
+        var changeSet = CachePersistenceChangeSet.empty
+        changeSet.events.deleted.insert(event.id)
+        addAffectedEvent(event, to: &changeSet)
+        return changeSet
+    }
+
+    static func taskInserted(_ task: TaskMirror) -> CachePersistenceChangeSet {
+        var changeSet = CachePersistenceChangeSet.empty
+        changeSet.tasks.inserted.insert(task.id)
+        addAffectedTask(task, to: &changeSet)
+        return changeSet
+    }
+
+    static func taskUpdated(old: TaskMirror?, new: TaskMirror) -> CachePersistenceChangeSet {
+        var changeSet = CachePersistenceChangeSet.empty
+        if let old, old.id != new.id {
+            changeSet.tasks.deleted.insert(old.id)
+            changeSet.tasks.inserted.insert(new.id)
+        } else {
+            changeSet.tasks.updated.insert(new.id)
+        }
+        if let old {
+            addAffectedTask(old, to: &changeSet)
+        }
+        addAffectedTask(new, to: &changeSet)
+        return changeSet
+    }
+
+    static func taskDeleted(_ task: TaskMirror) -> CachePersistenceChangeSet {
+        var changeSet = CachePersistenceChangeSet.empty
+        changeSet.tasks.deleted.insert(task.id)
+        addAffectedTask(task, to: &changeSet)
+        return changeSet
+    }
+
+    static func pendingMutationInserted(_ mutation: PendingMutation) -> CachePersistenceChangeSet {
+        pendingMutationInserted(id: mutation.id)
+    }
+
+    static func pendingMutationInserted(id: PendingMutation.ID) -> CachePersistenceChangeSet {
+        var changeSet = CachePersistenceChangeSet.empty
+        changeSet.pendingMutations.inserted.insert(id.uuidString)
+        return changeSet
+    }
+
+    static func pendingMutationUpdated(_ mutation: PendingMutation) -> CachePersistenceChangeSet {
+        pendingMutationUpdated(id: mutation.id)
+    }
+
+    static func pendingMutationUpdated(id: PendingMutation.ID) -> CachePersistenceChangeSet {
+        var changeSet = CachePersistenceChangeSet.empty
+        changeSet.pendingMutations.updated.insert(id.uuidString)
+        return changeSet
+    }
+
+    static func pendingMutationDeleted(_ mutation: PendingMutation) -> CachePersistenceChangeSet {
+        pendingMutationDeleted(id: mutation.id)
+    }
+
+    static func pendingMutationDeleted(id: PendingMutation.ID) -> CachePersistenceChangeSet {
+        var changeSet = CachePersistenceChangeSet.empty
+        changeSet.pendingMutations.deleted.insert(id.uuidString)
+        return changeSet
+    }
+
+    static func combined(_ changeSets: CachePersistenceChangeSet...) -> CachePersistenceChangeSet {
+        combined(changeSets)
+    }
+
+    static func combined(_ changeSets: [CachePersistenceChangeSet]) -> CachePersistenceChangeSet {
+        var combined = CachePersistenceChangeSet.empty
+        for changeSet in changeSets {
+            combined.formUnion(changeSet)
+        }
+        return combined
+    }
+
+    static func dayKeys(forTask task: TaskMirror, calendar: Calendar = .current) -> Set<TimeInterval> {
+        guard let dueDate = task.dueDate else { return [] }
+        return [calendar.startOfDay(for: dueDate).timeIntervalSinceReferenceDate]
+    }
+
+    static func dayKeys(forEvent event: CalendarEventMirror, calendar: Calendar = .current) -> Set<TimeInterval> {
+        guard event.status != .cancelled else { return [] }
+        let startDay = calendar.startOfDay(for: event.startDate)
+        let endDay = CalendarGridLayout.eventEndDay(event: event, calendar: calendar)
+        guard startDay <= endDay else { return [] }
+
+        var keys: Set<TimeInterval> = []
+        var cursor = startDay
+        var steps = 0
+        while cursor <= endDay && steps < 366 {
+            keys.insert(cursor.timeIntervalSinceReferenceDate)
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+            steps += 1
+        }
+        return keys
+    }
+
+    private static func addAffectedEvent(_ event: CalendarEventMirror, to changeSet: inout CachePersistenceChangeSet) {
+        changeSet.affectedCalendarIDs.insert(event.calendarID)
+        changeSet.affectedDayKeys.formUnion(dayKeys(forEvent: event))
+    }
+
+    private static func addAffectedTask(_ task: TaskMirror, to changeSet: inout CachePersistenceChangeSet) {
+        changeSet.affectedTaskListIDs.insert(task.taskListID)
+        changeSet.affectedDayKeys.formUnion(dayKeys(forTask: task))
+    }
+}
+
 enum SyncResourceType: String, Hashable, Codable, Sendable {
     case taskList
     case calendar

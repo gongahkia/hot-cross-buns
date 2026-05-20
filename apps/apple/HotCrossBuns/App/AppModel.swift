@@ -1152,7 +1152,7 @@ final class AppModel {
         let undoAction = override?(optimisticTask) ?? .taskCreate(snapshot: optimisticTask)
         guard settings.cloudSyncTargets.syncsTasks else {
             recordUndo(undoAction)
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.taskInserted(optimisticTask))
             await synchronizeLocalNotifications()
             return true
         }
@@ -1167,8 +1167,11 @@ final class AppModel {
                 parentID: parentID.flatMap { OptimisticID.isPending($0) ? nil : $0 }
             )
             let mutation = try PendingMutation.taskCreate(payload: payload)
-            enqueuePendingMutation(mutation)
-            scheduleCacheSave()
+            let queuedMutation = enqueuePendingMutation(mutation)
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.combined(
+                LocalCacheChangeSetBuilder.taskInserted(optimisticTask),
+                LocalCacheChangeSetBuilder.pendingMutationInserted(queuedMutation)
+            ))
         } catch {
             removeTask(id: localID)
             lastMutationError = "Could not queue task for sync: \(error.localizedDescription)"
@@ -1596,7 +1599,7 @@ final class AppModel {
         upsert(optimistic)
 
         guard settings.cloudSyncTargets.syncsTasks else {
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.taskUpdated(old: originalTask, new: optimistic))
             await synchronizeLocalNotifications()
             recordUndo(.taskEdit(priorSnapshot: originalTask))
             return true
@@ -1614,7 +1617,7 @@ final class AppModel {
             )
             upsert(updatedTask)
             endMutation(error: nil)
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.taskUpdated(old: originalTask, new: updatedTask))
             await synchronizeLocalNotifications()
             recordUndo(.taskEdit(priorSnapshot: originalTask))
             return true
@@ -1628,8 +1631,11 @@ final class AppModel {
                 etagSnapshot: task.etag
             )
             if let mutation = try? PendingMutation.taskUpdate(payload: payload) {
-                enqueuePendingMutation(mutation)
-                scheduleCacheSave()
+                let queuedMutation = enqueuePendingMutation(mutation)
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.combined(
+                    LocalCacheChangeSetBuilder.taskUpdated(old: originalTask, new: optimistic),
+                    LocalCacheChangeSetBuilder.pendingMutationInserted(queuedMutation)
+                ))
                 await synchronizeLocalNotifications()
                 endMutation(error: nil)
                 Task { await replayPendingMutations() }
@@ -1685,7 +1691,7 @@ final class AppModel {
         }
 
         guard settings.cloudSyncTargets.syncsTasks else {
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.taskUpdated(old: originalTask, new: optimistic))
             await synchronizeLocalNotifications()
             return true
         }
@@ -1695,7 +1701,7 @@ final class AppModel {
             let updatedTask = try await tasksClient.setTaskCompleted(isCompleted, task: task)
             upsert(updatedTask)
             endMutation(error: nil)
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.taskUpdated(old: originalTask, new: updatedTask))
             await synchronizeLocalNotifications()
             return true
         } catch let error as GoogleAPIError where error.isTransient {
@@ -1708,8 +1714,11 @@ final class AppModel {
                 etagSnapshot: task.etag
             )
             if let mutation = try? PendingMutation.taskCompletion(payload: payload) {
-                enqueuePendingMutation(mutation)
-                scheduleCacheSave()
+                let queuedMutation = enqueuePendingMutation(mutation)
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.combined(
+                    LocalCacheChangeSetBuilder.taskUpdated(old: originalTask, new: optimistic),
+                    LocalCacheChangeSetBuilder.pendingMutationInserted(queuedMutation)
+                ))
                 await synchronizeLocalNotifications()
                 endMutation(error: nil)
                 Task { await replayPendingMutations() }
@@ -1885,9 +1894,9 @@ final class AppModel {
     // because the item was changed elsewhere). Called from DiagnosticsView.
     @discardableResult
     func clearPendingMutation(id: PendingMutation.ID) -> Bool {
-        guard pendingMutations.contains(where: { $0.id == id }) else { return false }
+        guard let mutation = pendingMutations.first(where: { $0.id == id }) else { return false }
         pendingMutations.removeAll { $0.id == id }
-        scheduleCacheSave()
+        scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationDeleted(mutation))
         return true
     }
 
@@ -2025,14 +2034,18 @@ final class AppModel {
         // If the create is still pending, we can retract it locally: drop the
         // queued mutation and remove the optimistic row. No Google call needed.
         if OptimisticID.isPending(task.id) {
-            pendingMutations.removeAll { mutation in
+            let removedMutations = pendingMutations.filter { mutation in
                 mutation.resourceType == .task
                     && mutation.action == .create
                     && mutation.resourceID == task.id
             }
+            pendingMutations.removeAll { removedMutations.map(\.id).contains($0.id) }
             removeTask(id: task.id)
             lastMutationError = nil
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.combined(
+                [LocalCacheChangeSetBuilder.taskDeleted(task)]
+                    + removedMutations.map(LocalCacheChangeSetBuilder.pendingMutationDeleted)
+            ))
             await synchronizeLocalNotifications()
             return true
         }
@@ -2041,7 +2054,7 @@ final class AppModel {
         removeTask(id: task.id)
 
         guard settings.cloudSyncTargets.syncsTasks else {
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.taskDeleted(originalTask))
             await synchronizeLocalNotifications()
             recordUndo(.taskDelete(snapshot: originalTask))
             return true
@@ -2051,7 +2064,7 @@ final class AppModel {
         do {
             try await tasksClient.deleteTask(taskListID: task.taskListID, taskID: task.id, ifMatch: task.etag)
             endMutation(error: nil)
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.taskDeleted(originalTask))
             await synchronizeLocalNotifications()
             recordUndo(.taskDelete(snapshot: originalTask))
             return true
@@ -2062,8 +2075,11 @@ final class AppModel {
                 etagSnapshot: task.etag
             )
             if let mutation = try? PendingMutation.taskDelete(payload: payload) {
-                enqueuePendingMutation(mutation)
-                scheduleCacheSave()
+                let queuedMutation = enqueuePendingMutation(mutation)
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.combined(
+                    LocalCacheChangeSetBuilder.taskDeleted(originalTask),
+                    LocalCacheChangeSetBuilder.pendingMutationInserted(queuedMutation)
+                ))
                 await synchronizeLocalNotifications()
                 endMutation(error: nil)
                 Task { await replayPendingMutations() }
@@ -2160,7 +2176,7 @@ final class AppModel {
             if recordUndoAction {
                 recordUndo(.eventCreate(snapshot: optimisticEvent))
             }
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.eventInserted(optimisticEvent))
             await synchronizeLocalNotifications()
             return true
         }
@@ -2189,8 +2205,11 @@ final class AppModel {
                 availabilityHold: availabilityHold
             )
             let mutation = try PendingMutation.eventCreate(payload: payload)
-            enqueuePendingMutation(mutation)
-            scheduleCacheSave()
+            let queuedMutation = enqueuePendingMutation(mutation)
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.combined(
+                LocalCacheChangeSetBuilder.eventInserted(optimisticEvent),
+                LocalCacheChangeSetBuilder.pendingMutationInserted(queuedMutation)
+            ))
         } catch {
             removeEvent(id: localID)
             lastMutationError = "Could not queue event for sync: \(error.localizedDescription)"
@@ -2294,13 +2313,14 @@ final class AppModel {
             localEvent.hcbTaskID = hcbTaskID ?? event.hcbTaskID
             localEvent.availabilityHold = effectiveAvailabilityHold
             upsert(localEvent)
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.eventUpdated(old: originalEvent, new: localEvent))
             await synchronizeLocalNotifications()
             recordUndo(.eventEdit(priorSnapshot: originalEvent))
             return true
         }
 
         let canQueue = scope == .thisOccurrence && calendarID == event.calendarID
+        var queuedOptimisticEvent: CalendarEventMirror?
         if canQueue {
             var optimistic = event
             optimistic.summary = trimmedSummary
@@ -2320,6 +2340,7 @@ final class AppModel {
             optimistic.hcbTaskID = hcbTaskID ?? event.hcbTaskID
             optimistic.availabilityHold = effectiveAvailabilityHold
             upsert(optimistic)
+            queuedOptimisticEvent = optimistic
         }
 
         beginMutation()
@@ -2384,7 +2405,11 @@ final class AppModel {
             }
             upsert(updatedEvent)
             endMutation(error: nil)
-            scheduleCacheSave()
+            if scope == .thisOccurrence {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.eventUpdated(old: originalEvent, new: updatedEvent))
+            } else {
+                scheduleCacheSave()
+            }
             await synchronizeLocalNotifications()
             if canQueue { recordUndo(.eventEdit(priorSnapshot: originalEvent)) }
             return true
@@ -2414,8 +2439,11 @@ final class AppModel {
                 clearAvailabilityHoldMetadata: clearAvailabilityHoldMetadata
             )
             if let mutation = try? PendingMutation.eventUpdate(payload: payload) {
-                enqueuePendingMutation(mutation)
-                scheduleCacheSave()
+                let queuedMutation = enqueuePendingMutation(mutation)
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.combined(
+                    LocalCacheChangeSetBuilder.eventUpdated(old: originalEvent, new: queuedOptimisticEvent ?? originalEvent),
+                    LocalCacheChangeSetBuilder.pendingMutationInserted(queuedMutation)
+                ))
                 await synchronizeLocalNotifications()
                 endMutation(error: nil)
                 Task { await replayPendingMutations() }
@@ -2445,14 +2473,19 @@ final class AppModel {
         }
         // Pending creates still in the outbox — retract locally, no Google call.
         if OptimisticID.isPending(event.id) {
-            pendingMutations.removeAll { mutation in
+            let removedMutations = pendingMutations.filter { mutation in
                 mutation.resourceType == .event
                     && mutation.action == .create
                     && mutation.resourceID == event.id
             }
+            let removedMutationIDs = Set(removedMutations.map(\.id))
+            pendingMutations.removeAll { removedMutationIDs.contains($0.id) }
             removeEvent(id: event.id)
             lastMutationError = nil
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.combined(
+                [LocalCacheChangeSetBuilder.eventDeleted(event)]
+                    + removedMutations.map(LocalCacheChangeSetBuilder.pendingMutationDeleted)
+            ))
             await synchronizeLocalNotifications()
             recordUndo(.eventDismissed(snapshot: event))
             return true
@@ -2465,7 +2498,7 @@ final class AppModel {
         recordUndo(.eventDismissed(snapshot: originalEvent))
         CompletionSoundPlayer.play(.eventDismissed, settings: settings)
         guard settings.cloudSyncTargets.syncsEvents else {
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.eventDeleted(originalEvent))
             await synchronizeLocalNotifications()
             return true
         }
@@ -2475,7 +2508,7 @@ final class AppModel {
             let targetID = event.id
             try await calendarClient.deleteEvent(calendarID: event.calendarID, eventID: targetID, ifMatch: event.etag)
             endMutation(error: nil)
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.eventDeleted(originalEvent))
             await synchronizeLocalNotifications()
             return true
         } catch let error as GoogleAPIError where error.isTransient {
@@ -2486,8 +2519,11 @@ final class AppModel {
                 etagSnapshot: event.etag
             )
             if let mutation = try? PendingMutation.eventDelete(payload: payload) {
-                enqueuePendingMutation(mutation)
-                scheduleCacheSave()
+                let queuedMutation = enqueuePendingMutation(mutation)
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.combined(
+                    LocalCacheChangeSetBuilder.eventDeleted(originalEvent),
+                    LocalCacheChangeSetBuilder.pendingMutationInserted(queuedMutation)
+                ))
                 await synchronizeLocalNotifications()
                 endMutation(error: nil)
                 Task { await replayPendingMutations() }
@@ -2509,14 +2545,19 @@ final class AppModel {
         }
         // Retract a still-pending event create locally without calling Google.
         if OptimisticID.isPending(event.id) {
-            pendingMutations.removeAll { mutation in
+            let removedMutations = pendingMutations.filter { mutation in
                 mutation.resourceType == .event
                     && mutation.action == .create
                     && mutation.resourceID == event.id
             }
+            let removedMutationIDs = Set(removedMutations.map(\.id))
+            pendingMutations.removeAll { removedMutationIDs.contains($0.id) }
             removeEvent(id: event.id)
             lastMutationError = nil
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.combined(
+                [LocalCacheChangeSetBuilder.eventDeleted(event)]
+                    + removedMutations.map(LocalCacheChangeSetBuilder.pendingMutationDeleted)
+            ))
             await synchronizeLocalNotifications()
             return true
         }
@@ -2545,7 +2586,11 @@ final class AppModel {
                 events.removeAll { CalendarEventInstance.seriesID(from: $0.id) == seriesID }
                 scheduleRebuildSnapshots()
             }
-            scheduleCacheSave()
+            if scope == .thisOccurrence {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.eventDeleted(originalEvent))
+            } else {
+                scheduleCacheSave()
+            }
             await synchronizeLocalNotifications()
             if canQueue { recordUndo(.eventDelete(snapshot: originalEvent)) }
             return true
@@ -2600,7 +2645,11 @@ final class AppModel {
                 scheduleRebuildSnapshots()
             }
             endMutation(error: nil)
-            scheduleCacheSave()
+            if scope == .thisOccurrence {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.eventDeleted(originalEvent))
+            } else {
+                scheduleCacheSave()
+            }
             await synchronizeLocalNotifications()
             if canQueue { recordUndo(.eventDelete(snapshot: originalEvent)) }
             return true
@@ -2611,8 +2660,11 @@ final class AppModel {
                 etagSnapshot: event.etag
             )
             if let mutation = try? PendingMutation.eventDelete(payload: payload) {
-                enqueuePendingMutation(mutation)
-                scheduleCacheSave()
+                let queuedMutation = enqueuePendingMutation(mutation)
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.combined(
+                    LocalCacheChangeSetBuilder.eventDeleted(originalEvent),
+                    LocalCacheChangeSetBuilder.pendingMutationInserted(queuedMutation)
+                ))
                 await synchronizeLocalNotifications()
                 endMutation(error: nil)
                 Task { await replayPendingMutations() }
@@ -4476,9 +4528,10 @@ final class AppModel {
     // the mutation. When we hit BackoffPolicy.maxAttempts, the mutation moves
     // into quarantine and stops auto-replaying. The user can retry or discard
     // from DiagnosticsView.
-    private func markMutationTransientFailure(_ mutationID: PendingMutation.ID, error: Error) {
+    @discardableResult
+    private func markMutationTransientFailure(_ mutationID: PendingMutation.ID, error: Error) -> PendingMutation? {
         syncFailureKind = SyncFailureKind.classify(error)
-        guard let idx = pendingMutations.firstIndex(where: { $0.id == mutationID }) else { return }
+        guard let idx = pendingMutations.firstIndex(where: { $0.id == mutationID }) else { return nil }
         pendingMutations[idx].attemptCount += 1
         pendingMutations[idx].lastAttemptAt = Date()
         pendingMutations[idx].lastErrorSummary = error.localizedDescription
@@ -4491,6 +4544,7 @@ final class AppModel {
                 "error": GoogleDiagnostics.sanitizedErrorDescription(error)
             ])
         }
+        return pendingMutations[idx]
     }
 
     // Count of mutations that have exceeded the retry ceiling. Drives the
@@ -4517,8 +4571,9 @@ final class AppModel {
         pendingMutations[idx].lastErrorSummary = nil
         pendingMutations[idx].quarantinedAt = nil
         pendingMutations[idx].conflictedAt = nil
+        let updatedMutation = pendingMutations[idx]
         Task {
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationUpdated(updatedMutation))
             await replayPendingMutations()
         }
         return true
@@ -4529,9 +4584,10 @@ final class AppModel {
     // flag the mutation as a conflict. The user resolves it from Diagnostics
     // via "Keep my change" (forceOverwriteConflictedMutation — re-issues the
     // write without etag) or "Discard" (clearPendingMutation).
-    private func markMutationConflict(_ mutationID: PendingMutation.ID, error: Error) {
+    @discardableResult
+    private func markMutationConflict(_ mutationID: PendingMutation.ID, error: Error) -> PendingMutation? {
         syncFailureKind = SyncFailureKind.classify(error)
-        guard let idx = pendingMutations.firstIndex(where: { $0.id == mutationID }) else { return }
+        guard let idx = pendingMutations.firstIndex(where: { $0.id == mutationID }) else { return nil }
         pendingMutations[idx].lastAttemptAt = Date()
         pendingMutations[idx].lastErrorSummary = "Server changed underneath — choose whose change wins."
         pendingMutations[idx].quarantinedAt = Date()
@@ -4542,11 +4598,13 @@ final class AppModel {
             "action": pendingMutations[idx].action.rawValue,
             "error": GoogleDiagnostics.sanitizedErrorDescription(error)
         ])
+        return pendingMutations[idx]
     }
 
-    private func markMutationInvalidPayload(_ mutationID: PendingMutation.ID, error: GoogleAPIError) {
+    @discardableResult
+    private func markMutationInvalidPayload(_ mutationID: PendingMutation.ID, error: GoogleAPIError) -> PendingMutation? {
         syncFailureKind = SyncFailureKind.classify(error)
-        guard let idx = pendingMutations.firstIndex(where: { $0.id == mutationID }) else { return }
+        guard let idx = pendingMutations.firstIndex(where: { $0.id == mutationID }) else { return nil }
         pendingMutations[idx].lastAttemptAt = Date()
         pendingMutations[idx].lastErrorSummary = "Invalid payload — Google rejected this queued write. Copy the payload, fix the source data, then retry."
         pendingMutations[idx].quarantinedAt = Date()
@@ -4556,6 +4614,7 @@ final class AppModel {
             "action": pendingMutations[idx].action.rawValue,
             "error": GoogleDiagnostics.sanitizedErrorDescription(error)
         ])
+        return pendingMutations[idx]
     }
 
     // Force-reissue a conflicted mutation without If-Match so Google accepts
@@ -4571,9 +4630,11 @@ final class AppModel {
             return false
         }
         do {
+            var changeSet = LocalCacheChangeSetBuilder.pendingMutationDeleted(mutation)
             switch (mutation.resourceType, mutation.action) {
             case (.task, .update):
                 let payload = try PendingMutationEncoder.decodeTaskUpdate(mutation.payload)
+                let originalTask = task(id: payload.taskID)
                 let updated = try await tasksClient.updateTask(
                     taskListID: payload.taskListID,
                     taskID: payload.taskID,
@@ -4583,8 +4644,10 @@ final class AppModel {
                     ifMatch: nil
                 )
                 upsert(updated)
+                changeSet.formUnion(LocalCacheChangeSetBuilder.taskUpdated(old: originalTask, new: updated))
             case (.task, .completion):
                 let payload = try PendingMutationEncoder.decodeTaskCompletion(mutation.payload)
+                let originalTask = task(id: payload.taskID)
                 let stub = TaskMirror(
                     id: payload.taskID,
                     taskListID: payload.taskListID,
@@ -4602,12 +4665,18 @@ final class AppModel {
                 )
                 let updated = try await tasksClient.setTaskCompleted(payload.isCompleted, task: stub)
                 upsert(updated)
+                changeSet.formUnion(LocalCacheChangeSetBuilder.taskUpdated(old: originalTask, new: updated))
             case (.task, .delete):
                 let payload = try PendingMutationEncoder.decodeTaskDelete(mutation.payload)
+                let deletedTask = task(id: payload.taskID)
                 try await tasksClient.deleteTask(taskListID: payload.taskListID, taskID: payload.taskID, ifMatch: nil)
                 removeTask(id: payload.taskID)
+                if let deletedTask {
+                    changeSet.formUnion(LocalCacheChangeSetBuilder.taskDeleted(deletedTask))
+                }
             case (.event, .update):
                 let payload = try PendingMutationEncoder.decodeEventUpdate(mutation.payload)
+                let originalEvent = event(id: payload.eventID)
                 let updated = try await calendarClient.updateEvent(
                     calendarID: payload.calendarID,
                     eventID: payload.eventID,
@@ -4633,17 +4702,22 @@ final class AppModel {
                     ifMatch: nil
                 )
                 upsert(updated)
+                changeSet.formUnion(LocalCacheChangeSetBuilder.eventUpdated(old: originalEvent, new: updated))
             case (.event, .delete):
                 let payload = try PendingMutationEncoder.decodeEventDelete(mutation.payload)
+                let deletedEvent = event(id: payload.eventID)
                 try await calendarClient.deleteEvent(calendarID: payload.calendarID, eventID: payload.eventID, ifMatch: nil)
                 removeEvent(id: payload.eventID)
+                if let deletedEvent {
+                    changeSet.formUnion(LocalCacheChangeSetBuilder.eventDeleted(deletedEvent))
+                }
             default:
                 // Create mutations never 412 (no etag). Only updates/deletes
                 // reach this state.
                 return false
             }
             pendingMutations.removeAll { $0.id == id }
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: changeSet)
             await synchronizeLocalNotifications()
             return true
         } catch {
@@ -4674,6 +4748,7 @@ final class AppModel {
             await replayEventDelete(mutation)
         default:
             pendingMutations.removeAll { $0.id == mutation.id }
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationDeleted(mutation))
         }
     }
 
@@ -4690,33 +4765,50 @@ final class AppModel {
                 dueDate: payload.dueDate,
                 parent: parent
             )
+            let localTask = task(id: payload.localID)
             removeTask(id: payload.localID)
             upsert(created)
             logReplayAccepted(mutation, acceptedID: created.id)
             pendingMutations.removeAll { $0.id == mutation.id }
-            scheduleCacheSave()
+            var changeSets = [
+                LocalCacheChangeSetBuilder.taskInserted(created),
+                LocalCacheChangeSetBuilder.pendingMutationDeleted(mutation)
+            ]
+            if let localTask {
+                changeSets.append(LocalCacheChangeSetBuilder.taskDeleted(localTask))
+            }
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.combined(changeSets))
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
-            markMutationTransientFailure(mutation.id, error: error)
+            let updatedMutation = markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
-            scheduleCacheSave()
+            if let updatedMutation {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationUpdated(updatedMutation))
+            }
         } catch let error as GoogleAPIError where error.isInvalidPayload {
-            markMutationInvalidPayload(mutation.id, error: error)
+            let updatedMutation = markMutationInvalidPayload(mutation.id, error: error)
             lastMutationError = "Task couldn't be created on Google. The queued payload was preserved in Sync Issues."
-            scheduleCacheSave()
+            if let updatedMutation {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationUpdated(updatedMutation))
+            }
         } catch {
+            var changeSets = [LocalCacheChangeSetBuilder.pendingMutationDeleted(mutation)]
             if let payload = try? PendingMutationEncoder.decodeTaskCreate(mutation.payload) {
+                if let localTask = task(id: payload.localID) {
+                    changeSets.append(LocalCacheChangeSetBuilder.taskDeleted(localTask))
+                }
                 removeTask(id: payload.localID)
             }
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "Task couldn't be created: \(error.localizedDescription)"
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.combined(changeSets))
         }
     }
 
     private func replayTaskUpdate(_ mutation: PendingMutation) async {
         do {
             let payload = try PendingMutationEncoder.decodeTaskUpdate(mutation.payload)
+            let originalTask = task(id: payload.taskID)
             let updated = try await tasksClient.updateTask(
                 taskListID: payload.taskListID,
                 taskID: payload.taskID,
@@ -4728,32 +4820,41 @@ final class AppModel {
             upsert(updated)
             logReplayAccepted(mutation, acceptedID: updated.id)
             pendingMutations.removeAll { $0.id == mutation.id }
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.combined(
+                LocalCacheChangeSetBuilder.taskUpdated(old: originalTask, new: updated),
+                LocalCacheChangeSetBuilder.pendingMutationDeleted(mutation)
+            ))
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
-            markMutationTransientFailure(mutation.id, error: error)
+            let updatedMutation = markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
-            scheduleCacheSave()
+            if let updatedMutation {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationUpdated(updatedMutation))
+            }
         } catch let error as GoogleAPIError where error.isInvalidPayload {
-            markMutationInvalidPayload(mutation.id, error: error)
+            let updatedMutation = markMutationInvalidPayload(mutation.id, error: error)
             lastMutationError = "Queued task update was preserved in Sync Issues because Google rejected its payload."
-            scheduleCacheSave()
+            if let updatedMutation {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationUpdated(updatedMutation))
+            }
         } catch let error as GoogleAPIError where error == .preconditionFailed {
             // Queued edit raced a server-side change. Don't silently drop —
             // surface as a conflict the user resolves from Diagnostics.
-            markMutationConflict(mutation.id, error: error)
-            scheduleCacheSave()
+            if let updatedMutation = markMutationConflict(mutation.id, error: error) {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationUpdated(updatedMutation))
+            }
             await refreshNow()
         } catch {
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "Queued task update failed: \(error.localizedDescription)"
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationDeleted(mutation))
         }
     }
 
     private func replayTaskCompletion(_ mutation: PendingMutation) async {
         do {
             let payload = try PendingMutationEncoder.decodeTaskCompletion(mutation.payload)
+            let originalTask = task(id: payload.taskID)
             // Reconstruct a minimal TaskMirror so tasksClient.setTaskCompleted
             // can pass the snapshot etag via If-Match.
             let stub = TaskMirror(
@@ -4775,30 +4876,39 @@ final class AppModel {
             upsert(updated)
             logReplayAccepted(mutation, acceptedID: updated.id)
             pendingMutations.removeAll { $0.id == mutation.id }
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.combined(
+                LocalCacheChangeSetBuilder.taskUpdated(old: originalTask, new: updated),
+                LocalCacheChangeSetBuilder.pendingMutationDeleted(mutation)
+            ))
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
-            markMutationTransientFailure(mutation.id, error: error)
+            let updatedMutation = markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
-            scheduleCacheSave()
+            if let updatedMutation {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationUpdated(updatedMutation))
+            }
         } catch let error as GoogleAPIError where error.isInvalidPayload {
-            markMutationInvalidPayload(mutation.id, error: error)
+            let updatedMutation = markMutationInvalidPayload(mutation.id, error: error)
             lastMutationError = "Queued task completion was preserved in Sync Issues because Google rejected its payload."
-            scheduleCacheSave()
+            if let updatedMutation {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationUpdated(updatedMutation))
+            }
         } catch let error as GoogleAPIError where error == .preconditionFailed {
-            markMutationConflict(mutation.id, error: error)
-            scheduleCacheSave()
+            if let updatedMutation = markMutationConflict(mutation.id, error: error) {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationUpdated(updatedMutation))
+            }
             await refreshNow()
         } catch {
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "Queued completion failed: \(error.localizedDescription)"
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationDeleted(mutation))
         }
     }
 
     private func replayTaskDelete(_ mutation: PendingMutation) async {
         do {
             let payload = try PendingMutationEncoder.decodeTaskDelete(mutation.payload)
+            let deletedTask = task(id: payload.taskID)
             try await tasksClient.deleteTask(
                 taskListID: payload.taskListID,
                 taskID: payload.taskID,
@@ -4807,30 +4917,40 @@ final class AppModel {
             removeTask(id: payload.taskID)
             logReplayAccepted(mutation, acceptedID: payload.taskID)
             pendingMutations.removeAll { $0.id == mutation.id }
-            scheduleCacheSave()
+            var changeSets = [LocalCacheChangeSetBuilder.pendingMutationDeleted(mutation)]
+            if let deletedTask {
+                changeSets.append(LocalCacheChangeSetBuilder.taskDeleted(deletedTask))
+            }
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.combined(changeSets))
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
-            markMutationTransientFailure(mutation.id, error: error)
+            let updatedMutation = markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
-            scheduleCacheSave()
+            if let updatedMutation {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationUpdated(updatedMutation))
+            }
         } catch let error as GoogleAPIError where error.isInvalidPayload {
-            markMutationInvalidPayload(mutation.id, error: error)
+            let updatedMutation = markMutationInvalidPayload(mutation.id, error: error)
             lastMutationError = "Queued task delete was preserved in Sync Issues because Google rejected its payload."
-            scheduleCacheSave()
+            if let updatedMutation {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationUpdated(updatedMutation))
+            }
         } catch let error as GoogleAPIError where error == .preconditionFailed {
-            markMutationConflict(mutation.id, error: error)
-            scheduleCacheSave()
+            if let updatedMutation = markMutationConflict(mutation.id, error: error) {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationUpdated(updatedMutation))
+            }
             await refreshNow()
         } catch {
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "Queued delete failed: \(error.localizedDescription)"
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationDeleted(mutation))
         }
     }
 
     private func replayEventUpdate(_ mutation: PendingMutation) async {
         do {
             let payload = try PendingMutationEncoder.decodeEventUpdate(mutation.payload)
+            let originalEvent = event(id: payload.eventID)
             let updated = try await calendarClient.updateEvent(
                 calendarID: payload.calendarID,
                 eventID: payload.eventID,
@@ -4858,30 +4978,39 @@ final class AppModel {
             upsert(updated)
             logReplayAccepted(mutation, acceptedID: updated.id)
             pendingMutations.removeAll { $0.id == mutation.id }
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.combined(
+                LocalCacheChangeSetBuilder.eventUpdated(old: originalEvent, new: updated),
+                LocalCacheChangeSetBuilder.pendingMutationDeleted(mutation)
+            ))
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
-            markMutationTransientFailure(mutation.id, error: error)
+            let updatedMutation = markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
-            scheduleCacheSave()
+            if let updatedMutation {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationUpdated(updatedMutation))
+            }
         } catch let error as GoogleAPIError where error.isInvalidPayload {
-            markMutationInvalidPayload(mutation.id, error: error)
+            let updatedMutation = markMutationInvalidPayload(mutation.id, error: error)
             lastMutationError = "Queued event update was preserved in Sync Issues because Google rejected its payload."
-            scheduleCacheSave()
+            if let updatedMutation {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationUpdated(updatedMutation))
+            }
         } catch let error as GoogleAPIError where error == .preconditionFailed {
-            markMutationConflict(mutation.id, error: error)
-            scheduleCacheSave()
+            if let updatedMutation = markMutationConflict(mutation.id, error: error) {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationUpdated(updatedMutation))
+            }
             await refreshNow()
         } catch {
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "Queued event update failed: \(error.localizedDescription)"
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationDeleted(mutation))
         }
     }
 
     private func replayEventDelete(_ mutation: PendingMutation) async {
         do {
             let payload = try PendingMutationEncoder.decodeEventDelete(mutation.payload)
+            let deletedEvent = event(id: payload.eventID)
             try await calendarClient.deleteEvent(
                 calendarID: payload.calendarID,
                 eventID: payload.eventID,
@@ -4890,24 +5019,33 @@ final class AppModel {
             removeEvent(id: payload.eventID)
             logReplayAccepted(mutation, acceptedID: payload.eventID)
             pendingMutations.removeAll { $0.id == mutation.id }
-            scheduleCacheSave()
+            var changeSets = [LocalCacheChangeSetBuilder.pendingMutationDeleted(mutation)]
+            if let deletedEvent {
+                changeSets.append(LocalCacheChangeSetBuilder.eventDeleted(deletedEvent))
+            }
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.combined(changeSets))
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
-            markMutationTransientFailure(mutation.id, error: error)
+            let updatedMutation = markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
-            scheduleCacheSave()
+            if let updatedMutation {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationUpdated(updatedMutation))
+            }
         } catch let error as GoogleAPIError where error.isInvalidPayload {
-            markMutationInvalidPayload(mutation.id, error: error)
+            let updatedMutation = markMutationInvalidPayload(mutation.id, error: error)
             lastMutationError = "Queued event delete was preserved in Sync Issues because Google rejected its payload."
-            scheduleCacheSave()
+            if let updatedMutation {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationUpdated(updatedMutation))
+            }
         } catch let error as GoogleAPIError where error == .preconditionFailed {
-            markMutationConflict(mutation.id, error: error)
-            scheduleCacheSave()
+            if let updatedMutation = markMutationConflict(mutation.id, error: error) {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationUpdated(updatedMutation))
+            }
             await refreshNow()
         } catch {
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "Queued event delete failed: \(error.localizedDescription)"
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationDeleted(mutation))
         }
     }
 
@@ -4935,27 +5073,43 @@ final class AppModel {
                 hcbTaskID: payload.hcbTaskID,
                 availabilityHold: payload.availabilityHold
             )
+            let localEvent = event(id: payload.localID)
             removeEvent(id: payload.localID)
             upsert(created)
             logReplayAccepted(mutation, acceptedID: created.id)
             pendingMutations.removeAll { $0.id == mutation.id }
-            scheduleCacheSave()
+            var changeSets = [
+                LocalCacheChangeSetBuilder.eventInserted(created),
+                LocalCacheChangeSetBuilder.pendingMutationDeleted(mutation)
+            ]
+            if let localEvent {
+                changeSets.append(LocalCacheChangeSetBuilder.eventDeleted(localEvent))
+            }
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.combined(changeSets))
             await synchronizeLocalNotifications()
         } catch let error as GoogleAPIError where error.isTransient {
-            markMutationTransientFailure(mutation.id, error: error)
+            let updatedMutation = markMutationTransientFailure(mutation.id, error: error)
             lastMutationError = "Can't reach Google right now — queued for automatic retry."
-            scheduleCacheSave()
+            if let updatedMutation {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationUpdated(updatedMutation))
+            }
         } catch let error as GoogleAPIError where error.isInvalidPayload {
-            markMutationInvalidPayload(mutation.id, error: error)
+            let updatedMutation = markMutationInvalidPayload(mutation.id, error: error)
             lastMutationError = "Event couldn't be created on Google. The queued payload was preserved in Sync Issues."
-            scheduleCacheSave()
+            if let updatedMutation {
+                scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.pendingMutationUpdated(updatedMutation))
+            }
         } catch {
+            var changeSets = [LocalCacheChangeSetBuilder.pendingMutationDeleted(mutation)]
             if let payload = try? PendingMutationEncoder.decodeEventCreate(mutation.payload) {
+                if let localEvent = event(id: payload.localID) {
+                    changeSets.append(LocalCacheChangeSetBuilder.eventDeleted(localEvent))
+                }
                 removeEvent(id: payload.localID)
             }
             pendingMutations.removeAll { $0.id == mutation.id }
             lastMutationError = "Event couldn't be created: \(error.localizedDescription)"
-            scheduleCacheSave()
+            scheduleCacheSave(changeSet: LocalCacheChangeSetBuilder.combined(changeSets))
         }
     }
 
@@ -4976,7 +5130,8 @@ final class AppModel {
         return false
     }
 
-    private func enqueuePendingMutation(_ mutation: PendingMutation) {
+    @discardableResult
+    private func enqueuePendingMutation(_ mutation: PendingMutation) -> PendingMutation {
         let mutation = account.map { mutation.accountStamped(accountID: $0.id) } ?? mutation
         pendingMutations.append(mutation)
         AppLogger.info(
@@ -4986,6 +5141,7 @@ final class AppModel {
                 "queuedCount": String(pendingMutations.count)
             ]) { _, new in new }
         )
+        return mutation
     }
 
     private func logReplayAttempt(_ mutation: PendingMutation) {
@@ -6029,6 +6185,8 @@ final class AppModel {
     private func saveCurrentState() async {
         pendingSaveTask?.cancel()
         pendingSaveTask = nil
+        pendingCacheSaveChangeSet = nil
+        pendingCacheSaveRequiresDerivedDiff = false
         await cacheStore.save(currentCachedState())
     }
 
@@ -6040,8 +6198,31 @@ final class AppModel {
     // upserts in <100ms) yet short enough that user-perceived latency
     // for "did my edit persist?" stays imperceptible.
     private var pendingSaveTask: Task<Void, Never>?
+    private var pendingCacheSaveChangeSet: CachePersistenceChangeSet?
+    private var pendingCacheSaveRequiresDerivedDiff = false
 
     func scheduleCacheSave() {
+        pendingCacheSaveChangeSet = nil
+        pendingCacheSaveRequiresDerivedDiff = true
+        schedulePendingCacheSaveTask()
+    }
+
+    func scheduleCacheSave(changeSet: CachePersistenceChangeSet) {
+        guard changeSet.hasRowChanges || changeSet.settingsChanged || changeSet.checkpointChanged else {
+            return
+        }
+        if pendingCacheSaveRequiresDerivedDiff == false {
+            if var pending = pendingCacheSaveChangeSet {
+                pending.formUnion(changeSet)
+                pendingCacheSaveChangeSet = pending
+            } else {
+                pendingCacheSaveChangeSet = changeSet
+            }
+        }
+        schedulePendingCacheSaveTask()
+    }
+
+    private func schedulePendingCacheSaveTask() {
         pendingSaveTask?.cancel()
         let store = cacheStore
         pendingSaveTask = Task { @MainActor [weak self] in
@@ -6050,7 +6231,35 @@ final class AppModel {
             guard let self else { return }
             // Re-snapshot at fire time, not at schedule time, so any mutations
             // between schedule and fire are also persisted.
-            let snapshot = self.currentCachedState()
+            let save = self.pendingCacheSaveRequest()
+            await Self.writeCacheSnapshot(save.snapshot, changeSet: save.changeSet, to: store)
+        }
+    }
+
+    private func pendingCacheSaveRequest() -> (snapshot: CachedAppState, changeSet: CachePersistenceChangeSet?) {
+        let snapshot = currentCachedState()
+        let changeSet = pendingCacheSaveRequiresDerivedDiff ? nil : pendingCacheSaveChangeSet
+        pendingSaveTask = nil
+        pendingCacheSaveChangeSet = nil
+        pendingCacheSaveRequiresDerivedDiff = false
+        return (snapshot, changeSet)
+    }
+
+    private static func writeCacheSnapshot(
+        _ snapshot: CachedAppState,
+        changeSet: CachePersistenceChangeSet?,
+        to store: LocalCacheStore
+    ) async {
+        guard let changeSet else {
+            await store.save(snapshot)
+            return
+        }
+        do {
+            try await store.commit(state: snapshot, changeSet: changeSet)
+        } catch {
+            AppLogger.warn("explicit cache commit failed, falling back to derived diff save", category: .cache, metadata: [
+                "error": String(describing: error)
+            ])
             await store.save(snapshot)
         }
     }
@@ -6060,9 +6269,9 @@ final class AppModel {
     // can't lose the last 500ms of mutations.
     func flushPendingCacheSave() async {
         guard let task = pendingSaveTask else { return }
-        pendingSaveTask = nil
         task.cancel()
-        await cacheStore.save(currentCachedState())
+        let save = pendingCacheSaveRequest()
+        await Self.writeCacheSnapshot(save.snapshot, changeSet: save.changeSet, to: cacheStore)
     }
 
     private func isValidEventRange(startDate: Date, endDate: Date, isAllDay: Bool) -> Bool {

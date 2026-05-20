@@ -110,8 +110,10 @@ final class LargeAccountCalendarPerformanceTests: XCTestCase {
         let changedHashBefore = try XCTUnwrap(databaseBefore.contentHashForTesting(table: "cache_events", accountID: "large-account", id: changedID))
 
         var updatedEvents = state.events
+        let originalChangedEvent = updatedEvents[state.events.count / 2]
         updatedEvents[state.events.count / 2].summary += " local edit"
         updatedEvents[state.events.count / 2].etag = "local-edit-v2"
+        let updatedChangedEvent = updatedEvents[state.events.count / 2]
         let updated = CachedAppState(
             account: state.account,
             accounts: state.accounts,
@@ -126,8 +128,11 @@ final class LargeAccountCalendarPerformanceTests: XCTestCase {
             schemaVersion: state.schemaVersion
         )
 
-        let (_, commitMs) = await timedAsync("cache.db.commitOneEvent.15k") {
-            await store.save(updated)
+        let (_, commitMs) = try await timedAsync("cache.db.commitOneEvent.15k") {
+            try await store.commit(
+                state: updated,
+                changeSet: LocalCacheChangeSetBuilder.eventUpdated(old: originalChangedEvent, new: updatedChangedEvent)
+            )
         }
 
         let databaseAfter = try LocalCacheDatabaseStore(fileURL: dbFile)
