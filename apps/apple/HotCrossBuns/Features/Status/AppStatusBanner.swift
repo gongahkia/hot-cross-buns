@@ -4,6 +4,7 @@ struct AppStatusBanner: View {
     let syncState: SyncState
     let authState: AuthState
     let mutationError: String?
+    var cacheWarning: String? = nil
     var isSyncPaused: Bool = false
     var quarantinedCount: Int = 0
     var invalidPayloadCount: Int = 0
@@ -159,6 +160,17 @@ struct AppStatusBanner: View {
             )
         }
 
+        if let cacheWarning, cacheWarning.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            return FailureContext(
+                title: Self.cacheWarningTitle(for: cacheWarning),
+                message: cacheWarning,
+                systemImage: "externaldrive.badge.exclamationmark",
+                tint: AppColor.ember,
+                canRetry: false,
+                canDismiss: true
+            )
+        }
+
         if isSyncPaused {
             let copy = Self.syncFailureCopy(
                 fallbackMessage: "Google wasn't reachable after several attempts. Your local changes are safe and will sync when you retry.",
@@ -209,6 +221,17 @@ struct AppStatusBanner: View {
         }
 
         return nil
+    }
+
+    static func cacheWarningTitle(for message: String) -> String {
+        let lowercased = message.lowercased()
+        if lowercased.contains("encrypted") || lowercased.contains("unlock") {
+            return "Local cache is locked"
+        }
+        if lowercased.contains("restored") || lowercased.contains("recovered") {
+            return "Local cache recovered"
+        }
+        return "Local cache needs attention"
     }
 
     static func syncFailureCopy(

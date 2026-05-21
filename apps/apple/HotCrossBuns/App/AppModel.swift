@@ -628,6 +628,8 @@ final class AppModel {
     // prior timestamp on disk).
     private(set) var daysSinceLastLaunch: Int?
     private(set) var lastMutationError: String?
+    private(set) var lastCacheLoadWarning: String?
+    private(set) var usesDatabaseEntitySearch = false
     private(set) var globalHotkeyRegistrationState: GlobalHotkeyRegistrationState = .disabled
     private(set) var syncFailureKind: SyncFailureKind?
     private(set) var loadingOverlay: LoadingOverlayState?
@@ -827,6 +829,7 @@ final class AppModel {
         if let key = cachedCacheKey {
             await cacheStore.setEncryptionKey(key)
         }
+        usesDatabaseEntitySearch = await cacheStore.supportsEntitySearch()
         let cachedState = await cacheStore.loadCachedState()
         apply(cachedState)
         await dismissLoadingOverlayBeforeFollowUpWork()
@@ -846,9 +849,7 @@ final class AppModel {
         if let account = cachedState.account {
             authState = .signedIn(account)
         }
-        if let warning = await cacheStore.lastLoadWarning {
-            lastMutationError = warning
-        }
+        lastCacheLoadWarning = await cacheStore.lastLoadWarning
         publishSnapshotSurfaceStores()
         await synchronizeLocalNotifications()
         reconcileMCPServer()
@@ -2855,6 +2856,109 @@ final class AppModel {
         }
     }
 
+    func overdueTasksFromQuery(
+        before cutoff: Date,
+        visibleTaskListIDs requestedVisibleTaskListIDs: Set<TaskListMirror.ID>? = nil,
+        limit: Int = ActionCenterBuilder.defaultOverdueTaskDisplayLimit
+    ) async -> OverdueTaskProjection {
+        do {
+            return try await cacheStore.overdueTasks(
+                before: cutoff,
+                visibleTaskListIDs: requestedVisibleTaskListIDs,
+                limit: limit
+            )
+        } catch {
+            HCBPerformanceTelemetry.debug(
+                "overdue task query fallback",
+                metadata: ["error": String(describing: error)]
+            )
+            return Self.overdueTaskProjection(
+                from: tasks,
+                before: cutoff,
+                visibleTaskListIDs: requestedVisibleTaskListIDs,
+                limit: limit
+            )
+        }
+    }
+
+    func todayPrintPayloadFromQuery(now: Date = Date()) async -> TodayPrintPayload {
+        let calendar = Calendar.current
+        let horizon = calendar.date(byAdding: .day, value: 1, to: now) ?? now
+        let selectedCalendarIDs = Set(calendarSnapshot.selectedCalendars.map(\.id))
+        let overdue = await overdueTasksFromQuery(
+            before: calendar.startOfDay(for: now),
+            visibleTaskListIDs: nil,
+            limit: -1
+        ).tasks
+
+        let upcoming: [CalendarEventMirror]
+        do {
+            upcoming = try await calendarQueryService.events(
+                in: DateInterval(start: now, end: horizon),
+                accountID: activeAccountID,
+                calendarIDs: selectedCalendarIDs,
+                eventViewFilter: CalendarEventViewFilter(),
+                includeCancelled: false
+            )
+            .filter { event in
+                event.startDate > now
+                    && event.startDate <= horizon
+            }
+            .sorted { lhs, rhs in
+                if lhs.startDate != rhs.startDate { return lhs.startDate < rhs.startDate }
+                return lhs.id < rhs.id
+            }
+        } catch {
+            HCBPerformanceTelemetry.debug(
+                "today print event query fallback",
+                metadata: ["error": String(describing: error)]
+            )
+            upcoming = events
+                .filter { event in
+                    event.status != .cancelled
+                        && selectedCalendarIDs.contains(event.calendarID)
+                        && event.startDate > now
+                        && event.startDate <= horizon
+                }
+                .sorted { lhs, rhs in
+                    if lhs.startDate != rhs.startDate { return lhs.startDate < rhs.startDate }
+                    return lhs.id < rhs.id
+                }
+        }
+
+        return TodayPrintPayload(
+            todaySnapshot: todaySnapshot,
+            overdueTasks: overdue,
+            upcomingEvents: upcoming,
+            generatedAt: now
+        )
+    }
+
+    private static func overdueTaskProjection(
+        from tasks: [TaskMirror],
+        before cutoff: Date,
+        visibleTaskListIDs: Set<TaskListMirror.ID>?,
+        limit: Int
+    ) -> OverdueTaskProjection {
+        var overdue = tasks.filter { task in
+            task.isCompleted == false
+                && task.isDeleted == false
+                && task.isHidden == false
+                && (visibleTaskListIDs?.contains(task.taskListID) ?? true)
+                && (task.dueDate.map { $0 < cutoff } ?? false)
+        }
+        overdue.sort { lhs, rhs in
+            let left = lhs.dueDate ?? .distantPast
+            let right = rhs.dueDate ?? .distantPast
+            if left != right { return left < right }
+            let titleOrder = lhs.title.localizedCaseInsensitiveCompare(rhs.title)
+            if titleOrder != .orderedSame { return titleOrder == .orderedAscending }
+            return lhs.id < rhs.id
+        }
+        let limited = limit < 0 ? overdue : Array(overdue.prefix(limit))
+        return OverdueTaskProjection(tasks: limited, totalCount: overdue.count)
+    }
+
     func updateSyncMode(_ mode: SyncMode) {
         settings.syncMode = mode
         Task {
@@ -4473,6 +4577,7 @@ final class AppModel {
         }
 
         lastMutationError = nil
+        lastCacheLoadWarning = nil
         syncFailureKind = nil
     }
 
@@ -5432,6 +5537,8 @@ final class AppModel {
         scope: LocalCacheEntitySearchScope = .all,
         limit: Int = 40
     ) async throws -> [QuickSwitcherEntity]? {
+        let parsed = AdvancedSearchParser.parse(query)
+        guard parsed.regex == nil else { return nil }
         guard let results = try await cacheStore.searchEntities(query: query, scope: scope, limit: limit) else {
             return nil
         }

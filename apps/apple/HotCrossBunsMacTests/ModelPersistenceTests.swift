@@ -173,6 +173,26 @@ final class ModelPersistenceTests: XCTestCase {
         XCTAssertEqual(cacheFilePath, fileURL.deletingPathExtension().appendingPathExtension("sqlite").path)
     }
 
+    @MainActor
+    func testCacheLoadWarningDoesNotBecomeMutationError() async throws {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appending(path: "HotCrossBunsTests", directoryHint: .isDirectory)
+            .appending(path: UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
+
+        let legacyStore = LocalCacheStore(fileURL: fileURL, storageBackend: .jsonSidecar)
+        await legacyStore.save(.preview)
+        try Data("not a sqlite database".utf8)
+            .write(to: fileURL.deletingPathExtension().appendingPathExtension("sqlite"))
+
+        let model = makeModel(cachedState: .empty, cacheStore: LocalCacheStore(fileURL: fileURL))
+        await model.loadInitialState()
+
+        XCTAssertNil(model.lastMutationError)
+        XCTAssertEqual(model.lastCacheLoadWarning, "SQLite cache could not be read; restored from legacy JSON cache.")
+    }
+
     func testCachedAppStateMigratesLegacyAccountIntoAccountCatalog() throws {
         let data = Data(
             """
@@ -851,6 +871,7 @@ final class ModelPersistenceTests: XCTestCase {
     @MainActor
     private func makeModel(
         cachedState: CachedAppState,
+        cacheStore: LocalCacheStore? = nil,
         tokenStore: InMemoryGoogleOAuthTokenStore = InMemoryGoogleOAuthTokenStore(
             clientConfiguration: GoogleOAuthClientConfiguration(clientID: "abc.apps.googleusercontent.com", clientSecret: nil)
         ),
@@ -870,7 +891,7 @@ final class ModelPersistenceTests: XCTestCase {
             tasksClient: tasksClient,
             calendarClient: calendarClient,
             syncScheduler: SyncScheduler(tasksClient: tasksClient, calendarClient: calendarClient),
-            cacheStore: LocalCacheStore(fileURL: nil, cachedState: cachedState)
+            cacheStore: cacheStore ?? LocalCacheStore(fileURL: nil, cachedState: cachedState)
         )
     }
 

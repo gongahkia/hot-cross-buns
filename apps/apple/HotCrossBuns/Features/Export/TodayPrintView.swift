@@ -1,6 +1,13 @@
 import AppKit
 import SwiftUI
 
+struct TodayPrintPayload: Equatable, Sendable {
+    var todaySnapshot: TodaySnapshot
+    var overdueTasks: [TaskMirror]
+    var upcomingEvents: [CalendarEventMirror]
+    var generatedAt: Date
+}
+
 // Page-sized SwiftUI view used by NSPrintOperation. Shows today's
 // scheduled events, overdue tasks, due-today tasks, and the next
 // 24 hours of future events so the printed page doubles as a
@@ -128,28 +135,13 @@ struct TodayPrintView: View {
 
 enum TodayPrinter {
     @MainActor
-    static func print(model: AppModel) {
-        let now = Date()
-        let calendar = Calendar.current
-        let horizon = calendar.date(byAdding: .day, value: 1, to: now) ?? now
-        let selectedCalendarIDs = Set(model.calendarSnapshot.selectedCalendars.map(\.id))
-        let upcoming = model.events
-            .filter { event in
-                event.status != .cancelled
-                    && selectedCalendarIDs.contains(event.calendarID)
-                    && event.startDate > now
-                    && event.startDate <= horizon
-            }
-            .sorted { $0.startDate < $1.startDate }
-        let overdue = model.tasks.filter { task in
-            task.isDeleted == false && task.isCompleted == false
-                && (task.dueDate.map { $0 < calendar.startOfDay(for: now) } ?? false)
-        }
+    static func print(model: AppModel) async {
+        let payload = await model.todayPrintPayloadFromQuery()
         let printView = TodayPrintView(
-            todaySnapshot: model.todaySnapshot,
-            overdueTasks: overdue,
-            upcomingEvents: upcoming,
-            generatedAt: now
+            todaySnapshot: payload.todaySnapshot,
+            overdueTasks: payload.overdueTasks,
+            upcomingEvents: payload.upcomingEvents,
+            generatedAt: payload.generatedAt
         )
 
         let hosting = NSHostingController(rootView: printView)
@@ -162,7 +154,7 @@ enum TodayPrinter {
         printInfo.horizontalPagination = .fit
         printInfo.verticalPagination = .fit
         let operation = NSPrintOperation(view: hosting.view, printInfo: printInfo)
-        operation.jobTitle = "Hot Cross Buns — \(now.formatted(date: .abbreviated, time: .omitted))"
+        operation.jobTitle = "Hot Cross Buns — \(payload.generatedAt.formatted(date: .abbreviated, time: .omitted))"
         operation.run()
     }
 }

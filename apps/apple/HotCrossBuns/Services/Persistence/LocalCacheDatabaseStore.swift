@@ -242,6 +242,26 @@ final class LocalCacheDatabaseStore: @unchecked Sendable {
         }
     }
 
+    func overdueTasks(
+        accountID: String? = nil,
+        before cutoff: Date,
+        visibleTaskListIDs: Set<TaskListMirror.ID>?,
+        limit: Int,
+        encryptionKey: SymmetricKey? = nil
+    ) throws -> OverdueTaskProjection {
+        let storageAccountID = accountID ?? Self.unscopedAccountID
+        return try dbQueue.read { db in
+            try Self.fetchOverdueTasks(
+                db,
+                accountID: storageAccountID,
+                before: cutoff,
+                visibleTaskListIDs: visibleTaskListIDs,
+                limit: limit,
+                encryptionKey: encryptionKey
+            )
+        }
+    }
+
     func enqueueSideEffectRebuild(
         accountID: String? = nil,
         targets: Set<LocalIntegrationDirtyTarget> = Set(LocalIntegrationDirtyTarget.allCases)
@@ -2766,6 +2786,65 @@ private extension LocalCacheDatabaseStore {
         }
 
         return LocalCacheEntitySearchResults(tasks: tasks, events: events)
+    }
+
+    static func fetchOverdueTasks(
+        _ db: Database,
+        accountID: String,
+        before cutoff: Date,
+        visibleTaskListIDs: Set<TaskListMirror.ID>?,
+        limit: Int,
+        encryptionKey: SymmetricKey?
+    ) throws -> OverdueTaskProjection {
+        var predicates = [
+            "account_id = ?",
+            "due_date IS NOT NULL",
+            "due_date < ?",
+            "status <> ?",
+            "is_deleted = 0",
+            "is_hidden = 0"
+        ]
+        var arguments: StatementArguments = [
+            accountID,
+            cutoff.timeIntervalSince1970,
+            TaskStatus.completed.rawValue
+        ]
+        if let visibleTaskListIDs {
+            if visibleTaskListIDs.isEmpty {
+                predicates.append("0 = 1")
+            } else {
+                let sortedIDs = visibleTaskListIDs.sorted()
+                predicates.append("task_list_id IN (\(placeholders(count: sortedIDs.count)))")
+                for id in sortedIDs {
+                    arguments += [id]
+                }
+            }
+        }
+
+        let whereSQL = predicates.joined(separator: " AND ")
+        let totalCount = try Int.fetchOne(
+            db,
+            sql: "SELECT COUNT(*) FROM cache_task_render_index WHERE \(whereSQL)",
+            arguments: arguments
+        ) ?? 0
+        guard totalCount > 0, limit != 0 else {
+            return OverdueTaskProjection(tasks: [], totalCount: totalCount)
+        }
+
+        var idArguments = arguments
+        var sql = """
+            SELECT id
+            FROM cache_task_render_index
+            WHERE \(whereSQL)
+            ORDER BY due_date ASC, title COLLATE NOCASE ASC, id ASC
+            """
+        if limit > 0 {
+            sql += "\nLIMIT ?"
+            idArguments += [limit]
+        }
+        let ids = try String.fetchAll(db, sql: sql, arguments: idArguments)
+        let tasks = try fetchTasks(db, accountID: accountID, ids: ids, encryptionKey: encryptionKey)
+        return OverdueTaskProjection(tasks: tasks, totalCount: totalCount)
     }
 
     static func searchTaskIDs(

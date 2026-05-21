@@ -59,6 +59,13 @@ protocol CalendarQuerying: Sendable {
     ) async throws -> [CalendarEventMirror]
 }
 
+struct OverdueTaskProjection: Equatable, Sendable {
+    var tasks: [TaskMirror]
+    var totalCount: Int
+
+    static let empty = OverdueTaskProjection(tasks: [], totalCount: 0)
+}
+
 struct LocalCacheCalendarQueryService: CalendarQuerying {
     let cacheStore: LocalCacheStore
 
@@ -305,6 +312,26 @@ actor LocalCacheStore {
                 lastLoadWarning = "Local cache is encrypted; unlock to read. Google remains the source of truth."
                 cachedState = fallbackState
                 return fallbackState
+            } catch LocalCacheDatabaseStore.CacheDatabaseError.missingStateRow {
+                let fallback = loadJSONSidecarCachedState()
+                let fallbackWarning = lastLoadWarning
+                guard fallbackHasUsableState(fallback) || hasLegacyCacheArtifacts() else {
+                    lastLoadWarning = nil
+                    cachedState = fallback
+                    return fallback
+                }
+                do {
+                    try saveToDatabase(fallback)
+                    AppLogger.info("initialized empty SQLite cache from JSON fallback", category: .cache)
+                    lastLoadWarning = fallbackWarning
+                } catch {
+                    AppLogger.warn("empty SQLite cache initialization failed", category: .cache, metadata: [
+                        "error": String(describing: error)
+                    ])
+                    lastLoadWarning = fallbackWarning
+                        ?? "Local cache loaded from legacy JSON; SQLite migration will retry on the next save."
+                }
+                return fallback
             } catch {
                 AppLogger.error("sqlite cache load failed, trying JSON fallback", category: .cache, metadata: [
                     "error": String(describing: error)
@@ -781,6 +808,11 @@ actor LocalCacheStore {
         try database().repairSearchAndRenderTablesIfEmpty(encryptionKey: encryptionKey)
     }
 
+    func supportsEntitySearch() -> Bool {
+        guard case .sqlite = storageBackend, databaseFileURL != nil else { return false }
+        return true
+    }
+
     func searchEntities(
         query: String,
         scope: LocalCacheEntitySearchScope = .all,
@@ -799,6 +831,28 @@ actor LocalCacheStore {
         )
         try Task.checkCancellation()
         return results
+    }
+
+    func overdueTasks(
+        before cutoff: Date,
+        visibleTaskListIDs: Set<TaskListMirror.ID>? = nil,
+        limit: Int
+    ) throws -> OverdueTaskProjection {
+        guard case .sqlite = storageBackend, databaseFileURL != nil else {
+            return Self.overdueTaskProjection(
+                from: cachedState.tasks,
+                before: cutoff,
+                visibleTaskListIDs: visibleTaskListIDs,
+                limit: limit
+            )
+        }
+        return try database().overdueTasks(
+            accountID: cachedState.activeAccountID,
+            before: cutoff,
+            visibleTaskListIDs: visibleTaskListIDs,
+            limit: limit,
+            encryptionKey: encryptionKey
+        )
     }
 
     func enqueueSideEffectRebuild(
@@ -1353,6 +1407,33 @@ private extension LocalCacheStore {
             let right = rhs.events.first?.startDate ?? rhs.metadata.createdAt
             return left < right
         }
+    }
+
+    static func overdueTaskProjection(
+        from tasks: [TaskMirror],
+        before cutoff: Date,
+        visibleTaskListIDs: Set<TaskListMirror.ID>?,
+        limit: Int
+    ) -> OverdueTaskProjection {
+        var overdue = tasks.filter { task in
+            task.isCompleted == false
+                && task.isDeleted == false
+                && task.isHidden == false
+                && (visibleTaskListIDs?.contains(task.taskListID) ?? true)
+                && (task.dueDate.map { $0 < cutoff } ?? false)
+        }
+        overdue.sort { lhs, rhs in
+            let left = lhs.dueDate ?? .distantPast
+            let right = rhs.dueDate ?? .distantPast
+            if left != right { return left < right }
+            let titleOrder = lhs.title.localizedCaseInsensitiveCompare(rhs.title)
+            if titleOrder != .orderedSame {
+                return titleOrder == .orderedAscending
+            }
+            return lhs.id < rhs.id
+        }
+        let limited = limit < 0 ? overdue : Array(overdue.prefix(limit))
+        return OverdueTaskProjection(tasks: limited, totalCount: overdue.count)
     }
 
     static func requiresFullDatabaseSave(previous: CachedAppState, next: CachedAppState) -> Bool {

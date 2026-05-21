@@ -45,6 +45,26 @@ final class LocalCacheDatabaseStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.syncCheckpoints.first?.calendarSyncToken, "token-migrated")
     }
 
+    func testEmptySQLiteDatabaseMigratesLegacyJSONWithoutLoadWarning() async throws {
+        let original = makeState(eventSuffix: "empty-db", checkpointToken: "token-empty-db")
+        let legacyStore = LocalCacheStore(fileURL: jsonURL, storageBackend: .jsonSidecar)
+        await legacyStore.save(original)
+        _ = try LocalCacheDatabaseStore(fileURL: dbURL)
+
+        let migratingStore = LocalCacheStore(fileURL: jsonURL)
+        let loaded = await migratingStore.loadCachedState()
+
+        XCTAssertEqual(loaded.events.map(\.id), ["event-empty-db"])
+        XCTAssertEqual(loaded.syncCheckpoints.first?.calendarSyncToken, "token-empty-db")
+        let warning = await migratingStore.lastLoadWarning
+        XCTAssertNil(warning)
+
+        let reloader = LocalCacheStore(fileURL: jsonURL)
+        let reloaded = await reloader.loadCachedState()
+        XCTAssertEqual(reloaded.events.map(\.id), ["event-empty-db"])
+        XCTAssertEqual(reloaded.syncCheckpoints.first?.calendarSyncToken, "token-empty-db")
+    }
+
     func testTransactionRollbackKeepsPriorEntitiesAndCheckpoints() throws {
         let store = try LocalCacheDatabaseStore(fileURL: dbURL)
         let original = makeState(eventSuffix: "before", checkpointToken: "token-before")

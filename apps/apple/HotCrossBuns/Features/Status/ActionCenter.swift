@@ -83,6 +83,34 @@ enum ActionCenterBuilder {
             calendar: calendar,
             displayLimit: overdueTaskDisplayLimit
         )
+        return build(
+            holdGroups: holdGroups,
+            overdueTasks: overdue.tasks,
+            overdueTaskCount: overdue.totalCount,
+            pendingMutations: pendingMutations,
+            notificationSummary: notificationSummary,
+            authState: authState,
+            syncState: syncState,
+            isSyncPaused: isSyncPaused,
+            mutationError: mutationError,
+            syncFailureKind: syncFailureKind,
+            networkReachability: networkReachability
+        )
+    }
+
+    static func build(
+        holdGroups: [ActionCenterHoldGroup],
+        overdueTasks: [TaskMirror],
+        overdueTaskCount: Int,
+        pendingMutations: [PendingMutation],
+        notificationSummary: NotificationScheduleSummary?,
+        authState: AuthState,
+        syncState: SyncState,
+        isSyncPaused: Bool,
+        mutationError: String?,
+        syncFailureKind: SyncFailureKind?,
+        networkReachability: NetworkReachability
+    ) -> ActionCenterSnapshot {
         let mutationBuckets = buildMutationBuckets(pendingMutations)
         let issues = buildIssues(
             mutationBuckets: mutationBuckets,
@@ -97,8 +125,8 @@ enum ActionCenterBuilder {
 
         return ActionCenterSnapshot(
             holdGroups: holdGroups,
-            overdueTasks: overdue.tasks,
-            overdueTaskCount: overdue.totalCount,
+            overdueTasks: overdueTasks,
+            overdueTaskCount: overdueTaskCount,
             issues: issues
         )
     }

@@ -297,6 +297,7 @@ struct MacSidebarShell: View {
                     syncState: model.syncState,
                     authState: model.authState,
                     mutationError: model.lastMutationError,
+                    cacheWarning: model.lastCacheLoadWarning,
                     isSyncPaused: model.isSyncPaused,
                     quarantinedCount: model.quarantinedMutationCount,
                     invalidPayloadCount: model.invalidPayloadMutationCount,
@@ -1031,7 +1032,7 @@ struct MacSidebarShell: View {
         appCommandActions.openCommandPalette = { presentCommandPalette() }
         appCommandActions.openHelp = { openWindow(id: "help") }
         appCommandActions.openHistory = { openWindow(id: "history") }
-        appCommandActions.printToday = { TodayPrinter.print(model: model) }
+        appCommandActions.printToday = { Task { await TodayPrinter.print(model: model) } }
         appCommandActions.exportDayICS = { exportICS(range: .day) }
         appCommandActions.exportWeekICS = { exportICS(range: .week) }
         appCommandActions.exportSettings = { exportSettings() }

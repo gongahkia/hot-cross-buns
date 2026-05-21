@@ -393,17 +393,19 @@ struct CommandPaletteView: View {
                 isSearchFocused = true
             }
         }
-        .task(id: snapshotKey) {
-            await entityCache.prepare(snapshot: entitySnapshot)
+        .task(id: fallbackPrewarmTaskID) {
+            guard model.usesDatabaseEntitySearch == false else { return }
+            let key = snapshotKey
+            await entityCache.prepare(snapshot: CommandPaletteEntitySnapshot(model: model, key: key))
         }
         // Entity-search debounce: each keystroke restarts this task; commands
         // do not wait for it because they are ranked directly from `query`.
         .task(id: entitySearchTaskID) {
             let liveQuery = trimmedQuery
-            let snapshot = entitySnapshot
+            let snapshotKeyAtStart = snapshotKey
             guard liveQuery.isEmpty == false else {
                 entityResultsQuery = ""
-                entityResultsSnapshotKey = snapshot.key
+                entityResultsSnapshotKey = snapshotKeyAtStart
                 entityResults = []
                 return
             }
@@ -413,8 +415,9 @@ struct CommandPaletteView: View {
                 let resultSnapshotKey: String
                 if let databaseEntities = try await model.searchEntities(query: liveQuery, limit: 38) {
                     entities = databaseEntities
-                    resultSnapshotKey = snapshot.key
+                    resultSnapshotKey = snapshotKeyAtStart
                 } else {
+                    let snapshot = CommandPaletteEntitySnapshot(model: model, key: snapshotKeyAtStart)
                     let result = try await entityCache.search(snapshot: snapshot, query: liveQuery)
                     entities = result.entities
                     resultSnapshotKey = result.snapshotKey
@@ -482,12 +485,12 @@ struct CommandPaletteView: View {
         "\(model.dataRevision)|\(model.settings.customFilters.count)"
     }
 
-    private var entitySnapshot: CommandPaletteEntitySnapshot {
-        CommandPaletteEntitySnapshot(model: model, key: snapshotKey)
+    private var fallbackPrewarmTaskID: String {
+        "\(snapshotKey)|\(model.usesDatabaseEntitySearch)"
     }
 
     private var entitySearchTaskID: String {
-        "\(snapshotKey)|\(trimmedQuery)"
+        "\(snapshotKey)|\(model.usesDatabaseEntitySearch)|\(trimmedQuery)"
     }
 
     // Merged ranked list. Behaviour:
@@ -553,15 +556,18 @@ struct CommandPaletteView: View {
         }
 
         let liveQuery = trimmedQuery
-        let snapshot = entitySnapshot
+        let snapshotKeyAtStart = snapshotKey
         Task {
             do {
                 let entities: [QuickSwitcherEntity]
                 let resultSnapshotKey: String
                 if let databaseEntities = try await model.searchEntities(query: liveQuery, limit: 38) {
                     entities = databaseEntities
-                    resultSnapshotKey = snapshot.key
+                    resultSnapshotKey = snapshotKeyAtStart
                 } else {
+                    let snapshot = await MainActor.run {
+                        CommandPaletteEntitySnapshot(model: model, key: snapshotKeyAtStart)
+                    }
                     let result = try await entityCache.search(snapshot: snapshot, query: liveQuery)
                     entities = result.entities
                     resultSnapshotKey = result.snapshotKey
