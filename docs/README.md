@@ -43,6 +43,8 @@ Subsystem specs:
 - [MCP Agent Access](specs/mcp-agent-access.md)
 - [Platform Strategy](specs/platforms.md)
 - [Native Parity](specs/native-parity.md)
+- [Design System](design/design-system.md)
+- [Legacy Hot Cross Buns Context](reference/legacy-hot-cross-buns-context.md)
 
 Operational docs:
 
@@ -57,4 +59,3 @@ Operational docs:
 - No package manager lockfile yet.
 - No source code copied from the Swift app.
 - No product decisions that contradict Google Tasks and Calendar as the primary synced sources.
-
