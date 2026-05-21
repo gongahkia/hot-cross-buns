@@ -26,7 +26,7 @@ final class DiscoverabilityTests: XCTestCase {
 
         let source = try String(contentsOf: repoRoot.appending(path: "apps/apple/HotCrossBuns/App/MacSidebarShell.swift"))
         XCTAssertTrue(source.contains("presentFeatureTourIfNeeded()"))
-        XCTAssertTrue(source.contains("model.settings.hasSeenFeatureTour == false"))
+        XCTAssertTrue(source.contains("shellChrome.hasSeenFeatureTour == false"))
         XCTAssertTrue(source.contains("model.markFeatureTourSeen()"))
     }
 

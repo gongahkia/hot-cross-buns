@@ -137,6 +137,26 @@ final class ShellMenuObservationBoundaryTests: XCTestCase {
         }
     }
 
+    func testLeftSidebarUsesOnlyNativeSplitViewToggle() throws {
+        let file = "apps/apple/HotCrossBuns/App/MacSidebarShell.swift"
+        let source = try uncommentedSource(file)
+        let modifierStart = try XCTUnwrap(source.range(of: "private struct NavigationSurfaceToggleToolbarModifier")?.lowerBound)
+        let modifierEnd = try XCTUnwrap(source.range(of: "private struct ActionCenterDynamicContent")?.lowerBound)
+        let modifierSource = String(source[modifierStart..<modifierEnd])
+        XCTAssertTrue(
+            modifierSource.contains("case .left:\n            content"),
+            "Left sidebar placement should let NavigationSplitView render its native sidebar toggle."
+        )
+
+        let shellStart = try XCTUnwrap(source.range(of: "private var nativeLeftNavigationShell")?.lowerBound)
+        let shellEnd = try XCTUnwrap(source.range(of: "private var trailingNavigationShell")?.lowerBound)
+        let shellSource = String(source[shellStart..<shellEnd])
+        XCTAssertFalse(
+            shellSource.contains(".toolbar(removing: .sidebarToggle)"),
+            "Native left NavigationSplitView should keep its system sidebar toggle instead of removing it and adding a custom duplicate."
+        )
+    }
+
     func testMenuBarSceneReadsMenuBarProjectionInsteadOfRawModelScans() throws {
         let file = "apps/apple/HotCrossBuns/App/MenuBarExtraScene.swift"
         let source = try uncommentedSource(file)

@@ -153,18 +153,23 @@ private struct NavigationSurfaceToggleToolbarModifier: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-        content
-            .toolbar(removing: .sidebarToggle)
-            .toolbar {
-                ToolbarItem(placement: toolbarPlacement) {
-                    Button(action: toggle) {
-                        Image(systemName: placement.systemImage)
-                            .imageScale(.large)
+        switch placement {
+        case .left:
+            content
+        case .right, .top, .bottom:
+            content
+                .toolbar(removing: .sidebarToggle)
+                .toolbar {
+                    ToolbarItem(placement: toolbarPlacement) {
+                        Button(action: toggle) {
+                            Image(systemName: placement.systemImage)
+                                .imageScale(.large)
+                        }
+                        .help(label)
+                        .accessibilityLabel(label)
                     }
-                    .help(label)
-                    .accessibilityLabel(label)
                 }
-            }
+        }
     }
 }
 
@@ -320,7 +325,6 @@ struct MacSidebarShell: View {
             detail
         }
         .navigationSplitViewStyle(.balanced)
-        .toolbar(removing: .sidebarToggle)
     }
 
     private var trailingNavigationShell: some View {
