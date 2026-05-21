@@ -177,6 +177,25 @@ final class KanbanGroupingTests: XCTestCase {
         XCTAssertEqual(snapshot.undatedTasks.map(\.id), ["note-visible"])
     }
 
+    func testTaskBoardSnapshotTreatsDatedTasksWithNoteBodiesAsNotesSurfaceItems() {
+        var datedWithNotes = task(id: "dated-with-notes", list: "L1", due: day(1))
+        datedWithNotes.notes = "Meeting context"
+        let datedWithoutNotes = task(id: "dated-without-notes", list: "L1", due: day(2))
+        let standaloneNote = task(id: "standalone-note", list: "L1")
+
+        let snapshot = TaskBoardSnapshot.build(
+            tasks: [datedWithNotes, datedWithoutNotes, standaloneNote],
+            tasksTabVisibleListIDs: ["L1"],
+            notesTabVisibleListIDs: ["L1"],
+            settings: .default,
+            referenceDate: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(snapshot.datedTasks.map(\.id), ["dated-with-notes", "dated-without-notes"])
+        XCTAssertEqual(snapshot.undatedTasks.map(\.id), ["dated-with-notes", "standalone-note"])
+    }
+
     func testTaskBoardSnapshotHidesOverdueTasksWhenConfigured() {
         let overdue = task(id: "overdue", list: "L1", due: day(-1))
         let today = task(id: "today", list: "L1", due: day(0))

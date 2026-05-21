@@ -523,6 +523,7 @@ final class LocalCacheDatabaseStoreTests: XCTestCase {
     func testFTSSearchIndexesInsertUpdateDeleteAndRanksTitleMatchesFirst() throws {
         let titleTask = makeTask(id: "task-title", title: "Launch review", notes: "")
         let notesTask = makeTask(id: "task-notes", title: "Routine admin", notes: "Launch review notes")
+        let datedNoteTask = makeTask(id: "task-dated-note", title: "Follow up", notes: "Launch follow-up context")
         let titleEvent = makeEvent(id: "event-title", summary: "Launch briefing", details: "Agenda", location: "Room A")
         let detailsEvent = makeEvent(id: "event-details", summary: "Weekly sync", details: "Launch details")
         let store = try LocalCacheDatabaseStore(fileURL: dbURL)
@@ -530,7 +531,7 @@ final class LocalCacheDatabaseStoreTests: XCTestCase {
             eventSuffix: "fts",
             checkpointToken: "token-before",
             events: [titleEvent, detailsEvent],
-            tasks: [titleTask, notesTask]
+            tasks: [titleTask, notesTask, datedNoteTask]
         )
         try store.save(original)
 
@@ -539,22 +540,27 @@ final class LocalCacheDatabaseStoreTests: XCTestCase {
         XCTContext.runActivity(named: "FTS search latency: \(Date().timeIntervalSince(searchStarted) * 1000)ms") { _ in }
         XCTAssertEqual(initial.tasks.first?.id, "task-title")
         XCTAssertTrue(initial.tasks.contains { $0.id == "task-notes" })
+        XCTAssertTrue(initial.tasks.contains { $0.id == "task-dated-note" })
         XCTAssertEqual(initial.events.first?.id, "event-title")
         XCTAssertTrue(initial.events.contains { $0.id == "event-details" })
+        XCTAssertEqual(
+            try store.searchEntities(accountID: "account-1", query: "kind:note", scope: .notes, limit: 10).tasks.map(\.id),
+            ["task-dated-note", "task-notes"]
+        )
 
         var renamedTask = notesTask
         renamedTask.title = "Budget review"
         renamedTask.notes = "Finance"
         var changeSet = SyncChangeSet.empty
         changeSet.tasks.updated = ["task-notes"]
-        changeSet.tasks.unchanged = ["task-title"]
+        changeSet.tasks.unchanged = ["task-title", "task-dated-note"]
         changeSet.checkpoints.updated = [original.syncCheckpoints[0].id]
         changeSet.checkpointChanged = true
         let updatedState = makeState(
             eventSuffix: "fts",
             checkpointToken: "token-after",
             events: [titleEvent, detailsEvent],
-            tasks: [titleTask, renamedTask]
+            tasks: [titleTask, renamedTask, datedNoteTask]
         )
         try store.applySyncResult(SyncApplyResult(state: updatedState, changeSet: changeSet))
 
@@ -564,7 +570,7 @@ final class LocalCacheDatabaseStoreTests: XCTestCase {
 
         changeSet = SyncChangeSet.empty
         changeSet.tasks.deleted = ["task-notes"]
-        changeSet.tasks.unchanged = ["task-title"]
+        changeSet.tasks.unchanged = ["task-title", "task-dated-note"]
         changeSet.events.deleted = ["event-details"]
         changeSet.events.unchanged = ["event-title"]
         changeSet.checkpoints.updated = [original.syncCheckpoints[0].id]
@@ -573,7 +579,7 @@ final class LocalCacheDatabaseStoreTests: XCTestCase {
             eventSuffix: "fts",
             checkpointToken: "token-delete",
             events: [titleEvent],
-            tasks: [titleTask]
+            tasks: [titleTask, datedNoteTask]
         )
         try store.applySyncResult(SyncApplyResult(state: deletedState, changeSet: changeSet))
 

@@ -155,6 +155,12 @@ struct AdvancedSearchMatcherTests {
         #expect(matches(.task(task(id: "b", notes: "")), "has:notes") == false)
     }
 
+    @Test func kindNoteMatchesStandaloneAndDatedNoteBodies() {
+        #expect(matches(.task(task(id: "standalone")), "kind:note"))
+        #expect(matches(.task(task(id: "dated-note", notes: "details", due: day(1))), "kind:note"))
+        #expect(matches(.task(task(id: "plain-task", due: day(1))), "kind:note") == false)
+    }
+
     // MARK: - event filters
 
     @Test func calendarFilter() {

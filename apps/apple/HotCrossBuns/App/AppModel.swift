@@ -382,9 +382,32 @@ final class CalendarStore {
     }
 }
 
+struct TaskSurfaceSettings: Equatable, Sendable {
+    var hasConfiguredTasksTabSelection: Bool
+    var tasksTabSelectedListIDs: Set<TaskListMirror.ID>
+    var hasConfiguredNotesTabSelection: Bool
+    var notesTabSelectedListIDs: Set<TaskListMirror.ID>
+    var notesKanbanColumnMode: KanbanColumnMode
+
+    static let `default` = TaskSurfaceSettings(settings: .default)
+
+    init(settings: AppSettings) {
+        self.hasConfiguredTasksTabSelection = settings.hasConfiguredTasksTabSelection
+        self.tasksTabSelectedListIDs = settings.tasksTabSelectedListIDs
+        self.hasConfiguredNotesTabSelection = settings.hasConfiguredNotesTabSelection
+        self.notesTabSelectedListIDs = settings.notesTabSelectedListIDs
+        self.notesKanbanColumnMode = settings.notesKanbanColumnMode
+    }
+}
+
 @MainActor
 @Observable
 final class TaskStore {
+    private(set) var account: GoogleAccount?
+    private(set) var authState: AuthState = .authenticating
+    private(set) var syncState: SyncState = .idle
+    private(set) var isMutating: Bool = false
+    private(set) var lastMutationError: String?
     private(set) var taskLists: [TaskListMirror] = []
     private(set) var tasks: [TaskMirror] = []
     private(set) var visibleTaskListIDs: Set<TaskListMirror.ID> = []
@@ -394,6 +417,52 @@ final class TaskStore {
     private(set) var datedOpenTaskCount: Int = 0
     private(set) var undatedOpenTaskCount: Int = 0
     private(set) var recentlyCompletedTaskID: TaskMirror.ID?
+    private(set) var taskDisplayRevision: UInt64 = 0
+    private(set) var notesDisplayRevision: UInt64 = 0
+    private(set) var isRebuildingDerivedSnapshots: Bool = false
+    private(set) var surfaceSettings: TaskSurfaceSettings = .default
+    @ObservationIgnored private var taskByIDSnapshot: [TaskMirror.ID: TaskMirror] = [:]
+    @ObservationIgnored private var taskListByIDSnapshot: [TaskListMirror.ID: TaskListMirror] = [:]
+    @ObservationIgnored private var taskListTitleByID: [TaskListMirror.ID: String] = [:]
+    @ObservationIgnored private var taskChildrenByParentID: [TaskMirror.ID: [TaskMirror.ID]] = [:]
+    @ObservationIgnored private var duplicateIndex: DuplicateIndex = .empty
+
+    var tasksTabVisibleListIDs: Set<TaskListMirror.ID> {
+        surfaceSettings.hasConfiguredTasksTabSelection
+            ? surfaceSettings.tasksTabSelectedListIDs
+            : visibleTaskListIDs
+    }
+
+    var notesTabVisibleListIDs: Set<TaskListMirror.ID> {
+        surfaceSettings.hasConfiguredNotesTabSelection
+            ? surfaceSettings.notesTabSelectedListIDs
+            : visibleTaskListIDs
+    }
+
+    var duplicateTaskIDs: Set<TaskMirror.ID> {
+        Set(duplicateIndex.memberToGroup.keys)
+    }
+
+    func publishSession(
+        account: GoogleAccount?,
+        authState: AuthState,
+        syncState: SyncState,
+        isMutating: Bool,
+        lastMutationError: String?
+    ) {
+        guard self.account != account
+            || self.authState != authState
+            || self.syncState != syncState
+            || self.isMutating != isMutating
+            || self.lastMutationError != lastMutationError
+        else { return }
+
+        self.account = account
+        self.authState = authState
+        self.syncState = syncState
+        self.isMutating = isMutating
+        self.lastMutationError = lastMutationError
+    }
 
     func publish(
         taskLists: [TaskListMirror],
@@ -404,8 +473,23 @@ final class TaskStore {
         openTaskCountForSidebar: Int,
         datedOpenTaskCount: Int,
         undatedOpenTaskCount: Int,
-        recentlyCompletedTaskID: TaskMirror.ID?
+        recentlyCompletedTaskID: TaskMirror.ID?,
+        taskDisplayRevision: UInt64,
+        notesDisplayRevision: UInt64,
+        surfaceSettings: TaskSurfaceSettings,
+        taskByIDSnapshot: [TaskMirror.ID: TaskMirror],
+        taskListTitleByID: [TaskListMirror.ID: String],
+        taskChildrenByParentID: [TaskMirror.ID: [TaskMirror.ID]],
+        duplicateIndex: DuplicateIndex,
+        isRebuildingDerivedSnapshots: Bool
     ) {
+        guard self.taskDisplayRevision != taskDisplayRevision
+            || self.notesDisplayRevision != notesDisplayRevision
+            || self.surfaceSettings != surfaceSettings
+            || self.isRebuildingDerivedSnapshots != isRebuildingDerivedSnapshots
+            || self.recentlyCompletedTaskID != recentlyCompletedTaskID
+        else { return }
+
         self.taskLists = taskLists
         self.tasks = tasks
         self.visibleTaskListIDs = visibleTaskListIDs
@@ -415,6 +499,56 @@ final class TaskStore {
         self.datedOpenTaskCount = datedOpenTaskCount
         self.undatedOpenTaskCount = undatedOpenTaskCount
         self.recentlyCompletedTaskID = recentlyCompletedTaskID
+        self.taskDisplayRevision = taskDisplayRevision
+        self.notesDisplayRevision = notesDisplayRevision
+        self.surfaceSettings = surfaceSettings
+        self.taskByIDSnapshot = taskByIDSnapshot
+        self.taskListByIDSnapshot = Dictionary(uniqueKeysWithValues: taskLists.map { ($0.id, $0) })
+        self.taskListTitleByID = taskListTitleByID
+        self.taskChildrenByParentID = taskChildrenByParentID
+        self.duplicateIndex = duplicateIndex
+        self.isRebuildingDerivedSnapshots = isRebuildingDerivedSnapshots
+    }
+
+    func setRebuildingDerivedSnapshots(_ value: Bool) {
+        guard isRebuildingDerivedSnapshots != value else { return }
+        isRebuildingDerivedSnapshots = value
+    }
+
+    func task(id: TaskMirror.ID) -> TaskMirror? {
+        taskByIDSnapshot[id] ?? tasks.first { $0.id == id }
+    }
+
+    func taskList(id: TaskListMirror.ID) -> TaskListMirror? {
+        taskListByIDSnapshot[id] ?? taskLists.first { $0.id == id }
+    }
+
+    func taskListTitle(for id: TaskListMirror.ID, fallback: String = "Unknown list") -> String {
+        taskListTitleByID[id] ?? fallback
+    }
+
+    func taskListTitlesByID() -> [TaskListMirror.ID: String] {
+        taskListTitleByID
+    }
+
+    func children(of taskID: TaskMirror.ID) -> [TaskMirror] {
+        (taskChildrenByParentID[taskID] ?? []).compactMap { task(id: $0) }
+    }
+
+    func duplicateGroupKey(for taskID: TaskMirror.ID) -> String? {
+        duplicateIndex.groupKey(for: taskID)
+    }
+
+    func duplicateSiblings(of taskID: TaskMirror.ID) -> [TaskMirror] {
+        duplicateIndex.siblings(of: taskID).compactMap { task(id: $0) }
+    }
+
+    func canIndent(_ task: TaskMirror) -> Bool {
+        TaskHierarchy.canIndent(task, within: tasks)
+    }
+
+    func canOutdent(_ task: TaskMirror) -> Bool {
+        TaskHierarchy.canOutdent(task)
     }
 }
 
@@ -722,6 +856,12 @@ final class AppModel {
     // revision so unrelated task/list/settings churn does not flush cached
     // day/week/month/year work.
     private(set) var calendarDisplayRevision: UInt64 = 0
+    // Bumped only when task-list/task/settings data that can affect the
+    // Tasks tab changes. Calendar-only syncs must not invalidate task boards.
+    private(set) var taskDisplayRevision: UInt64 = 0
+    // Same as taskDisplayRevision, scoped to the Notes tab so local ordering
+    // and prepared snapshot keys do not churn on unrelated data changes.
+    private(set) var notesDisplayRevision: UInt64 = 0
     @ObservationIgnored private var calendarDayDisplayRevisions: [TimeInterval: UInt64] = [:]
     // True while a scheduled derived snapshot/index rebuild is in flight.
     // Prepared views use this to block interactions rather than rendering
@@ -1091,7 +1231,7 @@ final class AppModel {
             syncState = .synced(at: Date())
             isSyncPaused = false
             syncFailureKind = nil
-            publishSnapshotSurfaceStores()
+            publishSessionSurfaceStores()
             await dismissLoadingOverlayBeforeFollowUpWork()
             await synchronizeLocalNotifications()
             await runDailyLocalBackupIfNeeded()
@@ -3808,6 +3948,7 @@ final class AppModel {
             settings.tasksTabSelectedListIDs = []
             settings.hasConfiguredTasksTabSelection = false
         }
+        scheduleRebuildSnapshots()
         scheduleCacheSave()
     }
 
@@ -3819,6 +3960,7 @@ final class AppModel {
             settings.notesTabSelectedListIDs = []
             settings.hasConfiguredNotesTabSelection = false
         }
+        scheduleRebuildSnapshots()
         scheduleCacheSave()
     }
 
@@ -3831,6 +3973,7 @@ final class AppModel {
     func setNotesKanbanColumnMode(_ mode: KanbanColumnMode) {
         guard settings.notesKanbanColumnMode != mode else { return }
         settings.notesKanbanColumnMode = mode
+        publishSnapshotSurfaceStores()
         scheduleCacheSave()
     }
 
@@ -5424,6 +5567,7 @@ final class AppModel {
     private func beginMutation() {
         mutationCount += 1
         lastMutationError = nil
+        publishSessionSurfaceStores()
     }
 
     private func endMutation(error: Error?) {
@@ -5439,6 +5583,7 @@ final class AppModel {
         } else if mutationCount == 0 {
             syncFailureKind = nil
         }
+        publishSessionSurfaceStores()
     }
 
     func forceFullResync() async {
@@ -5678,6 +5823,13 @@ final class AppModel {
             isSyncPaused: isSyncPaused,
             lastMutationError: lastMutationError
         )
+        taskStore.publishSession(
+            account: account,
+            authState: authState,
+            syncState: syncState,
+            isMutating: isMutating,
+            lastMutationError: lastMutationError
+        )
         syncStatusStore.publish(
             authState: authState,
             syncState: syncState,
@@ -5714,7 +5866,15 @@ final class AppModel {
             openTaskCountForSidebar: openTaskCountForSidebar,
             datedOpenTaskCount: datedOpenTaskCount,
             undatedOpenTaskCount: undatedOpenTaskCount,
-            recentlyCompletedTaskID: recentlyCompletedTaskID
+            recentlyCompletedTaskID: recentlyCompletedTaskID,
+            taskDisplayRevision: taskDisplayRevision,
+            notesDisplayRevision: notesDisplayRevision,
+            surfaceSettings: TaskSurfaceSettings(settings: settings),
+            taskByIDSnapshot: taskByIDSnapshot,
+            taskListTitleByID: taskListTitleByID,
+            taskChildrenByParentID: taskChildrenByParentID,
+            duplicateIndex: duplicateIndex,
+            isRebuildingDerivedSnapshots: isRebuildingDerivedSnapshots
         )
         settingsStore.publish(settings: settings)
         commandPaletteStore.publish(pendingPaletteQuery: pendingPaletteQuery, dataRevision: dataRevision)
@@ -5725,6 +5885,7 @@ final class AppModel {
     private func setDerivedSnapshotRebuildInFlight(_ value: Bool) {
         isRebuildingDerivedSnapshots = value
         calendarStore.setRebuildingDerivedSnapshots(value)
+        taskStore.setRebuildingDerivedSnapshots(value)
     }
 
     private func apply(_ state: CachedAppState) {
@@ -5736,7 +5897,7 @@ final class AppModel {
     }
 
     private func apply(_ result: SyncApplyResult) {
-        apply(result.state, changeSet: result.changeSet, rebuildStrategy: .synchronous)
+        apply(result.state, changeSet: result.changeSet, rebuildStrategy: .deferred)
     }
 
     private func apply(
@@ -5811,7 +5972,7 @@ final class AppModel {
             case .synchronous:
                 rebuildSnapshots(syncChangeSet: changeSet)
             case .deferred:
-                rebuildSnapshotsDeferred(referenceDate: Date())
+                rebuildSnapshotsDeferred(referenceDate: Date(), syncChangeSet: changeSet)
             }
         } else if shouldApplyEventOnlyDerivedUpdate, let changeSet {
             #if DEBUG
@@ -6993,7 +7154,7 @@ final class AppModel {
             guard let self else { return }
             guard generation == self.snapshotRebuildGeneration else { return }
             self.snapshotRebuildPending = false
-            self.startDerivedSnapshotRebuild(referenceDate: Date())
+            self.startDerivedSnapshotRebuild(referenceDate: Date(), syncChangeSet: nil)
         }
     }
 
@@ -7014,14 +7175,14 @@ final class AppModel {
         logDerivedSnapshotRebuild(started: started, snapshots: snapshots)
     }
 
-    private func rebuildSnapshotsDeferred(referenceDate: Date = Date()) {
+    private func rebuildSnapshotsDeferred(referenceDate: Date = Date(), syncChangeSet: SyncChangeSet? = nil) {
         snapshotRebuildPending = false
         snapshotRebuildGeneration &+= 1
         setDerivedSnapshotRebuildInFlight(true)
-        startDerivedSnapshotRebuild(referenceDate: referenceDate)
+        startDerivedSnapshotRebuild(referenceDate: referenceDate, syncChangeSet: syncChangeSet)
     }
 
-    private func startDerivedSnapshotRebuild(referenceDate: Date) {
+    private func startDerivedSnapshotRebuild(referenceDate: Date, syncChangeSet: SyncChangeSet?) {
         let input = derivedSnapshotInput(referenceDate: referenceDate)
         snapshotRebuildTask?.cancel()
         snapshotRebuildTask = Task { @MainActor [weak self] in
@@ -7030,7 +7191,7 @@ final class AppModel {
                 Self.buildDerivedSnapshots(input)
             }.value
             guard let self, Task.isCancelled == false else { return }
-            self.applyDerivedSnapshots(snapshots, syncChangeSet: nil)
+            self.applyDerivedSnapshots(snapshots, syncChangeSet: syncChangeSet)
             self.setDerivedSnapshotRebuildInFlight(false)
             self.snapshotRebuildTask = nil
             self.logDerivedSnapshotRebuild(started: started, snapshots: snapshots)

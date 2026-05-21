@@ -409,6 +409,7 @@ final class PreparedTaskBoardDisplaySnapshotBuilderTests: XCTestCase {
         let cards = snapshot.columns.first { $0.title == "Inbox" }?.openTasks ?? []
 
         XCTAssertEqual(cards.map(\.id), ["n2", "n1"])
+        XCTAssertEqual(snapshot.columns.first { $0.title == "Inbox" }?.subtitle, "2 notes")
         XCTAssertEqual(cards[0].notePreview, "Plain note")
         XCTAssertTrue(cards[0].accessibilityLabel.hasPrefix("Note, Second note"))
         XCTAssertEqual(cards[1].tags, ["home"])
