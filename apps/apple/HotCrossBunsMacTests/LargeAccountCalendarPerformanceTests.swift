@@ -667,22 +667,27 @@ final class LargeAccountCalendarPerformanceTests: XCTestCase {
         XCTAssertEqual(profile.merge.outputCount, expectedActiveEvents)
     }
 
-    func testMenuBarAdaptiveStatusLargeAccountBenchmark() {
-        let state = LargeAccountCalendarFixture.makeState(eventCount: 15_000)
+    @MainActor
+    func testMenuBarProjectionAdaptiveStatusLargeAccountBenchmark() async throws {
+        var state = LargeAccountCalendarFixture.makeState(eventCount: 15_000)
+        state.settings.menuBarAdaptiveStatusSource = .eventsAndTasks
+        state.settings.menuBarAdaptiveEmptyBehavior = .nextCommitment
         let now = LargeAccountCalendarFixture.denseDay.addingTimeInterval(11 * 3_600)
+        let model = makeModel(cachedState: state)
+        await model.loadInitialState()
+        try await waitForDerivedSnapshotRebuild(model)
+
+        let projection = model.menuBarStore.projection
+        XCTAssertLessThanOrEqual(projection.adaptiveEvents.count, 64)
+        XCTAssertLessThanOrEqual(projection.adaptiveTasks.count, 64)
+        XCTAssertFalse(projection.dayBuckets.isEmpty)
 
         let (status, statusMs) = timed("menu.status.15k") {
-            MenuBarAdaptiveStatusResolver.status(
-                now: now,
-                events: state.events,
-                tasks: state.tasks,
-                source: .eventsAndTasks,
-                emptyBehavior: .nextCommitment,
-                calendar: calendar
-            )
+            projection.adaptiveStatus(now: now, calendar: calendar)
         }
 
         print("HCBLargeAccountBenchmark menu.status.kind=\(status.kind) statusMs=\(format(statusMs))")
+        XCTAssertLessThan(statusMs, 5, "menu-bar timer refresh should resolve from capped projection candidates")
         switch status.kind {
         case .currentEvent, .nextEvent, .task:
             break

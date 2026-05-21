@@ -27,7 +27,7 @@ private struct InstallGuideWindowObserver: ViewModifier {
 
 private struct ActionCenterRefreshObserver: ViewModifier {
     let isPresented: Bool
-    let dataRevision: UInt64
+    let displayRevision: String
     let refresh: () -> Void
 
     func body(content: Content) -> some View {
@@ -37,7 +37,7 @@ private struct ActionCenterRefreshObserver: ViewModifier {
                     refresh()
                 }
             }
-            .onChange(of: dataRevision) { _, _ in
+            .onChange(of: displayRevision) { _, _ in
                 refresh()
             }
     }
@@ -180,6 +180,42 @@ private struct ActionCenterDynamicContent: Equatable, Sendable {
     )
 }
 
+private struct PersistentSidebarSurfaceHost: View {
+    let selection: SidebarItem
+    let tabRouter: TabRouter
+    let calendarEventViewFilter: CalendarEventViewFilter
+    let activeSidebarTransition: HCBTransitionMeasurement?
+
+    var body: some View {
+        ZStack {
+            ForEach(SidebarItem.allCases) { item in
+                surface(for: item)
+                    .opacity(selection == item ? 1 : 0)
+                    .allowsHitTesting(selection == item)
+                    .accessibilityHidden(selection != item)
+                    .zIndex(selection == item ? 1 : 0)
+            }
+        }
+        .animation(.easeOut(duration: 0.10), value: selection)
+    }
+
+    private func surface(for item: SidebarItem) -> some View {
+        let routerKey = item.rawValue
+        let router = tabRouter.router(for: routerKey)
+        return NavigationStack(path: tabRouter.binding(for: routerKey)) {
+            item.makeContentView(router: router)
+                .environment(\.calendarEventViewFilter, calendarEventViewFilter)
+                .hcbTransitionFirstContent(
+                    selection == item ? activeSidebarTransition : nil,
+                    metadata: ["surface": item.rawValue]
+                )
+                .withAppDestinations()
+        }
+        .environment(\.routerPath, router)
+        .withSheetDestinations(router: router)
+    }
+}
+
 struct MacSidebarShell: View {
     @Environment(AppModel.self) private var model
     @Environment(UpdaterController.self) private var updater
@@ -197,16 +233,24 @@ struct MacSidebarShell: View {
     private let layoutScaleMax: Double = 1.50
     private let layoutScaleStep: Double = 0.05
 
+    private var settingsStore: SettingsStore { model.settingsStore }
+    private var syncStatusStore: SyncStatusStore { model.syncStatusStore }
+    private var taskStore: TaskStore { model.taskStore }
+    private var calendarStore: CalendarStore { model.calendarStore }
+    private var menuBarStore: MenuBarStore { model.menuBarStore }
+    private var shellChrome: ShellChromeSettings { settingsStore.shellChrome }
+    private var statusBanner: StatusBannerSnapshot { syncStatusStore.banner }
+
     private var layoutZoomScale: CGFloat {
-        CGFloat(max(layoutScaleMin, min(model.settings.uiLayoutScale, layoutScaleMax)))
+        CGFloat(max(layoutScaleMin, min(shellChrome.uiLayoutScale, layoutScaleMax)))
     }
 
     private var effectiveReduceMotion: Bool {
-        reduceMotion || systemReduceMotion || model.settings.disableAnimations
+        reduceMotion || systemReduceMotion || shellChrome.disableAnimations
     }
 
     private var textSizePoints: Double {
-        HCBTextSize.clamp(model.settings.uiTextSizePoints)
+        HCBTextSize.clamp(shellChrome.uiTextSizePoints)
     }
 
     // Keep the source list compact by default while still allowing the system
@@ -255,16 +299,16 @@ struct MacSidebarShell: View {
     @ViewBuilder
     private var shellCore: some View {
         Group {
-            switch model.settings.sidebarPlacement {
+            switch shellChrome.sidebarPlacement {
             case .left:
                 nativeLeftNavigationShell
             case .right:
                 trailingNavigationShell
             case .top, .bottom:
-                horizontalNavigationShell(placement: model.settings.sidebarPlacement)
+                horizontalNavigationShell(placement: shellChrome.sidebarPlacement)
             }
         }
-        .animation(HCBMotion.animation(.easeInOut(duration: 0.12), reduceMotion: effectiveReduceMotion), value: model.settings.sidebarPlacement)
+        .animation(HCBMotion.animation(.easeInOut(duration: 0.12), reduceMotion: effectiveReduceMotion), value: shellChrome.sidebarPlacement)
         .animation(HCBMotion.animation(.easeInOut(duration: 0.12), reduceMotion: effectiveReduceMotion), value: layoutZoomScale)
         .animation(HCBMotion.animation(.easeInOut(duration: 0.12), reduceMotion: effectiveReduceMotion), value: textSizePoints)
     }
@@ -313,32 +357,32 @@ struct MacSidebarShell: View {
 
     var body: some View {
         shellCore
-            .id(model.settings.colorSchemeID) // force re-render so AppColor.X picks up the new palette
-            .environment(\.locale, model.settings.appLanguage.locale)
-            .withHCBAppearance(model.settings)
-            .environment(\.hcbShortcutOverrides, model.settings.shortcutOverrides)
-            .hcbPreferredColorScheme(model.settings)
+            .id(shellChrome.colorSchemeID) // force re-render so AppColor.X picks up the new palette
+            .environment(\.locale, shellChrome.appLanguage.locale)
+            .withHCBAppearance(shellChrome)
+            .environment(\.hcbShortcutOverrides, shellChrome.shortcutOverrides)
+            .hcbPreferredColorScheme(shellChrome)
             .modifier(NavigationSurfaceToggleToolbarModifier(
-                placement: model.settings.sidebarPlacement,
+                placement: shellChrome.sidebarPlacement,
                 isPresented: isNavigationSurfacePresented,
                 toggle: toggleNavigationSurface
             ))
             .appBackground()
             .safeAreaInset(edge: .top) {
                 AppStatusBanner(
-                    syncState: model.syncState,
-                    authState: model.authState,
-                    mutationError: model.lastMutationError,
-                    cacheWarning: model.lastCacheLoadWarning,
-                    isSyncPaused: model.isSyncPaused,
-                    quarantinedCount: model.quarantinedMutationCount,
-                    invalidPayloadCount: model.invalidPayloadMutationCount,
-                    conflictCount: model.conflictedMutationCount,
-                    deferredReminderSummary: model.lastNotificationScheduleSummary,
-                    syncFailureKind: model.syncFailureKind,
+                    syncState: statusBanner.syncState,
+                    authState: statusBanner.authState,
+                    mutationError: statusBanner.mutationError,
+                    cacheWarning: statusBanner.cacheWarning,
+                    isSyncPaused: statusBanner.isSyncPaused,
+                    quarantinedCount: statusBanner.quarantinedCount,
+                    invalidPayloadCount: statusBanner.invalidPayloadCount,
+                    conflictCount: statusBanner.conflictCount,
+                    deferredReminderSummary: statusBanner.deferredReminderSummary,
+                    syncFailureKind: statusBanner.syncFailureKind,
                     networkReachability: networkMonitor.reachability,
-                    daysSinceLastLaunch: model.daysSinceLastLaunch,
-                    syncScope: SyncScopeSummary(tasks: model.tasks.count, events: model.events.count),
+                    daysSinceLastLaunch: statusBanner.daysSinceLastLaunch,
+                    syncScope: statusBanner.syncScope,
                     openSyncIssues: { openWindow(id: "sync-issues") },
                     retry: {
                         model.resumeSync()
@@ -350,7 +394,7 @@ struct MacSidebarShell: View {
             .sheet(isPresented: $isPresentingOnboarding) {
                 OnboardingView()
                     .environment(model)
-                    .withHCBAppearance(model.settings)
+                    .withHCBAppearance(shellChrome)
             }
             .sheet(
                 isPresented: $isPresentingFeatureTour,
@@ -367,17 +411,17 @@ struct MacSidebarShell: View {
                         openWindow(id: "help")
                     }
                 )
-                .withHCBAppearance(model.settings)
+                .withHCBAppearance(shellChrome)
             }
             .sheet(isPresented: $isPresentingInsertTemplate) {
                 InsertTaskTemplateSheet()
                     .environment(model)
-                    .withHCBAppearance(model.settings)
+                    .withHCBAppearance(shellChrome)
             }
             .sheet(isPresented: $isPresentingInsertEventTemplate) {
                 InsertEventTemplateSheet()
                     .environment(model)
-                    .withHCBAppearance(model.settings)
+                    .withHCBAppearance(shellChrome)
             }
             .modifier(SettingsTransferPresentationModifier(
                 message: $settingsTransferMessage,
@@ -429,14 +473,14 @@ struct MacSidebarShell: View {
             .transaction { transaction in
                 if model.loadingOverlay != nil {
                     transaction.animation = nil
-                } else if case .syncing = model.syncState {
+                } else if case .syncing = statusBanner.syncState {
                     transaction.animation = nil
                 }
             }
             .animation(HCBMotion.animation(.easeOut(duration: 0.16), reduceMotion: effectiveReduceMotion), value: chordKeys)
             .focusedSceneValue(\.appCommandActions, appCommandActions)
             .onAppear(perform: handleShellAppear)
-            .onChange(of: model.settings.hasCompletedOnboarding) { _, _ in
+            .onChange(of: shellChrome.hasCompletedOnboarding) { _, _ in
                 presentFeatureTourIfNeeded()
             }
             .onReceive(NotificationCenter.default.publisher(for: .hcbOpenStoreTab)) { _ in
@@ -450,7 +494,7 @@ struct MacSidebarShell: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .hcbRevealTaskInStore)) { note in
                 guard let taskID = note.object as? TaskMirror.ID else { return }
-                let targetTab: SidebarItem = model.task(id: taskID)?.dueDate == nil ? .notes : .store
+                let targetTab: SidebarItem = taskStore.task(id: taskID)?.dueDate == nil ? .notes : .store
                 selectSidebarItem(targetTab, source: "notification.revealTask")
                 tabRouter.router(for: sidebarItemKey(targetTab)).present(.editTask(taskID))
             }
@@ -466,26 +510,26 @@ struct MacSidebarShell: View {
                 actionCenterRefreshTask?.cancel()
                 uninstallAppShortcutMonitor()
             }
-            .onChange(of: model.settings.colorSchemeID, initial: true) { _, newID in
-                HCBColorSchemeStore.current = HCBColorScheme.scheme(id: newID, customSchemes: model.settings.customColorSchemes) ?? .notion
+            .onChange(of: shellChrome.colorSchemeID, initial: true) { _, newID in
+                HCBColorSchemeStore.current = HCBColorScheme.scheme(id: newID, customSchemes: shellChrome.customColorSchemes) ?? .notion
             }
-            .onChange(of: model.settings.enableGlobalHotkey) { _, newValue in
+            .onChange(of: shellChrome.enableGlobalHotkey) { _, newValue in
                 guard let delegate = NSApp.delegate as? AppDelegate else { return }
                 delegate.appModel = model
                 let state = delegate.configureGlobalHotkey(
                     enabled: newValue,
-                    binding: model.settings.globalHotkeyBinding
+                    binding: shellChrome.globalHotkeyBinding
                 )
                 if newValue == false, model.globalHotkeyRegistrationState == .needsAccessibilityPermission {
                     return
                 }
                 model.setGlobalHotkeyRegistrationState(state)
             }
-            .onChange(of: model.settings.globalHotkeyBinding) { _, newValue in
+            .onChange(of: shellChrome.globalHotkeyBinding) { _, newValue in
                 guard let delegate = NSApp.delegate as? AppDelegate else { return }
                 delegate.appModel = model
                 let state = delegate.configureGlobalHotkey(
-                    enabled: model.settings.enableGlobalHotkey,
+                    enabled: shellChrome.enableGlobalHotkey,
                     binding: newValue
                 )
                 model.setGlobalHotkeyRegistrationState(state)
@@ -498,7 +542,7 @@ struct MacSidebarShell: View {
                 storedSelection = newValue.rawValue
                 configureCommandActions()
             }
-            .onChange(of: model.settings.hiddenSidebarItems) { _, hidden in
+            .onChange(of: shellChrome.hiddenSidebarItems) { _, hidden in
                 // if the currently-selected tab just got hidden, fall back
                 // to the first still-visible item so the detail pane isn't
                 // rendering a tab that's no longer in the sidebar.
@@ -511,7 +555,7 @@ struct MacSidebarShell: View {
             .modifier(InstallGuideWindowObserver(sequence: updater.installGuideSequence, openWindow: openWindow))
             .modifier(ActionCenterRefreshObserver(
                 isPresented: isActionCenterPresented,
-                dataRevision: model.dataRevision,
+                displayRevision: actionCenterDisplayRevision,
                 refresh: refreshActionCenterDynamicContent
             ))
             .modifier(ShellZoomObservers(zoomIn: performZoomIn, zoomOut: performZoomOut, zoomReset: performZoomReset))
@@ -521,7 +565,7 @@ struct MacSidebarShell: View {
                 await runTransitionProfileScenarioIfNeeded()
             }
             .task { await updater.performAutomaticCheckIfNeeded() }
-            .onChange(of: model.settings.hasCompletedOnboarding) { _, hasCompleted in
+            .onChange(of: shellChrome.hasCompletedOnboarding) { _, hasCompleted in
                 // Re-present onboarding when the flag is flipped back
                 // (Settings → "Run setup again"); dismiss when the
                 // onboarding flow marks itself completed.
@@ -568,19 +612,30 @@ struct MacSidebarShell: View {
             overdueTasks: actionCenterDynamicContent.overdueTasks,
             overdueTaskCount: actionCenterDynamicContent.overdueTaskCount,
             pendingMutations: model.pendingMutations,
-            notificationSummary: model.lastNotificationScheduleSummary,
-            authState: model.authState,
-            syncState: model.syncState,
-            isSyncPaused: model.isSyncPaused,
-            mutationError: model.lastMutationError,
-            syncFailureKind: model.syncFailureKind,
+            notificationSummary: statusBanner.deferredReminderSummary,
+            authState: statusBanner.authState,
+            syncState: statusBanner.syncState,
+            isSyncPaused: statusBanner.isSyncPaused,
+            mutationError: statusBanner.mutationError,
+            syncFailureKind: statusBanner.syncFailureKind,
             networkReachability: networkMonitor.reachability
         )
     }
 
+    private var actionCenterDisplayRevision: String {
+        [
+            "\(calendarStore.calendarDisplayRevision)",
+            "\(taskStore.taskDisplayRevision)",
+            "\(taskStore.notesDisplayRevision)",
+            "\(statusBanner.pendingMutationCount)",
+            "\(statusBanner.conflictCount)",
+            "\(statusBanner.quarantinedCount)"
+        ].joined(separator: ":")
+    }
+
     private func refreshActionCenterDynamicContent() {
-        let revision = model.dataRevision
-        let visibleTaskListIDs = model.visibleTaskListIDs
+        let revision = actionCenterDisplayRevision
+        let visibleTaskListIDs = taskStore.visibleTaskListIDs
         let overdueLimit = ActionCenterBuilder.defaultOverdueTaskDisplayLimit
         let today = Calendar.current.startOfDay(for: Date())
 
@@ -594,7 +649,7 @@ struct MacSidebarShell: View {
                 limit: overdueLimit
             )
             guard Task.isCancelled == false,
-                  model.dataRevision == revision else {
+                  actionCenterDisplayRevision == revision else {
                 return
             }
             actionCenterDynamicContent = ActionCenterDynamicContent(
@@ -767,7 +822,7 @@ struct MacSidebarShell: View {
     // imported or legacy settings cannot render the window with no tabs.
     private var visibleSidebarItems: [SidebarItem] {
         let visible = SidebarItem.allCases.filter { item in
-            item.isHideable == false || model.settings.hiddenSidebarItems.contains(item.rawValue) == false
+            item.isHideable == false || shellChrome.hiddenSidebarItems.contains(item.rawValue) == false
         }
         return visible.isEmpty ? [.calendar] : visible
     }
@@ -790,7 +845,7 @@ struct MacSidebarShell: View {
             }
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
-            if model.settings.cacheEncryptionEnabled {
+            if shellChrome.cacheEncryptionEnabled {
                 Divider()
                 encryptedCacheFooter
             }
@@ -821,7 +876,7 @@ struct MacSidebarShell: View {
                 .hcbScaledPadding(.vertical, 12)
             }
             .scrollIndicators(.hidden)
-            if model.settings.cacheEncryptionEnabled {
+            if shellChrome.cacheEncryptionEnabled {
                 Divider()
                 encryptedCacheFooter
             }
@@ -845,7 +900,7 @@ struct MacSidebarShell: View {
                     }
                 }
             }
-            if model.settings.cacheEncryptionEnabled {
+            if shellChrome.cacheEncryptionEnabled {
                 Divider()
                     .hcbScaledFrame(height: 24)
                 Label("Cache encrypted", systemImage: "lock.fill")
@@ -968,23 +1023,12 @@ struct MacSidebarShell: View {
 
     @ViewBuilder
     private var detail: some View {
-        let routerKey = sidebarItemKey(selection)
-        let router = tabRouter.router(for: routerKey)
-        NavigationStack(path: tabRouter.binding(for: routerKey)) {
-            // makeContentView injects router internally on a Group wrapping
-            // the concrete tab view — this is the load-bearing injection.
-            // The outer .environment calls below are belt-and-braces for
-            // sheets/inspectors hoisted out of the NavigationStack.
-            selection.makeContentView(router: router)
-                .environment(\.calendarEventViewFilter, calendarEventViewFilter)
-                .hcbTransitionFirstContent(
-                    activeSidebarTransition,
-                    metadata: ["surface": selection.rawValue]
-                )
-                .withAppDestinations()
-        }
-        .environment(\.routerPath, router)
-        .withSheetDestinations(router: router)
+        PersistentSidebarSurfaceHost(
+            selection: selection,
+            tabRouter: tabRouter,
+            calendarEventViewFilter: calendarEventViewFilter,
+            activeSidebarTransition: activeSidebarTransition
+        )
     }
 
     private var calendarViewFilterStateBinding: Binding<CalendarViewFilterState> {
@@ -997,16 +1041,16 @@ struct MacSidebarShell: View {
     private var calendarEventViewFilter: CalendarEventViewFilter {
         CalendarEventViewFilter(
             state: CalendarViewFilterState.decoded(from: storedCalendarViewFilters),
-            colorTagBindings: model.settings.colorTagBindings
+            colorTagBindings: shellChrome.colorTagBindings
         )
     }
 
     private var shouldShowCalendarSidebarFilters: Bool {
-        selection == .calendar && model.account != nil && calendarSidebarFiltersCollapsed == false
+        selection == .calendar && calendarStore.account != nil && calendarSidebarFiltersCollapsed == false
     }
 
     private var hasWritableCalendars: Bool {
-        model.calendars.contains { $0.accessRole == "owner" || $0.accessRole == "writer" }
+        calendarStore.calendars.contains { $0.accessRole == "owner" || $0.accessRole == "writer" }
     }
 
     private var sidebarSelectionBinding: Binding<SidebarItem?> {
@@ -1022,15 +1066,15 @@ struct MacSidebarShell: View {
 
     private var nearRealtimeLoopID: String {
         [
-            model.settings.syncMode.rawValue,
+            shellChrome.syncMode.rawValue,
             scenePhase == .active ? "active" : "inactive",
             isMainWindowFocused ? "focused" : "unfocused",
-            model.account?.id ?? "signed-out"
+            calendarStore.account?.id ?? "signed-out"
         ].joined(separator: ":")
     }
 
     private var isNavigationSurfacePresented: Bool {
-        if model.settings.sidebarPlacement == .left {
+        if shellChrome.sidebarPlacement == .left {
             return sidebarVisibility != .detailOnly
         }
         return isCustomNavigationSurfacePresented
@@ -1047,7 +1091,7 @@ struct MacSidebarShell: View {
             return
         }
         await model.loadInitialState()
-        isPresentingOnboarding = model.settings.hasCompletedOnboarding == false
+        isPresentingOnboarding = shellChrome.hasCompletedOnboarding == false
         await model.restoreGoogleSession()
         if case .signedIn = model.authState {
             await model.refreshForCurrentSyncMode()
@@ -1057,13 +1101,13 @@ struct MacSidebarShell: View {
 
     private func handleShellAppear() {
         selection = SidebarItem(rawValue: storedSelection) ?? .calendar
-        HCBColorSchemeStore.current = HCBColorScheme.scheme(id: model.settings.colorSchemeID, customSchemes: model.settings.customColorSchemes) ?? .notion
+        HCBColorSchemeStore.current = HCBColorScheme.scheme(id: shellChrome.colorSchemeID, customSchemes: shellChrome.customColorSchemes) ?? .notion
         // Pre-refactor builds persisted `hiddenSidebarItems` with a single
         // "store" entry meaning "Store (tasks+notes)". The split maps that
         // to the new paired set so a user who explicitly hid the old tab
         // doesn't get it re-shown as "Tasks" plus "Notes".
-        if model.settings.hiddenSidebarItems == ["store"] {
-            var next = model.settings
+        if shellChrome.hiddenSidebarItems == ["store"] {
+            var next = settingsStore.settings
             next.hiddenSidebarItems = ["store", "notes"]
             model.updateSettings(next)
         }
@@ -1075,8 +1119,8 @@ struct MacSidebarShell: View {
     }
 
     private func presentFeatureTourIfNeeded() {
-        guard model.settings.hasCompletedOnboarding,
-              model.settings.hasSeenFeatureTour == false,
+        guard shellChrome.hasCompletedOnboarding,
+              shellChrome.hasSeenFeatureTour == false,
               isPresentingOnboarding == false
         else { return }
         isPresentingFeatureTour = true
@@ -1086,8 +1130,8 @@ struct MacSidebarShell: View {
         guard let delegate = NSApp.delegate as? AppDelegate else { return }
         delegate.appModel = model
         let state = delegate.configureGlobalHotkey(
-            enabled: model.settings.enableGlobalHotkey,
-            binding: model.settings.globalHotkeyBinding
+            enabled: shellChrome.enableGlobalHotkey,
+            binding: shellChrome.globalHotkeyBinding
         )
         model.setGlobalHotkeyRegistrationState(state)
         if state == .needsAccessibilityPermission {
@@ -1141,7 +1185,7 @@ struct MacSidebarShell: View {
     }
 
     private func toggleNavigationSurface() {
-        if model.settings.sidebarPlacement == .left {
+        if shellChrome.sidebarPlacement == .left {
             sidebarVisibility = sidebarVisibility == .detailOnly ? .all : .detailOnly
         } else {
             isCustomNavigationSurfacePresented.toggle()
@@ -1284,8 +1328,8 @@ struct MacSidebarShell: View {
             rangeEnd = cal.date(byAdding: .day, value: 7, to: rangeStart) ?? rangeStart
             suggestedFilename = "hot-cross-buns-week-\(rangeStart.formatted(.iso8601.year().month().day())).ics"
         }
-        let selected = model.calendarSnapshot.selectedCalendarIDs
-        let events = model.events
+        let selected = calendarStore.calendarSnapshot.selectedCalendarIDs
+        let events = calendarStore.events
             .filter { selected.contains($0.calendarID) }
             .filter { $0.status != .cancelled }
             .filter { $0.endDate > rangeStart && $0.startDate < rangeEnd }
@@ -1355,13 +1399,13 @@ struct MacSidebarShell: View {
     }
 
     private func performZoomReset() {
-        var next = model.settings
+        var next = settingsStore.settings
         next.uiLayoutScale = 1.0
         model.updateSettings(next)
     }
 
     private func adjustLayoutScale(by delta: Double) {
-        var next = model.settings
+        var next = settingsStore.settings
         next.uiLayoutScale = max(layoutScaleMin, min(next.uiLayoutScale + delta, layoutScaleMax))
         model.updateSettings(next)
     }
@@ -1636,19 +1680,19 @@ struct MacSidebarShell: View {
     }
 
     private func badge(for item: SidebarItem) -> String? {
-        guard model.account != nil else { return nil }
+        guard calendarStore.account != nil else { return nil }
         switch item {
         case .calendar:
-            let count = model.todaySnapshot.scheduledEvents.count
+            let count = menuBarStore.projection.events(on: Date()).count
             return count > 0 ? "\(count)" : nil
         case .store:
             // Tasks tab badge counts only tasks that actually belong to the
             // Tasks surface — dated, open. Undated ones live in Notes and
             // carry their own count to avoid double-badging the sidebar.
-            let count = model.datedOpenTaskCount
+            let count = taskStore.datedOpenTaskCount
             return count > 0 ? "\(count)" : nil
         case .notes:
-            let count = model.undatedOpenTaskCount
+            let count = taskStore.undatedOpenTaskCount
             return count > 0 ? "\(count)" : nil
         }
     }
@@ -1684,7 +1728,7 @@ struct MacSidebarShell: View {
             } label: {
                 Label("Share Availability", systemImage: "calendar.badge.clock")
             }
-            .disabled(model.account == nil || hasWritableCalendars == false)
+            .disabled(calendarStore.account == nil || hasWritableCalendars == false)
 
             Divider()
 
@@ -1696,7 +1740,7 @@ struct MacSidebarShell: View {
                     systemImage: calendarSidebarFiltersCollapsed ? "chevron.down" : "chevron.up"
                 )
             }
-            .disabled(model.account == nil)
+            .disabled(calendarStore.account == nil)
         }
     }
 
@@ -1708,7 +1752,7 @@ struct MacSidebarShell: View {
     }
 
     private func sidebarHelp(for item: SidebarItem) -> String {
-        item.navigationHelp(shortcutOverrides: model.settings.shortcutOverrides)
+        item.navigationHelp(shortcutOverrides: shellChrome.shortcutOverrides)
     }
 
     private func navigationAccessibilityLabel(for item: SidebarItem) -> String {
@@ -1725,7 +1769,7 @@ struct MacSidebarShell: View {
 
     private func selectSidebarItem(_ item: SidebarItem, source: String) {
         guard selection != item else { return }
-        activeSidebarTransition = HCBTransitionProfiler.start(
+        let transition = HCBTransitionProfiler.start(
             "sidebar.\(selection.rawValue)->\(item.rawValue)",
             metadata: [
                 "from": selection.rawValue,
@@ -1733,7 +1777,15 @@ struct MacSidebarShell: View {
                 "to": item.rawValue
             ]
         )
+        activeSidebarTransition = transition
         selection = item
+        Task { @MainActor in
+            await Task.yield()
+            transition?.markFirstContent(metadata: [
+                "host": "persistent",
+                "surface": item.rawValue
+            ])
+        }
     }
 
     private func openInstrumentedWindow(id: String, source: String) {
@@ -1770,7 +1822,7 @@ struct MacSidebarShell: View {
         guard HCBLaunchMode.current.isSmokeTest == false else {
             return
         }
-        guard scenePhase == .active, model.settings.syncMode == .nearRealtime, model.account != nil else {
+        guard scenePhase == .active, shellChrome.syncMode == .nearRealtime, calendarStore.account != nil else {
             return
         }
 

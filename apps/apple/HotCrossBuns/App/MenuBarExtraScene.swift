@@ -21,44 +21,44 @@ private struct HCBMenuBarStatusControllerHost: View {
                 HCBMainWindowPresenter.shared.configure(openWindow: openWindow)
                 controller.configure(model: model)
             }
-            .onChange(of: model.settings.showMenuBarExtra) { _, _ in
+            .onChange(of: model.menuBarStore.projection.settings.showMenuBarExtra) { _, _ in
                 controller.configure(model: model)
             }
-            .onChange(of: model.settings.menuBarStyle) { _, _ in
+            .onChange(of: model.menuBarStore.projection.settings.menuBarStyle) { _, _ in
                 controller.configure(model: model)
             }
-            .onChange(of: model.settings.menuBarAdaptiveStatusSource) { _, _ in
+            .onChange(of: model.menuBarStore.projection.settings.menuBarAdaptiveStatusSource) { _, _ in
                 controller.refreshStatusItemImage()
                 controller.refreshContent()
             }
-            .onChange(of: model.settings.menuBarAdaptiveEmptyBehavior) { _, _ in
+            .onChange(of: model.menuBarStore.projection.settings.menuBarAdaptiveEmptyBehavior) { _, _ in
                 controller.refreshStatusItemImage()
             }
-            .onChange(of: model.settings.menuBarAdaptivePanelContent) { _, _ in
+            .onChange(of: model.menuBarStore.projection.settings.menuBarAdaptivePanelContent) { _, _ in
                 controller.refreshContent()
             }
-            .onChange(of: model.settings.showMenuBarBadge) { _, _ in
+            .onChange(of: model.menuBarStore.projection.settings.showMenuBarBadge) { _, _ in
                 controller.refreshStatusItemImage()
             }
-            .onChange(of: model.settings.menuBarIcon) { _, _ in
+            .onChange(of: model.menuBarStore.projection.settings.menuBarIcon) { _, _ in
                 controller.refreshStatusItemImage()
             }
-            .onChange(of: model.settings.colorSchemeID) { _, _ in
+            .onChange(of: model.menuBarStore.projection.settings.colorSchemeID) { _, _ in
                 controller.configure(model: model)
             }
-            .onChange(of: model.settings.appLanguage) { _, _ in
+            .onChange(of: model.menuBarStore.projection.settings.appLanguage) { _, _ in
                 controller.refreshContent()
             }
-            .onChange(of: model.activeAccountID) { _, _ in
+            .onChange(of: model.menuBarStore.projection.activeAccountID) { _, _ in
                 controller.refreshContent()
             }
-            .onChange(of: model.connectedAccounts.map(\.id)) { _, _ in
+            .onChange(of: model.menuBarStore.projection.connectedAccounts.map(\.id)) { _, _ in
                 controller.refreshContent()
             }
-            .onChange(of: model.todaySnapshot.overdueCount) { _, _ in
+            .onChange(of: model.menuBarStore.projection.overdueCount) { _, _ in
                 controller.refreshStatusItemImage()
             }
-            .onChange(of: model.dataRevision) { _, _ in
+            .onChange(of: model.menuBarStore.projection.displayRevision) { _, _ in
                 controller.refreshContent()
             }
     }
@@ -78,7 +78,7 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
 
     func configure(model: AppModel) {
         self.model = model
-        if model.settings.showMenuBarExtra {
+        if model.menuBarStore.projection.settings.showMenuBarExtra {
             installStatusItemIfNeeded()
             refreshContent()
             updateAdaptiveStatusTimer()
@@ -89,12 +89,13 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
 
     func refreshContent() {
         guard let model, statusItem != nil else { return }
+        let projection = model.menuBarStore.projection
         let root = AnyView(
             MenuBarExtraContent { [weak self] day in
                 self?.showWeekDayDetail(day)
             }
                 .environment(model)
-                .environment(\.locale, model.settings.appLanguage.locale)
+                .environment(\.locale, projection.settings.appLanguage.locale)
         )
 
         if let hostingController {
@@ -106,7 +107,7 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
             self.hostingController = hostingController
         }
 
-        if model.settings.menuBarStyle != .weekly {
+        if projection.settings.menuBarStyle != .weekly {
             hideWeekDayDetail()
         }
 
@@ -146,13 +147,14 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
 
     func refreshStatusItemImage() {
         guard let model, let statusItem, let button = statusItem.button else { return }
-        let count = model.settings.showMenuBarBadge ? model.todaySnapshot.overdueCount : 0
+        let projection = model.menuBarStore.projection
+        let count = projection.settings.showMenuBarBadge ? projection.overdueCount : 0
         button.image = statusImage(badgeCount: count)
         button.imageScaling = .scaleProportionallyDown
         button.font = NSFont.menuBarFont(ofSize: 0)
 
-        if model.settings.menuBarStyle == .adaptive {
-            let adaptiveStatus = model.menuBarAdaptiveStatus()
+        if projection.settings.menuBarStyle == .adaptive {
+            let adaptiveStatus = projection.adaptiveStatus()
             if let label = adaptiveStatus.label {
                 statusItem.length = NSStatusItem.variableLength
                 button.imagePosition = .imageLeft
@@ -175,7 +177,7 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
     }
 
     private func statusImage(badgeCount: Int) -> NSImage? {
-        let selectedIcon = model?.settings.menuBarIcon ?? .buns
+        let selectedIcon = model?.menuBarStore.projection.settings.menuBarIcon ?? .buns
         guard let image = selectedIcon.nsStatusImage()
             ?? NSImage(named: "MenuBarIcon")
             ?? NSImage(systemSymbolName: "calendar", accessibilityDescription: "Hot Cross Buns")
@@ -194,8 +196,8 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
     private func updateAdaptiveStatusTimer() {
         invalidateAdaptiveStatusTimer()
         guard let model,
-              model.settings.showMenuBarExtra,
-              model.settings.menuBarStyle == .adaptive,
+              model.menuBarStore.projection.settings.showMenuBarExtra,
+              model.menuBarStore.projection.settings.menuBarStyle == .adaptive,
               statusItem != nil
         else {
             return
@@ -359,13 +361,14 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
 
     private func refreshWeekDayDetailIfNeeded() {
         guard let model, let selectedWeekDetailDay, panel?.isVisible == true else { return }
+        let projection = model.menuBarStore.projection
         let root = AnyView(
             WeeklyMenuBarDayDetailPanel(day: selectedWeekDetailDay)
-                .withHCBAppearance(model.settings)
-                .hcbPreferredColorScheme(model.settings)
+                .withHCBAppearance(projection.settings)
+                .hcbPreferredColorScheme(projection.settings)
                 .hcbSurface(.menuBar)
                 .environment(model)
-                .environment(\.locale, model.settings.appLanguage.locale)
+                .environment(\.locale, projection.settings.appLanguage.locale)
         )
 
         if let detailHostingController {
@@ -387,8 +390,9 @@ final class HCBMenuBarStatusController: NSObject, NSWindowDelegate, NSMenuDelega
 
     private func resizeWeekDayDetail() {
         guard let detailPanel, let model, let selectedWeekDetailDay else { return }
-        let eventCount = model.menuBarEvents(on: selectedWeekDetailDay).count
-        let taskCount = model.menuBarTasks(on: selectedWeekDetailDay).count
+        let projection = model.menuBarStore.projection
+        let eventCount = projection.events(on: selectedWeekDetailDay).count
+        let taskCount = projection.tasks(on: selectedWeekDetailDay).count
         let rowCount = eventCount + taskCount
         let screen = statusItemScreen()
         let maxHeight = max(220, screen.visibleFrame.height - 72)
@@ -706,30 +710,31 @@ private final class HCBMenuBarAttachedPanelFrameView: NSView {
 
 struct MenuBarExtraContent: View {
     @Environment(AppModel.self) private var model
+    private var projection: MenuBarProjection { model.menuBarStore.projection }
     let onWeekDaySelected: (Date) -> Void
 
     var body: some View {
         Group {
-            switch model.settings.menuBarStyle {
+            switch projection.settings.menuBarStyle {
             case .detailed: DetailedMenuBarPanel()
             case .weekly: WeeklyMenuBarPanel(onDaySelected: onWeekDaySelected)
             case .adaptive: AdaptiveMenuBarPanel()
             case .compact: CompactMenuBarPanel()
             }
         }
-        .id(model.settings.colorSchemeID)
-        .environment(\.locale, model.settings.appLanguage.locale)
-        .withHCBAppearance(model.settings)
-        .hcbPreferredColorScheme(model.settings)
+        .id(projection.settings.colorSchemeID)
+        .environment(\.locale, projection.settings.appLanguage.locale)
+        .withHCBAppearance(projection.settings)
+        .hcbPreferredColorScheme(projection.settings)
         .hcbSurface(.menuBar) // §6.11 per-surface font override
-        .onChange(of: model.settings.colorSchemeID, initial: true) { _, newID in
-            HCBColorSchemeStore.current = HCBColorScheme.scheme(id: newID, customSchemes: model.settings.customColorSchemes) ?? .notion
+        .onChange(of: projection.settings.colorSchemeID, initial: true) { _, newID in
+            HCBColorSchemeStore.current = HCBColorScheme.scheme(id: newID, customSchemes: projection.settings.customColorSchemes) ?? .notion
         }
     }
 }
 
-struct MenuBarAdaptiveStatus: Equatable {
-    enum Kind: Equatable {
+struct MenuBarAdaptiveStatus: Equatable, Sendable {
+    enum Kind: Equatable, Sendable {
         case currentEvent(CalendarEventMirror.ID)
         case nextEvent(CalendarEventMirror.ID)
         case task(TaskMirror.ID)
@@ -980,94 +985,9 @@ enum MenuBarAdaptiveStatusResolver {
     }
 }
 
-private extension AppModel {
-    var menuBarSelectedCalendarIDs: Set<CalendarListMirror.ID> {
-        let selected = calendarSnapshot.selectedCalendarIDs
-        return selected.isEmpty ? Set(calendars.map(\.id)) : selected
-    }
-
-    var menuBarVisibleTaskListIDs: Set<TaskListMirror.ID> {
-        visibleTaskListIDs
-    }
-
-    func menuBarAdaptiveStatus(now: Date = Date()) -> MenuBarAdaptiveStatus {
-        let selectedCalendars = menuBarSelectedCalendarIDs
-        let statusEvents = events.filter { selectedCalendars.contains($0.calendarID) }
-        return MenuBarAdaptiveStatusResolver.status(
-            now: now,
-            events: statusEvents,
-            tasks: menuBarDatedOpenTasks(),
-            source: settings.menuBarAdaptiveStatusSource,
-            emptyBehavior: settings.menuBarAdaptiveEmptyBehavior,
-            calendar: .current
-        )
-    }
-
-    func menuBarEvents(on day: Date) -> [CalendarEventMirror] {
-        let cal = Calendar.current
-        let selected = menuBarSelectedCalendarIDs
-        let dayStart = cal.startOfDay(for: day)
-        let key = dayStart.timeIntervalSinceReferenceDate
-        return (eventsByDay[key] ?? [])
-            .compactMap { event(id: $0) }
-            .filter { event in
-                selected.contains(event.calendarID)
-                    && event.status != .cancelled
-                    && cal.isDate(event.startDate, inSameDayAs: dayStart)
-            }
-            .sorted { lhs, rhs in
-                if lhs.startDate == rhs.startDate {
-                    return lhs.summary.localizedCaseInsensitiveCompare(rhs.summary) == .orderedAscending
-                }
-                return lhs.startDate < rhs.startDate
-            }
-    }
-
-    func menuBarTasks(on day: Date) -> [TaskMirror] {
-        let cal = Calendar.current
-        let visible = menuBarVisibleTaskListIDs
-        let key = cal.startOfDay(for: day).timeIntervalSinceReferenceDate
-        return (tasksByDueDate[key] ?? [])
-            .compactMap { task(id: $0) }
-            .filter { task in
-                guard let due = task.dueDate else { return false }
-                return task.isDeleted == false
-                    && task.isCompleted == false
-                    && task.isHidden == false
-                    && visible.contains(task.taskListID)
-                    && cal.isDate(due, inSameDayAs: day)
-            }
-            .sorted { lhs, rhs in
-                let leftDue = lhs.dueDate ?? .distantFuture
-                let rightDue = rhs.dueDate ?? .distantFuture
-                if leftDue == rightDue {
-                    return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
-                }
-                return leftDue < rightDue
-            }
-    }
-
-    func menuBarDatedOpenTasks() -> [TaskMirror] {
-        let visible = menuBarVisibleTaskListIDs
-        var out: [TaskMirror] = []
-        for key in tasksByDueDate.keys.sorted() {
-            let bucket = (tasksByDueDate[key] ?? [])
-                .compactMap { task(id: $0) }
-                .filter { task in
-                    visible.contains(task.taskListID)
-                        && task.dueDate != nil
-                        && task.isDeleted == false
-                        && task.isCompleted == false
-                        && task.isHidden == false
-                }
-            out.append(contentsOf: bucket)
-        }
-        return out
-    }
-}
-
 private struct AdaptiveMenuBarPanel: View {
     @Environment(AppModel.self) private var model
+    private var projection: MenuBarProjection { model.menuBarStore.projection }
     @State private var completingTaskIDs: Set<TaskMirror.ID> = []
     @State private var snoozeCustomTask: TaskMirror?
     @State private var pendingDeleteEvent: CalendarEventMirror?
@@ -1149,7 +1069,7 @@ private struct AdaptiveMenuBarPanel: View {
             Text("Agenda")
                 .hcbFont(.headline)
             Spacer()
-            Text(model.syncState.title)
+            Text(projection.syncState.title)
                 .hcbFont(.caption, weight: .medium)
                 .foregroundStyle(.secondary)
         }
@@ -1297,14 +1217,14 @@ private struct AdaptiveMenuBarPanel: View {
     }
 
     private var includesEvents: Bool {
-        switch model.settings.menuBarAdaptivePanelContent {
+        switch projection.settings.menuBarAdaptivePanelContent {
         case .events, .eventsAndTasks: true
         case .tasks: false
         }
     }
 
     private var includesTasks: Bool {
-        switch model.settings.menuBarAdaptivePanelContent {
+        switch projection.settings.menuBarAdaptivePanelContent {
         case .tasks, .eventsAndTasks: true
         case .events: false
         }
@@ -1313,11 +1233,9 @@ private struct AdaptiveMenuBarPanel: View {
     private var currentEvent: CalendarEventMirror? {
         guard includesEvents else { return nil }
         let now = Date()
-        let selected = model.menuBarSelectedCalendarIDs
-        return model.events
+        return projection.adaptiveEvents
             .filter { event in
-                selected.contains(event.calendarID)
-                    && event.status != .cancelled
+                event.status != .cancelled
                     && event.isAllDay == false
                     && event.startDate <= now
                     && event.endDate > now
@@ -1347,12 +1265,12 @@ private struct AdaptiveMenuBarPanel: View {
         var items: [AgendaItem] = []
         if includesEvents {
             let currentID = currentEvent?.id
-            items.append(contentsOf: model.menuBarEvents(on: day)
+            items.append(contentsOf: projection.events(on: day)
                 .filter { $0.id != currentID }
                 .map(AgendaItem.event))
         }
         if includesTasks {
-            items.append(contentsOf: model.menuBarTasks(on: day).map(AgendaItem.task))
+            items.append(contentsOf: projection.tasks(on: day).map(AgendaItem.task))
         }
         return items.sorted { lhs, rhs in
             if lhs.isAllDayEvent != rhs.isAllDayEvent {
@@ -1366,7 +1284,7 @@ private struct AdaptiveMenuBarPanel: View {
     }
 
     private func eventSubtitle(for event: CalendarEventMirror) -> String {
-        let calendarTitle = model.calendarTitle(for: event.calendarID, fallback: "Calendar")
+        let calendarTitle = projection.calendarTitle(for: event.calendarID, fallback: "Calendar")
         if event.isAllDay {
             return "All day - \(calendarTitle)"
         }
@@ -1374,7 +1292,7 @@ private struct AdaptiveMenuBarPanel: View {
     }
 
     private func taskSubtitle(for task: TaskMirror) -> String {
-        let listTitle = model.taskListTitle(for: task.taskListID, fallback: "Tasks")
+        let listTitle = projection.taskListTitle(for: task.taskListID, fallback: "Tasks")
         guard let dueDate = task.dueDate else { return listTitle }
         let calendar = Calendar.current
         if dueDate < calendar.startOfDay(for: Date()) {
@@ -1421,6 +1339,7 @@ private struct AdaptiveMenuBarPanel: View {
 
 private struct DetailedMenuBarPanel: View {
     @Environment(AppModel.self) private var model
+    private var projection: MenuBarProjection { model.menuBarStore.projection }
     @State private var selectedDay = Calendar.current.startOfDay(for: Date())
     @State private var snoozeCustomTask: TaskMirror?
     @State private var pendingDeleteEvent: CalendarEventMirror?
@@ -1533,7 +1452,7 @@ private struct DetailedMenuBarPanel: View {
     private func taskDayItemRow(_ task: TaskMirror) -> some View {
         dayItemRow(
             title: task.title,
-            subtitle: model.taskListTitle(for: task.taskListID, fallback: "Tasks"),
+            subtitle: projection.taskListTitle(for: task.taskListID, fallback: "Tasks"),
             symbol: "checkmark.circle"
         )
         .contextMenu {
@@ -1576,11 +1495,11 @@ private struct DetailedMenuBarPanel: View {
     }
 
     private var eventsForSelectedDay: [CalendarEventMirror] {
-        model.menuBarEvents(on: selectedDay)
+        projection.events(on: selectedDay)
     }
 
     private var tasksForSelectedDay: [TaskMirror] {
-        model.menuBarTasks(on: selectedDay)
+        projection.tasks(on: selectedDay)
     }
 
     private func snooze(_ task: TaskMirror, to newDate: Date?) async {
@@ -1591,6 +1510,7 @@ private struct DetailedMenuBarPanel: View {
 
 private struct CompactMenuBarPanel: View {
     @Environment(AppModel.self) private var model
+    private var projection: MenuBarProjection { model.menuBarStore.projection }
     @State private var completingTaskIDs: Set<TaskMirror.ID> = []
     @State private var snoozeCustomTask: TaskMirror?
 
@@ -1661,7 +1581,7 @@ private struct CompactMenuBarPanel: View {
                 Text("Compact")
                     .hcbFont(.headline)
                 Spacer()
-                Text(model.syncState.title)
+                Text(projection.syncState.title)
                     .hcbFont(.caption, weight: .medium)
                     .foregroundStyle(.secondary)
             }
@@ -1750,9 +1670,7 @@ private struct CompactMenuBarPanel: View {
         let now = Date()
         let calendar = Calendar.current
         let startOfToday = calendar.startOfDay(for: now)
-        let selectedCalendars = model.menuBarSelectedCalendarIDs
-
-        let taskPool = model.menuBarDatedOpenTasks()
+        let taskPool = projection.adaptiveTasks
 
         let overdueTasks = taskPool.filter { ($0.dueDate ?? .distantFuture) < startOfToday }
         let dueTodayTasks = taskPool.filter { task in
@@ -1761,10 +1679,8 @@ private struct CompactMenuBarPanel: View {
         }
         let futureTasks = taskPool.filter { ($0.dueDate ?? .distantPast) > startOfToday }
 
-        let eventPool = model.events
-            .filter { event in
-                selectedCalendars.contains(event.calendarID) && event.status != .cancelled && event.endDate > now
-            }
+        let eventPool = projection.adaptiveEvents
+            .filter { event in event.status != .cancelled && event.endDate > now }
             .sorted { $0.startDate < $1.startDate }
         let ongoingEvent = eventPool.first(where: { $0.startDate <= now && $0.endDate > now })
         let upcomingEvents = eventPool.filter { $0.startDate > now }
@@ -1832,7 +1748,7 @@ private struct CompactMenuBarPanel: View {
     }
 
     private func taskSubtitle(for task: TaskMirror) -> String {
-        let listTitle = model.taskListTitle(for: task.taskListID, fallback: "Tasks")
+        let listTitle = projection.taskListTitle(for: task.taskListID, fallback: "Tasks")
         guard let dueDate = task.dueDate else {
             return listTitle
         }
@@ -1848,7 +1764,7 @@ private struct CompactMenuBarPanel: View {
     }
 
     private func eventSubtitle(for event: CalendarEventMirror) -> String {
-        let calendarTitle = model.calendarTitle(for: event.calendarID, fallback: "Calendar")
+        let calendarTitle = projection.calendarTitle(for: event.calendarID, fallback: "Calendar")
         if event.isAllDay {
             return "All day · \(calendarTitle)"
         }
@@ -1871,6 +1787,8 @@ private struct CompactMenuBarPanel: View {
 
 private struct MenuBarQuickAddRow: View {
     @Environment(AppModel.self) private var model
+    private var taskStore: TaskStore { model.taskStore }
+    private var projection: MenuBarProjection { model.menuBarStore.projection }
     @State private var input: String = ""
     @State private var isSubmitting = false
     @State private var errorMessage: String?
@@ -1890,11 +1808,11 @@ private struct MenuBarQuickAddRow: View {
                 Text(errorMessage)
                     .hcbFont(.caption2)
                     .foregroundStyle(AppColor.ember)
-            } else if model.account == nil {
+            } else if projection.account == nil {
                 Text("Connect Google in Settings before adding tasks.")
                     .hcbFont(.caption2)
                     .foregroundStyle(.secondary)
-            } else if model.taskLists.isEmpty {
+            } else if taskStore.taskLists.isEmpty {
                 Text("Refresh to load your task lists.")
                     .hcbFont(.caption2)
                     .foregroundStyle(.secondary)
@@ -1927,20 +1845,21 @@ private struct MenuBarQuickAddRow: View {
 
     private func resolvedListID(hint: String?) -> TaskListMirror.ID? {
         if let hint {
-            if let exact = model.taskLists.first(where: { $0.title.localizedCaseInsensitiveCompare(hint) == .orderedSame }) {
+            if let exact = taskStore.taskLists.first(where: { $0.title.localizedCaseInsensitiveCompare(hint) == .orderedSame }) {
                 return exact.id
             }
-            if let fuzzy = model.taskLists.first(where: { $0.title.localizedCaseInsensitiveContains(hint) }) {
+            if let fuzzy = taskStore.taskLists.first(where: { $0.title.localizedCaseInsensitiveContains(hint) }) {
                 return fuzzy.id
             }
         }
-        return model.taskLists.first?.id
+        return taskStore.taskLists.first?.id
     }
 }
 
 private struct MenuBarPinnedFilters: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openWindow) private var openWindow
+    private var projection: MenuBarProjection { model.menuBarStore.projection }
 
     // Up to 3 matching tasks are shown inline per pinned filter — enough
     // to be useful at a glance without letting the popover grow unbounded.
@@ -1949,7 +1868,7 @@ private struct MenuBarPinnedFilters: View {
     private let pinnedLimit = 4
 
     var body: some View {
-        let filters = pinnedFilters
+        let filters = projection.pinnedFilters
         if filters.isEmpty == false {
             VStack(alignment: .leading, spacing: 10) {
                 Divider()
@@ -1965,22 +1884,10 @@ private struct MenuBarPinnedFilters: View {
         }
     }
 
-    private var pinnedFilters: [CustomFilterDefinition] {
-        model.settings.customFilters.filter(\.pinnedToMenuBar)
-    }
-
-    private func matchingTasks(_ f: CustomFilterDefinition) -> [TaskMirror] {
-        f.filter(
-            model.tasks,
-            now: Date(),
-            calendar: .current,
-            taskLists: model.taskLists
-        )
-    }
-
     @ViewBuilder
-    private func filterRow(for f: CustomFilterDefinition) -> some View {
-        let tasks = matchingTasks(f)
+    private func filterRow(for projection: MenuBarPinnedFilterProjection) -> some View {
+        let f = projection.definition
+        let tasks = projection.matchingTasks
         Button {
             openFilter(f)
         } label: {
@@ -2038,6 +1945,7 @@ private struct MenuBarPinnedFilters: View {
 
 private struct MenuBarAccountSwitcher: View {
     @Environment(AppModel.self) private var model
+    private var projection: MenuBarProjection { model.menuBarStore.projection }
 
     var body: some View {
         if let activeAccount, displayAccounts.isEmpty == false {
@@ -2091,23 +1999,15 @@ private struct MenuBarAccountSwitcher: View {
     }
 
     private var activeAccount: GoogleAccount? {
-        let activeID = model.activeAccountID ?? model.account?.id
+        let activeID = projection.activeAccountID ?? projection.account?.id
         if let activeID, let account = displayAccounts.first(where: { $0.id == activeID }) {
             return account
         }
-        return model.account ?? displayAccounts.first
+        return projection.account ?? displayAccounts.first
     }
 
     private var displayAccounts: [GoogleAccount] {
-        var seen = Set<GoogleAccount.ID>()
-        var ordered: [GoogleAccount] = []
-        if let account = model.account, seen.insert(account.id).inserted {
-            ordered.append(account)
-        }
-        for account in model.connectedAccounts where seen.insert(account.id).inserted {
-            ordered.append(account)
-        }
-        return ordered
+        projection.displayAccounts
     }
 
     private func accountMenuTitle(_ account: GoogleAccount) -> String {
@@ -2126,6 +2026,7 @@ private struct MenuBarAccountSwitcher: View {
 private struct MenuBarQuickActions: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openWindow) private var openWindow
+    private var projection: MenuBarProjection { model.menuBarStore.projection }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -2144,7 +2045,7 @@ private struct MenuBarQuickActions: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.borderless)
-            .disabled(model.account == nil)
+            .disabled(projection.account == nil)
 
             Button {
                 openWindow(id: "history")
@@ -2311,14 +2212,15 @@ private struct StatusLine: View {
 
 private struct WeeklyMenuBarDayDetailPanel: View {
     @Environment(AppModel.self) private var model
+    private var projection: MenuBarProjection { model.menuBarStore.projection }
     let day: Date
 
     private var events: [CalendarEventMirror] {
-        model.menuBarEvents(on: day)
+        projection.events(on: day)
     }
 
     private var tasks: [TaskMirror] {
-        model.menuBarTasks(on: day)
+        projection.tasks(on: day)
     }
 
     var body: some View {
@@ -2421,7 +2323,7 @@ private struct WeeklyMenuBarDayDetailPanel: View {
 
     private func eventSubtitle(_ event: CalendarEventMirror) -> String {
         var parts: [String] = [eventTimeLabel(event)]
-        let calendar = model.calendarTitle(for: event.calendarID, fallback: "")
+        let calendar = projection.calendarTitle(for: event.calendarID, fallback: "")
         if calendar.isEmpty == false {
             parts.append(calendar)
         }
@@ -2436,7 +2338,7 @@ private struct WeeklyMenuBarDayDetailPanel: View {
         if let due = task.dueDate {
             parts.append(due.formatted(.dateTime.hour().minute()))
         }
-        parts.append(model.taskListTitle(for: task.taskListID, fallback: "Tasks"))
+        parts.append(projection.taskListTitle(for: task.taskListID, fallback: "Tasks"))
         if task.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
             parts.append(task.notes.trimmingCharacters(in: .whitespacesAndNewlines))
         }
@@ -2451,6 +2353,7 @@ private struct WeeklyMenuBarDayDetailPanel: View {
 
 private struct WeeklyMenuBarPanel: View {
     @Environment(AppModel.self) private var model
+    private var projection: MenuBarProjection { model.menuBarStore.projection }
     let onDaySelected: (Date) -> Void
 
     private var days: [Date] {
@@ -2460,11 +2363,11 @@ private struct WeeklyMenuBarPanel: View {
     }
 
     private func eventsOn(_ day: Date) -> [CalendarEventMirror] {
-        model.menuBarEvents(on: day)
+        projection.events(on: day)
     }
 
     private func tasksOn(_ day: Date) -> [TaskMirror] {
-        model.menuBarTasks(on: day)
+        projection.tasks(on: day)
     }
 
     var body: some View {
@@ -2473,7 +2376,7 @@ private struct WeeklyMenuBarPanel: View {
                 Text("Next 7 days")
                     .hcbFont(.headline)
                 Spacer()
-                Text(model.syncState.title)
+                Text(projection.syncState.title)
                     .hcbFont(.caption, weight: .medium)
                     .foregroundStyle(.secondary)
             }

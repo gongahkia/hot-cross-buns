@@ -112,26 +112,20 @@ struct CommandPaletteEntitySnapshot: Sendable {
     }
 
     @MainActor
-    init(model: AppModel, key: String) {
+    init(
+        taskStore: TaskStore,
+        calendarStore: CalendarStore,
+        commandPaletteStore: CommandPaletteStore,
+        key: String,
+        includeEntities: Bool
+    ) {
         self.init(
             key: key,
-            tasks: model.tasks,
-            events: model.events,
-            taskLists: model.taskLists,
-            calendars: model.calendars,
-            customFilters: model.settings.customFilters
-        )
-    }
-
-    @MainActor
-    init(containersFrom model: AppModel, key: String) {
-        self.init(
-            key: key,
-            tasks: [],
-            events: [],
-            taskLists: model.taskLists,
-            calendars: model.calendars,
-            customFilters: model.settings.customFilters
+            tasks: includeEntities ? taskStore.tasks : [],
+            events: includeEntities ? calendarStore.events : [],
+            taskLists: commandPaletteStore.taskLists,
+            calendars: commandPaletteStore.calendars,
+            customFilters: commandPaletteStore.customFilters
         )
     }
 }
@@ -351,6 +345,9 @@ private enum CommandPaletteSearchRules {
 struct CommandPaletteView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
+    private var taskStore: TaskStore { model.taskStore }
+    private var calendarStore: CalendarStore { model.calendarStore }
+    private var commandPaletteStore: CommandPaletteStore { model.commandPaletteStore }
     @AppStorage("hcb.commandPalette.recentCommandIDs") private var recentCommandIDsJSON: String = "[]"
     @State private var query = ""
     // Heavy entity results (tasks/events/notes) intentionally lag behind the
@@ -395,7 +392,7 @@ struct CommandPaletteView: View {
             // Honour any deep-link-staged query: hotcrossbuns://search?q=… sets
             // model.pendingPaletteQuery before toggling the palette open. Clear
             // after consuming so a subsequent manual open starts blank.
-            if let staged = model.pendingPaletteQuery, staged.isEmpty == false {
+            if let staged = commandPaletteStore.pendingPaletteQuery, staged.isEmpty == false {
                 query = staged
                 model.pendingPaletteQuery = nil
             }
@@ -406,8 +403,14 @@ struct CommandPaletteView: View {
             }
         }
         .task(id: fallbackPrewarmTaskID) {
-            guard model.usesDatabaseEntitySearch == false else { return }
-            await entityCache.prepare(snapshot: CommandPaletteEntitySnapshot(containersFrom: model, key: containerSnapshotKey))
+            guard commandPaletteStore.usesDatabaseEntitySearch == false else { return }
+            await entityCache.prepare(snapshot: CommandPaletteEntitySnapshot(
+                taskStore: taskStore,
+                calendarStore: calendarStore,
+                commandPaletteStore: commandPaletteStore,
+                key: containerSnapshotKey,
+                includeEntities: false
+            ))
         }
         // Entity-search debounce: each keystroke restarts this task; commands
         // do not wait for it because they are ranked directly from `query`.
@@ -435,8 +438,11 @@ struct CommandPaletteView: View {
                     resultSnapshotKey = snapshotKeyAtStart
                 } else {
                     let snapshot = CommandPaletteEntitySnapshot(
-                        containersFrom: model,
-                        key: containerSnapshotKey(for: snapshotKeyAtStart)
+                        taskStore: taskStore,
+                        calendarStore: calendarStore,
+                        commandPaletteStore: commandPaletteStore,
+                        key: containerSnapshotKey(for: snapshotKeyAtStart),
+                        includeEntities: false
                     )
                     let result = try await entityCache.search(snapshot: snapshot, query: liveQuery)
                     entities = result.entities
@@ -496,21 +502,19 @@ struct CommandPaletteView: View {
         return (54, 54)
     }
 
-    // Cheap fingerprint for the entity universe. dataRevision fingerprints
-    // tasks / events / taskLists / calendars together — the prior count-
-    // only key left stale lowercased search labels cached when a user
-    // renamed a task without changing the total count. customFilters still
-    // factored in by count because it doesn't flow through dataRevision.
+    // Cheap fingerprint for the entity universe. The palette store revision
+    // advances with task/event/list/calendar/filter changes without tying
+    // palette cache churn to unrelated global app state.
     private var snapshotKey: String {
-        "\(model.dataRevision)|\(model.settings.customFilters.count)"
+        "\(commandPaletteStore.entityRevision)|\(commandPaletteStore.customFilters.count)"
     }
 
     private var fallbackPrewarmTaskID: String {
-        "\(containerSnapshotKey)|\(model.usesDatabaseEntitySearch)"
+        "\(containerSnapshotKey)|\(commandPaletteStore.usesDatabaseEntitySearch)"
     }
 
     private var entitySearchTaskID: String {
-        "\(snapshotKey)|\(model.usesDatabaseEntitySearch)|\(trimmedQuery)"
+        "\(snapshotKey)|\(commandPaletteStore.usesDatabaseEntitySearch)|\(trimmedQuery)"
     }
 
     private var containerSnapshotKey: String {
@@ -522,7 +526,7 @@ struct CommandPaletteView: View {
     }
 
     private var paletteBackgroundStyle: AnyShapeStyle {
-        if model.settings.performanceMode == .rich {
+        if commandPaletteStore.performanceMode == .rich {
             AnyShapeStyle(.ultraThinMaterial)
         } else {
             AnyShapeStyle(AppColor.cardSurface)
@@ -600,7 +604,13 @@ struct CommandPaletteView: View {
                 let resultSnapshotKey: String
                 if isRegexQuery {
                     let snapshot = await MainActor.run {
-                        CommandPaletteEntitySnapshot(model: model, key: snapshotKeyAtStart)
+                        CommandPaletteEntitySnapshot(
+                            taskStore: taskStore,
+                            calendarStore: calendarStore,
+                            commandPaletteStore: commandPaletteStore,
+                            key: snapshotKeyAtStart,
+                            includeEntities: true
+                        )
                     }
                     let result = try await entityCache.search(snapshot: snapshot, query: liveQuery)
                     entities = result.entities
@@ -611,8 +621,11 @@ struct CommandPaletteView: View {
                 } else {
                     let snapshot = await MainActor.run {
                         CommandPaletteEntitySnapshot(
-                            containersFrom: model,
-                            key: containerSnapshotKey(for: snapshotKeyAtStart)
+                            taskStore: taskStore,
+                            calendarStore: calendarStore,
+                            commandPaletteStore: commandPaletteStore,
+                            key: containerSnapshotKey(for: snapshotKeyAtStart),
+                            includeEntities: false
                         )
                     }
                     let result = try await entityCache.search(snapshot: snapshot, query: liveQuery)

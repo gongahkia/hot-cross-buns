@@ -400,6 +400,56 @@ struct TaskSurfaceSettings: Equatable, Sendable {
     }
 }
 
+struct ShellChromeSettings: Equatable, Sendable {
+    var syncMode: SyncMode
+    var appLanguage: AppLanguage
+    var hasCompletedOnboarding: Bool
+    var hasSeenFeatureTour: Bool
+    var enableGlobalHotkey: Bool
+    var globalHotkeyBinding: GlobalHotkeyBinding
+    var uiLayoutScale: Double
+    var uiTextSizePoints: Double
+    var uiFontName: String?
+    var colorSchemeID: String
+    var customColorSchemes: [HCBCustomColorScheme]
+    var appBackgroundTranslucencyEnabled: Bool
+    var appBackgroundOpacity: Double
+    var customBackgroundImagePath: String?
+    var disableAnimations: Bool
+    var performanceMode: AppPerformanceMode
+    var shortcutOverrides: [String: HCBKeyBinding]
+    var sidebarPlacement: NavigationSurfacePlacement
+    var hiddenSidebarItems: Set<String>
+    var cacheEncryptionEnabled: Bool
+    var colorTagBindings: [String: String]
+
+    static let `default` = ShellChromeSettings(settings: .default)
+
+    init(settings: AppSettings) {
+        syncMode = settings.syncMode
+        appLanguage = settings.appLanguage
+        hasCompletedOnboarding = settings.hasCompletedOnboarding
+        hasSeenFeatureTour = settings.hasSeenFeatureTour
+        enableGlobalHotkey = settings.enableGlobalHotkey
+        globalHotkeyBinding = settings.globalHotkeyBinding
+        uiLayoutScale = settings.uiLayoutScale
+        uiTextSizePoints = settings.uiTextSizePoints
+        uiFontName = settings.uiFontName
+        colorSchemeID = settings.colorSchemeID
+        customColorSchemes = settings.customColorSchemes
+        appBackgroundTranslucencyEnabled = settings.appBackgroundTranslucencyEnabled
+        appBackgroundOpacity = settings.appBackgroundOpacity
+        customBackgroundImagePath = settings.customBackgroundImagePath
+        disableAnimations = settings.disableAnimations
+        performanceMode = settings.performanceMode
+        shortcutOverrides = settings.shortcutOverrides
+        sidebarPlacement = settings.sidebarPlacement
+        hiddenSidebarItems = settings.hiddenSidebarItems
+        cacheEncryptionEnabled = settings.cacheEncryptionEnabled
+        colorTagBindings = settings.colorTagBindings
+    }
+}
+
 @MainActor
 @Observable
 final class TaskStore {
@@ -552,13 +602,193 @@ final class TaskStore {
     }
 }
 
+struct StatusBannerSnapshot: Equatable, Sendable {
+    var authState: AuthState
+    var syncState: SyncState
+    var mutationError: String?
+    var cacheWarning: String?
+    var isSyncPaused: Bool
+    var pendingMutationCount: Int
+    var quarantinedCount: Int
+    var invalidPayloadCount: Int
+    var conflictCount: Int
+    var deferredReminderSummary: NotificationScheduleSummary?
+    var syncFailureKind: SyncFailureKind?
+    var daysSinceLastLaunch: Int?
+    var syncScope: SyncScopeSummary
+
+    static let empty = StatusBannerSnapshot(
+        authState: .authenticating,
+        syncState: .idle,
+        mutationError: nil,
+        cacheWarning: nil,
+        isSyncPaused: false,
+        pendingMutationCount: 0,
+        quarantinedCount: 0,
+        invalidPayloadCount: 0,
+        conflictCount: 0,
+        deferredReminderSummary: nil,
+        syncFailureKind: nil,
+        daysSinceLastLaunch: nil,
+        syncScope: SyncScopeSummary(tasks: 0, events: 0)
+    )
+}
+
+struct MenuBarSettingsSnapshot: Equatable, Sendable {
+    var showMenuBarExtra: Bool
+    var showMenuBarBadge: Bool
+    var menuBarIcon: AppSettings.MenuBarIcon
+    var menuBarStyle: AppSettings.MenuBarStyle
+    var menuBarAdaptiveStatusSource: AppSettings.MenuBarAdaptiveStatusSource
+    var menuBarAdaptiveEmptyBehavior: AppSettings.MenuBarAdaptiveEmptyBehavior
+    var menuBarAdaptivePanelContent: AppSettings.MenuBarAdaptivePanelContent
+    var appLanguage: AppLanguage
+    var uiLayoutScale: Double
+    var uiTextSizePoints: Double
+    var uiFontName: String?
+    var colorSchemeID: String
+    var customColorSchemes: [HCBCustomColorScheme]
+    var appBackgroundTranslucencyEnabled: Bool
+    var appBackgroundOpacity: Double
+    var customBackgroundImagePath: String?
+    var disableAnimations: Bool
+    var performanceMode: AppPerformanceMode
+
+    static let `default` = MenuBarSettingsSnapshot(settings: .default)
+
+    init(settings: AppSettings) {
+        showMenuBarExtra = settings.showMenuBarExtra
+        showMenuBarBadge = settings.showMenuBarBadge
+        menuBarIcon = settings.menuBarIcon
+        menuBarStyle = settings.menuBarStyle
+        menuBarAdaptiveStatusSource = settings.menuBarAdaptiveStatusSource
+        menuBarAdaptiveEmptyBehavior = settings.menuBarAdaptiveEmptyBehavior
+        menuBarAdaptivePanelContent = settings.menuBarAdaptivePanelContent
+        appLanguage = settings.appLanguage
+        uiLayoutScale = settings.uiLayoutScale
+        uiTextSizePoints = settings.uiTextSizePoints
+        uiFontName = settings.uiFontName
+        colorSchemeID = settings.colorSchemeID
+        customColorSchemes = settings.customColorSchemes
+        appBackgroundTranslucencyEnabled = settings.appBackgroundTranslucencyEnabled
+        appBackgroundOpacity = settings.appBackgroundOpacity
+        customBackgroundImagePath = settings.customBackgroundImagePath
+        disableAnimations = settings.disableAnimations
+        performanceMode = settings.performanceMode
+    }
+}
+
+struct MenuBarDayProjection: Equatable, Sendable {
+    var events: [CalendarEventMirror]
+    var tasks: [TaskMirror]
+
+    static let empty = MenuBarDayProjection(events: [], tasks: [])
+}
+
+struct MenuBarPinnedFilterProjection: Identifiable, Equatable, Sendable {
+    var definition: CustomFilterDefinition
+    var matchingTasks: [TaskMirror]
+
+    var id: CustomFilterDefinition.ID { definition.id }
+}
+
+struct MenuBarProjection: Equatable, Sendable {
+    var settings: MenuBarSettingsSnapshot
+    var syncState: SyncState
+    var account: GoogleAccount?
+    var connectedAccounts: [GoogleAccount]
+    var activeAccountID: GoogleAccount.ID?
+    var overdueCount: Int
+    var displayRevision: UInt64
+    var adaptiveEvents: [CalendarEventMirror]
+    var adaptiveTasks: [TaskMirror]
+    var dayBuckets: [TimeInterval: MenuBarDayProjection]
+    var pinnedFilters: [MenuBarPinnedFilterProjection]
+    var calendarTitleByID: [CalendarListMirror.ID: String]
+    var taskListTitleByID: [TaskListMirror.ID: String]
+
+    static let empty = MenuBarProjection(
+        settings: .default,
+        syncState: .idle,
+        account: nil,
+        connectedAccounts: [],
+        activeAccountID: nil,
+        overdueCount: 0,
+        displayRevision: 0,
+        adaptiveEvents: [],
+        adaptiveTasks: [],
+        dayBuckets: [:],
+        pinnedFilters: [],
+        calendarTitleByID: [:],
+        taskListTitleByID: [:]
+    )
+
+    var displayAccounts: [GoogleAccount] {
+        var seen = Set<GoogleAccount.ID>()
+        var ordered: [GoogleAccount] = []
+        if let account, seen.insert(account.id).inserted {
+            ordered.append(account)
+        }
+        for connectedAccount in connectedAccounts where seen.insert(connectedAccount.id).inserted {
+            ordered.append(connectedAccount)
+        }
+        return ordered
+    }
+
+    var activeAccount: GoogleAccount? {
+        let accounts = displayAccounts
+        if let activeAccountID, let account = accounts.first(where: { $0.id == activeAccountID }) {
+            return account
+        }
+        return account ?? accounts.first
+    }
+
+    func adaptiveStatus(now: Date = Date(), calendar: Calendar = .current) -> MenuBarAdaptiveStatus {
+        MenuBarAdaptiveStatusResolver.status(
+            now: now,
+            events: adaptiveEvents,
+            tasks: adaptiveTasks,
+            source: settings.menuBarAdaptiveStatusSource,
+            emptyBehavior: settings.menuBarAdaptiveEmptyBehavior,
+            calendar: calendar
+        )
+    }
+
+    func dayProjection(on day: Date, calendar: Calendar = .current) -> MenuBarDayProjection {
+        dayBuckets[calendar.startOfDay(for: day).timeIntervalSinceReferenceDate] ?? .empty
+    }
+
+    func events(on day: Date, calendar: Calendar = .current) -> [CalendarEventMirror] {
+        dayProjection(on: day, calendar: calendar).events
+    }
+
+    func tasks(on day: Date, calendar: Calendar = .current) -> [TaskMirror] {
+        dayProjection(on: day, calendar: calendar).tasks
+    }
+
+    func calendarTitle(for id: CalendarListMirror.ID, fallback: String = "Calendar") -> String {
+        calendarTitleByID[id] ?? fallback
+    }
+
+    func taskListTitle(for id: TaskListMirror.ID, fallback: String = "Tasks") -> String {
+        taskListTitleByID[id] ?? fallback
+    }
+}
+
 @MainActor
 @Observable
 final class SettingsStore {
     private(set) var settings: AppSettings = .default
+    private(set) var shellChrome: ShellChromeSettings = .default
 
     func publish(settings: AppSettings) {
-        self.settings = settings
+        let shellChrome = ShellChromeSettings(settings: settings)
+        if self.settings != settings {
+            self.settings = settings
+        }
+        if self.shellChrome != shellChrome {
+            self.shellChrome = shellChrome
+        }
     }
 }
 
@@ -572,6 +802,7 @@ final class SyncStatusStore {
     private(set) var daysSinceLastLaunch: Int?
     private(set) var lastSuccessfulSyncAt: Date?
     private(set) var syncFailureKind: SyncFailureKind?
+    private(set) var banner: StatusBannerSnapshot = .empty
 
     func publish(
         authState: AuthState,
@@ -580,15 +811,17 @@ final class SyncStatusStore {
         pendingMutationCount: Int,
         daysSinceLastLaunch: Int?,
         lastSuccessfulSyncAt: Date?,
-        syncFailureKind: SyncFailureKind?
+        syncFailureKind: SyncFailureKind?,
+        banner: StatusBannerSnapshot
     ) {
-        self.authState = authState
-        self.syncState = syncState
-        self.isSyncPaused = isSyncPaused
-        self.pendingMutationCount = pendingMutationCount
-        self.daysSinceLastLaunch = daysSinceLastLaunch
-        self.lastSuccessfulSyncAt = lastSuccessfulSyncAt
-        self.syncFailureKind = syncFailureKind
+        if self.authState != authState { self.authState = authState }
+        if self.syncState != syncState { self.syncState = syncState }
+        if self.isSyncPaused != isSyncPaused { self.isSyncPaused = isSyncPaused }
+        if self.pendingMutationCount != pendingMutationCount { self.pendingMutationCount = pendingMutationCount }
+        if self.daysSinceLastLaunch != daysSinceLastLaunch { self.daysSinceLastLaunch = daysSinceLastLaunch }
+        if self.lastSuccessfulSyncAt != lastSuccessfulSyncAt { self.lastSuccessfulSyncAt = lastSuccessfulSyncAt }
+        if self.syncFailureKind != syncFailureKind { self.syncFailureKind = syncFailureKind }
+        if self.banner != banner { self.banner = banner }
     }
 }
 
@@ -596,27 +829,42 @@ final class SyncStatusStore {
 @Observable
 final class CommandPaletteStore {
     private(set) var pendingPaletteQuery: String?
-    private(set) var dataRevision: UInt64 = 0
+    private(set) var entityRevision: UInt64 = 0
+    private(set) var taskLists: [TaskListMirror] = []
+    private(set) var calendars: [CalendarListMirror] = []
+    private(set) var customFilters: [CustomFilterDefinition] = []
+    private(set) var usesDatabaseEntitySearch: Bool = true
+    private(set) var performanceMode: AppPerformanceMode = .snappy
 
-    func publish(pendingPaletteQuery: String?, dataRevision: UInt64) {
-        self.pendingPaletteQuery = pendingPaletteQuery
-        self.dataRevision = dataRevision
+    func publish(
+        pendingPaletteQuery: String?,
+        entityRevision: UInt64,
+        taskLists: [TaskListMirror],
+        calendars: [CalendarListMirror],
+        customFilters: [CustomFilterDefinition],
+        usesDatabaseEntitySearch: Bool,
+        performanceMode: AppPerformanceMode
+    ) {
+        if self.pendingPaletteQuery != pendingPaletteQuery { self.pendingPaletteQuery = pendingPaletteQuery }
+        if self.entityRevision != entityRevision { self.entityRevision = entityRevision }
+        if self.taskLists != taskLists { self.taskLists = taskLists }
+        if self.calendars != calendars { self.calendars = calendars }
+        if self.customFilters != customFilters { self.customFilters = customFilters }
+        if self.usesDatabaseEntitySearch != usesDatabaseEntitySearch {
+            self.usesDatabaseEntitySearch = usesDatabaseEntitySearch
+        }
+        if self.performanceMode != performanceMode { self.performanceMode = performanceMode }
     }
 }
 
 @MainActor
 @Observable
 final class MenuBarStore {
-    private(set) var settings: AppSettings = .default
-    private(set) var todaySnapshot: TodaySnapshot = .empty
-    private(set) var tasks: [TaskMirror] = []
-    private(set) var events: [CalendarEventMirror] = []
+    private(set) var projection: MenuBarProjection = .empty
 
-    func publish(settings: AppSettings, todaySnapshot: TodaySnapshot, tasks: [TaskMirror], events: [CalendarEventMirror]) {
-        self.settings = settings
-        self.todaySnapshot = todaySnapshot
-        self.tasks = tasks
-        self.events = events
+    func publish(projection: MenuBarProjection) {
+        guard self.projection != projection else { return }
+        self.projection = projection
     }
 }
 
@@ -862,6 +1110,8 @@ final class AppModel {
     // Same as taskDisplayRevision, scoped to the Notes tab so local ordering
     // and prepared snapshot keys do not churn on unrelated data changes.
     private(set) var notesDisplayRevision: UInt64 = 0
+    private(set) var commandPaletteEntityRevision: UInt64 = 0
+    private(set) var menuBarDisplayRevision: UInt64 = 0
     @ObservationIgnored private var calendarDayDisplayRevisions: [TimeInterval: UInt64] = [:]
     // True while a scheduled derived snapshot/index rebuild is in flight.
     // Prepared views use this to block interactions rather than rendering
@@ -5816,6 +6066,21 @@ final class AppModel {
     }
 
     private func publishSessionSurfaceStores() {
+        let bannerSnapshot = StatusBannerSnapshot(
+            authState: authState,
+            syncState: syncState,
+            mutationError: lastMutationError,
+            cacheWarning: lastCacheLoadWarning,
+            isSyncPaused: isSyncPaused,
+            pendingMutationCount: pendingMutations.count,
+            quarantinedCount: quarantinedMutationCount,
+            invalidPayloadCount: invalidPayloadMutationCount,
+            conflictCount: conflictedMutationCount,
+            deferredReminderSummary: lastNotificationScheduleSummary,
+            syncFailureKind: syncFailureKind,
+            daysSinceLastLaunch: daysSinceLastLaunch,
+            syncScope: SyncScopeSummary(tasks: tasks.count, events: events.count)
+        )
         calendarStore.publishSession(
             account: account,
             authState: authState,
@@ -5837,8 +6102,10 @@ final class AppModel {
             pendingMutationCount: pendingMutations.count,
             daysSinceLastLaunch: daysSinceLastLaunch,
             lastSuccessfulSyncAt: lastSuccessfulSyncAt,
-            syncFailureKind: syncFailureKind
+            syncFailureKind: syncFailureKind,
+            banner: bannerSnapshot
         )
+        publishMenuBarProjectionSurfaceStore()
     }
 
     private func publishSnapshotSurfaceStores() {
@@ -5877,9 +6144,144 @@ final class AppModel {
             isRebuildingDerivedSnapshots: isRebuildingDerivedSnapshots
         )
         settingsStore.publish(settings: settings)
-        commandPaletteStore.publish(pendingPaletteQuery: pendingPaletteQuery, dataRevision: dataRevision)
-        menuBarStore.publish(settings: settings, todaySnapshot: todaySnapshot, tasks: tasks, events: events)
+        commandPaletteStore.publish(
+            pendingPaletteQuery: pendingPaletteQuery,
+            entityRevision: commandPaletteEntityRevision,
+            taskLists: taskLists,
+            calendars: calendars,
+            customFilters: settings.customFilters,
+            usesDatabaseEntitySearch: usesDatabaseEntitySearch,
+            performanceMode: settings.performanceMode
+        )
         publishSessionSurfaceStores()
+    }
+
+    private func publishMenuBarProjectionSurfaceStore() {
+        menuBarStore.publish(projection: makeMenuBarProjection())
+    }
+
+    private func makeMenuBarProjection(
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> MenuBarProjection {
+        let selectedCalendarIDs = calendarSnapshot.selectedCalendarIDs.isEmpty
+            ? Set(calendars.map(\.id))
+            : calendarSnapshot.selectedCalendarIDs
+        let visibleTaskListIDSet = visibleTaskListIDs
+        let today = calendar.startOfDay(for: now)
+        let dayRange = (-7...35).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
+        let dayKeys = dayRange.map { calendar.startOfDay(for: $0).timeIntervalSinceReferenceDate }
+
+        func projectedEvents(forDayKey key: TimeInterval) -> [CalendarEventMirror] {
+            (eventsByDay[key] ?? [])
+                .compactMap { eventByIDSnapshot[$0] }
+                .filter { event in
+                    selectedCalendarIDs.contains(event.calendarID)
+                        && event.status != .cancelled
+                }
+                .sorted { lhs, rhs in
+                    if lhs.isAllDay != rhs.isAllDay { return lhs.isAllDay && rhs.isAllDay == false }
+                    if lhs.startDate != rhs.startDate { return lhs.startDate < rhs.startDate }
+                    return lhs.summary.localizedCaseInsensitiveCompare(rhs.summary) == .orderedAscending
+                }
+        }
+
+        func projectedTasks(forDayKey key: TimeInterval) -> [TaskMirror] {
+            (tasksByDueDate[key] ?? [])
+                .compactMap { taskByIDSnapshot[$0] }
+                .filter { task in
+                    visibleTaskListIDSet.contains(task.taskListID)
+                        && task.dueDate != nil
+                        && task.isDeleted == false
+                        && task.isCompleted == false
+                        && task.isHidden == false
+                }
+                .sorted { lhs, rhs in
+                    let lhsDue = lhs.dueDate ?? .distantFuture
+                    let rhsDue = rhs.dueDate ?? .distantFuture
+                    if lhsDue == rhsDue {
+                        return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+                    }
+                    return lhsDue < rhsDue
+                }
+        }
+
+        var dayBuckets: [TimeInterval: MenuBarDayProjection] = [:]
+        for key in dayKeys {
+            let events = projectedEvents(forDayKey: key)
+            let tasks = projectedTasks(forDayKey: key)
+            if events.isEmpty == false || tasks.isEmpty == false {
+                dayBuckets[key] = MenuBarDayProjection(events: events, tasks: tasks)
+            }
+        }
+
+        let futureEventKeys = eventsByDay.keys
+            .filter { key in
+                let day = Date(timeIntervalSinceReferenceDate: key)
+                let lowerBound = calendar.date(byAdding: .day, value: -1, to: today) ?? today
+                return day >= lowerBound
+            }
+            .sorted()
+        var adaptiveEvents: [CalendarEventMirror] = []
+        var seenEventIDs: Set<CalendarEventMirror.ID> = []
+        for key in futureEventKeys {
+            for event in projectedEvents(forDayKey: key)
+                where event.endDate > now && seenEventIDs.insert(event.id).inserted {
+                adaptiveEvents.append(event)
+                if adaptiveEvents.count >= 64 { break }
+            }
+            if adaptiveEvents.count >= 64 { break }
+        }
+
+        var adaptiveTasks: [TaskMirror] = []
+        var seenTaskIDs: Set<TaskMirror.ID> = []
+        for key in tasksByDueDate.keys.sorted() {
+            for task in projectedTasks(forDayKey: key)
+                where seenTaskIDs.insert(task.id).inserted {
+                adaptiveTasks.append(task)
+                if adaptiveTasks.count >= 64 { break }
+            }
+            if adaptiveTasks.count >= 64 { break }
+        }
+
+        let pinnedFilters = settings.customFilters
+            .filter(\.pinnedToMenuBar)
+            .prefix(4)
+            .map { filter in
+                MenuBarPinnedFilterProjection(
+                    definition: filter,
+                    matchingTasks: filter.filter(
+                        tasks,
+                        now: now,
+                        calendar: calendar,
+                        taskLists: taskLists
+                    )
+                )
+            }
+
+        return MenuBarProjection(
+            settings: MenuBarSettingsSnapshot(settings: settings),
+            syncState: syncState,
+            account: account,
+            connectedAccounts: connectedAccounts,
+            activeAccountID: activeAccountID,
+            overdueCount: todaySnapshot.overdueCount,
+            displayRevision: menuBarDisplayRevision,
+            adaptiveEvents: adaptiveEvents.sorted { lhs, rhs in
+                if lhs.startDate == rhs.startDate { return lhs.id < rhs.id }
+                return lhs.startDate < rhs.startDate
+            },
+            adaptiveTasks: adaptiveTasks.sorted { lhs, rhs in
+                let leftDue = lhs.dueDate ?? .distantFuture
+                let rightDue = rhs.dueDate ?? .distantFuture
+                if leftDue == rightDue { return lhs.id < rhs.id }
+                return leftDue < rightDue
+            },
+            dayBuckets: dayBuckets,
+            pinnedFilters: Array(pinnedFilters),
+            calendarTitleByID: calendarTitleByID,
+            taskListTitleByID: taskListTitleByID
+        )
     }
 
     private func setDerivedSnapshotRebuildInFlight(_ value: Bool) {
@@ -7266,6 +7668,8 @@ final class AppModel {
         // lookup map has been applied together. Prepared views key off this
         // revision, so they never rebuild against half-refreshed indexes.
         dataRevision &+= 1
+        commandPaletteEntityRevision &+= 1
+        menuBarDisplayRevision &+= 1
         if shouldAdvanceTaskSurfaceRevisions(syncChangeSet: syncChangeSet) {
             taskDisplayRevision &+= 1
             notesDisplayRevision &+= 1
@@ -7409,6 +7813,8 @@ final class AppModel {
         )
 
         dataRevision &+= 1
+        commandPaletteEntityRevision &+= 1
+        menuBarDisplayRevision &+= 1
         setDerivedSnapshotRebuildInFlight(false)
         #if DEBUG
         let todayEnd = DispatchTime.now().uptimeNanoseconds

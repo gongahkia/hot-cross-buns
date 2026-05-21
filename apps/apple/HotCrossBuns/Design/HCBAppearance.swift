@@ -26,7 +26,11 @@ enum HCBBaseColorSchemePreference: String, CaseIterable, Identifiable {
     }
 
     static func fallback(for settings: AppSettings) -> HCBBaseColorSchemePreference {
-        HCBColorScheme.scheme(id: settings.colorSchemeID, customSchemes: settings.customColorSchemes)?.isDark == true ? .dark : .light
+        fallback(colorSchemeID: settings.colorSchemeID, customSchemes: settings.customColorSchemes)
+    }
+
+    static func fallback(colorSchemeID: String, customSchemes: [HCBCustomColorScheme]) -> HCBBaseColorSchemePreference {
+        HCBColorScheme.scheme(id: colorSchemeID, customSchemes: customSchemes)?.isDark == true ? .dark : .light
     }
 }
 
@@ -175,7 +179,8 @@ struct HCBAppearanceModifier: ViewModifier {
 }
 
 struct HCBPreferredColorSchemeModifier: ViewModifier {
-    let settings: AppSettings
+    let colorSchemeID: String
+    let customColorSchemes: [HCBCustomColorScheme]
     @AppStorage(HCBBaseColorSchemePreference.storageKey) private var storedPreference: String = ""
 
     func body(content: Content) -> some View {
@@ -183,7 +188,8 @@ struct HCBPreferredColorSchemeModifier: ViewModifier {
     }
 
     private var resolvedPreference: HCBBaseColorSchemePreference {
-        HCBBaseColorSchemePreference(rawValue: storedPreference) ?? HCBBaseColorSchemePreference.fallback(for: settings)
+        HCBBaseColorSchemePreference(rawValue: storedPreference)
+            ?? HCBBaseColorSchemePreference.fallback(colorSchemeID: colorSchemeID, customSchemes: customColorSchemes)
     }
 }
 
@@ -202,7 +208,52 @@ extension View {
     }
 
     func hcbPreferredColorScheme(_ settings: AppSettings) -> some View {
-        modifier(HCBPreferredColorSchemeModifier(settings: settings))
+        modifier(HCBPreferredColorSchemeModifier(
+            colorSchemeID: settings.colorSchemeID,
+            customColorSchemes: settings.customColorSchemes
+        ))
+    }
+
+    func withHCBAppearance(_ settings: ShellChromeSettings) -> some View {
+        modifier(HCBAppearanceModifier(
+            layoutScale: CGFloat(settings.uiLayoutScale),
+            textSizePoints: HCBTextSize.clamp(settings.uiTextSizePoints),
+            fontName: settings.uiFontName,
+            backgroundConfiguration: HCBAppBackgroundConfiguration(
+                isTranslucent: settings.performanceMode == .rich && settings.appBackgroundTranslucencyEnabled,
+                opacity: settings.appBackgroundOpacity,
+                customImagePath: settings.performanceMode == .rich ? settings.customBackgroundImagePath : nil
+            ),
+            disableAnimations: settings.disableAnimations
+        ))
+    }
+
+    func hcbPreferredColorScheme(_ settings: ShellChromeSettings) -> some View {
+        modifier(HCBPreferredColorSchemeModifier(
+            colorSchemeID: settings.colorSchemeID,
+            customColorSchemes: settings.customColorSchemes
+        ))
+    }
+
+    func withHCBAppearance(_ settings: MenuBarSettingsSnapshot) -> some View {
+        modifier(HCBAppearanceModifier(
+            layoutScale: CGFloat(settings.uiLayoutScale),
+            textSizePoints: HCBTextSize.clamp(settings.uiTextSizePoints),
+            fontName: settings.uiFontName,
+            backgroundConfiguration: HCBAppBackgroundConfiguration(
+                isTranslucent: settings.performanceMode == .rich && settings.appBackgroundTranslucencyEnabled,
+                opacity: settings.appBackgroundOpacity,
+                customImagePath: settings.performanceMode == .rich ? settings.customBackgroundImagePath : nil
+            ),
+            disableAnimations: settings.disableAnimations
+        ))
+    }
+
+    func hcbPreferredColorScheme(_ settings: MenuBarSettingsSnapshot) -> some View {
+        modifier(HCBPreferredColorSchemeModifier(
+            colorSchemeID: settings.colorSchemeID,
+            customColorSchemes: settings.customColorSchemes
+        ))
     }
 }
 

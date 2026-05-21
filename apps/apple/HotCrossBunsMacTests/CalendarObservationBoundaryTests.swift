@@ -114,3 +114,80 @@ final class TaskObservationBoundaryTests: XCTestCase {
             .deletingLastPathComponent()
     }
 }
+
+final class ShellMenuObservationBoundaryTests: XCTestCase {
+    func testMacSidebarShellReadsNarrowStoresForDisplayState() throws {
+        let file = "apps/apple/HotCrossBuns/App/MacSidebarShell.swift"
+        let source = try uncommentedSource(file)
+        let forbiddenReads = [
+            "model.settings.",
+            "model.syncState",
+            "model.tasks",
+            "model.events",
+            "model.dataRevision",
+            "model.calendars",
+            "model.visibleTaskListIDs"
+        ]
+
+        for forbiddenRead in forbiddenReads {
+            XCTAssertFalse(
+                source.contains(forbiddenRead),
+                "MacSidebarShell should read \(forbiddenRead) through SettingsStore, SyncStatusStore, CalendarStore, or TaskStore."
+            )
+        }
+    }
+
+    func testMenuBarSceneReadsMenuBarProjectionInsteadOfRawModelScans() throws {
+        let file = "apps/apple/HotCrossBuns/App/MenuBarExtraScene.swift"
+        let source = try uncommentedSource(file)
+        let forbiddenReads = [
+            "model.settings.",
+            "model.dataRevision",
+            "model.events",
+            "model.tasks",
+            "model.taskLists",
+            "model.calendars",
+            "model.menuBarAdaptiveStatus(",
+            "model.menuBarEvents(",
+            "model.menuBarTasks(",
+            "model.menuBarDatedOpenTasks("
+        ]
+
+        for forbiddenRead in forbiddenReads {
+            XCTAssertFalse(
+                source.contains(forbiddenRead),
+                "MenuBarExtraScene should read \(forbiddenRead) through MenuBarStore.projection."
+            )
+        }
+    }
+
+    func testCommandPaletteDoesNotKeyEntityCachesFromGlobalDataRevision() throws {
+        let file = "apps/apple/HotCrossBuns/App/CommandPaletteView.swift"
+        let source = try uncommentedSource(file)
+        XCTAssertFalse(
+            source.contains("model.dataRevision"),
+            "CommandPaletteView should key entity caches from CommandPaletteStore.entityRevision."
+        )
+    }
+
+    private func uncommentedSource(_ file: String) throws -> String {
+        let source = try String(contentsOf: repoRoot.appending(path: file))
+        return source
+            .components(separatedBy: .newlines)
+            .map { line in
+                if let commentStart = line.range(of: "//")?.lowerBound {
+                    return String(line[..<commentStart])
+                }
+                return line
+            }
+            .joined(separator: "\n")
+    }
+
+    private var repoRoot: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+    }
+}
