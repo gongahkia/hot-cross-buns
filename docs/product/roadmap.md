@@ -128,18 +128,35 @@ Exit criteria:
 
 - A user can install a preview build on macOS with documented warnings.
 
-## Phase 7: Windows And Linux Expansion
+## Phase 7: Linux Technical Preview
 
-Goal: adapt the Mac-first app to all desktop platforms.
+Goal: prove the Mac-first app works outside macOS through a Linux technical preview.
 
 Deliverables:
 
-- Platform adapters for tray, hotkeys, notifications, autostart, updater, and paths.
-- Windows installer and code signing plan.
-- Linux packaging plan: AppImage first unless product requirements change.
-- Platform-specific smoke tests.
+- Shared platform adapter audit.
+- Linux adapters for paths, credentials, tray, hotkeys, notifications, protocol links, updater metadata, diagnostics, and capability reporting.
+- Linux packaging plan and AppImage target.
+- Linux manual QA checklist for GNOME, KDE, Wayland, X11, OAuth, MCP, notifications, tray, shortcuts, protocol links, and performance.
 
 Exit criteria:
 
-- Core planner flows pass on macOS and at least one non-Mac platform.
+- Core planner flows pass on macOS and Linux technical preview.
+- Unsupported Linux desktop features are visible in Settings/Diagnostics rather than silently failing.
 
+## Phase 8: Windows Technical Preview
+
+Goal: add Windows after Linux adapter lessons are incorporated.
+
+Deliverables:
+
+- Windows adapters for paths, credential storage, tray, global shortcuts, notifications, protocol links, autostart, updater metadata, diagnostics, and capability reporting.
+- NSIS installer target unless another target is explicitly chosen.
+- AppUserModelID and installer identity.
+- Code signing and SmartScreen plan.
+- Windows manual QA checklist for installer, Start Menu, taskbar grouping, tray, shortcuts, notifications, OAuth, MCP, protocol links, uninstall, and performance.
+
+Exit criteria:
+
+- Core planner flows pass on macOS, Linux technical preview, and Windows technical preview.
+- Public Windows distribution blockers are documented separately from internal preview blockers.
