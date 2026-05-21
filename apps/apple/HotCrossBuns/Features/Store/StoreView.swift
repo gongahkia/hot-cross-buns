@@ -38,8 +38,10 @@ struct StoreView: View {
     @State private var preparedTaskBoardSnapshot: TaskBoardDisplaySnapshot?
     @State private var taskBoardBuildTask: Task<Void, Never>?
 
+    private var taskStore: TaskStore { model.taskStore }
+
     private var isDisconnected: Bool {
-        model.account == nil
+        taskStore.account == nil
     }
 
     var body: some View {
@@ -149,11 +151,11 @@ struct StoreView: View {
     private var content: some View {
         ZStack(alignment: .bottom) {
             Group {
-                if model.account == nil && model.authState == .authenticating {
+                if taskStore.account == nil && taskStore.authState == .authenticating {
                     RestoringSessionPlaceholder()
-                } else if model.account == nil {
+                } else if taskStore.account == nil {
                     signedOutPrompt
-                } else if model.taskLists.isEmpty {
+                } else if taskStore.taskLists.isEmpty {
                     noTaskListsPrompt
                 } else {
                     taskBoardContent
@@ -179,19 +181,17 @@ struct StoreView: View {
     // Completed tasks stay in the pool and render under each column's
     // disclosure section. Overdue hide mode still applies to open tasks.
     private var datedTasks: [TaskMirror] {
-        model.taskBoardSnapshot.datedTasks
+        taskStore.taskBoardSnapshot.datedTasks
     }
 
     private var taskBoardVisibleListIDs: Set<TaskListMirror.ID> {
-        model.settings.hasConfiguredTasksTabSelection
-            ? model.settings.tasksTabSelectedListIDs
-            : model.visibleTaskListIDs
+        taskStore.tasksTabVisibleListIDs
     }
 
     private var taskBoardSnapshotKey: PreparedSnapshotKey {
         PreparedSnapshotKeys.taskBoard(
             surface: .tasks,
-            dataRevision: model.dataRevision,
+            dataRevision: taskStore.taskDisplayRevision,
             groupMode: kanbanColumnMode,
             visibleListIDs: taskBoardVisibleListIDs
         )
@@ -199,7 +199,7 @@ struct StoreView: View {
 
     @ViewBuilder
     private var taskBoardContent: some View {
-        if let snapshot = preparedTaskBoardSnapshot, snapshot.key == taskBoardSnapshotKey, model.isRebuildingDerivedSnapshots == false {
+        if let snapshot = preparedTaskBoardSnapshot, snapshot.key == taskBoardSnapshotKey, taskStore.isRebuildingDerivedSnapshots == false {
             KanbanView(
                 snapshot: snapshot,
                 columnMode: $kanbanColumnMode,
@@ -239,9 +239,9 @@ struct StoreView: View {
             surface: .tasks,
             tasks: datedTasks,
             columnMode: kanbanColumnMode,
-            taskLists: model.taskLists,
-            taskListTitleByID: model.taskListTitleByID,
-            duplicateTaskIDs: Set(model.duplicateIndex.memberToGroup.keys),
+            taskLists: taskStore.taskLists,
+            taskListTitleByID: taskStore.taskListTitlesByID(),
+            duplicateTaskIDs: taskStore.duplicateTaskIDs,
             localOrder: [],
             referenceDate: Date(),
             calendar: .current
@@ -257,7 +257,7 @@ struct StoreView: View {
     }
 
     private var selectedTasksFromModel: [TaskMirror] {
-        selection.compactMap { model.task(id: $0) }
+        selection.compactMap { taskStore.task(id: $0) }
     }
 
     private func handleBulkResult(_ result: BulkTaskExecutionResult) {
@@ -306,7 +306,7 @@ struct StoreView: View {
         ContentUnavailableView {
             Label("No task lists yet", systemImage: "checklist")
         } description: {
-            if case .syncing = model.syncState {
+            if case .syncing = taskStore.syncState {
                 Text("Loading your Google Tasks lists…")
             } else {
                 Text("We haven't seen any task lists. Hit Refresh, or create one from the toolbar.")
@@ -332,7 +332,7 @@ struct StoreView: View {
     private var inspectorContent: some View {
         if selection.count > 1 {
             BulkSelectionInspector(count: selection.count)
-        } else if selection.count == 1, let id = selection.first, let task = model.task(id: id) {
+        } else if selection.count == 1, let id = selection.first, let task = taskStore.task(id: id) {
             TaskInspectorView(
                 task: task,
                 close: {
@@ -432,6 +432,8 @@ private struct BulkMoveSheet: View {
     @State private var destinationListID: TaskListMirror.ID?
     @State private var isMutating = false
 
+    private var taskStore: TaskStore { model.taskStore }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -442,7 +444,7 @@ private struct BulkMoveSheet: View {
                 }
                 Section("Destination list") {
                     Picker("List", selection: $destinationListID) {
-                        ForEach(model.taskLists) { list in
+                        ForEach(taskStore.taskLists) { list in
                             Text(list.title).tag(Optional(list.id))
                         }
                     }
@@ -467,7 +469,7 @@ private struct BulkMoveSheet: View {
                 }
             }
             .task {
-                destinationListID = destinationListID ?? model.taskLists.first?.id
+                destinationListID = destinationListID ?? taskStore.taskLists.first?.id
             }
         }
         .hcbScaledFrame(minWidth: 320, minHeight: 320)
@@ -480,7 +482,7 @@ private struct BulkMoveSheet: View {
         defer { isMutating = false }
         var moved = 0
         for id in taskIDs {
-            guard let task = model.task(id: id), task.taskListID != destination else { continue }
+            guard let task = taskStore.task(id: id), task.taskListID != destination else { continue }
             if await model.moveTaskToList(task, toTaskListID: destination) {
                 moved += 1
             }
@@ -493,6 +495,8 @@ private struct BulkMoveSheet: View {
 struct TaskHoverPreview: View {
     @Environment(AppModel.self) private var model
     let task: TaskMirror
+
+    private var taskStore: TaskStore { model.taskStore }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -527,7 +531,7 @@ struct TaskHoverPreview: View {
     }
 
     private var listName: String {
-        model.taskListTitle(for: task.taskListID)
+        taskStore.taskListTitle(for: task.taskListID)
     }
 }
 
@@ -637,13 +641,14 @@ struct NotesView: View {
 
     // Notes never bucket by due-date. Leave list + tag only.
     private let notesKanbanModes: [KanbanColumnMode] = [.byList, .byTag]
+    private var taskStore: TaskStore { model.taskStore }
 
     var body: some View {
         VStack(spacing: 0) {
             Group {
-                if model.account == nil && model.authState == .authenticating {
+                if taskStore.account == nil && taskStore.authState == .authenticating {
                     RestoringSessionPlaceholder()
-                } else if model.account == nil {
+                } else if taskStore.account == nil {
                     ContentUnavailableView(
                         "Not connected to Google",
                         systemImage: "person.crop.circle.badge.plus",
@@ -695,7 +700,7 @@ struct NotesView: View {
             rebuildOrderIfNeeded(force: true)
             rebuildNotesBoardSnapshotIfNeeded()
         }
-        .onChange(of: model.dataRevision) { _, _ in
+        .onChange(of: taskStore.notesDisplayRevision) { _, _ in
             rebuildOrderIfNeeded()
             rebuildNotesBoardSnapshotIfNeeded()
         }
@@ -726,7 +731,7 @@ struct NotesView: View {
 
     @ViewBuilder
     private var noteInspectorContent: some View {
-        if let id = selectedNoteID, let task = model.task(id: id) {
+        if let id = selectedNoteID, let task = taskStore.task(id: id) {
             TaskInspectorView(
                 task: task,
                 close: {
@@ -748,11 +753,11 @@ struct NotesView: View {
 
     private var kanbanContent: some View {
         Group {
-            if let snapshot = preparedNotesBoardSnapshot, snapshot.key == notesBoardSnapshotKey, model.isRebuildingDerivedSnapshots == false {
+            if let snapshot = preparedNotesBoardSnapshot, snapshot.key == notesBoardSnapshotKey, taskStore.isRebuildingDerivedSnapshots == false {
                 KanbanView(
                     snapshot: snapshot,
                     columnMode: Binding(
-                        get: { model.settings.notesKanbanColumnMode },
+                        get: { taskStore.surfaceSettings.notesKanbanColumnMode },
                         set: { model.setNotesKanbanColumnMode($0) }
                     ),
                     selection: $kanbanSelection,
@@ -781,20 +786,18 @@ struct NotesView: View {
     }
 
     private var undatedTasks: [TaskMirror] {
-        model.taskBoardSnapshot.undatedTasks
+        taskStore.taskBoardSnapshot.undatedTasks
     }
 
     private var notesVisibleListIDs: Set<TaskListMirror.ID> {
-        model.settings.hasConfiguredNotesTabSelection
-            ? model.settings.notesTabSelectedListIDs
-            : model.visibleTaskListIDs
+        taskStore.notesTabVisibleListIDs
     }
 
     private var notesBoardSnapshotKey: PreparedSnapshotKey {
         PreparedSnapshotKeys.taskBoard(
             surface: .notes,
-            dataRevision: model.dataRevision,
-            groupMode: model.settings.notesKanbanColumnMode,
+            dataRevision: taskStore.notesDisplayRevision,
+            groupMode: taskStore.surfaceSettings.notesKanbanColumnMode,
             visibleListIDs: notesVisibleListIDs,
             localOrder: localOrder
         )
@@ -822,10 +825,10 @@ struct NotesView: View {
             key: key,
             surface: .notes,
             tasks: undatedTasks,
-            columnMode: model.settings.notesKanbanColumnMode,
-            taskLists: model.taskLists,
-            taskListTitleByID: model.taskListTitleByID,
-            duplicateTaskIDs: Set(model.duplicateIndex.memberToGroup.keys),
+            columnMode: taskStore.surfaceSettings.notesKanbanColumnMode,
+            taskLists: taskStore.taskLists,
+            taskListTitleByID: taskStore.taskListTitlesByID(),
+            duplicateTaskIDs: taskStore.duplicateTaskIDs,
             localOrder: localOrder,
             referenceDate: Date(),
             calendar: .current

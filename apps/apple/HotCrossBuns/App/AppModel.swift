@@ -7266,7 +7266,20 @@ final class AppModel {
         // lookup map has been applied together. Prepared views key off this
         // revision, so they never rebuild against half-refreshed indexes.
         dataRevision &+= 1
+        if shouldAdvanceTaskSurfaceRevisions(syncChangeSet: syncChangeSet) {
+            taskDisplayRevision &+= 1
+            notesDisplayRevision &+= 1
+        }
         publishSnapshotSurfaceStores()
+    }
+
+    private func shouldAdvanceTaskSurfaceRevisions(syncChangeSet: SyncChangeSet?) -> Bool {
+        guard let syncChangeSet else {
+            return true
+        }
+        return syncChangeSet.taskLists.hasChanges
+            || syncChangeSet.tasks.hasChanges
+            || syncChangeSet.settingsChanged
     }
 
     private func applyEventOnlyDerivedUpdate(

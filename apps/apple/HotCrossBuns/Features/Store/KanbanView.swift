@@ -40,6 +40,7 @@ struct KanbanView: View {
     private var itemLabel: String {
         snapshot.surface == .notes ? "note" : "task"
     }
+    private var taskStore: TaskStore { model.taskStore }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -88,7 +89,7 @@ struct KanbanView: View {
         // Column IDs under byList follow "list-<id>" — see KanbanGrouping.
         guard columnMode == .byList, column.id.hasPrefix("list-") else { return nil }
         let listID = String(column.id.dropFirst("list-".count))
-        return model.taskList(id: listID)
+        return taskStore.taskList(id: listID)
     }
 
     private var header: some View {
@@ -171,6 +172,7 @@ private struct KanbanColumnView: View {
     @State private var isCompletedExpanded = false
 
     private let columnWidth: CGFloat = 260
+    private var taskStore: TaskStore { model.taskStore }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -282,7 +284,7 @@ private struct KanbanColumnView: View {
         )
         .draggable(DraggedTask(taskID: card.id, taskListID: card.taskListID, title: card.title))
         .contextMenu {
-            if let task = model.task(id: card.id) {
+            if let task = taskStore.task(id: card.id) {
                 taskContextMenu(for: task)
             }
         }
@@ -296,14 +298,14 @@ private struct KanbanColumnView: View {
         )
         .draggable(DraggedTask(taskID: card.id, taskListID: card.taskListID, title: card.title))
         .contextMenu {
-            if let task = model.task(id: card.id) {
+            if let task = taskStore.task(id: card.id) {
                 taskContextMenu(for: task)
             }
         }
     }
 
     private func openTask(_ card: PreparedTaskCard) {
-        guard let task = model.task(id: card.id) else { return }
+        guard let task = taskStore.task(id: card.id) else { return }
         onCardTap(task)
     }
 

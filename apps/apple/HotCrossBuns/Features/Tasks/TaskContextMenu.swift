@@ -11,13 +11,14 @@ struct TaskContextMenu: View {
     var onConvertToEvent: (() -> Void)? = nil
     var onConvertToTaskOrNote: (() -> Void)? = nil
     var onDelete: (() -> Void)? = nil
+    private var taskStore: TaskStore { model.taskStore }
 
     private var otherLists: [TaskListMirror] {
-        model.taskLists.filter { $0.id != task.taskListID }
+        taskStore.taskLists.filter { $0.id != task.taskListID }
     }
 
     private var listTitle: String? {
-        model.taskListTitle(for: task.taskListID, fallback: "")
+        taskStore.taskListTitle(for: task.taskListID, fallback: "")
     }
 
     private var duplicatePrimaryLabel: String {
@@ -112,7 +113,7 @@ struct TaskContextMenu: View {
             }
         }
 
-        if model.duplicateIndex.groupKey(for: task.id) != nil {
+        if taskStore.duplicateGroupKey(for: task.id) != nil {
             Button("Review Duplicates…") {
                 openWindow(id: "duplicate-review")
             }

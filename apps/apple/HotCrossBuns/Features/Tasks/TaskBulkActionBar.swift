@@ -24,6 +24,7 @@ struct TaskBulkActionBar: View {
     @State private var isMutating = false
     @State private var tagInputMode: BulkTagMode?
     @State private var datePickerMode: BulkDatePickerMode?
+    private var taskStore: TaskStore { model.taskStore }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -131,10 +132,10 @@ struct TaskBulkActionBar: View {
 
     private var moveMenu: some View {
         Menu {
-            if model.taskLists.isEmpty {
+            if taskStore.taskLists.isEmpty {
                 Button("No lists available") {}.disabled(true)
             } else {
-                ForEach(model.taskLists) { list in
+                ForEach(taskStore.taskLists) { list in
                     Button(list.title) {
                         Task { await runBulk(tasks.map { .moveToList(taskId: $0.id, targetListId: list.id) }) }
                     }
@@ -143,7 +144,7 @@ struct TaskBulkActionBar: View {
         } label: {
             Label("Move", systemImage: "arrow.right.circle")
         }
-        .disabled(isMutating || model.taskLists.isEmpty)
+        .disabled(isMutating || taskStore.taskLists.isEmpty)
     }
 
     private var tagMenu: some View {
