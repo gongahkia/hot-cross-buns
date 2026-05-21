@@ -64,9 +64,9 @@ final class AccessibilityFoundationsTests: XCTestCase {
         XCTAssertTrue(kanban.contains("completedTaskAccessibilityLabel"))
         XCTAssertTrue(kanban.contains(".accessibilityLabel(\"Tag \\(tag)\")"))
 
-        let notes = try String(contentsOf: repoRoot.appending(path: "apps/apple/HotCrossBuns/Features/Store/StoreView.swift"))
-        XCTAssertTrue(notes.contains("noteAccessibilityLabel"))
-        XCTAssertTrue(notes.contains(".accessibilityLabel(noteAccessibilityLabel)"))
+        let taskBoardBuilder = try String(contentsOf: repoRoot.appending(path: "apps/apple/HotCrossBuns/Features/Store/TaskBoardDisplaySnapshotBuilder.swift"))
+        XCTAssertTrue(taskBoardBuilder.contains(#"input.surface == .notes ? "Note" : "Task""#))
+        XCTAssertTrue(taskBoardBuilder.contains("accessibilityLabel: parts.joined(separator: \", \")"))
     }
 
     func testQuickCreateAndMapPreviewAvoidGestureOnlyControls() throws {

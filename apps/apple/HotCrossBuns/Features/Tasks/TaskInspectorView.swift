@@ -73,6 +73,7 @@ struct TaskInspectorView: View {
     @FocusState private var focusedField: Field?
 
     private enum Field: Hashable { case title, notes }
+    private var taskStore: TaskStore { model.taskStore }
 
     init(
         task: TaskMirror,
@@ -173,7 +174,7 @@ struct TaskInspectorView: View {
 
     private var viewOnlyBody: some View {
         let strippedNotes = task.notes
-        let listTitle = model.taskListTitle(for: task.taskListID)
+        let listTitle = taskStore.taskListTitle(for: task.taskListID)
         let subtasks = children
 
         return VStack(alignment: .leading, spacing: 14) {
@@ -256,9 +257,8 @@ struct TaskInspectorView: View {
 
     @ViewBuilder
     private var duplicateBanner: some View {
-        if let groupKey = model.duplicateIndex.groupKey(for: task.id) {
-            let siblingIDs = model.duplicateIndex.siblings(of: task.id)
-            let siblings: [TaskMirror] = siblingIDs.compactMap { model.task(id: $0) }
+        if let groupKey = taskStore.duplicateGroupKey(for: task.id) {
+            let siblings = taskStore.duplicateSiblings(of: task.id)
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.2")
@@ -436,7 +436,7 @@ struct TaskInspectorView: View {
                         if newID != task.taskListID { pendingMoveListID = newID }
                     }
                 )) {
-                    ForEach(model.taskLists) { list in
+                    ForEach(taskStore.taskLists) { list in
                         Text(list.title).tag(list.id)
                     }
                 }
@@ -459,7 +459,7 @@ struct TaskInspectorView: View {
             titleVisibility: .visible
         ) {
             if let newID = pendingMoveListID,
-               let target = model.taskList(id: newID) {
+               let target = taskStore.taskList(id: newID) {
                 Button("Move to \(target.title)") {
                     Task {
                         _ = await model.moveTaskToList(task, toTaskListID: newID)
@@ -474,7 +474,7 @@ struct TaskInspectorView: View {
     }
 
     private var currentListTitle: String {
-        model.taskListTitle(for: task.taskListID)
+        taskStore.taskListTitle(for: task.taskListID)
     }
 
     private var actionButtons: some View {
@@ -541,18 +541,18 @@ struct TaskInspectorView: View {
             }
             .buttonStyle(.bordered)
         }
-        .disabled(model.isMutating)
+        .disabled(taskStore.isMutating)
     }
 
     private func copyAsMarkdown() {
-        let listTitle = model.taskListTitle(for: task.taskListID, fallback: "")
+        let listTitle = taskStore.taskListTitle(for: task.taskListID, fallback: "")
         let markdown = TaskMarkdownExporter.markdown(for: task, taskListTitle: listTitle)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(markdown, forType: .string)
     }
 
     private var children: [TaskMirror] {
-        model.children(of: task.id)
+        taskStore.children(of: task.id)
     }
 
     private var isSubtask: Bool { task.parentID != nil }
@@ -629,7 +629,7 @@ struct TaskInspectorView: View {
     @ViewBuilder
     private var hierarchyControls: some View {
         HStack(spacing: 8) {
-            if TaskHierarchy.canIndent(task, within: model.tasks) {
+            if taskStore.canIndent(task) {
                 Button {
                     Task { await model.indentTask(task) }
                 } label: {
@@ -650,7 +650,7 @@ struct TaskInspectorView: View {
                 .keyboardShortcut(.tab, modifiers: [.shift])
             }
         }
-        .disabled(model.isMutating)
+        .disabled(taskStore.isMutating)
     }
 
     private func addSubtask() async {
@@ -814,7 +814,7 @@ struct TaskInspectorView: View {
             savedAt = Date()
             saveFailureMessage = nil
         } else {
-            saveFailureMessage = model.lastMutationError ?? "Save failed."
+            saveFailureMessage = taskStore.lastMutationError ?? "Save failed."
         }
     }
 

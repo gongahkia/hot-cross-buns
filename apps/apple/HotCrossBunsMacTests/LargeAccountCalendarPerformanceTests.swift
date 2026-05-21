@@ -345,6 +345,8 @@ final class LargeAccountCalendarPerformanceTests: XCTestCase {
         let model = makeModel(cachedState: state)
         await model.loadInitialState()
         try await waitForDerivedSnapshotRebuild(model)
+        let beforeTaskRevision = model.taskStore.taskDisplayRevision
+        let beforeNotesRevision = model.taskStore.notesDisplayRevision
         let beforeRevision = model.calendarDisplayRevisionKey(for: [changedEvent.startDate])
         let beforeTagCount = model.calendarSnapshot.eventCountsByTagName["narrow-sync"] ?? 0
 
@@ -378,11 +380,63 @@ final class LargeAccountCalendarPerformanceTests: XCTestCase {
         XCTAssertEqual(model.event(id: changedEvent.id)?.summary, changedEvent.summary)
         XCTAssertEqual(model.calendarSnapshot.eventCountsByTagName["narrow-sync"], beforeTagCount + 1)
         XCTAssertNotEqual(afterRevision, beforeRevision)
+        XCTAssertEqual(model.taskStore.taskDisplayRevision, beforeTaskRevision)
+        XCTAssertEqual(model.taskStore.notesDisplayRevision, beforeNotesRevision)
         XCTAssertTrue(model.lastApplyUsedEventOnlyDerivedUpdateForBenchmark)
         if let eventOnlyProfile = model.lastEventOnlyApplyProfileForBenchmark {
             print("HCBLargeAccountBenchmark appModel.eventOnlyApply lookupMs=\(format(eventOnlyProfile.lookupMilliseconds)) indexMs=\(format(eventOnlyProfile.indexMilliseconds)) snapshotMapMs=\(format(eventOnlyProfile.snapshotMapMilliseconds)) bucketMs=\(format(eventOnlyProfile.bucketMilliseconds)) todayMs=\(format(eventOnlyProfile.todayMilliseconds)) totalMs=\(format(eventOnlyProfile.totalMilliseconds))")
         }
         XCTAssertLessThan(model.lastApplyProfileForBenchmark?.rebuildSnapshotsMilliseconds ?? .greatestFiniteMagnitude, 20)
+    }
+
+    @MainActor
+    func testAppModelTaskOnlySyncApplyDefersFullDerivedRebuildAndAdvancesTaskStoreRevisions() async throws {
+        var state = LargeAccountCalendarFixture.makeState(eventCount: 8_000, calendarCount: 1)
+        state.settings.cloudSyncTargets = [.tasks]
+
+        let changedIndex = try XCTUnwrap(state.tasks.firstIndex { $0.isDeleted == false })
+        var remoteTasks = state.tasks
+        remoteTasks[changedIndex].title += " #task-sync"
+        remoteTasks[changedIndex].etag = "\(remoteTasks[changedIndex].etag ?? "task")-task-sync"
+        remoteTasks[changedIndex].updatedAt = LargeAccountCalendarFixture.denseDay.addingTimeInterval(3_600)
+
+        let model = makeModel(cachedState: state)
+        await model.loadInitialState()
+        try await waitForDerivedSnapshotRebuild(model)
+        let beforeTaskRevision = model.taskStore.taskDisplayRevision
+        let beforeNotesRevision = model.taskStore.notesDisplayRevision
+
+        let taskListsData = try LargeAccountCalendarFixture.taskListsResponseData(taskLists: state.taskLists)
+        let tasksData = try LargeAccountCalendarFixture.tasksResponseData(tasks: remoteTasks)
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json", "Date": "Thu, 14 May 2026 02:00:00 GMT"]
+            )!
+            switch request.url?.path {
+            case "/tasks/v1/users/@me/lists":
+                return (response, taskListsData)
+            case "/tasks/v1/lists/tasks-main/tasks":
+                return (response, tasksData)
+            default:
+                XCTFail("Unexpected request \(request.url?.absoluteString ?? "<nil>")")
+                return (response, Data(#"{"items":[]}"#.utf8))
+            }
+        }
+
+        let outcome = await model.refreshNow()
+        guard case .succeeded = outcome else {
+            XCTFail("Expected task-only refresh to succeed")
+            return
+        }
+        XCTAssertLessThan(model.lastApplyProfileForBenchmark?.rebuildSnapshotsMilliseconds ?? .greatestFiniteMagnitude, 20)
+
+        try await waitForDerivedSnapshotRebuild(model)
+        XCTAssertGreaterThan(model.taskStore.taskDisplayRevision, beforeTaskRevision)
+        XCTAssertGreaterThan(model.taskStore.notesDisplayRevision, beforeNotesRevision)
+        XCTAssertEqual(model.taskStore.task(id: remoteTasks[changedIndex].id)?.title, remoteTasks[changedIndex].title)
     }
 
     func testPreparedCalendarSnapshotsLargeAccountBenchmark() {
@@ -841,6 +895,49 @@ private enum LargeAccountCalendarFixture {
             referenceDate: denseDay.addingTimeInterval(8 * 3_600),
             calendar: calendar
         )
+    }
+
+    static func taskListsResponseData(taskLists: [TaskListMirror]) throws -> Data {
+        let items = taskLists.map { taskList in
+            [
+                "id": taskList.id,
+                "title": taskList.title,
+                "updated": taskList.updatedAt.map { ISO8601DateFormatter.google.string(from: $0) } ?? "2026-01-01T00:00:00Z",
+                "etag": taskList.etag ?? ""
+            ] as [String: Any]
+        }
+        return try JSONSerialization.data(withJSONObject: ["items": items], options: [])
+    }
+
+    static func tasksResponseData(tasks: [TaskMirror]) throws -> Data {
+        let items = tasks.map { task in
+            var object: [String: Any] = [
+                "id": task.id,
+                "title": task.title,
+                "status": task.status.rawValue,
+                "deleted": task.isDeleted,
+                "hidden": task.isHidden,
+                "etag": task.etag ?? "",
+                "updated": task.updatedAt.map { ISO8601DateFormatter.google.string(from: $0) } ?? "2026-01-01T00:00:00Z"
+            ]
+            if task.notes.isEmpty == false {
+                object["notes"] = task.notes
+            }
+            if let dueDate = task.dueDate {
+                object["due"] = GoogleTaskDueDateFormatter.string(from: dueDate, calendar: calendar)
+            }
+            if let completedAt = task.completedAt {
+                object["completed"] = ISO8601DateFormatter.google.string(from: completedAt)
+            }
+            if let parentID = task.parentID {
+                object["parent"] = parentID
+            }
+            if let position = task.position {
+                object["position"] = position
+            }
+            return object
+        }
+        return try JSONSerialization.data(withJSONObject: ["items": items], options: [])
     }
 
     static func calendarListResponseData(calendars: [CalendarListMirror]) throws -> Data {

@@ -62,3 +62,55 @@ final class CalendarObservationBoundaryTests: XCTestCase {
             .deletingLastPathComponent()
     }
 }
+
+final class TaskObservationBoundaryTests: XCTestCase {
+    func testTaskSurfacesReadTaskStoreInsteadOfBroadAppModelData() throws {
+        let files = [
+            "apps/apple/HotCrossBuns/Features/Store/StoreView.swift",
+            "apps/apple/HotCrossBuns/Features/Store/KanbanView.swift",
+            "apps/apple/HotCrossBuns/Features/Tasks/TaskContextMenu.swift",
+            "apps/apple/HotCrossBuns/Features/Tasks/TaskBulkActionBar.swift",
+            "apps/apple/HotCrossBuns/Features/Tasks/TaskInspectorView.swift"
+        ]
+        let forbiddenReads = [
+            "model.dataRevision",
+            "model.taskBoardSnapshot",
+            "model.taskLists",
+            "model.tasks",
+            "model.visibleTaskListIDs",
+            "model.settings",
+            "model.duplicateIndex",
+            "model.task(",
+            "model.taskList(",
+            "model.taskListTitle(",
+            "model.isRebuildingDerivedSnapshots"
+        ]
+
+        for file in files {
+            let source = try String(contentsOf: repoRoot.appending(path: file))
+            let uncommentedLines = source
+                .components(separatedBy: .newlines)
+                .map { line in
+                    if let commentStart = line.range(of: "//")?.lowerBound {
+                        return String(line[..<commentStart])
+                    }
+                    return line
+                }
+            let uncommentedSource = uncommentedLines.joined(separator: "\n")
+            for forbiddenRead in forbiddenReads {
+                XCTAssertFalse(
+                    uncommentedSource.contains(forbiddenRead),
+                    "\(file) should read \(forbiddenRead) through TaskStore instead of AppModel."
+                )
+            }
+        }
+    }
+
+    private var repoRoot: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+    }
+}
