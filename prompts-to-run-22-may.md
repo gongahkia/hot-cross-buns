@@ -51,7 +51,12 @@ The legacy Swift repository is reference-only:
 | 5 merge | Run alone | P5D Integration Review |
 | 6 | Run alone | P6 Release Packaging |
 | 7 | Run alone | P7 Final Product QA |
-| Future | Parallel-safe after Mac v1 | P8A Windows Prep, P8B Linux Prep |
+| 8 | Run alone after Mac v1 | P8A Cross-Platform Adapter Audit |
+| 8 Linux | Run alone after P8A | P8B Linux Port Foundation |
+| 8 Linux QA | Run alone after P8B | P8C Linux Packaging And Desktop QA |
+| 9 Windows | Run alone after Linux preview | P9A Windows Port Foundation |
+| 9 Windows QA | Run alone after P9A | P9B Windows Packaging And Signing QA |
+| 10 | Run alone after P9B | P10 Cross-Platform Release Hardening |
 
 ## Phase 0 - Scaffold
 
