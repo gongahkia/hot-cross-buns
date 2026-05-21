@@ -46,6 +46,19 @@ Subsystem specs:
 - [Design System](design/design-system.md)
 - [Legacy Hot Cross Buns Context](reference/legacy-hot-cross-buns-context.md)
 
+Performance:
+
+- [Performance Strategy](performance/performance-strategy.md)
+- [Renderer Performance](performance/renderer-performance.md)
+- [Main, IPC, And Data Performance](performance/main-and-data-performance.md)
+- [Build And Test Performance](performance/build-and-test-performance.md)
+
+Ports:
+
+- [Cross-Platform Porting](ports/cross-platform-porting.md)
+- [Linux Port](ports/linux-port.md)
+- [Windows Port](ports/windows-port.md)
+
 Operational docs:
 
 - [Privacy And Threat Model](security/privacy-and-threat-model.md)

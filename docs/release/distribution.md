@@ -2,7 +2,7 @@
 
 ## Release Strategy
 
-Hot Cross Buns 2 starts with preview desktop builds. macOS is first. Windows and Linux packaging come after the Mac core app is useful.
+Hot Cross Buns 2 starts with preview desktop builds. macOS is first, Linux is the first non-Mac technical preview, and Windows follows Linux.
 
 Preview releases may be unsigned initially, but the docs and build pipeline must leave a clear path to signing, notarization, and updater support.
 
@@ -43,27 +43,37 @@ V1 preview updater may be a check-for-new-version flow:
 
 In-place auto-update can be added later through Electron updater tooling once signing is in place.
 
-## Windows Future
-
-Required before Windows preview:
-
-- installer target decision
-- code signing plan
-- app user model id
-- protocol registration
-- update metadata strategy
-- SmartScreen expectations documented
-
 ## Linux Future
 
 Required before Linux preview:
 
-- AppImage target unless another package is chosen
+- AppImage target first unless another package is explicitly chosen
 - desktop file metadata
-- icon installation behavior
+- icon and `StartupWMClass` behavior
 - protocol registration behavior
 - updater stance by package format
-- distro support matrix
+- distro and desktop-environment support matrix
+- tray/global shortcut caveats documented
+
+Linux preview should use check-for-new-version before in-place updates. Electron's built-in `autoUpdater` does not support Linux; package-manager and electron-builder updater behavior must be evaluated per package target before claiming automatic updates.
+
+See [Linux Port](../ports/linux-port.md).
+
+## Windows Future
+
+Required before Windows preview:
+
+- NSIS installer target first unless another package is explicitly chosen
+- code signing plan
+- AppUserModelID and installer identity
+- protocol registration
+- update metadata strategy
+- SmartScreen expectations documented
+- Start Menu, shortcut, tray, and notification behavior tested
+
+Windows preview may be unsigned only for local/internal testing. Public Windows distribution requires an explicit signing and SmartScreen plan.
+
+See [Windows Port](../ports/windows-port.md).
 
 ## Versioning
 
@@ -96,4 +106,3 @@ Release docs must include rollback guidance:
 - how to preserve local SQLite before downgrade
 - when downgrade is unsupported after migrations
 - how to clear local cache and resync from Google
-

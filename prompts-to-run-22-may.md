@@ -23,6 +23,7 @@ Every prompt below tells the agent what to read, but these are the permanent anc
 - `docs/security/privacy-and-threat-model.md`
 - `docs/testing/qa-plan.md`
 - `docs/design/design-system.md`
+- `docs/performance/performance-strategy.md`
 - `docs/reference/legacy-hot-cross-buns-context.md`
 
 The legacy Swift repository is reference-only:
@@ -36,14 +37,17 @@ The legacy Swift repository is reference-only:
 | Phase | Run Style | Prompts |
 |---|---|---|
 | 0 | Run alone | P0 Scaffold |
+| 0.5 | Run alone | P0.5 Performance Harness |
 | 1 | Parallel-safe | P1A Renderer Shell, P1B IPC Foundation, P1C Local Data Foundation |
 | 1 merge | Run alone | P1D Integration Review |
 | 2 | Parallel-safe | P2A Google Sync, P2B MCP Server, P2C Core Screens With Mock Data |
 | 2 merge | Run alone | P2D Integration Review |
 | 3 | Run alone | P3 Real Data Wiring |
-| 4 | Parallel-safe after P3 | P4A Tasks, P4B Calendar, P4C Notes Search Command Palette |
+| 3 perf | Run alone | P3E Real Data Performance Baseline |
+| 4 | Parallel-safe after P3E | P4A Tasks, P4B Calendar, P4C Notes Search Command Palette |
 | 4 merge | Run alone | P4D Integration Review |
-| 5 | Parallel-safe after P4D | P5A Native Shell, P5B Settings Diagnostics, P5C Security Hardening |
+| 4 perf | Run alone | P4E Interaction Performance Pass |
+| 5 | Parallel-safe after P4E | P5A Native Shell, P5B Settings Diagnostics, P5C Security Hardening |
 | 5 merge | Run alone | P5D Integration Review |
 | 6 | Run alone | P6 Release Packaging |
 | 7 | Run alone | P7 Final Product QA |
@@ -69,6 +73,8 @@ Read first:
 - docs/security/privacy-and-threat-model.md
 - docs/testing/qa-plan.md
 - docs/design/design-system.md
+- docs/performance/performance-strategy.md
+- docs/performance/build-and-test-performance.md
 
 Implement:
 - pnpm-based project scaffold unless the repo already uses another package manager.
@@ -80,6 +86,8 @@ Implement:
 - One health-check preload API with runtime validation.
 - Vitest setup.
 - Playwright Electron smoke setup that verifies app launch and shell render.
+- Initial performance smoke command placeholder and artifact directory conventions from docs/performance/build-and-test-performance.md.
+- Startup timing spans for app ready, window created, renderer loaded, and shell visible if feasible in the scaffold.
 - Basic scripts: dev, build, test, test:unit, test:smoke, lint or typecheck.
 - Update docs only if setup decisions differ from the existing specs.
 
@@ -96,6 +104,46 @@ Acceptance checks:
 - Run Vitest.
 - Run the Playwright launch smoke test if the environment supports it.
 - Summarize changed files, commands run, and any blockers.
+```
+
+### P0.5 Performance Harness
+
+Run this prompt by itself after P0 and before Phase 1 parallel work. It establishes measurement conventions before feature agents start adding UI, IPC, and data paths.
+
+```text
+You are Codex 5.5 running with extra-high reasoning in /Users/gongahkia/Desktop/coding/projects/hot-cross-buns-2.
+
+Goal: add the initial performance measurement harness for Hot Cross Buns 2 without optimizing non-existent product features.
+
+Read first:
+- docs/README.md
+- docs/agents/workflow.md
+- docs/performance/performance-strategy.md
+- docs/performance/build-and-test-performance.md
+- docs/performance/renderer-performance.md
+- docs/performance/main-and-data-performance.md
+- docs/testing/qa-plan.md
+- docs/architecture/system-architecture.md
+
+Implement:
+- A `test:perf` script or equivalent placeholder that can run once product flows exist.
+- Deterministic fixture generation utilities for small, medium, and large local datasets, using generated data only.
+- Performance artifact conventions under `artifacts/perf/`, with generated artifacts ignored unless docs explicitly request a baseline sample.
+- Startup timing capture for app ready, main window created, renderer loaded, shell visible, database ready if the scaffold already has database initialization.
+- A small markdown or JSON performance report writer.
+- Documentation updates only where commands or artifact paths differ from docs/performance/build-and-test-performance.md.
+
+Do not:
+- Add real Google calls.
+- Read a user's real app data.
+- Invent hard failure thresholds before baselines exist.
+- Weaken Electron security settings to make measurement easier.
+
+Acceptance checks:
+- Run typecheck/build if available.
+- Run unit tests if available.
+- Run the performance harness in report-only mode if possible.
+- Summarize generated fixture sizes, artifact paths, and remaining hooks future phases must fill in.
 ```
 
 ## Phase 1 - Foundations
@@ -123,6 +171,8 @@ Read first:
 - docs/agents/workflow.md
 - docs/specs/core-app.md
 - docs/design/design-system.md
+- docs/performance/renderer-performance.md
+- docs/performance/performance-strategy.md
 - docs/architecture/system-architecture.md
 - docs/testing/qa-plan.md
 
@@ -138,6 +188,8 @@ Implement:
 - Command palette UI shell with mock command list.
 - Loading, empty, offline, and error state components.
 - Reusable compact components for buttons, icon buttons, inputs, badges, status banners, list rows, panels, and dialogs/popovers if the scaffold supports them.
+- Initial virtualized list wrapper or adapter for future task/event/search surfaces.
+- Lightweight render timing hooks for performance builds only, if the scaffold supports this cleanly.
 - Tailwind/CSS variables matching docs/design/design-system.md.
 - Renderer tests for shell render, navigation, command palette open/filter, and key empty/error states.
 
@@ -173,6 +225,8 @@ Read first:
 - docs/agents/workflow.md
 - docs/architecture/system-architecture.md
 - docs/security/privacy-and-threat-model.md
+- docs/performance/main-and-data-performance.md
+- docs/performance/performance-strategy.md
 - docs/testing/qa-plan.md
 
 Write only in the IPC write set unless a tiny main registration hook is needed:
@@ -187,6 +241,8 @@ Implement:
 - Runtime schemas for requests and responses, using the validation library already chosen by P0.
 - Domain namespaces for tasks, calendar, notes, search, sync, settings, mcp, native, and diagnostics, even if most methods are stubs.
 - IPC handler registration helpers that validate input before service execution and sanitize thrown errors.
+- IPC timing/logging hooks for development diagnostics that do not expose payload contents or secrets.
+- Bounded payload conventions for list/range APIs.
 - Tests proving valid requests succeed, invalid requests are rejected, errors are sanitized, and renderer-facing APIs expose no broad Node primitives.
 
 Do not:
@@ -223,6 +279,8 @@ Read first:
 - docs/specs/google-sync.md
 - docs/architecture/system-architecture.md
 - docs/security/privacy-and-threat-model.md
+- docs/performance/main-and-data-performance.md
+- docs/performance/performance-strategy.md
 - docs/testing/qa-plan.md
 - docs/reference/legacy-hot-cross-buns-context.md
 
@@ -242,6 +300,8 @@ Implement:
 - Repository interfaces and initial implementations for notes, settings, checkpoints, and pending mutations.
 - Task/event mirror repository skeletons with enough CRUD to support later sync tests.
 - Transaction helper.
+- Indexes for core read paths described in docs/performance/main-and-data-performance.md.
+- Query-plan tests or helpers for representative core queries.
 - Tests for fresh migration, repeated migration, rollback on failed transaction, and basic repository CRUD.
 
 Do not:
@@ -270,12 +330,17 @@ Read first:
 - docs/architecture/system-architecture.md
 - docs/specs/core-app.md
 - docs/specs/local-data.md
+- docs/performance/performance-strategy.md
+- docs/performance/renderer-performance.md
+- docs/performance/main-and-data-performance.md
 - docs/testing/qa-plan.md
 
 Tasks:
 - Resolve merge conflicts or contract mismatches between renderer, preload, main, shared types, and data code.
 - Ensure renderer code uses preload contracts only and does not import main/data modules.
 - Ensure local data tests use temporary databases only.
+- Ensure shell, IPC, and data foundations preserve the performance budgets and startup staging in docs/performance/performance-strategy.md.
+- Ensure any performance instrumentation is opt-in, local, and redacted.
 - Ensure docs remain accurate if implementation choices changed.
 - Add or fix minimal tests required to prove Phase 1 boundaries.
 
@@ -312,6 +377,8 @@ Read first:
 - docs/specs/google-sync.md
 - docs/specs/local-data.md
 - docs/security/privacy-and-threat-model.md
+- docs/performance/main-and-data-performance.md
+- docs/performance/performance-strategy.md
 - docs/testing/qa-plan.md
 - docs/reference/legacy-hot-cross-buns-context.md
 
@@ -333,6 +400,8 @@ Implement:
 - Initial read-sync orchestration for task lists/tasks and calendar lists/events.
 - Checkpoint handling for Tasks watermarks and Calendar nextSyncToken.
 - Backoff policy with jitter for 429 and 5xx.
+- Batched SQLite writes and progress/status events so initial sync does not block cached UI.
+- Sync duration timing fields for sanitized diagnostics.
 - Tests with mocked transport for success, 401, 403, invalid Calendar sync token, 429, and 5xx.
 
 Do not:
@@ -366,6 +435,7 @@ Read first:
 - docs/agents/workflow.md
 - docs/specs/mcp-agent-access.md
 - docs/security/privacy-and-threat-model.md
+- docs/performance/main-and-data-performance.md
 - docs/testing/qa-plan.md
 - docs/reference/legacy-hot-cross-buns-context.md
 
@@ -387,6 +457,7 @@ Implement:
 - dryRun and confirmationId flow.
 - Destructive writes requiring confirmation even in allow-writes mode.
 - Header/body caps, malformed JSON rejection, unexpected origin rejection, rate limiting, sanitized audit event interface.
+- Lightweight request timing and count metrics for diagnostics without recording tool argument values.
 - Contract tests for unauthorized/missing token, malformed JSON, oversized body, unexpected origin, read tool success, dry-run write, blocked direct write, destructive confirmation requirement, and audit redaction.
 
 Do not:
@@ -420,6 +491,8 @@ Read first:
 - docs/agents/workflow.md
 - docs/specs/core-app.md
 - docs/design/design-system.md
+- docs/performance/renderer-performance.md
+- docs/performance/performance-strategy.md
 - docs/product/prd.md
 - docs/testing/qa-plan.md
 
@@ -436,6 +509,8 @@ Implement:
 - Search view over mock tasks/events/notes.
 - Settings view sections for Google, sync, appearance, hotkeys, tray, notifications, MCP, diagnostics.
 - Keep layouts compact and keyboard-accessible.
+- Use virtualization or virtualized placeholders for large task/event/search lists.
+- Avoid render-time grouping, sorting, recurrence expansion, and search ranking for large collections; use mock precomputed view models where needed.
 - Renderer tests for each screen's main states.
 
 Do not:
@@ -465,6 +540,9 @@ Read first:
 - docs/specs/google-sync.md
 - docs/specs/mcp-agent-access.md
 - docs/specs/core-app.md
+- docs/performance/performance-strategy.md
+- docs/performance/renderer-performance.md
+- docs/performance/main-and-data-performance.md
 - docs/testing/qa-plan.md
 
 Tasks:
@@ -472,6 +550,8 @@ Tasks:
 - Ensure service code remains outside renderer imports.
 - Ensure MCP handlers call shared domain service interfaces or test doubles that can later be replaced.
 - Ensure screen mock data can be swapped for preload calls in Phase 3.
+- Ensure sync and MCP instrumentation is redacted and does not block startup.
+- Ensure renderer screens are prepared for large datasets via virtualized or paginated surfaces.
 - Update docs for any intentional contract changes.
 
 Acceptance checks:
@@ -500,6 +580,9 @@ Read first:
 - docs/specs/local-data.md
 - docs/specs/google-sync.md
 - docs/security/privacy-and-threat-model.md
+- docs/performance/performance-strategy.md
+- docs/performance/renderer-performance.md
+- docs/performance/main-and-data-performance.md
 - docs/testing/qa-plan.md
 
 Implement:
@@ -509,6 +592,8 @@ Implement:
 - App startup flow that initializes migrations and renders cached data before fresh sync completes.
 - Sync status events/subscriptions if supported by the established IPC pattern.
 - Search backed by local SQLite, not Google per keystroke.
+- Bounded list/range preload APIs for large tasks, events, notes, and search result sets.
+- Local performance timings for startup, cached render, IPC latency, SQLite query duration, and search latency.
 - Tests covering renderer-to-preload contracts and service integration with temporary DBs.
 
 Do not:
@@ -520,12 +605,53 @@ Acceptance checks:
 - Run full test suite.
 - Run typecheck/build.
 - Run Playwright launch smoke.
+- Run performance harness in report-only mode if available.
 - Manually note whether app can render from empty/fresh SQLite and from seeded local data.
+```
+
+### P3E Real Data Performance Baseline
+
+Run alone after P3. This prompt should measure and tune the real data path before feature agents add more workflows on top.
+
+```text
+You are Codex 5.5 running with extra-high reasoning in /Users/gongahkia/Desktop/coding/projects/hot-cross-buns-2.
+
+Goal: create the first real-data performance baseline for startup, local cache rendering, search, IPC, and SQLite query behavior.
+
+Read first:
+- docs/README.md
+- docs/agents/workflow.md
+- docs/performance/performance-strategy.md
+- docs/performance/main-and-data-performance.md
+- docs/performance/renderer-performance.md
+- docs/performance/build-and-test-performance.md
+- docs/testing/qa-plan.md
+- docs/architecture/system-architecture.md
+
+Implement:
+- Performance smoke coverage for cold launch, warm launch, cached shell render, command palette open, local search against medium fixture, and representative SQLite core queries.
+- Generated small, medium, and large fixtures if P0.5 did not fully implement them.
+- `EXPLAIN QUERY PLAN` assertions or reports for core task, event, note, search, checkpoint, and pending mutation queries.
+- Report-only performance artifact generation under the established artifacts path.
+- Targeted fixes for obvious full scans, unbounded IPC payloads, or render-time large-data transforms discovered by the baseline.
+
+Do not:
+- Hit Google APIs.
+- Use real user app data.
+- Turn unstable local timings into hard CI failures.
+- Weaken security or renderer isolation for measurement.
+
+Acceptance checks:
+- Run performance smoke in report-only mode.
+- Run SQLite tests.
+- Run IPC/preload tests.
+- Run typecheck/build.
+- Summarize measured timings, query-plan findings, changes made, and remaining risks.
 ```
 
 ## Phase 4 - Core Product Workflows
 
-After P3 lands, P4A, P4B, and P4C can run in parallel if they keep to their write sets. They may share mutation interfaces but should not rewrite each other's UI.
+After P3E lands, P4A, P4B, and P4C can run in parallel if they keep to their write sets. They may share mutation interfaces but should not rewrite each other's UI.
 
 ### P4A Tasks
 
@@ -548,6 +674,8 @@ Read first:
 - docs/specs/core-app.md
 - docs/specs/google-sync.md
 - docs/specs/local-data.md
+- docs/performance/renderer-performance.md
+- docs/performance/main-and-data-performance.md
 - docs/testing/qa-plan.md
 - docs/reference/legacy-hot-cross-buns-context.md
 
@@ -564,6 +692,8 @@ Implement:
 - Offline mutation queue integration for task writes.
 - Optimistic UI and recoverable error states.
 - Task-focused command palette actions and quick capture integration.
+- Virtualized task lists and stable row view models so single-task changes do not re-render the full surface.
+- Task query/index checks for list, status, due date, parent, and sort-order paths.
 - Tests for task mutations, optimistic state, offline queue behavior, and renderer interactions.
 
 Do not:
@@ -599,6 +729,8 @@ Read first:
 - docs/specs/core-app.md
 - docs/specs/google-sync.md
 - docs/specs/local-data.md
+- docs/performance/renderer-performance.md
+- docs/performance/main-and-data-performance.md
 - docs/testing/qa-plan.md
 - docs/reference/legacy-hot-cross-buns-context.md
 
@@ -615,6 +747,8 @@ Implement:
 - Offline mutation queue integration for event writes.
 - Recurring event instance display from mirrored Google data.
 - Calendar-focused command palette actions.
+- Visible-range event queries and cached/materialized recurrence expansion so calendar grids do not expand all account history in render.
+- Calendar query/index checks for calendar id and visible start/end range paths.
 - Tests for event mapping, all-day/timed behavior, mutation queue behavior, and renderer interactions.
 
 Do not:
@@ -651,6 +785,8 @@ Read first:
 - docs/specs/core-app.md
 - docs/specs/local-data.md
 - docs/design/design-system.md
+- docs/performance/renderer-performance.md
+- docs/performance/main-and-data-performance.md
 - docs/testing/qa-plan.md
 
 Implement:
@@ -659,6 +795,8 @@ Implement:
 - Search result deep links into app routes.
 - Command palette commands for navigation, new task, new event, new note, quick capture, refresh, force full resync, settings, diagnostics.
 - Keyboard shortcuts and focus management for palette use.
+- Capped local search result sets with ranking done outside render.
+- Palette open path that does not wait on network, sync, migration, or heavy settings/search modules.
 - Tests for note repository/service behavior, search ranking/filtering, palette commands, and renderer interactions.
 
 Do not:
@@ -689,6 +827,9 @@ Read first:
 - docs/specs/google-sync.md
 - docs/specs/local-data.md
 - docs/specs/mcp-agent-access.md
+- docs/performance/performance-strategy.md
+- docs/performance/renderer-performance.md
+- docs/performance/main-and-data-performance.md
 - docs/testing/qa-plan.md
 
 Tasks:
@@ -696,18 +837,58 @@ Tasks:
 - Ensure UI writes and MCP writes can share domain services.
 - Ensure offline queue behavior is consistent across task and event writes.
 - Ensure local search indexes current task/event/note state.
+- Ensure task, calendar, notes, search, and command palette paths respect performance budgets and avoid unbounded render/IPC/data work.
 - Update docs for any changed feature behavior.
 
 Acceptance checks:
 - Run full test suite.
 - Run typecheck/build.
 - Run Playwright smoke tests for launch, navigation, command palette, quick capture, and basic create flows where possible.
+- Run performance smoke in report-only mode if available.
 - Report remaining v1 blockers.
+```
+
+### P4E Interaction Performance Pass
+
+Run alone after P4D. This pass is where agents should tune actual user interactions after the core task/calendar/notes/search workflows exist.
+
+```text
+You are Codex 5.5 running with extra-high reasoning in /Users/gongahkia/Desktop/coding/projects/hot-cross-buns-2.
+
+Goal: make the implemented core workflows feel snappy under medium and large local datasets.
+
+Read first:
+- docs/README.md
+- docs/agents/workflow.md
+- docs/performance/performance-strategy.md
+- docs/performance/renderer-performance.md
+- docs/performance/main-and-data-performance.md
+- docs/testing/qa-plan.md
+- docs/specs/core-app.md
+
+Tasks:
+- Profile or instrument command palette open, quick capture open, task completion, task list scrolling, calendar navigation, note editing, and local search.
+- Fix obvious render churn, unbounded list rendering, repeated grouping/sorting, slow local search, unnecessary IPC payload size, and missing indexes.
+- Add or refine virtualized surfaces for long task, event, note, and search result lists.
+- Add focused regression tests or performance smoke coverage for the slow paths fixed.
+- Keep performance instrumentation local, opt-in, and redacted.
+
+Do not:
+- Rewrite product behavior for benchmark convenience.
+- Add broad memoization without a measured or structurally obvious reason.
+- Use real Google data or user app data in performance tests.
+- Break accessibility or keyboard navigation while optimizing.
+
+Acceptance checks:
+- Run performance smoke in report-only mode.
+- Run relevant renderer/domain tests.
+- Run typecheck/build.
+- Summarize before/after timings or qualitative profiling evidence and any remaining hotspots.
 ```
 
 ## Phase 5 - Native Shell, Settings, Security
 
-After P4D lands, P5A, P5B, and P5C can run in parallel if they respect write ownership.
+After P4E lands, P5A, P5B, and P5C can run in parallel if they respect write ownership.
 
 ### P5A Native Shell
 
@@ -731,6 +912,8 @@ Read first:
 - docs/specs/native-parity.md
 - docs/specs/core-app.md
 - docs/security/privacy-and-threat-model.md
+- docs/performance/performance-strategy.md
+- docs/performance/main-and-data-performance.md
 - docs/testing/qa-plan.md
 
 Implement:
@@ -739,6 +922,7 @@ Implement:
 - Custom protocol deep-link handling.
 - Basic local notification scheduling for due tasks and upcoming events.
 - Native adapter interfaces that leave room for Windows/Linux implementations later.
+- Deferred native startup so tray, hotkey, notifications, updater checks, and MCP startup do not block first interactive render.
 - Manual verification checklist for tray, hotkey, notifications, and deep links.
 
 Do not:
@@ -776,11 +960,14 @@ Read first:
 - docs/specs/mcp-agent-access.md
 - docs/specs/local-data.md
 - docs/security/privacy-and-threat-model.md
+- docs/performance/performance-strategy.md
+- docs/performance/main-and-data-performance.md
 - docs/testing/qa-plan.md
 
 Implement:
 - Settings sections for Google account, selected task lists/calendars, sync mode, appearance, hotkeys, tray, notifications, local data, MCP, diagnostics.
 - Diagnostics summary with account status, sync status, cache status, selected resources, checkpoint state, pending mutation state, MCP status, and app version/build metadata.
+- Sanitized performance diagnostics for startup timings, migration duration, sync duration, slow query samples, pending mutation counts, and MCP request counts.
 - Recovery actions: refresh, force full resync, clear local Google cache before reload, reset MCP token.
 - Confirmation UI for destructive data controls.
 - Redaction for tokens, secrets, raw Google payloads, MCP bearer tokens, and sensitive note/event/task bodies where appropriate.
@@ -819,6 +1006,8 @@ Read first:
 - docs/security/privacy-and-threat-model.md
 - docs/architecture/system-architecture.md
 - docs/specs/mcp-agent-access.md
+- docs/performance/performance-strategy.md
+- docs/performance/build-and-test-performance.md
 - docs/testing/qa-plan.md
 
 Implement:
@@ -829,6 +1018,7 @@ Implement:
 - Tests proving OAuth status excludes tokens.
 - Tests proving representative logs/errors do not contain fake token fixtures.
 - Review and tighten MCP auth, body limits, origin checks, and rate limiting if gaps remain.
+- Verify performance instrumentation and reports do not include secrets, raw personal content, or raw Google payloads.
 - Update docs/security/privacy-and-threat-model.md for any final security decisions.
 
 Do not:
@@ -858,6 +1048,8 @@ Read first:
 - docs/specs/platforms.md
 - docs/specs/native-parity.md
 - docs/security/privacy-and-threat-model.md
+- docs/performance/performance-strategy.md
+- docs/performance/build-and-test-performance.md
 - docs/testing/qa-plan.md
 
 Tasks:
@@ -865,12 +1057,14 @@ Tasks:
 - Confirm settings drive tray, hotkey, notifications, sync, and MCP behavior.
 - Confirm diagnostics are useful and redacted.
 - Confirm renderer remains unprivileged.
+- Confirm native shell and diagnostics additions did not regress startup and command-palette/quick-capture responsiveness.
 - Update docs if behavior changed.
 
 Acceptance checks:
 - Run full test suite.
 - Run typecheck/build.
 - Run Playwright smoke tests.
+- Run performance smoke in report-only mode if available.
 - Complete or update manual macOS checklist for tray, hotkey, notifications, and deep links.
 - Report remaining release blockers.
 ```
@@ -892,6 +1086,8 @@ Read first:
 - docs/release/distribution.md
 - docs/specs/platforms.md
 - docs/security/privacy-and-threat-model.md
+- docs/performance/build-and-test-performance.md
+- docs/performance/performance-strategy.md
 - docs/testing/qa-plan.md
 
 Implement:
@@ -899,6 +1095,7 @@ Implement:
 - GitHub Releases oriented release scripts or documented commands.
 - Checksum generation.
 - Version metadata available in app diagnostics.
+- Bundle/dependency review for renderer/main separation and avoidable runtime bloat.
 - Clear unsigned-preview install notes if signing/notarization is not configured.
 - Future signing/notarization placeholders documented but not falsely enabled.
 - Update docs/release/distribution.md with exact commands.
@@ -912,6 +1109,7 @@ Acceptance checks:
 - Run full test suite.
 - Run typecheck/build.
 - Run packaging command if the local environment supports it.
+- Run bundle/dependency review command if configured.
 - Verify artifact path/checksum behavior.
 - Summarize release steps and any signing gaps.
 ```
@@ -935,15 +1133,21 @@ Read first:
 - docs/testing/qa-plan.md
 - docs/release/distribution.md
 - docs/security/privacy-and-threat-model.md
+- docs/performance/performance-strategy.md
+- docs/performance/renderer-performance.md
+- docs/performance/main-and-data-performance.md
+- docs/performance/build-and-test-performance.md
 
 Tasks:
 - Run the full automated suite.
 - Run typecheck/build.
 - Run Playwright Electron smoke tests.
+- Run performance smoke tests and include timing output in the release-readiness report.
 - Run packaging if available.
 - Audit docs against implemented behavior and update mismatches.
 - Check that v1 success criteria in docs/product/prd.md are either implemented or explicitly listed as remaining blockers.
 - Review git diff for accidental secret exposure, old Swift dependency, renderer privilege leaks, and unrelated churn.
+- Review startup, command palette, quick capture, search, task scrolling, and calendar navigation against docs/performance/performance-strategy.md budgets.
 - Produce a concise release-readiness report in docs/release/release-candidate-checklist.md.
 
 Do not:
@@ -976,12 +1180,15 @@ Read first:
 - docs/specs/platforms.md
 - docs/release/distribution.md
 - docs/security/privacy-and-threat-model.md
+- docs/performance/performance-strategy.md
+- docs/performance/build-and-test-performance.md
 - docs/testing/qa-plan.md
 
 Implement:
 - Windows platform adapter stubs/tests for credentials, tray, global shortcuts, notifications, custom protocol, app paths, and updater metadata.
 - Windows packaging documentation and installer recommendation.
 - Windows manual QA checklist.
+- Windows performance smoke checklist for startup, tray/hotkey, search, and large-list rendering.
 - Any safe code changes needed to remove Mac-only assumptions from shared services.
 
 Do not:
@@ -1009,12 +1216,15 @@ Read first:
 - docs/specs/platforms.md
 - docs/release/distribution.md
 - docs/security/privacy-and-threat-model.md
+- docs/performance/performance-strategy.md
+- docs/performance/build-and-test-performance.md
 - docs/testing/qa-plan.md
 
 Implement:
 - Linux platform adapter stubs/tests for credentials, tray, global shortcuts, notifications, custom protocol, app paths, and updater metadata.
 - Linux packaging documentation, starting with AppImage unless the docs justify another target.
 - Linux manual QA checklist with Wayland/X11 tray and global shortcut caveats.
+- Linux performance smoke checklist for startup, tray/hotkey caveats, search, and large-list rendering.
 - Any safe code changes needed to remove Mac-only assumptions from shared services.
 
 Do not:
@@ -1026,4 +1236,3 @@ Acceptance checks:
 - Run typecheck/build.
 - Summarize Linux blockers and required manual checks.
 ```
-
