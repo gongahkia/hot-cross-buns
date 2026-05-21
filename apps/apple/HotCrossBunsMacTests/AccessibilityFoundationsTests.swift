@@ -91,7 +91,13 @@ final class AccessibilityFoundationsTests: XCTestCase {
         XCTAssertTrue(weekGrid.contains("weekTimedSlotMenu"))
 
         let monthGrid = try String(contentsOf: repoRoot.appending(path: "apps/apple/HotCrossBuns/Features/Calendar/MonthGridView.swift"))
-        XCTAssertTrue(monthGrid.contains("monthCellCreateMenu"))
+        XCTAssertFalse(monthGrid.contains("monthCellCreateMenu"))
+        XCTAssertFalse(monthGrid.contains("New event..."))
+        XCTAssertFalse(monthGrid.contains("New all-day event..."))
+
+        let calendarHome = try String(contentsOf: repoRoot.appending(path: "apps/apple/HotCrossBuns/Features/Calendar/CalendarHomeView.swift"))
+        XCTAssertFalse(calendarHome.contains("New Event or Task"))
+        XCTAssertFalse(calendarHome.contains("Open quick create"))
 
         let actionCenter = try String(contentsOf: repoRoot.appending(path: "apps/apple/HotCrossBuns/Features/Status/ActionCenter.swift"))
         XCTAssertFalse(actionCenter.contains("onTapGesture"))

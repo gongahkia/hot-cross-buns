@@ -335,17 +335,6 @@ struct CalendarHomeView: View {
             .accessibilityLabel("Share availability")
             .disabled(canOpenShareAvailability == false)
 
-            Button {
-                router?.present(.quickCreate(Date(), allDay: true))
-            } label: {
-                Label("New Event or Task", systemImage: "plus")
-                    .labelStyle(.iconOnly)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .help("Open quick create")
-            .accessibilityLabel("New event or task")
-
             calendarViewModeControl
         }
         .hcbScaledPadding(.horizontal, 16)

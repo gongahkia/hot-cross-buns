@@ -84,11 +84,6 @@ struct MonthGridView: View {
     private let scrollCoordinateSpace = "monthGridScroll"
 
     @State private var dragSelection: DragSelection?
-    // Cell feedback pulse. Set to the tapped dayStart on quickCreate and
-    // cleared after ~220ms. The monthCell reads this to paint a brief tint
-    // so users get confirmation their click landed — otherwise there's a
-    // ~100ms gap before the popover appears where nothing on screen moves.
-    @State private var flashDay: Date?
     // Grid-content cache. Rebuilt only when the underlying inputs (calendar
     // selection, search query, window anchor, event corpus count) change —
     // NOT on every body eval. Critical for drag-create responsiveness: the
@@ -434,18 +429,6 @@ struct MonthGridView: View {
             if calendarStore.settings.performanceMode == .rich {
                 Rectangle().fill(.regularMaterial.opacity(0.18))
             }
-        }
-    }
-
-    // Flash the tapped cell briefly. Used on monthCell click-to-create
-    // so the user sees a visual acknowledgement before the popover paints.
-    private func flashCell(_ day: Date) {
-        flashDay = day
-        Task {
-            try? await Task.sleep(for: .milliseconds(140))
-            // Task inherits MainActor from the enclosing SwiftUI View;
-            // no explicit hop needed.
-            if flashDay == day { flashDay = nil }
         }
     }
 
@@ -1365,7 +1348,6 @@ struct MonthGridView: View {
                             .fill(snapshot.isToday ? AppColor.ember.opacity(0.25) : .clear)
                     )
                 Spacer(minLength: 0)
-                monthCellCreateMenu(dayStart: dayStart, dateLabel: snapshot.accessibilityDateLabel)
             }
             if bandReserve > 0 {
                 Color.clear.frame(height: bandReserve)
@@ -1456,11 +1438,6 @@ struct MonthGridView: View {
         ))
         .overlay(
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(AppColor.ember.opacity(flashDay == dayStart ? 0.22 : 0))
-                .animation(HCBMotion.animation(.easeOut(duration: 0.12), reduceMotion: calendarGridReduceMotion), value: flashDay)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .strokeBorder(AppColor.cardStroke.opacity(monthCellStrokeOpacity), lineWidth: 0.5)
         )
         .overlay(alignment: .bottomLeading) {
@@ -1477,18 +1454,6 @@ struct MonthGridView: View {
             }
         }
         .contentShape(Rectangle())
-        .onTapGesture {
-            flashCell(dayStart)
-            router?.present(.quickCreate(dayStart, allDay: true))
-        }
-        .contextMenu {
-            Button("New event…") {
-                router?.present(.quickCreate(dayStart, allDay: false))
-            }
-            Button("New all-day event…") {
-                router?.present(.quickCreate(dayStart, allDay: true))
-            }
-        }
         .dropDestination(for: DraggedEvent.self) { items, _ in
             guard let dropped = items.first else { return false }
             Task {
@@ -1503,25 +1468,6 @@ struct MonthGridView: View {
             }
             return true
         }
-    }
-
-    private func monthCellCreateMenu(dayStart: Date, dateLabel: String) -> some View {
-        Menu {
-            Button("New event...") {
-                router?.present(.quickCreate(dayStart, allDay: false))
-            }
-            Button("New all-day event...") {
-                router?.present(.quickCreate(dayStart, allDay: true))
-            }
-        } label: {
-            Image(systemName: "plus.circle")
-                .imageScale(.small)
-        }
-        .menuStyle(.borderlessButton)
-        .controlSize(.mini)
-        .fixedSize()
-        .help("Create on \(dateLabel)")
-        .accessibilityLabel("Create on \(dateLabel)")
     }
 
     private func denseMonthSummary(events: [CalendarEventMirror], tasks: [TaskMirror]) -> some View {

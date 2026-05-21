@@ -3,6 +3,21 @@
 This workflow measures primary Hot Cross Buns screen transitions against the
 P95 under 1 second first-content target.
 
+## Real user benchmark scale
+
+Treat maintainer lag reports as large-account reports, not small fixture reports.
+As of 2026-05-21, the daily-use local diagnostics snapshot was:
+
+- 1 selected Google Calendar
+- 14,180 local Calendar events
+- 148 Google Tasks across 9 task lists
+- 10 sync checkpoints
+- 0 pending writes
+
+Future calendar, sidebar, menu bar, command palette, sync-apply, and local-cache
+benchmarks should include a 14k+ event workload. When the maintainer reports
+calendar lag, assume the complaint is about this scale unless stated otherwise.
+
 ## What is instrumented
 
 Set `HCB_PERF_TELEMETRY=1` to enable transition logs and Instruments signposts.
