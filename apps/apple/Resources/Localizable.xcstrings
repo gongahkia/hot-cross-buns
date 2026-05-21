@@ -18090,6 +18090,76 @@
         }
       }
     },
+    "Notes shows tasks with note text plus standalone tasks without a due date. They still sync through Google Tasks.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notes shows tasks with note text plus standalone tasks without a due date. They still sync through Google Tasks."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Notes shows tasks with note text plus standalone tasks without a due date. They still sync through Google Tasks."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Notes shows tasks with note text plus standalone tasks without a due date. They still sync through Google Tasks."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Notes shows tasks with note text plus standalone tasks without a due date. They still sync through Google Tasks."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Notes shows tasks with note text plus standalone tasks without a due date. They still sync through Google Tasks."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Notes shows tasks with note text plus standalone tasks without a due date. They still sync through Google Tasks."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Notes shows tasks with note text plus standalone tasks without a due date. They still sync through Google Tasks."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Notes shows tasks with note text plus standalone tasks without a due date. They still sync through Google Tasks."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Notes shows tasks with note text plus standalone tasks without a due date. They still sync through Google Tasks."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Notes shows tasks with note text plus standalone tasks without a due date. They still sync through Google Tasks."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Notes shows tasks with note text plus standalone tasks without a due date. They still sync through Google Tasks."
+          }
+        }
+      }
+    },
     "Notes include location: %@": {
       "localizations": {
         "ms": {
