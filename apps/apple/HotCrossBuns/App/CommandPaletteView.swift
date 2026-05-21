@@ -122,6 +122,18 @@ struct CommandPaletteEntitySnapshot: Sendable {
             customFilters: model.settings.customFilters
         )
     }
+
+    @MainActor
+    init(containersFrom model: AppModel, key: String) {
+        self.init(
+            key: key,
+            tasks: [],
+            events: [],
+            taskLists: model.taskLists,
+            calendars: model.calendars,
+            customFilters: model.settings.customFilters
+        )
+    }
 }
 
 struct CommandPaletteEntitySearchResult: Sendable {
@@ -395,8 +407,7 @@ struct CommandPaletteView: View {
         }
         .task(id: fallbackPrewarmTaskID) {
             guard model.usesDatabaseEntitySearch == false else { return }
-            let key = snapshotKey
-            await entityCache.prepare(snapshot: CommandPaletteEntitySnapshot(model: model, key: key))
+            await entityCache.prepare(snapshot: CommandPaletteEntitySnapshot(containersFrom: model, key: containerSnapshotKey))
         }
         // Entity-search debounce: each keystroke restarts this task; commands
         // do not wait for it because they are ranked directly from `query`.
@@ -409,18 +420,27 @@ struct CommandPaletteView: View {
                 entityResults = []
                 return
             }
+            if AdvancedSearchParser.parse(liveQuery).regex != nil {
+                entityResultsQuery = liveQuery
+                entityResultsSnapshotKey = snapshotKeyAtStart
+                entityResults = []
+                return
+            }
             do {
-                try await Task.sleep(for: .milliseconds(150))
+                try await Task.sleep(for: .milliseconds(90))
                 let entities: [QuickSwitcherEntity]
                 let resultSnapshotKey: String
                 if let databaseEntities = try await model.searchEntities(query: liveQuery, limit: 38) {
                     entities = databaseEntities
                     resultSnapshotKey = snapshotKeyAtStart
                 } else {
-                    let snapshot = CommandPaletteEntitySnapshot(model: model, key: snapshotKeyAtStart)
+                    let snapshot = CommandPaletteEntitySnapshot(
+                        containersFrom: model,
+                        key: containerSnapshotKey(for: snapshotKeyAtStart)
+                    )
                     let result = try await entityCache.search(snapshot: snapshot, query: liveQuery)
                     entities = result.entities
-                    resultSnapshotKey = result.snapshotKey
+                    resultSnapshotKey = snapshotKeyAtStart
                 }
                 try Task.checkCancellation()
                 guard resultSnapshotKey == snapshotKey, liveQuery == trimmedQuery else { return }
@@ -441,7 +461,7 @@ struct CommandPaletteView: View {
         )
         .background {
             RoundedRectangle(cornerRadius: 12)
-                .fill(.ultraThinMaterial) // Alfred-style translucent vibrancy
+                .fill(paletteBackgroundStyle)
         }
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .presentationBackground(.clear)
@@ -486,11 +506,27 @@ struct CommandPaletteView: View {
     }
 
     private var fallbackPrewarmTaskID: String {
-        "\(snapshotKey)|\(model.usesDatabaseEntitySearch)"
+        "\(containerSnapshotKey)|\(model.usesDatabaseEntitySearch)"
     }
 
     private var entitySearchTaskID: String {
         "\(snapshotKey)|\(model.usesDatabaseEntitySearch)|\(trimmedQuery)"
+    }
+
+    private var containerSnapshotKey: String {
+        containerSnapshotKey(for: snapshotKey)
+    }
+
+    private func containerSnapshotKey(for key: String) -> String {
+        "containers|\(key)"
+    }
+
+    private var paletteBackgroundStyle: AnyShapeStyle {
+        if model.settings.performanceMode == .rich {
+            AnyShapeStyle(.ultraThinMaterial)
+        } else {
+            AnyShapeStyle(AppColor.cardSurface)
+        }
     }
 
     // Merged ranked list. Behaviour:
@@ -557,20 +593,31 @@ struct CommandPaletteView: View {
 
         let liveQuery = trimmedQuery
         let snapshotKeyAtStart = snapshotKey
+        let isRegexQuery = AdvancedSearchParser.parse(liveQuery).regex != nil
         Task {
             do {
                 let entities: [QuickSwitcherEntity]
                 let resultSnapshotKey: String
-                if let databaseEntities = try await model.searchEntities(query: liveQuery, limit: 38) {
-                    entities = databaseEntities
-                    resultSnapshotKey = snapshotKeyAtStart
-                } else {
+                if isRegexQuery {
                     let snapshot = await MainActor.run {
                         CommandPaletteEntitySnapshot(model: model, key: snapshotKeyAtStart)
                     }
                     let result = try await entityCache.search(snapshot: snapshot, query: liveQuery)
                     entities = result.entities
-                    resultSnapshotKey = result.snapshotKey
+                    resultSnapshotKey = snapshotKeyAtStart
+                } else if let databaseEntities = try await model.searchEntities(query: liveQuery, limit: 38) {
+                    entities = databaseEntities
+                    resultSnapshotKey = snapshotKeyAtStart
+                } else {
+                    let snapshot = await MainActor.run {
+                        CommandPaletteEntitySnapshot(
+                            containersFrom: model,
+                            key: containerSnapshotKey(for: snapshotKeyAtStart)
+                        )
+                    }
+                    let result = try await entityCache.search(snapshot: snapshot, query: liveQuery)
+                    entities = result.entities
+                    resultSnapshotKey = snapshotKeyAtStart
                 }
                 try Task.checkCancellation()
                 guard let first = entities.first else { return }
@@ -717,10 +764,10 @@ struct CommandPaletteView: View {
             Image(systemName: "magnifyingglass")
                 .hcbFont(.title2, weight: .semibold)
                 .foregroundStyle(.secondary)
-            Text("Nothing matches \"\(query)\"")
+            Text(AdvancedSearchParser.parse(trimmedQuery).regex == nil ? "Nothing matches \"\(query)\"" : "Press Return to run regex search")
                 .hcbFont(.headline)
                 .foregroundStyle(.secondary)
-            Text("Try a bare word, or `kind:note`, `tag:deep`, `/regex/`.")
+            Text(AdvancedSearchParser.parse(trimmedQuery).regex == nil ? "Try a bare word, or `kind:note`, `tag:deep`, `/regex/`." : "Live results stay off for regex to keep the palette responsive.")
                 .hcbFont(.footnote)
                 .foregroundStyle(.secondary)
         }

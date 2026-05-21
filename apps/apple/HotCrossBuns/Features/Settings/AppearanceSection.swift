@@ -17,6 +17,7 @@ struct AppearanceSection: View {
     var body: some View {
         Section("Appearance") {
             colourPanel
+            performanceRow
             backgroundPanel
             motionRow
             layoutScaleRow
@@ -184,6 +185,38 @@ struct AppearanceSection: View {
                     .hcbFont(.caption2)
                     .foregroundStyle(AppColor.ember)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var performanceRow: some View {
+        VStack(spacing: 0) {
+            Divider()
+                .hcbScaledPadding(.vertical, 10)
+            HStack(alignment: .center, spacing: 18) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Performance")
+                        .hcbFont(.body, weight: .semibold)
+                    Text(model.settings.performanceMode.summary)
+                        .hcbFont(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 16)
+                Picker("Performance", selection: Binding(
+                    get: { model.settings.performanceMode },
+                    set: { mode in
+                        var next = model.settings
+                        next.performanceMode = mode
+                        model.updateSettings(next)
+                    }
+                )) {
+                    ForEach(AppPerformanceMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(width: 190)
             }
         }
     }

@@ -174,6 +174,126 @@ final class ModelPersistenceTests: XCTestCase {
     }
 
     @MainActor
+    func testDatabaseEntitySearchSignalAndRegexFallback() async throws {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appending(path: "HotCrossBunsTests", directoryHint: .isDirectory)
+            .appending(path: UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
+
+        let store = LocalCacheStore(fileURL: fileURL)
+        await store.save(.preview)
+        let model = makeModel(cachedState: .empty, cacheStore: store)
+        await model.loadInitialState()
+
+        XCTAssertTrue(model.usesDatabaseEntitySearch)
+
+        let textResults = try await model.searchEntities(query: "Google Tasks", limit: 10)
+        XCTAssertTrue(try XCTUnwrap(textResults).contains { entity in
+            if case .task(let task) = entity {
+                return task.id == "task-1"
+            }
+            return false
+        })
+
+        let structuredResults = try await model.searchEntities(query: "kind:event title:adapter", limit: 10)
+        XCTAssertTrue(try XCTUnwrap(structuredResults).contains { entity in
+            if case .event(let event) = entity {
+                return event.id == "event-1"
+            }
+            return false
+        })
+
+        let regexResults = try await model.searchEntities(query: "/Calendar adapter/", limit: 10)
+        XCTAssertNil(regexResults)
+    }
+
+    @MainActor
+    func testTodayPrintPayloadFromQueryMatchesArrayFilteredBehavior() async throws {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appending(path: "HotCrossBunsTests", directoryHint: .isDirectory)
+            .appending(path: UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
+
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: now)
+        var state = CachedAppState.preview
+        let taskListID = try XCTUnwrap(state.taskLists.first?.id)
+        let calendarID = try XCTUnwrap(state.calendars.first?.id)
+        state.settings.selectedCalendarIDs = [calendarID]
+        state.settings.hasConfiguredCalendarSelection = true
+        state.tasks = [
+            task(
+                id: "overdue",
+                taskListID: taskListID,
+                dueDate: calendar.date(byAdding: .day, value: -2, to: startOfToday),
+                status: .needsAction,
+                isDeleted: false
+            ),
+            task(
+                id: "due-today",
+                taskListID: taskListID,
+                dueDate: startOfToday,
+                status: .needsAction,
+                isDeleted: false
+            ),
+            task(
+                id: "completed-overdue",
+                taskListID: taskListID,
+                dueDate: calendar.date(byAdding: .day, value: -1, to: startOfToday),
+                status: .completed,
+                isDeleted: false
+            ),
+            task(
+                id: "no-due",
+                taskListID: taskListID,
+                dueDate: nil,
+                status: .needsAction,
+                isDeleted: false
+            )
+        ]
+        state.events = [
+            event(id: "upcoming-1", calendarID: calendarID, startDate: now.addingTimeInterval(3_600), status: .confirmed),
+            event(id: "upcoming-2", calendarID: calendarID, startDate: now.addingTimeInterval(7_200), status: .confirmed),
+            event(id: "ongoing", calendarID: calendarID, startDate: now.addingTimeInterval(-600), status: .confirmed),
+            event(id: "after-horizon", calendarID: calendarID, startDate: now.addingTimeInterval(90_000), status: .confirmed),
+            event(id: "cancelled", calendarID: calendarID, startDate: now.addingTimeInterval(1_800), status: .cancelled)
+        ]
+
+        let store = LocalCacheStore(fileURL: fileURL)
+        await store.save(state)
+        let model = makeModel(cachedState: .empty, cacheStore: store)
+        await model.loadInitialState()
+
+        let payload = await model.todayPrintPayloadFromQuery(now: now)
+        let horizon = calendar.date(byAdding: .day, value: 1, to: now) ?? now
+        let expectedOverdue = model.tasks.filter { task in
+            task.isDeleted == false
+                && task.isCompleted == false
+                && task.isHidden == false
+                && (task.dueDate.map { $0 < startOfToday } ?? false)
+        }
+        let expectedUpcoming = model.events
+            .filter { event in
+                event.status != .cancelled
+                    && event.calendarID == calendarID
+                    && event.startDate > now
+                    && event.startDate <= horizon
+            }
+            .sorted { lhs, rhs in
+                if lhs.startDate != rhs.startDate { return lhs.startDate < rhs.startDate }
+                return lhs.id < rhs.id
+            }
+
+        XCTAssertEqual(payload.todaySnapshot, model.todaySnapshot)
+        XCTAssertEqual(payload.overdueTasks.map(\.id), expectedOverdue.map(\.id))
+        XCTAssertEqual(payload.upcomingEvents.map(\.id), expectedUpcoming.map(\.id))
+        XCTAssertEqual(payload.generatedAt, now)
+    }
+
+    @MainActor
     func testCacheLoadWarningDoesNotBecomeMutationError() async throws {
         let fileURL = FileManager.default.temporaryDirectory
             .appending(path: "HotCrossBunsTests", directoryHint: .isDirectory)

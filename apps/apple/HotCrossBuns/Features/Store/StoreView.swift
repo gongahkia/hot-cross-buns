@@ -610,27 +610,24 @@ struct ListCreateSheet: View {
 // Tasks-tab task moves it here. This keeps two-way Google sync intact —
 // Google Tasks sees only `due` changing, not a custom field.
 //
-// Layout is a Trello-style card grid. Cards are draggable (via `DraggedTask`)
-// so they can be re-sorted within the grid (local order) or dropped onto
-// the Tasks Kanban's date-bucket columns in the future. Click-to-create
-// opens QuickCreatePopover in task-only mode with no pre-selected list.
+// Layout is a shared Kanban board over undated tasks. Click-to-create opens
+// QuickCreatePopover in task-only mode with no pre-selected list.
 struct NotesView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
 
-    // Local-order store — drag-to-reorder is view-local. We persist nothing
-    // back to Google because Google Tasks position fields are already used
-    // for intra-list ordering under the Tasks tab; overloading them for a
-    // cross-list Notes order would fight server reconciliation. Rebuilt on
-    // tasks change to pick up new undated items at the head.
+    // Local board order is view-local. We persist nothing back to Google
+    // because Google Tasks position fields are already used for intra-list
+    // ordering under the Tasks tab; overloading them for a cross-list Notes
+    // order would fight server reconciliation. Rebuilt on tasks change to
+    // pick up new undated items at the head.
     @State private var localOrder: [TaskMirror.ID] = []
-    @State private var draggingID: TaskMirror.ID?
     @State private var kanbanSelection: Set<TaskMirror.ID> = []
     @State private var preparedNotesBoardSnapshot: TaskBoardDisplaySnapshot?
     @State private var notesBoardBuildTask: Task<Void, Never>?
     @State private var noteOrderIDsKey: String = ""
     // Selected note opens in the side inspector (mirrors StoreView's pattern).
-    // Tapping a NoteCard sets selectedNoteID; the .inspector modifier reveals
+    // Tapping a note card sets selectedNoteID; the .inspector modifier reveals
     // a TaskInspectorView for that note. Cleared when the user taps Close.
     @State private var selectedNoteID: TaskMirror.ID?
     @State private var isNoteInspectorPresented: Bool = true
@@ -785,25 +782,6 @@ struct NotesView: View {
         }
     }
 
-    // MARK: - Shared cell
-
-    @ViewBuilder
-    private func noteCell(_ task: TaskMirror) -> some View {
-        NoteCellWrapper(
-            task: task,
-            draggingID: draggingID,
-            onTap: {
-                selectedNoteID = task.id
-                isNoteInspectorPresented = true
-            },
-            onDragStart: { draggingID = task.id },
-            onDrop: { droppedID in
-                reorder(movingID: droppedID, insertBefore: task.id)
-                draggingID = nil
-            }
-        )
-    }
-
     private var undatedTasks: [TaskMirror] {
         model.taskBoardSnapshot.undatedTasks
     }
@@ -822,17 +800,6 @@ struct NotesView: View {
             visibleListIDs: notesVisibleListIDs,
             localOrder: localOrder
         )
-    }
-
-    private var orderedTasks: [TaskMirror] {
-        let pool = Dictionary(uniqueKeysWithValues: undatedTasks.map { ($0.id, $0) })
-        let orderedSet = Set(localOrder)
-        let ordered = localOrder.compactMap { pool[$0] }
-        // Set.contains is O(1). Array.contains was O(n), making this filter
-        // O(n²) for n notes — observable lag for users with hundreds+ notes
-        // on every rebuildOrder / reorder tick.
-        let missing = undatedTasks.filter { pool[$0.id] != nil && orderedSet.contains($0.id) == false }
-        return ordered + missing
     }
 
     private func rebuildOrder() {
@@ -873,146 +840,6 @@ struct NotesView: View {
             guard Task.isCancelled == false, snapshot.key == notesBoardSnapshotKey else { return }
             preparedNotesBoardSnapshot = snapshot
         }
-    }
-
-    private func reorder(movingID: TaskMirror.ID, insertBefore targetID: TaskMirror.ID) {
-        guard movingID != targetID else { return }
-        var next = localOrder
-        next.removeAll { $0 == movingID }
-        if let idx = next.firstIndex(of: targetID) {
-            next.insert(movingID, at: idx)
-        } else {
-            next.append(movingID)
-        }
-        localOrder = next
-        rebuildNotesBoardSnapshotIfNeeded()
-    }
-}
-
-// Wraps NoteCard to own the isTargeted state local to each row so drop-
-// target highlighting is scoped per-cell. Keeping it out of the parent
-// view avoids a full grid re-render on every dragEnter/Leave.
-private struct NoteCellWrapper: View {
-    @Environment(\.hcbReduceMotion) private var reduceMotion
-    let task: TaskMirror
-    let draggingID: TaskMirror.ID?
-    let onTap: () -> Void
-    let onDragStart: () -> Void
-    let onDrop: (TaskMirror.ID) -> Void
-    @State private var isTargeted = false
-
-    var body: some View {
-        NoteCard(task: task, isDragging: draggingID == task.id, onOpen: onTap)
-            .overlay(alignment: .top) {
-                if isTargeted {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(AppColor.ember)
-                        .frame(height: 2)
-                        .transition(HCBMotion.transition(.opacity, reduceMotion: reduceMotion))
-                }
-            }
-            .animation(HCBMotion.animation(.easeOut(duration: 0.16), reduceMotion: reduceMotion), value: isTargeted)
-            .draggable(DraggedTask(taskID: task.id, taskListID: task.taskListID, title: task.title)) {
-                NoteDragPreview(title: task.title)
-                    .onAppear { onDragStart() }
-            }
-            .dropDestination(for: DraggedTask.self) { items, _ in
-                guard let dropped = items.first else { return false }
-                onDrop(dropped.taskID)
-                return true
-            } isTargeted: { targeted in
-                isTargeted = targeted
-            }
-    }
-}
-
-private struct NoteCard: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.routerPath) private var router
-    @Environment(\.hcbReduceMotion) private var reduceMotion
-    let task: TaskMirror
-    let isDragging: Bool
-    let onOpen: () -> Void
-
-    var body: some View {
-        Button(action: onOpen) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    Text(TagExtractor.stripped(from: task.title))
-                        .hcbFont(.subheadline, weight: .semibold)
-                        .foregroundStyle(AppColor.ink)
-                        .lineLimit(3)
-                        .multilineTextAlignment(.leading)
-                    Spacer(minLength: 0)
-                }
-                let trimmed = task.notes
-                if trimmed.isEmpty == false {
-                    Text.markdown(trimmed)
-                        .hcbFont(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(6)
-                        .multilineTextAlignment(.leading)
-                }
-                HStack(spacing: 6) {
-                    Label(listName, systemImage: "list.bullet")
-                        .hcbFont(.caption2)
-                        .foregroundStyle(.secondary)
-                    Spacer(minLength: 0)
-                }
-            }
-            .hcbScaledPadding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(AppColor.cardStroke, lineWidth: 0.6)
-            )
-            .shadow(color: Color.black.opacity(isDragging ? 0.08 : 0.0), radius: 6, y: 2)
-            .scaleEffect(isDragging ? 0.98 : 1.0)
-            .animation(HCBMotion.animation(.easeOut(duration: 0.12), reduceMotion: reduceMotion), value: isDragging)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(noteAccessibilityLabel)
-        .contextMenu {
-            Button {
-                router?.present(.convertNoteToTask(task.id))
-            } label: {
-                Label("Convert to Task…", systemImage: "checklist")
-            }
-            Button {
-                router?.present(.convertNoteToEvent(task.id))
-            } label: {
-                Label("Convert to Event…", systemImage: "calendar.badge.plus")
-            }
-        }
-    }
-
-    private var listName: String {
-        model.taskListTitle(for: task.taskListID)
-    }
-
-    private var noteAccessibilityLabel: String {
-        let title = TagExtractor.stripped(from: task.title)
-        let notes = task.notes.trimmingCharacters(in: .whitespacesAndNewlines)
-        if notes.isEmpty {
-            return "Note: \(title), list \(listName)"
-        }
-        return "Note: \(title), \(notes), list \(listName)"
-    }
-}
-
-private struct NoteDragPreview: View {
-    let title: String
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "note.text")
-            Text(title)
-                .lineLimit(1)
-        }
-        .hcbFont(.caption, weight: .semibold)
-        .hcbScaledPadding(.horizontal, 10)
-        .hcbScaledPadding(.vertical, 6)
-        .background(Capsule().fill(AppColor.ember.opacity(0.25)))
     }
 }
 

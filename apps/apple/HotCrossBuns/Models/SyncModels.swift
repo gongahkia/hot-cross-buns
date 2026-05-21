@@ -654,6 +654,27 @@ enum NavigationSurfacePlacement: String, CaseIterable, Identifiable, Hashable, S
     }
 }
 
+enum AppPerformanceMode: String, Codable, Hashable, Sendable, CaseIterable, Identifiable {
+    case snappy
+    case rich
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .snappy: "Snappy"
+        case .rich: "Rich"
+        }
+    }
+
+    var summary: String {
+        switch self {
+        case .snappy: "Prioritizes fast calendar transitions, immediate search, and opaque surfaces."
+        case .rich: "Restores hover previews, translucent backgrounds, and custom image effects."
+        }
+    }
+}
+
 struct AppSettings: Hashable, Codable, Sendable {
     var syncMode: SyncMode
     var cloudSyncTargets: Set<CloudSyncTarget>
@@ -693,6 +714,7 @@ struct AppSettings: Hashable, Codable, Sendable {
     var appBackgroundOpacity: Double // 0.35-1.0, applied to the app fill over desktop/custom image
     var customBackgroundImagePath: String? // copied image in Application Support, nil = theme/window background
     var disableAnimations: Bool // app-level Reduce Motion override for users who want no UI motion
+    var performanceMode: AppPerformanceMode // snappy by default; rich restores expensive presentation affordances
     var shortcutOverrides: [String: HCBKeyBinding] // HCBShortcutCommand.rawValue → binding
     var sidebarPlacement: NavigationSurfacePlacement // where the app navigation surface is rendered
     var hiddenSidebarItems: Set<String> // SidebarItem.rawValues user has hidden
@@ -804,6 +826,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         appBackgroundOpacity: Double = 1.0,
         customBackgroundImagePath: String? = nil,
         disableAnimations: Bool = false,
+        performanceMode: AppPerformanceMode = .snappy,
         shortcutOverrides: [String: HCBKeyBinding] = [:],
         sidebarPlacement: NavigationSurfacePlacement = .left,
         hiddenSidebarItems: Set<String> = [],
@@ -890,6 +913,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         let normalizedBackgroundPath = customBackgroundImagePath?.trimmingCharacters(in: .whitespacesAndNewlines)
         self.customBackgroundImagePath = (normalizedBackgroundPath?.isEmpty ?? true) ? nil : normalizedBackgroundPath
         self.disableAnimations = disableAnimations
+        self.performanceMode = performanceMode
         self.shortcutOverrides = shortcutOverrides
         self.sidebarPlacement = sidebarPlacement
         self.hiddenSidebarItems = hiddenSidebarItems
@@ -977,6 +1001,7 @@ struct AppSettings: Hashable, Codable, Sendable {
         case appBackgroundOpacity
         case customBackgroundImagePath
         case disableAnimations
+        case performanceMode
         case shortcutOverrides
         case sidebarPlacement
         case hiddenSidebarItems
@@ -1104,6 +1129,7 @@ struct AppSettings: Hashable, Codable, Sendable {
             customBackgroundImagePath = nil
         }
         disableAnimations = try container.decodeIfPresent(Bool.self, forKey: .disableAnimations) ?? false
+        performanceMode = try container.decodeIfPresent(AppPerformanceMode.self, forKey: .performanceMode) ?? .snappy
         shortcutOverrides = try container.decodeIfPresent([String: HCBKeyBinding].self, forKey: .shortcutOverrides) ?? [:]
         sidebarPlacement = try container.decodeIfPresent(NavigationSurfacePlacement.self, forKey: .sidebarPlacement) ?? .left
         hiddenSidebarItems = try container.decodeIfPresent(Set<String>.self, forKey: .hiddenSidebarItems) ?? []

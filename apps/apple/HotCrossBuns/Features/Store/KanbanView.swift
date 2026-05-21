@@ -273,11 +273,13 @@ private struct KanbanColumnView: View {
         KanbanCardView(
             card: card,
             isSelected: selection.contains(card.id),
-            onTap: { onCardTap(card.task) }
+            onTap: { openTask(card) }
         )
-        .draggable(DraggedTask(taskID: card.id, taskListID: card.task.taskListID, title: card.task.title))
+        .draggable(DraggedTask(taskID: card.id, taskListID: card.taskListID, title: card.title))
         .contextMenu {
-            taskContextMenu(for: card.task)
+            if let task = model.task(id: card.id) {
+                taskContextMenu(for: task)
+            }
         }
     }
 
@@ -285,12 +287,19 @@ private struct KanbanColumnView: View {
         KanbanCompletedTaskRowView(
             card: card,
             isSelected: selection.contains(card.id),
-            onTap: { onCardTap(card.task) }
+            onTap: { openTask(card) }
         )
-        .draggable(DraggedTask(taskID: card.id, taskListID: card.task.taskListID, title: card.task.title))
+        .draggable(DraggedTask(taskID: card.id, taskListID: card.taskListID, title: card.title))
         .contextMenu {
-            taskContextMenu(for: card.task)
+            if let task = model.task(id: card.id) {
+                taskContextMenu(for: task)
+            }
         }
+    }
+
+    private func openTask(_ card: PreparedTaskCard) {
+        guard let task = model.task(id: card.id) else { return }
+        onCardTap(task)
     }
 
     @ViewBuilder
@@ -412,14 +421,12 @@ private struct KanbanCardView: View {
     let isSelected: Bool
     let onTap: () -> Void
 
-    private var task: TaskMirror { card.task }
-
     var body: some View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .top, spacing: 6) {
-                    Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(task.isCompleted ? AppColor.moss : AppColor.ember)
+                    Image(systemName: card.isCompleted ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(card.isCompleted ? AppColor.moss : AppColor.ember)
                         .hcbFont(.subheadline)
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 4) {

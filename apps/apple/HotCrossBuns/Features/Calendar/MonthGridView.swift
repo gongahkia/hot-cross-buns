@@ -5,7 +5,7 @@ enum CalendarMonthScrollWindow {
     static let pastMonthsKey = "calendar.monthScroll.pastMonths"
     static let futureMonthsKey = "calendar.monthScroll.futureMonths"
     static let defaultPastMonths = 0
-    static let defaultFutureMonths = 3
+    static let defaultFutureMonths = 1
     static let pastRange = 0...24
     static let futureRange = 1...36
 
@@ -382,13 +382,12 @@ struct MonthGridView: View {
     }
 
     private var currentCalendarRevisionKey: String {
-        calendarStore.calendarDisplayRevisionKey(for: windowDates, calendar: calendar)
-    }
-
-    private var windowDates: [Date] {
-        weekStarts.flatMap { weekStart in
-            (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: weekStart) }
+        guard let first = weekStarts.first else {
+            return calendarStore.calendarDisplayRevisionKey(for: [], calendar: calendar)
         }
+        let lastWeek = weekStarts.last ?? first
+        let last = calendar.date(byAdding: .day, value: 6, to: lastWeek) ?? lastWeek
+        return calendarStore.calendarDisplayRevisionKey(from: first, to: last, calendar: calendar)
     }
 
     private var visibleTaskListKey: String {
@@ -411,14 +410,31 @@ struct MonthGridView: View {
                 .foregroundStyle(.secondary)
         }
         .hcbScaledPadding(20)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background {
+            if calendarStore.settings.performanceMode == .rich {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(.regularMaterial)
+            } else {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(AppColor.cardSurface)
+            }
+        }
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(AppColor.cardStroke.opacity(0.45), lineWidth: 0.5)
         )
-        .shadow(color: .black.opacity(0.08), radius: 18, x: 0, y: 10)
+        .shadow(
+            color: .black.opacity(calendarStore.settings.performanceMode == .rich ? 0.08 : 0.02),
+            radius: calendarStore.settings.performanceMode == .rich ? 18 : 4,
+            x: 0,
+            y: calendarStore.settings.performanceMode == .rich ? 10 : 2
+        )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.regularMaterial.opacity(0.18))
+        .background {
+            if calendarStore.settings.performanceMode == .rich {
+                Rectangle().fill(.regularMaterial.opacity(0.18))
+            }
+        }
     }
 
     // Flash the tapped cell briefly. Used on monthCell click-to-create

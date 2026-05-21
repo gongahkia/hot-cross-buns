@@ -125,6 +125,25 @@ final class CommandPaletteEntityCacheTests: XCTestCase {
         })
     }
 
+    func testPaletteOpenSkipsFallbackPrewarmAndLiveFullSnapshotsWhenDatabaseSearchIsAvailable() throws {
+        let sourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appending(path: "HotCrossBuns/App/CommandPaletteView.swift")
+        let source = try String(contentsOf: sourceURL)
+
+        XCTAssertTrue(source.contains("guard model.usesDatabaseEntitySearch == false else { return }"))
+        XCTAssertTrue(source.contains("CommandPaletteEntitySnapshot(containersFrom: model"))
+        XCTAssertTrue(source.contains("try await Task.sleep(for: .milliseconds(90))"))
+        let liveSearchRangeStart = try XCTUnwrap(source.range(of: ".task(id: entitySearchTaskID)")?.lowerBound)
+        let submitRangeStart = try XCTUnwrap(source.range(of: "private func executeFirstMatch()")?.lowerBound)
+        let liveSearchSource = String(source[liveSearchRangeStart..<submitRangeStart])
+        XCTAssertTrue(liveSearchSource.contains("AdvancedSearchParser.parse(liveQuery).regex != nil"))
+        XCTAssertFalse(liveSearchSource.contains("CommandPaletteEntitySnapshot(model: model"))
+        XCTAssertTrue(source.contains("CommandPaletteEntitySnapshot(model: model, key: snapshotKeyAtStart)"))
+        XCTAssertTrue(source.contains("resultSnapshotKey = snapshotKeyAtStart"))
+    }
+
     private func task(
         id: String,
         title: String,

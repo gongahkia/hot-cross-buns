@@ -86,12 +86,11 @@ struct CalendarEventPreviewButton<Label: View>: View {
 
     private var calendarStore: CalendarStore { model.calendarStore }
 
-    private var hydratedEvent: CalendarEventMirror {
+    private var currentEvent: CalendarEventMirror {
         calendarStore.event(id: event.id) ?? event
     }
 
     var body: some View {
-        let event = hydratedEvent
         Button {
             isPresented = true
         } label: {
@@ -100,7 +99,7 @@ struct CalendarEventPreviewButton<Label: View>: View {
         .buttonStyle(.plain)
         .contextMenu {
             EventContextMenu(
-                event: event,
+                event: currentEvent,
                 onOpen: { router?.present(.editEvent(event.id)) },
                 onConvertToTask: { router?.present(.convertEventToTask(event.id)) },
                 onConvertToNote: { router?.present(.convertEventToNote(event.id)) },
@@ -113,18 +112,18 @@ struct CalendarEventPreviewButton<Label: View>: View {
             titleVisibility: .visible
         ) {
             Button("Delete", role: .destructive) {
-                Task { _ = await model.deleteEvent(event) }
+                Task { _ = await model.deleteEvent(currentEvent) }
             }
             Button("Cancel", role: .cancel) {}
         }
         .popover(isPresented: $isPresented, arrowEdge: .trailing) {
             CalendarPreviewPopoverShell(kind: .event, contentKey: event.id) {
                 VStack(alignment: .leading, spacing: 10) {
-                    EventHoverPreview(event: event)
+                    EventHoverPreview(event: currentEvent)
                     HStack(spacing: 8) {
                         // Left-aligned circle button mirrors the task completion
                         // affordance. Hidden on read-only calendars.
-                        CalendarEventDismissButton(event: event, size: 16)
+                        CalendarEventDismissButton(event: currentEvent, size: 16)
                         Spacer(minLength: 0)
                         Button("Open") {
                             isPresented = false
@@ -223,30 +222,12 @@ struct CalendarTaskPreviewButton<Label: View>: View {
 }
 
 private struct CalendarPreviewPopoverShell<Content: View>: View {
-    @Environment(\.hcbReduceMotion) private var reduceMotion
     let kind: CalendarPreviewPopoverKind
     let contentKey: String
     @ViewBuilder let content: () -> Content
-    @State private var isContentReady = false
 
     var body: some View {
-        Group {
-            // A lightweight preview shell makes event/task clicks feel acknowledged before rich details finish building.
-            if isContentReady {
-                content()
-            } else {
-                CalendarPreviewPopoverPlaceholder(kind: kind)
-            }
-        }
-        .task(id: contentKey) {
-            isContentReady = false
-            await Task.yield()
-            try? await Task.sleep(for: .milliseconds(50))
-            guard Task.isCancelled == false else { return }
-            HCBMotion.perform(reduceMotion: reduceMotion, animation: .easeOut(duration: 0.1)) {
-                isContentReady = true
-            }
-        }
+        content()
     }
 }
 
@@ -385,25 +366,35 @@ struct CalendarTaskCheckbox: View {
 
 struct EventHoverPreviewModifier: ViewModifier {
     let event: CalendarEventMirror
+    var isEnabled = true
     @State private var showPreview = false
     @State private var hoverTask: Task<Void, Never>?
 
+    @ViewBuilder
     func body(content: Content) -> some View {
-        content
-            .onHover { hovering in
-                hoverTask?.cancel()
-                if hovering {
-                    hoverTask = Task {
-                        try? await Task.sleep(for: .milliseconds(600))
-                        guard Task.isCancelled == false else { return }
-                        showPreview = true
+        if isEnabled {
+            content
+                .onHover { hovering in
+                    hoverTask?.cancel()
+                    if hovering {
+                        hoverTask = Task {
+                            try? await Task.sleep(for: .milliseconds(600))
+                            guard Task.isCancelled == false else { return }
+                            showPreview = true
+                        }
+                    } else {
+                        showPreview = false
                     }
-                } else {
+                }
+                .popover(isPresented: $showPreview, arrowEdge: .trailing) {
+                    EventHoverPreview(event: event)
+                }
+        } else {
+            content
+                .onAppear {
+                    hoverTask?.cancel()
                     showPreview = false
                 }
-            }
-            .popover(isPresented: $showPreview, arrowEdge: .trailing) {
-                EventHoverPreview(event: event)
-            }
+        }
     }
 }

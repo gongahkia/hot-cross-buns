@@ -30,6 +30,11 @@ private enum LocalBackupEncryptionError: LocalizedError {
     }
 }
 
+private enum DerivedSnapshotRebuildStrategy {
+    case synchronous
+    case deferred
+}
+
 enum LocalAttachmentRepairError: LocalizedError {
     case replacementUnavailable(LocalAttachmentHealth)
 
@@ -83,6 +88,7 @@ final class CalendarStore {
     @ObservationIgnored private var taskListTitleByID: [TaskListMirror.ID: String] = [:]
     @ObservationIgnored private var calendarDayDisplayRevisions: [TimeInterval: UInt64] = [:]
     @ObservationIgnored private var calendarPreparedSnapshotCache = CalendarPreparedSnapshotCache(limit: 12)
+    @ObservationIgnored private var calendarRevisionKeyCache: [String: String] = [:]
 
     func publishSession(
         account: GoogleAccount?,
@@ -125,6 +131,7 @@ final class CalendarStore {
         self.taskListTitleByID = taskListTitleByID
         self.calendarDisplayRevision = calendarDisplayRevision
         self.calendarDayDisplayRevisions = calendarDayDisplayRevisions
+        calendarRevisionKeyCache.removeAll()
         self.isRebuildingDerivedSnapshots = isRebuildingDerivedSnapshots
     }
 
@@ -161,20 +168,30 @@ final class CalendarStore {
         return calendarDisplayRevisionKey(forDayKeys: dayKeys)
     }
 
+    func calendarDisplayRevisionKey(from start: Date, to end: Date, calendar: Calendar = .current) -> String {
+        let normalizedStart = calendar.startOfDay(for: start)
+        let normalizedEnd = calendar.startOfDay(for: end)
+        guard normalizedStart <= normalizedEnd else {
+            return calendarDisplayRevisionKey(for: [start], calendar: calendar)
+        }
+        var dayKeys: [TimeInterval] = []
+        var cursor = normalizedStart
+        while cursor <= normalizedEnd {
+            dayKeys.append(cursor.timeIntervalSinceReferenceDate)
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+        }
+        return calendarDisplayRevisionKey(forSortedDayKeys: dayKeys)
+    }
+
     func calendarDisplayRevisionKey(forYearContaining date: Date, calendar: Calendar = .current) -> String {
         guard let yearStart = calendar.date(from: DateComponents(year: calendar.component(.year, from: date), month: 1, day: 1)),
               let nextYear = calendar.date(from: DateComponents(year: calendar.component(.year, from: date) + 1, month: 1, day: 1))
         else {
             return calendarDisplayRevisionKey(for: [date], calendar: calendar)
         }
-        var dayKeys: Set<TimeInterval> = []
-        var cursor = yearStart
-        while cursor < nextYear {
-            dayKeys.insert(calendar.startOfDay(for: cursor).timeIntervalSinceReferenceDate)
-            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
-            cursor = next
-        }
-        return calendarDisplayRevisionKey(forDayKeys: dayKeys)
+        let yearEnd = calendar.date(byAdding: .day, value: -1, to: nextYear) ?? yearStart
+        return calendarDisplayRevisionKey(from: yearStart, to: yearEnd, calendar: calendar)
     }
 
     func calendarVisibleRangeProjection(
@@ -345,14 +362,23 @@ final class CalendarStore {
     }
 
     private func calendarDisplayRevisionKey(forDayKeys dayKeys: Set<TimeInterval>) -> String {
-        guard dayKeys.isEmpty == false else {
+        calendarDisplayRevisionKey(forSortedDayKeys: dayKeys.sorted())
+    }
+
+    private func calendarDisplayRevisionKey(forSortedDayKeys sortedDayKeys: [TimeInterval]) -> String {
+        guard sortedDayKeys.isEmpty == false else {
             return "\(calendarDisplayRevision)"
         }
-        let dayRevisionPart = dayKeys
-            .sorted()
+        let cacheKey = "\(calendarDisplayRevision)|\(sortedDayKeys.map { String(Int($0)) }.joined(separator: ","))"
+        if let cached = calendarRevisionKeyCache[cacheKey] {
+            return cached
+        }
+        let dayRevisionPart = sortedDayKeys
             .map { key in "\(Int(key)):\(calendarDayDisplayRevisions[key] ?? 0)" }
             .joined(separator: ",")
-        return "\(calendarDisplayRevision)[\(dayRevisionPart)]"
+        let revisionKey = "\(calendarDisplayRevision)[\(dayRevisionPart)]"
+        calendarRevisionKeyCache[cacheKey] = revisionKey
+        return revisionKey
     }
 }
 
@@ -571,6 +597,7 @@ final class AppModel {
     @ObservationIgnored let menuBarStore = MenuBarStore()
     @ObservationIgnored private var mcpServerController: MCPServerController?
     @ObservationIgnored private var calendarPreparedSnapshotCache = CalendarPreparedSnapshotCache(limit: 12)
+    @ObservationIgnored private var calendarRevisionKeyCache: [String: String] = [:]
     @ObservationIgnored private var calendarDisplayFingerprint: Int?
     @ObservationIgnored private var nearRealtimePollDiagnostics: NearRealtimePollDiagnostics?
     @ObservationIgnored private var notificationDiagnosticUpdatedAt: Date?
@@ -831,7 +858,7 @@ final class AppModel {
         }
         usesDatabaseEntitySearch = await cacheStore.supportsEntitySearch()
         let cachedState = await cacheStore.loadCachedState()
-        apply(cachedState)
+        apply(cachedState, rebuildStrategy: .deferred)
         await dismissLoadingOverlayBeforeFollowUpWork()
         localBackupSummary = await localBackupService.summary()
         await runDailyLocalBackupIfNeeded()
@@ -3662,6 +3689,7 @@ final class AppModel {
             current.uiTextSizePoints != next.uiTextSizePoints,
             current.uiFontName != next.uiFontName,
             current.disableAnimations != next.disableAnimations,
+            current.performanceMode != next.performanceMode,
             current.perSurfaceFontOverrides != next.perSurfaceFontOverrides,
             current.sidebarPlacement != next.sidebarPlacement,
             current.menuBarStyle != next.menuBarStyle,
@@ -3694,6 +3722,7 @@ final class AppModel {
             || current.uiTextSizePoints != next.uiTextSizePoints
             || current.uiFontName != next.uiFontName
             || current.disableAnimations != next.disableAnimations
+            || current.performanceMode != next.performanceMode
             || current.perSurfaceFontOverrides != next.perSurfaceFontOverrides
             || current.sidebarPlacement != next.sidebarPlacement {
             summaries.append("Appearance, font, layout, or theme preferences will change.")
@@ -5698,14 +5727,22 @@ final class AppModel {
     }
 
     private func apply(_ state: CachedAppState) {
-        apply(state, changeSet: nil)
+        apply(state, changeSet: nil, rebuildStrategy: .synchronous)
+    }
+
+    private func apply(_ state: CachedAppState, rebuildStrategy: DerivedSnapshotRebuildStrategy) {
+        apply(state, changeSet: nil, rebuildStrategy: rebuildStrategy)
     }
 
     private func apply(_ result: SyncApplyResult) {
-        apply(result.state, changeSet: result.changeSet)
+        apply(result.state, changeSet: result.changeSet, rebuildStrategy: .synchronous)
     }
 
-    private func apply(_ state: CachedAppState, changeSet: SyncChangeSet?) {
+    private func apply(
+        _ state: CachedAppState,
+        changeSet: SyncChangeSet?,
+        rebuildStrategy: DerivedSnapshotRebuildStrategy
+    ) {
         #if DEBUG
         let totalStart = DispatchTime.now().uptimeNanoseconds
         #endif
@@ -5769,7 +5806,12 @@ final class AppModel {
         let rebuildStart = DispatchTime.now().uptimeNanoseconds
         #endif
         if shouldRebuildDerivedSnapshots {
-            rebuildSnapshots(syncChangeSet: changeSet)
+            switch rebuildStrategy {
+            case .synchronous:
+                rebuildSnapshots(syncChangeSet: changeSet)
+            case .deferred:
+                rebuildSnapshotsDeferred(referenceDate: Date())
+            }
         } else if shouldApplyEventOnlyDerivedUpdate, let changeSet {
             #if DEBUG
             lastApplyUsedEventOnlyDerivedUpdateForBenchmark = true
@@ -6575,20 +6617,30 @@ final class AppModel {
         return calendarDisplayRevisionKey(forDayKeys: dayKeys)
     }
 
+    func calendarDisplayRevisionKey(from start: Date, to end: Date, calendar: Calendar = .current) -> String {
+        let normalizedStart = calendar.startOfDay(for: start)
+        let normalizedEnd = calendar.startOfDay(for: end)
+        guard normalizedStart <= normalizedEnd else {
+            return calendarDisplayRevisionKey(for: [start], calendar: calendar)
+        }
+        var dayKeys: [TimeInterval] = []
+        var cursor = normalizedStart
+        while cursor <= normalizedEnd {
+            dayKeys.append(cursor.timeIntervalSinceReferenceDate)
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+        }
+        return calendarDisplayRevisionKey(forSortedDayKeys: dayKeys)
+    }
+
     func calendarDisplayRevisionKey(forYearContaining date: Date, calendar: Calendar = .current) -> String {
         guard let yearStart = calendar.date(from: DateComponents(year: calendar.component(.year, from: date), month: 1, day: 1)),
               let nextYear = calendar.date(from: DateComponents(year: calendar.component(.year, from: date) + 1, month: 1, day: 1))
         else {
             return calendarDisplayRevisionKey(for: [date], calendar: calendar)
         }
-        var dayKeys: Set<TimeInterval> = []
-        var cursor = yearStart
-        while cursor < nextYear {
-            dayKeys.insert(calendar.startOfDay(for: cursor).timeIntervalSinceReferenceDate)
-            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
-            cursor = next
-        }
-        return calendarDisplayRevisionKey(forDayKeys: dayKeys)
+        let yearEnd = calendar.date(byAdding: .day, value: -1, to: nextYear) ?? yearStart
+        return calendarDisplayRevisionKey(from: yearStart, to: yearEnd, calendar: calendar)
     }
 
     func calendarVisibleRangeProjection(
@@ -6851,14 +6903,23 @@ final class AppModel {
     }
 
     private func calendarDisplayRevisionKey(forDayKeys dayKeys: Set<TimeInterval>) -> String {
-        guard dayKeys.isEmpty == false else {
+        calendarDisplayRevisionKey(forSortedDayKeys: dayKeys.sorted())
+    }
+
+    private func calendarDisplayRevisionKey(forSortedDayKeys sortedDayKeys: [TimeInterval]) -> String {
+        guard sortedDayKeys.isEmpty == false else {
             return "\(calendarDisplayRevision)"
         }
-        let dayRevisionPart = dayKeys
-            .sorted()
+        let cacheKey = "\(calendarDisplayRevision)|\(sortedDayKeys.map { String(Int($0)) }.joined(separator: ","))"
+        if let cached = calendarRevisionKeyCache[cacheKey] {
+            return cached
+        }
+        let dayRevisionPart = sortedDayKeys
             .map { key in "\(Int(key)):\(calendarDayDisplayRevisions[key] ?? 0)" }
             .joined(separator: ",")
-        return "\(calendarDisplayRevision)[\(dayRevisionPart)]"
+        let revisionKey = "\(calendarDisplayRevision)[\(dayRevisionPart)]"
+        calendarRevisionKeyCache[cacheKey] = revisionKey
+        return revisionKey
     }
 
     func cachedCalendarDaySnapshot(for key: PreparedSnapshotKey) -> CalendarDayDisplaySnapshot? {
@@ -6952,6 +7013,13 @@ final class AppModel {
         logDerivedSnapshotRebuild(started: started, snapshots: snapshots)
     }
 
+    private func rebuildSnapshotsDeferred(referenceDate: Date = Date()) {
+        snapshotRebuildPending = false
+        snapshotRebuildGeneration &+= 1
+        setDerivedSnapshotRebuildInFlight(true)
+        startDerivedSnapshotRebuild(referenceDate: referenceDate)
+    }
+
     private func startDerivedSnapshotRebuild(referenceDate: Date) {
         let input = derivedSnapshotInput(referenceDate: referenceDate)
         snapshotRebuildTask?.cancel()
@@ -7011,6 +7079,7 @@ final class AppModel {
                 for dayKey in syncChangeSet.affectedDayKeys {
                     calendarDayDisplayRevisions[dayKey, default: 0] &+= 1
                 }
+                calendarRevisionKeyCache.removeAll()
                 HCBPerformanceTelemetry.debug(
                     "calendar day revisions advanced",
                     metadata: [
@@ -7021,6 +7090,7 @@ final class AppModel {
             } else {
                 calendarDisplayRevision &+= 1
                 calendarDayDisplayRevisions.removeAll()
+                calendarRevisionKeyCache.removeAll()
                 calendarPreparedSnapshotCache.removeAll()
                 calendarStore.removePreparedSnapshots()
                 HCBPerformanceTelemetry.debug(
@@ -7143,6 +7213,7 @@ final class AppModel {
             }
             calendarDayDisplayRevisions[dayKey, default: 0] &+= 1
         }
+        calendarRevisionKeyCache.removeAll()
 
         #if DEBUG
         let bucketEnd = DispatchTime.now().uptimeNanoseconds

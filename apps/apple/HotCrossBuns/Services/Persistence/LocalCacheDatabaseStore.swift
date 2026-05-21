@@ -4100,6 +4100,7 @@ private extension JSONEncoder {
     static var cacheDatabaseCanonical: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .secondsSince1970
+        encoder.outputFormatting = [.sortedKeys]
         return encoder
     }
 }

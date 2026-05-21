@@ -248,6 +248,41 @@ final class LargeAccountCalendarPerformanceTests: XCTestCase {
         }
     }
 
+    func testCalendarSnapshotPrewarmStoresAdjacentSnapshotsWithoutChangingVisibleSnapshot() throws {
+        let appleDir = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let calendarDir = appleDir.appending(path: "HotCrossBuns/Features/Calendar")
+        let expectations = [
+            ("DayGridView.swift", "prewarmAdjacentDaySnapshots", "storeCalendarDaySnapshot", "preparedDaySnapshot = snapshot"),
+            ("WeekGridView.swift", "prewarmAdjacentWeekSnapshots", "storeCalendarWeekSnapshot", "preparedWeekSnapshot = snapshot"),
+            ("CalendarHomeView.swift", "prewarmAdjacentAgendaSnapshots", "storeCalendarAgendaSnapshot", "preparedAgendaSnapshot = snapshot"),
+            ("YearGridView.swift", "prewarmAdjacentYearSnapshots", "storeCalendarYearSnapshot", "preparedYearSnapshot = snapshot")
+        ]
+
+        for (file, functionName, storeCall, visibleAssignment) in expectations {
+            let source = try String(contentsOf: calendarDir.appending(path: file), encoding: .utf8)
+            let body = try XCTUnwrap(functionBody(named: functionName, in: source), "\(file) missing \(functionName)")
+            XCTAssertTrue(body.contains("performanceMode == .snappy"), "\(file) should only prewarm in snappy mode")
+            XCTAssertTrue(body.contains(storeCall), "\(file) should store adjacent snapshots in the LRU cache")
+            XCTAssertFalse(body.contains(visibleAssignment), "\(file) prewarm must not mutate the visible snapshot")
+        }
+    }
+
+    func testWeekHoverPreviewIsRichModeOnly() throws {
+        let appleDir = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: appleDir.appending(path: "HotCrossBuns/Features/Calendar/WeekGridView.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("isWeekHoverPreviewEnabled"))
+        XCTAssertTrue(source.contains("performanceMode == .rich"))
+        XCTAssertTrue(source.contains("EventHoverPreviewModifier(event: placed.event, isEnabled: isWeekHoverPreviewEnabled)"))
+    }
+
     @MainActor
     func testAppModelLargeCacheLoadBuildsDerivedIndexesBenchmark() async throws {
         let state = LargeAccountCalendarFixture.makeState(eventCount: 15_000)
@@ -256,6 +291,11 @@ final class LargeAccountCalendarPerformanceTests: XCTestCase {
         let (_, loadMs) = await timedAsync("appModel.loadInitialState.15k") {
             await model.loadInitialState()
         }
+        XCTAssertTrue(
+            (model.lastApplyProfileForBenchmark?.rebuildSnapshotsMilliseconds ?? .greatestFiniteMagnitude) < 25,
+            "cold cache load should assign cached state without doing the heavy derived rebuild inline"
+        )
+        try await waitForDerivedSnapshotRebuild(model)
 
         let activeEventCount = state.events.filter { $0.status != .cancelled }.count
         let eventDayReferences = model.eventsByDay.values.reduce(0) { $0 + $1.count }
@@ -304,6 +344,7 @@ final class LargeAccountCalendarPerformanceTests: XCTestCase {
 
         let model = makeModel(cachedState: state)
         await model.loadInitialState()
+        try await waitForDerivedSnapshotRebuild(model)
         let beforeRevision = model.calendarDisplayRevisionKey(for: [changedEvent.startDate])
         let beforeTagCount = model.calendarSnapshot.eventCountsByTagName["narrow-sync"] ?? 0
 
@@ -596,6 +637,28 @@ final class LargeAccountCalendarPerformanceTests: XCTestCase {
         }
     }
 
+    func testActionCenterProjectionLargeAccountBenchmark() async throws {
+        let state = LargeAccountCalendarFixture.makeState(eventCount: 15_000)
+        let fileURL = FileManager.default.temporaryDirectory
+            .appending(path: "HotCrossBunsLargeAccountBenchmarks", directoryHint: .isDirectory)
+            .appending(path: UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
+        let store = LocalCacheStore(fileURL: fileURL)
+        await store.save(state)
+
+        let (projection, projectionMs) = try await timedAsync("actionCenter.overdueProjection.15k") {
+            try await store.overdueTasks(
+                before: LargeAccountCalendarFixture.denseDay,
+                visibleTaskListIDs: ["tasks-main"],
+                limit: ActionCenterBuilder.defaultOverdueTaskDisplayLimit
+            )
+        }
+        print("HCBLargeAccountBenchmark actionCenter.overdueCount=\(projection.totalCount) shown=\(projection.tasks.count) projectionMs=\(format(projectionMs))")
+        XCTAssertGreaterThan(projection.totalCount, 0)
+        XCTAssertLessThan(projectionMs, 120)
+    }
+
     @MainActor
     private func makeModel(cachedState: CachedAppState) -> AppModel {
         let customOAuthService = CustomGoogleOAuthService(tokenStore: InMemoryGoogleOAuthTokenStore(
@@ -627,6 +690,42 @@ final class LargeAccountCalendarPerformanceTests: XCTestCase {
         let tasksClient = GoogleTasksClient(transport: transport)
         let calendarClient = GoogleCalendarClient(transport: transport)
         return SyncScheduler(tasksClient: tasksClient, calendarClient: calendarClient)
+    }
+
+    @MainActor
+    private func waitForDerivedSnapshotRebuild(
+        _ model: AppModel,
+        timeout: TimeInterval = 8
+    ) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while model.isRebuildingDerivedSnapshots || model.eventByIDSnapshot.count != model.events.count {
+            if Date() >= deadline {
+                XCTFail("Timed out waiting for deferred derived snapshot rebuild")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        XCTAssertFalse(model.isRebuildingDerivedSnapshots)
+    }
+
+    private func functionBody(named name: String, in source: String) -> String? {
+        guard let nameRange = source.range(of: "func \(name)") else { return nil }
+        guard let openingBrace = source[nameRange.lowerBound...].firstIndex(of: "{") else { return nil }
+        var depth = 0
+        var index = openingBrace
+        while index < source.endIndex {
+            let character = source[index]
+            if character == "{" {
+                depth += 1
+            } else if character == "}" {
+                depth -= 1
+                if depth == 0 {
+                    return String(source[openingBrace...index])
+                }
+            }
+            index = source.index(after: index)
+        }
+        return nil
     }
 
     @discardableResult

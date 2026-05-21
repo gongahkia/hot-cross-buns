@@ -25,6 +25,24 @@ private struct InstallGuideWindowObserver: ViewModifier {
     }
 }
 
+private struct ActionCenterRefreshObserver: ViewModifier {
+    let isPresented: Bool
+    let dataRevision: UInt64
+    let refresh: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: isPresented) { _, isPresented in
+                if isPresented {
+                    refresh()
+                }
+            }
+            .onChange(of: dataRevision) { _, _ in
+                refresh()
+            }
+    }
+}
+
 private struct UpdaterToastModifier: ViewModifier {
     @Environment(UpdaterController.self) private var updater
 
@@ -150,6 +168,18 @@ private struct NavigationSurfaceToggleToolbarModifier: ViewModifier {
     }
 }
 
+private struct ActionCenterDynamicContent: Equatable, Sendable {
+    var holdGroups: [ActionCenterHoldGroup]
+    var overdueTasks: [TaskMirror]
+    var overdueTaskCount: Int
+
+    static let empty = ActionCenterDynamicContent(
+        holdGroups: [],
+        overdueTasks: [],
+        overdueTaskCount: 0
+    )
+}
+
 struct MacSidebarShell: View {
     @Environment(AppModel.self) private var model
     @Environment(UpdaterController.self) private var updater
@@ -210,6 +240,8 @@ struct MacSidebarShell: View {
     @State private var pendingSettingsImport: SettingsTransferBundle?
     @State private var isPresentingFeatureTour = false
     @State private var isActionCenterPresented = false
+    @State private var actionCenterDynamicContent = ActionCenterDynamicContent.empty
+    @State private var actionCenterRefreshTask: Task<Void, Never>?
     @State private var isCustomNavigationSurfacePresented = true
     // Leader-key chord state (§6.9). `nil` = inactive; non-nil = collecting
     // keys after a ⌘K press. timeoutTask cancels the collecting state after
@@ -431,6 +463,7 @@ struct MacSidebarShell: View {
                 clipboardToastMessage = (note.object as? String) ?? "Copied to clipboard."
             }
             .onDisappear {
+                actionCenterRefreshTask?.cancel()
                 uninstallAppShortcutMonitor()
             }
             .onChange(of: model.settings.colorSchemeID, initial: true) { _, newID in
@@ -476,6 +509,11 @@ struct MacSidebarShell: View {
             }
             .modifier(UpdatePromptWindowObserver(sequence: updater.updatePromptSequence, openWindow: openWindow))
             .modifier(InstallGuideWindowObserver(sequence: updater.installGuideSequence, openWindow: openWindow))
+            .modifier(ActionCenterRefreshObserver(
+                isPresented: isActionCenterPresented,
+                dataRevision: model.dataRevision,
+                refresh: refreshActionCenterDynamicContent
+            ))
             .modifier(ShellZoomObservers(zoomIn: performZoomIn, zoomOut: performZoomOut, zoomReset: performZoomReset))
             .modifier(MainWindowFocusObserver(isFocused: $isMainWindowFocused))
             .task {
@@ -526,8 +564,9 @@ struct MacSidebarShell: View {
 
     private var actionCenterSnapshot: ActionCenterSnapshot {
         ActionCenterBuilder.build(
-            tasks: model.tasks,
-            events: model.events,
+            holdGroups: actionCenterDynamicContent.holdGroups,
+            overdueTasks: actionCenterDynamicContent.overdueTasks,
+            overdueTaskCount: actionCenterDynamicContent.overdueTaskCount,
             pendingMutations: model.pendingMutations,
             notificationSummary: model.lastNotificationScheduleSummary,
             authState: model.authState,
@@ -537,6 +576,48 @@ struct MacSidebarShell: View {
             syncFailureKind: model.syncFailureKind,
             networkReachability: networkMonitor.reachability
         )
+    }
+
+    private func refreshActionCenterDynamicContent() {
+        let revision = model.dataRevision
+        let visibleTaskListIDs = model.visibleTaskListIDs
+        let overdueLimit = ActionCenterBuilder.defaultOverdueTaskDisplayLimit
+        let today = Calendar.current.startOfDay(for: Date())
+
+        actionCenterRefreshTask?.cancel()
+        actionCenterRefreshTask = Task { @MainActor in
+            let holdGroups = await model.availabilityHoldGroupsFromQuery()
+            if Task.isCancelled { return }
+            let overdue = await model.overdueTasksFromQuery(
+                before: today,
+                visibleTaskListIDs: visibleTaskListIDs,
+                limit: overdueLimit
+            )
+            guard Task.isCancelled == false,
+                  model.dataRevision == revision else {
+                return
+            }
+            actionCenterDynamicContent = ActionCenterDynamicContent(
+                holdGroups: Self.actionCenterHoldGroups(from: holdGroups),
+                overdueTasks: overdue.tasks,
+                overdueTaskCount: overdue.totalCount
+            )
+        }
+    }
+
+    private static func actionCenterHoldGroups(from groups: [AvailabilityHoldGroup]) -> [ActionCenterHoldGroup] {
+        groups
+            .map { group in
+                ActionCenterHoldGroup(
+                    id: group.id,
+                    metadata: group.metadata,
+                    events: group.events
+                )
+            }
+            .sorted { lhs, rhs in
+                if lhs.nextStartDate == rhs.nextStartDate { return lhs.id < rhs.id }
+                return lhs.nextStartDate < rhs.nextStartDate
+            }
     }
 
     private func openActionCenterHold(_ hold: CalendarEventMirror) {
@@ -990,6 +1071,7 @@ struct MacSidebarShell: View {
         configureGlobalHotkey()
         installAppShortcutMonitor()
         presentFeatureTourIfNeeded()
+        refreshActionCenterDynamicContent()
     }
 
     private func presentFeatureTourIfNeeded() {

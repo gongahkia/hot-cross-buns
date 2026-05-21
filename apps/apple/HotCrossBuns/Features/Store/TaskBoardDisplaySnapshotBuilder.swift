@@ -7,7 +7,10 @@ enum PreparedDueDateTone: Sendable, Equatable {
 }
 
 struct PreparedTaskCard: Identifiable, Equatable, Sendable {
-    var task: TaskMirror
+    var id: TaskMirror.ID
+    var taskListID: TaskListMirror.ID
+    var title: String
+    var isCompleted: Bool
     var strippedTitle: String
     var tags: [String]
     var listTitle: String
@@ -18,7 +21,6 @@ struct PreparedTaskCard: Identifiable, Equatable, Sendable {
     var isDuplicate: Bool
     var accessibilityLabel: String
 
-    var id: TaskMirror.ID { task.id }
 }
 
 struct PreparedKanbanColumn: Identifiable, Equatable, Sendable {
@@ -71,8 +73,8 @@ enum TaskBoardDisplaySnapshotBuilder {
                 id: column.id,
                 title: column.title,
                 subtitle: column.subtitle,
-                openTasks: cards.filter { $0.task.isCompleted == false },
-                completedTasks: cards.filter(\.task.isCompleted),
+                openTasks: cards.filter { $0.isCompleted == false },
+                completedTasks: cards.filter(\.isCompleted),
                 dropIntent: column.dropIntent
             )
         }
@@ -142,7 +144,10 @@ enum TaskBoardDisplaySnapshotBuilder {
         }
 
         return PreparedTaskCard(
-            task: task,
+            id: task.id,
+            taskListID: task.taskListID,
+            title: task.title,
+            isCompleted: task.isCompleted,
             strippedTitle: strippedTitle,
             tags: tags,
             listTitle: listTitle,

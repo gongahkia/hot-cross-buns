@@ -13,6 +13,7 @@ struct YearGridView: View {
     let onPickDay: (Date) -> Void
     @State private var preparedYearSnapshot: CalendarYearDisplaySnapshot?
     @State private var yearSnapshotBuildTask: Task<Void, Never>?
+    @State private var yearSnapshotPrewarmTask: Task<Void, Never>?
 
     private let calendar = Calendar.current
     private var calendarStore: CalendarStore { model.calendarStore }
@@ -59,18 +60,25 @@ struct YearGridView: View {
         }
         .onAppear { rebuildYearSnapshotIfNeeded() }
         .onChange(of: yearSnapshotKey) { _, _ in rebuildYearSnapshotIfNeeded() }
-        .onDisappear { yearSnapshotBuildTask?.cancel() }
+        .onDisappear {
+            yearSnapshotBuildTask?.cancel()
+            yearSnapshotPrewarmTask?.cancel()
+        }
     }
 
     private var yearSnapshotKey: PreparedSnapshotKey {
+        yearSnapshotKey(for: anchorDate)
+    }
+
+    private func yearSnapshotKey(for date: Date) -> PreparedSnapshotKey {
         PreparedSnapshotKeys.calendar(
             mode: .year,
-            dataRevision: calendarStore.calendarDisplayRevisionKey(forYearContaining: anchorDate, calendar: calendar),
+            dataRevision: calendarStore.calendarDisplayRevisionKey(forYearContaining: date, calendar: calendar),
             selectedCalendarIDs: calendarStore.calendarSnapshot.selectedCalendarIDs,
             visibleTaskListIDs: calendarStore.visibleTaskListIDs,
             filterKey: calendarEventViewFilter.cacheKey,
             searchQuery: searchQuery,
-            rangeKey: PreparedSnapshotKeys.yearKey(anchorDate, calendar: calendar),
+            rangeKey: PreparedSnapshotKeys.yearKey(date, calendar: calendar),
             settings: calendarStore.settings
         )
     }
@@ -155,6 +163,7 @@ struct YearGridView: View {
         guard preparedYearSnapshot?.key != key else { return }
         if let snapshot = calendarStore.cachedCalendarYearSnapshot(for: key) {
             preparedYearSnapshot = snapshot
+            prewarmAdjacentYearSnapshots(around: anchorDate)
             return
         }
         yearSnapshotBuildTask?.cancel()
@@ -175,6 +184,7 @@ struct YearGridView: View {
             guard Task.isCancelled == false, snapshot.key == yearSnapshotKey else { return }
             calendarStore.storeCalendarYearSnapshot(snapshot)
             preparedYearSnapshot = snapshot
+            prewarmAdjacentYearSnapshots(around: anchorDate)
             HCBPerformanceTelemetry.debug(
                 "calendar year snapshot built",
                 metadata: [
@@ -182,6 +192,33 @@ struct YearGridView: View {
                     "maxDayCount": "\(snapshot.maxCount)"
                 ]
             )
+        }
+    }
+
+    private func prewarmAdjacentYearSnapshots(around date: Date) {
+        guard calendarStore.settings.performanceMode == .snappy else { return }
+        let adjacentYears = [-1, 1].compactMap { calendar.date(byAdding: .year, value: $0, to: date) }
+        guard adjacentYears.isEmpty == false else { return }
+        yearSnapshotPrewarmTask?.cancel()
+        yearSnapshotPrewarmTask = Task { @MainActor in
+            for prewarmDate in adjacentYears {
+                let key = yearSnapshotKey(for: prewarmDate)
+                if calendarStore.cachedCalendarYearSnapshot(for: key) != nil { continue }
+                let input = await model.calendarDisplayInputFromQuery(
+                    key: key,
+                    kind: .year,
+                    anchorDate: prewarmDate,
+                    eventViewFilter: calendarEventViewFilter,
+                    searchQuery: searchQuery,
+                    referenceDate: Date(),
+                    calendar: calendar
+                )
+                let snapshot = await Task.detached(priority: .utility) {
+                    CalendarDisplaySnapshotBuilder.yearSnapshot(input)
+                }.value
+                guard Task.isCancelled == false, snapshot.key == key else { return }
+                calendarStore.storeCalendarYearSnapshot(snapshot)
+            }
         }
     }
 

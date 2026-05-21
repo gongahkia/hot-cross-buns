@@ -28,8 +28,12 @@ struct DayGridView: View {
     @State private var flashTimedSlot: Date?
     @State private var preparedDaySnapshot: CalendarDayDisplaySnapshot?
     @State private var daySnapshotBuildTask: Task<Void, Never>?
+    @State private var daySnapshotPrewarmTask: Task<Void, Never>?
 
     private var calendarStore: CalendarStore { model.calendarStore }
+    private var showsInlineTimedSlotButtons: Bool {
+        calendarStore.settings.performanceMode == .rich
+    }
 
     private struct TimedDrag: Equatable {
         var startY: CGFloat
@@ -53,7 +57,10 @@ struct DayGridView: View {
         .background { readableCalendarBackdrop }
         .onAppear { rebuildDaySnapshotIfNeeded() }
         .onChange(of: daySnapshotKey) { _, _ in rebuildDaySnapshotIfNeeded() }
-        .onDisappear { daySnapshotBuildTask?.cancel() }
+        .onDisappear {
+            daySnapshotBuildTask?.cancel()
+            daySnapshotPrewarmTask?.cancel()
+        }
         .hcbDebugBodyProbe("DayGridView")
     }
 
@@ -70,14 +77,18 @@ struct DayGridView: View {
     private var dayEnd: Date { calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart }
 
     private var daySnapshotKey: PreparedSnapshotKey {
+        daySnapshotKey(for: anchorDate)
+    }
+
+    private func daySnapshotKey(for date: Date) -> PreparedSnapshotKey {
         PreparedSnapshotKeys.calendar(
             mode: .day,
-            dataRevision: calendarStore.calendarDisplayRevisionKey(for: [dayStart], calendar: calendar),
+            dataRevision: calendarStore.calendarDisplayRevisionKey(for: [calendar.startOfDay(for: date)], calendar: calendar),
             selectedCalendarIDs: calendarStore.calendarSnapshot.selectedCalendarIDs,
             visibleTaskListIDs: calendarStore.visibleTaskListIDs,
             filterKey: calendarEventViewFilter.cacheKey,
             searchQuery: searchQuery,
-            rangeKey: PreparedSnapshotKeys.dateKey(anchorDate, calendar: calendar),
+            rangeKey: PreparedSnapshotKeys.dateKey(date, calendar: calendar),
             settings: calendarStore.settings
         )
     }
@@ -197,7 +208,9 @@ struct DayGridView: View {
                     }
                     .frame(height: CGFloat(hourEnd - hourStart) * hourHeight)
                     .allowsHitTesting(true)
-                    dayTimedSlotButtons(dayStart: dayStart, router: capturedRouter)
+                    if showsInlineTimedSlotButtons {
+                        dayTimedSlotButtons(dayStart: dayStart, router: capturedRouter)
+                    }
                     timedSlotFlashOverlay(dayStart: dayStart)
                     if let offset = currentTimeOffset() {
                         Rectangle()
@@ -473,6 +486,7 @@ struct DayGridView: View {
         guard preparedDaySnapshot?.key != key else { return }
         if let snapshot = calendarStore.cachedCalendarDaySnapshot(for: key) {
             preparedDaySnapshot = snapshot
+            prewarmAdjacentDaySnapshots(around: anchorDate)
             return
         }
         daySnapshotBuildTask?.cancel()
@@ -493,6 +507,7 @@ struct DayGridView: View {
             guard Task.isCancelled == false, snapshot.key == daySnapshotKey else { return }
             calendarStore.storeCalendarDaySnapshot(snapshot)
             preparedDaySnapshot = snapshot
+            prewarmAdjacentDaySnapshots(around: anchorDate)
             HCBPerformanceTelemetry.debug(
                 "calendar day snapshot built",
                 metadata: [
@@ -500,6 +515,34 @@ struct DayGridView: View {
                     "events": "\(snapshot.allDayEvents.count + snapshot.timedEvents.count)"
                 ]
             )
+        }
+    }
+
+    private func prewarmAdjacentDaySnapshots(around date: Date) {
+        guard calendarStore.settings.performanceMode == .snappy else { return }
+        let base = calendar.startOfDay(for: date)
+        let adjacentDays = [-1, 1].compactMap { calendar.date(byAdding: .day, value: $0, to: base) }
+        guard adjacentDays.isEmpty == false else { return }
+        daySnapshotPrewarmTask?.cancel()
+        daySnapshotPrewarmTask = Task { @MainActor in
+            for prewarmDate in adjacentDays {
+                let key = daySnapshotKey(for: prewarmDate)
+                if calendarStore.cachedCalendarDaySnapshot(for: key) != nil { continue }
+                let input = await model.calendarDisplayInputFromQuery(
+                    key: key,
+                    kind: .day,
+                    anchorDate: prewarmDate,
+                    eventViewFilter: calendarEventViewFilter,
+                    searchQuery: searchQuery,
+                    referenceDate: Date(),
+                    calendar: calendar
+                )
+                let snapshot = await Task.detached(priority: .utility) {
+                    CalendarDisplaySnapshotBuilder.daySnapshot(input)
+                }.value
+                guard Task.isCancelled == false, snapshot.key == key else { return }
+                calendarStore.storeCalendarDaySnapshot(snapshot)
+            }
         }
     }
 

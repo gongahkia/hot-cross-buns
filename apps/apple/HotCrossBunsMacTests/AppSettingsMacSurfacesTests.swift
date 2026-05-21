@@ -28,6 +28,7 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
         XCTAssertEqual(settings.globalHotkeyBinding, .defaultQuickAdd)
         XCTAssertEqual(settings.sidebarPlacement, .left)
         XCTAssertFalse(settings.disableAnimations, "legacy caches should keep animations enabled by default")
+        XCTAssertEqual(settings.performanceMode, .snappy, "legacy caches should favor snappy rendering by default")
         XCTAssertFalse(settings.mcpServerEnabled, "legacy caches must not expose a local MCP server by default")
         XCTAssertEqual(settings.mcpPermissionMode, .confirmWrites)
         XCTAssertEqual(settings.mcpPort, 8765)
@@ -54,6 +55,7 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
             menuBarAdaptiveEmptyBehavior: .clear,
             menuBarAdaptivePanelContent: .tasks,
             disableAnimations: true,
+            performanceMode: .rich,
             sidebarPlacement: .bottom,
             mcpServerEnabled: true,
             mcpPermissionMode: .allowWrites,
@@ -73,6 +75,7 @@ final class AppSettingsMacSurfacesTests: XCTestCase {
         XCTAssertFalse(decoded.showDockBadge)
         XCTAssertFalse(decoded.restoreWindowStateEnabled)
         XCTAssertTrue(decoded.disableAnimations)
+        XCTAssertEqual(decoded.performanceMode, .rich)
         XCTAssertEqual(decoded.globalHotkeyBinding.displayLabel, "⇧⌘K")
         XCTAssertEqual(decoded.sidebarPlacement, .bottom)
         XCTAssertTrue(decoded.mcpServerEnabled)

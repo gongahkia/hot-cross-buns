@@ -21,6 +21,7 @@ struct CalendarHomeView: View {
     @State private var pendingDeleteEvent: CalendarEventMirror?
     @State private var preparedAgendaSnapshot: CalendarAgendaDisplaySnapshot?
     @State private var agendaSnapshotBuildTask: Task<Void, Never>?
+    @State private var agendaSnapshotPrewarmTask: Task<Void, Never>?
     @State private var isShareAvailabilityShown = false
     @State private var availabilityDraft = ShareAvailabilityDraft()
     @State private var availabilityMessage: String?
@@ -165,6 +166,7 @@ struct CalendarHomeView: View {
         }
         .onDisappear {
             agendaSnapshotBuildTask?.cancel()
+            agendaSnapshotPrewarmTask?.cancel()
         }
     }
 
@@ -1014,8 +1016,12 @@ struct CalendarHomeView: View {
     }
 
     private func agendaDays(count: Int = 14) -> [Date] {
+        agendaDays(starting: selectedDate, count: count)
+    }
+
+    private func agendaDays(starting date: Date, count: Int = 14) -> [Date] {
         let cal = Calendar.current
-        let start = cal.startOfDay(for: selectedDate)
+        let start = cal.startOfDay(for: date)
         return (0..<count).compactMap { cal.date(byAdding: .day, value: $0, to: start) }
     }
 
@@ -1165,14 +1171,19 @@ struct CalendarHomeView: View {
     }
 
     private var agendaSnapshotKey: PreparedSnapshotKey {
-        PreparedSnapshotKeys.calendar(
+        agendaSnapshotKey(starting: selectedDate)
+    }
+
+    private func agendaSnapshotKey(starting date: Date) -> PreparedSnapshotKey {
+        let days = agendaDays(starting: date)
+        return PreparedSnapshotKeys.calendar(
             mode: .agenda,
-            dataRevision: calendarStore.calendarDisplayRevisionKey(for: agendaDays(), calendar: .current),
+            dataRevision: calendarStore.calendarDisplayRevisionKey(for: days, calendar: .current),
             selectedCalendarIDs: calendarStore.calendarSnapshot.selectedCalendarIDs,
             visibleTaskListIDs: calendarStore.visibleTaskListIDs,
             filterKey: calendarEventViewFilter.cacheKey,
             searchQuery: searchQuery,
-            rangeKey: PreparedSnapshotKeys.dateRangeKey(agendaDays()),
+            rangeKey: PreparedSnapshotKeys.dateRangeKey(days),
             settings: calendarStore.settings
         )
     }
@@ -1182,6 +1193,7 @@ struct CalendarHomeView: View {
         guard preparedAgendaSnapshot?.key != key else { return }
         if let snapshot = calendarStore.cachedCalendarAgendaSnapshot(for: key) {
             preparedAgendaSnapshot = snapshot
+            prewarmAdjacentAgendaSnapshots(around: selectedDate)
             return
         }
         agendaSnapshotBuildTask?.cancel()
@@ -1202,6 +1214,7 @@ struct CalendarHomeView: View {
             guard Task.isCancelled == false, snapshot.key == agendaSnapshotKey else { return }
             calendarStore.storeCalendarAgendaSnapshot(snapshot)
             preparedAgendaSnapshot = snapshot
+            prewarmAdjacentAgendaSnapshots(around: selectedDate)
             HCBPerformanceTelemetry.debug(
                 "calendar agenda snapshot built",
                 metadata: [
@@ -1211,6 +1224,35 @@ struct CalendarHomeView: View {
                     "tasks": "\(snapshot.taskMetadataByID.count)"
                 ]
             )
+        }
+    }
+
+    private func prewarmAdjacentAgendaSnapshots(around date: Date) {
+        guard calendarStore.settings.performanceMode == .snappy else { return }
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: date)
+        let adjacentStarts = [-14, 14].compactMap { cal.date(byAdding: .day, value: $0, to: start) }
+        guard adjacentStarts.isEmpty == false else { return }
+        agendaSnapshotPrewarmTask?.cancel()
+        agendaSnapshotPrewarmTask = Task { @MainActor in
+            for prewarmStart in adjacentStarts {
+                let key = agendaSnapshotKey(starting: prewarmStart)
+                if calendarStore.cachedCalendarAgendaSnapshot(for: key) != nil { continue }
+                let input = await model.calendarDisplayInputFromQuery(
+                    key: key,
+                    kind: .agenda,
+                    anchorDate: prewarmStart,
+                    eventViewFilter: calendarEventViewFilter,
+                    searchQuery: searchQuery,
+                    referenceDate: Date(),
+                    calendar: cal
+                )
+                let snapshot = await Task.detached(priority: .utility) {
+                    CalendarDisplaySnapshotBuilder.agendaSnapshot(input)
+                }.value
+                guard Task.isCancelled == false, snapshot.key == key else { return }
+                calendarStore.storeCalendarAgendaSnapshot(snapshot)
+            }
         }
     }
 

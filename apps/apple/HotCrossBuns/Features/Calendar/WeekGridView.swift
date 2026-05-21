@@ -57,8 +57,15 @@ struct WeekGridView: View {
     @State private var flashTimedSlot: Date?
     @State private var preparedWeekSnapshot: CalendarWeekDisplaySnapshot?
     @State private var weekSnapshotBuildTask: Task<Void, Never>?
+    @State private var weekSnapshotPrewarmTask: Task<Void, Never>?
 
     private var calendarStore: CalendarStore { model.calendarStore }
+    private var isWeekHoverPreviewEnabled: Bool {
+        calendarStore.settings.performanceMode == .rich
+    }
+    private var showsInlineTimedSlotMenus: Bool {
+        calendarStore.settings.performanceMode == .rich
+    }
 
     private struct WeekDaySelection: Equatable {
         var startCol: Int
@@ -102,7 +109,10 @@ struct WeekGridView: View {
         .background { readableCalendarBackdrop }
         .onAppear { rebuildWeekSnapshotIfNeeded() }
         .onChange(of: weekSnapshotKey) { _, _ in rebuildWeekSnapshotIfNeeded() }
-        .onDisappear { weekSnapshotBuildTask?.cancel() }
+        .onDisappear {
+            weekSnapshotBuildTask?.cancel()
+            weekSnapshotPrewarmTask?.cancel()
+        }
         .hcbDebugBodyProbe("WeekGridView")
     }
 
@@ -116,24 +126,32 @@ struct WeekGridView: View {
     }
 
     private var weekSnapshotKey: PreparedSnapshotKey {
+        weekSnapshotKey(for: weekDays)
+    }
+
+    private func weekSnapshotKey(for days: [Date]) -> PreparedSnapshotKey {
         PreparedSnapshotKeys.calendar(
             mode: multiDayCount == nil ? .week : .multiDay,
-            dataRevision: calendarStore.calendarDisplayRevisionKey(for: weekDays, calendar: calendar),
+            dataRevision: calendarStore.calendarDisplayRevisionKey(for: days, calendar: calendar),
             selectedCalendarIDs: calendarStore.calendarSnapshot.selectedCalendarIDs,
             visibleTaskListIDs: calendarStore.visibleTaskListIDs,
             filterKey: calendarEventViewFilter.cacheKey,
             searchQuery: searchQuery,
-            rangeKey: PreparedSnapshotKeys.dateRangeKey(weekDays),
+            rangeKey: PreparedSnapshotKeys.dateRangeKey(days),
             settings: calendarStore.settings
         )
     }
 
     private var weekDays: [Date] {
+        weekDays(for: anchorDate)
+    }
+
+    private func weekDays(for date: Date) -> [Date] {
         if let count = multiDayCount, count > 0 {
-            let start = calendar.startOfDay(for: anchorDate)
+            let start = calendar.startOfDay(for: date)
             return (0..<count).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
         }
-        return CalendarGridLayout.weekDays(containing: anchorDate, calendar: calendar)
+        return CalendarGridLayout.weekDays(containing: date, calendar: calendar)
     }
 
     private func weekHeader(_ snapshot: CalendarWeekDisplaySnapshot) -> some View {
@@ -609,7 +627,9 @@ struct WeekGridView: View {
                         .hcbFont(.caption2)
                         .foregroundStyle(.secondary)
                         .offset(y: -6)
-                    weekTimedSlotMenu(hour: hour, days: days, router: capturedRouter)
+                    if showsInlineTimedSlotMenus {
+                        weekTimedSlotMenu(hour: hour, days: days, router: capturedRouter)
+                    }
                 }
                 .frame(height: hourHeight, alignment: .top)
             }
@@ -981,7 +1001,7 @@ struct WeekGridView: View {
             )
             .accessibilityLabel(snapshot.eventMetadataByID[placed.event.id]?.accessibilityLabel ?? placed.event.summary)
             .accessibilityHint("Opens event details")
-            .modifier(EventHoverPreviewModifier(event: placed.event))
+            .modifier(EventHoverPreviewModifier(event: placed.event, isEnabled: isWeekHoverPreviewEnabled))
             .draggable(DraggedEvent(
                 eventID: placed.event.id,
                 calendarID: placed.event.calendarID,
@@ -1025,6 +1045,7 @@ struct WeekGridView: View {
         guard preparedWeekSnapshot?.key != key else { return }
         if let snapshot = calendarStore.cachedCalendarWeekSnapshot(for: key) {
             preparedWeekSnapshot = snapshot
+            prewarmAdjacentWeekSnapshots(around: anchorDate)
             return
         }
         let count = multiDayCount
@@ -1047,6 +1068,7 @@ struct WeekGridView: View {
             guard Task.isCancelled == false, snapshot.key == weekSnapshotKey else { return }
             calendarStore.storeCalendarWeekSnapshot(snapshot)
             preparedWeekSnapshot = snapshot
+            prewarmAdjacentWeekSnapshots(around: anchorDate)
             HCBPerformanceTelemetry.debug(
                 "calendar week snapshot built",
                 metadata: [
@@ -1056,6 +1078,39 @@ struct WeekGridView: View {
                     "tasks": "\(snapshot.taskMetadataByID.count)"
                 ]
             )
+        }
+    }
+
+    private func prewarmAdjacentWeekSnapshots(around date: Date) {
+        guard calendarStore.settings.performanceMode == .snappy else { return }
+        let step = max(1, multiDayCount ?? 7)
+        let anchors = [-step, step].compactMap {
+            calendar.date(byAdding: .day, value: $0, to: calendar.startOfDay(for: date))
+        }
+        guard anchors.isEmpty == false else { return }
+        let count = multiDayCount
+        weekSnapshotPrewarmTask?.cancel()
+        weekSnapshotPrewarmTask = Task { @MainActor in
+            for prewarmAnchor in anchors {
+                let days = weekDays(for: prewarmAnchor)
+                let key = weekSnapshotKey(for: days)
+                if calendarStore.cachedCalendarWeekSnapshot(for: key) != nil { continue }
+                let input = await model.calendarDisplayInputFromQuery(
+                    key: key,
+                    kind: .week,
+                    anchorDate: prewarmAnchor,
+                    dayCount: count,
+                    eventViewFilter: calendarEventViewFilter,
+                    searchQuery: searchQuery,
+                    referenceDate: Date(),
+                    calendar: calendar
+                )
+                let snapshot = await Task.detached(priority: .utility) {
+                    CalendarDisplaySnapshotBuilder.weekSnapshot(input, multiDayCount: count)
+                }.value
+                guard Task.isCancelled == false, snapshot.key == key else { return }
+                calendarStore.storeCalendarWeekSnapshot(snapshot)
+            }
         }
     }
 

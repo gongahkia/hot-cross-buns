@@ -583,6 +583,156 @@ final class LocalCacheDatabaseStoreTests: XCTestCase {
         XCTAssertTrue(detailsSearch.events.isEmpty)
     }
 
+    func testOverdueTaskProjectionFiltersOrdersLimitsAndTaskListSelection() throws {
+        let cutoff = date(2026, 5, 21)
+        var otherListTask = makeTask(id: "task-other-list", title: "Other list", dueDate: date(2026, 5, 18))
+        otherListTask.taskListID = "tasks-other"
+        var hidden = makeTask(id: "task-hidden", title: "Hidden", dueDate: date(2026, 5, 19))
+        hidden.isHidden = true
+
+        let tasks = [
+            makeTask(id: "task-future", title: "Future", dueDate: date(2026, 5, 22)),
+            makeTask(id: "task-recent", title: "Recent", dueDate: date(2026, 5, 20)),
+            makeTask(id: "task-beta", title: "Beta", dueDate: date(2026, 5, 19)),
+            makeTask(id: "task-alpha", title: "Alpha", dueDate: date(2026, 5, 19)),
+            makeTask(id: "task-completed", title: "Completed", dueDate: date(2026, 5, 19), completed: true),
+            makeTask(id: "task-deleted", title: "Deleted", dueDate: date(2026, 5, 19), deleted: true),
+            makeTask(id: "task-no-due", title: "No due", dueDate: nil),
+            hidden,
+            otherListTask
+        ]
+        let store = try LocalCacheDatabaseStore(fileURL: dbURL)
+        try store.save(makeState(eventSuffix: "overdue", checkpointToken: "token-overdue", tasks: tasks))
+
+        let allProjection = try store.overdueTasks(
+            accountID: "account-1",
+            before: cutoff,
+            visibleTaskListIDs: nil,
+            limit: 3
+        )
+        XCTAssertEqual(allProjection.totalCount, 4)
+        XCTAssertEqual(allProjection.tasks.map(\.id), ["task-other-list", "task-alpha", "task-beta"])
+
+        let selectedProjection = try store.overdueTasks(
+            accountID: "account-1",
+            before: cutoff,
+            visibleTaskListIDs: ["tasks-main"],
+            limit: -1
+        )
+        XCTAssertEqual(selectedProjection.totalCount, 3)
+        XCTAssertEqual(selectedProjection.tasks.map(\.id), ["task-alpha", "task-beta", "task-recent"])
+
+        let emptySelection = try store.overdueTasks(
+            accountID: "account-1",
+            before: cutoff,
+            visibleTaskListIDs: [],
+            limit: -1
+        )
+        XCTAssertEqual(emptySelection.totalCount, 0)
+        XCTAssertTrue(emptySelection.tasks.isEmpty)
+    }
+
+    func testActionCenterSQLiteProjectionMatchesArrayBuilder() throws {
+        let referenceDate = date(2026, 4, 18, hour: 9)
+        let calendar = calendarUTC()
+        let cutoff = calendar.startOfDay(for: referenceDate)
+        let tasks = [
+            makeTask(id: "task-older", title: "Older", dueDate: date(2026, 4, 14)),
+            makeTask(id: "task-late", title: "Late", dueDate: date(2026, 4, 17)),
+            makeTask(id: "task-today", title: "Today", dueDate: date(2026, 4, 18)),
+            makeTask(id: "task-done", title: "Done", dueDate: date(2026, 4, 16), completed: true)
+        ]
+        var holdA = makeEvent(
+            id: "hold-a",
+            summary: "Planning",
+            startDate: date(2026, 4, 19, hour: 9),
+            endDate: date(2026, 4, 19, hour: 10)
+        )
+        holdA.availabilityHold = AvailabilityHoldMetadata(
+            groupID: "group-a",
+            title: "Planning",
+            durationMinutes: 60,
+            createdAt: referenceDate
+        )
+        var holdB = makeEvent(
+            id: "hold-b",
+            summary: "Design review",
+            startDate: date(2026, 4, 20, hour: 9),
+            endDate: date(2026, 4, 20, hour: 10)
+        )
+        holdB.availabilityHold = AvailabilityHoldMetadata(
+            groupID: "group-b",
+            title: "Design review",
+            durationMinutes: 60,
+            createdAt: referenceDate
+        )
+        var cancelledHold = makeEvent(
+            id: "hold-cancelled",
+            summary: "Ignore",
+            startDate: date(2026, 4, 19, hour: 12),
+            endDate: date(2026, 4, 19, hour: 13),
+            status: .cancelled
+        )
+        cancelledHold.availabilityHold = AvailabilityHoldMetadata(
+            groupID: "group-c",
+            title: "Ignore",
+            durationMinutes: 60,
+            createdAt: referenceDate
+        )
+        let events = [holdB, holdA, cancelledHold, makeEvent(id: "normal")]
+        let store = try LocalCacheDatabaseStore(fileURL: dbURL)
+        try store.save(makeState(
+            eventSuffix: "action-center",
+            checkpointToken: "token-action-center",
+            events: events,
+            tasks: tasks
+        ))
+
+        let overdue = try store.overdueTasks(
+            accountID: "account-1",
+            before: cutoff,
+            visibleTaskListIDs: ["tasks-main"],
+            limit: 1
+        )
+        let holdGroups = try store.availabilityHoldGroups(accountID: "account-1")
+            .map { group in
+                ActionCenterHoldGroup(id: group.id, metadata: group.metadata, events: group.events)
+            }
+        let querySnapshot = ActionCenterBuilder.build(
+            holdGroups: holdGroups,
+            overdueTasks: overdue.tasks,
+            overdueTaskCount: overdue.totalCount,
+            pendingMutations: [],
+            notificationSummary: nil,
+            authState: .signedOut,
+            syncState: .idle,
+            isSyncPaused: false,
+            mutationError: nil,
+            syncFailureKind: nil,
+            networkReachability: .online
+        )
+        let arraySnapshot = ActionCenterBuilder.build(
+            tasks: tasks,
+            events: events,
+            pendingMutations: [],
+            notificationSummary: nil,
+            authState: .signedOut,
+            syncState: .idle,
+            isSyncPaused: false,
+            mutationError: nil,
+            syncFailureKind: nil,
+            networkReachability: .online,
+            referenceDate: referenceDate,
+            calendar: calendar,
+            overdueTaskDisplayLimit: 1
+        )
+
+        XCTAssertEqual(querySnapshot.holdGroups, arraySnapshot.holdGroups)
+        XCTAssertEqual(querySnapshot.overdueTasks.map(\.id), arraySnapshot.overdueTasks.map(\.id))
+        XCTAssertEqual(querySnapshot.overdueTaskCount, arraySnapshot.overdueTaskCount)
+        XCTAssertEqual(querySnapshot.actionableCount, arraySnapshot.actionableCount)
+    }
+
     func testCalendarProjectionDoesNotDecodeFullEventPayloads() throws {
         let originalTimeZone = NSTimeZone.default
         NSTimeZone.default = TimeZone(identifier: "UTC")!
@@ -860,6 +1010,7 @@ private extension JSONEncoder {
     static var cacheDatabaseTestCanonical: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .secondsSince1970
+        encoder.outputFormatting = [.sortedKeys]
         return encoder
     }
 }

@@ -106,10 +106,11 @@ struct HCBAppBackgroundConfiguration: Equatable {
     }
 
     init(settings: AppSettings) {
+        let usesRichPresentation = settings.performanceMode == .rich
         self.init(
-            isTranslucent: settings.appBackgroundTranslucencyEnabled,
+            isTranslucent: usesRichPresentation && settings.appBackgroundTranslucencyEnabled,
             opacity: settings.appBackgroundOpacity,
-            customImagePath: settings.customBackgroundImagePath
+            customImagePath: usesRichPresentation ? settings.customBackgroundImagePath : nil
         )
     }
 }
