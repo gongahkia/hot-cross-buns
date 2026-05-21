@@ -13,6 +13,7 @@ Required layers:
 - IPC contract tests for every preload method.
 - MCP JSON-RPC contract tests.
 - Playwright Electron smoke tests.
+- Local performance smoke tests with deterministic generated data.
 - Platform manual verification for tray, global shortcuts, notifications, and packaging.
 
 ## Unit Tests
@@ -121,6 +122,24 @@ Later smoke tests:
 - OAuth setup screen renders
 - offline cache renders after restart
 
+## Performance Smoke Tests
+
+Performance smoke tests must use generated local data and temporary app/database paths. They must not call Google or read a user's real application data.
+
+Required measured flows before Mac v1:
+
+- cold launch shell-visible timing
+- warm launch shell-visible timing
+- cached Today/Tasks/Calendar render timing
+- command palette open latency
+- quick capture open latency
+- local search latency against a medium fixture
+- Tasks list scrolling against a large fixture
+- Calendar month navigation against a large fixture
+- representative SQLite query plans for core task, event, note, search, sync, and mutation queries
+
+Performance tests should initially report timings without failing the build. Convert stable budgets into hard gates only after baseline data exists on target machines.
+
 ## Manual Verification
 
 Manual checks are required for platform-specific OS behavior:
@@ -141,5 +160,5 @@ No feature is complete until:
 - relevant unit/integration tests pass
 - IPC or MCP contract tests are updated if interfaces changed
 - Playwright smoke suite still launches
+- performance smoke coverage is updated when a change touches startup, IPC payload shape, database queries, list rendering, search, sync, or native lifecycle behavior
 - docs are updated if product or architecture behavior changed
-

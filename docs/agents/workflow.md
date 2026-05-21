@@ -13,6 +13,8 @@ Read:
 3. `docs/architecture/tech-stack.md`
 4. `docs/architecture/system-architecture.md`
 5. the subsystem spec for the requested work
+6. the relevant `docs/performance/` guide when touching startup, renderer surfaces, IPC, SQLite, sync, search, packaging, or tests
+7. the relevant `docs/ports/` guide when touching platform adapters, packaging, tray, shortcuts, notifications, paths, credentials, deep links, or updater behavior
 
 If the requested work conflicts with these docs, update or propose a doc change before implementing code.
 
@@ -45,6 +47,8 @@ Not allowed without explicit approval:
 - Keep Google as the source of truth for synced tasks/events.
 - Keep notes local-only unless a later spec changes that.
 - Update docs when behavior or architecture changes.
+- Preserve the performance budgets and measurement strategy in `docs/performance/performance-strategy.md`.
+- Preserve the port order in `docs/ports/cross-platform-porting.md`: macOS first, Linux second, Windows third.
 
 ## Work Selection
 
@@ -69,6 +73,7 @@ Every change should answer:
 - Are Google tokens kept out of renderer/logs/SQLite?
 - Are MCP writes routed through the same services as UI writes?
 - Did relevant tests run?
+- Did performance smoke coverage or instrumentation need updates?
 - Did docs change when behavior changed?
 
 ## Branch And PR Notes
@@ -83,4 +88,3 @@ PR descriptions should include:
 - manual platform checks if native behavior changed
 
 Do not claim Windows/Linux support from a Mac-only change unless the platform spec and tests prove it.
-
