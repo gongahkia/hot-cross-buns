@@ -5,8 +5,9 @@ import Foundation
 // feature is opt-in on every axis. Deletion-capable ladders have a
 // separate threshold integer (days) persisted in AppSettings.
 //
-// Notes tab is out of scope — notes don't have a due date or completion
-// state, so no past-ness to act on.
+// Notes tab is out of scope because it is a content lens over tasks with
+// note bodies or no due date. Cleanup still acts through the underlying
+// task/event behaviors.
 enum PastEventBehavior: String, CaseIterable, Hashable, Codable, Sendable {
     case showAll
     case dim

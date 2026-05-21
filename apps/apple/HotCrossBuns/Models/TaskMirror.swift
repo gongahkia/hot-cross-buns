@@ -25,6 +25,14 @@ struct TaskMirror: Identifiable, Hashable, Codable, Sendable {
     var isCompleted: Bool {
         status == .completed
     }
+
+    var hasNoteBody: Bool {
+        notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+
+    var appearsInNotesSurface: Bool {
+        dueDate == nil || hasNoteBody
+    }
 }
 
 enum TaskStatus: String, Codable, Hashable, Sendable {

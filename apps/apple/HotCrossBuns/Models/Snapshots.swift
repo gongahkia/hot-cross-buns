@@ -547,7 +547,8 @@ struct TaskBoardSnapshot: Equatable, Sendable {
                 guard tasksTabVisibleListIDs.contains(task.taskListID) else { continue }
                 guard settings.shouldHideOverdueTask(task, now: referenceDate, calendar: calendar) == false else { continue }
                 datedTasks.append(task)
-            } else {
+            }
+            if task.appearsInNotesSurface {
                 guard notesTabVisibleListIDs.contains(task.taskListID) else { continue }
                 undatedTasks.append(task)
             }

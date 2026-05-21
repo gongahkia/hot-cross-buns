@@ -152,7 +152,7 @@ struct HelpView: View {
                 entries: [
                     .init(title: nil, detail: hcbHelpString("Tasks and notes share the Store surface and sync through Google Tasks."), kind: .bullet),
                     .init(title: nil, detail: hcbHelpString("Saved custom filters can be configured in Settings and pinned to the menu bar."), kind: .bullet),
-                    .init(title: nil, detail: hcbHelpString("Notes are undated tasks. They still sync through Google Tasks."), kind: .bullet)
+                    .init(title: nil, detail: hcbHelpString("Notes shows tasks with note text plus standalone tasks without a due date. They still sync through Google Tasks."), kind: .bullet)
                 ]
             ),
             HelpSectionData(

@@ -120,8 +120,7 @@ enum SheetDestination: Identifiable, Hashable {
     // Note variant — opened from the Notes tab "New Note" button and the
     // global ⌘⇧N shortcut. Same sheet as quickCreateTask but labelled
     // "New Note" and defaults hasDueDate = false. Adding a due date later
-    // promotes the note into a task (by moving it out of the Notes tab and
-    // into the Tasks tab — both are Google-side the same TaskMirror).
+    // makes it a dated task too; note text keeps it visible in Notes.
     case quickCreateNote(listID: TaskListMirror.ID?)
     case convertEventToTask(CalendarEventMirror.ID)
     case convertEventToNote(CalendarEventMirror.ID)

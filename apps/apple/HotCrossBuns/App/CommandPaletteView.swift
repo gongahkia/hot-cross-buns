@@ -62,8 +62,8 @@ enum QuickSwitcherEntity: Hashable, Identifiable, Sendable {
     }
 
     // Task vs Note is a display-only distinction (both are TaskMirror on
-    // Google's side). Undated tasks read as notes everywhere else in the
-    // product, so the palette follows suit.
+    // Google's side). Standalone undated tasks read as notes; dated tasks
+    // with note bodies stay labelled as tasks while remaining searchable.
     fileprivate var kindLabel: String {
         switch self {
         case .task(let t): return t.dueDate == nil ? "Note" : "Task"

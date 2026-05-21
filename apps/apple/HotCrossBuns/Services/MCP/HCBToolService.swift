@@ -224,7 +224,7 @@ final class HCBToolService {
                 case ("tasks", .task(let task)):
                     return task.dueDate != nil
                 case ("notes", .task(let task)):
-                    return task.dueDate == nil
+                    return task.appearsInNotesSurface
                 case ("events", .event):
                     return true
                 case ("all", _):
@@ -247,7 +247,7 @@ final class HCBToolService {
             entities += model.tasks
                 .filter { $0.isDeleted == false }
                 .filter { scope != "tasks" || $0.dueDate != nil }
-                .filter { scope != "notes" || $0.dueDate == nil }
+                .filter { scope != "notes" || $0.appearsInNotesSurface }
                 .map(QuickSwitcherEntity.task)
         }
         if scope == "all" || scope == "events" {
@@ -637,7 +637,7 @@ final class HCBToolService {
 
     private func sanitize(task: TaskMirror) -> [String: Any] {
         [
-            "kind": task.dueDate == nil ? "note" : "task",
+            "kind": task.appearsInNotesSurface ? "note" : "task",
             "id": task.id,
             "title": TagExtractor.stripped(from: task.title),
             "rawTitle": task.title,

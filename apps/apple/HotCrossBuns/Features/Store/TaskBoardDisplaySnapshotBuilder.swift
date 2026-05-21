@@ -72,7 +72,7 @@ enum TaskBoardDisplaySnapshotBuilder {
             return PreparedKanbanColumn(
                 id: column.id,
                 title: column.title,
-                subtitle: column.subtitle,
+                subtitle: subtitle(for: column, surface: input.surface),
                 openTasks: cards.filter { $0.isCompleted == false },
                 completedTasks: cards.filter(\.isCompleted),
                 dropIntent: column.dropIntent
@@ -158,6 +158,11 @@ enum TaskBoardDisplaySnapshotBuilder {
             isDuplicate: input.duplicateTaskIDs.contains(task.id),
             accessibilityLabel: parts.joined(separator: ", ")
         )
+    }
+
+    private static func subtitle(for column: KanbanColumn, surface: TaskBoardSurface) -> String? {
+        let label = surface == .notes ? "note" : "task"
+        return "\(column.tasks.count) \(label)\(column.tasks.count == 1 ? "" : "s")"
     }
 
     private static func dueDateBadge(_ due: Date, now: Date, calendar: Calendar) -> String {

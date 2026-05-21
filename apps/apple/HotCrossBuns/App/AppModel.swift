@@ -693,9 +693,10 @@ final class AppModel {
     // Cached during rebuildSnapshots so the sidebar badge doesn't have to
     // re-filter the full tasks array on every sidebar render.
     private(set) var openTaskCountForSidebar: Int = 0
-    // Split badges for the post-refactor sidebar: dated tasks land in Tasks,
-    // undated ones in Notes. Recomputed in rebuildSnapshots alongside the
-    // combined count so the sidebar can render without re-filtering.
+    // Split badges for the post-refactor sidebar: dated open tasks land in
+    // Tasks; standalone undated notes plus tasks with note bodies land in
+    // Notes. Recomputed in rebuildSnapshots alongside the combined count so
+    // the sidebar can render without re-filtering.
     private(set) var datedOpenTaskCount: Int = 0
     private(set) var undatedOpenTaskCount: Int = 0
     // Per-list completion stats for Store section headers — avoids O(n)
@@ -7648,9 +7649,10 @@ final class AppModel {
         var dated = 0
         var undated = 0
         for task in input.tasks where task.isCompleted == false && task.isDeleted == false {
-            if task.dueDate == nil {
+            if task.appearsInNotesSurface {
                 if notesTabVisibleListIDs.contains(task.taskListID) { undated += 1 }
-            } else if tasksTabVisibleListIDs.contains(task.taskListID) {
+            }
+            if task.dueDate != nil, tasksTabVisibleListIDs.contains(task.taskListID) {
                 dated += 1
             }
         }

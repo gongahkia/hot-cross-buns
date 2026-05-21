@@ -37,6 +37,9 @@ struct KanbanView: View {
     private var usesReadableTopBar: Bool {
         backgroundConfiguration.customImagePath != nil || backgroundConfiguration.isTranslucent
     }
+    private var itemLabel: String {
+        snapshot.surface == .notes ? "note" : "task"
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -49,6 +52,7 @@ struct KanbanView: View {
                     ForEach(snapshot.columns) { column in
                         KanbanColumnView(
                             column: column,
+                            surface: snapshot.surface,
                             mode: columnMode,
                             taskList: taskList(for: column),
                             isDropTargeted: dropHighlightColumnID == column.id,
@@ -101,7 +105,7 @@ struct KanbanView: View {
             .labelsHidden()
             .fixedSize()
             Spacer(minLength: 0)
-            Text("\(snapshot.taskCount) task\(snapshot.taskCount == 1 ? "" : "s")")
+            Text("\(snapshot.taskCount) \(itemLabel)\(snapshot.taskCount == 1 ? "" : "s")")
                 .hcbFont(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -151,6 +155,7 @@ private struct KanbanColumnView: View {
     @Environment(\.routerPath) private var router
     @Environment(\.hcbReduceMotion) private var reduceMotion
     let column: PreparedKanbanColumn
+    let surface: TaskBoardSurface
     let mode: KanbanColumnMode
     let taskList: TaskListMirror?
     let isDropTargeted: Bool
@@ -186,7 +191,7 @@ private struct KanbanColumnView: View {
                     Button(action: onCreateTask) {
                         HStack(spacing: 6) {
                             Image(systemName: "plus.circle")
-                            Text("Add task")
+                            Text(surface == .notes ? "Add note" : "Add task")
                         }
                         .hcbFont(.caption, weight: .medium)
                         .foregroundStyle(AppColor.ember.opacity(0.85))

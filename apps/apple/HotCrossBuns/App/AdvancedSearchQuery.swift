@@ -7,8 +7,8 @@ import Foundation
 //  - Accepts field prefixes (title:, tag:, list:, calendar:, attendee:,
 //    kind:, has:notes|location|due) and bare keywords (overdue, completed).
 //    `kind:` accepts task | note | event | list | calendar | filter and
-//    restricts the result to that entity kind. Task vs note is the
-//    dueDate nil/non-nil split that the Tasks and Notes tabs enforce.
+//    restricts the result to that entity kind. Notes are standalone undated
+//    tasks plus tasks with note/details text.
 //  - Supports regex mode via leading + trailing slashes: /pattern/
 //  - Falls back to free-text fuzzy matching on any residue.
 //
@@ -51,9 +51,8 @@ struct AdvancedSearchQuery: Equatable {
 }
 
 // Discriminator for `kind:` in the DSL. Task and note both resolve to
-// the TaskMirror case — a note is a task without a due date, and vice
-// versa — but they appear as separate rows in the palette so the filter
-// pair splits them.
+// the TaskMirror case. Notes are a client-side lens over standalone undated
+// tasks and tasks with note/details text.
 enum EntityKind: String, Equatable, Sendable {
     case task
     case note

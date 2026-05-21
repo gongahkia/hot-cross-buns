@@ -2862,20 +2862,21 @@ private extension LocalCacheDatabaseStore {
             return []
         }
 
+        let notesSurfacePredicate = "(due_date IS NULL OR TRIM(notes) <> '')"
         var predicates = ["account_id = ?", "is_deleted = 0"]
         var arguments: StatementArguments = [accountID]
         switch scope {
         case .tasks:
             predicates.append("due_date IS NOT NULL")
         case .notes:
-            predicates.append("due_date IS NULL")
+            predicates.append(notesSurfacePredicate)
         case .all, .events:
             break
         }
         if parsed.kind == .task {
             predicates.append("due_date IS NOT NULL")
         } else if parsed.kind == .note {
-            predicates.append("due_date IS NULL")
+            predicates.append(notesSurfacePredicate)
         }
         if let listMatch = parsed.listMatch {
             predicates.append("task_list_id = ?")
@@ -2904,7 +2905,11 @@ private extension LocalCacheDatabaseStore {
             arguments += [Calendar.current.startOfDay(for: Date()).timeIntervalSince1970]
         }
 
-        let usesFTSTable = ftsQuery != nil || parsed.tagsAll.isEmpty == false || parsed.requireNotes
+        let usesFTSTable = ftsQuery != nil
+            || parsed.tagsAll.isEmpty == false
+            || parsed.requireNotes
+            || scope == .notes
+            || parsed.kind == .note
         let sql: String
         if let ftsQuery {
             arguments = [ftsQuery] + arguments + [limit]

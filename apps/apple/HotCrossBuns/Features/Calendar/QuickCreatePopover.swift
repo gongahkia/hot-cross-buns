@@ -33,9 +33,8 @@ struct QuickCreatePopover: View {
     let taskOnly: Bool
     let initialTaskListID: TaskListMirror.ID?
     // Flips the sheet's identity to "New Note" and defaults hasDueDate off.
-    // A note is the same Google Task underneath (TaskMirror with dueDate=nil);
-    // setting a due date later moves it from the Notes tab to the Tasks tab
-    // — no conversion UI needed, it's purely where the task shows up.
+    // A note is the same Google Task underneath; tasks with note text appear
+    // in Notes, and tasks with due dates also remain visible in Tasks.
     let noteMode: Bool
 
     @State private var mode: CreateMode = .event
@@ -746,17 +745,14 @@ struct QuickCreatePopover: View {
 
     private var bottomBar: some View {
         VStack(spacing: 0) {
-            // In note-mode, flipping the date toggle on demotes this from a
-            // "note" (undated TaskMirror, shows on the Notes tab) to a "task"
-            // (dated TaskMirror, shows on the Tasks tab). The two tabs are a
-            // client-side lens over the same Google data, so there's no
-            // conversion happening — but the sheet label won't match what
-            // the user ends up with. Make that explicit.
+            // In note-mode, flipping the date toggle on also makes this a
+            // dated task. It can still appear in Notes when it has note text,
+            // but Tasks owns dated scheduling.
             if noteMode && hasDueDate {
                 HStack(spacing: 8) {
                     Image(systemName: "info.circle")
                         .foregroundStyle(AppColor.blue)
-                    Text("This will be created as a task — with a due date it'll show up in the Tasks tab, not Notes.")
+                    Text("This will be created as a dated task and will also appear in Notes when it has note text.")
                         .hcbFont(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

@@ -13,7 +13,7 @@ import SwiftUI
 //  - BulkResult toast + bulk-action bar on multi-select.
 //
 // What moved:
-//  - Undated tasks now show in the Notes tab (NotesView).
+//  - Note-like tasks now show in the Notes tab (NotesView).
 //  - "Lists" management view is reachable via the Kanban column menu; the
 //    standalone filter entry was dropped with the filter menu.
 struct StoreView: View {
@@ -604,14 +604,12 @@ struct ListCreateSheet: View {
 
 // MARK: - NotesView
 //
-// Derived view of tasks with `dueDate == nil`. The classification is
-// automatic — there's no local "is-a-note" flag. Adding a date to a Note
-// moves it to the Tasks tab on the next render; clearing a date on a
-// Tasks-tab task moves it here. This keeps two-way Google sync intact —
-// Google Tasks sees only `due` changing, not a custom field.
+// Derived view of note-like Google Tasks: standalone undated tasks plus
+// any task with text in Google's notes/details field. Dated tasks with note
+// bodies remain visible in Tasks too; Notes is a focused lens, not a move.
 //
-// Layout is a shared Kanban board over undated tasks. Click-to-create opens
-// QuickCreatePopover in task-only mode with no pre-selected list.
+// Layout is a shared Kanban board over note-like tasks. Click-to-create opens
+// QuickCreatePopover in note mode with the selected list prefilled.
 struct NotesView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.routerPath) private var router
@@ -649,13 +647,13 @@ struct NotesView: View {
                     ContentUnavailableView(
                         "Not connected to Google",
                         systemImage: "person.crop.circle.badge.plus",
-                        description: Text("Sign in to see undated tasks here.")
+                        description: Text("Sign in to see tasks with note text and standalone notes here.")
                     )
                 } else if undatedTasks.isEmpty {
                     ContentUnavailableView {
                         Label("No notes", systemImage: "note.text")
                     } description: {
-                        Text("Tasks without a due date show up here.")
+                        Text("Tasks with note text, plus tasks without a due date, show up here.")
                     } actions: {
                         Button {
                             router?.present(.quickCreateNote(listID: nil))
