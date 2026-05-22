@@ -267,6 +267,7 @@ const hcbApi: HcbApi = {
         startOnLogin: false,
         selectedTaskListIds: [],
         selectedCalendarIds: [],
+        setupCompletedAt: now,
         syncMode: "balanced" as const,
         quickCaptureShortcut: null,
         showTrayIcon: true,
@@ -287,6 +288,7 @@ const hcbApi: HcbApi = {
         startOnLogin: request.startOnLogin ?? false,
         selectedTaskListIds: request.selectedTaskListIds ?? [],
         selectedCalendarIds: request.selectedCalendarIds ?? [],
+        setupCompletedAt: request.setupCompletedAt ?? now,
         syncMode: request.syncMode ?? "balanced",
         quickCaptureShortcut: request.quickCaptureShortcut ?? null,
         showTrayIcon: request.showTrayIcon ?? true,
@@ -305,7 +307,7 @@ const hcbApi: HcbApi = {
       ok({
         action: request.action,
         accepted: true,
-        destructive: request.action !== "refresh",
+        destructive: request.action !== "refresh" && request.action !== "resetOnboarding",
         requiresReload: request.action === "clearGoogleCache",
         message: "Recovery action accepted."
       })

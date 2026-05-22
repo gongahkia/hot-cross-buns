@@ -2266,7 +2266,7 @@ function SettingsView(): JSX.Element {
   }
 
   function beginRecoveryAction(action: SettingsRecoveryActionRequest["action"]): void {
-    if (action === "refresh") {
+    if (action === "refresh" || action === "resetOnboarding") {
       void runRecovery({ action });
       return;
     }
@@ -2559,6 +2559,14 @@ function SettingsView(): JSX.Element {
           >
             <Trash2 aria-hidden="true" size={14} />
             Clear local Google cache
+          </Button>
+          <Button
+            disabled={source.settingsMutationPending}
+            onClick={() => beginRecoveryAction("resetOnboarding")}
+            variant="secondary"
+          >
+            <RotateCcw aria-hidden="true" size={14} />
+            Reset onboarding
           </Button>
         </div>
       );
