@@ -74,3 +74,4 @@ Diagnostics should include sanitized performance fields:
 - MCP request counts and rate-limit status
 - renderer performance smoke summary if available
 
+Current scaffold note: IPC debug logging is opt-in via `HCB_IPC_DEBUG=1`. It records route names, durations, outcomes, and sanitized error codes only; request and response payloads are not logged.

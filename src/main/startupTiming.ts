@@ -1,5 +1,5 @@
 import { performance } from "node:perf_hooks";
-import type { StartupTimingSnapshot } from "@shared/diagnostics";
+import type { StartupTimingSnapshot } from "@shared/ipc/contracts";
 
 type StartupTimingName = keyof StartupTimingSnapshot;
 

@@ -1,6 +1,3 @@
-export const IPC_CHANNELS = {
-  diagnostics: {
-    health: "hcb:diagnostics:health",
-    markShellVisible: "hcb:diagnostics:mark-shell-visible"
-  }
-} as const;
+export * from "./ipc/contracts";
+export type { HcbApi } from "./ipc/preloadApi";
+export * from "./ipc/result";

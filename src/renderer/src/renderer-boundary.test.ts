@@ -1,6 +1,6 @@
 import { builtinModules } from "node:module";
 import { readFileSync, readdirSync } from "node:fs";
-import { join, relative } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const rendererRoot = join(process.cwd(), "src", "renderer", "src");
@@ -9,7 +9,47 @@ const nodeBuiltins = new Set([
   ...builtinModules.map((moduleName) => `node:${moduleName}`)
 ]);
 const forbiddenAliases = ["@main/", "@preload/"];
+const allowedSharedContracts = [
+  "@shared/ipc",
+  "@shared/preloadApi",
+  "@shared/result"
+];
 const importPattern = /\b(?:import|export)\s+(?:type\s+)?(?:[^"']*?\s+from\s+)?["']([^"']+)["']/g;
+
+function relativeToRepo(path: string): string {
+  return relative(process.cwd(), path).split("\\").join("/");
+}
+
+function forbiddenImportReason(filePath: string, specifier: string): string | undefined {
+  if (specifier === "electron" || nodeBuiltins.has(specifier)) {
+    return `imports ${specifier}`;
+  }
+
+  if (forbiddenAliases.some((alias) => specifier.startsWith(alias))) {
+    return `imports ${specifier}`;
+  }
+
+  if (
+    specifier.startsWith("@shared/") &&
+    !allowedSharedContracts.some(
+      (allowed) => specifier === allowed || specifier.startsWith(`${allowed}/`)
+    )
+  ) {
+    return `imports non-contract shared module ${specifier}`;
+  }
+
+  if (!specifier.startsWith(".")) {
+    return undefined;
+  }
+
+  const resolved = relativeToRepo(resolve(dirname(filePath), specifier));
+
+  if (resolved.startsWith("src/main/") || resolved.startsWith("src/preload/")) {
+    return `imports privileged module ${specifier}`;
+  }
+
+  return undefined;
+}
 
 function sourceFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -41,14 +81,11 @@ describe("renderer privilege boundary", () => {
       const contents = readFileSync(filePath, "utf8");
       const imports = [...contents.matchAll(importPattern)].map((match) => match[1]);
 
-      return imports
-        .filter(
-          (specifier) =>
-            specifier === "electron" ||
-            nodeBuiltins.has(specifier) ||
-            forbiddenAliases.some((alias) => specifier.startsWith(alias))
-        )
-        .map((specifier) => `${relative(process.cwd(), filePath)} imports ${specifier}`);
+      return imports.flatMap((specifier) => {
+        const reason = forbiddenImportReason(filePath, specifier);
+
+        return reason ? [`${relativeToRepo(filePath)} ${reason}`] : [];
+      });
     });
 
     expect(violations).toEqual([]);

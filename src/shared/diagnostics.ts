@@ -1,45 +1,30 @@
 import { z } from "zod";
-import { hcbResultSchema } from "./result";
+import {
+  diagnosticsHealthRequestSchema,
+  diagnosticsHealthResponseSchema,
+  diagnosticsShellVisibleRequestSchema,
+  startupTimingSnapshotSchema,
+  type DiagnosticsHealthResponse,
+  type DiagnosticsShellVisibleRequest,
+  type StartupTimingSnapshot
+} from "./ipc/contracts";
+import { hcbResultSchema } from "./ipc/result";
 
 export const appEnvironmentSchema = z.enum(["development", "test", "production"]);
-export type AppEnvironment = z.infer<typeof appEnvironmentSchema>;
+export type AppEnvironment = DiagnosticsHealthResponse["environment"];
 
-export const startupTimingSnapshotSchema = z
-  .object({
-    processStartedMs: z.number().nonnegative().optional(),
-    appReadyMs: z.number().nonnegative().optional(),
-    windowCreatedMs: z.number().nonnegative().optional(),
-    rendererLoadedMs: z.number().nonnegative().optional(),
-    shellVisibleMs: z.number().nonnegative().optional()
-  })
-  .strict();
+export { startupTimingSnapshotSchema };
+export type { StartupTimingSnapshot };
 
-export type StartupTimingSnapshot = z.infer<typeof startupTimingSnapshotSchema>;
-
-export const healthCheckRequestSchema = z.object({}).strict();
+export const healthCheckRequestSchema = diagnosticsHealthRequestSchema;
 export type HealthCheckRequest = z.infer<typeof healthCheckRequestSchema>;
 
-export const healthCheckResponseSchema = z
-  .object({
-    status: z.literal("ok"),
-    version: z.string().min(1),
-    environment: appEnvironmentSchema,
-    timestamp: z.string().datetime(),
-    uptimeMs: z.number().nonnegative(),
-    startup: startupTimingSnapshotSchema
-  })
-  .strict();
-
-export type HealthCheckResponse = z.infer<typeof healthCheckResponseSchema>;
+export const healthCheckResponseSchema = diagnosticsHealthResponseSchema;
+export type HealthCheckResponse = DiagnosticsHealthResponse;
 
 export const healthCheckResultSchema = hcbResultSchema(healthCheckResponseSchema);
 
-export const shellVisibleRequestSchema = z
-  .object({
-    rendererNowMs: z.number().finite().nonnegative().optional()
-  })
-  .strict();
-
-export type ShellVisibleRequest = z.infer<typeof shellVisibleRequestSchema>;
+export const shellVisibleRequestSchema = diagnosticsShellVisibleRequestSchema;
+export type ShellVisibleRequest = DiagnosticsShellVisibleRequest;
 
 export const shellVisibleResultSchema = hcbResultSchema(startupTimingSnapshotSchema);

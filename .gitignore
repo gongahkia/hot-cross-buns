@@ -9,8 +9,8 @@ output/
 test-results/
 playwright-report/
 
-artifacts/perf/latest.json
-artifacts/perf/latest.md
+artifacts/perf/*
+!artifacts/perf/.gitkeep
 
 .DS_Store
 *.log

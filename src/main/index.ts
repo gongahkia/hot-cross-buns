@@ -1,11 +1,15 @@
 import { app, BrowserWindow, session } from "electron";
 import { join } from "node:path";
-import { registerDiagnosticsIpc } from "./ipc/diagnostics";
+import { registerHcbIpc } from "./ipc";
 import { configureNavigationLockdown, configureSessionHardening } from "./security";
 import { createServiceContainer } from "./services/serviceContainer";
 import { markStartupTiming } from "./startupTiming";
 
 let mainWindow: BrowserWindow | null = null;
+
+if (process.env.HCB_USER_DATA_DIR && !app.isPackaged) {
+  app.setPath("userData", process.env.HCB_USER_DATA_DIR);
+}
 
 markStartupTiming("processStartedMs");
 
@@ -54,8 +58,10 @@ function createMainWindow(): BrowserWindow {
 app.whenReady().then(() => {
   markStartupTiming("appReadyMs");
   configureSessionHardening(session.defaultSession);
-  registerDiagnosticsIpc();
-  void createServiceContainer();
+  registerHcbIpc();
+  void createServiceContainer({
+    appSupportDirectory: app.getPath("userData")
+  });
   mainWindow = createMainWindow();
 
   app.on("activate", () => {

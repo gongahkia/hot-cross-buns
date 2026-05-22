@@ -57,6 +57,8 @@ Use React Profiler or equivalent measurement in development/performance builds f
 
 Collect render durations in local logs only when profiling is enabled. Do not enable expensive profiling in normal production builds.
 
+Current scaffold note: renderer timing logs are gated behind `VITE_HCB_RENDER_PROFILING=true` or a dedicated performance build mode, and only write local component labels and durations.
+
 ## Anti-Patterns
 
 - Mapping 10000 rows directly into DOM nodes.
@@ -65,4 +67,3 @@ Collect render durations in local logs only when profiling is enabled. Do not en
 - Storing full raw Google payloads in renderer state.
 - Doing date recurrence expansion in component render.
 - Opening command palette by mounting the entire app settings/search stack.
-

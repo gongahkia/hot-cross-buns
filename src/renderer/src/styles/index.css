@@ -19,6 +19,9 @@
   --color-warning: #fab387;
   --color-success: #a6e3a1;
   --color-info: #89dceb;
+  --priority-low: #89b4fa;
+  --priority-medium: #fab387;
+  --priority-high: #f38ba8;
   --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, Roboto,
     "Helvetica Neue", Arial, sans-serif;
   --font-family-mono: "SF Mono", "Cascadia Code", "Fira Code", "JetBrains Mono", ui-monospace,
@@ -64,6 +67,9 @@
   --color-warning: #fe640b;
   --color-success: #40a02b;
   --color-info: #04a5e5;
+  --priority-low: #1e66f5;
+  --priority-medium: #fe640b;
+  --priority-high: #d20f39;
 }
 
 * {
@@ -97,4 +103,39 @@ button {
   border: 0;
   background: transparent;
   color: inherit;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: var(--color-bg-tertiary);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid var(--color-bg-secondary);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-1);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-surface-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

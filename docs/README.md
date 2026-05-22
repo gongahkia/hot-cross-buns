@@ -1,6 +1,6 @@
 # Hot Cross Buns 2 Documentation
 
-Hot Cross Buns 2 is the Electron-first rebuild of Hot Cross Buns. This repository starts with specs before application code so future implementation agents can work from shared product, architecture, security, and test decisions.
+Hot Cross Buns 2 is the Electron-first rebuild of Hot Cross Buns. The repository started with specs first, and now includes the initial Electron, React, TypeScript, IPC, renderer shell, performance harness, and local SQLite connection foundations.
 
 ## Starting Point For Agents
 
@@ -22,6 +22,14 @@ Then read the spec for the subsystem you are changing. Do not scaffold app code 
 - Source of truth: Google Tasks and Google Calendar
 - Local database role: cache, settings, checkpoints, offline mutations, local notes
 - Agent access: opt-in local MCP server on `127.0.0.1`
+
+## Implementation Status
+
+- Electron/Vite/React scaffold exists with hardened renderer settings and a typed preload bridge.
+- Phase 1 renderer shell uses local mock data only and does not import main, preload, filesystem, or SQLite modules.
+- Phase 1 IPC contracts are versioned under `src/shared/ipc/`, with legacy shared entry points re-exporting those contracts.
+- Local data currently provides connection factories and temporary-database test coverage. Full migrations and repositories remain planned before real sync/data wiring.
+- Performance smoke runs in report-only mode with generated local fixtures and temporary app data paths.
 
 ## Documentation Map
 
@@ -66,7 +74,7 @@ Operational docs:
 - [Distribution](release/distribution.md)
 - [Agent Workflow](agents/workflow.md)
 
-## Non-Goals For This Documentation Pass
+## Historical Non-Goals For The Initial Documentation Pass
 
 - No Electron scaffold yet.
 - No package manager lockfile yet.
