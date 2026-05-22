@@ -143,7 +143,17 @@ const DEFAULT_SETTINGS: SettingsSnapshot = {
   theme: "system",
   startOnLogin: false,
   quickCaptureShortcut: "Ctrl+Space",
-  mcpEnabled: false
+  selectedTaskListIds: [],
+  selectedCalendarIds: [],
+  syncMode: "balanced",
+  showTrayIcon: true,
+  trayClickAction: "toggle-window",
+  notificationsEnabled: false,
+  notificationLeadMinutes: 10,
+  mcpEnabled: false,
+  mcpPermissionMode: "confirm-writes",
+  mcpPort: 0,
+  diagnosticsIncludePerformance: true
 };
 
 export class LocalPerformanceRepository {

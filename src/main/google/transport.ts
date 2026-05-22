@@ -1,3 +1,5 @@
+import { redactErrorMessage } from "@shared/redaction";
+
 export type GoogleHttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
 export interface GoogleAccessTokenProvider {
@@ -53,7 +55,7 @@ export class GoogleApiError extends Error {
     responseBodyBytes?: number;
     quotaExceeded?: boolean;
   }) {
-    super(options.message);
+    super(redactErrorMessage(options.message));
     this.name = "GoogleApiError";
     this.kind = options.kind;
     this.status = options.status;
