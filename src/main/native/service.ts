@@ -501,6 +501,73 @@ export class NativeShellService implements NativeDomainService {
     }
   }
 
+  private menuBarSnapshot(): NativeMenuBarSnapshot {
+    const settings = this.options.settings.get();
+    const now = this.now();
+    const todayStart = startOfLocalDay(now);
+    const tomorrowStart = addDays(todayStart, 1);
+    const dayAfterTomorrowStart = addDays(todayStart, 2);
+    const tasks = activeTasks(this.options.planner);
+    const events = calendarEvents(
+      this.options.planner,
+      todayStart,
+      dayAfterTomorrowStart
+    );
+    const overdueTasks = tasks
+      .filter((task) => taskDueBefore(task, todayStart))
+      .sort(compareTasksByDueDate);
+    const todayTasks = tasks
+      .filter((task) => taskDueBetween(task, todayStart, tomorrowStart))
+      .sort(compareTasksByDueDate);
+    const tomorrowTasks = tasks
+      .filter((task) => taskDueBetween(task, tomorrowStart, dayAfterTomorrowStart))
+      .sort(compareTasksByDueDate);
+    const todayEvents = events
+      .filter((event) => eventStartsBetween(event, todayStart, tomorrowStart))
+      .sort(compareEventsByStart);
+    const tomorrowEvents = events
+      .filter((event) => eventStartsBetween(event, tomorrowStart, dayAfterTomorrowStart))
+      .sort(compareEventsByStart);
+    const currentEvent = todayEvents.find((event) => {
+      const startsAt = dateFromIso(event.startsAt);
+      const endsAt = dateFromIso(event.endsAt);
+
+      return Boolean(startsAt && endsAt && startsAt <= now && endsAt > now);
+    });
+    const nextEvent = todayEvents.find((event) => {
+      const startsAt = dateFromIso(event.startsAt);
+
+      return Boolean(startsAt && startsAt > now);
+    });
+    const sections = menuBarSections(settings.menuBarPanelStyle, {
+      overdueTasks,
+      todayTasks,
+      tomorrowTasks,
+      todayEvents,
+      tomorrowEvents
+    });
+    const todayCount = todayTasks.length + todayEvents.length;
+    const title = menuBarTitle(overdueTasks.length, todayCount, currentEvent, nextEvent);
+    const subtitle = menuBarSubtitle(overdueTasks.length, todayCount, tomorrowTasks.length + tomorrowEvents.length);
+    const adaptiveLabel =
+      settings.menuBarPanelStyle === "adaptive"
+        ? adaptiveTrayLabel(overdueTasks.length, todayCount, currentEvent, nextEvent)
+        : "";
+
+    return {
+      panelStyle: settings.menuBarPanelStyle,
+      primaryClickAction: settings.trayClickAction,
+      title,
+      subtitle,
+      badgeLabel:
+        settings.showMenuBarBadge && overdueTasks.length > 0
+          ? cappedBadgeLabel(overdueTasks.length)
+          : adaptiveLabel,
+      tooltip: subtitle ? `${title} - ${subtitle}` : title,
+      sections
+    };
+  }
+
   private checkForUpdates(): void | Promise<void> {
     const result = this.options.adapter.checkForUpdates();
 
