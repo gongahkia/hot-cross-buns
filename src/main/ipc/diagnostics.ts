@@ -10,6 +10,7 @@ import {
 import { DIAGNOSTIC_OMITTED_VALUE } from "@shared/redaction";
 import { getStartupTimings, markStartupTiming } from "../startupTiming";
 import { appBuildMetadata } from "../buildMetadata";
+import { createNoopNativeAdapter } from "../native/noopAdapter";
 import type { ServiceContainer } from "../services/serviceContainer";
 import type { IpcHandlerDefinition, IpcMetricsRecorder } from "./registry";
 
@@ -170,6 +171,7 @@ async function diagnosticsSummary(
         tokenState: "not_configured",
         requestCounts: zeroMcpCounts
       },
+      native: createNoopNativeAdapter().capabilities().capabilityReport,
       build,
       performance: {
         startup,
@@ -185,10 +187,11 @@ async function diagnosticsSummary(
     };
   }
 
-  const [settings, syncStatus, mcpStatus] = await Promise.all([
+  const [settings, syncStatus, mcpStatus, nativeCapabilities] = await Promise.all([
     services.domain.settings.get(),
     services.domain.sync.status(),
-    services.domain.mcp.status()
+    services.domain.mcp.status(),
+    services.domain.native.capabilities()
   ]);
   const account = services.localData.syncRepository.latestAccountStatus();
   const cache = services.localData.syncRepository.cacheDiagnostics();
@@ -241,6 +244,7 @@ async function diagnosticsSummary(
         : { lastTokenResetAt: mcpStatus.lastTokenResetAt }),
       requestCounts: mcpRequestCounts
     },
+    native: nativeCapabilities.capabilityReport,
     build,
     performance: {
       startup: includePerformance ? startup : {},

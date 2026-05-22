@@ -87,7 +87,7 @@ function settingTone(status: string): "neutral" | "success" | "warning" | "info"
     return "success";
   }
 
-  if (status === "Conflict" || status === "Not requested") {
+  if (status === "Conflict" || status === "Not requested" || status.includes("blocker")) {
     return "warning";
   }
 
@@ -2604,6 +2604,14 @@ function SettingsView(): JSX.Element {
           >
             Reset MCP token
           </Button>
+        </div>
+      );
+    }
+
+    if (selectedSection.id === "platform") {
+      return (
+        <div className="grid gap-3 p-3">
+          <SettingsRows rows={selectedSection.rows} status={selectedSection.status} />
         </div>
       );
     }

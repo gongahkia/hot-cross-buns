@@ -373,6 +373,33 @@ const hcbApi: HcbApi = {
           state: "disabled" as const,
           message: "MCP local agent access is disabled."
         },
+        capabilityReport: {
+          platform: "darwin" as const,
+          adapterId: "test",
+          packageFormat: "development" as const,
+          flags: {
+            supportsAppPaths: true,
+            supportsTray: false,
+            supportsAppMenu: false,
+            supportsGlobalShortcut: false,
+            supportsNotifications: false,
+            supportsNotificationPermissionQuery: false,
+            supportsProtocolRegistration: false,
+            supportsProtocolRegistrationCheck: false,
+            supportsAutostart: false,
+            supportsInPlaceAutoUpdate: false,
+            supportsInstallerMetadata: false,
+            supportsExternalUrlOpen: false,
+            supportsDiagnosticsCollection: true,
+            supportsCredentialStorage: false,
+            supportsOAuthLoopback: true,
+            supportsMcpLoopback: true,
+            requiresSignedBuildForNotifications: false
+          },
+          paths: [],
+          capabilities: [],
+          diagnostics: []
+        },
         deferredStartup: {
           state: "pending" as const
         }
@@ -487,6 +514,33 @@ const hcbApi: HcbApi = {
             errorCount: 0,
             rateLimitedCount: 0
           }
+        },
+        native: {
+          platform: "darwin" as const,
+          adapterId: "test",
+          packageFormat: "development" as const,
+          flags: {
+            supportsAppPaths: true,
+            supportsTray: false,
+            supportsAppMenu: false,
+            supportsGlobalShortcut: false,
+            supportsNotifications: false,
+            supportsNotificationPermissionQuery: false,
+            supportsProtocolRegistration: false,
+            supportsProtocolRegistrationCheck: false,
+            supportsAutostart: false,
+            supportsInPlaceAutoUpdate: false,
+            supportsInstallerMetadata: false,
+            supportsExternalUrlOpen: false,
+            supportsDiagnosticsCollection: true,
+            supportsCredentialStorage: false,
+            supportsOAuthLoopback: true,
+            supportsMcpLoopback: true,
+            requiresSignedBuildForNotifications: false
+          },
+          paths: [],
+          capabilities: [],
+          diagnostics: []
         },
         build: {
           appName: "Hot Cross Buns 2",

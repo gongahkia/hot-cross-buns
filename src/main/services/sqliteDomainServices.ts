@@ -38,6 +38,12 @@ import type { LocalPlannerRepository, LocalSettingsRepository } from "../data/lo
 import { GoogleReadSyncService } from "../sync/readSyncService";
 import type { GoogleSyncRepository } from "../sync/readSyncRepository";
 import type { ReadSyncResource } from "../sync/types";
+import {
+  buildNativeCapabilityReport,
+  capabilityDiagnostic,
+  defaultNativeAppPaths,
+  nativePlatform as detectNativePlatform
+} from "../native/capabilityReport";
 import type {
   AppDomainServices,
   DomainJsonObject,
@@ -522,35 +528,82 @@ function isStale(status: SyncStatusResponse): boolean {
 }
 
 function nativeCapabilities(): NativeCapabilitiesResponse {
-  const isMac = process.platform === "darwin";
+  const platform = detectNativePlatform();
+  const report = buildNativeCapabilityReport({
+    platform,
+    adapterId: "domain-fallback",
+    appPaths: defaultNativeAppPaths(),
+    flags: {
+      supportsAppPaths: true,
+      supportsTray: false,
+      supportsAppMenu: false,
+      supportsGlobalShortcut: false,
+      supportsNotifications: false,
+      supportsNotificationPermissionQuery: false,
+      supportsProtocolRegistration: false,
+      supportsProtocolRegistrationCheck: false,
+      supportsAutostart: false,
+      supportsInPlaceAutoUpdate: false,
+      supportsInstallerMetadata: false,
+      supportsExternalUrlOpen: false,
+      supportsDiagnosticsCollection: true,
+      supportsCredentialStorage: false,
+      supportsOAuthLoopback: true,
+      supportsMcpLoopback: true,
+      requiresSignedBuildForNotifications: platform === "win32",
+      ...(platform === "linux"
+        ? {
+            hasWaylandSession: process.env.XDG_SESSION_TYPE === "wayland",
+            hasPortalShortcutSupport: false
+          }
+        : {})
+    },
+    capabilityOverrides: {
+      oauthLoopback: {
+        state: "pending",
+        message: "OAuth loopback is shared code; platform browser handoff is not verified by the fallback service."
+      },
+      mcpLoopback: {
+        state: "pending",
+        message: "MCP loopback is shared code; native lifecycle is not owned by the fallback service."
+      }
+    },
+    diagnostics: [
+      capabilityDiagnostic(
+        "packaging",
+        "warning",
+        "Native capability status is from the fallback domain service, not a platform adapter."
+      )
+    ]
+  });
 
   return {
-    platform: nativePlatform(),
-    notifications: isMac,
-    globalShortcuts: isMac,
-    tray: isMac,
-    deepLinks: isMac,
+    platform,
+    notifications: false,
+    globalShortcuts: false,
+    tray: false,
+    deepLinks: false,
     trayStatus: {
-      state: isMac ? "pending" : "unsupported",
-      message: isMac ? "Tray startup is owned by the native shell service." : "Tray/menu bar is unavailable."
+      state: "unsupported",
+      message: "Tray/menu bar is unavailable through the fallback domain service."
     },
     quickCaptureShortcut: {
       accelerator: null,
       registered: false,
-      state: isMac ? "pending" : "unsupported",
-      message: isMac ? "Shortcut registration is owned by the native shell service." : "Global shortcuts are unavailable."
+      state: "unsupported",
+      message: "Global shortcuts are unavailable through the fallback domain service."
     },
     notificationsStatus: {
-      permission: isMac ? "prompt" : "unsupported",
+      permission: "unsupported",
       scheduledCount: 0,
-      state: isMac ? "pending" : "unsupported",
-      message: isMac ? "Notification scheduling is owned by the native shell service." : "Notifications are unavailable."
+      state: "unsupported",
+      message: "Notifications are unavailable through the fallback domain service."
     },
     deepLinkStatus: {
       scheme: "hotcrossbuns",
       registered: false,
-      state: isMac ? "pending" : "unsupported",
-      message: isMac ? "Protocol registration is owned by the native shell service." : "Deep links are unavailable."
+      state: "unsupported",
+      message: "Deep links are unavailable through the fallback domain service."
     },
     updaterStatus: {
       state: "unsupported",
@@ -560,6 +613,7 @@ function nativeCapabilities(): NativeCapabilitiesResponse {
       state: "disabled",
       message: "MCP local agent access is disabled."
     },
+    capabilityReport: report,
     deferredStartup: {
       state: "pending"
     }
@@ -568,16 +622,8 @@ function nativeCapabilities(): NativeCapabilitiesResponse {
 
 function nativeNotificationPermission(): NativeNotificationPermissionResponse {
   return {
-    state: process.platform === "darwin" ? "prompt" : "unsupported"
+    state: "unsupported"
   };
-}
-
-function nativePlatform(): "darwin" | "linux" | "win32" | "unknown" {
-  if (process.platform === "darwin" || process.platform === "linux" || process.platform === "win32") {
-    return process.platform;
-  }
-
-  return "unknown";
 }
 
 function searchDomainsForScope(scope: string | undefined): SearchQueryRequest["domains"] {

@@ -65,6 +65,7 @@ Performance:
 Ports:
 
 - [Cross-Platform Porting](ports/cross-platform-porting.md)
+- [Platform Adapter Audit](ports/platform-adapter-audit.md)
 - [Linux Port](ports/linux-port.md)
 - [Windows Port](ports/windows-port.md)
 

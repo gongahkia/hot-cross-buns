@@ -741,6 +741,124 @@ export const nativeFeatureStatusSchema = z
 
 export type NativeFeatureStatus = z.infer<typeof nativeFeatureStatusSchema>;
 
+export const nativeCapabilityKeySchema = z.enum([
+  "appPaths",
+  "credentialStorage",
+  "tray",
+  "appMenu",
+  "globalShortcuts",
+  "notifications",
+  "customProtocol",
+  "autostart",
+  "updater",
+  "installerMetadata",
+  "externalOpen",
+  "diagnostics",
+  "oauthLoopback",
+  "mcpLoopback",
+  "packaging"
+]);
+
+export type NativeCapabilityKey = z.infer<typeof nativeCapabilityKeySchema>;
+
+const nativePathRoleSchema = z.enum([
+  "config",
+  "data",
+  "cache",
+  "logs",
+  "diagnostics",
+  "temp"
+]);
+
+export const nativePathCapabilitySchema = z
+  .object({
+    role: nativePathRoleSchema,
+    available: z.boolean(),
+    source: z.string().min(1).max(120),
+    redactedPath: z.string().min(1).max(1_000).optional()
+  })
+  .strict();
+
+export type NativePathCapability = z.infer<typeof nativePathCapabilitySchema>;
+
+export const nativeCapabilityDescriptorSchema = z
+  .object({
+    key: nativeCapabilityKeySchema,
+    label: z.string().min(1).max(80),
+    supported: z.boolean(),
+    state: nativeFeatureStateSchema,
+    message: nativeStatusMessageSchema.optional()
+  })
+  .strict();
+
+export type NativeCapabilityDescriptor = z.infer<
+  typeof nativeCapabilityDescriptorSchema
+>;
+
+export const nativeCapabilityDiagnosticSchema = z
+  .object({
+    key: nativeCapabilityKeySchema,
+    severity: z.enum(["info", "warning", "blocker"]),
+    message: nativeStatusMessageSchema
+  })
+  .strict();
+
+export type NativeCapabilityDiagnostic = z.infer<
+  typeof nativeCapabilityDiagnosticSchema
+>;
+
+export const nativeCapabilityFlagsSchema = z
+  .object({
+    supportsAppPaths: z.boolean(),
+    supportsTray: z.boolean(),
+    supportsAppMenu: z.boolean(),
+    supportsGlobalShortcut: z.boolean(),
+    supportsNotifications: z.boolean(),
+    supportsNotificationPermissionQuery: z.boolean(),
+    supportsProtocolRegistration: z.boolean(),
+    supportsProtocolRegistrationCheck: z.boolean(),
+    supportsAutostart: z.boolean(),
+    supportsInPlaceAutoUpdate: z.boolean(),
+    supportsInstallerMetadata: z.boolean(),
+    supportsExternalUrlOpen: z.boolean(),
+    supportsDiagnosticsCollection: z.boolean(),
+    supportsCredentialStorage: z.boolean(),
+    supportsOAuthLoopback: z.boolean(),
+    supportsMcpLoopback: z.boolean(),
+    requiresSignedBuildForNotifications: z.boolean(),
+    hasWaylandSession: z.boolean().optional(),
+    hasPortalShortcutSupport: z.boolean().optional()
+  })
+  .strict();
+
+export type NativeCapabilityFlags = z.infer<typeof nativeCapabilityFlagsSchema>;
+
+export const nativeCapabilityReportSchema = z
+  .object({
+    platform: z.enum(["darwin", "linux", "win32", "unknown"]),
+    adapterId: z.string().min(1).max(80),
+    packageFormat: z
+      .enum([
+        "development",
+        "dmg",
+        "zip",
+        "appimage",
+        "deb",
+        "rpm",
+        "nsis",
+        "portable",
+        "unknown"
+      ])
+      .default("development"),
+    flags: nativeCapabilityFlagsSchema,
+    paths: z.array(nativePathCapabilitySchema).max(12),
+    capabilities: z.array(nativeCapabilityDescriptorSchema).max(24),
+    diagnostics: z.array(nativeCapabilityDiagnosticSchema).max(40)
+  })
+  .strict();
+
+export type NativeCapabilityReport = z.infer<typeof nativeCapabilityReportSchema>;
+
 export const nativeHotkeyStatusSchema = nativeFeatureStatusSchema
   .extend({
     accelerator: z.string().min(1).max(120).nullable(),
@@ -792,6 +910,7 @@ export const nativeCapabilitiesResponseSchema = z
     deepLinkStatus: nativeDeepLinkStatusSchema,
     updaterStatus: nativeFeatureStatusSchema,
     mcpStatus: nativeFeatureStatusSchema,
+    capabilityReport: nativeCapabilityReportSchema,
     deferredStartup: nativeDeferredStartupStatusSchema
   })
   .strict();
@@ -1076,6 +1195,7 @@ export const diagnosticsSummaryResponseSchema = z
         requestCounts: diagnosticsMcpRequestCountsSchema
       })
       .strict(),
+    native: nativeCapabilityReportSchema,
     build: diagnosticsBuildMetadataSchema,
     performance: z
       .object({

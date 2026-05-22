@@ -156,6 +156,34 @@ const emptySettings: SettingsSnapshot = {
   diagnosticsIncludePerformance: true
 };
 
+const emptyCapabilityReport: NativeCapabilitiesResponse["capabilityReport"] = {
+  platform: "unknown",
+  adapterId: "unavailable",
+  packageFormat: "development",
+  flags: {
+    supportsAppPaths: false,
+    supportsTray: false,
+    supportsAppMenu: false,
+    supportsGlobalShortcut: false,
+    supportsNotifications: false,
+    supportsNotificationPermissionQuery: false,
+    supportsProtocolRegistration: false,
+    supportsProtocolRegistrationCheck: false,
+    supportsAutostart: false,
+    supportsInPlaceAutoUpdate: false,
+    supportsInstallerMetadata: false,
+    supportsExternalUrlOpen: false,
+    supportsDiagnosticsCollection: false,
+    supportsCredentialStorage: false,
+    supportsOAuthLoopback: false,
+    supportsMcpLoopback: false,
+    requiresSignedBuildForNotifications: false
+  },
+  paths: [],
+  capabilities: [],
+  diagnostics: []
+};
+
 const emptyNativeCapabilities: NativeCapabilitiesResponse = {
   platform: "unknown",
   notifications: false,
@@ -192,6 +220,7 @@ const emptyNativeCapabilities: NativeCapabilitiesResponse = {
     state: "disabled",
     message: "MCP local agent access is disabled."
   },
+  capabilityReport: emptyCapabilityReport,
   deferredStartup: {
     state: "pending"
   }
@@ -1182,6 +1211,10 @@ function settingsSections(snapshot: CoreDataSnapshot): SettingsSectionViewModel[
   const selectedCalendarCount =
     summary?.selectedResources.calendars.filter((resource) => resource.selected).length ??
     snapshot.settings.selectedCalendarIds.length;
+  const capabilityReport = snapshot.native.capabilityReport;
+  const platformBlockerCount = capabilityReport.diagnostics.filter(
+    (diagnostic) => diagnostic.severity === "blocker"
+  ).length;
 
   return [
     {
@@ -1298,6 +1331,33 @@ function settingsSections(snapshot: CoreDataSnapshot): SettingsSectionViewModel[
         { id: "mode", label: "Permission mode", value: snapshot.settings.mcpPermissionMode },
         { id: "token", label: "Token state", value: summary?.mcp.tokenState ?? "not_configured" },
         { id: "startup", label: "Startup", value: snapshot.native.mcpStatus.message ?? "No native status reported" }
+      ]
+    },
+    {
+      id: "platform",
+      title: "Platform",
+      status: platformBlockerCount > 0 ? `${platformBlockerCount} blocker${platformBlockerCount === 1 ? "" : "s"}` : "Ready",
+      detail: "Adapter capability report",
+      rows: [
+        { id: "platform", label: "Runtime", value: capabilityReport.platform },
+        { id: "adapter", label: "Adapter", value: capabilityReport.adapterId },
+        { id: "package", label: "Package", value: capabilityReport.packageFormat },
+        { id: "tray", label: "Tray", value: capabilityReport.flags.supportsTray ? "Supported" : "Unsupported" },
+        {
+          id: "hotkeys",
+          label: "Global shortcuts",
+          value: capabilityReport.flags.supportsGlobalShortcut ? "Supported" : "Unsupported"
+        },
+        {
+          id: "credentials",
+          label: "Credential storage",
+          value: capabilityReport.flags.supportsCredentialStorage ? "Supported" : "Blocked"
+        },
+        {
+          id: "updater",
+          label: "In-place updater",
+          value: capabilityReport.flags.supportsInPlaceAutoUpdate ? "Supported" : "Unsupported"
+        }
       ]
     },
     {

@@ -1,5 +1,9 @@
 import { shell, type BrowserWindow, type Session } from "electron";
 
+export interface ExternalUrlOpener {
+  openExternalUrl: (url: string) => unknown | Promise<unknown>;
+}
+
 export const PRODUCTION_CONTENT_SECURITY_POLICY = [
   "default-src 'none'",
   "base-uri 'none'",
@@ -123,11 +127,11 @@ export function configureSessionHardening(
 
 export function configureNavigationLockdown(
   window: BrowserWindow,
-  options: { allowedDevOrigin?: string } = {}
+  options: { allowedDevOrigin?: string; externalOpener?: ExternalUrlOpener } = {}
 ): void {
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (isApprovedExternalUrl(url)) {
-      void shell.openExternal(url);
+      void (options.externalOpener?.openExternalUrl(url) ?? shell.openExternal(url));
     }
 
     return { action: "deny" };

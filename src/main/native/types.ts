@@ -1,6 +1,7 @@
 import type {
   CalendarEventSummary,
   NativeAction,
+  NativeCapabilityReport,
   NativeCapabilitiesResponse,
   NativeFeatureState,
   NativeNotificationPermissionResponse,
@@ -18,13 +19,26 @@ export interface NativeOperationResult {
   message?: string;
 }
 
+export interface NativeAppPaths {
+  configDirectory: string;
+  dataDirectory: string;
+  cacheDirectory: string;
+  logsDirectory: string;
+  diagnosticsDirectory: string;
+  tempDirectory: string;
+}
+
+export type NativePackageFormat = NativeCapabilityReport["packageFormat"];
+
 export interface NativePlatformCapabilities {
   platform: NativeCapabilitiesResponse["platform"];
+  adapterId: string;
   notifications: boolean;
   globalShortcuts: boolean;
   tray: boolean;
   deepLinks: boolean;
   updaterChecks: boolean;
+  capabilityReport: NativeCapabilityReport;
 }
 
 export interface NativeTrayActions {
@@ -75,7 +89,9 @@ export interface ScheduledNativeNotification {
 }
 
 export interface NativePlatformAdapter {
+  appPaths: () => NativeAppPaths;
   capabilities: () => NativePlatformCapabilities;
+  credentialStorageStatus: () => NativeOperationResult;
   installAppMenu: (actions: NativeTrayActions) => NativeOperationResult;
   createTray: (actions: NativeTrayActions) => NativeOperationResult;
   destroyTray: () => void;
@@ -91,7 +107,12 @@ export interface NativePlatformAdapter {
     onClick: () => void
   ) => ScheduledNativeNotification | undefined;
   clearScheduledNotifications: () => void;
+  setAutostart: (enabled: boolean) => NativeOperationResult;
+  autostartStatus: () => NativeOperationResult;
   checkForUpdates: () => NativeOperationResult | Promise<NativeOperationResult>;
+  openExternalUrl: (url: string) => NativeOperationResult | Promise<NativeOperationResult>;
+  openPath: (path: string) => NativeOperationResult | Promise<NativeOperationResult>;
+  collectDiagnostics: () => NativeOperationResult;
   dispose: () => void;
 }
 

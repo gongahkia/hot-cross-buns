@@ -5,11 +5,14 @@ import {
   globalShortcut,
   nativeImage,
   Menu,
+  shell,
   type NativeImage,
   type MenuItemConstructorOptions
 } from "electron";
+import { join } from "node:path";
 import {
   HCB_DEEP_LINK_SCHEME,
+  type NativeAppPaths,
   type NativeMenuBarItem,
   type NativeMenuBarSnapshot,
   type NativeNotificationRequest,
@@ -20,6 +23,11 @@ import {
   type ScheduledNativeNotification
 } from "./types";
 import { brandImage } from "./brandAssets";
+import {
+  buildNativeCapabilityReport,
+  capabilityDiagnostic,
+  nativePlatform
+} from "./capabilityReport";
 
 const fallbackTrayIconBase64 =
   "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAOUlEQVR4nGNgGArgP7macGGyDSHZufgMwGkgPqcT5SKKDCBFM1UMoV0gUmQAPu+QBKiSEklyLtkAAHbWV6m7KwjdAAAAAElFTkSuQmCC";
@@ -34,17 +42,107 @@ class ElectronMacNativeAdapter implements NativePlatformAdapter {
   private readonly shortcuts = new Set<string>();
   private readonly notificationTimers = new Map<string, NodeJS.Timeout>();
 
+  appPaths(): NativeAppPaths {
+    const userData = app.getPath("userData");
+    const logs = safeAppPath("logs", join(userData, "logs"));
+    const temp = safeAppPath("temp", join(userData, "tmp"));
+
+    return {
+      configDirectory: join(userData, "config"),
+      dataDirectory: join(userData, "data"),
+      cacheDirectory: join(userData, "cache"),
+      logsDirectory: logs,
+      diagnosticsDirectory: join(userData, "diagnostics"),
+      tempDirectory: join(temp, "hot-cross-buns-2")
+    };
+  }
+
   capabilities(): NativePlatformCapabilities {
     const isMac = process.platform === "darwin";
+    const appPaths = this.appPaths();
+    const notifications = isMac && Notification.isSupported();
+    const flags = {
+      supportsAppPaths: true,
+      supportsTray: isMac,
+      supportsAppMenu: isMac,
+      supportsGlobalShortcut: isMac,
+      supportsNotifications: notifications,
+      supportsNotificationPermissionQuery: false,
+      supportsProtocolRegistration: isMac,
+      supportsProtocolRegistrationCheck: isMac,
+      supportsAutostart: isMac,
+      supportsInPlaceAutoUpdate: false,
+      supportsInstallerMetadata: isMac,
+      supportsExternalUrlOpen: true,
+      supportsDiagnosticsCollection: true,
+      supportsCredentialStorage: false,
+      supportsOAuthLoopback: true,
+      supportsMcpLoopback: true,
+      requiresSignedBuildForNotifications: false
+    };
 
     return {
       platform: isMac ? "darwin" : nativePlatform(),
-      notifications: isMac && Notification.isSupported(),
+      adapterId: "electron-mac",
+      notifications,
       globalShortcuts: isMac,
       tray: isMac,
       deepLinks: isMac,
-      updaterChecks: false
+      updaterChecks: false,
+      capabilityReport: buildNativeCapabilityReport({
+        platform: isMac ? "darwin" : nativePlatform(),
+        adapterId: "electron-mac",
+        appPaths,
+        packageFormat: app.isPackaged ? "unknown" : "development",
+        flags,
+        capabilityOverrides: {
+          credentialStorage: {
+            state: "unsupported",
+            message: "Keychain-backed credential storage is not wired in this adapter yet."
+          },
+          notifications: {
+            state: notifications ? "ready" : "unsupported",
+            message: notifications
+              ? "Electron notifications are available; exact OS permission state is inferred through delivery."
+              : "Electron notifications are unavailable for this runtime."
+          },
+          updater: {
+            state: "unsupported",
+            message: "Preview builds support release checks only after updater metadata is added."
+          },
+          oauthLoopback: {
+            state: "pending",
+            message: "OAuth loopback is shared code; macOS browser handoff still needs manual release QA."
+          },
+          mcpLoopback: {
+            state: "pending",
+            message: "MCP loopback is shared code; persistent bearer-token storage is not wired."
+          },
+          packaging: {
+            state: app.isPackaged ? "ready" : "pending",
+            message: app.isPackaged
+              ? "Packaged macOS artifact metadata is available."
+              : "Development runtime has no installed package metadata."
+          }
+        },
+        diagnostics: [
+          capabilityDiagnostic(
+            "credentialStorage",
+            "blocker",
+            "Google and MCP secrets still need OS credential storage before non-Mac ports."
+          ),
+          capabilityDiagnostic(
+            "updater",
+            "warning",
+            "In-place auto-update is intentionally disabled for unsigned preview builds."
+          )
+        ]
+      })
     };
+  }
+
+  credentialStorageStatus(): NativeOperationResult {
+    return unsupported("Keychain-backed credential storage is not wired in this adapter yet.");
   }
 
   installAppMenu(actions: NativeTrayActions): NativeOperationResult {
@@ -254,8 +352,102 @@ class ElectronMacNativeAdapter implements NativePlatformAdapter {
     this.notificationTimers.clear();
   }
 
+  setAutostart(enabled: boolean): NativeOperationResult {
+    if (process.platform !== "darwin") {
+      return unsupported("Open-at-login is not handled by this platform adapter.");
+    }
+
+    try {
+      app.setLoginItemSettings({
+        openAtLogin: enabled
+      });
+      const status = app.getLoginItemSettings();
+
+      return {
+        ok: status.openAtLogin === enabled,
+        state: status.openAtLogin === enabled ? "ready" : "error",
+        message:
+          status.openAtLogin === enabled
+            ? enabled
+              ? "Open-at-login is enabled."
+              : "Open-at-login is disabled."
+            : "Open-at-login did not match the requested setting."
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        state: "error",
+        message: error instanceof Error ? error.message : "Open-at-login could not be updated."
+      };
+    }
+  }
+
+  autostartStatus(): NativeOperationResult {
+    if (process.platform !== "darwin") {
+      return unsupported("Open-at-login is not handled by this platform adapter.");
+    }
+
+    try {
+      const status = app.getLoginItemSettings();
+
+      return {
+        ok: true,
+        state: status.openAtLogin ? "ready" : "disabled",
+        message: status.openAtLogin ? "Open-at-login is enabled." : "Open-at-login is disabled."
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        state: "error",
+        message: error instanceof Error ? error.message : "Open-at-login status could not be read."
+      };
+    }
+  }
+
   checkForUpdates(): NativeOperationResult {
     return unsupported("Preview update checks are not configured for this build.");
+  }
+
+  async openExternalUrl(url: string): Promise<NativeOperationResult> {
+    try {
+      await shell.openExternal(url);
+
+      return {
+        ok: true,
+        state: "ready",
+        message: "External URL was opened by the operating system."
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        state: "error",
+        message: error instanceof Error ? error.message : "External URL could not be opened."
+      };
+    }
+  }
+
+  async openPath(path: string): Promise<NativeOperationResult> {
+    const result = await shell.openPath(path);
+
+    return result
+      ? {
+          ok: false,
+          state: "error",
+          message: result
+        }
+      : {
+          ok: true,
+          state: "ready",
+          message: "Path was opened by the operating system."
+        };
+  }
+
+  collectDiagnostics(): NativeOperationResult {
+    return {
+      ok: true,
+      state: "ready",
+      message: "macOS native adapter diagnostics are available through the capability report."
+    };
   }
 
   dispose(): void {
@@ -457,10 +649,10 @@ function unsupported(message: string): NativeOperationResult {
   };
 }
 
-function nativePlatform(): NativePlatformCapabilities["platform"] {
-  if (process.platform === "darwin" || process.platform === "linux" || process.platform === "win32") {
-    return process.platform;
+function safeAppPath(name: Parameters<typeof app.getPath>[0], fallback: string): string {
+  try {
+    return app.getPath(name);
+  } catch {
+    return fallback;
   }
-
-  return "unknown";
 }

@@ -24,6 +24,12 @@ import type {
   DomainJsonValue,
   McpDomainServices
 } from "./domainInterfaces";
+import {
+  buildNativeCapabilityReport,
+  capabilityDiagnostic,
+  defaultNativeAppPaths,
+  nativePlatform as detectNativePlatform
+} from "../native/capabilityReport";
 
 type TaskRecord = TaskDetail & {
   listTitle: string;
@@ -704,7 +710,7 @@ export function createPlaceholderDomainServices(): AppDomainServices {
     native: {
       capabilities: () => nativeCapabilities(),
       requestNotificationPermission: () => ({
-        state: process.platform === "darwin" ? "prompt" : "unsupported"
+        state: "unsupported"
       })
     },
     mcpTools
@@ -712,35 +718,82 @@ export function createPlaceholderDomainServices(): AppDomainServices {
 }
 
 function nativeCapabilities(): NativeCapabilitiesResponse {
-  const isMac = process.platform === "darwin";
+  const platform = detectNativePlatform();
+  const report = buildNativeCapabilityReport({
+    platform,
+    adapterId: "placeholder",
+    appPaths: defaultNativeAppPaths(),
+    flags: {
+      supportsAppPaths: true,
+      supportsTray: false,
+      supportsAppMenu: false,
+      supportsGlobalShortcut: false,
+      supportsNotifications: false,
+      supportsNotificationPermissionQuery: false,
+      supportsProtocolRegistration: false,
+      supportsProtocolRegistrationCheck: false,
+      supportsAutostart: false,
+      supportsInPlaceAutoUpdate: false,
+      supportsInstallerMetadata: false,
+      supportsExternalUrlOpen: false,
+      supportsDiagnosticsCollection: true,
+      supportsCredentialStorage: false,
+      supportsOAuthLoopback: true,
+      supportsMcpLoopback: true,
+      requiresSignedBuildForNotifications: platform === "win32",
+      ...(platform === "linux"
+        ? {
+            hasWaylandSession: process.env.XDG_SESSION_TYPE === "wayland",
+            hasPortalShortcutSupport: false
+          }
+        : {})
+    },
+    capabilityOverrides: {
+      oauthLoopback: {
+        state: "pending",
+        message: "OAuth loopback is shared code; platform browser handoff is not verified by placeholder data."
+      },
+      mcpLoopback: {
+        state: "pending",
+        message: "MCP loopback is shared code; native lifecycle is not owned by placeholder data."
+      }
+    },
+    diagnostics: [
+      capabilityDiagnostic(
+        "packaging",
+        "warning",
+        "Native capability status is placeholder data and does not claim platform support."
+      )
+    ]
+  });
 
   return {
-    platform: nativePlatform(),
-    notifications: isMac,
-    globalShortcuts: isMac,
-    tray: isMac,
-    deepLinks: isMac,
+    platform,
+    notifications: false,
+    globalShortcuts: false,
+    tray: false,
+    deepLinks: false,
     trayStatus: {
-      state: isMac ? "pending" : "unsupported",
-      message: isMac ? "Tray startup is owned by the native shell service." : "Tray/menu bar is unavailable."
+      state: "unsupported",
+      message: "Tray/menu bar is unavailable in placeholder data."
     },
     quickCaptureShortcut: {
       accelerator: null,
       registered: false,
-      state: isMac ? "pending" : "unsupported",
-      message: isMac ? "Shortcut registration is owned by the native shell service." : "Global shortcuts are unavailable."
+      state: "unsupported",
+      message: "Global shortcuts are unavailable in placeholder data."
     },
     notificationsStatus: {
-      permission: isMac ? "prompt" : "unsupported",
+      permission: "unsupported",
       scheduledCount: 0,
-      state: isMac ? "pending" : "unsupported",
-      message: isMac ? "Notification scheduling is owned by the native shell service." : "Notifications are unavailable."
+      state: "unsupported",
+      message: "Notifications are unavailable in placeholder data."
     },
     deepLinkStatus: {
       scheme: "hotcrossbuns" as const,
       registered: false,
-      state: isMac ? "pending" : "unsupported",
-      message: isMac ? "Protocol registration is owned by the native shell service." : "Deep links are unavailable."
+      state: "unsupported",
+      message: "Deep links are unavailable in placeholder data."
     },
     updaterStatus: {
       state: "unsupported",
@@ -750,6 +803,7 @@ function nativeCapabilities(): NativeCapabilitiesResponse {
       state: "disabled",
       message: "MCP local agent access is disabled."
     },
+    capabilityReport: report,
     deferredStartup: {
       state: "pending"
     }
@@ -1315,14 +1369,6 @@ function recoveryMessage(action: "refresh" | "forceFullResync" | "clearGoogleCac
   }
 
   return "Refresh requested for selected Google resources.";
-}
-
-function nativePlatform(): "darwin" | "linux" | "win32" | "unknown" {
-  if (process.platform === "darwin" || process.platform === "linux" || process.platform === "win32") {
-    return process.platform;
-  }
-
-  return "unknown";
 }
 
 function clone<T>(value: T): T {

@@ -10,6 +10,225 @@ Before running any prompt below, use the improvement docs as Electron-specific p
 
 These docs compare Hot Cross Buns 2 with the legacy Swift app, but they are not instructions to port Swift APIs directly. Preserve the Electron, React, TypeScript, SQLite, and platform-adapter architecture. Treat Swift-only surfaces as reference behavior only, then decide whether each parity item belongs in Electron platform code, shared backend code, docs, tests, manual QA, or explicit backlog.
 
+## Mac V1 Improvement Prompts
+
+Run these before Linux/Windows port work unless the Mac v1 release decision explicitly accepts the remaining blockers. These prompts synthesize the non-platform-specific takeaways from `docs/improvements/`.
+
+### P7A Mac V1 Runtime Readiness
+
+Run first. This prompt assumes P8A may already have been started accidentally, so it stabilizes adapter/capability-report work before touching runtime blockers.
+
+```text
+You are Codex 5.5 running with extra-high reasoning in /Users/gongahkia/Desktop/coding/projects/hot-cross-buns-2.
+
+Goal: stabilize any partial P8A platform-adapter audit changes, then close the highest-risk Mac v1 backend/runtime blockers.
+
+Read first:
+- docs/README.md
+- docs/agents/workflow.md
+- docs/product/prd.md
+- docs/product/roadmap.md
+- docs/release/release-candidate-checklist.md
+- docs/security/privacy-and-threat-model.md
+- docs/testing/qa-plan.md
+- docs/ports/cross-platform-porting.md
+- docs/improvements/02-backend-optimizations.md
+- docs/improvements/03-database-optimizations.md
+- docs/improvements/04-test-coverage-parity.md
+
+Preflight:
+- Inspect current git diff first.
+- Treat existing NativeCapabilityReport / platform-adapter contract changes as user work.
+- Do not revert them unless they are clearly broken and replaced with equivalent working behavior.
+- First make current adapter/capability-report changes compile for macOS and noop adapters.
+- Keep Linux/Windows implementation out of scope.
+
+Implement after preflight:
+- Durable Google pending-mutation worker for task/calendar queued writes.
+- Retry/backoff/auth-failure pause behavior with diagnostics.
+- Tests for mutation status transitions, retry behavior, auth pause, and no renderer execution.
+- Use the existing native capability-report model for diagnostics/status where relevant.
+- Add sync scheduler skeleton only if needed by the worker.
+- Update release blockers/docs based on actual implemented behavior.
+
+Do not:
+- Add Linux/Windows port implementation.
+- Add packaging scope.
+- Expose secrets to renderer or diagnostics.
+- Weaken assertions to hide failing sync behavior.
+- Replace the SQLite bridge unless the worker cannot be tested without doing so.
+
+Acceptance checks:
+- Run focused sync/domain/native tests.
+- Run `pnpm typecheck`.
+- Run `pnpm build`.
+- Run `git diff --check`.
+- Produce a concise status note listing stabilized P8A changes, implemented Mac runtime behavior, and remaining blockers.
+```
+
+### P7B SQLite And Performance Foundation
+
+Run after P7A unless runtime work proves the current SQLite bridge is already the dominant blocker.
+
+```text
+You are Codex 5.5 running with extra-high reasoning in /Users/gongahkia/Desktop/coding/projects/hot-cross-buns-2.
+
+Goal: remove the biggest local data performance risk by replacing or containing the Python SQLite bridge and adding production SQLite foundations.
+
+Read first:
+- docs/README.md
+- docs/agents/workflow.md
+- docs/performance/performance-strategy.md
+- docs/performance/main-and-data-performance.md
+- docs/performance/build-and-test-performance.md
+- docs/testing/qa-plan.md
+- docs/improvements/03-database-optimizations.md
+- docs/improvements/04-test-coverage-parity.md
+
+Implement:
+- Replace the Python subprocess SQLite bridge with a packaged main-process SQLite adapter, or produce a minimal compatibility layer if the chosen binding cannot be safely packaged in this pass.
+- Preserve the existing repository-facing `SqliteConnection` contract where practical.
+- Apply and test production pragmas: foreign keys, WAL, synchronous normal, temp store memory, cache size, mmap size, and busy timeout.
+- Add prepared-statement support or repository-local prepared helpers for the hottest query/write paths.
+- Add tests for migrations, transactions, reopened pragmas, FTS queries, rollback on injected failure, and package compatibility where feasible.
+- Re-run performance smoke and record before/after SQLite and startup timing.
+
+Do not:
+- Change renderer data contracts unless required by the adapter boundary.
+- Add derived render tables in the same pass unless the bridge replacement is already complete and stable.
+- Commit generated databases or local profiling artifacts.
+
+Acceptance checks:
+- Run SQLite/domain tests.
+- Run `pnpm test:perf`.
+- Run `pnpm typecheck`.
+- Run `pnpm build`.
+- Update performance docs or the RC checklist with measured timing changes and remaining data-path blockers.
+```
+
+### P7C First-Run Onboarding And Setup
+
+Run after P7A, and after P7B if startup/data performance remains a blocker.
+
+```text
+You are Codex 5.5 running with extra-high reasoning in /Users/gongahkia/Desktop/coding/projects/hot-cross-buns-2.
+
+Goal: add a coherent first-run Mac v1 setup flow using the existing Electron/React/IPC architecture.
+
+Read first:
+- docs/README.md
+- docs/agents/workflow.md
+- docs/product/prd.md
+- docs/specs/core-app.md
+- docs/specs/native-parity.md
+- docs/security/privacy-and-threat-model.md
+- docs/testing/qa-plan.md
+- docs/improvements/01-user-facing-feature-parity.md
+- docs/improvements/05-general-parity-and-release-polish.md
+
+Implement:
+- Add a first-run onboarding route or modal that appears when local settings show setup has not completed.
+- Include setup steps for Google runtime-client/OAuth readiness, selected task lists, selected calendars, sync mode, notification preference, and optional MCP access.
+- Persist setup completion timestamp in local settings.
+- Add a Settings action to reset onboarding without deleting planner data.
+- Keep local notes and settings usable when Google setup is skipped.
+- Add renderer and IPC tests for fresh database onboarding, completion, skip behavior, and reset.
+
+Do not:
+- Store OAuth client secrets in the repo.
+- Block local-only usage behind Google sign-in.
+- Add new Google transport behavior beyond what the current runtime services can actually support.
+- Use onboarding copy to promise Windows/Linux support.
+
+Acceptance checks:
+- Run focused renderer/settings tests.
+- Run `pnpm typecheck`.
+- Run `pnpm build`.
+- Run `pnpm test:smoke` if app startup or first-route behavior changes.
+- Update docs to distinguish implemented setup behavior from remaining Google sync blockers.
+```
+
+### P7D Search And Planner Power Slice
+
+Run after P7A/P7B. Keep this to one user-facing slice, not the whole legacy planner.
+
+```text
+You are Codex 5.5 running with extra-high reasoning in /Users/gongahkia/Desktop/coding/projects/hot-cross-buns-2.
+
+Goal: add a local-first search/planner parity slice that improves daily use without expanding scope into full legacy calendar/task parity.
+
+Read first:
+- docs/README.md
+- docs/agents/workflow.md
+- docs/specs/core-app.md
+- docs/performance/renderer-performance.md
+- docs/performance/main-and-data-performance.md
+- docs/testing/qa-plan.md
+- docs/improvements/01-user-facing-feature-parity.md
+- docs/improvements/03-database-optimizations.md
+- docs/improvements/04-test-coverage-parity.md
+
+Implement:
+- Add structured local search parsing for a small initial DSL: domain/source, task status, due/start date windows, priority, list/calendar title, and notes/body presence.
+- Surface parsed filters as chips in Search with inline invalid-query feedback.
+- Add saved local custom filters only if the parser and matching logic are stable.
+- Add tests for parser edge cases, matcher behavior, invalid syntax, local-only guarantee, and command palette discoverability.
+- Profile search UI update timing against the RC performance budget.
+
+Do not:
+- Call Google per keystroke.
+- Add full fuzzy ranking, tag extraction, kanban, day/week grids, or recurrence editing in this pass.
+- Store filters in a second source of truth outside settings/local database.
+
+Acceptance checks:
+- Run search/shared-domain tests.
+- Run renderer tests for Search.
+- Run `pnpm test:perf` if search UI/data paths changed.
+- Run `pnpm typecheck`.
+- Run `pnpm build`.
+- Document implemented query syntax and known deferred planner parity.
+```
+
+### P7E Release Polish, CI, And Support Readiness
+
+Run after the main Mac v1 runtime blockers are stable enough that release evidence is worth automating.
+
+```text
+You are Codex 5.5 running with extra-high reasoning in /Users/gongahkia/Desktop/coding/projects/hot-cross-buns-2.
+
+Goal: add release/support polish that catches regressions and gives Mac preview users accurate install, privacy, and diagnostic guidance.
+
+Read first:
+- docs/README.md
+- docs/agents/workflow.md
+- docs/release/distribution.md
+- docs/release/release-candidate-checklist.md
+- docs/security/privacy-and-threat-model.md
+- docs/performance/build-and-test-performance.md
+- docs/testing/qa-plan.md
+- docs/improvements/05-general-parity-and-release-polish.md
+
+Implement:
+- Add GitHub Actions CI for pnpm install, typecheck, unit tests, and Electron smoke where the runner supports it.
+- Upload useful test reports/artifacts for failed smoke/performance runs.
+- Add or update contributor setup docs, release command docs, unsigned preview install guidance, privacy summary, and diagnostics/support instructions.
+- Add a checksum-verifying install helper only if it can be implemented without claiming signed/notarized distribution.
+- Verify brand assets and package metadata docs match the current macOS package.
+
+Do not:
+- Commit signing certificates, tokens, passwords, OAuth credentials, or notarization secrets.
+- Claim public distribution readiness while artifacts are unsigned.
+- Enable updater behavior before update checks and release metadata are implemented and tested.
+- Add Linux/Windows release claims.
+
+Acceptance checks:
+- Run `pnpm typecheck`.
+- Run `pnpm test`.
+- Run `pnpm test:smoke` if CI/smoke config changed.
+- Run `pnpm pack:mac:preview` if release packaging docs/config changed.
+- Update the RC checklist with commands run, pass/fail status, and remaining owned blockers.
+```
+
 ## Future Platform Prompts
 
 Run these only after Mac v1 is stable. Do not run Linux and Windows port work in parallel for the first pass. Linux is the first non-Mac port; Windows follows after the Linux adapter lessons are incorporated.

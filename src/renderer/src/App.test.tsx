@@ -109,6 +109,33 @@ function testNativeCapabilities(
       state: "disabled",
       message: "MCP local agent access is disabled."
     },
+    capabilityReport: {
+      platform: "darwin",
+      adapterId: "test",
+      packageFormat: "development",
+      flags: {
+        supportsAppPaths: true,
+        supportsTray: true,
+        supportsAppMenu: true,
+        supportsGlobalShortcut: true,
+        supportsNotifications: true,
+        supportsNotificationPermissionQuery: false,
+        supportsProtocolRegistration: true,
+        supportsProtocolRegistrationCheck: true,
+        supportsAutostart: true,
+        supportsInPlaceAutoUpdate: false,
+        supportsInstallerMetadata: true,
+        supportsExternalUrlOpen: true,
+        supportsDiagnosticsCollection: true,
+        supportsCredentialStorage: false,
+        supportsOAuthLoopback: true,
+        supportsMcpLoopback: true,
+        requiresSignedBuildForNotifications: false
+      },
+      paths: [],
+      capabilities: [],
+      diagnostics: []
+    },
     deferredStartup: {
       state: "complete"
     },
@@ -866,6 +893,7 @@ describe("App shell", () => {
       "Notifications",
       "Local data",
       "MCP",
+      "Platform",
       "Diagnostics"
     ]) {
       expect(within(settingsSupport).getByRole("button", { name: new RegExp(label) })).toBeInTheDocument();

@@ -1,4 +1,5 @@
 import { createAppSqliteConnection, type SqliteConnection } from "../data/sqliteConnection";
+import { dirname } from "node:path";
 import { runLocalDataMigrations, type MigrationResult } from "../data/migrations";
 import {
   LocalPerformanceRepository,
@@ -8,7 +9,7 @@ import {
 import { McpToolRegistry } from "../mcp/toolRegistry";
 import { createNoopNativeAdapter } from "../native/noopAdapter";
 import { NativeShellService } from "../native/service";
-import type { NativePlatformAdapter, NativeShellWindowActions } from "../native/types";
+import type { NativeAppPaths, NativePlatformAdapter, NativeShellWindowActions } from "../native/types";
 import { GoogleSyncRepository } from "../sync/readSyncRepository";
 import { markStartupTiming } from "../startupTiming";
 import type { AppDomainServices } from "./domainInterfaces";
@@ -34,7 +35,8 @@ export interface ServiceContainer {
 }
 
 export interface ServiceContainerOptions {
-  appSupportDirectory: string;
+  appSupportDirectory?: string;
+  appPaths?: NativeAppPaths;
   databaseFilename?: string;
   nativeAdapter?: NativePlatformAdapter;
   nativeWindows?: NativeShellWindowActions;
@@ -49,8 +51,17 @@ const noopWindowActions: NativeShellWindowActions = {
 };
 
 export function createServiceContainer(options: ServiceContainerOptions): ServiceContainer {
+  const appPaths = options.appPaths ?? options.nativeAdapter?.appPaths();
+  const appSupportDirectory =
+    options.appSupportDirectory ??
+    (appPaths ? dirname(appPaths.dataDirectory) : undefined);
+
+  if (!appSupportDirectory) {
+    throw new Error("Service container requires app support paths.");
+  }
+
   const connection = createAppSqliteConnection({
-    appSupportDirectory: options.appSupportDirectory,
+    appSupportDirectory,
     filename: options.databaseFilename
   });
   const migrations = runLocalDataMigrations(connection);

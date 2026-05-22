@@ -2,6 +2,8 @@ import { nativeActionSchema } from "@shared/ipc/contracts";
 import type {
   CalendarEventSummary,
   NativeAction,
+  NativeCapabilityKey,
+  NativeCapabilityReport,
   NativeCapabilitiesResponse,
   NativeFeatureState,
   NativeNotificationPermissionResponse,
@@ -106,6 +108,10 @@ export class NativeShellService implements NativeDomainService {
       this.scheduleNotificationsFromCache();
     }
 
+    if (this.deferredStarted) {
+      this.applyAutostartSetting(snapshot.startOnLogin);
+    }
+
     if (!this.deferredStarted) {
       this.status = {
         ...this.status,
@@ -186,6 +192,7 @@ export class NativeShellService implements NativeDomainService {
       this.registerProtocolClient();
       this.scheduleNotificationsFromCache();
       await this.checkForUpdates();
+      this.applyAutostartSetting(this.options.settings.get().startOnLogin);
       this.updateMcpDeferredStatus(this.options.settings.get());
       this.status = {
         ...this.status,
@@ -622,6 +629,20 @@ export class NativeShellService implements NativeDomainService {
         : featureStatus("disabled", "MCP local agent access is disabled.")
     };
   }
+
+  private applyAutostartSetting(enabled: boolean): void {
+    const result = this.options.adapter.setAutostart(enabled);
+
+    this.status = {
+      ...this.status,
+      capabilityReport: updateCapabilityReportStatus(
+        this.status.capabilityReport,
+        "autostart",
+        result,
+        enabled ? "Open-at-login is enabled." : "Open-at-login is disabled."
+      )
+    };
+  }
 }
 
 interface MenuBarSnapshotData {
@@ -1006,6 +1027,7 @@ function initialStatus(
     mcpStatus: settings.mcpEnabled
       ? featureStatus("pending", "MCP listener startup is deferred until the shell is visible.")
       : featureStatus("disabled", "MCP local agent access is disabled."),
+    capabilityReport: capabilities.capabilityReport,
     deferredStartup: {
       state: "pending"
     }
@@ -1028,6 +1050,29 @@ function statusFromResult(
     state: result.ok ? successState : result.state ?? "error",
     message: sanitizedNativeMessage(
       result.message ?? (result.ok ? successMessage : "Native adapter operation failed.")
+    )
+  };
+}
+
+function updateCapabilityReportStatus(
+  report: NativeCapabilityReport,
+  key: NativeCapabilityKey,
+  result: NativeOperationResult,
+  successMessage: string
+): NativeCapabilityReport {
+  return {
+    ...report,
+    capabilities: report.capabilities.map((capability) =>
+      capability.key === key
+        ? {
+            ...capability,
+            supported: capability.supported || result.ok,
+            state: result.ok ? "ready" : result.state ?? "error",
+            message: sanitizedNativeMessage(
+              result.message ?? (result.ok ? successMessage : "Native adapter operation failed.")
+            )
+          }
+        : capability
     )
   };
 }

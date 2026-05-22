@@ -6,7 +6,12 @@ import type {
   TaskSummary
 } from "@shared/ipc/contracts";
 import { NativeShellService, parseHotCrossBunsDeepLink } from "./service";
+import {
+  buildNativeCapabilityReport,
+  defaultNativeAppPaths
+} from "./capabilityReport";
 import type {
+  NativeAppPaths,
   NativeNotificationRequest,
   NativeOperationResult,
   NativePlatformAdapter,
@@ -46,13 +51,39 @@ function defaultSettings(overrides: Partial<SettingsSnapshot> = {}): SettingsSna
 }
 
 class FakeNativeAdapter implements NativePlatformAdapter {
+  appPathsValue: NativeAppPaths = defaultNativeAppPaths();
   capabilitiesValue: NativePlatformCapabilities = {
     platform: "darwin",
+    adapterId: "fake",
     notifications: true,
     globalShortcuts: true,
     tray: true,
     deepLinks: true,
-    updaterChecks: false
+    updaterChecks: false,
+    capabilityReport: buildNativeCapabilityReport({
+      platform: "darwin",
+      adapterId: "fake",
+      appPaths: defaultNativeAppPaths(),
+      flags: {
+        supportsAppPaths: true,
+        supportsTray: true,
+        supportsAppMenu: true,
+        supportsGlobalShortcut: true,
+        supportsNotifications: true,
+        supportsNotificationPermissionQuery: false,
+        supportsProtocolRegistration: true,
+        supportsProtocolRegistrationCheck: true,
+        supportsAutostart: true,
+        supportsInPlaceAutoUpdate: false,
+        supportsInstallerMetadata: true,
+        supportsExternalUrlOpen: true,
+        supportsDiagnosticsCollection: true,
+        supportsCredentialStorage: false,
+        supportsOAuthLoopback: true,
+        supportsMcpLoopback: true,
+        requiresSignedBuildForNotifications: false
+      }
+    })
   };
   shortcutResult: NativeOperationResult = {
     ok: true,
@@ -70,11 +101,24 @@ class FakeNativeAdapter implements NativePlatformAdapter {
   unregisteredShortcuts: string[] = [];
   protocolSchemes: string[] = [];
   scheduledNotifications: NativeNotificationRequest[] = [];
+  autostartRequests: boolean[] = [];
   trayCreateCount = 0;
   trayDestroyCount = 0;
 
+  appPaths(): NativeAppPaths {
+    return this.appPathsValue;
+  }
+
   capabilities(): NativePlatformCapabilities {
     return this.capabilitiesValue;
+  }
+
+  credentialStorageStatus(): NativeOperationResult {
+    return {
+      ok: false,
+      state: "unsupported",
+      message: "credentials"
+    };
   }
 
   installAppMenu(actions: NativeTrayActions): NativeOperationResult {
@@ -124,11 +168,52 @@ class FakeNativeAdapter implements NativePlatformAdapter {
     this.scheduledNotifications = [];
   }
 
+  setAutostart(enabled: boolean): NativeOperationResult {
+    this.autostartRequests.push(enabled);
+    return {
+      ok: true,
+      state: "ready",
+      message: enabled ? "Open-at-login is enabled." : "Open-at-login is disabled."
+    };
+  }
+
+  autostartStatus(): NativeOperationResult {
+    return {
+      ok: true,
+      state: "disabled",
+      message: "Open-at-login is disabled."
+    };
+  }
+
   checkForUpdates(): NativeOperationResult {
     return {
       ok: false,
       state: "unsupported",
       message: "not configured"
+    };
+  }
+
+  openExternalUrl(): NativeOperationResult {
+    return {
+      ok: true,
+      state: "ready",
+      message: "opened"
+    };
+  }
+
+  openPath(): NativeOperationResult {
+    return {
+      ok: true,
+      state: "ready",
+      message: "opened"
+    };
+  }
+
+  collectDiagnostics(): NativeOperationResult {
+    return {
+      ok: true,
+      state: "ready",
+      message: "diagnostics"
     };
   }
 
@@ -449,5 +534,67 @@ describe("native shell service", () => {
     expect(message).not.toContain("fake-token");
     expect(message).not.toContain("/Users/example");
     expect(message).toContain("[REDACTED]");
+  });
+
+  it("exposes a detailed adapter capability report without platform-specific renderer logic", async () => {
+    const { service } = createService();
+
+    service.startDeferredStartup();
+    await flushNativeStartup();
+
+    const report = service.capabilities().capabilityReport;
+
+    expect(report).toMatchObject({
+      adapterId: "fake",
+      platform: "darwin",
+      flags: {
+        supportsTray: true,
+        supportsGlobalShortcut: true,
+        supportsAutostart: true,
+        supportsCredentialStorage: false
+      }
+    });
+    expect(report.capabilities.map((capability) => capability.key)).toEqual(
+      expect.arrayContaining([
+        "appPaths",
+        "credentialStorage",
+        "tray",
+        "appMenu",
+        "globalShortcuts",
+        "notifications",
+        "customProtocol",
+        "autostart",
+        "updater",
+        "installerMetadata",
+        "externalOpen",
+        "diagnostics",
+        "oauthLoopback",
+        "mcpLoopback",
+        "packaging"
+      ])
+    );
+    expect(report.paths.map((path) => path.role)).toEqual(
+      expect.arrayContaining(["config", "data", "cache", "logs", "diagnostics", "temp"])
+    );
+  });
+
+  it("routes open-at-login settings through the native adapter contract", async () => {
+    const { adapter, service, settings } = createService();
+
+    service.startDeferredStartup();
+    await flushNativeStartup();
+
+    settings.current = defaultSettings({ startOnLogin: true });
+    service.applySettings(settings.current);
+
+    expect(adapter.autostartRequests).toContain(true);
+    expect(
+      service
+        .capabilities()
+        .capabilityReport.capabilities.find((capability) => capability.key === "autostart")
+    ).toMatchObject({
+      state: "ready",
+      message: "Open-at-login is enabled."
+    });
   });
 });

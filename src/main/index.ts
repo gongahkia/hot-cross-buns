@@ -10,6 +10,7 @@ import { markStartupTiming } from "./startupTiming";
 
 let mainWindow: BrowserWindow | null = null;
 let services: ServiceContainer | null = null;
+const nativeAdapter = createElectronMacNativeAdapter();
 const pendingDeepLinks: string[] = [];
 const pendingNativeActions: NativeAction[] = [];
 
@@ -102,7 +103,10 @@ function createMainWindow(): BrowserWindow {
 
   markStartupTiming("windowCreatedMs");
   const rendererUrl = process.env.ELECTRON_RENDERER_URL;
-  configureNavigationLockdown(window, { allowedDevOrigin: rendererUrl });
+  configureNavigationLockdown(window, {
+    allowedDevOrigin: rendererUrl,
+    externalOpener: nativeAdapter
+  });
 
   window.once("ready-to-show", () => {
     window.show();
@@ -129,8 +133,8 @@ app.whenReady().then(() => {
   markStartupTiming("appReadyMs");
   configureSessionHardening(session.defaultSession, { isPackaged: app.isPackaged });
   services = createServiceContainer({
-    appSupportDirectory: app.getPath("userData"),
-    nativeAdapter: createElectronMacNativeAdapter(),
+    appPaths: nativeAdapter.appPaths(),
+    nativeAdapter,
     nativeWindows: {
       showMainWindow,
       hideMainWindow,

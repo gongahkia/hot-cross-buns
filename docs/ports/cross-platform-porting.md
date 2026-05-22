@@ -58,6 +58,14 @@ Each adapter should expose a small capability report. Example capabilities:
 - `hasWaylandSession`
 - `hasPortalShortcutSupport`
 
+Current shared contract:
+
+- Main-process native behavior is owned by `NativePlatformAdapter`.
+- The adapter contract includes app paths, credential-storage status, tray/status-area creation, app-menu installation, global shortcut registration, notifications, custom protocol registration, autostart/open-at-login, update checks, external URL/file opening, diagnostics collection, and capability detection.
+- Renderer code receives platform state only through `native.capabilities()` and the typed preload bridge. `NativeCapabilitiesResponse.capabilityReport` contains support flags, redacted path roles, per-capability status, and diagnostics.
+- Diagnostics summary responses also include the native capability report as `native`, with redacted path strings only.
+- The noop adapter is the contract test double for Linux, Windows, and unknown platforms. It reports unsupported native features and blockers; it must not be treated as platform support.
+
 ## Capability-First UI
 
 Settings must show what the platform can actually do:
@@ -141,3 +149,6 @@ Every platform preview requires:
 - electron-builder targets: https://www.electron.build/docs/
 - electron-builder multi-platform build: https://www.electron.build/docs/features/multi-platform-build/
 
+## Adapter Audit
+
+See [Platform Adapter Audit](platform-adapter-audit.md) for current Mac-only assumptions, parity classification, and Linux blockers identified before non-Mac port work.

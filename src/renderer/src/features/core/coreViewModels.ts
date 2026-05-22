@@ -13,6 +13,7 @@ export type SettingsSectionId =
   | "notifications"
   | "localData"
   | "mcp"
+  | "platform"
   | "diagnostics";
 
 export interface TaskSubtaskViewModel {

@@ -6,6 +6,7 @@ import {
   calendarEventUpdateRequestSchema,
   calendarRangeRequestSchema,
   hcbDomainSchema,
+  nativeCapabilitiesResponseSchema,
   taskCreateRequestSchema,
   taskUpdateRequestSchema,
   taskListRequestSchema
@@ -141,5 +142,83 @@ describe("shared IPC contracts", () => {
       }).success
     ).toBe(false);
     expect(taskUpdateRequestSchema.safeParse({ id: "task-1" }).success).toBe(false);
+  });
+
+  it("requires native capability reports for platform adapter status", () => {
+    const parsed = nativeCapabilitiesResponseSchema.parse({
+      platform: "linux",
+      notifications: false,
+      globalShortcuts: false,
+      tray: false,
+      deepLinks: false,
+      trayStatus: { state: "unsupported" },
+      quickCaptureShortcut: {
+        accelerator: null,
+        registered: false,
+        state: "unsupported"
+      },
+      notificationsStatus: {
+        permission: "unsupported",
+        scheduledCount: 0,
+        state: "unsupported"
+      },
+      deepLinkStatus: {
+        scheme: "hotcrossbuns",
+        registered: false,
+        state: "unsupported"
+      },
+      updaterStatus: { state: "unsupported" },
+      mcpStatus: { state: "disabled" },
+      capabilityReport: {
+        platform: "linux",
+        adapterId: "noop",
+        packageFormat: "development",
+        flags: {
+          supportsAppPaths: true,
+          supportsTray: false,
+          supportsAppMenu: false,
+          supportsGlobalShortcut: false,
+          supportsNotifications: false,
+          supportsNotificationPermissionQuery: false,
+          supportsProtocolRegistration: false,
+          supportsProtocolRegistrationCheck: false,
+          supportsAutostart: false,
+          supportsInPlaceAutoUpdate: false,
+          supportsInstallerMetadata: false,
+          supportsExternalUrlOpen: false,
+          supportsDiagnosticsCollection: true,
+          supportsCredentialStorage: false,
+          supportsOAuthLoopback: true,
+          supportsMcpLoopback: true,
+          requiresSignedBuildForNotifications: false,
+          hasWaylandSession: true,
+          hasPortalShortcutSupport: false
+        },
+        paths: [],
+        capabilities: [
+          {
+            key: "globalShortcuts",
+            label: "Global shortcuts",
+            supported: false,
+            state: "unsupported",
+            message: "Wayland portal support is not available."
+          }
+        ],
+        diagnostics: [
+          {
+            key: "credentialStorage",
+            severity: "blocker",
+            message: "Secret Service is not wired."
+          }
+        ]
+      },
+      deferredStartup: { state: "pending" }
+    });
+
+    expect(parsed.capabilityReport.flags.supportsCredentialStorage).toBe(false);
+    expect(parsed.capabilityReport.diagnostics[0]).toMatchObject({
+      key: "credentialStorage",
+      severity: "blocker"
+    });
   });
 });

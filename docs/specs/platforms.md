@@ -45,6 +45,7 @@ Create adapter interfaces for:
 - platform capability detection
 
 The renderer should not branch directly on platform except for display text and minor interaction conventions.
+Native capability state is exposed through the typed preload bridge as `native.capabilities()`. The response includes a `capabilityReport` with redacted path roles, support flags, per-capability status, and diagnostics. Diagnostics summaries include the same native report for copy/export flows.
 
 ## macOS V1
 
