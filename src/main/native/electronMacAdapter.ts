@@ -5,8 +5,11 @@ import {
   globalShortcut,
   nativeImage,
   Menu,
+  type NativeImage,
   type MenuItemConstructorOptions
 } from "electron";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import {
   HCB_DEEP_LINK_SCHEME,
   type NativeNotificationRequest,
@@ -17,7 +20,7 @@ import {
   type ScheduledNativeNotification
 } from "./types";
 
-const trayIconBase64 =
+const fallbackTrayIconBase64 =
   "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAOUlEQVR4nGNgGArgP7macGGyDSHZufgMwGkgPqcT5SKKDCBFM1UMoV0gUmQAPu+QBKiSEklyLtkAAHbWV6m7KwjdAAAAAElFTkSuQmCC";
 const maxNotificationDelayMs = 2_147_483_647;
 
@@ -48,6 +51,11 @@ class ElectronMacNativeAdapter implements NativePlatformAdapter {
       return unsupported("macOS application menu is unavailable on this platform.");
     }
 
+    const dockIcon = brandImage("app-icon.png");
+    if (!dockIcon.isEmpty()) {
+      app.dock?.setIcon(dockIcon);
+    }
+
     Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(actions)));
 
     return {
@@ -63,7 +71,7 @@ class ElectronMacNativeAdapter implements NativePlatformAdapter {
     }
 
     try {
-      const image = nativeImage.createFromDataURL(`data:image/png;base64,${trayIconBase64}`);
+      const image = trayIconImage();
       image.setTemplateImage(true);
       this.tray?.destroy();
       this.tray = new Tray(image);
@@ -230,6 +238,28 @@ class ElectronMacNativeAdapter implements NativePlatformAdapter {
     this.tray?.destroy();
     this.tray = undefined;
   }
+}
+
+function brandAssetPath(filename: string): string {
+  const relativePath = join("assets", "brand", filename);
+
+  return app.isPackaged
+    ? join(process.resourcesPath, relativePath)
+    : join(app.getAppPath(), relativePath);
+}
+
+function brandImage(filename: string): NativeImage {
+  const imagePath = brandAssetPath(filename);
+
+  return existsSync(imagePath) ? nativeImage.createFromPath(imagePath) : nativeImage.createEmpty();
+}
+
+function trayIconImage(): NativeImage {
+  const image = brandImage("menubar-template.png");
+
+  return image.isEmpty()
+    ? nativeImage.createFromDataURL(`data:image/png;base64,${fallbackTrayIconBase64}`)
+    : image;
 }
 
 function trayMenu(actions: NativeTrayActions): Menu {

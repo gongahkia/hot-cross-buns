@@ -134,3 +134,4 @@ The original repository has app icons, logo files, onboarding images, and demo m
 
 Agents may reference these assets when designing Hot Cross Buns 2. Copy assets into this repository only when an implementation or design task actually needs them.
 
+Current copied brand assets live under `assets/brand/`. The macOS package icon is generated as `build/icon.icns` from the legacy AppIcon set, the renderer sidebar uses the 64 px derivative `assets/brand/buns-app-icon-sidebar.png`, and the native macOS menu bar item uses `assets/brand/menubar-template.png`.

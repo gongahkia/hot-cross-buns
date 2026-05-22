@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import type { NativeAction } from "@shared/ipc/contracts";
-import { CheckCircle2, Command, RefreshCw, WifiOff } from "lucide-react";
+import { Command, RefreshCw, WifiOff } from "lucide-react";
+import appIconUrl from "../../../assets/brand/buns-app-icon-sidebar.png";
 import { CommandPalette } from "./components/CommandPalette";
 import { Badge, Button, IconButton, StatusBanner, cx } from "./components/primitives";
 import { getPlannerSection, plannerSections, type MockCommand, type SectionId } from "./data/mockPlanner";
@@ -364,9 +365,13 @@ function AppShell(): JSX.Element {
     >
       <aside className="flex min-h-0 flex-col border-r border-border bg-bg-secondary">
         <div className="flex h-14 items-center gap-3 border-b border-border px-4">
-          <div className="flex size-8 items-center justify-center rounded-hcbMd bg-surface-0 text-accent">
-            <CheckCircle2 aria-hidden="true" size={18} strokeWidth={2.2} />
-          </div>
+          <img
+            alt=""
+            aria-hidden="true"
+            className="size-8 rounded-hcbMd object-cover"
+            draggable={false}
+            src={appIconUrl}
+          />
           <div className="min-w-0">
             <div className="truncate text-[var(--text-md)] font-semibold">Hot Cross Buns 2</div>
             <div className="text-[var(--text-xs)] text-text-muted">Local planner</div>

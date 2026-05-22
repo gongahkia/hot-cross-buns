@@ -21,6 +21,10 @@ asar: true
 compression: normal
 npmRebuild: false
 
+extraResources:
+  - from: assets/brand
+    to: assets/brand
+
 protocols:
   - name: Hot Cross Buns Links
     schemes:
@@ -28,6 +32,7 @@ protocols:
 
 mac:
   identity: null
+  icon: build/icon.icns
   category: public.app-category.productivity
   gatekeeperAssess: false
   hardenedRuntime: false
