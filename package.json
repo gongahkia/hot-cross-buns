@@ -1,0 +1,49 @@
+{
+  "name": "hot-cross-buns-2",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Electron-first rebuild of Hot Cross Buns.",
+  "main": "out/main/index.js",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "pnpm typecheck && electron-vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm test:unit",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:smoke": "pnpm build && playwright test -c playwright.config.ts",
+    "test:perf": "tsx scripts/perf-smoke.ts"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.59.20",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zod": "^3.24.1",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "electron": "^33.2.1",
+    "electron-vite": "^2.3.0",
+    "jsdom": "^25.0.1",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
+  }
+}

@@ -1,0 +1,16 @@
+node_modules/
+out/
+dist/
+dist-electron/
+.vite/
+.turbo/
+coverage/
+output/
+test-results/
+playwright-report/
+
+artifacts/perf/latest.json
+artifacts/perf/latest.md
+
+.DS_Store
+*.log
