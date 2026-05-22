@@ -3,9 +3,11 @@ import { hcbErrorCodeSchema, hcbResultSchema } from "./result";
 
 export const HCB_IPC_VERSION = 1;
 export const HCB_IPC_CHANNEL = "hcb:ipc:v1";
+export const HCB_SYNC_STATUS_EVENT_CHANNEL = "hcb:sync-status:v1";
 
 export const IPC_CHANNELS = {
-  dispatch: HCB_IPC_CHANNEL
+  dispatch: HCB_IPC_CHANNEL,
+  syncStatus: HCB_SYNC_STATUS_EVENT_CHANNEL
 } as const;
 
 export const DEFAULT_LIST_LIMIT = 50;
@@ -136,6 +138,34 @@ export const taskListRequestSchema = z
 
 export type TaskListRequest = z.input<typeof taskListRequestSchema>;
 
+export const taskListsRequestSchema = z
+  .object({
+    cursor: cursorSchema.optional(),
+    limit: listLimitSchema
+  })
+  .strict();
+
+export type TaskListsRequest = z.input<typeof taskListsRequestSchema>;
+
+export const taskListSummarySchema = z
+  .object({
+    id: idSchema,
+    title: z.string().min(1).max(500),
+    updatedAt: isoDateTimeSchema,
+    taskCount: z.number().int().nonnegative().optional(),
+    activeTaskCount: z.number().int().nonnegative().optional()
+  })
+  .strict();
+
+export type TaskListSummary = z.infer<typeof taskListSummarySchema>;
+
+export const taskListsResponseSchema = pagedListResponseSchema(
+  taskListSummarySchema,
+  MAX_LIST_LIMIT
+);
+
+export type TaskListsResponse = z.infer<typeof taskListsResponseSchema>;
+
 export const taskSummarySchema = z
   .object({
     id: idSchema,
@@ -194,6 +224,35 @@ export const calendarRangeRequestSchema = z
 
 export type CalendarRangeRequest = z.input<typeof calendarRangeRequestSchema>;
 
+export const calendarListRequestSchema = z
+  .object({
+    cursor: cursorSchema.optional(),
+    limit: listLimitSchema
+  })
+  .strict();
+
+export type CalendarListRequest = z.input<typeof calendarListRequestSchema>;
+
+export const calendarListSummarySchema = z
+  .object({
+    id: idSchema,
+    title: z.string().min(1).max(500),
+    selected: z.boolean(),
+    timeZone: z.string().min(1).max(120).nullable().optional(),
+    updatedAt: isoDateTimeSchema,
+    eventCount: z.number().int().nonnegative().optional()
+  })
+  .strict();
+
+export type CalendarListSummary = z.infer<typeof calendarListSummarySchema>;
+
+export const calendarListResponseSchema = pagedListResponseSchema(
+  calendarListSummarySchema,
+  MAX_LIST_LIMIT
+);
+
+export type CalendarListResponse = z.infer<typeof calendarListResponseSchema>;
+
 export const calendarEventSummarySchema = z
   .object({
     id: idSchema,
@@ -246,6 +305,31 @@ export const noteDetailSchema = noteSummarySchema
 
 export type NoteDetail = z.infer<typeof noteDetailSchema>;
 
+export const noteCreateRequestSchema = z
+  .object({
+    title: z.string().min(1).max(500),
+    body: z.string().max(50_000).default("")
+  })
+  .strict();
+
+export type NoteCreateRequest = z.input<typeof noteCreateRequestSchema>;
+
+export const noteUpdateRequestSchema = z
+  .object({
+    id: idSchema,
+    title: z.string().min(1).max(500).optional(),
+    body: z.string().max(50_000).optional()
+  })
+  .strict()
+  .refine((request) => request.title !== undefined || request.body !== undefined, {
+    message: "At least one note field must be supplied"
+  });
+
+export type NoteUpdateRequest = z.input<typeof noteUpdateRequestSchema>;
+
+export const noteDeleteRequestSchema = entityByIdRequestSchema;
+export type NoteDeleteRequest = z.input<typeof noteDeleteRequestSchema>;
+
 export const searchDomainSchema = z.enum(["tasks", "calendar", "notes"]);
 
 export const searchQueryRequestSchema = z
@@ -283,8 +367,12 @@ export const syncStatusResponseSchema = z
   .object({
     state: z.enum(["idle", "running", "error"]),
     pendingMutationCount: z.number().int().nonnegative(),
+    lastStartedAt: isoDateTimeSchema.optional(),
     lastCompletedAt: isoDateTimeSchema.optional(),
-    lastErrorCode: hcbErrorCodeSchema.optional()
+    lastErrorCode: hcbErrorCodeSchema.optional(),
+    lastDurationMs: z.number().nonnegative().optional(),
+    offline: z.boolean().optional(),
+    stale: z.boolean().optional()
   })
   .strict();
 
@@ -395,7 +483,8 @@ export const startupTimingSnapshotSchema = z
     windowCreatedMs: z.number().nonnegative().optional(),
     rendererLoadedMs: z.number().nonnegative().optional(),
     shellVisibleMs: z.number().nonnegative().optional(),
-    databaseReadyMs: z.number().nonnegative().optional()
+    databaseReadyMs: z.number().nonnegative().optional(),
+    cachedDataRenderedMs: z.number().nonnegative().optional()
   })
   .strict();
 
@@ -424,6 +513,16 @@ export const diagnosticsShellVisibleRequestSchema = z
 
 export type DiagnosticsShellVisibleRequest = z.input<
   typeof diagnosticsShellVisibleRequestSchema
+>;
+
+export const diagnosticsCachedDataRenderedRequestSchema = z
+  .object({
+    rendererNowMs: z.number().finite().nonnegative().optional()
+  })
+  .strict();
+
+export type DiagnosticsCachedDataRenderedRequest = z.input<
+  typeof diagnosticsCachedDataRenderedRequestSchema
 >;
 
 export const ipcRouteMetricSchema = z
@@ -460,12 +559,56 @@ export type DiagnosticsIpcMetricsResponse = z.infer<
   typeof diagnosticsIpcMetricsResponseSchema
 >;
 
+export const localPerformanceTimingSchema = z
+  .object({
+    id: z.number().int().positive().optional(),
+    kind: z.enum(["startup", "cached_render", "ipc", "sqlite_query", "search"]),
+    name: z.string().min(1).max(160),
+    durationMs: z.number().nonnegative(),
+    createdAt: isoDateTimeSchema
+  })
+  .strict();
+
+export type LocalPerformanceTiming = z.infer<typeof localPerformanceTimingSchema>;
+
+export const diagnosticsPerformanceRequestSchema = z
+  .object({
+    limit: z.number().int().min(1).max(100).default(50)
+  })
+  .strict();
+
+export type DiagnosticsPerformanceRequest = z.input<
+  typeof diagnosticsPerformanceRequestSchema
+>;
+
+export const diagnosticsPerformanceResponseSchema = z
+  .object({
+    timings: z.array(localPerformanceTimingSchema).max(100)
+  })
+  .strict();
+
+export type DiagnosticsPerformanceResponse = z.infer<
+  typeof diagnosticsPerformanceResponseSchema
+>;
+
 export const ipcContracts = {
   tasks: {
+    listTaskLists: defineIpcContract(
+      "tasks",
+      "listTaskLists",
+      taskListsRequestSchema,
+      taskListsResponseSchema
+    ),
     list: defineIpcContract("tasks", "list", taskListRequestSchema, taskListResponseSchema),
     get: defineIpcContract("tasks", "get", entityByIdRequestSchema, taskDetailSchema)
   },
   calendar: {
+    listCalendars: defineIpcContract(
+      "calendar",
+      "listCalendars",
+      calendarListRequestSchema,
+      calendarListResponseSchema
+    ),
     listEvents: defineIpcContract(
       "calendar",
       "listEvents",
@@ -475,7 +618,10 @@ export const ipcContracts = {
   },
   notes: {
     list: defineIpcContract("notes", "list", noteListRequestSchema, noteListResponseSchema),
-    get: defineIpcContract("notes", "get", entityByIdRequestSchema, noteDetailSchema)
+    get: defineIpcContract("notes", "get", entityByIdRequestSchema, noteDetailSchema),
+    create: defineIpcContract("notes", "create", noteCreateRequestSchema, noteDetailSchema),
+    update: defineIpcContract("notes", "update", noteUpdateRequestSchema, noteDetailSchema),
+    delete: defineIpcContract("notes", "delete", noteDeleteRequestSchema, mutationAckSchema)
   },
   search: {
     query: defineIpcContract(
@@ -534,11 +680,23 @@ export const ipcContracts = {
       diagnosticsShellVisibleRequestSchema,
       startupTimingSnapshotSchema
     ),
+    markCachedDataRendered: defineIpcContract(
+      "diagnostics",
+      "markCachedDataRendered",
+      diagnosticsCachedDataRenderedRequestSchema,
+      startupTimingSnapshotSchema
+    ),
     ipcMetrics: defineIpcContract(
       "diagnostics",
       "ipcMetrics",
       diagnosticsIpcMetricsRequestSchema,
       diagnosticsIpcMetricsResponseSchema
+    ),
+    performance: defineIpcContract(
+      "diagnostics",
+      "performance",
+      diagnosticsPerformanceRequestSchema,
+      diagnosticsPerformanceResponseSchema
     )
   }
 } as const;

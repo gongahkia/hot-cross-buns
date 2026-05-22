@@ -1,14 +1,19 @@
 import type {
   CalendarRangeRequest,
   CalendarRangeResponse,
+  CalendarListRequest,
+  CalendarListResponse,
   EntityByIdRequest,
   McpSetEnabledRequest,
   McpStatusResponse,
   NativeCapabilitiesResponse,
   NativeNotificationPermissionResponse,
+  NoteCreateRequest,
+  NoteDeleteRequest,
   NoteDetail,
   NoteListRequest,
   NoteListResponse,
+  NoteUpdateRequest,
   SearchQueryRequest,
   SearchQueryResponse,
   SettingsSnapshot,
@@ -17,6 +22,8 @@ import type {
   SyncRunNowResponse,
   SyncStatusResponse,
   TaskDetail,
+  TaskListsRequest,
+  TaskListsResponse,
   TaskListRequest,
   TaskListResponse
 } from "@shared/ipc/contracts";
@@ -91,18 +98,24 @@ export interface McpDomainServices {
 }
 
 export interface PlannerViewDomainService {
+  listTaskLists: (request: TaskListsRequest) => MaybePromise<TaskListsResponse>;
   listTasks: (request: TaskListRequest) => MaybePromise<TaskListResponse>;
   getTask: (request: EntityByIdRequest) => MaybePromise<TaskDetail>;
+  listCalendars: (request: CalendarListRequest) => MaybePromise<CalendarListResponse>;
   listCalendarEvents: (request: CalendarRangeRequest) => MaybePromise<CalendarRangeResponse>;
   getCalendarEvent: (request: EntityByIdRequest) => MaybePromise<DomainJsonObject>;
   listNotes: (request: NoteListRequest) => MaybePromise<NoteListResponse>;
   getNote: (request: EntityByIdRequest) => MaybePromise<NoteDetail>;
+  createNote: (request: NoteCreateRequest) => MaybePromise<NoteDetail>;
+  updateNote: (request: NoteUpdateRequest) => MaybePromise<NoteDetail>;
+  deleteNote: (request: NoteDeleteRequest) => MaybePromise<{ id: string; queued: boolean; revision?: string }>;
   search: (request: SearchQueryRequest) => MaybePromise<SearchQueryResponse>;
 }
 
 export interface SyncControlDomainService {
   status: () => MaybePromise<SyncStatusResponse>;
   runNow: (request: SyncRunNowRequest) => MaybePromise<SyncRunNowResponse>;
+  subscribeStatus?: (listener: (status: SyncStatusResponse) => void) => () => void;
 }
 
 export interface SettingsDomainService {

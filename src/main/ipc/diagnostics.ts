@@ -1,6 +1,11 @@
 import { app } from "electron";
 import { performance } from "node:perf_hooks";
-import { ipcContracts, type DiagnosticsHealthResponse } from "@shared/ipc/contracts";
+import {
+  ipcContracts,
+  type DiagnosticsHealthResponse,
+  type DiagnosticsPerformanceRequest,
+  type LocalPerformanceTiming
+} from "@shared/ipc/contracts";
 import { getStartupTimings, markStartupTiming } from "../startupTiming";
 import type { IpcHandlerDefinition, IpcMetricsRecorder } from "./registry";
 
@@ -15,7 +20,15 @@ function environment(): AppEnvironment {
 }
 
 export function createDiagnosticsIpcHandlers(
-  metrics: IpcMetricsRecorder
+  metrics: IpcMetricsRecorder,
+  performanceTimings?: {
+    listRecent: (limit: number) => readonly LocalPerformanceTiming[];
+    record?: (timing: {
+      kind: LocalPerformanceTiming["kind"];
+      name: string;
+      durationMs: number;
+    }) => void;
+  }
 ): IpcHandlerDefinition[] {
   return [
     {
@@ -34,8 +47,30 @@ export function createDiagnosticsIpcHandlers(
       handle: () => markStartupTiming("shellVisibleMs")
     },
     {
+      contract: ipcContracts.diagnostics.markCachedDataRendered,
+      handle: () => {
+        const snapshot = markStartupTiming("cachedDataRenderedMs");
+
+        if (snapshot.cachedDataRenderedMs !== undefined) {
+          performanceTimings?.record?.({
+            kind: "cached_render",
+            name: "renderer.cached-data-rendered",
+            durationMs: snapshot.cachedDataRenderedMs
+          });
+        }
+
+        return snapshot;
+      }
+    },
+    {
       contract: ipcContracts.diagnostics.ipcMetrics,
       handle: () => metrics.snapshot()
+    },
+    {
+      contract: ipcContracts.diagnostics.performance,
+      handle: (request) => ({
+        timings: [...(performanceTimings?.listRecent((request as DiagnosticsPerformanceRequest).limit ?? 50) ?? [])]
+      })
     }
   ];
 }

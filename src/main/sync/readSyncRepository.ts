@@ -6,7 +6,8 @@ import type {
   GoogleCalendarEventMirror,
   GoogleCalendarListMirror,
   GoogleTaskListMirror,
-  GoogleTaskMirror
+  GoogleTaskMirror,
+  sanitizeGoogleAccountConnectionStatus
 } from "../google";
 import type {
   ReadSyncResource,
@@ -71,6 +72,57 @@ export class GoogleSyncRepository {
         status.updatedAt
       ]
     );
+  }
+
+  latestAccountStatus(): GoogleAccountConnectionStatusDto | null {
+    const row = this.connection.get<{
+      id: string;
+      google_account_id: string | null;
+      email: string | null;
+      display_name: string | null;
+      avatar_url: string | null;
+      locale: string | null;
+      time_zone: string | null;
+      connection_state: GoogleAccountConnectionStatusDto["connectionState"];
+      granted_scopes_json: string;
+      last_authenticated_at: string | null;
+      updated_at: string;
+    }>(
+      `SELECT
+         id,
+         google_account_id,
+         email,
+         display_name,
+         avatar_url,
+         locale,
+         time_zone,
+         connection_state,
+         granted_scopes_json,
+         last_authenticated_at,
+         updated_at
+       FROM google_accounts
+       WHERE deleted_at IS NULL
+       ORDER BY updated_at DESC
+       LIMIT 1;`
+    );
+
+    if (!row) {
+      return null;
+    }
+
+    return sanitizeGoogleAccountConnectionStatus({
+      accountId: row.id,
+      ...(row.google_account_id === null ? {} : { googleAccountId: row.google_account_id }),
+      ...(row.email === null ? {} : { email: row.email }),
+      displayName: row.display_name,
+      avatarUrl: row.avatar_url,
+      locale: row.locale,
+      timeZone: row.time_zone,
+      connectionState: row.connection_state,
+      grantedScopes: parseJsonStringArray(row.granted_scopes_json),
+      ...(row.last_authenticated_at === null ? {} : { lastAuthenticatedAt: row.last_authenticated_at }),
+      updatedAt: row.updated_at
+    });
   }
 
   readCheckpoint(request: {
@@ -436,11 +488,12 @@ export class GoogleSyncRepository {
       )?.count ?? 0;
     const latest = this.connection.get<{
       state: "running" | "idle" | "error";
+      started_at: string;
       completed_at: string | null;
       duration_ms: number | null;
       last_error_code: HcbErrorCode | null;
     }>(
-      `SELECT state, completed_at, duration_ms, last_error_code
+      `SELECT state, started_at, completed_at, duration_ms, last_error_code
        FROM google_sync_diagnostics
        ORDER BY started_at DESC
        LIMIT 1;`
@@ -449,6 +502,7 @@ export class GoogleSyncRepository {
     return {
       state: latest?.state ?? "idle",
       pendingMutationCount,
+      ...(latest?.started_at === undefined ? {} : { lastStartedAt: latest.started_at }),
       ...(latest?.completed_at === undefined || latest.completed_at === null
         ? {}
         : { lastCompletedAt: latest.completed_at }),
@@ -459,6 +513,18 @@ export class GoogleSyncRepository {
         ? {}
         : { lastDurationMs: latest.duration_ms })
     };
+  }
+}
+
+function parseJsonStringArray(value: string): string[] {
+  try {
+    const parsed = JSON.parse(value);
+
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === "string")
+      : [];
+  } catch {
+    return [];
   }
 }
 

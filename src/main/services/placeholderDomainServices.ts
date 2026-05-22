@@ -205,6 +205,22 @@ export function createPlaceholderDomainServices(): AppDomainServices {
 
   return {
     planner: {
+      listTaskLists: (request) =>
+        pageItems(
+          state.taskLists.map((taskList) => ({
+            id: taskList.id,
+            title: taskList.title,
+            updatedAt: nowIso,
+            taskCount: state.tasks.filter((task) => task.listId === taskList.id).length,
+            activeTaskCount: state.tasks.filter(
+              (task) => task.listId === taskList.id && task.status === "active"
+            ).length
+          })),
+          request.cursor,
+          request.limit,
+          DEFAULT_LIST_LIMIT,
+          MAX_LIST_LIMIT
+        ),
       listTasks: (request) => {
         const status = request.status ?? "active";
         const filtered = state.tasks
@@ -259,6 +275,21 @@ export function createPlaceholderDomainServices(): AppDomainServices {
 
         return calendarJson(event);
       },
+      listCalendars: (request) =>
+        pageItems(
+          state.calendars.map((calendar) => ({
+            id: calendar.id,
+            title: calendar.title,
+            selected: calendar.selected,
+            timeZone: "UTC",
+            updatedAt: nowIso,
+            eventCount: state.calendarEvents.filter((event) => event.calendarId === calendar.id).length
+          })),
+          request.cursor,
+          request.limit,
+          DEFAULT_LIST_LIMIT,
+          MAX_LIST_LIMIT
+        ),
       listNotes: (request) =>
         pageItems(
           state.notes.map(noteSummary),
@@ -275,6 +306,56 @@ export function createPlaceholderDomainServices(): AppDomainServices {
         }
 
         return clone(note);
+      },
+      createNote: (request) => {
+        const now = new Date().toISOString();
+        const body = request.body ?? "";
+        const note: NoteDetail = {
+          id: `note-local-${state.notes.length + 1}`,
+          title: request.title,
+          body,
+          preview: preview(body),
+          updatedAt: now
+        };
+
+        state.notes.unshift(note);
+
+        return clone(note);
+      },
+      updateNote: (request) => {
+        const note = state.notes.find((candidate) => candidate.id === request.id);
+
+        if (!note) {
+          throw new Error("Note was not found.");
+        }
+
+        if (request.title !== undefined) {
+          note.title = request.title;
+        }
+
+        if (request.body !== undefined) {
+          note.body = request.body;
+          note.preview = preview(request.body);
+        }
+
+        note.updatedAt = new Date().toISOString();
+
+        return clone(note);
+      },
+      deleteNote: (request) => {
+        const index = state.notes.findIndex((candidate) => candidate.id === request.id);
+
+        if (index < 0) {
+          throw new Error("Note was not found.");
+        }
+
+        state.notes.splice(index, 1);
+
+        return {
+          id: request.id,
+          queued: false,
+          revision: new Date().toISOString()
+        };
       },
       search: (request) => {
         const domains = new Set<SearchDomain>(request.domains ?? ["tasks", "calendar", "notes"]);

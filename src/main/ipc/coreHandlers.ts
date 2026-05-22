@@ -1,12 +1,17 @@
 import {
   ipcContracts,
+  type CalendarListRequest,
   type CalendarRangeRequest,
   type EntityByIdRequest,
   type McpSetEnabledRequest,
+  type NoteCreateRequest,
+  type NoteDeleteRequest,
   type NoteListRequest,
+  type NoteUpdateRequest,
   type SearchQueryRequest,
   type SettingsUpdateRequest,
   type SyncRunNowRequest,
+  type TaskListsRequest,
   type TaskListRequest
 } from "@shared/ipc/contracts";
 import type { AppDomainServices } from "../services/domainInterfaces";
@@ -15,12 +20,20 @@ import type { IpcHandlerDefinition } from "./registry";
 export function createCoreIpcHandlers(services: AppDomainServices): IpcHandlerDefinition[] {
   return [
     {
+      contract: ipcContracts.tasks.listTaskLists,
+      handle: (request) => services.planner.listTaskLists(request as TaskListsRequest)
+    },
+    {
       contract: ipcContracts.tasks.list,
       handle: (request) => services.planner.listTasks(request as TaskListRequest)
     },
     {
       contract: ipcContracts.tasks.get,
       handle: (request) => services.planner.getTask(request as EntityByIdRequest)
+    },
+    {
+      contract: ipcContracts.calendar.listCalendars,
+      handle: (request) => services.planner.listCalendars(request as CalendarListRequest)
     },
     {
       contract: ipcContracts.calendar.listEvents,
@@ -33,6 +46,18 @@ export function createCoreIpcHandlers(services: AppDomainServices): IpcHandlerDe
     {
       contract: ipcContracts.notes.get,
       handle: (request) => services.planner.getNote(request as EntityByIdRequest)
+    },
+    {
+      contract: ipcContracts.notes.create,
+      handle: (request) => services.planner.createNote(request as NoteCreateRequest)
+    },
+    {
+      contract: ipcContracts.notes.update,
+      handle: (request) => services.planner.updateNote(request as NoteUpdateRequest)
+    },
+    {
+      contract: ipcContracts.notes.delete,
+      handle: (request) => services.planner.deleteNote(request as NoteDeleteRequest)
     },
     {
       contract: ipcContracts.search.query,

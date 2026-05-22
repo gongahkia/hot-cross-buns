@@ -3,6 +3,7 @@ import {
   IPC_CHANNELS,
   ipcContracts,
   resultSchemaForContract,
+  syncStatusResponseSchema,
   type IpcContract
 } from "@shared/ipc/contracts";
 import type { HcbApi } from "@shared/ipc/preloadApi";
@@ -11,6 +12,11 @@ import { ipcError, validationError } from "@shared/ipc/result";
 
 export interface IpcBridge {
   invoke: (channel: string, payload: unknown) => Promise<unknown>;
+  on?: (channel: string, listener: (event: unknown, payload: unknown) => void) => void;
+  removeListener?: (
+    channel: string,
+    listener: (event: unknown, payload: unknown) => void
+  ) => void;
 }
 
 function validationResult<T>(message: string): HcbResult<T> {
@@ -83,12 +89,26 @@ async function invokeContract<T>(
 export function createHcbApi(ipc: IpcBridge): HcbApi {
   return freezeApi({
     tasks: {
+      listTaskLists: (request = {}) =>
+        invokeContract(
+          ipc,
+          ipcContracts.tasks.listTaskLists,
+          request,
+          "Task list source request failed"
+        ),
       list: (request = {}) =>
         invokeContract(ipc, ipcContracts.tasks.list, request, "Task list request failed"),
       get: (request) =>
         invokeContract(ipc, ipcContracts.tasks.get, request, "Task detail request failed")
     },
     calendar: {
+      listCalendars: (request = {}) =>
+        invokeContract(
+          ipc,
+          ipcContracts.calendar.listCalendars,
+          request,
+          "Calendar source request failed"
+        ),
       listEvents: (request) =>
         invokeContract(
           ipc,
@@ -101,7 +121,13 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
       list: (request = {}) =>
         invokeContract(ipc, ipcContracts.notes.list, request, "Note list request failed"),
       get: (request) =>
-        invokeContract(ipc, ipcContracts.notes.get, request, "Note detail request failed")
+        invokeContract(ipc, ipcContracts.notes.get, request, "Note detail request failed"),
+      create: (request) =>
+        invokeContract(ipc, ipcContracts.notes.create, request, "Note create request failed"),
+      update: (request) =>
+        invokeContract(ipc, ipcContracts.notes.update, request, "Note update request failed"),
+      delete: (request) =>
+        invokeContract(ipc, ipcContracts.notes.delete, request, "Note delete request failed")
     },
     search: {
       query: (request) =>
@@ -110,7 +136,26 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
     sync: {
       status: () => invokeContract(ipc, ipcContracts.sync.status, {}, "Sync status failed"),
       runNow: (request = {}) =>
-        invokeContract(ipc, ipcContracts.sync.runNow, request, "Sync request failed")
+        invokeContract(ipc, ipcContracts.sync.runNow, request, "Sync request failed"),
+      subscribeStatus: (listener) => {
+        if (!ipc.on || !ipc.removeListener) {
+          return () => undefined;
+        }
+
+        const eventListener = (_event: unknown, payload: unknown): void => {
+          const parsed = syncStatusResponseSchema.safeParse(payload);
+
+          if (parsed.success) {
+            listener(parsed.data);
+          }
+        };
+
+        ipc.on(IPC_CHANNELS.syncStatus, eventListener);
+
+        return () => {
+          ipc.removeListener?.(IPC_CHANNELS.syncStatus, eventListener);
+        };
+      }
     },
     settings: {
       get: () => invokeContract(ipc, ipcContracts.settings.get, {}, "Settings request failed"),
@@ -143,12 +188,26 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
           withRendererTiming(request),
           "Shell visibility timing failed"
         ),
+      markCachedDataRendered: (request) =>
+        invokeContract(
+          ipc,
+          ipcContracts.diagnostics.markCachedDataRendered,
+          withRendererTiming(request),
+          "Cached data render timing failed"
+        ),
       ipcMetrics: () =>
         invokeContract(
           ipc,
           ipcContracts.diagnostics.ipcMetrics,
           {},
           "IPC metrics request failed"
+        ),
+      performance: (request = {}) =>
+        invokeContract(
+          ipc,
+          ipcContracts.diagnostics.performance,
+          request,
+          "Performance metrics request failed"
         )
     }
   });
