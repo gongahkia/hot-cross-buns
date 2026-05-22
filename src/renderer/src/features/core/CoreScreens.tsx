@@ -15,30 +15,18 @@ import { Badge, Button, IconButton, Input, ListRow, Panel, cx } from "../../comp
 import { EmptyState, ErrorState, LoadingState, OfflineState } from "../../components/states";
 import { VirtualizedList } from "../../components/VirtualizedList";
 import type { SectionId } from "../../data/mockPlanner";
-import {
-  calendarAgendaEvents,
-  calendarDayView,
-  calendarEventsById,
-  calendarMonthWeeks,
-  calendarWeekDays,
-  getPrecomputedSearchViewModel,
-  getTaskById,
-  getTaskFilterViewModel,
-  initialNotes,
-  largeTaskWindow,
-  settingsSections,
-  taskFilterViewModels,
-  todayViewModel,
-  type CalendarEventViewModel,
-  type CalendarViewId,
-  type CorePriority,
-  type NoteViewModel,
-  type SearchSource,
-  type SettingsSectionId,
-  type TaskFilterId,
-  type TaskGroupViewModel,
-  type TaskViewModel
-} from "./mockCoreViewModels";
+import { useCoreViewModelSource } from "./coreViewModelSource";
+import type {
+  CalendarEventViewModel,
+  CalendarViewId,
+  CorePriority,
+  NoteViewModel,
+  SearchSource,
+  SettingsSectionId,
+  TaskFilterId,
+  TaskGroupViewModel,
+  TaskViewModel
+} from "./coreViewModels";
 
 function priorityTone(priority: CorePriority): "neutral" | "accent" | "warning" | "danger" {
   if (priority === "high") {
@@ -278,20 +266,21 @@ function TodayTimelineRow({
 }
 
 function TodayView(): JSX.Element {
+  const source = useCoreViewModelSource();
   const timelineRows = useMemo(
     () =>
-      todayViewModel.timelineRows.map((row) =>
+      source.todayViewModel.timelineRows.map((row) =>
         row.kind === "event"
-          ? { kind: "event" as const, event: calendarEventsById[row.itemId] }
-          : { kind: "task" as const, task: getTaskById(row.itemId) }
+          ? { kind: "event" as const, event: source.calendarEventsById[row.itemId] }
+          : { kind: "task" as const, task: source.getTaskById(row.itemId) }
       ),
-    []
+    [source]
   );
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="grid grid-cols-4 gap-3">
-        {todayViewModel.metrics.map((metric) => (
+        {source.todayViewModel.metrics.map((metric) => (
           <MetricTile key={metric.id} label={metric.label} value={metric.value} />
         ))}
       </div>
@@ -304,7 +293,7 @@ function TodayView(): JSX.Element {
               ariaLabel="Today focus queue"
               estimateRowHeight={58}
               getKey={(task) => task.id}
-              items={todayViewModel.focusTasks}
+              items={source.todayViewModel.focusTasks}
               renderRow={(task) => (
                 <ListRow
                   description={task.detail}
@@ -335,12 +324,13 @@ function TodayView(): JSX.Element {
 }
 
 function TasksView(): JSX.Element {
+  const source = useCoreViewModelSource();
   const [activeFilterId, setActiveFilterId] = useState<TaskFilterId>("open");
   const [completionById, setCompletionById] = useState<Record<string, boolean>>({});
-  const activeFilter = getTaskFilterViewModel(activeFilterId);
+  const activeFilter = source.getTaskFilterViewModel(activeFilterId);
 
   function toggleTask(taskId: string): void {
-    const task = getTaskById(taskId);
+    const task = source.getTaskById(taskId);
     setCompletionById((current) => ({
       ...current,
       [taskId]: !(current[taskId] ?? task.status === "completed")
@@ -363,7 +353,7 @@ function TasksView(): JSX.Element {
 
       <div className="flex items-center gap-2 overflow-x-auto" role="toolbar" aria-label="Task filters">
         <Filter aria-hidden="true" className="shrink-0 text-text-muted" size={15} />
-        {taskFilterViewModels.map((filter) => (
+        {source.taskFilterViewModels.map((filter) => (
           <Button
             aria-pressed={filter.id === activeFilterId}
             key={filter.id}
@@ -386,7 +376,7 @@ function TasksView(): JSX.Element {
                 ariaLabel="Large task placeholder"
                 estimateRowHeight={52}
                 getKey={(task) => task.id}
-                items={largeTaskWindow}
+                items={source.largeTaskWindow}
                 renderRow={(task) => (
                   <ListRow
                     description={task.detail}
@@ -455,10 +445,12 @@ function CalendarTabButton({
 }
 
 function DayView(): JSX.Element {
+  const source = useCoreViewModelSource();
+
   return (
-    <Panel title="Day view shell" description={`${calendarDayView.weekday}, ${calendarDayView.dateLabel}`}>
+    <Panel title="Day view shell" description={`${source.calendarDayView.weekday}, ${source.calendarDayView.dateLabel}`}>
       <div className="grid gap-2 p-3" role="grid" aria-label="Calendar day view">
-        {calendarDayView.events.map((event) => (
+        {source.calendarDayView.events.map((event) => (
           <div
             className="grid min-h-14 grid-cols-[74px_minmax(0,1fr)] gap-3 rounded-hcbMd border border-border bg-bg-tertiary p-2"
             key={event.id}
@@ -479,10 +471,12 @@ function DayView(): JSX.Element {
 }
 
 function WeekView(): JSX.Element {
+  const source = useCoreViewModelSource();
+
   return (
     <Panel title="Week view shell" description="Visible week is pre-expanded by mock view model">
       <div className="grid grid-cols-7 gap-2 p-3" role="grid" aria-label="Calendar week view">
-        {calendarWeekDays.map((day) => (
+        {source.calendarWeekDays.map((day) => (
           <div
             className={cx(
               "min-h-44 rounded-hcbMd border border-border bg-bg-tertiary p-2",
@@ -513,10 +507,12 @@ function WeekView(): JSX.Element {
 }
 
 function MonthView(): JSX.Element {
+  const source = useCoreViewModelSource();
+
   return (
     <Panel title="Month view shell" description="May 2026 mock month grid">
       <div className="grid gap-1 p-3" role="grid" aria-label="Calendar month view">
-        {calendarMonthWeeks.map((week) => (
+        {source.calendarMonthWeeks.map((week) => (
           <div className="grid grid-cols-7 gap-1" key={week.id} role="row">
             {week.days.map((day) => (
               <div
@@ -547,6 +543,7 @@ function MonthView(): JSX.Element {
 }
 
 function CalendarView(): JSX.Element {
+  const source = useCoreViewModelSource();
   const [activeViewId, setActiveViewId] = useState<CalendarViewId>("agenda");
 
   return (
@@ -595,7 +592,7 @@ function CalendarView(): JSX.Element {
               ariaLabel="Calendar agenda"
               estimateRowHeight={58}
               getKey={(event) => event.id}
-              items={calendarAgendaEvents}
+              items={source.calendarAgendaEvents}
               renderRow={(event) => <EventRow event={event} />}
               viewportHeight={352}
             />
@@ -619,8 +616,11 @@ function buildPreview(body: string): string {
 }
 
 function NotesView(): JSX.Element {
-  const [notes, setNotes] = useState<NoteViewModel[]>(initialNotes);
-  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(initialNotes[0]?.id ?? null);
+  const source = useCoreViewModelSource();
+  const [notes, setNotes] = useState<NoteViewModel[]>(source.initialNotes);
+  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(
+    source.initialNotes[0]?.id ?? null
+  );
   const [draftCounter, setDraftCounter] = useState(1);
   const selectedNote = notes.find((note) => note.id === selectedNoteId) ?? null;
 
@@ -771,7 +771,8 @@ function SearchView({
   query: string;
   setQuery: (query: string) => void;
 }): JSX.Element {
-  const searchViewModel = useMemo(() => getPrecomputedSearchViewModel(query), [query]);
+  const source = useCoreViewModelSource();
+  const searchViewModel = useMemo(() => source.getSearchViewModel(query), [query, source]);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
@@ -827,9 +828,11 @@ function SearchView({
 }
 
 function SettingsView(): JSX.Element {
+  const source = useCoreViewModelSource();
   const [selectedSectionId, setSelectedSectionId] = useState<SettingsSectionId>("google");
   const selectedSection =
-    settingsSections.find((section) => section.id === selectedSectionId) ?? settingsSections[0];
+    source.settingsSections.find((section) => section.id === selectedSectionId) ??
+    source.settingsSections[0];
 
   return (
     <SectionChrome
@@ -837,7 +840,7 @@ function SettingsView(): JSX.Element {
       sidebar={
         <Panel title="Settings sections" description="Required v1 preference areas">
           <div className="grid gap-1 p-2" role="list">
-            {settingsSections.map((section) => (
+            {source.settingsSections.map((section) => (
               <button
                 aria-pressed={section.id === selectedSectionId}
                 className={cx(

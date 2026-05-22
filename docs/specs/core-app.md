@@ -150,3 +150,9 @@ Settings must not expose raw tokens, secrets, cache encryption keys, or full Goo
 - Search returns local cache results without network access.
 - The app can render after restart from local SQLite before fresh sync completes.
 
+## Current Phase 2 Contract Notes
+
+- Core IPC read routes return paginated placeholder DTOs with the same request/response shapes planned for cache-backed preload calls.
+- Renderer screens read their local mock view models through a swappable source adapter; Phase 3 should replace that adapter with preload calls and keep the screen components stable.
+- MCP tool writes and future UI writes now share main-side domain service interfaces. The current implementation is an in-memory placeholder, not durable storage.
+- Calendar agenda, task, note, and search surfaces are virtualized or range/pagination-shaped before large SQLite fixtures are connected.

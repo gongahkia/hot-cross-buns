@@ -90,4 +90,14 @@ describe("renderer privilege boundary", () => {
 
     expect(violations).toEqual([]);
   });
+
+  it("keeps core screens behind the swappable view-model source", () => {
+    const contents = readFileSync(
+      join(rendererRoot, "features", "core", "CoreScreens.tsx"),
+      "utf8"
+    );
+
+    expect(contents).toContain("./coreViewModelSource");
+    expect(contents).not.toContain("./mockCoreViewModels");
+  });
 });

@@ -58,10 +58,10 @@ function createMainWindow(): BrowserWindow {
 app.whenReady().then(() => {
   markStartupTiming("appReadyMs");
   configureSessionHardening(session.defaultSession);
-  registerHcbIpc();
-  void createServiceContainer({
+  const services = createServiceContainer({
     appSupportDirectory: app.getPath("userData")
   });
+  registerHcbIpc(services);
   mainWindow = createMainWindow();
 
   app.on("activate", () => {

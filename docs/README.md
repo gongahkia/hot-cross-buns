@@ -26,8 +26,9 @@ Then read the spec for the subsystem you are changing. Do not scaffold app code 
 ## Implementation Status
 
 - Electron/Vite/React scaffold exists with hardened renderer settings and a typed preload bridge.
-- Phase 1 renderer shell uses local mock data only and does not import main, preload, filesystem, or SQLite modules.
-- Phase 1 IPC contracts are versioned under `src/shared/ipc/`, with legacy shared entry points re-exporting those contracts.
+- Phase 2 renderer screens still use local mock data, but the mock rows are isolated behind a `coreViewModelSource` adapter so Phase 3 can replace the source with preload-backed calls without rewriting screen components.
+- Phase 2 IPC contracts are versioned under `src/shared/ipc/`, with core planner, sync, settings, MCP, and native handlers now returning bounded placeholder DTOs instead of broad not-implemented stubs.
+- Main-side placeholder domain services are shared by IPC handlers and MCP tool handlers; the implementation is intentionally in-memory until SQLite repositories and Google-backed mutation services are wired.
 - Local data currently provides connection factories and temporary-database test coverage. Full migrations and repositories remain planned before real sync/data wiring.
 - Performance smoke runs in report-only mode with generated local fixtures and temporary app data paths.
 

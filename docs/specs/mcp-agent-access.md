@@ -100,6 +100,8 @@ The MCP server must:
 
 MCP tools must call the same domain services as the UI. Do not create a separate MCP-only mutation path.
 
+Current Phase 2 note: MCP tool handlers are wired to shared main-side domain service interfaces and test doubles. The user-facing MCP enable/disable IPC status is stateful, but a live listener still remains deferred until Keychain-backed bearer token storage and startup-safe server lifecycle wiring are complete.
+
 ## Tests
 
 Required tests:
@@ -114,4 +116,3 @@ Required tests:
 - direct write is rejected in confirm-writes mode
 - destructive write requires confirmation even in allow-writes mode
 - audit log excludes sensitive fields
-

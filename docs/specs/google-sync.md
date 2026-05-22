@@ -116,3 +116,7 @@ Required tests:
 - Invalid Calendar sync token triggers full resync for that calendar.
 - Offline mutation queue retries and reconciles a successful Google response.
 
+## Current Phase 2 Contract Notes
+
+- Read-sync service diagnostics and progress events store resource names, counts, durations, retry delays, and sanitized error codes only.
+- Core `sync.status` and `sync.runNow` IPC handlers are wired through a startup-safe placeholder control service. They do not perform Google network work during app startup; real scheduling and account selection remain Phase 3 wiring.
