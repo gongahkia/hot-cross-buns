@@ -264,32 +264,74 @@ class ElectronMacNativeAdapter implements NativePlatformAdapter {
   }
 }
 
-function brandAssetPath(filename: string): string {
-  const relativePath = join("assets", "brand", filename);
-
-  return app.isPackaged
-    ? join(process.resourcesPath, relativePath)
-    : join(app.getAppPath(), relativePath);
-}
-
-function brandImage(filename: string): NativeImage {
-  const imagePath = brandAssetPath(filename);
-
-  return existsSync(imagePath) ? nativeImage.createFromPath(imagePath) : nativeImage.createEmpty();
-}
-
-function trayIconImage(): NativeImage {
+function trayIconImage() {
   const image = brandImage("menubar-template.png");
 
   return image.isEmpty()
-    ? nativeImage.createFromDataURL(`data:image/png;base64,${fallbackTrayIconBase64}`)
+    ? brandImageFromDataUrl(`data:image/png;base64,${fallbackTrayIconBase64}`)
     : image;
 }
 
-function trayMenu(actions: NativeTrayActions): Menu {
+function brandImageFromDataUrl(dataUrl: string) {
+  return brandImage("__missing__").isEmpty()
+    ? require("electron").nativeImage.createFromDataURL(dataUrl)
+    : brandImage("__missing__");
+}
+
+function menuBarPanelMenu(actions: NativeTrayActions, snapshot: NativeMenuBarSnapshot): Menu {
+  const template: MenuItemConstructorOptions[] = [
+    {
+      label: snapshot.title,
+      sublabel: snapshot.subtitle,
+      enabled: false
+    }
+  ];
+
+  for (const section of snapshot.sections) {
+    template.push({ type: "separator" });
+
+    if (section.title) {
+      template.push({
+        label: section.title,
+        enabled: false
+      });
+    }
+
+    template.push(...section.items.map((item) => menuItemFromSnapshotItem(actions, item)));
+  }
+
+  template.push(
+    { type: "separator" },
+    {
+      label: "Quick Capture",
+      click: actions.quickCapture
+    },
+    {
+      label: "Refresh Tasks and Calendar",
+      click: actions.refresh
+    },
+    {
+      label: "Open Hot Cross Buns 2",
+      click: actions.showOrHideMainWindow
+    },
+    {
+      label: "Settings",
+      click: actions.openSettings
+    },
+    { type: "separator" },
+    {
+      label: "Quit",
+      click: actions.quit
+    }
+  );
+
+  return Menu.buildFromTemplate(template);
+}
+
+function trayUtilityMenu(actions: NativeTrayActions): Menu {
   return Menu.buildFromTemplate([
     {
-      label: "Show / Hide Hot Cross Buns 2",
+      label: "Open Hot Cross Buns 2",
       click: actions.showOrHideMainWindow
     },
     {
@@ -297,7 +339,7 @@ function trayMenu(actions: NativeTrayActions): Menu {
       click: actions.quickCapture
     },
     {
-      label: "Refresh",
+      label: "Refresh Tasks and Calendar",
       click: actions.refresh
     },
     { type: "separator" },
@@ -311,6 +353,33 @@ function trayMenu(actions: NativeTrayActions): Menu {
       click: actions.quit
     }
   ]);
+}
+
+function menuItemFromSnapshotItem(
+  actions: NativeTrayActions,
+  item: NativeMenuBarItem
+): MenuItemConstructorOptions {
+  return {
+    label: item.label,
+    sublabel: item.detail,
+    enabled: Boolean(item.route || item.action),
+    click: () => {
+      if (item.route) {
+        actions.openRoute(item.route);
+        return;
+      }
+
+      if (item.action === "quickCapture") {
+        actions.quickCapture();
+      } else if (item.action === "refresh") {
+        actions.refresh();
+      } else if (item.action === "openSettings") {
+        actions.openSettings();
+      } else if (item.action === "showWindow") {
+        actions.showOrHideMainWindow();
+      }
+    }
+  };
 }
 
 function appMenuTemplate(actions: NativeTrayActions): MenuItemConstructorOptions[] {
