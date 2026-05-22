@@ -3,15 +3,13 @@ import {
   Tray,
   app,
   globalShortcut,
-  nativeImage,
   Menu,
-  type NativeImage,
   type MenuItemConstructorOptions
 } from "electron";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
 import {
   HCB_DEEP_LINK_SCHEME,
+  type NativeMenuBarItem,
+  type NativeMenuBarSnapshot,
   type NativeNotificationRequest,
   type NativeOperationResult,
   type NativePlatformAdapter,
@@ -19,6 +17,7 @@ import {
   type NativeTrayActions,
   type ScheduledNativeNotification
 } from "./types";
+import { brandImage } from "./brandAssets";
 
 const fallbackTrayIconBase64 =
   "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAOUlEQVR4nGNgGArgP7macGGyDSHZufgMwGkgPqcT5SKKDCBFM1UMoV0gUmQAPu+QBKiSEklyLtkAAHbWV6m7KwjdAAAAAElFTkSuQmCC";
@@ -75,9 +74,22 @@ class ElectronMacNativeAdapter implements NativePlatformAdapter {
       image.setTemplateImage(true);
       this.tray?.destroy();
       this.tray = new Tray(image);
-      this.tray.setToolTip("Hot Cross Buns 2");
-      this.tray.setContextMenu(trayMenu(actions));
-      this.tray.on("click", actions.showOrHideMainWindow);
+      this.tray.setIgnoreDoubleClickEvents(true);
+      this.refreshTrayPresentation(actions);
+      this.tray.on("click", () => {
+        const snapshot = this.refreshTrayPresentation(actions);
+
+        if (snapshot.primaryClickAction === "open-menu") {
+          this.tray?.popUpContextMenu(menuBarPanelMenu(actions, snapshot));
+          return;
+        }
+
+        actions.primaryClick();
+      });
+      this.tray.on("right-click", () => {
+        this.refreshTrayPresentation(actions);
+        this.tray?.popUpContextMenu(trayUtilityMenu(actions));
+      });
 
       return {
         ok: true,
@@ -91,6 +103,18 @@ class ElectronMacNativeAdapter implements NativePlatformAdapter {
         message: error instanceof Error ? error.message : "Could not create the menu bar item."
       };
     }
+  }
+
+  private refreshTrayPresentation(actions: NativeTrayActions): NativeMenuBarSnapshot {
+    const snapshot = actions.snapshot();
+    const image = trayIconImage();
+    image.setTemplateImage(true);
+
+    this.tray?.setImage(image);
+    this.tray?.setToolTip(snapshot.tooltip);
+    this.tray?.setTitle(snapshot.badgeLabel ?? "", { fontType: "monospacedDigit" });
+
+    return snapshot;
   }
 
   destroyTray(): void {

@@ -623,6 +623,266 @@ export class NativeShellService implements NativeDomainService {
   }
 }
 
+interface MenuBarSnapshotData {
+  overdueTasks: TaskSummary[];
+  todayTasks: TaskSummary[];
+  tomorrowTasks: TaskSummary[];
+  todayEvents: CalendarEventSummary[];
+  tomorrowEvents: CalendarEventSummary[];
+}
+
+function activeTasks(planner: NativePlannerSnapshotSource): TaskSummary[] {
+  try {
+    return planner.listTasks({ status: "active", limit: 100 }).items;
+  } catch {
+    return [];
+  }
+}
+
+function calendarEvents(
+  planner: NativePlannerSnapshotSource,
+  start: Date,
+  end: Date
+): CalendarEventSummary[] {
+  try {
+    return planner.listCalendarEvents({
+      start: start.toISOString(),
+      end: end.toISOString(),
+      limit: 100
+    }).items;
+  } catch {
+    return [];
+  }
+}
+
+function menuBarSections(
+  style: SettingsSnapshot["menuBarPanelStyle"],
+  data: MenuBarSnapshotData
+): NativeMenuBarSnapshot["sections"] {
+  if (style === "compact") {
+    return [
+      {
+        title: "Overview",
+        items: [
+          {
+            label: `${data.overdueTasks.length} overdue`,
+            detail: `${data.todayTasks.length + data.todayEvents.length} due or scheduled today`
+          },
+          { label: "Open Today", route: { kind: "today" } },
+          { label: "Open Tasks", route: { kind: "tasks" } },
+          { label: "Open Calendar", route: { kind: "calendar" } }
+        ]
+      }
+    ];
+  }
+
+  const sections: NativeMenuBarSnapshot["sections"] = [];
+
+  if (style === "adaptive" && data.overdueTasks.length > 0) {
+    sections.push({
+      title: "Needs Attention",
+      items: menuBarTaskItems(data.overdueTasks, "Overdue")
+    });
+  }
+
+  sections.push({
+    title: "Today",
+    items: [
+      ...menuBarEventItems(data.todayEvents),
+      ...menuBarTaskItems(data.todayTasks, "Due today")
+    ].slice(0, 8)
+  });
+
+  if (style !== "compact") {
+    sections.push({
+      title: "Tomorrow",
+      items: [
+        ...menuBarEventItems(data.tomorrowEvents),
+        ...menuBarTaskItems(data.tomorrowTasks, "Due tomorrow")
+      ].slice(0, 8)
+    });
+  }
+
+  return sections.map((section) =>
+    section.items.length > 0
+      ? section
+      : {
+          ...section,
+          items: [{ label: "Nothing scheduled", detail: section.title?.toLowerCase() }]
+        }
+  );
+}
+
+function menuBarTaskItems(tasks: TaskSummary[], fallbackDetail: string) {
+  return tasks.slice(0, 5).map((task) => ({
+    label: truncateMenuLabel(task.title),
+    detail: task.dueAt ? dueDetail(task.dueAt, fallbackDetail) : fallbackDetail,
+    route: { kind: "task", id: task.id } as const
+  }));
+}
+
+function menuBarEventItems(events: CalendarEventSummary[]) {
+  return events.slice(0, 5).map((event) => ({
+    label: truncateMenuLabel(event.title),
+    detail: eventDetail(event),
+    route: { kind: "event", id: event.id } as const
+  }));
+}
+
+function menuBarTitle(
+  overdueCount: number,
+  todayCount: number,
+  currentEvent: CalendarEventSummary | undefined,
+  nextEvent: CalendarEventSummary | undefined
+): string {
+  if (overdueCount > 0) {
+    return `${overdueCount} overdue`;
+  }
+
+  if (currentEvent) {
+    return `Now: ${truncateMenuLabel(currentEvent.title, 36)}`;
+  }
+
+  if (nextEvent) {
+    return `Next: ${truncateMenuLabel(nextEvent.title, 36)}`;
+  }
+
+  if (todayCount > 0) {
+    return `${todayCount} today`;
+  }
+
+  return "Hot Cross Buns 2";
+}
+
+function menuBarSubtitle(
+  overdueCount: number,
+  todayCount: number,
+  tomorrowCount: number
+): string {
+  const parts = [
+    overdueCount > 0 ? `${overdueCount} overdue` : "",
+    todayCount > 0 ? `${todayCount} today` : "Nothing today",
+    tomorrowCount > 0 ? `${tomorrowCount} tomorrow` : ""
+  ].filter(Boolean);
+
+  return parts.join(", ");
+}
+
+function adaptiveTrayLabel(
+  overdueCount: number,
+  todayCount: number,
+  currentEvent: CalendarEventSummary | undefined,
+  nextEvent: CalendarEventSummary | undefined
+): string {
+  if (overdueCount > 0) {
+    return cappedBadgeLabel(overdueCount);
+  }
+
+  if (currentEvent) {
+    return "Now";
+  }
+
+  if (nextEvent) {
+    const startsAt = dateFromIso(nextEvent.startsAt);
+
+    return startsAt ? formatShortTime(startsAt) : "Next";
+  }
+
+  return todayCount > 0 ? String(todayCount) : "";
+}
+
+function cappedBadgeLabel(count: number): string {
+  return count > 99 ? "99+" : String(count);
+}
+
+function startOfLocalDay(date: Date): Date {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+function addDays(date: Date, days: number): Date {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+function taskDueBefore(task: TaskSummary, date: Date): boolean {
+  const dueAt = task.dueAt ? dateFromIso(task.dueAt) : null;
+
+  return Boolean(dueAt && dueAt < date);
+}
+
+function taskDueBetween(task: TaskSummary, start: Date, end: Date): boolean {
+  const dueAt = task.dueAt ? dateFromIso(task.dueAt) : null;
+
+  return Boolean(dueAt && dueAt >= start && dueAt < end);
+}
+
+function eventStartsBetween(event: CalendarEventSummary, start: Date, end: Date): boolean {
+  const startsAt = dateFromIso(event.startsAt);
+
+  return Boolean(startsAt && startsAt >= start && startsAt < end);
+}
+
+function compareTasksByDueDate(left: TaskSummary, right: TaskSummary): number {
+  return isoTime(left.dueAt) - isoTime(right.dueAt) || left.title.localeCompare(right.title);
+}
+
+function compareEventsByStart(left: CalendarEventSummary, right: CalendarEventSummary): number {
+  return isoTime(left.startsAt) - isoTime(right.startsAt) || left.title.localeCompare(right.title);
+}
+
+function isoTime(value: string | null | undefined): number {
+  return value ? dateFromIso(value)?.getTime() ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER;
+}
+
+function dueDetail(value: string, fallback: string): string {
+  const dueAt = dateFromIso(value);
+
+  if (!dueAt) {
+    return fallback;
+  }
+
+  return isLocalMidnight(dueAt) ? fallback : `${fallback} ${formatShortTime(dueAt)}`;
+}
+
+function eventDetail(event: CalendarEventSummary): string {
+  if (event.allDay) {
+    return "All day";
+  }
+
+  const startsAt = dateFromIso(event.startsAt);
+  const endsAt = dateFromIso(event.endsAt);
+
+  if (!startsAt || !endsAt) {
+    return "Scheduled";
+  }
+
+  return `${formatShortTime(startsAt)}-${formatShortTime(endsAt)}`;
+}
+
+function formatShortTime(date: Date): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(date);
+}
+
+function isLocalMidnight(date: Date): boolean {
+  return date.getHours() === 0 && date.getMinutes() === 0 && date.getSeconds() === 0;
+}
+
+function truncateMenuLabel(value: string, maxLength = 54): string {
+  const trimmed = value.trim();
+
+  if (trimmed.length <= maxLength) {
+    return trimmed || "Untitled";
+  }
+
+  return `${trimmed.slice(0, maxLength - 1)}...`;
+}
+
 export function parseHotCrossBunsDeepLink(rawUrl: string): NativeAction | null {
   let parsed: URL;
 
