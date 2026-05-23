@@ -5,23 +5,26 @@ Result: Not release-ready.
 
 ## Summary
 
-Automated unit, typecheck, production build, Electron smoke, performance smoke, bundle review, macOS packaging, and checksum verification all completed. The RC is blocked by product and integration gaps rather than failing tests: Google OAuth/Keychain wiring, authenticated Google transport/scheduler wiring, live MCP server lifecycle, performance budget misses, and native manual verification. A main-process pending-mutation worker now exists, but production OAuth-backed write transports are not wired into the app container yet.
+Automated unit, typecheck, production build, Electron smoke, performance smoke, bundle review, macOS packaging, and checksum verification all completed. Release/support polish was added on 2026-05-23: GitHub Actions CI, contributor setup docs, unsigned preview support guidance, checksum-verifying install helper, privacy/support summary, and package metadata documentation. The RC is blocked by product and integration gaps rather than failing tests: Google OAuth/Keychain wiring, authenticated Google transport/scheduler wiring, live MCP server lifecycle, performance budget misses, signing/notarization, and native manual verification. A main-process pending-mutation worker now exists, but production OAuth-backed write transports are not wired into the app container yet.
 
 ## Command Results
 
 | Command | Status | Evidence |
 |---|---|---|
-| `pnpm test` | PASS | 24 Vitest files, 115 tests passed in 16.93s. |
-| `pnpm typecheck` | PASS | `tsc --noEmit` completed. |
-| `pnpm build` | PASS | Main 441.92 kB, preload 157.75 kB, renderer JS 428.39 kB, sidebar icon asset 4.55 kB. |
-| `pnpm test:smoke` | PASS | 1 Playwright Electron smoke passed in 10.2s. |
+| `pnpm test` | PASS | 2026-05-23 rerun: 27 Vitest files, 149 tests passed in 6.85s. First run failed because the renderer boundary test did not yet allow the pure shared Search DSL parser; the allowlist was narrowed to `@shared/search` and the full suite then passed. |
+| `pnpm typecheck` | PASS | 2026-05-23: `tsc --noEmit` completed. |
+| `pnpm build` | PASS | 2026-05-23 smoke build: main 465.74 kB, preload 157.88 kB, renderer JS 470.62 kB, sidebar icon asset 4.55 kB. |
+| `pnpm test:smoke` | PASS | 2026-05-23: 1 Playwright Electron smoke passed in 13.4s. |
 | `pnpm exec vitest run --config vitest.config.ts src/main/native/service.test.ts src/main/services/sqliteDomainServices.test.ts src/renderer/src/App.test.tsx` | PASS | 3 files, 37 tests passed; includes adaptive menu-bar snapshot coverage. |
 | `pnpm exec vitest run --config vitest.config.ts src/main/sync/mutationWorker.test.ts src/main/services/serviceContainer.test.ts src/main/services/sqliteDomainServices.test.ts src/main/sync/readSyncService.test.ts src/main/google/calendarClient.test.ts src/main/google/tasksClient.test.ts src/main/native/adapterContract.test.ts src/main/native/service.test.ts` | PASS | 8 files, 39 tests passed; covers mutation status transitions, retry backoff, auth pause diagnostics, renderer/preload exclusion, service-container `sync.runNow` draining, SQLite domain queue behavior, read-sync retry behavior, Google transport mapping, and native/noop adapter contracts. |
 | `pnpm test:perf` | PASS | Report-only perf smoke wrote `artifacts/perf/latest.json` and `.md`. |
 | `pnpm release:review-bundle` | PASS | No issues; no external main/preload requires; renderer 441.3 KiB. |
 | `pnpm release:mac:preview` | PASS | Tests, release build, bundle review, unsigned DMG/zip, and checksums completed. |
-| `pnpm pack:mac:preview` | PASS | Rebuilt unsigned preview package after menu-bar/logo verification and regenerated checksums. |
-| `shasum -a 256 -c SHASUMS256.txt` | PASS | DMG and zip checksums verified. |
+| `pnpm pack:mac:preview` | PASS | 2026-05-23: rebuilt unsigned preview package after package author metadata, CI/docs, and install-helper changes; regenerated checksums. |
+| `shasum -a 256 -c SHASUMS256.txt` | PASS | 2026-05-23: DMG and zip checksums verified. |
+| `scripts/install-mac-preview.sh release/Hot-Cross-Buns-2-0.0.0-mac-arm64.zip release/SHASUMS256.txt /tmp/hcb2-install-helper-smoke` | PASS | Verified SHA-256 and copied the unsigned preview `.app` into a temporary destination without bypassing Gatekeeper. Temporary destination was removed after verification. |
+| `bash -n scripts/install-mac-preview.sh`, helper `--help`, and YAML parse for `.github/workflows/ci.yml` | PASS | Install helper shell syntax/help and CI workflow YAML parsed locally. |
+| `file assets/brand/... build/icon.icns`, `plutil -p .../Info.plist`, packaged brand asset listing, `codesign -dv --verbose=4 ...` | PASS | App icon 1024 px source, sidebar 64 px, menu-bar 18/36 px, `icon.icns`, packaged brand resources, bundle id `dev.hotcrossbuns.hotcrossbuns2`, version `0.0.0`, `hotcrossbuns` protocol, productivity category, and ad-hoc signature verified. |
 | `git diff --check` | PASS | No whitespace errors. |
 | `rg` secret-pattern scans over source and diff | PASS | Only fake test fixtures and documentation references found. |
 | `git ls-files \| rg` and `git diff \| rg` Swift/Xcode scans | PASS | No Swift source, Xcode project, or runtime dependency found. |
@@ -37,10 +40,10 @@ Packaging artifacts:
 
 | Artifact | Size | Checksum |
 |---|---:|---|
-| `release/Hot-Cross-Buns-2-0.0.0-mac-arm64.dmg` | 94 MiB | `7c2b4a056241b925a35b37babfccea2a693e85268339e58d3d8f09d847510ed6` |
-| `release/Hot-Cross-Buns-2-0.0.0-mac-arm64.zip` | 91 MiB | `c1f0c34ae5ce3df692814270725dc51512ccd554a20a5b1a437888dab72a910b` |
+| `release/Hot-Cross-Buns-2-0.0.0-mac-arm64.dmg` | 112 MiB | `c506b695e2d54c29a0e7c7c5cd17c98fcb5bbdf5e9dfb1e1c4aa89e868a617cc` |
+| `release/Hot-Cross-Buns-2-0.0.0-mac-arm64.zip` | 113 MiB | `1882c8c4a5a1898ef1968b9ae2106958933d75a113546fdd7970efd7e5707e3c` |
 
-Packaging caveats: `electron-builder` reported missing `package.json` author, skipped signing because `mac.identity: null`, and generated blockmap/latest metadata that must not be uploaded for the unsigned preview flow. The macOS package now uses `build/icon.icns` generated from the round bun app icon on a white rounded background.
+Packaging caveats: `electron-builder` skipped signing because `mac.identity: null`, warned that arm64 requires signing, and generated blockmap/latest metadata that must not be uploaded for the unsigned preview flow. The macOS package uses `build/icon.icns` generated from the round bun app icon on a white rounded background, and package metadata now includes author `gongahkia`.
 
 ## Performance Smoke
 
@@ -89,7 +92,7 @@ Search DSL follow-up on 2026-05-23: the local structured parser/filter slice kee
 | Performance / Main / Renderer | Startup shell-visible, cached render, search UI, and task-complete feedback miss `docs/performance/performance-strategy.md` budgets. | Profile startup staging and renderer/data IPC paths; record accepted baseline or fix before RC sign-off. |
 | Data Runtime / Packaging | The primary SQLite path now uses `better-sqlite3`, but the latest unpackaged Electron perf run used the Python compatibility fallback because local `better-sqlite3` was built for host Node ABI 141 while Electron expected ABI 130. | Run packaged preview smoke after `electron-builder` native rebuild/unpack and verify Electron uses the native SQLite adapter instead of fallback. |
 | Native Shell / Release QA | Tray/menu bar, global hotkey, notifications, and `hotcrossbuns://` protocol behavior were not manually verified on the packaged app. | Run `docs/testing/manual-macos-native-shell.md` against the packaged app and record results. |
-| Release Packaging | Unsigned preview artifacts build, but package metadata still lacks author metadata and is not notarization-ready. | Add author metadata for preview polish; signing/notarization remains required before broad distribution. |
+| Release Packaging | Unsigned preview artifacts build and package author metadata is present, but the app remains ad-hoc signed, unsigned for distribution, and not notarization-ready. | Add Developer ID signing, hardened runtime, notarization, and clean-machine Gatekeeper verification before broad distribution. |
 
 ## Diff Audit
 
@@ -102,7 +105,16 @@ Git diff audit covered the current tracked changes and the packaging/bundle-revi
 
 Docs updated during this QA pass:
 
+- `.github/workflows/ci.yml`: added install/typecheck/unit-test CI, macOS Electron smoke, scheduled/manual performance smoke, concurrency cancellation, pinned pnpm, and failure artifact uploads.
 - `.gitignore`: anchored generated release artifacts as `/release/` so `docs/release/` reports are not ignored.
+- `package.json`: added author metadata used by the macOS package.
+- `README.md`, `docs/README.md`, `docs/CONTRIBUTING.md`, and `docs/agents/workflow.md`: documented contributor setup, pinned pnpm, daily commands, release commands, CI expectations, and release-polish workflow entry points.
+- `scripts/install-mac-preview.sh`: added checksum-verifying unsigned preview install helper.
+- `docs/support/mac-preview-support.md`: added unsigned install, Gatekeeper, privacy, diagnostics/support, and rollback guidance.
+- `docs/security/privacy-and-threat-model.md`: added a short preview support privacy summary.
+- `docs/performance/build-and-test-performance.md` and `docs/testing/qa-plan.md`: documented current CI smoke/performance artifact behavior.
+- `docs/improvements/05-general-parity-and-release-polish.md`: recorded implemented CI, install helper, contributor, support, and release metadata polish.
+- `src/renderer/src/renderer-boundary.test.ts`: allowed the pure `@shared/search` parser namespace while keeping renderer privileged-import assertions intact.
 - `assets/brand/` and `build/icon.icns`: copied legacy logo/icon assets and generated the macOS package icon from the round bun mark on a white rounded background.
 - `electron-builder.yml`: wired the macOS package icon and copied brand assets into packaged resources.
 - `electron-builder.yml`: externalizes and rebuilds the packaged `better-sqlite3` native module, with `better_sqlite3.node` unpacked from ASAR.
