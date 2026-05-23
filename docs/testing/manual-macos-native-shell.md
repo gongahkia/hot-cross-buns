@@ -66,4 +66,4 @@ Use this checklist for release PRs or local verification when tray, hotkey, noti
 - Linux tray and global shortcut behavior require a separate desktop-environment matrix.
 - Windows protocol and notification behavior require installer identity and AppUserModelID validation.
 - Preview update checks currently report unsupported; seamless in-place auto-update remains deferred until signing and release metadata are ready.
-- MCP live listener startup remains deferred until secure token storage lifecycle wiring is enabled.
+- MCP live listener startup and Keychain-backed bearer-token storage are implemented; external MCP client verification remains required.

@@ -263,6 +263,7 @@ describe("preload bridge", () => {
     expect(Object.keys(api).sort()).toEqual([
       "calendar",
       "diagnostics",
+      "google",
       "mcp",
       "native",
       "notes",

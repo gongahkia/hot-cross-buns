@@ -2018,6 +2018,30 @@ CREATE INDEX IF NOT EXISTS idx_google_calendar_event_instances_visible_range
 CREATE INDEX IF NOT EXISTS idx_google_calendar_event_instances_event
   ON google_calendar_event_instances(event_id, deleted_at);
 
+CREATE TABLE IF NOT EXISTS local_scheduled_task_blocks (
+  id TEXT PRIMARY KEY,
+  task_id TEXT NOT NULL,
+  calendar_event_id TEXT NOT NULL,
+  calendar_id TEXT NOT NULL,
+  planned_start_at TEXT NOT NULL,
+  planned_end_at TEXT NOT NULL,
+  duration_minutes INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'scheduled',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  deleted_at TEXT,
+  UNIQUE(task_id, calendar_event_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_local_scheduled_task_blocks_range
+  ON local_scheduled_task_blocks(calendar_id, deleted_at, planned_start_at, planned_end_at, id);
+
+CREATE INDEX IF NOT EXISTS idx_local_scheduled_task_blocks_task
+  ON local_scheduled_task_blocks(task_id, deleted_at, planned_start_at);
+
+CREATE INDEX IF NOT EXISTS idx_local_scheduled_task_blocks_event
+  ON local_scheduled_task_blocks(calendar_event_id, deleted_at);
+
 CREATE TABLE IF NOT EXISTS google_sync_checkpoints (
   id TEXT PRIMARY KEY,
   account_id TEXT NOT NULL,

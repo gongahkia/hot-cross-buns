@@ -75,7 +75,7 @@ class ElectronMacNativeAdapter implements NativePlatformAdapter {
       supportsInstallerMetadata: isMac,
       supportsExternalUrlOpen: true,
       supportsDiagnosticsCollection: true,
-      supportsCredentialStorage: false,
+      supportsCredentialStorage: isMac,
       supportsOAuthLoopback: true,
       supportsMcpLoopback: true,
       requiresSignedBuildForNotifications: false
@@ -97,8 +97,10 @@ class ElectronMacNativeAdapter implements NativePlatformAdapter {
         flags,
         capabilityOverrides: {
           credentialStorage: {
-            state: "unsupported",
-            message: "Keychain-backed credential storage is not wired in this adapter yet."
+            state: isMac ? "ready" : "unsupported",
+            message: isMac
+              ? "macOS Keychain storage is wired for main-process Google and MCP secrets."
+              : "Keychain-backed credential storage is unavailable outside macOS."
           },
           notifications: {
             state: notifications ? "ready" : "unsupported",
@@ -111,12 +113,12 @@ class ElectronMacNativeAdapter implements NativePlatformAdapter {
             message: "Preview builds support release checks only after updater metadata is added."
           },
           oauthLoopback: {
-            state: "pending",
-            message: "OAuth loopback is shared code; macOS browser handoff still needs manual release QA."
+            state: "ready",
+            message: "OAuth loopback is wired through the main process and macOS browser handoff."
           },
           mcpLoopback: {
-            state: "pending",
-            message: "MCP loopback is shared code; persistent bearer-token storage is not wired."
+            state: "ready",
+            message: "MCP loopback is wired with Keychain-backed bearer-token storage."
           },
           packaging: {
             state: app.isPackaged ? "ready" : "pending",
@@ -126,11 +128,6 @@ class ElectronMacNativeAdapter implements NativePlatformAdapter {
           }
         },
         diagnostics: [
-          capabilityDiagnostic(
-            "credentialStorage",
-            "blocker",
-            "Google and MCP secrets still need OS credential storage before non-Mac ports."
-          ),
           capabilityDiagnostic(
             "updater",
             "warning",
@@ -142,7 +139,15 @@ class ElectronMacNativeAdapter implements NativePlatformAdapter {
   }
 
   credentialStorageStatus(): NativeOperationResult {
-    return unsupported("Keychain-backed credential storage is not wired in this adapter yet.");
+    if (process.platform !== "darwin") {
+      return unsupported("Keychain-backed credential storage is unavailable outside macOS.");
+    }
+
+    return {
+      ok: true,
+      state: "ready",
+      message: "macOS Keychain storage is available for main-process secrets."
+    };
   }
 
   installAppMenu(actions: NativeTrayActions): NativeOperationResult {

@@ -1,7 +1,12 @@
 import type {
+  AvailabilityExportRequest,
   CalendarListRequest,
   CalendarRangeRequest,
   EntityByIdRequest,
+  GoogleBeginOAuthResponse,
+  GoogleDisconnectRequest,
+  GoogleSaveOAuthClientRequest,
+  GoogleStatusResponse,
   McpSetEnabledRequest,
   McpStatusResponse,
   NativeCapabilitiesResponse,
@@ -10,6 +15,10 @@ import type {
   NoteDeleteRequest,
   NoteUpdateRequest,
   SearchQueryRequest,
+  ScheduledTaskBlockCreateRequest,
+  ScheduledTaskBlockListRequest,
+  ScheduledTaskBlockMoveRequest,
+  ScheduledTaskBlockUnscheduleRequest,
   SettingsRecoveryActionRequest,
   SettingsSnapshot,
   SettingsUpdateRequest,
@@ -135,6 +144,16 @@ export function createSqliteDomainServices(
       createCalendarEvent: (request) => options.plannerRepository.createCalendarEvent(request),
       updateCalendarEvent: (request) => options.plannerRepository.updateCalendarEvent(request),
       deleteCalendarEvent: (request) => options.plannerRepository.deleteCalendarEvent(request),
+      listScheduledTaskBlocks: (request: ScheduledTaskBlockListRequest) =>
+        options.plannerRepository.listScheduledTaskBlocks(request),
+      scheduleTaskBlock: (request: ScheduledTaskBlockCreateRequest) =>
+        options.plannerRepository.scheduleTaskBlock(request),
+      moveScheduledTaskBlock: (request: ScheduledTaskBlockMoveRequest) =>
+        options.plannerRepository.moveScheduledTaskBlock(request),
+      unscheduleTaskBlock: (request: ScheduledTaskBlockUnscheduleRequest) =>
+        options.plannerRepository.unscheduleTaskBlock(request),
+      exportAvailability: (request: AvailabilityExportRequest) =>
+        options.plannerRepository.exportAvailability(request),
       listNotes: (request) => options.plannerRepository.listNotes(request),
       getNote: (request) => options.plannerRepository.getNote(request.id),
       createNote: (request: NoteCreateRequest) => options.plannerRepository.createNote(request),
@@ -143,6 +162,37 @@ export function createSqliteDomainServices(
       search: (request: SearchQueryRequest) => options.plannerRepository.search(request)
     },
     sync,
+    google: {
+      status: (): GoogleStatusResponse => ({
+        oauthClientConfigured: false,
+        clientId: null,
+        hasClientSecret: false,
+        ...(options.syncRepository.latestAccountStatus() === null
+          ? {}
+          : { account: options.syncRepository.latestAccountStatus() as NonNullable<GoogleStatusResponse["account"]> })
+      }),
+      saveOAuthClient: (_request: GoogleSaveOAuthClientRequest): GoogleStatusResponse => {
+        throw new HcbPublicError({
+          code: "SERVICE_UNAVAILABLE",
+          message: "Google OAuth runtime wiring is unavailable in this domain service.",
+          recoverable: true
+        });
+      },
+      beginOAuth: (): GoogleBeginOAuthResponse => {
+        throw new HcbPublicError({
+          code: "SERVICE_UNAVAILABLE",
+          message: "Google OAuth browser handoff is unavailable in this domain service.",
+          recoverable: true
+        });
+      },
+      disconnect: (_request: GoogleDisconnectRequest): GoogleStatusResponse => {
+        throw new HcbPublicError({
+          code: "SERVICE_UNAVAILABLE",
+          message: "Google OAuth disconnect is unavailable in this domain service.",
+          recoverable: true
+        });
+      }
+    },
     settings: {
       get: () => options.settingsRepository.get(),
       update: (request: SettingsUpdateRequest) => {

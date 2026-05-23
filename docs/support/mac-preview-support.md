@@ -38,7 +38,7 @@ If that option is unavailable, use `System Settings > Privacy & Security > Open 
 - macOS is the only preview package target.
 - Preview artifacts are unsigned and unnotarized.
 - Auto-update is not enabled.
-- Google OAuth, Keychain-backed token storage, live MCP listener startup, and full sync scheduling are still release blockers.
+- Google OAuth, Keychain-backed token storage, authenticated sync scheduling, and live MCP listener startup are implemented for macOS preview builds, but still need live account/client QA before release sign-off.
 - Tray/menu bar, global shortcut, notifications, and `hotcrossbuns://` protocol behavior need packaged-app manual verification before release sign-off.
 
 ## Privacy Summary
@@ -47,7 +47,7 @@ If that option is unavailable, use `System Settings > Privacy & Security > Open 
 - No hosted sync backend is included in v1.
 - Google Tasks and Calendar data is mirrored into local SQLite for planner use.
 - Local notes stay local-only.
-- OAuth tokens and MCP bearer tokens must live in OS credential storage before release use; they must not be stored in SQLite or exposed to the renderer.
+- OAuth tokens, optional OAuth client secrets, and MCP bearer tokens live in macOS Keychain; they are not stored in SQLite or exposed to the renderer.
 - Diagnostics are designed to redact credentials, raw Google payloads, task notes, calendar descriptions, note bodies, MCP bearer tokens, and sensitive account/resource identifiers.
 
 ## Diagnostics For Support

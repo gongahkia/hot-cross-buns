@@ -1,4 +1,6 @@
 import type {
+  AvailabilityExportRequest,
+  AvailabilityExportResponse,
   CalendarRangeRequest,
   CalendarRangeResponse,
   CalendarEventCreateRequest,
@@ -15,6 +17,10 @@ import type {
   DiagnosticsSummaryResponse,
   DiagnosticsShellVisibleRequest,
   EntityByIdRequest,
+  GoogleBeginOAuthResponse,
+  GoogleDisconnectRequest,
+  GoogleSaveOAuthClientRequest,
+  GoogleStatusResponse,
   McpSetEnabledRequest,
   McpStatusResponse,
   MutationAck,
@@ -29,6 +35,12 @@ import type {
   NoteUpdateRequest,
   SearchQueryRequest,
   SearchQueryResponse,
+  ScheduledTaskBlockCreateRequest,
+  ScheduledTaskBlockListRequest,
+  ScheduledTaskBlockListResponse,
+  ScheduledTaskBlockMoveRequest,
+  ScheduledTaskBlockSummary,
+  ScheduledTaskBlockUnscheduleRequest,
   SettingsRecoveryActionRequest,
   SettingsRecoveryActionResponse,
   SettingsSnapshot,
@@ -76,6 +88,21 @@ export interface HcbApi {
     create: (request: CalendarEventCreateRequest) => Promise<HcbResult<CalendarEventDetail>>;
     update: (request: CalendarEventUpdateRequest) => Promise<HcbResult<CalendarEventDetail>>;
     delete: (request: CalendarEventDeleteRequest) => Promise<HcbResult<MutationAck>>;
+    listScheduledTaskBlocks: (
+      request: ScheduledTaskBlockListRequest
+    ) => Promise<HcbResult<ScheduledTaskBlockListResponse>>;
+    scheduleTaskBlock: (
+      request: ScheduledTaskBlockCreateRequest
+    ) => Promise<HcbResult<ScheduledTaskBlockSummary>>;
+    moveScheduledTaskBlock: (
+      request: ScheduledTaskBlockMoveRequest
+    ) => Promise<HcbResult<ScheduledTaskBlockSummary>>;
+    unscheduleTaskBlock: (
+      request: ScheduledTaskBlockUnscheduleRequest
+    ) => Promise<HcbResult<MutationAck>>;
+    exportAvailability: (
+      request: AvailabilityExportRequest
+    ) => Promise<HcbResult<AvailabilityExportResponse>>;
   };
   notes: {
     list: (request?: NoteListRequest) => Promise<HcbResult<NoteListResponse>>;
@@ -91,6 +118,14 @@ export interface HcbApi {
     status: () => Promise<HcbResult<SyncStatusResponse>>;
     runNow: (request?: SyncRunNowRequest) => Promise<HcbResult<SyncRunNowResponse>>;
     subscribeStatus: (listener: (status: SyncStatusResponse) => void) => () => void;
+  };
+  google: {
+    status: () => Promise<HcbResult<GoogleStatusResponse>>;
+    saveOAuthClient: (
+      request: GoogleSaveOAuthClientRequest
+    ) => Promise<HcbResult<GoogleStatusResponse>>;
+    beginOAuth: () => Promise<HcbResult<GoogleBeginOAuthResponse>>;
+    disconnect: (request?: GoogleDisconnectRequest) => Promise<HcbResult<GoogleStatusResponse>>;
   };
   settings: {
     get: () => Promise<HcbResult<SettingsSnapshot>>;

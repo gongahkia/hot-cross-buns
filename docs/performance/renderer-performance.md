@@ -39,9 +39,9 @@ Search:
 
 Current measurement note, 2026-05-23:
 
-- `pnpm test:perf` direct medium-fixture `search.medium-local` collected at 13.94ms after the structured local DSL slice.
-- Warm Electron `search.ui` collected at 467.51ms, above the <100ms RC target. The direct SQLite path is fast enough, but the unpackaged Electron run still shows slow IPC/startup behavior and cold app-shell capture timed out in this run.
-- Remaining performance blocker: prove the packaged native SQLite adapter path and reduce renderer search round-trip latency before treating Search UI as within budget.
+- Final report-only Electron perf smoke collected app-side local search at 14.9ms cold / 3.5ms warm and Search UI at 38.97ms cold / 34.07ms warm after tightening the local search debounce.
+- The perf smoke must run with the local native module rebuilt for Electron ABI; otherwise the app intentionally falls back to the Python compatibility adapter and the numbers are not representative of packaged runtime behavior.
+- Remaining renderer performance watch: calendar month navigation is still above a single-frame target at roughly 38-41ms.
 
 Command palette and quick capture:
 

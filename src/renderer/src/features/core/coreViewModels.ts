@@ -70,6 +70,22 @@ export interface CalendarEventViewModel {
   reminderMinutes: number[];
 }
 
+export interface ScheduledTaskBlockViewModel {
+  id: string;
+  taskId: string;
+  calendarEventId: string;
+  calendarId: string;
+  title: string;
+  calendar: string;
+  timeLabel: string;
+  rangeLabel: string;
+  startsAt: string;
+  endsAt: string;
+  durationMinutes: number;
+  status: "scheduled" | "orphaned";
+  mutationState?: "synced" | "queued" | "failed";
+}
+
 export interface CalendarDayViewModel {
   id: string;
   weekday: string;

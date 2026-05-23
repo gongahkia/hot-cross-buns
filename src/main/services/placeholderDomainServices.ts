@@ -6,11 +6,13 @@ import {
   MAX_RANGE_LIMIT,
   MAX_SEARCH_LIMIT,
   type CalendarEventSummary,
+  type GoogleStatusResponse,
   type McpStatusResponse,
   type NativeCapabilitiesResponse,
   type NoteDetail,
   type NoteSummary,
   type SearchResultItem,
+  type ScheduledTaskBlockSummary,
   type SettingsSnapshot,
   type SettingsUpdateRequest,
   type SyncRunNowResponse,
@@ -51,6 +53,7 @@ interface PlaceholderState {
   taskLists: Array<{ id: string; title: string }>;
   calendarEvents: CalendarRecord[];
   calendars: Array<{ id: string; title: string; selected: boolean }>;
+  scheduledTaskBlocks: ScheduledTaskBlockSummary[];
   notes: NoteDetail[];
   settings: SettingsSnapshot;
   sync: SyncStatusResponse;
@@ -172,6 +175,7 @@ export function createPlaceholderDomainServices(): AppDomainServices {
         };
       })
     ],
+    scheduledTaskBlocks: [],
     notes: [
       {
         id: "note-cache-first",
@@ -465,6 +469,128 @@ export function createPlaceholderDomainServices(): AppDomainServices {
         state.sync.pendingMutationCount += 1;
         return { id, queued: true, revision: new Date().toISOString() };
       },
+      listScheduledTaskBlocks: (request) => {
+        const startMs = Date.parse(request.start);
+        const endMs = Date.parse(request.end);
+        const calendarIds = new Set(request.calendarIds ?? []);
+        const filtered = state.scheduledTaskBlocks.filter((block) => {
+          const startsAtMs = Date.parse(block.startsAt);
+
+          return (
+            startsAtMs >= startMs &&
+            startsAtMs < endMs &&
+            (calendarIds.size === 0 || calendarIds.has(block.calendarId))
+          );
+        });
+
+        return pageItems(filtered, request.cursor, request.limit, DEFAULT_RANGE_LIMIT, MAX_RANGE_LIMIT);
+      },
+      scheduleTaskBlock: (request) => {
+        const task = requiredById(state.tasks, request.taskId, "Task");
+        const calendar = state.calendars.find((candidate) => candidate.id === request.calendarId);
+        const now = new Date().toISOString();
+        const eventId = `event-task-block-${state.scheduledTaskBlocks.length + 1}`;
+        const endsAt = new Date(Date.parse(request.startsAt) + request.durationMinutes * 60 * 1000).toISOString();
+        const event: CalendarRecord = {
+          id: eventId,
+          calendarId: request.calendarId,
+          calendarTitle: calendar?.title ?? "Calendar",
+          title: task.title,
+          startsAt: request.startsAt,
+          endsAt,
+          allDay: false,
+          updatedAt: now,
+          location: "Scheduled task",
+          notes: task.notes ?? "",
+          guestEmails: [],
+          reminderMinutes: []
+        };
+        const block: ScheduledTaskBlockSummary = {
+          id: `block-${state.scheduledTaskBlocks.length + 1}`,
+          taskId: task.id,
+          calendarEventId: eventId,
+          calendarId: request.calendarId,
+          title: task.title,
+          startsAt: request.startsAt,
+          endsAt,
+          durationMinutes: request.durationMinutes,
+          status: "scheduled",
+          mutationState: "queued",
+          updatedAt: now
+        };
+
+        state.calendarEvents.unshift(event);
+        state.scheduledTaskBlocks.unshift(block);
+        state.sync.pendingMutationCount += 1;
+        return clone(block);
+      },
+      moveScheduledTaskBlock: (request) => {
+        const block = requiredById(state.scheduledTaskBlocks, request.id, "Scheduled task block");
+        const event = requiredById(state.calendarEvents, block.calendarEventId, "Calendar event");
+        const now = new Date().toISOString();
+        const durationMinutes = request.durationMinutes ?? block.durationMinutes;
+        const startsAt = request.startsAt ?? block.startsAt;
+        const endsAt = new Date(Date.parse(startsAt) + durationMinutes * 60 * 1000).toISOString();
+
+        Object.assign(block, {
+          ...(request.calendarId === undefined ? {} : { calendarId: request.calendarId }),
+          startsAt,
+          endsAt,
+          durationMinutes,
+          mutationState: "queued" as const,
+          updatedAt: now
+        });
+        Object.assign(event, {
+          calendarId: block.calendarId,
+          startsAt,
+          endsAt,
+          updatedAt: now
+        });
+        state.sync.pendingMutationCount += 1;
+        return clone(block);
+      },
+      unscheduleTaskBlock: (request) => {
+        const index = state.scheduledTaskBlocks.findIndex((candidate) => candidate.id === request.id);
+
+        if (index < 0) {
+          throw new Error("Scheduled task block was not found.");
+        }
+
+        const [block] = state.scheduledTaskBlocks.splice(index, 1);
+
+        if ((request.deleteCalendarEvent ?? true) && block) {
+          state.calendarEvents = state.calendarEvents.filter((event) => event.id !== block.calendarEventId);
+          state.sync.pendingMutationCount += 1;
+        }
+
+        return { id: request.id, queued: request.deleteCalendarEvent ?? true, revision: new Date().toISOString() };
+      },
+      exportAvailability: (request) => {
+        const events = state.calendarEvents.filter((event) => {
+          const startMs = Date.parse(event.startsAt);
+          const calendarIds = new Set(request.calendarIds ?? []);
+
+          return (
+            startMs >= Date.parse(request.start) &&
+            startMs < Date.parse(request.end) &&
+            (calendarIds.size === 0 || calendarIds.has(event.calendarId))
+          );
+        });
+        const busyLines = events.map(
+          (event) => `- ${event.startsAt} to ${event.endsAt}: ${event.title}`
+        );
+
+        return {
+          format: "text" as const,
+          text: [
+            `Availability from ${request.start} to ${request.end}`,
+            busyLines.length === 0 ? "No busy blocks in selected calendars." : "Busy:",
+            ...busyLines
+          ].join("\n"),
+          generatedAt: new Date().toISOString(),
+          busyBlockCount: events.length
+        };
+      },
       listCalendars: (request) =>
         pageItems(
           state.calendars.map((calendar) => ({
@@ -620,6 +746,26 @@ export function createPlaceholderDomainServices(): AppDomainServices {
           resources
         } satisfies SyncRunNowResponse;
       }
+    },
+    google: {
+      status: (): GoogleStatusResponse => ({
+        oauthClientConfigured: false,
+        clientId: null,
+        hasClientSecret: false
+      }),
+      saveOAuthClient: () => ({
+        oauthClientConfigured: false,
+        clientId: null,
+        hasClientSecret: false
+      }),
+      beginOAuth: () => {
+        throw new Error("Google OAuth is unavailable in placeholder services.");
+      },
+      disconnect: () => ({
+        oauthClientConfigured: false,
+        clientId: null,
+        hasClientSecret: false
+      })
     },
     settings: {
       get: () => ({ ...state.settings }),

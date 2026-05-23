@@ -2473,6 +2473,13 @@ function SettingsView(): JSX.Element {
     source.settingsSections[0];
   const diagnostics = source.diagnosticsSummary;
   const settings = source.settings;
+  const googleStatus = source.googleStatus;
+  const [googleClientId, setGoogleClientId] = useState(googleStatus.clientId ?? "");
+  const [googleClientSecret, setGoogleClientSecret] = useState("");
+
+  useEffect(() => {
+    setGoogleClientId(googleStatus.clientId ?? "");
+  }, [googleStatus.clientId]);
 
   function updateSettings(request: SettingsUpdateRequest): void {
     setRecoveryMessage(null);
@@ -2553,15 +2560,120 @@ function SettingsView(): JSX.Element {
     });
   }
 
+  async function saveGoogleOAuthClient(): Promise<void> {
+    setRecoveryMessage(null);
+
+    if (!window.hcb) {
+      return;
+    }
+
+    const request =
+      googleClientSecret.trim().length > 0
+        ? { clientId: googleClientId, clientSecret: googleClientSecret.trim() }
+        : { clientId: googleClientId };
+    const result = await window.hcb.google.saveOAuthClient(request);
+
+    if (result.ok) {
+      setGoogleClientSecret("");
+      setRecoveryMessage("Google OAuth client configuration saved.");
+      source.setGoogleStatus(result.data);
+      return;
+    }
+
+    setRecoveryMessage(result.error.message);
+  }
+
+  async function beginGoogleOAuth(): Promise<void> {
+    setRecoveryMessage(null);
+
+    const result = await window.hcb?.google.beginOAuth();
+
+    if (result?.ok) {
+      setRecoveryMessage(result.data.message);
+      source.refreshGoogleStatus();
+      for (const delayMs of [2_000, 5_000, 10_000]) {
+        window.setTimeout(() => source.refreshGoogleStatus(), delayMs);
+      }
+      return;
+    }
+
+    if (result && !result.ok) {
+      setRecoveryMessage(result.error.message);
+    }
+  }
+
+  async function disconnectGoogle(): Promise<void> {
+    setRecoveryMessage(null);
+
+    const result = await window.hcb?.google.disconnect();
+
+    if (result?.ok) {
+      setRecoveryMessage("Google account disconnected.");
+      source.setGoogleStatus(result.data);
+      return;
+    }
+
+    if (result && !result.ok) {
+      setRecoveryMessage(result.error.message);
+    }
+  }
+
   function renderSectionControls(): JSX.Element {
     if (selectedSection.id === "google") {
       return (
         <div className="grid gap-3 p-3">
+          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+            <span>Desktop OAuth client ID</span>
+            <Input
+              aria-label="Google OAuth client ID"
+              onChange={(event) => setGoogleClientId(event.currentTarget.value)}
+              placeholder="Client ID from Google Cloud Console"
+              value={googleClientId}
+            />
+          </label>
+          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+            <span>Client secret</span>
+            <Input
+              aria-label="Google OAuth client secret"
+              onChange={(event) => setGoogleClientSecret(event.currentTarget.value)}
+              placeholder={googleStatus.hasClientSecret ? "Stored in Keychain" : "Optional for Desktop clients"}
+              type="password"
+              value={googleClientSecret}
+            />
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              disabled={googleClientId.trim().length < 10 || source.settingsMutationPending}
+              onClick={() => void saveGoogleOAuthClient()}
+            >
+              <Save aria-hidden="true" size={14} />
+              Save client
+            </Button>
+            <Button
+              disabled={!googleStatus.oauthClientConfigured}
+              onClick={() => void beginGoogleOAuth()}
+              variant="secondary"
+            >
+              <CheckCircle2 aria-hidden="true" size={14} />
+              Connect Google
+            </Button>
+            <Button
+              disabled={!googleStatus.account}
+              onClick={() => void disconnectGoogle()}
+              variant="ghost"
+            >
+              Disconnect
+            </Button>
+          </div>
           <SettingsRows rows={selectedSection.rows} status={selectedSection.status} />
           <StatusBanner
-            description="Only sanitized connection state is available in the renderer."
-            title="Credential storage"
-            tone="success"
+            description={
+              googleStatus.account?.connectionState === "connected"
+                ? "Google Tasks and Calendar sync can run with Keychain-held tokens."
+                : "Local notes and settings remain usable without Google sign-in."
+            }
+            title={googleStatus.hasClientSecret ? "Client secret stored in Keychain" : "BYO Desktop OAuth client"}
+            tone={googleStatus.account?.connectionState === "connected" ? "success" : "warning"}
           />
         </div>
       );

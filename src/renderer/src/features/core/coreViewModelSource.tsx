@@ -5,6 +5,7 @@ import type {
   CalendarListSummary,
   DiagnosticsHealthResponse,
   DiagnosticsSummaryResponse,
+  GoogleStatusResponse,
   NativeCapabilitiesResponse,
   NoteDetail,
   NoteSummary,
@@ -61,8 +62,11 @@ export interface CoreViewModelSource {
   isStale: boolean;
   largeTaskWindow: TaskViewModel[];
   refresh: () => void;
+  refreshGoogleStatus: () => void;
+  setGoogleStatus: (status: GoogleStatusResponse) => void;
   settings: SettingsSnapshot;
   diagnosticsSummary?: DiagnosticsSummaryResponse;
+  googleStatus: GoogleStatusResponse;
   settingsMutationError?: string;
   settingsMutationPending: boolean;
   updateSettings: (request: SettingsUpdateRequest) => Promise<boolean>;
@@ -103,6 +107,7 @@ interface CoreDataSnapshot {
   notes: NoteSummary[];
   settings: SettingsSnapshot;
   syncStatus: SyncStatusResponse;
+  googleStatus: GoogleStatusResponse;
   health?: DiagnosticsHealthResponse;
   native: NativeCapabilitiesResponse;
   diagnosticsSummary?: DiagnosticsSummaryResponse;
@@ -141,6 +146,13 @@ const emptySyncStatus: SyncStatusResponse = {
   offline: true,
   stale: true
 };
+
+const emptyGoogleStatus: GoogleStatusResponse = {
+  oauthClientConfigured: false,
+  clientId: null,
+  hasClientSecret: false
+};
+const LOCAL_SEARCH_DEBOUNCE_MS = 24;
 
 const emptySettings: SettingsSnapshot = {
   theme: "system",
@@ -240,6 +252,7 @@ const emptySnapshot: CoreDataSnapshot = {
   notes: [],
   settings: emptySettings,
   syncStatus: emptySyncStatus,
+  googleStatus: emptyGoogleStatus,
   native: emptyNativeCapabilities
 };
 
@@ -348,7 +361,7 @@ export function useLocalSearch(query: string): SearchHookState {
             errorMessage: error instanceof Error ? error.message : "Local search failed."
           });
         });
-    }, 80);
+    }, LOCAL_SEARCH_DEBOUNCE_MS);
 
     return () => {
       cancelled = true;
@@ -369,6 +382,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
     pending: false
   });
   const cachedDataReported = useRef(false);
+  const googleStatusRequested = useRef(false);
   const retryTaskMutation = useRef<() => void>(() => undefined);
   const taskViewModelCache = useRef(new Map<string, { signature: string; viewModel: TaskViewModel }>());
 
@@ -451,6 +465,26 @@ function usePreloadCoreSource(): CoreViewModelSource {
       }));
     });
   }, []);
+
+  const setGoogleStatus = useCallback((googleStatus: GoogleStatusResponse) => {
+    setLoadState((current) => ({
+      ...current,
+      snapshot: {
+        ...current.snapshot,
+        googleStatus
+      }
+    }));
+  }, []);
+
+  const refreshGoogleStatus = useCallback(() => {
+    void window.hcb?.google.status().then((result) => {
+      if (!result?.ok) {
+        return;
+      }
+
+      setGoogleStatus(result.data);
+    });
+  }, [setGoogleStatus]);
 
   const updateSettings = useCallback(
     async (request: SettingsUpdateRequest): Promise<boolean> => {
@@ -809,10 +843,13 @@ function usePreloadCoreSource(): CoreViewModelSource {
 
     void loadCoreData().then(
       (snapshot) => {
-        setLoadState({
-          snapshot,
+        setLoadState((current) => ({
+          snapshot: {
+            ...snapshot,
+            googleStatus: current.snapshot.googleStatus
+          },
           state: hasSnapshotData(snapshot) ? "ready" : "empty"
-        });
+        }));
       },
       (error: unknown) => {
         setLoadState((current) => ({
@@ -867,6 +904,37 @@ function usePreloadCoreSource(): CoreViewModelSource {
   }, [load]);
 
   useEffect(() => {
+    if (
+      loadState.snapshot.diagnosticsSummary ||
+      (loadState.state !== "ready" && loadState.state !== "empty")
+    ) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      refreshDiagnosticsSummary();
+    }, 5_000);
+
+    return () => window.clearTimeout(timeout);
+  }, [loadState.snapshot.diagnosticsSummary, loadState.state, refreshDiagnosticsSummary]);
+
+  useEffect(() => {
+    if (
+      googleStatusRequested.current ||
+      (loadState.state !== "ready" && loadState.state !== "empty")
+    ) {
+      return;
+    }
+
+    googleStatusRequested.current = true;
+    const timeout = window.setTimeout(() => {
+      refreshGoogleStatus();
+    }, 1_000);
+
+    return () => window.clearTimeout(timeout);
+  }, [loadState.state, refreshGoogleStatus]);
+
+  useEffect(() => {
     return window.hcb?.sync.subscribeStatus((syncStatus) => {
       setLoadState((current) => ({
         ...current,
@@ -895,6 +963,8 @@ function usePreloadCoreSource(): CoreViewModelSource {
       state: loadState.state,
       errorMessage: loadState.errorMessage,
       refresh: load,
+      refreshGoogleStatus,
+      setGoogleStatus,
       taskViewModelCache: taskViewModelCache.current,
       taskMutation,
       settingsMutation,
@@ -922,8 +992,10 @@ function usePreloadCoreSource(): CoreViewModelSource {
       loadState,
       moveTask,
       renameTaskList,
+      refreshGoogleStatus,
       runRecoveryAction,
       reopenTask,
+      setGoogleStatus,
       settingsMutation,
       taskMutation,
       updateSettings,
@@ -949,8 +1021,7 @@ async function loadCoreData(): Promise<CoreDataSnapshot> {
     settings,
     syncStatus,
     health,
-    native,
-    diagnosticsSummary
+    native
   ] = await Promise.all([
     window.hcb.tasks.listTaskLists({ limit: 100 }).then((result) => unwrap(result, "Task lists failed")),
     window.hcb.tasks.list({ status: "all", limit: 100 }).then((result) => unwrap(result, "Tasks failed")),
@@ -970,8 +1041,7 @@ async function loadCoreData(): Promise<CoreDataSnapshot> {
     window.hcb.settings.get().then((result) => unwrap(result, "Settings failed")),
     window.hcb.sync.status().then((result) => unwrap(result, "Sync status failed")),
     window.hcb.diagnostics.health().then((result) => unwrap(result, "Diagnostics failed")),
-    window.hcb.native.capabilities().then((result) => unwrap(result, "Native status failed")),
-    window.hcb.diagnostics.summary().then((result) => unwrap(result, "Diagnostics summary failed"))
+    window.hcb.native.capabilities().then((result) => unwrap(result, "Native status failed"))
   ]);
 
   return {
@@ -982,9 +1052,9 @@ async function loadCoreData(): Promise<CoreDataSnapshot> {
     notes: notes.items,
     settings,
     syncStatus,
+    googleStatus: emptyGoogleStatus,
     health,
-    native,
-    diagnosticsSummary
+    native
   };
 }
 
@@ -994,6 +1064,8 @@ function buildCoreViewModelSource(
     state: CoreDataState;
     errorMessage?: string;
     refresh: () => void;
+    refreshGoogleStatus: () => void;
+    setGoogleStatus: (status: GoogleStatusResponse) => void;
     taskViewModelCache: Map<string, { signature: string; viewModel: TaskViewModel }>;
     taskMutation: TaskMutationUiState;
     settingsMutation: SettingsMutationUiState;
@@ -1071,8 +1143,11 @@ function buildCoreViewModelSource(
     isStale: options.state === "stale" || snapshot.syncStatus.stale === true,
     largeTaskWindow: tasks,
     refresh: options.refresh,
+    refreshGoogleStatus: options.refreshGoogleStatus,
+    setGoogleStatus: options.setGoogleStatus,
     settings: snapshot.settings,
     diagnosticsSummary: snapshot.diagnosticsSummary,
+    googleStatus: snapshot.googleStatus,
     settingsMutationError: options.settingsMutation.error,
     settingsMutationPending: options.settingsMutation.pending,
     updateSettings: options.updateSettings,
@@ -1233,7 +1308,7 @@ function settingsSections(snapshot: CoreDataSnapshot): SettingsSectionViewModel[
   const sync = snapshot.syncStatus;
   const summary = snapshot.diagnosticsSummary;
   const build = summary?.build ?? snapshot.health?.build;
-  const account = summary?.account;
+  const account = snapshot.googleStatus.account;
   const selectedTaskListCount =
     summary?.selectedResources.taskLists.filter((resource) => resource.selected).length ??
     snapshot.settings.selectedTaskListIds.length;
@@ -1249,19 +1324,20 @@ function settingsSections(snapshot: CoreDataSnapshot): SettingsSectionViewModel[
     {
       id: "google",
       title: "Google",
-      status: account?.state === "connected" ? "Connected" : "Disconnected",
+      status: account?.connectionState === "connected" ? "Connected" : "Disconnected",
       detail: "Google account connection state",
       rows: [
-        { id: "state", label: "State", value: account?.state ?? "signed_out" },
+        { id: "client", label: "OAuth client", value: snapshot.googleStatus.oauthClientConfigured ? "Configured" : "Missing" },
+        { id: "state", label: "State", value: account?.connectionState ?? "signed_out" },
         {
           id: "account",
           label: "Account",
-          value: account?.state === "connected" ? "Connected account" : "Not connected"
+          value: account?.connectionState === "connected" ? account.email ?? "Connected account" : "Not connected"
         },
         {
           id: "scopes",
           label: "Missing scopes",
-          value: String(account?.missingScopeCount ?? 2)
+          value: String(account?.missingScopes.length ?? 2)
         }
       ]
     },

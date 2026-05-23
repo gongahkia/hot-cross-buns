@@ -1,17 +1,24 @@
 import {
   ipcContracts,
+  type AvailabilityExportRequest,
   type CalendarListRequest,
   type CalendarEventCreateRequest,
   type CalendarEventDeleteRequest,
   type CalendarEventUpdateRequest,
   type CalendarRangeRequest,
   type EntityByIdRequest,
+  type GoogleDisconnectRequest,
+  type GoogleSaveOAuthClientRequest,
   type McpSetEnabledRequest,
   type NoteCreateRequest,
   type NoteDeleteRequest,
   type NoteListRequest,
   type NoteUpdateRequest,
   type SearchQueryRequest,
+  type ScheduledTaskBlockCreateRequest,
+  type ScheduledTaskBlockListRequest,
+  type ScheduledTaskBlockMoveRequest,
+  type ScheduledTaskBlockUnscheduleRequest,
   type SettingsRecoveryActionRequest,
   type SettingsUpdateRequest,
   type SyncRunNowRequest,
@@ -104,6 +111,31 @@ export function createCoreIpcHandlers(services: AppDomainServices): IpcHandlerDe
       handle: (request) => services.planner.deleteCalendarEvent(request as CalendarEventDeleteRequest)
     },
     {
+      contract: ipcContracts.calendar.listScheduledTaskBlocks,
+      handle: (request) =>
+        services.planner.listScheduledTaskBlocks(request as ScheduledTaskBlockListRequest)
+    },
+    {
+      contract: ipcContracts.calendar.scheduleTaskBlock,
+      handle: (request) =>
+        services.planner.scheduleTaskBlock(request as ScheduledTaskBlockCreateRequest)
+    },
+    {
+      contract: ipcContracts.calendar.moveScheduledTaskBlock,
+      handle: (request) =>
+        services.planner.moveScheduledTaskBlock(request as ScheduledTaskBlockMoveRequest)
+    },
+    {
+      contract: ipcContracts.calendar.unscheduleTaskBlock,
+      handle: (request) =>
+        services.planner.unscheduleTaskBlock(request as ScheduledTaskBlockUnscheduleRequest)
+    },
+    {
+      contract: ipcContracts.calendar.exportAvailability,
+      handle: (request) =>
+        services.planner.exportAvailability(request as AvailabilityExportRequest)
+    },
+    {
       contract: ipcContracts.notes.list,
       handle: (request) => services.planner.listNotes(request as NoteListRequest)
     },
@@ -134,6 +166,23 @@ export function createCoreIpcHandlers(services: AppDomainServices): IpcHandlerDe
     {
       contract: ipcContracts.sync.runNow,
       handle: (request) => services.sync.runNow(request as SyncRunNowRequest)
+    },
+    {
+      contract: ipcContracts.google.status,
+      handle: () => services.google.status()
+    },
+    {
+      contract: ipcContracts.google.saveOAuthClient,
+      handle: (request) =>
+        services.google.saveOAuthClient(request as GoogleSaveOAuthClientRequest)
+    },
+    {
+      contract: ipcContracts.google.beginOAuth,
+      handle: () => services.google.beginOAuth()
+    },
+    {
+      contract: ipcContracts.google.disconnect,
+      handle: (request) => services.google.disconnect(request as GoogleDisconnectRequest)
     },
     {
       contract: ipcContracts.settings.get,

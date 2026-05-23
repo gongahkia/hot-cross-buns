@@ -186,6 +186,60 @@ const hcbApi: HcbApi = {
         queued: false,
         revision: now
       })
+    ),
+    listScheduledTaskBlocks: vi.fn(async (request) =>
+      ok({
+        items: [],
+        page: {
+          limit: request.limit ?? 100,
+          totalKnown: 0
+        }
+      })
+    ),
+    scheduleTaskBlock: vi.fn(async (request) =>
+      ok({
+        id: "block-created",
+        taskId: request.taskId,
+        calendarEventId: "event-created",
+        calendarId: request.calendarId,
+        title: "Test task",
+        startsAt: request.startsAt,
+        endsAt: new Date(Date.parse(request.startsAt) + (request.durationMinutes ?? 30) * 60 * 1000).toISOString(),
+        durationMinutes: request.durationMinutes ?? 30,
+        status: "scheduled" as const,
+        mutationState: "queued" as const,
+        updatedAt: now
+      })
+    ),
+    moveScheduledTaskBlock: vi.fn(async (request) =>
+      ok({
+        id: request.id,
+        taskId: "test-task",
+        calendarEventId: "event-created",
+        calendarId: request.calendarId ?? "test-calendar",
+        title: "Test task",
+        startsAt: request.startsAt ?? now,
+        endsAt: new Date(Date.parse(request.startsAt ?? now) + (request.durationMinutes ?? 30) * 60 * 1000).toISOString(),
+        durationMinutes: request.durationMinutes ?? 30,
+        status: "scheduled" as const,
+        mutationState: "queued" as const,
+        updatedAt: now
+      })
+    ),
+    unscheduleTaskBlock: vi.fn(async (request) =>
+      ok({
+        id: request.id,
+        queued: request.deleteCalendarEvent ?? true,
+        revision: now
+      })
+    ),
+    exportAvailability: vi.fn(async (request) =>
+      ok({
+        format: "text" as const,
+        text: `Availability from ${request.start} to ${request.end}`,
+        generatedAt: now,
+        busyBlockCount: 0
+      })
     )
   },
   notes: {
@@ -259,6 +313,42 @@ const hcbApi: HcbApi = {
       })
     ),
     subscribeStatus: vi.fn(() => () => undefined)
+  },
+  google: {
+    status: vi.fn(async () =>
+      ok({
+        oauthClientConfigured: false,
+        clientId: null,
+        hasClientSecret: false
+      })
+    ),
+    saveOAuthClient: vi.fn(async (request) =>
+      ok({
+        oauthClientConfigured: true,
+        clientId: request.clientId,
+        hasClientSecret: Boolean(request.clientSecret)
+      })
+    ),
+    beginOAuth: vi.fn(async () =>
+      ok({
+        accepted: true,
+        openedExternalBrowser: true,
+        expiresAt: later,
+        scopes: [
+          "https://www.googleapis.com/auth/tasks",
+          "https://www.googleapis.com/auth/calendar"
+        ],
+        redirectUri: "http://127.0.0.1:42813/oauth/google/callback",
+        message: "Google authorization opened in the browser."
+      })
+    ),
+    disconnect: vi.fn(async () =>
+      ok({
+        oauthClientConfigured: false,
+        clientId: null,
+        hasClientSecret: false
+      })
+    )
   },
   settings: {
     get: vi.fn(async () =>

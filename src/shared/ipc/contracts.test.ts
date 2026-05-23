@@ -6,6 +6,7 @@ import {
   calendarEventUpdateRequestSchema,
   calendarRangeRequestSchema,
   hcbDomainSchema,
+  ipcContracts,
   nativeCapabilitiesResponseSchema,
   settingsRecoveryActionRequestSchema,
   settingsSnapshotSchema,
@@ -58,6 +59,7 @@ describe("shared IPC contracts", () => {
       "notes",
       "search",
       "sync",
+      "google",
       "settings",
       "mcp",
       "native",
@@ -198,6 +200,26 @@ describe("shared IPC contracts", () => {
     expect(settingsRecoveryActionRequestSchema.parse({ action: "resetOnboarding" })).toEqual({
       action: "resetOnboarding"
     });
+  });
+
+  it("keeps Google OAuth secrets out of settings and status contracts", () => {
+    expect(
+      ipcContracts.google.saveOAuthClient.requestSchema.parse({
+        clientId: "desktop-client-id.apps.googleusercontent.com",
+        clientSecret: "optional-client-secret"
+      })
+    ).toMatchObject({
+      clientId: "desktop-client-id.apps.googleusercontent.com",
+      clientSecret: "optional-client-secret"
+    });
+    expect(
+      ipcContracts.google.status.responseSchema.safeParse({
+        oauthClientConfigured: true,
+        clientId: "desktop-client-id.apps.googleusercontent.com",
+        hasClientSecret: true,
+        clientSecret: "must-not-parse"
+      }).success
+    ).toBe(false);
   });
 
   it("requires native capability reports for platform adapter status", () => {

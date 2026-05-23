@@ -38,7 +38,12 @@ function argValue(name: string, fallback: string): string {
 function isReleaseArtifact(filePath: string): boolean {
   const name = basename(filePath);
 
-  if (name.endsWith(".blockmap") || name.endsWith(".yml") || name === DEFAULT_OUTPUT_FILE) {
+  if (
+    name.endsWith(".blockmap") ||
+    name.endsWith(".yml") ||
+    name.endsWith(".sha256") ||
+    name === DEFAULT_OUTPUT_FILE
+  ) {
     return false;
   }
 
@@ -104,6 +109,11 @@ async function main(): Promise<void> {
     .join("\n")}\n`;
 
   await writeFile(outputFile, body, "utf8");
+  await Promise.all(
+    checksums.map((entry) =>
+      writeFile(`${entry.filePath}.sha256`, `${entry.sha256}  ${basename(entry.filePath)}\n`, "utf8")
+    )
+  );
 
   console.log(`Wrote ${checksums.length} checksum(s) to ${outputFile}`);
   for (const entry of checksums) {

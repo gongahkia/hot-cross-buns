@@ -91,6 +91,11 @@ Acceptance checks:
 - Release docs state which assets must be uploaded.
 - Updater checks can find the stable latest release artifact when implemented.
 
+Implemented follow-up:
+
+- `pnpm release:mac:preview` now creates stable `Hot-Cross-Buns-2-macOS*` aliases and per-artifact `.sha256` files before writing `SHASUMS256.txt`.
+- `pnpm release:smoke-dmg` mounts the generated DMG read-only and verifies the contained app bundle metadata.
+
 ### 4. Contribution And Agent Workflow Polish
 
 Legacy has `docs/CONTRIBUTING.md`, architecture references, release references, style guides, urgent todo references, and profiling docs.

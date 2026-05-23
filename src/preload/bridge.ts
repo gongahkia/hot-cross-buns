@@ -172,6 +172,41 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
           ipcContracts.calendar.delete,
           request,
           "Calendar event delete request failed"
+        ),
+      listScheduledTaskBlocks: (request) =>
+        invokeContract(
+          ipc,
+          ipcContracts.calendar.listScheduledTaskBlocks,
+          request,
+          "Scheduled task block list request failed"
+        ),
+      scheduleTaskBlock: (request) =>
+        invokeContract(
+          ipc,
+          ipcContracts.calendar.scheduleTaskBlock,
+          request,
+          "Task scheduling request failed"
+        ),
+      moveScheduledTaskBlock: (request) =>
+        invokeContract(
+          ipc,
+          ipcContracts.calendar.moveScheduledTaskBlock,
+          request,
+          "Scheduled task move request failed"
+        ),
+      unscheduleTaskBlock: (request) =>
+        invokeContract(
+          ipc,
+          ipcContracts.calendar.unscheduleTaskBlock,
+          request,
+          "Scheduled task unschedule request failed"
+        ),
+      exportAvailability: (request) =>
+        invokeContract(
+          ipc,
+          ipcContracts.calendar.exportAvailability,
+          request,
+          "Availability export request failed"
         )
     },
     notes: {
@@ -213,6 +248,20 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
           ipc.removeListener?.(IPC_CHANNELS.syncStatus, eventListener);
         };
       }
+    },
+    google: {
+      status: () => invokeContract(ipc, ipcContracts.google.status, {}, "Google status failed"),
+      saveOAuthClient: (request) =>
+        invokeContract(
+          ipc,
+          ipcContracts.google.saveOAuthClient,
+          request,
+          "Google OAuth client update failed"
+        ),
+      beginOAuth: () =>
+        invokeContract(ipc, ipcContracts.google.beginOAuth, {}, "Google OAuth start failed"),
+      disconnect: (request = {}) =>
+        invokeContract(ipc, ipcContracts.google.disconnect, request, "Google disconnect failed")
     },
     settings: {
       get: () => invokeContract(ipc, ipcContracts.settings.get, {}, "Settings request failed"),

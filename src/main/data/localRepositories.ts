@@ -7,6 +7,8 @@ import {
   startOfUtcDayIso
 } from "@shared/domain/calendar";
 import type {
+  AvailabilityExportRequest,
+  AvailabilityExportResponse,
   CalendarEventCreateRequest,
   CalendarEventDeleteRequest,
   CalendarEventDetail,
@@ -28,6 +30,12 @@ import type {
   SearchQueryRequest,
   SearchQueryResponse,
   SearchResultItem,
+  ScheduledTaskBlockCreateRequest,
+  ScheduledTaskBlockListRequest,
+  ScheduledTaskBlockListResponse,
+  ScheduledTaskBlockMoveRequest,
+  ScheduledTaskBlockSummary,
+  ScheduledTaskBlockUnscheduleRequest,
   SettingsSnapshot,
   SettingsUpdateRequest,
   TaskCompletionRequest,
@@ -137,6 +145,20 @@ interface CalendarRow extends Record<string, unknown> {
   title: string;
   timeZone: string | null;
   accessRole: string | null;
+}
+
+interface ScheduledTaskBlockRow extends Record<string, unknown> {
+  id: string;
+  taskId: string;
+  calendarEventId: string;
+  calendarId: string;
+  title: string | null;
+  startsAt: string;
+  endsAt: string;
+  durationMinutes: number;
+  status: "scheduled" | "orphaned";
+  pendingMutationStatus?: "pending" | "applying" | "failed" | null;
+  updatedAt: string;
 }
 
 interface NoteRow extends Record<string, unknown> {
@@ -979,6 +1001,357 @@ export class LocalPlannerRepository {
         revision: now
       };
     });
+  }
+
+  listScheduledTaskBlocks(request: ScheduledTaskBlockListRequest): ScheduledTaskBlockListResponse {
+    return this.measureSqlite("calendar.listScheduledTaskBlocks", () => {
+      const { limit, offset } = pageBounds(request.cursor, request.limit, 100, 500);
+      const params: Array<string | number | boolean | null> = [request.end, request.start];
+      const predicates = [
+        "blocks.deleted_at IS NULL",
+        "COALESCE(instances.start_at, events.start_at, blocks.planned_start_at) < ?",
+        "COALESCE(instances.end_at, events.end_at, blocks.planned_end_at) > ?"
+      ];
+
+      if (request.calendarIds !== undefined && request.calendarIds.length > 0) {
+        predicates.push(`blocks.calendar_id IN (${request.calendarIds.map(() => "?").join(", ")})`);
+        params.push(...request.calendarIds);
+      }
+
+      const where = predicates.join(" AND ");
+      const rows = this.connection.query<ScheduledTaskBlockRow>(
+        `SELECT
+           blocks.id AS id,
+           blocks.task_id AS taskId,
+           blocks.calendar_event_id AS calendarEventId,
+           COALESCE(instances.calendar_id, events.calendar_id, blocks.calendar_id) AS calendarId,
+           tasks.title AS title,
+           COALESCE(instances.start_at, events.start_at, blocks.planned_start_at) AS startsAt,
+           COALESCE(instances.end_at, events.end_at, blocks.planned_end_at) AS endsAt,
+           blocks.duration_minutes AS durationMinutes,
+           CASE
+             WHEN tasks.id IS NULL
+               OR events.id IS NULL
+               OR events.deleted_at IS NOT NULL
+               OR events.status = 'cancelled'
+             THEN 'orphaned'
+             ELSE 'scheduled'
+           END AS status,
+           pending.status AS pendingMutationStatus,
+           blocks.updated_at AS updatedAt
+         FROM local_scheduled_task_blocks blocks
+         LEFT JOIN google_tasks tasks
+           ON tasks.id = blocks.task_id
+          AND tasks.deleted_at IS NULL
+         LEFT JOIN google_calendar_events events
+           ON events.id = blocks.calendar_event_id
+         LEFT JOIN google_calendar_event_instances instances
+           ON instances.event_id = events.id
+          AND instances.deleted_at IS NULL
+         LEFT JOIN (
+           SELECT resource_id, MAX(status) AS status
+           FROM google_pending_mutations
+           WHERE status IN ('pending', 'applying', 'failed')
+           GROUP BY resource_id
+         ) pending ON pending.resource_id = blocks.calendar_event_id
+         WHERE ${where}
+         ORDER BY startsAt ASC, endsAt ASC, blocks.id ASC
+         LIMIT ? OFFSET ?;`,
+        [...params, limit, offset]
+      );
+      const totalKnown = countRows(
+        this.connection,
+        `SELECT COUNT(*) AS count
+         FROM local_scheduled_task_blocks blocks
+         LEFT JOIN google_calendar_events events
+           ON events.id = blocks.calendar_event_id
+         LEFT JOIN google_calendar_event_instances instances
+           ON instances.event_id = events.id
+          AND instances.deleted_at IS NULL
+         WHERE ${where};`,
+        params
+      );
+
+      return pageFromRows(rows.map(scheduledTaskBlockSummary), limit, offset, totalKnown);
+    });
+  }
+
+  scheduleTaskBlock(request: ScheduledTaskBlockCreateRequest): ScheduledTaskBlockSummary {
+    return this.measureSqlite("calendar.scheduleTaskBlock", () => {
+      const task = this.requireTaskForMutation(request.taskId);
+      const calendar = this.requireCalendar(request.calendarId);
+      const now = new Date().toISOString();
+      const startsAt = new Date(request.startsAt).toISOString();
+      const durationMinutes = request.durationMinutes ?? 30;
+      const endsAt = addMinutesIso(startsAt, durationMinutes);
+      const googleId = `local-${randomUUID()}`;
+      const eventId = `${calendar.accountId}:event:${calendar.googleId}:${googleId}`;
+      const blockId = `block:${randomUUID()}`;
+      const normalized = normalizeCalendarWrite({
+        title: task.title,
+        calendarId: calendar.id,
+        startsAt,
+        endsAt,
+        allDay: false,
+        location: "Scheduled task",
+        notes: scheduledTaskNotes(task),
+        guestEmails: [],
+        reminderMinutes: []
+      });
+
+      this.connection.executeTransaction([
+        eventInsertOperation({
+          id: eventId,
+          accountId: calendar.accountId,
+          googleId,
+          now,
+          ...normalized,
+          calendarId: calendar.id
+        }),
+        instanceDeleteOperation(eventId, now),
+        instanceInsertOperation({
+          id: eventId,
+          accountId: calendar.accountId,
+          calendarId: calendar.id,
+          eventId,
+          googleEventId: googleId,
+          startsAt: normalized.startsAt,
+          endsAt: normalized.endsAt,
+          allDay: false,
+          status: "confirmed",
+          updatedAt: now
+        }),
+        mutationInsertOperation({
+          id: `mutation:event:${randomUUID()}`,
+          accountId: calendar.accountId,
+          resourceId: eventId,
+          operation: "calendar.events.create",
+          payload: mutationPayload(normalized),
+          now
+        }),
+        scheduledTaskBlockInsertOperation({
+          id: blockId,
+          taskId: task.id,
+          calendarEventId: eventId,
+          calendarId: calendar.id,
+          startsAt: normalized.startsAt,
+          endsAt: normalized.endsAt,
+          durationMinutes,
+          now
+        })
+      ]);
+
+      return this.requireScheduledTaskBlock(blockId);
+    });
+  }
+
+  moveScheduledTaskBlock(request: ScheduledTaskBlockMoveRequest): ScheduledTaskBlockSummary {
+    return this.measureSqlite("calendar.moveScheduledTaskBlock", () => {
+      const block = this.requireScheduledTaskBlock(request.id);
+      const event = this.findCalendarEventRow(block.calendarEventId);
+
+      if (!event) {
+        throw validationFailure("Scheduled task block is missing its calendar event.");
+      }
+
+      const targetCalendar = this.requireCalendar(request.calendarId ?? event.calendarId);
+      const now = new Date().toISOString();
+      const durationMinutes = request.durationMinutes ?? block.durationMinutes;
+      const startsAt = request.startsAt ?? block.startsAt;
+      const endsAt = addMinutesIso(startsAt, durationMinutes);
+      const normalized = normalizeCalendarWrite({
+        title: event.title,
+        calendarId: targetCalendar.id,
+        startsAt,
+        endsAt,
+        allDay: false,
+        location: event.location ?? "",
+        notes: event.notes ?? "",
+        guestEmails: parseStringArray(event.guestEmailsJson),
+        reminderMinutes: parseNumberArray(event.reminderMinutesJson)
+      });
+
+      this.connection.executeTransaction([
+        eventUpdateOperation({
+          id: event.eventId,
+          now,
+          ...normalized,
+          calendarId: targetCalendar.id
+        }),
+        instanceDeleteOperation(event.eventId, now),
+        instanceInsertOperation({
+          id: event.eventId,
+          accountId: targetCalendar.accountId,
+          calendarId: targetCalendar.id,
+          eventId: event.eventId,
+          googleEventId: googleEventIdFromLocalEventId(event.eventId),
+          startsAt: normalized.startsAt,
+          endsAt: normalized.endsAt,
+          allDay: false,
+          status: "confirmed",
+          updatedAt: now
+        }),
+        mutationInsertOperation({
+          id: `mutation:event:${randomUUID()}`,
+          accountId: targetCalendar.accountId,
+          resourceId: event.eventId,
+          operation: "calendar.events.update",
+          payload: mutationPayload(normalized),
+          now
+        }),
+        {
+          kind: "run",
+          sql: `UPDATE local_scheduled_task_blocks
+                SET calendar_id = ?,
+                    planned_start_at = ?,
+                    planned_end_at = ?,
+                    duration_minutes = ?,
+                    updated_at = ?
+                WHERE id = ? AND deleted_at IS NULL;`,
+          params: [
+            targetCalendar.id,
+            normalized.startsAt,
+            normalized.endsAt,
+            durationMinutes,
+            now,
+            request.id
+          ]
+        }
+      ]);
+
+      return this.requireScheduledTaskBlock(request.id);
+    });
+  }
+
+  unscheduleTaskBlock(
+    request: ScheduledTaskBlockUnscheduleRequest
+  ): { id: string; queued: boolean; revision: string } {
+    return this.measureSqlite("calendar.unscheduleTaskBlock", () => {
+      const block = this.requireScheduledTaskBlock(request.id);
+      const event = this.findCalendarEventRow(block.calendarEventId);
+      const now = new Date().toISOString();
+      const deleteCalendarEvent = request.deleteCalendarEvent ?? true;
+      const operations: SqliteWriteOperation[] = [
+        {
+          kind: "run",
+          sql: `UPDATE local_scheduled_task_blocks
+                SET status = 'unscheduled',
+                    deleted_at = ?,
+                    updated_at = ?
+                WHERE id = ? AND deleted_at IS NULL;`,
+          params: [now, now, request.id]
+        }
+      ];
+
+      if (deleteCalendarEvent && event) {
+        operations.push(
+          {
+            kind: "run",
+            sql: `UPDATE google_calendar_events
+                  SET status = 'cancelled', deleted_at = ?, updated_at = ?
+                  WHERE id = ? AND deleted_at IS NULL;`,
+            params: [now, now, event.eventId]
+          },
+          instanceDeleteOperation(event.eventId, now),
+          mutationInsertOperation({
+            id: `mutation:event:${randomUUID()}`,
+            accountId: event.accountId,
+            resourceId: event.eventId,
+            operation: "calendar.events.delete",
+            payload: {
+              id: event.eventId,
+              calendarId: event.calendarId
+            },
+            now
+          })
+        );
+      }
+
+      this.connection.executeTransaction(operations);
+
+      return {
+        id: request.id,
+        queued: deleteCalendarEvent && event !== undefined,
+        revision: now
+      };
+    });
+  }
+
+  exportAvailability(request: AvailabilityExportRequest): AvailabilityExportResponse {
+    return this.measureSqlite("calendar.exportAvailability", () => {
+      const generatedAt = new Date().toISOString();
+      const events = this.listCalendarEvents({
+        start: request.start,
+        end: request.end,
+        ...(request.calendarIds === undefined ? {} : { calendarIds: request.calendarIds }),
+        limit: 500
+      }).items;
+      const busyLines = events.map((event) => availabilityLine(event));
+
+      return {
+        format: "text",
+        text: [
+          `Availability from ${request.start} to ${request.end}`,
+          busyLines.length === 0 ? "No busy blocks in selected calendars." : "Busy:",
+          ...busyLines
+        ].join("\n"),
+        generatedAt,
+        busyBlockCount: events.length
+      };
+    });
+  }
+
+  private requireScheduledTaskBlock(id: string): ScheduledTaskBlockSummary {
+    const row = this.findScheduledTaskBlockRow(id);
+
+    if (!row) {
+      throw notFound("Scheduled task block was not found.");
+    }
+
+    return scheduledTaskBlockSummary(row);
+  }
+
+  private findScheduledTaskBlockRow(id: string): ScheduledTaskBlockRow | undefined {
+    return this.connection.get<ScheduledTaskBlockRow>(
+      `SELECT
+         blocks.id AS id,
+         blocks.task_id AS taskId,
+         blocks.calendar_event_id AS calendarEventId,
+         COALESCE(instances.calendar_id, events.calendar_id, blocks.calendar_id) AS calendarId,
+         tasks.title AS title,
+         COALESCE(instances.start_at, events.start_at, blocks.planned_start_at) AS startsAt,
+         COALESCE(instances.end_at, events.end_at, blocks.planned_end_at) AS endsAt,
+         blocks.duration_minutes AS durationMinutes,
+         CASE
+           WHEN tasks.id IS NULL
+             OR events.id IS NULL
+             OR events.deleted_at IS NOT NULL
+             OR events.status = 'cancelled'
+           THEN 'orphaned'
+           ELSE 'scheduled'
+         END AS status,
+         pending.status AS pendingMutationStatus,
+         blocks.updated_at AS updatedAt
+       FROM local_scheduled_task_blocks blocks
+       LEFT JOIN google_tasks tasks
+         ON tasks.id = blocks.task_id
+        AND tasks.deleted_at IS NULL
+       LEFT JOIN google_calendar_events events
+         ON events.id = blocks.calendar_event_id
+       LEFT JOIN google_calendar_event_instances instances
+         ON instances.event_id = events.id
+        AND instances.deleted_at IS NULL
+       LEFT JOIN (
+         SELECT resource_id, MAX(status) AS status
+         FROM google_pending_mutations
+         WHERE status IN ('pending', 'applying', 'failed')
+         GROUP BY resource_id
+       ) pending ON pending.resource_id = blocks.calendar_event_id
+       WHERE blocks.id = ?
+         AND blocks.deleted_at IS NULL
+       LIMIT 1;`,
+      [id]
+    );
   }
 
   private findCalendarEventRow(id: string): CalendarEventRow | undefined {
@@ -2215,6 +2588,59 @@ function mutationPayload(input: NormalizedCalendarWrite): object {
   };
 }
 
+function scheduledTaskBlockInsertOperation(input: {
+  id: string;
+  taskId: string;
+  calendarEventId: string;
+  calendarId: string;
+  startsAt: string;
+  endsAt: string;
+  durationMinutes: number;
+  now: string;
+}): SqliteWriteOperation {
+  return {
+    kind: "run",
+    sql: `INSERT INTO local_scheduled_task_blocks (
+      id, task_id, calendar_event_id, calendar_id, planned_start_at, planned_end_at,
+      duration_minutes, status, created_at, updated_at, deleted_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?, NULL);`,
+    params: [
+      input.id,
+      input.taskId,
+      input.calendarEventId,
+      input.calendarId,
+      input.startsAt,
+      input.endsAt,
+      input.durationMinutes,
+      input.now,
+      input.now
+    ]
+  };
+}
+
+function scheduledTaskNotes(task: TaskRow): string {
+  const notes = task.notes?.trim();
+  const marker = `Hot Cross Buns scheduled task: ${task.id}`;
+
+  return notes ? `${notes}\n\n${marker}` : marker;
+}
+
+function addMinutesIso(startsAt: string, durationMinutes: number): string {
+  const startMs = Date.parse(startsAt);
+
+  if (!Number.isFinite(startMs)) {
+    throw validationFailure("Scheduled task start must be a valid date-time.");
+  }
+
+  const endMs = startMs + durationMinutes * 60 * 1000;
+
+  if (!Number.isFinite(endMs) || endMs <= startMs) {
+    throw validationFailure("Scheduled task duration must produce a valid end time.");
+  }
+
+  return new Date(endMs).toISOString();
+}
+
 function nullIfEmpty(value: string): string | null {
   const trimmed = value.trim();
 
@@ -2340,6 +2766,28 @@ function calendarEventDetail(row: CalendarEventRow): CalendarEventDetail {
     calendarTitle: row.calendarTitle,
     deepLink: `hotcrossbuns://event/${row.eventId}`
   };
+}
+
+function scheduledTaskBlockSummary(row: ScheduledTaskBlockRow): ScheduledTaskBlockSummary {
+  return {
+    id: row.id,
+    taskId: row.taskId,
+    calendarEventId: row.calendarEventId,
+    calendarId: row.calendarId,
+    title: row.title ?? "Scheduled task",
+    startsAt: row.startsAt,
+    endsAt: row.endsAt,
+    durationMinutes: row.durationMinutes,
+    status: row.status,
+    mutationState: mutationState(row.pendingMutationStatus),
+    updatedAt: row.updatedAt
+  };
+}
+
+function availabilityLine(event: CalendarEventSummary): string {
+  const label = event.allDay ? "All day" : `${event.startsAt} to ${event.endsAt}`;
+
+  return `- ${label}: ${event.title}`;
 }
 
 function noteSummary(row: NoteRow): NoteSummary {

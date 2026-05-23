@@ -19,9 +19,11 @@
     "test:smoke": "pnpm build && playwright test -c playwright.config.ts",
     "test:perf": "tsx scripts/perf-smoke.ts",
     "release:review-bundle": "tsx scripts/review-bundle.ts",
+    "release:mac-artifacts": "tsx scripts/mac-preview-artifacts.ts",
     "release:checksums": "tsx scripts/release-checksums.ts",
-    "pack:mac:preview": "pnpm build:release:mac && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --publish never && pnpm release:checksums",
-    "release:mac:preview": "pnpm test && pnpm build:release:mac && pnpm release:review-bundle && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --publish never && pnpm release:checksums"
+    "release:smoke-dmg": "scripts/smoke-test-dmg.sh release",
+    "pack:mac:preview": "pnpm build:release:mac && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --publish never && pnpm release:mac-artifacts && pnpm release:checksums",
+    "release:mac:preview": "pnpm test && pnpm build:release:mac && pnpm release:review-bundle && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --publish never && pnpm release:mac-artifacts && pnpm release:checksums"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.59.20",

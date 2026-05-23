@@ -28,6 +28,7 @@ export const hcbDomainSchema = z.enum([
   "notes",
   "search",
   "sync",
+  "google",
   "settings",
   "mcp",
   "native",
@@ -87,6 +88,7 @@ const guestEmailSchema = z
   .min(3)
   .max(254);
 const reminderMinutesSchema = z.number().int().min(0).max(28 * 24 * 60);
+const durationMinutesSchema = z.number().int().min(5).max(24 * 60);
 const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, {
   message: "Expected YYYY-MM-DD"
 });
@@ -469,6 +471,128 @@ export type CalendarEventUpdateRequest = z.input<typeof calendarEventUpdateReque
 export const calendarEventDeleteRequestSchema = entityByIdRequestSchema;
 export type CalendarEventDeleteRequest = z.input<typeof calendarEventDeleteRequestSchema>;
 
+export const scheduledTaskBlockStatusSchema = z.enum(["scheduled", "orphaned"]);
+
+export const scheduledTaskBlockSummarySchema = z
+  .object({
+    id: idSchema,
+    taskId: idSchema,
+    calendarEventId: idSchema,
+    calendarId: idSchema,
+    title: z.string().min(1).max(500),
+    startsAt: isoDateTimeSchema,
+    endsAt: isoDateTimeSchema,
+    durationMinutes: durationMinutesSchema,
+    status: scheduledTaskBlockStatusSchema,
+    mutationState: z.enum(["synced", "queued", "failed"]).optional(),
+    updatedAt: isoDateTimeSchema
+  })
+  .strict();
+
+export type ScheduledTaskBlockSummary = z.infer<typeof scheduledTaskBlockSummarySchema>;
+
+export const scheduledTaskBlockListRequestSchema = calendarRangeRequestSchema;
+export type ScheduledTaskBlockListRequest = z.input<
+  typeof scheduledTaskBlockListRequestSchema
+>;
+
+export const scheduledTaskBlockListResponseSchema = pagedListResponseSchema(
+  scheduledTaskBlockSummarySchema,
+  MAX_RANGE_LIMIT
+);
+export type ScheduledTaskBlockListResponse = z.infer<
+  typeof scheduledTaskBlockListResponseSchema
+>;
+
+export const scheduledTaskBlockCreateRequestSchema = z
+  .object({
+    taskId: idSchema,
+    calendarId: idSchema,
+    startsAt: isoDateTimeSchema,
+    durationMinutes: durationMinutesSchema.default(30)
+  })
+  .strict();
+
+export type ScheduledTaskBlockCreateRequest = z.input<
+  typeof scheduledTaskBlockCreateRequestSchema
+>;
+
+export const scheduledTaskBlockMoveRequestSchema = z
+  .object({
+    id: idSchema,
+    calendarId: idSchema.optional(),
+    startsAt: isoDateTimeSchema.optional(),
+    durationMinutes: durationMinutesSchema.optional()
+  })
+  .strict()
+  .refine(
+    (request) =>
+      request.calendarId !== undefined ||
+      request.startsAt !== undefined ||
+      request.durationMinutes !== undefined,
+    {
+      message: "At least one scheduled task block field must be supplied"
+    }
+  );
+
+export type ScheduledTaskBlockMoveRequest = z.input<
+  typeof scheduledTaskBlockMoveRequestSchema
+>;
+
+export const scheduledTaskBlockUnscheduleRequestSchema = z
+  .object({
+    id: idSchema,
+    deleteCalendarEvent: z.boolean().default(true)
+  })
+  .strict();
+
+export type ScheduledTaskBlockUnscheduleRequest = z.input<
+  typeof scheduledTaskBlockUnscheduleRequestSchema
+>;
+
+export const availabilityExportRequestSchema = z
+  .object({
+    calendarIds: z.array(idSchema).min(1).max(25).optional(),
+    start: isoDateTimeSchema,
+    end: isoDateTimeSchema,
+    format: z.enum(["text"]).default("text")
+  })
+  .strict()
+  .superRefine((request, context) => {
+    const startMs = Date.parse(request.start);
+    const endMs = Date.parse(request.end);
+
+    if (endMs <= startMs) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["end"],
+        message: "End must be after start"
+      });
+      return;
+    }
+
+    if (endMs - startMs > MAX_RANGE_WINDOW_DAYS * millisecondsPerDay) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["end"],
+        message: "Range window is too large"
+      });
+    }
+  });
+
+export type AvailabilityExportRequest = z.input<typeof availabilityExportRequestSchema>;
+
+export const availabilityExportResponseSchema = z
+  .object({
+    format: z.literal("text"),
+    text: z.string().min(1).max(50_000),
+    generatedAt: isoDateTimeSchema,
+    busyBlockCount: z.number().int().nonnegative()
+  })
+  .strict();
+
+export type AvailabilityExportResponse = z.infer<typeof availabilityExportResponseSchema>;
+
 export const noteListRequestSchema = z
   .object({
     cursor: cursorSchema.optional(),
@@ -592,6 +716,81 @@ export const syncRunNowResponseSchema = z
   .strict();
 
 export type SyncRunNowResponse = z.infer<typeof syncRunNowResponseSchema>;
+
+export const googleConnectionStateSchema = z.enum([
+  "signed_out",
+  "connected",
+  "reauth_required",
+  "sync_paused"
+]);
+
+export const googleAccountConnectionStatusSchema = z
+  .object({
+    accountId: idSchema,
+    googleAccountId: z.string().min(1).max(256).optional(),
+    email: z.string().email().max(254).optional(),
+    displayName: z.string().max(256).nullable().optional(),
+    avatarUrl: z.string().url().max(2048).nullable().optional(),
+    locale: z.string().min(1).max(64).nullable().optional(),
+    timeZone: z.string().min(1).max(128).nullable().optional(),
+    connectionState: googleConnectionStateSchema,
+    grantedScopes: z.array(z.string().min(1).max(256)).max(20),
+    missingScopes: z.array(z.string().min(1).max(256)).max(20),
+    lastAuthenticatedAt: isoDateTimeSchema.optional(),
+    updatedAt: isoDateTimeSchema
+  })
+  .strict();
+
+export type GoogleAccountConnectionStatus = z.infer<
+  typeof googleAccountConnectionStatusSchema
+>;
+
+export const googleStatusRequestSchema = emptyRequestSchema;
+
+export const googleStatusResponseSchema = z
+  .object({
+    oauthClientConfigured: z.boolean(),
+    clientId: z.string().min(1).max(500).nullable(),
+    hasClientSecret: z.boolean(),
+    account: googleAccountConnectionStatusSchema.optional()
+  })
+  .strict();
+
+export type GoogleStatusResponse = z.infer<typeof googleStatusResponseSchema>;
+
+export const googleSaveOAuthClientRequestSchema = z
+  .object({
+    clientId: z.string().trim().min(10).max(500),
+    clientSecret: z.string().trim().min(1).max(1000).nullable().optional()
+  })
+  .strict();
+
+export type GoogleSaveOAuthClientRequest = z.input<
+  typeof googleSaveOAuthClientRequestSchema
+>;
+
+export const googleBeginOAuthRequestSchema = emptyRequestSchema;
+
+export const googleBeginOAuthResponseSchema = z
+  .object({
+    accepted: z.boolean(),
+    openedExternalBrowser: z.boolean(),
+    expiresAt: isoDateTimeSchema,
+    scopes: z.array(z.string().min(1).max(256)).max(20),
+    redirectUri: z.string().url().max(2048),
+    message: z.string().min(1).max(500)
+  })
+  .strict();
+
+export type GoogleBeginOAuthResponse = z.infer<typeof googleBeginOAuthResponseSchema>;
+
+export const googleDisconnectRequestSchema = z
+  .object({
+    accountId: idSchema.optional()
+  })
+  .strict();
+
+export type GoogleDisconnectRequest = z.input<typeof googleDisconnectRequestSchema>;
 
 export const settingsGetRequestSchema = emptyRequestSchema;
 
@@ -1303,6 +1502,36 @@ export const ipcContracts = {
       "delete",
       calendarEventDeleteRequestSchema,
       mutationAckSchema
+    ),
+    listScheduledTaskBlocks: defineIpcContract(
+      "calendar",
+      "listScheduledTaskBlocks",
+      scheduledTaskBlockListRequestSchema,
+      scheduledTaskBlockListResponseSchema
+    ),
+    scheduleTaskBlock: defineIpcContract(
+      "calendar",
+      "scheduleTaskBlock",
+      scheduledTaskBlockCreateRequestSchema,
+      scheduledTaskBlockSummarySchema
+    ),
+    moveScheduledTaskBlock: defineIpcContract(
+      "calendar",
+      "moveScheduledTaskBlock",
+      scheduledTaskBlockMoveRequestSchema,
+      scheduledTaskBlockSummarySchema
+    ),
+    unscheduleTaskBlock: defineIpcContract(
+      "calendar",
+      "unscheduleTaskBlock",
+      scheduledTaskBlockUnscheduleRequestSchema,
+      mutationAckSchema
+    ),
+    exportAvailability: defineIpcContract(
+      "calendar",
+      "exportAvailability",
+      availabilityExportRequestSchema,
+      availabilityExportResponseSchema
     )
   },
   notes: {
@@ -1323,6 +1552,27 @@ export const ipcContracts = {
   sync: {
     status: defineIpcContract("sync", "status", syncStatusRequestSchema, syncStatusResponseSchema),
     runNow: defineIpcContract("sync", "runNow", syncRunNowRequestSchema, syncRunNowResponseSchema)
+  },
+  google: {
+    status: defineIpcContract("google", "status", googleStatusRequestSchema, googleStatusResponseSchema),
+    saveOAuthClient: defineIpcContract(
+      "google",
+      "saveOAuthClient",
+      googleSaveOAuthClientRequestSchema,
+      googleStatusResponseSchema
+    ),
+    beginOAuth: defineIpcContract(
+      "google",
+      "beginOAuth",
+      googleBeginOAuthRequestSchema,
+      googleBeginOAuthResponseSchema
+    ),
+    disconnect: defineIpcContract(
+      "google",
+      "disconnect",
+      googleDisconnectRequestSchema,
+      googleStatusResponseSchema
+    )
   },
   settings: {
     get: defineIpcContract("settings", "get", settingsGetRequestSchema, settingsSnapshotSchema),

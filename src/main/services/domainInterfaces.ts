@@ -1,4 +1,6 @@
 import type {
+  AvailabilityExportRequest,
+  AvailabilityExportResponse,
   CalendarRangeRequest,
   CalendarRangeResponse,
   CalendarEventCreateRequest,
@@ -8,6 +10,10 @@ import type {
   CalendarListRequest,
   CalendarListResponse,
   EntityByIdRequest,
+  GoogleBeginOAuthResponse,
+  GoogleDisconnectRequest,
+  GoogleSaveOAuthClientRequest,
+  GoogleStatusResponse,
   McpSetEnabledRequest,
   McpStatusResponse,
   NativeCapabilitiesResponse,
@@ -22,6 +28,12 @@ import type {
   SearchQueryResponse,
   SettingsRecoveryActionRequest,
   SettingsRecoveryActionResponse,
+  ScheduledTaskBlockCreateRequest,
+  ScheduledTaskBlockListRequest,
+  ScheduledTaskBlockListResponse,
+  ScheduledTaskBlockMoveRequest,
+  ScheduledTaskBlockSummary,
+  ScheduledTaskBlockUnscheduleRequest,
   SettingsSnapshot,
   SettingsUpdateRequest,
   SyncRunNowRequest,
@@ -135,6 +147,21 @@ export interface PlannerViewDomainService {
     queued: boolean;
     revision?: string;
   }>;
+  listScheduledTaskBlocks: (
+    request: ScheduledTaskBlockListRequest
+  ) => MaybePromise<ScheduledTaskBlockListResponse>;
+  scheduleTaskBlock: (
+    request: ScheduledTaskBlockCreateRequest
+  ) => MaybePromise<ScheduledTaskBlockSummary>;
+  moveScheduledTaskBlock: (
+    request: ScheduledTaskBlockMoveRequest
+  ) => MaybePromise<ScheduledTaskBlockSummary>;
+  unscheduleTaskBlock: (
+    request: ScheduledTaskBlockUnscheduleRequest
+  ) => MaybePromise<{ id: string; queued: boolean; revision?: string }>;
+  exportAvailability: (
+    request: AvailabilityExportRequest
+  ) => MaybePromise<AvailabilityExportResponse>;
   listNotes: (request: NoteListRequest) => MaybePromise<NoteListResponse>;
   getNote: (request: EntityByIdRequest) => MaybePromise<NoteDetail>;
   createNote: (request: NoteCreateRequest) => MaybePromise<NoteDetail>;
@@ -147,6 +174,13 @@ export interface SyncControlDomainService {
   status: () => MaybePromise<SyncStatusResponse>;
   runNow: (request: SyncRunNowRequest) => MaybePromise<SyncRunNowResponse>;
   subscribeStatus?: (listener: (status: SyncStatusResponse) => void) => () => void;
+}
+
+export interface GoogleControlDomainService {
+  status: () => MaybePromise<GoogleStatusResponse>;
+  saveOAuthClient: (request: GoogleSaveOAuthClientRequest) => MaybePromise<GoogleStatusResponse>;
+  beginOAuth: () => MaybePromise<GoogleBeginOAuthResponse>;
+  disconnect: (request: GoogleDisconnectRequest) => MaybePromise<GoogleStatusResponse>;
 }
 
 export interface SettingsDomainService {
@@ -170,6 +204,7 @@ export interface NativeDomainService {
 export interface AppDomainServices {
   planner: PlannerViewDomainService;
   sync: SyncControlDomainService;
+  google: GoogleControlDomainService;
   settings: SettingsDomainService;
   mcp: McpControlDomainService;
   native: NativeDomainService;

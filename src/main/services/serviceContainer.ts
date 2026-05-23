@@ -1,16 +1,33 @@
 import { createAppSqliteConnection, type SqliteConnection } from "../data/sqliteConnection";
 import { dirname } from "node:path";
+import { MacOsKeychainSecretStore, UnsupportedSecretStore, type SecretStore } from "../credentials/secretStore";
 import { runLocalDataMigrations, type MigrationResult } from "../data/migrations";
 import {
   LocalPerformanceRepository,
   LocalPlannerRepository,
   LocalSettingsRepository
 } from "../data/localRepositories";
+import {
+  GoogleCalendarHttpAdapter,
+  GoogleOAuthClientConfigStore,
+  GoogleOAuthHttpTransport,
+  GoogleOAuthLoopbackController,
+  GoogleTasksHttpAdapter,
+  KeychainGoogleCredentialAdapter,
+  KeychainGoogleOAuthClientSecretStore,
+  RuntimeGoogleAccessTokenProvider
+} from "../google";
+import { LatestGoogleAccountApiTransport } from "../google/accountTransport";
+import { RepositoryGoogleOAuthAccountStatusStore } from "../google/accountStatusStore";
+import { GoogleRuntimeService } from "../google/runtimeService";
+import { LocalMcpServerController } from "../mcp/controller";
+import { KeychainMcpCredentialAdapter } from "../mcp/keychainCredentials";
 import { McpToolRegistry } from "../mcp/toolRegistry";
 import { createNoopNativeAdapter } from "../native/noopAdapter";
 import { NativeShellService } from "../native/service";
 import type { NativeAppPaths, NativePlatformAdapter, NativeShellWindowActions } from "../native/types";
 import { GoogleSyncRepository } from "../sync/readSyncRepository";
+import { SyncScheduler } from "../sync/scheduler";
 import type {
   GoogleCalendarReadTransport,
   GoogleCalendarWriteTransport,
@@ -37,6 +54,7 @@ export interface ServiceContainer {
   performance: LocalPerformanceRepository;
   mcpTools: McpToolRegistry;
   nativeShell: NativeShellService;
+  startDeferredRuntime: () => void;
   close: () => void;
 }
 
@@ -50,6 +68,8 @@ export interface ServiceContainerOptions {
   syncCalendarTransport?: GoogleCalendarReadTransport;
   syncTasksWriteTransport?: GoogleTasksWriteTransport;
   syncCalendarWriteTransport?: GoogleCalendarWriteTransport;
+  secretStore?: SecretStore;
+  enableRuntimeGoogle?: boolean;
 }
 
 const noopWindowActions: NativeShellWindowActions = {
@@ -79,14 +99,61 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
   const plannerRepository = new LocalPlannerRepository(connection, performanceRepository);
   const settingsRepository = new LocalSettingsRepository(connection);
   const syncRepository = new GoogleSyncRepository(connection);
+  const runtimeGoogleEnabled = options.enableRuntimeGoogle ?? options.nativeAdapter !== undefined;
+  const secretStore = options.secretStore ?? defaultSecretStore();
+  const googleCredentialAdapter = new KeychainGoogleCredentialAdapter(secretStore);
+  const googleClientSecretStore = new KeychainGoogleOAuthClientSecretStore(secretStore);
+  const googleConfigStore = new GoogleOAuthClientConfigStore(connection, googleClientSecretStore);
+  const googleOAuthTransport = new GoogleOAuthHttpTransport();
+  const googleTokenProvider = new RuntimeGoogleAccessTokenProvider({
+    credentialAdapter: googleCredentialAdapter,
+    configStore: googleConfigStore,
+    refreshTransport: googleOAuthTransport
+  });
+  const googleApiTransport = new LatestGoogleAccountApiTransport({
+    repository: syncRepository,
+    tokenProvider: googleTokenProvider
+  });
+  const runtimeTasksTransport = runtimeGoogleEnabled
+    ? new GoogleTasksHttpAdapter(googleApiTransport)
+    : undefined;
+  const runtimeCalendarTransport = runtimeGoogleEnabled
+    ? new GoogleCalendarHttpAdapter(googleApiTransport)
+    : undefined;
   const sqliteDomain = createSqliteDomainServices({
     plannerRepository,
     settingsRepository,
     syncRepository,
-    syncTasksTransport: options.syncTasksTransport,
-    syncCalendarTransport: options.syncCalendarTransport,
-    syncTasksWriteTransport: options.syncTasksWriteTransport,
-    syncCalendarWriteTransport: options.syncCalendarWriteTransport
+    syncTasksTransport: options.syncTasksTransport ?? runtimeTasksTransport,
+    syncCalendarTransport: options.syncCalendarTransport ?? runtimeCalendarTransport,
+    syncTasksWriteTransport: options.syncTasksWriteTransport ?? runtimeTasksTransport,
+    syncCalendarWriteTransport: options.syncCalendarWriteTransport ?? runtimeCalendarTransport
+  });
+  let syncScheduler: SyncScheduler | undefined;
+  const googleLoopback = new GoogleOAuthLoopbackController({
+    configStore: googleConfigStore,
+    credentialAdapter: googleCredentialAdapter,
+    authorizationTransport: googleOAuthTransport,
+    accountStatusStore: new RepositoryGoogleOAuthAccountStatusStore(syncRepository),
+    openExternalUrl: async (url) =>
+      (await (options.nativeAdapter ?? createNoopNativeAdapter()).openExternalUrl(url)),
+    onConnected: () => {
+      syncScheduler?.triggerSoon(0);
+    }
+  });
+  const googleRuntime = runtimeGoogleEnabled
+    ? new GoogleRuntimeService({
+        configStore: googleConfigStore,
+        credentialAdapter: googleCredentialAdapter,
+        syncRepository,
+        loopback: googleLoopback
+      })
+    : undefined;
+  const mcpToolRegistry = new McpToolRegistry(sqliteDomain.mcpTools);
+  const mcpController = new LocalMcpServerController({
+    credentialAdapter: new KeychainMcpCredentialAdapter(secretStore),
+    toolRegistry: mcpToolRegistry,
+    getSettings: () => settingsRepository.get()
   });
   const nativeShell = new NativeShellService({
     adapter: options.nativeAdapter ?? createNoopNativeAdapter(),
@@ -104,20 +171,42 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
       update: async (request) => {
         const snapshot = await sqliteDomain.settings.update(request);
         nativeShell.applySettings(snapshot);
+        syncScheduler?.applySettings(snapshot);
+        await mcpController.applySettings(snapshot);
         return snapshot;
       },
-      recoveryAction: (request) => sqliteDomain.settings.recoveryAction(request)
+      recoveryAction: async (request) => {
+        const response = await sqliteDomain.settings.recoveryAction(request);
+
+        if (request.action === "resetMcpToken") {
+          await mcpController.resetToken();
+          await mcpController.applySettings(settingsRepository.get());
+        }
+
+        if (request.action === "refresh" || request.action === "forceFullResync") {
+          syncScheduler?.triggerSoon(0);
+        }
+
+        return response;
+      }
     },
+    google: googleRuntime ?? sqliteDomain.google,
     mcp: {
-      status: () => sqliteDomain.mcp.status(),
+      status: async () => mcpController.status(await sqliteDomain.mcp.status()),
       setEnabled: async (request) => {
         const status = await sqliteDomain.mcp.setEnabled(request);
-        nativeShell.applySettings(settingsRepository.get());
-        return status;
+        const settings = settingsRepository.get();
+        nativeShell.applySettings(settings);
+        await mcpController.applySettings(settings);
+        return mcpController.status(status);
       }
     },
     native: nativeShell
   };
+  syncScheduler = new SyncScheduler({
+    getSettings: () => settingsRepository.get(),
+    runNow: (request) => Promise.resolve(sqliteDomain.sync.runNow(request))
+  });
 
   markStartupTiming("databaseReadyMs");
   performanceRepository.record({
@@ -142,11 +231,24 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
       performanceRepository
     },
     performance: performanceRepository,
-    mcpTools: new McpToolRegistry(domain.mcpTools),
+    mcpTools: mcpToolRegistry,
     nativeShell,
+    startDeferredRuntime: () => {
+      void mcpController.applySettings(settingsRepository.get());
+      syncScheduler?.start();
+    },
     close: () => {
+      syncScheduler?.stop();
+      mcpController.dispose();
+      void googleLoopback.stop();
       nativeShell.dispose();
       connection.close();
     }
   };
+}
+
+function defaultSecretStore(): SecretStore {
+  return process.platform === "darwin"
+    ? new MacOsKeychainSecretStore()
+    : new UnsupportedSecretStore("OS credential storage is only wired for macOS in this preview.");
 }

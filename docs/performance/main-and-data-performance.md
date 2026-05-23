@@ -58,7 +58,9 @@ The Python subprocess bridge has been replaced on the primary Node/main-process 
 | Checkpoint read | 88.58ms | 0.05ms | Improved |
 | Pending mutations ready | 90.82ms | 0.03ms | Improved |
 
-Startup timing did not improve in the unpackaged Electron perf run because the local native module was installed for host Node ABI 141 while Electron expected ABI 130, so Electron used the compatibility fallback. The latest measured startup was cold shell visible 6270ms, cold cached render 10733ms, warm shell visible 6799ms, and warm cached render 13293ms. The next performance gate is a packaged preview smoke that verifies `electron-builder` rebuilds and unpacks `better_sqlite3.node` so Electron uses the native adapter.
+2026-05-23 perf smoke after deferring Google status and deep diagnostics from first render: cold shell visible 435ms, cold cached render 486ms, warm shell visible 256ms, warm cached render 339ms, command palette 18-19ms, task completion feedback 53-70ms, and Search UI 38.97ms cold / 34.07ms warm. Electron IPC routes stayed on the native adapter (`settings.get` ~0.1ms, task list reads ~1-2ms, calendar range reads ~2-3ms, local search ~3ms). The remaining soft performance watch is cold cached-render-after-database-open at 375ms against the 300ms target.
+
+The same smoke intentionally rebuilt the local native module for Electron ABI 130 before launch, so Node-side direct SQLite measurements in that run used the Python compatibility fallback and were slow. The release gate should keep both checks: Node ABI tests prove local developer/unit-test behavior, and Electron/package smoke proves the actual app runtime does not fall back to Python.
 
 ## Search And Indexing
 

@@ -77,7 +77,7 @@ export class NativeShellService implements NativeDomainService {
     this.status = {
       ...this.status,
       mcpStatus: snapshot.mcpEnabled
-        ? featureStatus("pending", "MCP listener startup is deferred until secure token storage is wired.")
+        ? featureStatus("pending", "MCP listener startup is managed by the main runtime service.")
         : featureStatus("disabled", "MCP local agent access is disabled.")
     };
 
@@ -625,7 +625,7 @@ export class NativeShellService implements NativeDomainService {
     this.status = {
       ...this.status,
       mcpStatus: settings.mcpEnabled
-        ? featureStatus("pending", "MCP listener startup remains deferred until secure token storage is wired.")
+        ? featureStatus("pending", "MCP listener startup is managed by the main runtime service.")
         : featureStatus("disabled", "MCP local agent access is disabled.")
     };
   }

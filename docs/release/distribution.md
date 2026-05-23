@@ -15,6 +15,8 @@ Initial macOS targets:
 - DMG artifact
 - zip artifact
 - `SHA256` checksum file
+- stable latest aliases for the newest local DMG/zip
+- per-artifact `.sha256` files
 - GitHub Releases upload
 - release notes
 
@@ -58,6 +60,7 @@ pnpm test
 pnpm build:release:mac
 pnpm release:review-bundle
 CSC_IDENTITY_AUTO_DISCOVERY=false pnpm exec electron-builder --mac --publish never
+pnpm release:mac-artifacts
 pnpm release:checksums
 ```
 
@@ -74,6 +77,7 @@ pnpm test
 pnpm build:release:mac
 pnpm release:review-bundle
 CSC_IDENTITY_AUTO_DISCOVERY=false pnpm exec electron-builder --mac --publish never
+pnpm release:mac-artifacts
 pnpm release:checksums
 ```
 
@@ -82,7 +86,12 @@ Expected artifact paths:
 ```text
 release/Hot-Cross-Buns-2-<version>-mac-<arch>.dmg
 release/Hot-Cross-Buns-2-<version>-mac-<arch>.zip
+release/Hot-Cross-Buns-2-macOS.dmg
+release/Hot-Cross-Buns-2-macOS.zip
+release/Hot-Cross-Buns-2-macOS-<arch>.dmg
+release/Hot-Cross-Buns-2-macOS-<arch>.zip
 release/SHASUMS256.txt
+release/*.sha256
 artifacts/release/bundle-review.json
 artifacts/release/bundle-review.md
 ```
@@ -106,6 +115,14 @@ scripts/install-mac-preview.sh release/Hot-Cross-Buns-2-0.0.0-mac-arm64.dmg rele
 ```
 
 The helper verifies the artifact checksum before copying the contained `.app` bundle. It does not sign, notarize, bypass Gatekeeper, or enable updates.
+
+Optional DMG bundle smoke after packaging:
+
+```sh
+pnpm release:smoke-dmg
+```
+
+The smoke script mounts the DMG read-only and verifies the `.app` bundle, executable, and bundle id. It is not a substitute for signed/notarized Gatekeeper QA.
 
 ## Version Metadata
 
@@ -161,6 +178,9 @@ TAG="v${VERSION}"
 gh release create "$TAG" \
   release/Hot-Cross-Buns-2-${VERSION}-mac-*.dmg \
   release/Hot-Cross-Buns-2-${VERSION}-mac-*.zip \
+  release/Hot-Cross-Buns-2-macOS*.dmg \
+  release/Hot-Cross-Buns-2-macOS*.zip \
+  release/*.sha256 \
   release/SHASUMS256.txt \
   --draft \
   --title "Hot Cross Buns 2 ${VERSION}" \

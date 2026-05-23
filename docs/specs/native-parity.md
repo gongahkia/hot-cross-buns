@@ -16,7 +16,7 @@ Mac core v1 includes:
 - custom protocol deep links
 - Keychain-backed tokens
 
-Current implementation note: the Electron macOS adapter contains app-menu, menu-bar, global-shortcut, notification, and protocol-registration code paths. The menu-bar implementation uses the copied legacy template icon, supports a left-click agenda panel, a right-click utility menu, adaptive/agenda/compact panel styles, and an overdue title badge. Keychain-backed Google OAuth/MCP credential storage and the startup-safe live MCP listener lifecycle are not wired yet and remain Mac v1 release blockers.
+Current implementation note: the Electron macOS adapter contains app-menu, menu-bar, global-shortcut, notification, protocol-registration, OAuth loopback, MCP loopback, and credential-storage capability code paths. The menu-bar implementation uses the copied legacy template icon, supports a left-click agenda panel, a right-click utility menu, adaptive/agenda/compact panel styles, and an overdue title badge. Keychain-backed Google OAuth/MCP credential storage and startup-safe live MCP listener lifecycle are wired for macOS preview builds; packaged-app manual QA and external MCP client verification remain release blockers.
 
 ## Deferred Native Parity
 

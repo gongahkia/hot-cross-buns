@@ -117,6 +117,7 @@ function createMainWindow(): BrowserWindow {
     flushPendingNativeActions();
     setTimeout(() => {
       services?.nativeShell.startDeferredStartup();
+      services?.startDeferredRuntime();
     }, 2_500);
   });
 

@@ -12,7 +12,8 @@ import { err, ok } from "@shared/ipc/result";
 import App from "./App";
 
 const originalHcb = window.hcb;
-const now = "2026-05-22T00:00:00.000Z";
+const todayDate = new Date().toISOString().slice(0, 10);
+const now = `${todayDate}T00:00:00.000Z`;
 
 afterEach(() => {
   cleanup();
@@ -320,8 +321,8 @@ function seededHcb(): HcbApi {
               id: "event-standup",
               calendarId: "cal-product",
               title: "Planner shell standup",
-              startsAt: "2026-05-22T09:30:00.000Z",
-              endsAt: "2026-05-22T09:50:00.000Z",
+              startsAt: `${todayDate}T09:30:00.000Z`,
+              endsAt: `${todayDate}T09:50:00.000Z`,
               allDay: false,
               updatedAt: now
             },
@@ -329,13 +330,71 @@ function seededHcb(): HcbApi {
               id: "event-review",
               calendarId: "cal-product",
               title: "Renderer acceptance review",
-              startsAt: "2026-05-22T15:30:00.000Z",
-              endsAt: "2026-05-22T16:15:00.000Z",
+              startsAt: `${todayDate}T15:30:00.000Z`,
+              endsAt: `${todayDate}T16:15:00.000Z`,
               allDay: false,
               updatedAt: now
             }
           ],
           page: { limit: 250, totalKnown: 2 }
+        })
+      ),
+      listScheduledTaskBlocks: vi.fn(async () =>
+        ok({
+          items: [],
+          page: { limit: 250, totalKnown: 0 }
+        })
+      ),
+      scheduleTaskBlock: vi.fn(async (request) =>
+        ok({
+          id: "block-created",
+          taskId: request.taskId,
+          calendarEventId: "event-task-block",
+          calendarId: request.calendarId,
+          title: request.taskId === "task-calendar-fixtures"
+            ? "Review calendar fixture shape"
+            : "Draft inbox triage rules",
+          startsAt: request.startsAt,
+          endsAt: new Date(
+            Date.parse(request.startsAt) + (request.durationMinutes ?? 30) * 60 * 1000
+          ).toISOString(),
+          durationMinutes: request.durationMinutes ?? 30,
+          status: "scheduled" as const,
+          mutationState: "queued" as const,
+          updatedAt: now
+        })
+      ),
+      moveScheduledTaskBlock: vi.fn(async (request) =>
+        ok({
+          id: request.id,
+          taskId: "task-inbox-rules",
+          calendarEventId: "event-task-block",
+          calendarId: request.calendarId ?? "cal-product",
+          title: "Draft inbox triage rules",
+          startsAt: request.startsAt ?? `${todayDate}T10:00:00.000Z`,
+          endsAt: new Date(
+            Date.parse(request.startsAt ?? `${todayDate}T10:00:00.000Z`) +
+              (request.durationMinutes ?? 30) * 60 * 1000
+          ).toISOString(),
+          durationMinutes: request.durationMinutes ?? 30,
+          status: "scheduled" as const,
+          mutationState: "queued" as const,
+          updatedAt: now
+        })
+      ),
+      unscheduleTaskBlock: vi.fn(async (request) =>
+        ok({
+          id: request.id,
+          queued: request.deleteCalendarEvent ?? true,
+          revision: now
+        })
+      ),
+      exportAvailability: vi.fn(async (request) =>
+        ok({
+          format: "text" as const,
+          text: `Availability from ${request.start} to ${request.end}`,
+          generatedAt: now,
+          busyBlockCount: 2
         })
       )
     },
@@ -615,7 +674,7 @@ describe("App shell", () => {
     expect(completeCommand).toHaveTextContent("No selected task");
 
     await user.keyboard("{Escape}");
-    await user.click(screen.getByRole("button", { name: /Draft inbox triage rules Today/ }));
+    await user.click(screen.getByRole("button", { name: /^Draft inbox triage rules / }));
     expect(completeButton).not.toBeDisabled();
   });
 
@@ -708,7 +767,7 @@ describe("App shell", () => {
       );
     });
 
-    await user.click(screen.getByRole("button", { name: /Draft inbox triage rules Today/ }));
+    await user.click(screen.getByRole("button", { name: /^Draft inbox triage rules / }));
     const titleInput = screen.getByRole("textbox", { name: "Task title" });
     await user.clear(titleInput);
     await user.type(titleInput, "Draft inbox triage rules v2");
@@ -725,7 +784,7 @@ describe("App shell", () => {
       );
     });
 
-    await user.click(screen.getByRole("button", { name: /Review calendar fixture shape Today/ }));
+    await user.click(screen.getByRole("button", { name: /^Review calendar fixture shape / }));
     await user.click(screen.getByRole("button", { name: "Delete selected task" }));
     expect(api.tasks.delete).toHaveBeenCalledWith({ id: "task-calendar-fixtures" });
 
@@ -871,8 +930,8 @@ describe("App shell", () => {
 
     await user.click(screen.getByRole("button", { name: /New event/ }));
     await user.type(screen.getByRole("textbox", { name: "Event title" }), "Design review");
-    fireEvent.change(screen.getByLabelText("Event starts"), { target: { value: "2026-05-22T11:00" } });
-    fireEvent.change(screen.getByLabelText("Event ends"), { target: { value: "2026-05-22T12:00" } });
+    fireEvent.change(screen.getByLabelText("Event starts"), { target: { value: `${todayDate}T11:00` } });
+    fireEvent.change(screen.getByLabelText("Event ends"), { target: { value: `${todayDate}T12:00` } });
     await user.type(screen.getByRole("textbox", { name: "Event location" }), "Room 3");
     await user.type(screen.getByRole("textbox", { name: "Event guests" }), "ada@example.com");
     await user.selectOptions(screen.getByLabelText("Event reminder"), "15");
@@ -884,8 +943,8 @@ describe("App shell", () => {
         expect.objectContaining({
           title: "Design review",
           calendarId: "cal-product",
-          startsAt: "2026-05-22T11:00:00.000Z",
-          endsAt: "2026-05-22T12:00:00.000Z",
+          startsAt: `${todayDate}T11:00:00.000Z`,
+          endsAt: `${todayDate}T12:00:00.000Z`,
           allDay: false,
           location: "Room 3",
           notes: "Bring mocks.",

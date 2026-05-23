@@ -37,9 +37,9 @@ Status on 2026-05-22:
 
 Remaining blockers:
 
-- The flow reports OAuth/runtime readiness only; it does not add production OAuth client collection, Keychain token storage, or authenticated Google transport construction.
-- Task-list and calendar choices come from cached local rows. Live Google account connection and first sync still need the Google sync/runtime work.
-- MCP setup persists local settings only; the live listener and bearer token credential lifecycle remain separate Mac v1 blockers.
+- Google OAuth client collection, Keychain token storage, authenticated Google transports, and sync scheduling are now implemented for macOS preview builds.
+- Task-list and calendar choices still come from cached local rows; live Google account QA and first-sync resource-selection polish remain.
+- MCP setup now controls the live listener and Keychain-backed bearer-token lifecycle; external MCP client QA remains.
 
 Acceptance checks:
 
