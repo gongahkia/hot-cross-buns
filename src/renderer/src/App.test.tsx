@@ -1164,7 +1164,65 @@ describe("App shell", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete selected note" }));
     expect(api.notes.delete).toHaveBeenCalledWith({ id: "note-cache-first" });
-    expect(screen.getByText("No note selected")).toBeInTheDocument();
+    expect(screen.getAllByText("No note selected").length).toBeGreaterThan(0);
+  });
+
+  it("renders note markdown preview, outgoing links, and backlinks", async () => {
+    const api = seededHcb();
+    api.notes.list = vi.fn(async () =>
+      ok({
+        items: [
+          {
+            id: "note-project",
+            title: "Project plan",
+            preview: "See [[Daily note]]",
+            updatedAt: now
+          },
+          {
+            id: "note-daily",
+            title: "Daily note",
+            preview: "Back to [[Project plan]]",
+            updatedAt: now
+          }
+        ],
+        page: { limit: 50, totalKnown: 2 }
+      })
+    );
+    api.notes.get = vi.fn(async ({ id }) =>
+      ok(
+        id === "note-daily"
+          ? {
+              id,
+              title: "Daily note",
+              preview: "Back to [[Project plan]]",
+              body: "Back to [[Project plan]]",
+              updatedAt: now
+            }
+          : {
+              id,
+              title: "Project plan",
+              preview: "See [[Daily note]]",
+              body: "# Plan\n- [x] Kickoff\nSee [[Daily note]]",
+              updatedAt: now
+            }
+      )
+    );
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await goToSection("Notes");
+    expect(await screen.findByDisplayValue("Project plan")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Preview" }));
+
+    const preview = await screen.findByRole("region", { name: "Note preview" });
+    expect(within(preview).getByText("Plan")).toBeInTheDocument();
+    expect(within(preview).getByText("Kickoff")).toBeInTheDocument();
+    expect(within(preview).getByRole("button", { name: "Daily note" })).toBeInTheDocument();
+
+    await user.click(await screen.findByRole("button", { name: "Open linked note Daily note" }));
+    expect(await screen.findByDisplayValue("Daily note")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Open backlink Project plan" })).toBeInTheDocument();
   });
 
   it("renders search results for task, event, note, and empty local queries", async () => {

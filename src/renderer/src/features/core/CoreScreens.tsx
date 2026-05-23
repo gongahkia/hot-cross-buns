@@ -2708,16 +2708,177 @@ function buildPreview(body: string): string {
   return trimmed.length > 92 ? `${trimmed.slice(0, 89)}...` : trimmed;
 }
 
+function normalizedNoteTitle(title: string): string {
+  return title.trim().toLowerCase();
+}
+
+function extractNoteLinks(body: string): string[] {
+  const links = new Set<string>();
+  const pattern = /\[\[([^\]]{1,160})\]\]/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(body)) !== null) {
+    const title = match[1]?.trim();
+
+    if (title) {
+      links.add(title);
+    }
+  }
+
+  return Array.from(links);
+}
+
+function renderInlineNoteLinks(
+  value: string,
+  onOpenNoteLink: (title: string) => void
+): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  const pattern = /\[\[([^\]]{1,160})\]\]/g;
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(value)) !== null) {
+    const title = match[1]?.trim() ?? "";
+
+    if (match.index > cursor) {
+      nodes.push(value.slice(cursor, match.index));
+    }
+
+    nodes.push(
+      <button
+        className="rounded-hcbSm px-1 text-accent underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        key={`${title}-${match.index}`}
+        onClick={() => onOpenNoteLink(title)}
+        type="button"
+      >
+        {title}
+      </button>
+    );
+    cursor = match.index + match[0].length;
+  }
+
+  if (cursor < value.length) {
+    nodes.push(value.slice(cursor));
+  }
+
+  return nodes.length > 0 ? nodes : [value];
+}
+
+function MarkdownPreview({
+  body,
+  onOpenNoteLink
+}: {
+  body: string;
+  onOpenNoteLink: (title: string) => void;
+}): JSX.Element {
+  const lines = body.split(/\r?\n/);
+
+  if (body.trim().length === 0) {
+    return <EmptyState description="This note has no body yet." title="Empty note" />;
+  }
+
+  return (
+    <div
+      aria-label="Note preview"
+      className="grid min-h-[260px] content-start gap-2 rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary"
+      role="region"
+    >
+      {lines.map((line, index) => {
+        const trimmed = line.trim();
+
+        if (!trimmed) {
+          return <div aria-hidden="true" className="h-2" key={`blank-${index}`} />;
+        }
+
+        const heading = /^(#{1,3})\s+(.+)$/.exec(trimmed);
+        if (heading) {
+          const level = heading[1].length;
+          const className =
+            level === 1
+              ? "text-[var(--text-xl)] font-semibold"
+              : level === 2
+                ? "text-[var(--text-lg)] font-semibold"
+                : "text-[var(--text-md)] font-semibold";
+
+          return (
+            <div className={className} key={`heading-${index}`}>
+              {renderInlineNoteLinks(heading[2], onOpenNoteLink)}
+            </div>
+          );
+        }
+
+        const taskItem = /^[-*]\s+\[( |x|X)\]\s+(.+)$/.exec(trimmed);
+        if (taskItem) {
+          const checked = taskItem[1].toLowerCase() === "x";
+
+          return (
+            <div className="flex items-start gap-2" key={`task-${index}`}>
+              <input
+                checked={checked}
+                className="mt-1 accent-[var(--color-accent)]"
+                readOnly
+                type="checkbox"
+              />
+              <span className={cx("min-w-0", checked && "text-text-muted line-through")}>
+                {renderInlineNoteLinks(taskItem[2], onOpenNoteLink)}
+              </span>
+            </div>
+          );
+        }
+
+        const listItem = /^[-*]\s+(.+)$/.exec(trimmed);
+        if (listItem) {
+          return (
+            <div className="flex items-start gap-2" key={`list-${index}`}>
+              <span className="text-text-muted">-</span>
+              <span className="min-w-0">{renderInlineNoteLinks(listItem[1], onOpenNoteLink)}</span>
+            </div>
+          );
+        }
+
+        const quote = /^>\s+(.+)$/.exec(trimmed);
+        if (quote) {
+          return (
+            <blockquote
+              className="border-l-2 border-accent pl-3 text-text-secondary"
+              key={`quote-${index}`}
+            >
+              {renderInlineNoteLinks(quote[1], onOpenNoteLink)}
+            </blockquote>
+          );
+        }
+
+        return <p key={`paragraph-${index}`}>{renderInlineNoteLinks(trimmed, onOpenNoteLink)}</p>;
+      })}
+    </div>
+  );
+}
+
 function NotesView(): JSX.Element {
   const source = useCoreViewModelSource();
   const [notes, setNotes] = useState<NoteViewModel[]>(source.initialNotes);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(
     source.initialNotes[0]?.id ?? null
   );
+  const [noteViewMode, setNoteViewMode] = useState<"edit" | "preview">("edit");
   const [draftCounter, setDraftCounter] = useState(1);
   const requestedNoteDetails = useRef(new Set<string>());
   const lastNoteEditReportAt = useRef(0);
   const selectedNote = notes.find((note) => note.id === selectedNoteId) ?? null;
+  const noteByNormalizedTitle = useMemo(
+    () => new Map(notes.map((note) => [normalizedNoteTitle(note.title), note])),
+    [notes]
+  );
+  const selectedNoteLinks = selectedNote ? extractNoteLinks(selectedNote.body) : [];
+  const selectedNoteBacklinks = selectedNote
+    ? notes.filter(
+        (note) =>
+          note.id !== selectedNote.id &&
+          extractNoteLinks(note.body).some(
+            (title) => normalizedNoteTitle(title) === normalizedNoteTitle(selectedNote.title)
+          )
+      )
+    : [];
 
   useEffect(() => {
     requestedNoteDetails.current.clear();
@@ -2765,6 +2926,39 @@ function NotesView(): JSX.Element {
       cancelled = true;
     };
   }, [selectedNote?.id]);
+
+  useEffect(() => {
+    for (const note of notes) {
+      if (
+        note.id === selectedNote?.id ||
+        note.id.startsWith("note-draft-") ||
+        requestedNoteDetails.current.has(note.id)
+      ) {
+        continue;
+      }
+
+      requestedNoteDetails.current.add(note.id);
+      void window.hcb?.notes.get({ id: note.id }).then((result) => {
+        if (!result?.ok) {
+          return;
+        }
+
+        setNotes((current) =>
+          current.map((currentNote) =>
+            currentNote.id === result.data.id
+              ? {
+                  id: result.data.id,
+                  title: result.data.title,
+                  body: result.data.body,
+                  preview: result.data.preview,
+                  updatedLabel: currentNote.updatedLabel
+                }
+              : currentNote
+          )
+        );
+      });
+    }
+  }, [notes, selectedNote?.id]);
 
   useEffect(() => {
     function handleNoteCommand(event: Event): void {
@@ -2883,78 +3077,171 @@ function NotesView(): JSX.Element {
     setSelectedNoteId(nextNotes[0]?.id ?? null);
   }
 
+  function openNoteLink(title: string): void {
+    const linkedNote = noteByNormalizedTitle.get(normalizedNoteTitle(title));
+
+    if (linkedNote) {
+      setSelectedNoteId(linkedNote.id);
+    }
+  }
+
   return (
     <SectionChrome
       title="Notes"
       sidebar={
-        <Panel
-          action={
-            <Button
-              data-action-id="note.create"
-              onClick={createNote}
-              size="sm"
-              title={actionDescription("note.create")}
-              variant="primary"
-            >
-              <Plus aria-hidden="true" size={14} />
-              {actionLabel("note.create")}
-            </Button>
-          }
-          title="Local notes"
-          description="Local SQLite notes"
-        >
-          <VirtualizedList
-            ariaLabel="Local notes"
-            emptyState={
-              <EmptyState
-                description="Create a local note to populate SQLite."
-                title="No local notes"
-              />
+        <div className="grid gap-3">
+          <Panel
+            action={
+              <Button
+                data-action-id="note.create"
+                onClick={createNote}
+                size="sm"
+                title={actionDescription("note.create")}
+                variant="primary"
+              >
+                <Plus aria-hidden="true" size={14} />
+                {actionLabel("note.create")}
+              </Button>
             }
-            estimateRowHeight={66}
-            getKey={(note) => note.id}
-            items={notes}
-            performanceLabel="notes.list"
-            renderRow={(note) => (
-              <div className="border-b border-border last:border-b-0" role="listitem">
-                <button
-                  aria-current={note.id === selectedNoteId ? "true" : undefined}
-                  className={cx(
-                    "flex min-h-[66px] w-full items-center gap-3 px-3 py-2 text-left transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                    note.id === selectedNoteId ? "bg-surface-0" : "bg-transparent hover:bg-surface-0"
-                  )}
-                  onClick={() => setSelectedNoteId(note.id)}
-                  type="button"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className="truncate text-[var(--text-md)] font-medium text-text-primary">
-                        {note.title}
-                      </span>
-                      <span className="shrink-0 text-[var(--text-xs)] text-text-muted">
-                        {note.updatedLabel}
-                      </span>
+            title="Local notes"
+            description="Local SQLite notes"
+          >
+            <VirtualizedList
+              ariaLabel="Local notes"
+              emptyState={
+                <EmptyState
+                  description="Create a local note to populate SQLite."
+                  title="No local notes"
+                />
+              }
+              estimateRowHeight={66}
+              getKey={(note) => note.id}
+              items={notes}
+              performanceLabel="notes.list"
+              renderRow={(note) => (
+                <div className="border-b border-border last:border-b-0" role="listitem">
+                  <button
+                    aria-current={note.id === selectedNoteId ? "true" : undefined}
+                    className={cx(
+                      "flex min-h-[66px] w-full items-center gap-3 px-3 py-2 text-left transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                      note.id === selectedNoteId ? "bg-surface-0" : "bg-transparent hover:bg-surface-0"
+                    )}
+                    onClick={() => setSelectedNoteId(note.id)}
+                    type="button"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="truncate text-[var(--text-md)] font-medium text-text-primary">
+                          {note.title}
+                        </span>
+                        <span className="shrink-0 text-[var(--text-xs)] text-text-muted">
+                          {note.updatedLabel}
+                        </span>
+                      </div>
+                      <p className="truncate text-[var(--text-sm)] text-text-muted">{note.preview}</p>
                     </div>
-                    <p className="truncate text-[var(--text-sm)] text-text-muted">{note.preview}</p>
+                    <Badge tone="info">Local</Badge>
+                  </button>
+                </div>
+              )}
+              viewportHeight={366}
+            />
+          </Panel>
+          <Panel
+            title="Note links"
+            description={
+              selectedNote
+                ? `${selectedNoteLinks.length} outgoing, ${selectedNoteBacklinks.length} backlinks`
+                : "No note"
+            }
+          >
+            {selectedNote ? (
+              <div className="grid gap-3 p-3">
+                <div className="grid gap-2">
+                  <div className="text-[var(--text-xs)] font-semibold uppercase text-text-muted">
+                    Links
                   </div>
-                  <Badge tone="info">Local</Badge>
-                </button>
+                  {selectedNoteLinks.length > 0 ? (
+                    selectedNoteLinks.map((title) => {
+                      const linkedNote = noteByNormalizedTitle.get(normalizedNoteTitle(title));
+
+                      return linkedNote ? (
+                        <Button
+                          aria-label={`Open linked note ${linkedNote.title}`}
+                          key={title}
+                          onClick={() => setSelectedNoteId(linkedNote.id)}
+                          size="sm"
+                          variant="ghost"
+                        >
+                          <Search aria-hidden="true" size={14} />
+                          {linkedNote.title}
+                        </Button>
+                      ) : (
+                        <Badge key={title} tone="neutral">{title}</Badge>
+                      );
+                    })
+                  ) : (
+                    <span className="text-[var(--text-sm)] text-text-muted">None</span>
+                  )}
+                </div>
+                <div className="grid gap-2">
+                  <div className="text-[var(--text-xs)] font-semibold uppercase text-text-muted">
+                    Backlinks
+                  </div>
+                  {selectedNoteBacklinks.length > 0 ? (
+                    selectedNoteBacklinks.map((note) => (
+                      <Button
+                        aria-label={`Open backlink ${note.title}`}
+                        key={note.id}
+                        onClick={() => setSelectedNoteId(note.id)}
+                        size="sm"
+                        variant="ghost"
+                      >
+                        <RotateCcw aria-hidden="true" size={14} />
+                        {note.title}
+                      </Button>
+                    ))
+                  ) : (
+                    <span className="text-[var(--text-sm)] text-text-muted">None</span>
+                  )}
+                </div>
               </div>
+            ) : (
+              <EmptyState description="Select a note to inspect links." title="No note selected" />
             )}
-            viewportHeight={366}
-          />
-        </Panel>
+          </Panel>
+        </div>
       }
     >
       <Panel
         action={
-          <IconButton
-            disabled={!selectedNote}
-            icon={Trash2}
-            label="Delete selected note"
-            onClick={deleteSelectedNote}
-            variant="danger"
-          />
+          <div className="flex items-center gap-2">
+            <Button
+              disabled={!selectedNote}
+              onClick={() => setNoteViewMode("edit")}
+              size="sm"
+              variant={noteViewMode === "edit" ? "secondary" : "ghost"}
+            >
+              <Pencil aria-hidden="true" size={14} />
+              Edit
+            </Button>
+            <Button
+              disabled={!selectedNote}
+              onClick={() => setNoteViewMode("preview")}
+              size="sm"
+              variant={noteViewMode === "preview" ? "secondary" : "ghost"}
+            >
+              <Search aria-hidden="true" size={14} />
+              Preview
+            </Button>
+            <IconButton
+              disabled={!selectedNote}
+              icon={Trash2}
+              label="Delete selected note"
+              onClick={deleteSelectedNote}
+              variant="danger"
+            />
+          </div>
         }
         title="Note editor"
         description="Local-only note content"
@@ -2967,13 +3254,17 @@ function NotesView(): JSX.Element {
               onChange={(event) => updateSelectedNote({ title: event.target.value })}
               value={selectedNote.title}
             />
-            <textarea
-              aria-label="Note body"
-              className="min-h-[260px] w-full resize-none rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary placeholder:text-text-muted transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              onBlur={() => void persistSelectedNote()}
-              onChange={(event) => updateSelectedNote({ body: event.target.value })}
-              value={selectedNote.body}
-            />
+            {noteViewMode === "edit" ? (
+              <textarea
+                aria-label="Note body"
+                className="min-h-[260px] w-full resize-none rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary placeholder:text-text-muted transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                onBlur={() => void persistSelectedNote()}
+                onChange={(event) => updateSelectedNote({ body: event.target.value })}
+                value={selectedNote.body}
+              />
+            ) : (
+              <MarkdownPreview body={selectedNote.body} onOpenNoteLink={openNoteLink} />
+            )}
           </div>
         ) : (
           <EmptyState
