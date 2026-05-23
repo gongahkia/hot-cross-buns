@@ -109,7 +109,7 @@ Do not:
 
 Acceptance checks:
 - Run pnpm typecheck.
-- Run pnpm test -- src/renderer/src/App.test.tsx if supported by the repo scripts; otherwise run pnpm test.
+- Run pnpm exec vitest run --config vitest.config.ts src/renderer/src/App.test.tsx.
 - Run pnpm build.
 - Summarize visual changes, preserved behaviors, screenshots reviewed, and any performance risk.
 ```
@@ -156,7 +156,7 @@ Do not:
 
 Acceptance checks:
 - Run pnpm typecheck.
-- Run pnpm test -- src/renderer/src/App.test.tsx if supported by the repo scripts; otherwise run pnpm test.
+- Run pnpm exec vitest run --config vitest.config.ts src/renderer/src/App.test.tsx.
 - Run pnpm build.
 - Summarize source/context changes, screenshots reviewed, accessibility checks, and remaining gaps.
 ```
@@ -204,7 +204,7 @@ Do not:
 
 Acceptance checks:
 - Run pnpm typecheck.
-- Run pnpm test -- src/renderer/src/App.test.tsx if supported by the repo scripts; otherwise run pnpm test.
+- Run pnpm exec vitest run --config vitest.config.ts src/renderer/src/App.test.tsx.
 - Run pnpm build.
 - Summarize scheduling changes, screenshots reviewed, preserved data behavior, and follow-up backend needs.
 ```

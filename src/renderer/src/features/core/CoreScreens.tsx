@@ -5,6 +5,7 @@ import type {
   CalendarEventUpdateRequest,
   SavedSearchView,
   SavedTaskView,
+  ScheduleSlot,
   SettingsRecoveryActionRequest,
   SettingsSnapshot,
   SettingsUpdateRequest,
@@ -4926,6 +4927,47 @@ function SettingsView(): JSX.Element {
               ))}
             </select>
           </label>
+          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+            <span>Today capacity</span>
+            <Input
+              aria-label="Today capacity minutes"
+              max={1440}
+              min={5}
+              onChange={(event) =>
+                updateSettings({ todayCapacityMinutes: Number(event.target.value) })
+              }
+              type="number"
+              value={settings.todayCapacityMinutes}
+            />
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+              <span>Start hour</span>
+              <Input
+                aria-label="Today working hours start"
+                max={23}
+                min={0}
+                onChange={(event) =>
+                  updateSettings({ todayWorkingHoursStart: Number(event.target.value) })
+                }
+                type="number"
+                value={settings.todayWorkingHoursStart}
+              />
+            </label>
+            <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+              <span>End hour</span>
+              <Input
+                aria-label="Today working hours end"
+                max={24}
+                min={1}
+                onChange={(event) =>
+                  updateSettings({ todayWorkingHoursEnd: Number(event.target.value) })
+                }
+                type="number"
+                value={settings.todayWorkingHoursEnd}
+              />
+            </label>
+          </div>
           <div className="min-w-0 rounded-hcbMd border border-border bg-bg-tertiary">
             <div className="border-b border-border px-3 py-2">
               <h3 className="truncate text-[var(--text-md)] font-semibold text-text-primary">Task lists</h3>

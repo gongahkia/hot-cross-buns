@@ -124,6 +124,7 @@ interface CoreDataSnapshot {
   calendars: CalendarListSummary[];
   events: CalendarEventSummary[];
   scheduledTaskBlocks: ScheduledTaskBlockSummary[];
+  scheduleSuggestion: CalendarScheduleSuggestResponse;
   notes: NoteSummary[];
   settings: SettingsSnapshot;
   syncStatus: SyncStatusResponse;
@@ -276,6 +277,11 @@ const emptySnapshot: CoreDataSnapshot = {
   calendars: [],
   events: [],
   scheduledTaskBlocks: [],
+  scheduleSuggestion: {
+    slots: [],
+    unscheduled: [],
+    overloadMinutes: 0
+  },
   notes: [],
   settings: emptySettings,
   syncStatus: emptySyncStatus,
@@ -1211,6 +1217,17 @@ async function loadCoreData(): Promise<CoreDataSnapshot> {
     window.hcb.diagnostics.health().then((result) => unwrap(result, "Diagnostics failed")),
     window.hcb.native.capabilities().then((result) => unwrap(result, "Native status failed"))
   ]);
+  const scheduleDate = dayKey(startOfUtcDay(new Date()));
+  const scheduleSuggestion = await window.hcb.calendar
+    .scheduleSuggest({
+      date: scheduleDate,
+      capacityMinutes: settings.todayCapacityMinutes,
+      workingHours: {
+        start: settings.todayWorkingHoursStart,
+        end: settings.todayWorkingHoursEnd
+      }
+    })
+    .then((result) => unwrap(result, "Schedule suggestion failed"));
 
   return {
     taskLists: taskLists.items,
@@ -1218,6 +1235,7 @@ async function loadCoreData(): Promise<CoreDataSnapshot> {
     calendars: calendars.items,
     events: events.items,
     scheduledTaskBlocks: scheduledTaskBlocks.items,
+    scheduleSuggestion,
     notes: notes.items,
     settings,
     syncStatus,
@@ -1424,6 +1442,7 @@ function buildCoreViewModelSource(
       focusTasks: unscheduledOpenTasks.slice(0, 6),
       currentTimeLabel: timeLabel(now.toISOString(), snapshot.settings.defaultTimeZone),
       conflictCount,
+      schedule: snapshot.scheduleSuggestion,
       nextUp,
       timelineRows: todayTimelineRows
     }
@@ -1597,7 +1616,13 @@ function settingsSections(snapshot: CoreDataSnapshot): SettingsSectionViewModel[
       rows: [
         { id: "task-lists", label: "Selected task lists", value: String(selectedTaskListCount) },
         { id: "calendars", label: "Selected calendars", value: String(selectedCalendarCount) },
-        { id: "default-time-zone", label: "Default timezone", value: snapshot.settings.defaultTimeZone }
+        { id: "default-time-zone", label: "Default timezone", value: snapshot.settings.defaultTimeZone },
+        { id: "today-capacity", label: "Today capacity", value: `${snapshot.settings.todayCapacityMinutes} min` },
+        {
+          id: "today-hours",
+          label: "Today hours",
+          value: `${snapshot.settings.todayWorkingHoursStart}:00-${snapshot.settings.todayWorkingHoursEnd}:00`
+        }
       ]
     },
     {
