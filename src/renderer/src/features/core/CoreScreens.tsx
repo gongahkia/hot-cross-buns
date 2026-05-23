@@ -1583,7 +1583,7 @@ function buildTaskPerspective(
     );
     groups = buildGroupedTaskPerspective("dueDate", byDate, taskLists);
   } else if (perspectiveId === "review") {
-    const reviewBefore = Date.now() - 14 * 24 * 60 * 60 * 1000;
+    const reviewBefore = now.getTime() - 14 * 24 * 60 * 60 * 1000;
     const reviewTasks = statusFilteredTasks.filter(
       (task) => task.status === "open" && Date.parse(task.updatedAt ?? "") < reviewBefore
     );
@@ -1613,7 +1613,7 @@ function TasksView({ command }: { command?: TaskSurfaceCommand | null }): JSX.El
     update: updateInspector
   } = useInspector();
   const [activeFilterId, setActiveFilterId] = useState<TaskFilterId>("open");
-  const [activePerspectiveId, setActivePerspectiveId] = useState<TaskPerspectiveId>("inbox");
+  const [activePerspectiveId, setActivePerspectiveId] = useState<TaskPerspectiveId>("projects");
   const [activeSavedTaskViewId, setActiveSavedTaskViewId] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [draft, setDraftState] = useState<TaskDraft>(() => newTaskDraft(source));
@@ -1638,7 +1638,6 @@ function TasksView({ command }: { command?: TaskSurfaceCommand | null }): JSX.El
       return resolved;
     });
   }, []);
-  const activeFilter = source.getTaskFilterViewModel(activeFilterId);
   const activeSavedTaskView =
     source.settings.savedTaskViews.find((view) => view.id === activeSavedTaskViewId) ??
     source.settings.savedTaskViews[0] ??
@@ -1663,7 +1662,10 @@ function TasksView({ command }: { command?: TaskSurfaceCommand | null }): JSX.El
   );
   const selectedTask = selectedTaskId ? source.getTaskById(selectedTaskId) : null;
   const taskIdsInWindow = new Set(source.largeTaskWindow.map((task) => task.id));
-  const visibleTaskIds = activeTaskPerspective.groups.flatMap((group) => group.tasks.map((task) => task.id));
+  const visibleTaskIds = Array.from(
+    new Set(activeTaskPerspective.groups.flatMap((group) => group.tasks.map((task) => task.id)))
+  );
+  const shouldRenderPerspectiveGroups = activePerspectiveId !== "saved" || activeSavedTaskView !== null;
   const bulkSelectedTaskIdsInWindow = bulkSelectedTaskIds.filter((taskId) => taskIdsInWindow.has(taskId));
   const bulkSelectedTasks = bulkSelectedTaskIdsInWindow.map((taskId) => source.getTaskById(taskId));
   const allVisibleTasksSelected =
@@ -2411,20 +2413,81 @@ function TasksView({ command }: { command?: TaskSurfaceCommand | null }): JSX.El
               <LoadingState description="Refreshing local cache." title="Refreshing" />
             </Panel>
           ) : null}
-          {activeFilter.state === "empty" ? (
+          {activePerspectiveId === "saved" ? (
+            <Panel
+              title="Saved perspectives"
+              description={`${source.settings.savedTaskViews.length} local views`}
+            >
+              <div className="grid gap-2 p-3" role="list" aria-label="Saved task perspectives">
+                {source.settings.savedTaskViews.length > 0 ? (
+                  source.settings.savedTaskViews.map((view) => {
+                    const selected = view.id === activeSavedTaskView?.id;
+
+                    return (
+                      <div
+                        className="grid grid-cols-[minmax(0,1fr)_32px] gap-2"
+                        key={view.id}
+                        role="listitem"
+                      >
+                        <button
+                          aria-pressed={selected}
+                          className={cx(
+                            "min-w-0 rounded-hcbMd border px-3 py-2 text-left transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                            selected
+                              ? "border-accent bg-surface-0"
+                              : "border-border bg-bg-tertiary hover:bg-surface-0"
+                          )}
+                          onClick={() => setActiveSavedTaskViewId(view.id)}
+                          type="button"
+                        >
+                          <span className="block truncate text-[var(--text-sm)] font-medium text-text-primary">
+                            {view.name}
+                          </span>
+                          <span className="mt-1 flex flex-wrap gap-1">
+                            {savedTaskViewFilterChips(view, source.taskLists).map((chip) => (
+                              <Badge key={chip} tone="accent">
+                                {chip}
+                              </Badge>
+                            ))}
+                          </span>
+                        </button>
+                        <IconButton
+                          disabled={source.settingsMutationPending}
+                          icon={Trash2}
+                          label={`Delete saved task perspective ${view.name}`}
+                          onClick={() => deleteSavedTaskView(view.id)}
+                          variant="danger"
+                        />
+                      </div>
+                    );
+                  })
+                ) : (
+                  <EmptyState
+                    description="Saved task perspectives will appear here once settings contain task views."
+                    title="No saved perspectives"
+                  />
+                )}
+              </div>
+            </Panel>
+          ) : null}
+          {!shouldRenderPerspectiveGroups ? null : activeTaskPerspective.state === "empty" ? (
             <Panel title="Task list" description="Empty filtered state">
               <EmptyState
-                description="No cached tasks match this filter."
-                title="No tasks in this filter"
+                description={
+                  activeFilterId === "empty"
+                    ? "No cached tasks match this filter."
+                    : "No cached tasks match this perspective."
+                }
+                title={activeFilterId === "empty" ? "No tasks in this filter" : "No tasks in this perspective"}
               />
             </Panel>
-          ) : activeFilter.state === "error" ? (
+          ) : activeTaskPerspective.state === "error" ? (
             <Panel title="Task list" description="Recoverable renderer error state">
               <ErrorState />
             </Panel>
           ) : (
             <>
-              {activeFilter.groups.map((group) => (
+              {activeTaskPerspective.groups.map((group) => (
                 <TaskGroupPanel
                   bulkSelectedTaskIds={bulkSelectedTaskIdsInWindow}
                   group={group}

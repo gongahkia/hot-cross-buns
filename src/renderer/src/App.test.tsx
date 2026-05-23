@@ -210,6 +210,7 @@ function seededTaskDetail(id: string, overrides: Partial<TaskDetail> = {}): Task
           : "low" as const,
     dueAt: id === "task-done" ? null : now,
     updatedAt: now,
+    tags: id === "task-inbox-rules" ? ["ops"] : id === "task-calendar-fixtures" ? ["calendar"] : [],
     notes:
       id === "task-done"
         ? "Already complete."
@@ -260,7 +261,8 @@ function seededHcb(): HcbApi {
               status: "active" as const,
               priority: "high" as const,
               dueAt: now,
-              updatedAt: now
+              updatedAt: now,
+              tags: ["ops"]
             },
             {
               id: "task-calendar-fixtures",
@@ -269,7 +271,8 @@ function seededHcb(): HcbApi {
               status: "active" as const,
               priority: "medium" as const,
               dueAt: now,
-              updatedAt: now
+              updatedAt: now,
+              tags: ["calendar"]
             },
             {
               id: "task-done",
@@ -295,7 +298,13 @@ function seededHcb(): HcbApi {
           dueAt: request.dueDate ? `${request.dueDate}T00:00:00.000Z` : null,
           updatedAt: now,
           notes: request.notes ?? "",
-          parentId: request.parentId ?? null
+          parentId: request.parentId ?? null,
+          plannedStart: request.plannedStart ?? null,
+          plannedEnd: request.plannedEnd ?? null,
+          durationMinutes: request.durationMinutes ?? null,
+          lockedSchedule: request.lockedSchedule ?? false,
+          snoozeUntil: request.snoozeUntil ?? null,
+          tags: request.tags ?? []
         })
       ),
       update: vi.fn(async (request) =>
@@ -308,7 +317,13 @@ function seededHcb(): HcbApi {
               : { dueAt: request.dueDate ? `${request.dueDate}T00:00:00.000Z` : null }),
             ...(request.listId === undefined ? {} : { listId: request.listId }),
             ...(request.parentId === undefined ? {} : { parentId: request.parentId }),
-            ...(request.priority === undefined ? {} : { priority: request.priority })
+            ...(request.priority === undefined ? {} : { priority: request.priority }),
+            ...(request.plannedStart === undefined ? {} : { plannedStart: request.plannedStart }),
+            ...(request.plannedEnd === undefined ? {} : { plannedEnd: request.plannedEnd }),
+            ...(request.durationMinutes === undefined ? {} : { durationMinutes: request.durationMinutes }),
+            ...(request.lockedSchedule === undefined ? {} : { lockedSchedule: request.lockedSchedule }),
+            ...(request.snoozeUntil === undefined ? {} : { snoozeUntil: request.snoozeUntil }),
+            ...(request.tags === undefined ? {} : { tags: request.tags })
           })
         )
       ),
@@ -902,6 +917,49 @@ describe("App shell", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Something went wrong");
   });
 
+  it("switches task perspectives and renders saved task view chips", async () => {
+    const api = seededHcb();
+    api.settings.get = vi.fn(async () =>
+      ok(
+        testSettings({
+          savedTaskViews: [
+            {
+              id: "task-view-ops",
+              name: "Ops focus",
+              filters: {
+                statuses: ["active"],
+                tags: ["ops"]
+              },
+              groupBy: "tag",
+              sortBy: "priority",
+              createdAt: now,
+              updatedAt: now
+            }
+          ]
+        })
+      )
+    );
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await goToSection("Tasks");
+    const perspectives = await screen.findByRole("tablist", { name: "Task perspectives" });
+
+    expect(within(perspectives).getByRole("tab", { name: /Projects/ })).toHaveAttribute("aria-selected", "true");
+
+    await user.click(within(perspectives).getByRole("tab", { name: "Tags" }));
+    expect(await screen.findByRole("heading", { name: "ops" })).toBeInTheDocument();
+
+    await user.click(within(perspectives).getByRole("tab", { name: /Saved/ }));
+    const savedViews = screen.getByRole("list", { name: "Saved task perspectives" });
+
+    expect(within(savedViews).getByText("Ops focus")).toBeInTheDocument();
+    expect(within(savedViews).getByText("Tags: ops")).toBeInTheDocument();
+    expect(within(savedViews).getByText("Group: tag")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "ops" })).toBeInTheDocument();
+  });
+
   it("creates, edits, deletes, and quick-captures tasks through preload", async () => {
     const api = seededHcb();
     installHcb(api);
@@ -951,7 +1009,10 @@ describe("App shell", () => {
     expect(api.tasks.delete).toHaveBeenCalledWith({ id: "task-calendar-fixtures" });
 
     await runPaletteCommand(user, "quick capture", /Quick capture/);
-    await user.type(screen.getByRole("textbox", { name: "Quick capture task" }), "Review notes 2026-05-23 #Planning");
+    await user.type(
+      screen.getByRole("textbox", { name: "Quick capture task" }),
+      "Review notes 2026-05-23 #Planning @2pm ~30m !locked +ops"
+    );
     await user.click(screen.getByRole("button", { name: "Capture" }));
 
     await waitFor(() => {
@@ -959,7 +1020,12 @@ describe("App shell", () => {
         expect.objectContaining({
           title: "Review notes",
           listId: "list-planning",
-          dueDate: "2026-05-23"
+          dueDate: "2026-05-23",
+          durationMinutes: 30,
+          lockedSchedule: true,
+          plannedStart: expect.any(String),
+          plannedEnd: expect.any(String),
+          tags: ["ops"]
         })
       );
     });
