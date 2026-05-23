@@ -2099,6 +2099,51 @@ describe("App shell", () => {
     expect(screen.getByText("Credentials")).toBeInTheDocument();
   });
 
+  it("applies base theme and color theme settings", async () => {
+    const api = seededHcb();
+    let settings = testSettings({ theme: "dark", colorTheme: "dracula" });
+    api.settings.get = vi.fn(async () => ok(settings));
+    api.settings.update = vi.fn(async (request) => {
+      settings = testSettings({
+        ...settings,
+        ...request
+      });
+
+      return ok(settings);
+    });
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await waitFor(() => {
+      expect(document.documentElement).toHaveAttribute("data-theme", "dark");
+      expect(document.documentElement).toHaveAttribute("data-color-theme", "dracula");
+      expect(document.documentElement.style.getPropertyValue("--color-accent")).toBe("#FF79C6");
+    });
+
+    await goToSection("Settings");
+    const settingsSupport = screen.getByRole("complementary", { name: "Settings support" });
+    await user.click(within(settingsSupport).getByRole("button", { name: /Appearance/ }));
+    await user.selectOptions(screen.getByLabelText("Theme"), "light");
+
+    await waitFor(() => {
+      expect(api.settings.update).toHaveBeenCalledWith({
+        theme: "light",
+        colorTheme: "notion"
+      });
+      expect(document.documentElement).toHaveAttribute("data-theme", "light");
+      expect(document.documentElement).toHaveAttribute("data-color-theme", "notion");
+    });
+
+    await user.selectOptions(screen.getByLabelText("Color theme"), "githubLight");
+
+    await waitFor(() => {
+      expect(api.settings.update).toHaveBeenCalledWith({ colorTheme: "githubLight" });
+      expect(document.documentElement).toHaveAttribute("data-color-theme", "githubLight");
+      expect(screen.getByRole("button", { name: /GitHub Light/ })).toHaveAttribute("aria-pressed", "true");
+    });
+  });
+
   it("opens sanitized diagnostics details in the inspector", async () => {
     const api = seededHcb();
     const base = await api.diagnostics.summary();
