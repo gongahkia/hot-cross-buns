@@ -194,6 +194,9 @@ const DEFAULT_SETTINGS: SettingsSnapshot = {
   mcpPermissionMode: "confirm-writes",
   mcpPort: 0,
   defaultTimeZone: systemTimeZone(),
+  todayCapacityMinutes: 480,
+  todayWorkingHoursStart: 6,
+  todayWorkingHoursEnd: 22,
   diagnosticsIncludePerformance: true,
   savedSearchViews: [],
   savedTaskViews: []
@@ -2508,6 +2511,21 @@ export class LocalSettingsRepository {
         "defaultTimeZone",
         DEFAULT_SETTINGS.defaultTimeZone
       ),
+      todayCapacityMinutes: this.readSetting(
+        "today",
+        "capacityMinutes",
+        DEFAULT_SETTINGS.todayCapacityMinutes
+      ),
+      todayWorkingHoursStart: this.readSetting(
+        "today",
+        "workingHoursStart",
+        DEFAULT_SETTINGS.todayWorkingHoursStart
+      ),
+      todayWorkingHoursEnd: this.readSetting(
+        "today",
+        "workingHoursEnd",
+        DEFAULT_SETTINGS.todayWorkingHoursEnd
+      ),
       diagnosticsIncludePerformance: this.readSetting(
         "diagnostics",
         "includePerformance",
@@ -2595,6 +2613,18 @@ export class LocalSettingsRepository {
 
     if (request.defaultTimeZone !== undefined) {
       this.writeSetting("calendar", "defaultTimeZone", request.defaultTimeZone, now);
+    }
+
+    if (request.todayCapacityMinutes !== undefined) {
+      this.writeSetting("today", "capacityMinutes", request.todayCapacityMinutes, now);
+    }
+
+    if (request.todayWorkingHoursStart !== undefined) {
+      this.writeSetting("today", "workingHoursStart", request.todayWorkingHoursStart, now);
+    }
+
+    if (request.todayWorkingHoursEnd !== undefined) {
+      this.writeSetting("today", "workingHoursEnd", request.todayWorkingHoursEnd, now);
     }
 
     if (request.diagnosticsIncludePerformance !== undefined) {

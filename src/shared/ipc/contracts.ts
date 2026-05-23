@@ -575,6 +575,51 @@ export type ScheduledTaskBlockUnscheduleRequest = z.input<
   typeof scheduledTaskBlockUnscheduleRequestSchema
 >;
 
+export const calendarScheduleSuggestRequestSchema = z
+  .object({
+    date: dateOnlySchema,
+    capacityMinutes: z.number().int().min(5).max(24 * 60).default(480),
+    workingHours: z
+      .object({
+        start: z.number().int().min(0).max(23).default(6),
+        end: z.number().int().min(1).max(24).default(22)
+      })
+      .strict()
+      .default({ start: 6, end: 22 })
+  })
+  .strict()
+  .refine((request) => request.workingHours.end > request.workingHours.start, {
+    path: ["workingHours", "end"],
+    message: "Working hours end must be after start"
+  });
+
+export type CalendarScheduleSuggestRequest = z.input<typeof calendarScheduleSuggestRequestSchema>;
+
+export const scheduleSlotSchema = z
+  .object({
+    startsAt: isoDateTimeSchema,
+    endsAt: isoDateTimeSchema,
+    taskId: idSchema.optional(),
+    eventId: idSchema.optional(),
+    locked: z.boolean(),
+    conflict: z.boolean()
+  })
+  .strict();
+
+export type ScheduleSlot = z.infer<typeof scheduleSlotSchema>;
+
+export const calendarScheduleSuggestResponseSchema = z
+  .object({
+    slots: z.array(scheduleSlotSchema).max(1_000),
+    unscheduled: z.array(taskSummarySchema).max(1_000),
+    overloadMinutes: z.number().int().nonnegative()
+  })
+  .strict();
+
+export type CalendarScheduleSuggestResponse = z.infer<
+  typeof calendarScheduleSuggestResponseSchema
+>;
+
 export const availabilityExportRequestSchema = z
   .object({
     calendarIds: z.array(idSchema).min(1).max(25).optional(),
@@ -878,6 +923,9 @@ export const settingsSnapshotSchema = z
     mcpPermissionMode: mcpPermissionModeSchema,
     mcpPort: z.number().int().min(0).max(65535),
     defaultTimeZone: z.string().min(1).max(120),
+    todayCapacityMinutes: z.number().int().min(5).max(24 * 60),
+    todayWorkingHoursStart: z.number().int().min(0).max(23),
+    todayWorkingHoursEnd: z.number().int().min(1).max(24),
     diagnosticsIncludePerformance: z.boolean(),
     savedSearchViews: z.array(savedSearchViewSchema).max(20),
     savedTaskViews: z.array(savedTaskViewSchema).max(20)
@@ -905,6 +953,9 @@ export const settingsUpdateRequestSchema = z
     mcpPermissionMode: mcpPermissionModeSchema.optional(),
     mcpPort: z.number().int().min(0).max(65535).optional(),
     defaultTimeZone: z.string().min(1).max(120).optional(),
+    todayCapacityMinutes: z.number().int().min(5).max(24 * 60).optional(),
+    todayWorkingHoursStart: z.number().int().min(0).max(23).optional(),
+    todayWorkingHoursEnd: z.number().int().min(1).max(24).optional(),
     diagnosticsIncludePerformance: z.boolean().optional(),
     savedSearchViews: z.array(savedSearchViewSchema).max(20).optional(),
     savedTaskViews: z.array(savedTaskViewSchema).max(20).optional()
@@ -1591,6 +1642,12 @@ export const ipcContracts = {
       "unscheduleTaskBlock",
       scheduledTaskBlockUnscheduleRequestSchema,
       mutationAckSchema
+    ),
+    scheduleSuggest: defineIpcContract(
+      "calendar",
+      "scheduleSuggest",
+      calendarScheduleSuggestRequestSchema,
+      calendarScheduleSuggestResponseSchema
     ),
     exportAvailability: defineIpcContract(
       "calendar",
