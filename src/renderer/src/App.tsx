@@ -15,6 +15,7 @@ import {
 import appIconUrl from "../../../assets/brand/buns-app-icon-sidebar.png";
 import type { PlannerAction } from "./actions/plannerActions";
 import { CommandPalette } from "./components/CommandPalette";
+import { InspectorProvider, InspectorShell } from "./components/Inspector";
 import { Badge, Button, IconButton, StatusBanner, cx } from "./components/primitives";
 import { getPlannerSection, plannerSections, type SectionId } from "./data/mockPlanner";
 import { SectionContent, type TaskSurfaceCommand } from "./features/core/CoreScreens";
@@ -170,7 +171,10 @@ function bannerTone(source: CoreViewModelSource): "info" | "success" | "warning"
 export default function App(): JSX.Element {
   return (
     <CoreDataProvider>
-      <AppShell />
+      <InspectorProvider>
+        <AppShell />
+        <InspectorShell />
+      </InspectorProvider>
     </CoreDataProvider>
   );
 }

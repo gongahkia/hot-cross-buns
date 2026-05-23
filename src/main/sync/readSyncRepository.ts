@@ -167,6 +167,20 @@ export class GoogleSyncRepository {
         "ALTER TABLE google_tasks ADD COLUMN local_priority TEXT NOT NULL DEFAULT 'none';"
       );
     }
+
+    const addColumn = (name: string, definition: string) => {
+      if (!existingColumns.has(name)) {
+        this.connection.exec(`ALTER TABLE google_tasks ADD COLUMN ${definition};`);
+        existingColumns.add(name);
+      }
+    };
+
+    addColumn("local_planned_start", "local_planned_start TEXT");
+    addColumn("local_planned_end", "local_planned_end TEXT");
+    addColumn("local_duration_minutes", "local_duration_minutes INTEGER");
+    addColumn("local_locked_schedule", "local_locked_schedule INTEGER NOT NULL DEFAULT 0");
+    addColumn("local_snooze_until", "local_snooze_until TEXT");
+    addColumn("local_tags_json", "local_tags_json TEXT NOT NULL DEFAULT '[]'");
   }
 
   private ensureEventColumns(): void {
@@ -1831,6 +1845,12 @@ CREATE TABLE IF NOT EXISTS google_tasks (
   sort_order INTEGER NOT NULL DEFAULT 0,
   is_hidden INTEGER NOT NULL DEFAULT 0,
   local_priority TEXT NOT NULL DEFAULT 'none',
+  local_planned_start TEXT,
+  local_planned_end TEXT,
+  local_duration_minutes INTEGER,
+  local_locked_schedule INTEGER NOT NULL DEFAULT 0,
+  local_snooze_until TEXT,
+  local_tags_json TEXT NOT NULL DEFAULT '[]',
   etag TEXT,
   google_updated_at TEXT,
   created_at TEXT NOT NULL,

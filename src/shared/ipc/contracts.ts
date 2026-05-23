@@ -195,7 +195,13 @@ export const taskSummarySchema = z
     parentId: idSchema.nullable().optional(),
     priority: taskPrioritySchema.default("none"),
     sortOrder: z.number().int().optional(),
-    mutationState: z.enum(["synced", "queued", "failed"]).optional()
+    mutationState: z.enum(["synced", "queued", "failed"]).optional(),
+    plannedStart: isoDateTimeSchema.nullable().optional(),
+    plannedEnd: isoDateTimeSchema.nullable().optional(),
+    durationMinutes: z.number().int().nonnegative().nullable().optional(),
+    lockedSchedule: z.boolean().optional(),
+    snoozeUntil: isoDateTimeSchema.nullable().optional(),
+    tags: z.array(z.string().min(1).max(120)).max(64).optional()
   })
   .strict();
 
@@ -220,7 +226,13 @@ export const taskCreateRequestSchema = z
     listId: idSchema,
     parentId: idSchema.nullable().optional(),
     previousSiblingId: idSchema.nullable().optional(),
-    priority: taskPrioritySchema.default("none")
+    priority: taskPrioritySchema.default("none"),
+    plannedStart: isoDateTimeSchema.nullable().optional(),
+    plannedEnd: isoDateTimeSchema.nullable().optional(),
+    durationMinutes: z.number().int().nonnegative().nullable().optional(),
+    lockedSchedule: z.boolean().optional(),
+    snoozeUntil: isoDateTimeSchema.nullable().optional(),
+    tags: z.array(z.string().min(1).max(120)).max(64).optional()
   })
   .strict();
 
