@@ -4362,6 +4362,8 @@ function SettingsView(): JSX.Element {
     }
 
     if (selectedSection.id === "sync") {
+      const queue = diagnostics?.pendingMutations;
+
       return (
         <div className="grid gap-3 p-3">
           <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
@@ -4397,6 +4399,32 @@ function SettingsView(): JSX.Element {
               Force full resync
             </Button>
           </div>
+          <div className="grid grid-cols-5 gap-2">
+            <MetricTile label="Pending" value={String(queue?.pendingCount ?? source.syncStatus.pendingMutationCount)} />
+            <MetricTile label="Applying" value={String(queue?.applyingCount ?? 0)} />
+            <MetricTile label="Failed" value={String(queue?.failedCount ?? 0)} />
+            <MetricTile label="Retryable" value={String(queue?.retryableCount ?? 0)} />
+            <MetricTile label="Auth paused" value={String(queue?.authPausedCount ?? 0)} />
+          </div>
+          {queue?.nextRetryAt ? (
+            <StatusBanner
+              description={queue.nextRetryAt}
+              title="Next retry scheduled"
+              tone="info"
+            />
+          ) : null}
+          {queue?.byResourceType.length ? (
+            <div className="grid gap-2" role="list" aria-label="Sync queue resource types">
+              {queue.byResourceType.map((bucket) => (
+                <ListRow
+                  key={bucket.resourceType}
+                  title={bucket.resourceType}
+                  description={`${bucket.count} queued mutation${bucket.count === 1 ? "" : "s"}`}
+                  trailing={<Badge tone="warning">{bucket.count}</Badge>}
+                />
+              ))}
+            </div>
+          ) : null}
           <SettingsRows rows={selectedSection.rows} status={selectedSection.status} />
         </div>
       );
@@ -4549,6 +4577,11 @@ function SettingsView(): JSX.Element {
             <RotateCcw aria-hidden="true" size={14} />
             Reset onboarding
           </Button>
+          <StatusBanner
+            description="Tasks and calendar mirrors are cached in local SQLite; OAuth secrets, Google tokens, and MCP bearer tokens stay in OS credential storage. Copy diagnostics omits raw payloads, credentials, note bodies, task notes, event descriptions, and guest lists."
+            title="Privacy boundary"
+            tone="info"
+          />
         </div>
       );
     }
@@ -4599,9 +4632,44 @@ function SettingsView(): JSX.Element {
     }
 
     if (selectedSection.id === "platform") {
+      const nativeReport = diagnostics?.native;
+
       return (
         <div className="grid gap-3 p-3">
           <SettingsRows rows={selectedSection.rows} status={selectedSection.status} />
+          {nativeReport?.capabilities.length ? (
+            <div className="grid gap-2" role="list" aria-label="Native capabilities">
+              {nativeReport.capabilities.map((capability) => (
+                <ListRow
+                  key={capability.key}
+                  title={capability.label}
+                  description={capability.message ?? (capability.supported ? "Available" : "Unavailable")}
+                  trailing={
+                    <Badge tone={capability.supported ? "success" : "warning"}>
+                      {capability.state}
+                    </Badge>
+                  }
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              description="The sanitized native capability report has no per-feature rows yet."
+              title="No capability rows"
+            />
+          )}
+          {nativeReport?.diagnostics.length ? (
+            <div className="grid gap-2" role="list" aria-label="Native diagnostics">
+              {nativeReport.diagnostics.map((diagnostic) => (
+                <ListRow
+                  key={`${diagnostic.key}-${diagnostic.message}`}
+                  title={diagnostic.key}
+                  description={diagnostic.message}
+                  trailing={<Badge tone={diagnostic.severity === "blocker" ? "danger" : "warning"}>{diagnostic.severity}</Badge>}
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
       );
     }

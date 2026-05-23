@@ -324,6 +324,10 @@ Acceptance checks:
 - Diagnostics never expose raw OAuth tokens, MCP bearer tokens, or raw Google payloads.
 - Settings reset actions are scoped and reversible where possible.
 
+Status on 2026-05-23:
+
+- Settings now exposes required sections for Google, resources, sync, appearance, hotkeys, tray, notifications, local data, MCP, platform, and diagnostics; Sync shows pending/applying/failed/retryable/auth-paused queue buckets; Local data explains local cache and credential boundaries; Platform renders sanitized capability and diagnostic rows when available; copy diagnostics keeps redaction guarantees visible.
+
 ### 8. Visual System Refinement
 
 Keep the existing compact design direction. Do not replace it with a marketing UI, oversized cards, or one-note gradients.

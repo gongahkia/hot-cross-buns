@@ -1658,6 +1658,17 @@ describe("App shell", () => {
     await user.click(within(settingsSupport).getByRole("button", { name: /Hotkeys/ }));
     expect(screen.getByText("Shortcut attention")).toBeInTheDocument();
 
+    await user.click(within(settingsSupport).getByRole("button", { name: /Sync/ }));
+    expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
+    expect(screen.getByText("Applying")).toBeInTheDocument();
+    expect(screen.getByText("Auth paused")).toBeInTheDocument();
+
+    await user.click(within(settingsSupport).getByRole("button", { name: /Local data/ }));
+    expect(screen.getByText("Privacy boundary")).toBeInTheDocument();
+
+    await user.click(within(settingsSupport).getByRole("button", { name: /Platform/ }));
+    expect(screen.getByText("No capability rows")).toBeInTheDocument();
+
     await user.click(within(settingsSupport).getByRole("button", { name: /Diagnostics/ }));
     expect(screen.getByRole("button", { name: /Copy diagnostics/ })).toBeInTheDocument();
     expect(screen.getByText("Credentials")).toBeInTheDocument();
