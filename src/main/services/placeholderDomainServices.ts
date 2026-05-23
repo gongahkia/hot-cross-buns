@@ -204,6 +204,8 @@ export function createPlaceholderDomainServices(): AppDomainServices {
       settings: {
         theme: "system",
         colorTheme: "notion",
+        uiFontName: null,
+        uiTextSizePoints: 13,
         startOnLogin: false,
       quickCaptureShortcut: "Ctrl+Space",
       selectedTaskListIds: ["list-inbox", "list-planning"],
@@ -1569,6 +1571,14 @@ function definedSettingsPatch(request: SettingsUpdateRequest): Partial<SettingsS
 
   if (request.colorTheme !== undefined) {
     patch.colorTheme = request.colorTheme as SettingsSnapshot["colorTheme"];
+  }
+
+  if (request.uiFontName !== undefined) {
+    patch.uiFontName = request.uiFontName;
+  }
+
+  if (request.uiTextSizePoints !== undefined) {
+    patch.uiTextSizePoints = request.uiTextSizePoints;
   }
 
   if (request.startOnLogin !== undefined) {

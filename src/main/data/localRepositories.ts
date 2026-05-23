@@ -186,6 +186,8 @@ interface NoteRow extends Record<string, unknown> {
 const DEFAULT_SETTINGS: SettingsSnapshot = {
   theme: "system",
   colorTheme: "notion",
+  uiFontName: null,
+  uiTextSizePoints: 13,
   startOnLogin: false,
   quickCaptureShortcut: "Ctrl+Space",
   selectedTaskListIds: [],
@@ -2554,6 +2556,12 @@ export class LocalSettingsRepository {
     return {
       theme: this.readSetting("appearance", "theme", DEFAULT_SETTINGS.theme),
       colorTheme: this.readSetting("appearance", "colorTheme", DEFAULT_SETTINGS.colorTheme),
+      uiFontName: this.readSetting("appearance", "uiFontName", DEFAULT_SETTINGS.uiFontName),
+      uiTextSizePoints: this.readSetting(
+        "appearance",
+        "uiTextSizePoints",
+        DEFAULT_SETTINGS.uiTextSizePoints
+      ),
       startOnLogin: this.readSetting("app", "startOnLogin", DEFAULT_SETTINGS.startOnLogin),
       quickCaptureShortcut: this.readSetting(
         "hotkeys",
@@ -2652,6 +2660,14 @@ export class LocalSettingsRepository {
 
     if (request.colorTheme !== undefined) {
       this.writeSetting("appearance", "colorTheme", request.colorTheme, now);
+    }
+
+    if (request.uiFontName !== undefined) {
+      this.writeSetting("appearance", "uiFontName", request.uiFontName, now);
+    }
+
+    if (request.uiTextSizePoints !== undefined) {
+      this.writeSetting("appearance", "uiTextSizePoints", request.uiTextSizePoints, now);
     }
 
     if (request.startOnLogin !== undefined) {

@@ -931,6 +931,8 @@ export const settingsGetRequestSchema = emptyRequestSchema;
 
 export const appThemeSchema = z.enum(["system", "light", "dark"]);
 export const appColorThemeSchema = z.enum(appColorThemeIds);
+export const uiTextSizePointsSchema = z.number().min(9).max(24);
+export const uiFontNameSchema = z.string().trim().min(1).max(120).nullable();
 export const syncModeSchema = z.enum(["manual", "balanced", "near-real-time"]);
 export const trayClickActionSchema = z.enum(["open-menu", "toggle-window", "quick-capture", "open-today"]);
 export const menuBarPanelStyleSchema = z.enum(["adaptive", "agenda", "compact"]);
@@ -974,6 +976,8 @@ export const settingsSnapshotSchema = z
   .object({
     theme: appThemeSchema,
     colorTheme: appColorThemeSchema,
+    uiFontName: uiFontNameSchema,
+    uiTextSizePoints: uiTextSizePointsSchema,
     startOnLogin: z.boolean(),
     quickCaptureShortcut: z.string().min(1).max(120).nullable(),
     selectedTaskListIds: z.array(idSchema).max(100),
@@ -1005,6 +1009,8 @@ export const settingsUpdateRequestSchema = z
   .object({
     theme: appThemeSchema.optional(),
     colorTheme: appColorThemeSchema.optional(),
+    uiFontName: uiFontNameSchema.optional(),
+    uiTextSizePoints: uiTextSizePointsSchema.optional(),
     startOnLogin: z.boolean().optional(),
     quickCaptureShortcut: z.string().min(1).max(120).nullable().optional(),
     selectedTaskListIds: z.array(idSchema).max(100).optional(),

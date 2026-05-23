@@ -179,6 +179,8 @@ const LOCAL_SEARCH_DEBOUNCE_MS = 24;
 const emptySettings: SettingsSnapshot = {
   theme: "system",
   colorTheme: "notion",
+  uiFontName: null,
+  uiTextSizePoints: 13,
   startOnLogin: false,
   selectedTaskListIds: [],
   selectedCalendarIds: [],
@@ -1647,7 +1649,17 @@ function settingsSections(snapshot: CoreDataSnapshot): SettingsSectionViewModel[
       detail: "Theme and color palette preference",
       rows: [
         { id: "theme", label: "Theme", value: snapshot.settings.theme },
-        { id: "color-theme", label: "Color theme", value: snapshot.settings.colorTheme }
+        { id: "color-theme", label: "Color theme", value: snapshot.settings.colorTheme },
+        {
+          id: "font",
+          label: "Font",
+          value: snapshot.settings.uiFontName ?? "System"
+        },
+        {
+          id: "text-size",
+          label: "Text size",
+          value: `${snapshot.settings.uiTextSizePoints} pt`
+        }
       ]
     },
     {

@@ -46,9 +46,37 @@ function scheduleFrame(callback: () => void): void {
   window.setTimeout(callback, 0);
 }
 
+const systemFontStack = "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"Segoe UI\", system-ui, Roboto, \"Helvetica Neue\", Arial, sans-serif";
+
 function systemPrefersDark(): boolean {
   return typeof window.matchMedia === "function" &&
     window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+function cssFontFamily(fontName: string | null): string {
+  const trimmed = fontName?.trim();
+
+  if (!trimmed) {
+    return systemFontStack;
+  }
+
+  return `"${trimmed.replace(/[\\"]/g, "\\$&")}", ${systemFontStack}`;
+}
+
+function textSizeVariables(baseSize: number): Record<string, string> {
+  const clamped = Math.min(24, Math.max(9, baseSize));
+  const scale = clamped / 13;
+  const px = (value: number): string => `${Math.round(value * scale * 100) / 100}px`;
+
+  return {
+    "--text-xs": px(11),
+    "--text-sm": px(12),
+    "--text-base": px(13),
+    "--text-md": px(14),
+    "--text-lg": px(16),
+    "--text-xl": px(20),
+    "--text-2xl": px(24)
+  };
 }
 
 function useAppliedTheme(settings: SettingsSnapshot): void {
@@ -79,11 +107,22 @@ function useAppliedTheme(settings: SettingsSnapshot): void {
 
     root.dataset.theme = mode;
     root.dataset.colorTheme = colorTheme.id;
+    root.style.setProperty("--font-family", cssFontFamily(settings.uiFontName));
 
     for (const [name, value] of Object.entries(semanticThemeVariables(colorTheme))) {
       root.style.setProperty(name, value);
     }
-  }, [prefersDark, settings.colorTheme, settings.theme]);
+
+    for (const [name, value] of Object.entries(textSizeVariables(settings.uiTextSizePoints))) {
+      root.style.setProperty(name, value);
+    }
+  }, [
+    prefersDark,
+    settings.colorTheme,
+    settings.theme,
+    settings.uiFontName,
+    settings.uiTextSizePoints
+  ]);
 }
 
 function sectionMetric(source: CoreViewModelSource, sectionId: SectionId): string {
