@@ -303,7 +303,7 @@ function AppShell(): JSX.Element {
     }, 6_000);
 
     return () => window.clearTimeout(timeout);
-  }, [visibleNotification]);
+  }, [visibleNotification?.id]);
 
   useEffect(() => {
     if (!commandPaletteOpen) {

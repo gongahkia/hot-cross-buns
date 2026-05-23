@@ -37,7 +37,7 @@ async function goToSection(label: string): Promise<void> {
 }
 
 async function runPaletteCommand(user: ReturnType<typeof userEvent.setup>, query: string, label: RegExp): Promise<void> {
-  await user.keyboard("{Control>}k{/Control}");
+  await user.keyboard("{Meta>}p{/Meta}");
   const dialog = await screen.findByRole("dialog", { name: "Command palette" });
   const input = within(dialog).getByRole("searchbox", { name: "Filter commands" });
 
@@ -618,7 +618,7 @@ describe("App shell", () => {
     expect(screen.getByTestId("app-shell")).toBeInTheDocument();
     expect(screen.getAllByRole("heading", { name: "Today" })[0]).toBeInTheDocument();
 
-    for (const label of ["Today", "Tasks", "Calendar", "Notes", "Search", "Settings"]) {
+    for (const label of ["Today", "Tasks", "Calendar", "Notes", "Search", "Notifications", "Settings"]) {
       expect(within(primaryNavigation()).getByRole("button", { name: new RegExp(label) })).toBeInTheDocument();
     }
 
@@ -649,7 +649,7 @@ describe("App shell", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Calendar" })).toBeInTheDocument();
     expect(within(primaryNavigation()).getByRole("button", { name: /Calendar/ })).toHaveFocus();
 
-    await user.keyboard("{Control>}k{/Control}");
+    await user.keyboard("{Meta>}p{/Meta}");
     const dialog = await screen.findByRole("dialog", { name: "Command palette" });
 
     await user.type(within(dialog).getByRole("searchbox", { name: "Filter commands" }), "note");
@@ -706,7 +706,7 @@ describe("App shell", () => {
     expect(completeButton).toHaveAttribute("data-action-id", "task.completeSelected");
     expect(completeButton).toBeDisabled();
 
-    await user.keyboard("{Control>}k{/Control}");
+    await user.keyboard("{Meta>}p{/Meta}");
     const dialog = await screen.findByRole("dialog", { name: "Command palette" });
     const input = within(dialog).getByRole("searchbox", { name: "Filter commands" });
 

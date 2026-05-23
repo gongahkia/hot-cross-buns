@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createTemporarySqliteConnection } from "../data/sqliteConnection";
 import { GoogleSyncRepository } from "./readSyncRepository";
 
-interface ColumnInfo {
+interface ColumnInfo extends Record<string, unknown> {
   name: string;
   notnull: number;
   dflt_value: string | null;

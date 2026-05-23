@@ -13,8 +13,14 @@ export default defineConfig({
     }
   },
   test: {
-    environment: "jsdom",
+    environment: "node",
+    environmentMatchGlobs: [
+      ["src/renderer/**/*.test.ts", "jsdom"],
+      ["src/renderer/**/*.test.tsx", "jsdom"]
+    ],
     include: ["scripts/**/*.test.ts", "src/**/*.test.ts", "src/**/*.test.tsx"],
+    maxWorkers: 4,
+    minWorkers: 1,
     setupFiles: ["./vitest.setup.ts"],
     clearMocks: true,
     restoreMocks: true

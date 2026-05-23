@@ -674,7 +674,9 @@ const hcbApi: HcbApi = {
   }
 };
 
-Object.defineProperty(window, "hcb", {
-  configurable: true,
-  value: hcbApi
-});
+if (typeof window !== "undefined") {
+  Object.defineProperty(window, "hcb", {
+    configurable: true,
+    value: hcbApi
+  });
+}

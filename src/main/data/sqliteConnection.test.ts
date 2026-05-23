@@ -119,7 +119,7 @@ describe("SQLite connection foundation", () => {
         ["native"]
       );
 
-      expect(result.appliedVersions).toEqual([1, 2]);
+      expect(result.appliedVersions).toEqual([1, 2, 3]);
       expect(rows).toEqual([{ title: "SQLite native adapter" }]);
     } finally {
       temporary.cleanup();

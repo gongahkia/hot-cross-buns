@@ -41,6 +41,7 @@ import {
   rendererNow,
   reportRendererTimingSince
 } from "../../hooks/useRenderTiming";
+import { getAppNotifications, type AppNotificationTone } from "./appNotifications";
 import { useCoreViewModelSource, useLocalSearch } from "./coreViewModelSource";
 import type {
   CalendarEventViewModel,
@@ -4288,15 +4289,6 @@ function SettingsView(): JSX.Element {
             </Button>
           </div>
           <SettingsRows rows={selectedSection.rows} status={selectedSection.status} />
-          <StatusBanner
-            description={
-              googleStatus.account?.connectionState === "connected"
-                ? "Google Tasks and Calendar sync can run with Keychain-held tokens."
-                : "Local notes and settings remain usable without Google sign-in."
-            }
-            title={googleStatus.hasClientSecret ? "Client secret stored in Keychain" : "BYO Desktop OAuth client"}
-            tone={googleStatus.account?.connectionState === "connected" ? "success" : "warning"}
-          />
         </div>
       );
     }
@@ -4787,6 +4779,109 @@ function SettingsView(): JSX.Element {
   );
 }
 
+function notificationBadgeTone(tone: AppNotificationTone): "neutral" | "success" | "warning" | "danger" | "info" {
+  if (tone === "success") {
+    return "success";
+  }
+
+  if (tone === "danger") {
+    return "danger";
+  }
+
+  if (tone === "warning" || tone === "offline") {
+    return "warning";
+  }
+
+  return "info";
+}
+
+function NotificationsView(): JSX.Element {
+  const source = useCoreViewModelSource();
+  const appNotices = getAppNotifications(source);
+  const notificationSection = source.settingsSections.find((section) => section.id === "notifications");
+
+  function updateSettings(request: SettingsUpdateRequest): void {
+    void source.updateSettings(request);
+  }
+
+  function requestNotificationPermission(): void {
+    void window.hcb?.native.requestNotificationPermission().then(() => {
+      source.refresh();
+    });
+  }
+
+  return (
+    <SectionChrome
+      title="Notifications"
+      sidebar={
+        <Panel title="Local reminders" description={notificationSection?.status ?? "Not configured"}>
+          <div className="grid gap-3 p-3">
+            <SettingsToggle
+              checked={source.settings.notificationsEnabled}
+              label="Enable local notifications"
+              onChange={(checked) => updateSettings({ notificationsEnabled: checked })}
+            />
+            <Input
+              aria-label="Notification lead minutes"
+              min={0}
+              max={40320}
+              onBlur={(event) =>
+                updateSettings({
+                  notificationLeadMinutes: Number(event.currentTarget.value) || 0
+                })
+              }
+              defaultValue={String(source.settings.notificationLeadMinutes)}
+              type="number"
+            />
+            <Button onClick={requestNotificationPermission} variant="ghost">
+              Request permission
+            </Button>
+          </div>
+        </Panel>
+      }
+    >
+      <div className="grid gap-3">
+        <Panel
+          title="App notifications"
+          description="Recent cache and action state"
+        >
+          {appNotices.length > 0 ? (
+            <div role="list">
+              {appNotices.map((notification) => (
+                <ListRow
+                  key={notification.id}
+                  title={notification.title}
+                  description={notification.description}
+                  trailing={<Badge tone={notificationBadgeTone(notification.tone)}>{notification.status}</Badge>}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              description="App-level notices appear here after cache, settings, or task state changes."
+              title="No app notifications"
+            />
+          )}
+        </Panel>
+
+        <Panel title="Delivery status" description="Local notification settings">
+          <div className="grid grid-cols-3 gap-2 p-3">
+            <MetricTile label="Enabled" value={source.settings.notificationsEnabled ? "On" : "Off"} />
+            <MetricTile label="Lead time" value={`${source.settings.notificationLeadMinutes} min`} />
+            <MetricTile
+              label="Permission"
+              value={notificationSection?.rows.find((row) => row.id === "permission")?.value ?? "Unknown"}
+            />
+          </div>
+          {notificationSection ? (
+            <SettingsRows rows={notificationSection.rows} status={notificationSection.status} />
+          ) : null}
+        </Panel>
+      </div>
+    </SectionChrome>
+  );
+}
+
 const settingsSelectClass =
   "h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
@@ -4879,6 +4974,10 @@ export function SectionContent({
 
   if (activeSectionId === "search") {
     return <SearchView query={searchQuery} setQuery={setSearchQuery} />;
+  }
+
+  if (activeSectionId === "notifications") {
+    return <NotificationsView />;
   }
 
   if (activeSectionId === "settings") {

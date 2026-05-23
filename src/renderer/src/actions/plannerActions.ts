@@ -17,6 +17,7 @@ export type PlannerActionId =
   | "navigation.tasks"
   | "navigation.calendar"
   | "navigation.notes"
+  | "navigation.notifications"
   | "navigation.settings"
   | "sync.refresh"
   | "sync.forceFullResync"
@@ -180,6 +181,14 @@ export const plannerActions: PlannerAction[] = [
     category: "Navigate",
     keywords: ["notes", "local"],
     sectionId: "notes"
+  },
+  {
+    id: "navigation.notifications",
+    label: "Go to Notifications",
+    description: "Show app notices and local reminder status",
+    category: "Navigate",
+    keywords: ["notifications", "notices", "reminders", "alerts"],
+    sectionId: "notifications"
   },
   {
     id: "search.open",
