@@ -328,15 +328,19 @@ function TaskCompletionButton({
 }
 
 function TaskRow({
+  bulkSelected,
   completed,
   onDelete,
+  onBulkSelect,
   onSelect,
   onToggle,
   selected,
   task
 }: {
+  bulkSelected: boolean;
   completed: boolean;
   onDelete: (taskId: string) => void;
+  onBulkSelect: (taskId: string, selected: boolean) => void;
   onSelect: (taskId: string) => void;
   onToggle: (taskId: string) => void;
   selected: boolean;
@@ -346,12 +350,19 @@ function TaskRow({
     <div
       className={cx(
         "min-h-[76px] border-b border-border px-3 py-2 last:border-b-0",
-        selected ? "bg-surface-0" : "bg-transparent"
+        selected || bulkSelected ? "bg-surface-0" : "bg-transparent"
       )}
       role="listitem"
     >
       <div className="flex min-w-0 items-start gap-3">
         <TaskCompletionButton completed={completed} onToggle={onToggle} task={task} />
+        <input
+          aria-label={`Select ${task.title}`}
+          checked={bulkSelected}
+          className="mt-1 size-4 shrink-0 accent-[var(--color-accent)]"
+          onChange={(event) => onBulkSelect(task.id, event.target.checked)}
+          type="checkbox"
+        />
         <button
           className="min-w-0 flex-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           onClick={() => onSelect(task.id)}
@@ -412,12 +423,16 @@ function TaskRow({
 
 function TaskGroupPanel({
   group,
+  bulkSelectedTaskIds,
+  onBulkSelectTask,
   onDeleteTask,
   onSelectTask,
   onToggleTask,
   selectedTaskId
 }: {
   group: TaskGroupViewModel;
+  bulkSelectedTaskIds: string[];
+  onBulkSelectTask: (taskId: string, selected: boolean) => void;
   onDeleteTask: (taskId: string) => void;
   onSelectTask: (taskId: string) => void;
   onToggleTask: (taskId: string) => void;
@@ -437,7 +452,9 @@ function TaskGroupPanel({
         performanceLabel={`tasks.${group.id}`}
         renderRow={(task) => (
           <TaskRow
+            bulkSelected={bulkSelectedTaskIds.includes(task.id)}
             completed={task.status === "completed"}
+            onBulkSelect={onBulkSelectTask}
             onDelete={onDeleteTask}
             onSelect={onSelectTask}
             onToggle={onToggleTask}
@@ -1121,10 +1138,23 @@ function TasksView({ command }: { command?: TaskSurfaceCommand | null }): JSX.El
   const [quickCaptureInput, setQuickCaptureInput] = useState("");
   const [newListTitle, setNewListTitle] = useState("");
   const [listTitleDrafts, setListTitleDrafts] = useState<Record<string, string>>({});
+  const [bulkSelectedTaskIds, setBulkSelectedTaskIds] = useState<string[]>([]);
+  const [bulkMoveListId, setBulkMoveListId] = useState("");
   const handledCommandNonce = useRef<number | null>(null);
   const quickCaptureOpenStartedAt = useRef<number | null>(null);
   const activeFilter = source.getTaskFilterViewModel(activeFilterId);
   const selectedTask = selectedTaskId ? source.getTaskById(selectedTaskId) : null;
+  const taskIdsInWindow = new Set(source.largeTaskWindow.map((task) => task.id));
+  const visibleTaskIds = activeFilter.groups.flatMap((group) => group.tasks.map((task) => task.id));
+  const bulkSelectedTaskIdsInWindow = bulkSelectedTaskIds.filter((taskId) => taskIdsInWindow.has(taskId));
+  const bulkSelectedTasks = bulkSelectedTaskIdsInWindow.map((taskId) => source.getTaskById(taskId));
+  const allVisibleTasksSelected =
+    visibleTaskIds.length > 0 && visibleTaskIds.every((taskId) => bulkSelectedTaskIdsInWindow.includes(taskId));
+  const bulkCompletionLabel =
+    bulkSelectedTasks.length > 0 && bulkSelectedTasks.every((task) => task.status === "completed")
+      ? "Reopen selected"
+      : "Complete selected";
+  const bulkMoveTargetListId = bulkMoveListId || defaultTaskListId(source);
   const parentOptions = source.largeTaskWindow.filter(
     (task) => task.id !== draft.id && task.parentId === null && task.status !== "deleted"
   );
@@ -1142,6 +1172,24 @@ function TasksView({ command }: { command?: TaskSurfaceCommand | null }): JSX.El
 
     setDraft((current) => (current.listId ? current : { ...current, listId }));
   }, [source.taskLists]);
+
+  useEffect(() => {
+    const listId = defaultTaskListId(source);
+
+    if (!listId || bulkMoveListId) {
+      return;
+    }
+
+    setBulkMoveListId(listId);
+  }, [bulkMoveListId, source.taskLists]);
+
+  useEffect(() => {
+    setBulkSelectedTaskIds((current) => {
+      const next = current.filter((taskId) => taskIdsInWindow.has(taskId));
+
+      return next.length === current.length ? current : next;
+    });
+  }, [source.largeTaskWindow]);
 
   useEffect(() => {
     if (!command || handledCommandNonce.current === command.nonce) {
@@ -1245,6 +1293,93 @@ function TasksView({ command }: { command?: TaskSurfaceCommand | null }): JSX.El
     const deleted = await source.deleteTask(taskId);
 
     if (deleted && selectedTaskId === taskId) {
+      setSelectedTaskId(null);
+      setDraft(newTaskDraft(source));
+    }
+  }
+
+  function setTaskBulkSelected(taskId: string, selected: boolean): void {
+    setBulkSelectedTaskIds((current) => {
+      if (selected) {
+        return current.includes(taskId) ? current : [...current, taskId];
+      }
+
+      return current.filter((id) => id !== taskId);
+    });
+  }
+
+  function toggleVisibleTaskSelection(): void {
+    setBulkSelectedTaskIds((current) => {
+      if (allVisibleTasksSelected) {
+        const visible = new Set(visibleTaskIds);
+        return current.filter((taskId) => !visible.has(taskId));
+      }
+
+      return Array.from(new Set([...current, ...visibleTaskIds]));
+    });
+  }
+
+  async function completeBulkSelectedTasks(): Promise<void> {
+    const changedTaskIds: string[] = [];
+
+    for (const task of bulkSelectedTasks) {
+      const saved =
+        task.status === "completed"
+          ? await source.reopenTask(task.id)
+          : await source.completeTask(task.id);
+
+      if (saved) {
+        changedTaskIds.push(task.id);
+      }
+    }
+
+    if (changedTaskIds.length > 0) {
+      setBulkSelectedTaskIds((current) => current.filter((taskId) => !changedTaskIds.includes(taskId)));
+    }
+  }
+
+  async function moveBulkSelectedTasks(): Promise<void> {
+    if (!bulkMoveTargetListId) {
+      return;
+    }
+
+    const movedTaskIds: string[] = [];
+
+    for (const task of bulkSelectedTasks) {
+      const moved = await source.moveTask({
+        id: task.id,
+        listId: bulkMoveTargetListId,
+        parentId: null
+      });
+
+      if (moved) {
+        movedTaskIds.push(task.id);
+      }
+    }
+
+    if (movedTaskIds.length > 0) {
+      setBulkSelectedTaskIds((current) => current.filter((taskId) => !movedTaskIds.includes(taskId)));
+    }
+  }
+
+  async function deleteBulkSelectedTasks(): Promise<void> {
+    const deletedTaskIds: string[] = [];
+
+    for (const taskId of bulkSelectedTaskIdsInWindow) {
+      const deleted = await source.deleteTask(taskId);
+
+      if (deleted) {
+        deletedTaskIds.push(taskId);
+      }
+    }
+
+    if (deletedTaskIds.length === 0) {
+      return;
+    }
+
+    setBulkSelectedTaskIds((current) => current.filter((taskId) => !deletedTaskIds.includes(taskId)));
+
+    if (selectedTaskId && deletedTaskIds.includes(selectedTaskId)) {
       setSelectedTaskId(null);
       setDraft(newTaskDraft(source));
     }
@@ -1387,6 +1522,19 @@ function TasksView({ command }: { command?: TaskSurfaceCommand | null }): JSX.El
             <Badge tone={filter.state === "error" ? "warning" : "neutral"}>{filter.countLabel}</Badge>
           </Button>
         ))}
+        <Button
+          disabled={visibleTaskIds.length === 0}
+          onClick={toggleVisibleTaskSelection}
+          size="sm"
+          variant={allVisibleTasksSelected ? "secondary" : "ghost"}
+        >
+          {allVisibleTasksSelected ? (
+            <X aria-hidden="true" size={14} />
+          ) : (
+            <CheckCircle2 aria-hidden="true" size={14} />
+          )}
+          {allVisibleTasksSelected ? "Clear visible" : "Select visible"}
+        </Button>
       </div>
 
       {source.taskMutationError ? (
@@ -1409,6 +1557,66 @@ function TasksView({ command }: { command?: TaskSurfaceCommand | null }): JSX.El
           icon={RotateCcw}
           title="Task write not saved"
           tone="warning"
+        />
+      ) : null}
+
+      {bulkSelectedTaskIdsInWindow.length > 0 ? (
+        <StatusBanner
+          action={
+            <div className="flex items-center gap-2">
+              <select
+                aria-label="Bulk move list"
+                className="h-7 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-sm)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                onChange={(event) => setBulkMoveListId(event.target.value)}
+                value={bulkMoveTargetListId}
+              >
+                {source.taskLists.map((taskList) => (
+                  <option key={taskList.id} value={taskList.id}>
+                    {taskList.title}
+                  </option>
+                ))}
+              </select>
+              <Button
+                disabled={!bulkMoveTargetListId || source.taskMutationPending}
+                onClick={() => void moveBulkSelectedTasks()}
+                size="sm"
+                variant="secondary"
+              >
+                <ListPlus aria-hidden="true" size={14} />
+                Move selected
+              </Button>
+              <Button
+                disabled={source.taskMutationPending}
+                onClick={() => void completeBulkSelectedTasks()}
+                size="sm"
+                variant="secondary"
+              >
+                <CheckCircle2 aria-hidden="true" size={14} />
+                {bulkCompletionLabel}
+              </Button>
+              <Button
+                disabled={source.taskMutationPending}
+                onClick={() => void deleteBulkSelectedTasks()}
+                size="sm"
+                variant="danger"
+              >
+                <Trash2 aria-hidden="true" size={14} />
+                Delete selected
+              </Button>
+              <IconButton
+                icon={X}
+                label="Clear task selection"
+                onClick={() => setBulkSelectedTaskIds([])}
+                variant="ghost"
+              />
+            </div>
+          }
+          description={`${bulkSelectedTasks.map((task) => task.title).slice(0, 3).join(", ")}`}
+          icon={CheckCircle2}
+          title={`${bulkSelectedTaskIdsInWindow.length} ${
+            bulkSelectedTaskIdsInWindow.length === 1 ? "task" : "tasks"
+          } selected`}
+          tone="info"
         />
       ) : null}
 
@@ -1630,7 +1838,9 @@ function TasksView({ command }: { command?: TaskSurfaceCommand | null }): JSX.El
           <div className="grid gap-3">
             {activeFilter.groups.map((group) => (
               <TaskGroupPanel
+                bulkSelectedTaskIds={bulkSelectedTaskIdsInWindow}
                 group={group}
+                onBulkSelectTask={setTaskBulkSelected}
                 key={group.id}
                 onDeleteTask={(taskId) => void deleteTask(taskId)}
                 onSelectTask={selectTask}

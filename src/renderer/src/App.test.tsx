@@ -873,6 +873,50 @@ describe("App shell", () => {
     });
   });
 
+  it("bulk selects, moves, completes, and deletes tasks through preload", async () => {
+    const api = seededHcb();
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await goToSection("Tasks");
+    expect(await screen.findByRole("heading", { name: "Inbox" })).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("Select Draft inbox triage rules"));
+    await user.click(screen.getByLabelText("Select Review calendar fixture shape"));
+    expect(screen.getByText("2 tasks selected")).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Bulk move list"), "list-planning");
+    await user.click(screen.getByRole("button", { name: "Move selected" }));
+
+    await waitFor(() => {
+      expect(api.tasks.move).toHaveBeenCalledWith({
+        id: "task-inbox-rules",
+        listId: "list-planning",
+        parentId: null
+      });
+      expect(api.tasks.move).toHaveBeenCalledWith({
+        id: "task-calendar-fixtures",
+        listId: "list-planning",
+        parentId: null
+      });
+    });
+
+    await user.click(screen.getByLabelText("Select Draft inbox triage rules"));
+    await user.click(screen.getByRole("button", { name: "Complete selected" }));
+
+    await waitFor(() => {
+      expect(api.tasks.complete).toHaveBeenCalledWith({ id: "task-inbox-rules" });
+    });
+
+    await user.click(screen.getByLabelText("Select Review calendar fixture shape"));
+    await user.click(screen.getByRole("button", { name: "Delete selected" }));
+
+    await waitFor(() => {
+      expect(api.tasks.delete).toHaveBeenCalledWith({ id: "task-calendar-fixtures" });
+    });
+  });
+
   it("reverts optimistic task creation and retries recoverable task errors", async () => {
     const api = seededHcb();
     api.tasks.create = vi.fn()
