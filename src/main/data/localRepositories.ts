@@ -1084,6 +1084,25 @@ export class LocalPlannerRepository {
       const startsAt = new Date(request.startsAt).toISOString();
       const durationMinutes = request.durationMinutes ?? 30;
       const endsAt = addMinutesIso(startsAt, durationMinutes);
+      const existingBlock = this.findScheduledTaskBlockRowForTask(task.id);
+
+      if (existingBlock) {
+        const existing = scheduledTaskBlockSummary(existingBlock);
+
+        if (
+          existing.status === "scheduled" &&
+          existing.calendarId === calendar.id &&
+          existing.startsAt === startsAt &&
+          existing.endsAt === endsAt
+        ) {
+          return existing;
+        }
+
+        throw validationFailure(
+          "Task already has a scheduled block. Move, repair, or unschedule it before scheduling again."
+        );
+      }
+
       const googleId = `local-${randomUUID()}`;
       const eventId = `${calendar.accountId}:event:${calendar.googleId}:${googleId}`;
       const blockId = `block:${randomUUID()}`;
@@ -1149,16 +1168,85 @@ export class LocalPlannerRepository {
     return this.measureSqlite("calendar.moveScheduledTaskBlock", () => {
       const block = this.requireScheduledTaskBlock(request.id);
       const event = this.findCalendarEventRow(block.calendarEventId);
-
-      if (!event) {
-        throw validationFailure("Scheduled task block is missing its calendar event.");
-      }
-
-      const targetCalendar = this.requireCalendar(request.calendarId ?? event.calendarId);
       const now = new Date().toISOString();
       const durationMinutes = request.durationMinutes ?? block.durationMinutes;
       const startsAt = request.startsAt ?? block.startsAt;
       const endsAt = addMinutesIso(startsAt, durationMinutes);
+
+      if (!event) {
+        const task = this.requireTaskForMutation(block.taskId);
+        const targetCalendar = this.requireCalendar(request.calendarId ?? block.calendarId);
+        const googleId = `local-${randomUUID()}`;
+        const eventId = `${targetCalendar.accountId}:event:${targetCalendar.googleId}:${googleId}`;
+        const normalized = normalizeCalendarWrite({
+          title: task.title,
+          calendarId: targetCalendar.id,
+          startsAt,
+          endsAt,
+          allDay: false,
+          location: "Scheduled task",
+          notes: scheduledTaskNotes(task),
+          guestEmails: [],
+          reminderMinutes: []
+        });
+
+        this.connection.executeTransaction([
+          eventInsertOperation({
+            id: eventId,
+            accountId: targetCalendar.accountId,
+            googleId,
+            now,
+            ...normalized,
+            calendarId: targetCalendar.id
+          }),
+          instanceDeleteOperation(eventId, now),
+          instanceInsertOperation({
+            id: eventId,
+            accountId: targetCalendar.accountId,
+            calendarId: targetCalendar.id,
+            eventId,
+            googleEventId: googleId,
+            startsAt: normalized.startsAt,
+            endsAt: normalized.endsAt,
+            allDay: false,
+            status: "confirmed",
+            updatedAt: now
+          }),
+          mutationInsertOperation({
+            id: `mutation:event:${randomUUID()}`,
+            accountId: targetCalendar.accountId,
+            resourceId: eventId,
+            operation: "calendar.events.create",
+            payload: mutationPayload(normalized),
+            now
+          }),
+          {
+            kind: "run",
+            sql: `UPDATE local_scheduled_task_blocks
+                  SET calendar_event_id = ?,
+                      calendar_id = ?,
+                      planned_start_at = ?,
+                      planned_end_at = ?,
+                      duration_minutes = ?,
+                      status = 'scheduled',
+                      updated_at = ?
+                  WHERE id = ? AND deleted_at IS NULL;`,
+            params: [
+              eventId,
+              targetCalendar.id,
+              normalized.startsAt,
+              normalized.endsAt,
+              durationMinutes,
+              now,
+              request.id
+            ]
+          }
+        ]);
+
+        return this.requireScheduledTaskBlock(request.id);
+      }
+
+      const targetCalendar = this.requireCalendar(request.calendarId ?? event.calendarId);
       const normalized = normalizeCalendarWrite({
         title: event.title,
         calendarId: targetCalendar.id,
@@ -1206,6 +1294,7 @@ export class LocalPlannerRepository {
                     planned_start_at = ?,
                     planned_end_at = ?,
                     duration_minutes = ?,
+                    status = 'scheduled',
                     updated_at = ?
                 WHERE id = ? AND deleted_at IS NULL;`,
           params: [
@@ -1351,6 +1440,50 @@ export class LocalPlannerRepository {
          AND blocks.deleted_at IS NULL
        LIMIT 1;`,
       [id]
+    );
+  }
+
+  private findScheduledTaskBlockRowForTask(taskId: string): ScheduledTaskBlockRow | undefined {
+    return this.connection.get<ScheduledTaskBlockRow>(
+      `SELECT
+         blocks.id AS id,
+         blocks.task_id AS taskId,
+         blocks.calendar_event_id AS calendarEventId,
+         COALESCE(instances.calendar_id, events.calendar_id, blocks.calendar_id) AS calendarId,
+         tasks.title AS title,
+         COALESCE(instances.start_at, events.start_at, blocks.planned_start_at) AS startsAt,
+         COALESCE(instances.end_at, events.end_at, blocks.planned_end_at) AS endsAt,
+         blocks.duration_minutes AS durationMinutes,
+         CASE
+           WHEN tasks.id IS NULL
+             OR events.id IS NULL
+             OR events.deleted_at IS NOT NULL
+             OR events.status = 'cancelled'
+           THEN 'orphaned'
+           ELSE 'scheduled'
+         END AS status,
+         pending.status AS pendingMutationStatus,
+         blocks.updated_at AS updatedAt
+       FROM local_scheduled_task_blocks blocks
+       LEFT JOIN google_tasks tasks
+         ON tasks.id = blocks.task_id
+        AND tasks.deleted_at IS NULL
+       LEFT JOIN google_calendar_events events
+         ON events.id = blocks.calendar_event_id
+       LEFT JOIN google_calendar_event_instances instances
+         ON instances.event_id = events.id
+        AND instances.deleted_at IS NULL
+       LEFT JOIN (
+         SELECT resource_id, MAX(status) AS status
+         FROM google_pending_mutations
+         WHERE status IN ('pending', 'applying', 'failed')
+         GROUP BY resource_id
+       ) pending ON pending.resource_id = blocks.calendar_event_id
+       WHERE blocks.task_id = ?
+         AND blocks.deleted_at IS NULL
+       ORDER BY blocks.updated_at DESC, blocks.id ASC
+       LIMIT 1;`,
+      [taskId]
     );
   }
 
@@ -2777,11 +2910,22 @@ function scheduledTaskBlockSummary(row: ScheduledTaskBlockRow): ScheduledTaskBlo
     title: row.title ?? "Scheduled task",
     startsAt: row.startsAt,
     endsAt: row.endsAt,
-    durationMinutes: row.durationMinutes,
+    durationMinutes: blockDurationMinutes(row),
     status: row.status,
     mutationState: mutationState(row.pendingMutationStatus),
     updatedAt: row.updatedAt
   };
+}
+
+function blockDurationMinutes(row: ScheduledTaskBlockRow): number {
+  const startMs = Date.parse(row.startsAt);
+  const endMs = Date.parse(row.endsAt);
+
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    return row.durationMinutes;
+  }
+
+  return Math.max(1, Math.round((endMs - startMs) / 60_000));
 }
 
 function availabilityLine(event: CalendarEventSummary): string {

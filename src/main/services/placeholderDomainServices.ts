@@ -489,9 +489,24 @@ export function createPlaceholderDomainServices(): AppDomainServices {
         const task = requiredById(state.tasks, request.taskId, "Task");
         const calendar = state.calendars.find((candidate) => candidate.id === request.calendarId);
         const now = new Date().toISOString();
-        const eventId = `event-task-block-${state.scheduledTaskBlocks.length + 1}`;
         const durationMinutes = request.durationMinutes ?? 30;
         const endsAt = new Date(Date.parse(request.startsAt) + durationMinutes * 60 * 1000).toISOString();
+        const existingBlock = state.scheduledTaskBlocks.find((block) => block.taskId === task.id);
+
+        if (existingBlock) {
+          if (
+            existingBlock.status === "scheduled" &&
+            existingBlock.calendarId === request.calendarId &&
+            existingBlock.startsAt === request.startsAt &&
+            existingBlock.endsAt === endsAt
+          ) {
+            return clone(existingBlock);
+          }
+
+          throw new Error("Task already has a scheduled block.");
+        }
+
+        const eventId = `event-task-block-${state.scheduledTaskBlocks.length + 1}`;
         const event: CalendarRecord = {
           id: eventId,
           calendarId: request.calendarId,
@@ -527,17 +542,40 @@ export function createPlaceholderDomainServices(): AppDomainServices {
       },
       moveScheduledTaskBlock: (request) => {
         const block = requiredById(state.scheduledTaskBlocks, request.id, "Scheduled task block");
-        const event = requiredById(state.calendarEvents, block.calendarEventId, "Calendar event");
+        let event = state.calendarEvents.find((candidate) => candidate.id === block.calendarEventId);
         const now = new Date().toISOString();
         const durationMinutes = request.durationMinutes ?? block.durationMinutes;
         const startsAt = request.startsAt ?? block.startsAt;
         const endsAt = new Date(Date.parse(startsAt) + durationMinutes * 60 * 1000).toISOString();
+        const calendarId = request.calendarId ?? block.calendarId;
+
+        if (!event) {
+          const task = requiredById(state.tasks, block.taskId, "Task");
+          const calendar = state.calendars.find((candidate) => candidate.id === calendarId);
+          event = {
+            id: `event-task-block-repair-${state.calendarEvents.length + 1}`,
+            calendarId,
+            calendarTitle: calendar?.title ?? "Calendar",
+            title: task.title,
+            startsAt,
+            endsAt,
+            allDay: false,
+            updatedAt: now,
+            location: "Scheduled task",
+            notes: task.notes ?? "",
+            guestEmails: [],
+            reminderMinutes: []
+          };
+          state.calendarEvents.unshift(event);
+          block.calendarEventId = event.id;
+        }
 
         Object.assign(block, {
-          ...(request.calendarId === undefined ? {} : { calendarId: request.calendarId }),
+          calendarId,
           startsAt,
           endsAt,
           durationMinutes,
+          status: "scheduled" as const,
           mutationState: "queued" as const,
           updatedAt: now
         });

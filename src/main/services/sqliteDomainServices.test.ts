@@ -739,6 +739,109 @@ describe("SQLite-backed domain services", () => {
     expect((await domain.sync.status()).pendingMutationCount).toBe(3);
   });
 
+  it("prevents duplicate scheduled task blocks and repairs orphaned blocks", async () => {
+    const { domain, syncRepository } = createTestServices();
+    seedGoogleMirrors(syncRepository);
+
+    const block = await domain.planner.scheduleTaskBlock({
+      taskId: "acct-1:task:inbox:task-1",
+      calendarId: "acct-1:calendar:product",
+      startsAt: "2026-05-22T10:00:00.000Z",
+      durationMinutes: 45
+    });
+
+    expect(() =>
+      domain.planner.scheduleTaskBlock({
+        taskId: "acct-1:task:inbox:task-1",
+        calendarId: "acct-1:calendar:product",
+        startsAt: "2026-05-22T12:00:00.000Z",
+        durationMinutes: 45
+      })
+    ).toThrow(/already has a scheduled block/i);
+    expect(
+      domain.planner.scheduleTaskBlock({
+        taskId: "acct-1:task:inbox:task-1",
+        calendarId: "acct-1:calendar:product",
+        startsAt: "2026-05-22T10:00:00.000Z",
+        durationMinutes: 45
+      })
+    ).toMatchObject({
+      id: block.id,
+      calendarEventId: block.calendarEventId
+    });
+
+    const googleEventId = block.calendarEventId.split(":").at(-1) ?? "";
+    syncRepository.writeCalendarEvents(
+      "acct-1",
+      "product",
+      [
+        {
+          id: googleEventId,
+          calendarId: "product",
+          status: "confirmed",
+          summary: "Externally moved task block",
+          startAt: "2026-05-22T13:00:00.000Z",
+          endAt: "2026-05-22T14:15:00.000Z",
+          isAllDay: false,
+          updatedAt: now
+        }
+      ],
+      {
+        fullSync: false,
+        now
+      }
+    );
+
+    expect(
+      (
+        await domain.planner.listScheduledTaskBlocks({
+          start: "2026-05-22T00:00:00.000Z",
+          end: "2026-05-23T00:00:00.000Z",
+          limit: 20
+        })
+      ).items[0]
+    ).toMatchObject({
+      startsAt: "2026-05-22T13:00:00.000Z",
+      endsAt: "2026-05-22T14:15:00.000Z",
+      durationMinutes: 75,
+      status: "scheduled"
+    });
+
+    syncRepository.writeCalendarEvents("acct-1", "product", [], {
+      fullSync: true,
+      now
+    });
+
+    expect(
+      (
+        await domain.planner.listScheduledTaskBlocks({
+          start: "2026-05-22T00:00:00.000Z",
+          end: "2026-05-23T00:00:00.000Z",
+          limit: 20
+        })
+      ).items[0]
+    ).toMatchObject({
+      id: block.id,
+      status: "orphaned"
+    });
+
+    const repaired = await domain.planner.moveScheduledTaskBlock({
+      id: block.id,
+      calendarId: "acct-1:calendar:product",
+      startsAt: "2026-05-22T15:00:00.000Z",
+      durationMinutes: 30
+    });
+
+    expect(repaired).toMatchObject({
+      id: block.id,
+      status: "scheduled",
+      startsAt: "2026-05-22T15:00:00.000Z",
+      endsAt: "2026-05-22T15:30:00.000Z",
+      mutationState: "queued"
+    });
+    expect(repaired.calendarEventId).not.toBe(block.calendarEventId);
+  });
+
   it("returns materialized recurring instances from visible range queries", async () => {
     const { domain, syncRepository } = createTestServices();
     seedGoogleMirrors(syncRepository);

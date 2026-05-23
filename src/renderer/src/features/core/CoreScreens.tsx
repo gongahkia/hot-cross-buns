@@ -518,10 +518,12 @@ function EventRow({
 
 function TodayTimelineRow({
   onMoveBlock,
+  onRepairBlock,
   onUnscheduleBlock,
   row
 }: {
   onMoveBlock: (block: ScheduledTaskBlockViewModel, minutes: number) => void;
+  onRepairBlock: (block: ScheduledTaskBlockViewModel) => void;
   onUnscheduleBlock: (blockId: string) => void;
   row:
     | { kind: "task"; task: TaskViewModel }
@@ -557,6 +559,14 @@ function TodayTimelineRow({
                 {row.block.status === "orphaned" ? "Needs repair" : "Scheduled"}
               </Badge>
             )}
+            {row.block.status === "orphaned" ? (
+              <IconButton
+                icon={RotateCcw}
+                label={`Repair ${row.block.title}`}
+                onClick={() => onRepairBlock(row.block)}
+                variant="ghost"
+              />
+            ) : null}
             <IconButton
               icon={StepBack}
               label={`Move ${row.block.title} earlier`}
@@ -783,6 +793,15 @@ function TodayView(): JSX.Element {
     });
   }
 
+  function repairBlock(block: ScheduledTaskBlockViewModel): void {
+    void source.moveScheduledTaskBlock({
+      id: block.id,
+      calendarId: block.calendarId,
+      startsAt: block.startsAt,
+      durationMinutes: block.durationMinutes
+    });
+  }
+
   const conflictSummary =
     source.todayViewModel.conflictCount === 0
       ? "No timeline conflicts"
@@ -946,6 +965,7 @@ function TodayView(): JSX.Element {
               ) : (
                 <TodayTimelineRow
                   onMoveBlock={moveBlock}
+                  onRepairBlock={repairBlock}
                   onUnscheduleBlock={(blockId) => void source.unscheduleTaskBlock(blockId)}
                   row={entry.row}
                 />

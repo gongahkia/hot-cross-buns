@@ -783,6 +783,45 @@ describe("App shell", () => {
     });
   });
 
+  it("repairs orphaned scheduled task blocks from Today", async () => {
+    const api = seededHcb();
+    api.calendar.listScheduledTaskBlocks = vi.fn(async () =>
+      ok({
+        items: [
+          {
+            id: "block-orphaned",
+            taskId: "task-inbox-rules",
+            calendarEventId: "event-task-block-missing",
+            calendarId: "cal-product",
+            title: "Draft inbox triage rules",
+            startsAt: `${todayDate}T13:00:00.000Z`,
+            endsAt: `${todayDate}T13:30:00.000Z`,
+            durationMinutes: 30,
+            status: "orphaned" as const,
+            mutationState: "synced" as const,
+            updatedAt: now
+          }
+        ],
+        page: { limit: 250, totalKnown: 1 }
+      })
+    );
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(await screen.findByText("Needs repair")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Repair Draft inbox triage rules" }));
+
+    await waitFor(() => {
+      expect(api.calendar.moveScheduledTaskBlock).toHaveBeenCalledWith({
+        id: "block-orphaned",
+        calendarId: "cal-product",
+        startsAt: `${todayDate}T13:00:00.000Z`,
+        durationMinutes: 30
+      });
+    });
+  });
+
   it("renders task groups, subtasks, completion, empty state, and error state", async () => {
     const api = seededHcb();
     installHcb(api);
