@@ -9,6 +9,7 @@ import { NativeShellService } from "./service";
 function defaultSettings(overrides: Partial<SettingsSnapshot> = {}): SettingsSnapshot {
   return {
     theme: "system",
+    colorTheme: "notion",
     startOnLogin: false,
     selectedTaskListIds: [],
     selectedCalendarIds: [],

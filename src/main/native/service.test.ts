@@ -31,6 +31,7 @@ async function flushNativeStartup(): Promise<void> {
 function defaultSettings(overrides: Partial<SettingsSnapshot> = {}): SettingsSnapshot {
   return {
     theme: "system",
+    colorTheme: "notion",
     startOnLogin: false,
     selectedTaskListIds: [],
     selectedCalendarIds: [],

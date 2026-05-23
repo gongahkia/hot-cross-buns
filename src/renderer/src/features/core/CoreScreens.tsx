@@ -17,6 +17,14 @@ import type {
   TaskUpdateRequest
 } from "@shared/ipc/contracts";
 import {
+  appColorThemes,
+  defaultAppColorTheme,
+  resolveAppColorTheme,
+  resolveAppThemeMode,
+  type AppColorThemeDefinition,
+  type AppColorThemeId
+} from "@shared/themeCatalog";
+import {
   AlertTriangle,
   CalendarDays,
   CalendarPlus,
@@ -88,6 +96,33 @@ function priorityTone(priority: CorePriority): "neutral" | "accent" | "warning" 
   }
 
   return "neutral";
+}
+
+function currentSystemPrefersDark(): boolean {
+  return typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+function colorThemeSwatch(theme: AppColorThemeDefinition): ReactNode {
+  return (
+    <span
+      aria-hidden="true"
+      className="relative size-5 shrink-0 rounded-full border"
+      style={{
+        backgroundColor: theme.cream,
+        borderColor: theme.cardStroke
+      }}
+    >
+      <span
+        className="absolute left-1 top-1 size-2 rounded-full"
+        style={{ backgroundColor: theme.ember }}
+      />
+      <span
+        className="absolute bottom-1 right-1 size-2 rounded-full"
+        style={{ backgroundColor: theme.blue }}
+      />
+    </span>
+  );
 }
 
 function priorityLabel(priority: CorePriority): string {
@@ -4985,6 +5020,11 @@ function SettingsView(): JSX.Element {
   const diagnostics = source.diagnosticsSummary;
   const settings = source.settings;
   const googleStatus = source.googleStatus;
+  const effectiveThemeMode = resolveAppThemeMode(settings.theme, currentSystemPrefersDark());
+  const matchingColorThemes = appColorThemes.filter(
+    (theme) => theme.isDark === (effectiveThemeMode === "dark")
+  );
+  const activeColorTheme = resolveAppColorTheme(settings.colorTheme, effectiveThemeMode);
   const defaultTimeZoneOptions = timeZoneOptions([
     settings.defaultTimeZone,
     googleStatus.account?.timeZone,
@@ -5001,6 +5041,19 @@ function SettingsView(): JSX.Element {
   function updateSettings(request: SettingsUpdateRequest): void {
     setRecoveryMessage(null);
     void source.updateSettings(request);
+  }
+
+  function updateBaseTheme(theme: SettingsSnapshot["theme"]): void {
+    const nextMode = resolveAppThemeMode(theme, currentSystemPrefersDark());
+    const currentColorTheme = resolveAppColorTheme(settings.colorTheme, effectiveThemeMode);
+    const nextColorTheme = currentColorTheme.isDark === (nextMode === "dark")
+      ? currentColorTheme
+      : defaultAppColorTheme(nextMode);
+
+    updateSettings({
+      theme,
+      colorTheme: nextColorTheme.id
+    });
   }
 
   function updateSelectedTaskList(taskListId: string, selected: boolean): void {
@@ -5478,21 +5531,64 @@ function SettingsView(): JSX.Element {
     if (selectedSection.id === "appearance") {
       return (
         <div className="grid gap-3 p-3">
-          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
-            <span>Theme</span>
-            <select
-              aria-label="Theme"
-              className={settingsSelectClass}
-              onChange={(event) =>
-                updateSettings({ theme: event.target.value as SettingsSnapshot["theme"] })
-              }
-              value={settings.theme}
-            >
-              <option value="system">System</option>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-            </select>
-          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+              <span>Theme</span>
+              <select
+                aria-label="Theme"
+                className={settingsSelectClass}
+                onChange={(event) => updateBaseTheme(event.target.value as SettingsSnapshot["theme"])}
+                value={settings.theme}
+              >
+                <option value="system">System</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </label>
+            <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+              <span>Color theme</span>
+              <select
+                aria-label="Color theme"
+                className={settingsSelectClass}
+                onChange={(event) => updateSettings({ colorTheme: event.target.value as AppColorThemeId })}
+                value={activeColorTheme.id}
+              >
+                {matchingColorThemes.map((theme) => (
+                  <option key={theme.id} value={theme.id}>
+                    {theme.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="grid gap-2">
+            <div className="text-[var(--text-xs)] font-semibold uppercase text-text-muted">
+              {effectiveThemeMode === "dark" ? "Dark themes" : "Light themes"}
+            </div>
+            <div className="grid max-h-80 grid-cols-[repeat(auto-fill,minmax(156px,1fr))] gap-2 overflow-auto pr-1">
+              {matchingColorThemes.map((theme) => {
+                const selected = theme.id === activeColorTheme.id;
+
+                return (
+                  <button
+                    aria-pressed={selected}
+                    className={cx(
+                      "flex min-h-10 items-center gap-2 rounded-hcbMd border px-2 text-left text-[var(--text-sm)] transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                      selected
+                        ? "border-accent bg-surface-0 text-text-primary"
+                        : "border-border bg-bg-tertiary text-text-secondary hover:bg-surface-0"
+                    )}
+                    key={theme.id}
+                    onClick={() => updateSettings({ colorTheme: theme.id })}
+                    type="button"
+                  >
+                    {colorThemeSwatch(theme)}
+                    <span className="min-w-0 truncate">{theme.title}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       );
     }

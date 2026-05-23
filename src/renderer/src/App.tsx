@@ -2,6 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import type { NativeAction, SettingsSnapshot } from "@shared/ipc/contracts";
 import {
+  resolveAppColorTheme,
+  resolveAppThemeMode,
+  semanticThemeVariables
+} from "@shared/themeCatalog";
+import {
   Bell,
   CalendarDays,
   CheckCircle2,
@@ -39,6 +44,46 @@ function scheduleFrame(callback: () => void): void {
   }
 
   window.setTimeout(callback, 0);
+}
+
+function systemPrefersDark(): boolean {
+  return typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+function useAppliedTheme(settings: SettingsSnapshot): void {
+  const [prefersDark, setPrefersDark] = useState(systemPrefersDark);
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") {
+      return;
+    }
+
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const listener = (event: MediaQueryListEvent): void => setPrefersDark(event.matches);
+    setPrefersDark(media.matches);
+
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", listener);
+      return () => media.removeEventListener("change", listener);
+    }
+
+    media.addListener(listener);
+    return () => media.removeListener(listener);
+  }, []);
+
+  useEffect(() => {
+    const mode = resolveAppThemeMode(settings.theme, prefersDark);
+    const colorTheme = resolveAppColorTheme(settings.colorTheme, mode);
+    const root = document.documentElement;
+
+    root.dataset.theme = mode;
+    root.dataset.colorTheme = colorTheme.id;
+
+    for (const [name, value] of Object.entries(semanticThemeVariables(colorTheme))) {
+      root.style.setProperty(name, value);
+    }
+  }, [prefersDark, settings.colorTheme, settings.theme]);
 }
 
 function sectionMetric(source: CoreViewModelSource, sectionId: SectionId): string {
@@ -84,6 +129,7 @@ function AppShell(): JSX.Element {
   useRenderTiming("App");
 
   const source = useCoreViewModelSource();
+  useAppliedTheme(source.settings);
   const [activeSectionId, setActiveSectionId] = useState<SectionId>("today");
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [taskCommand, setTaskCommand] = useState<TaskSurfaceCommand | null>(null);

@@ -21,6 +21,9 @@ const tomorrowIso = tomorrow.toISOString();
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  document.documentElement.removeAttribute("data-theme");
+  document.documentElement.removeAttribute("data-color-theme");
+  document.documentElement.removeAttribute("style");
   Object.defineProperty(window, "hcb", {
     configurable: true,
     value: originalHcb
@@ -95,6 +98,7 @@ function installHcb(api: HcbApi | undefined): void {
 function testSettings(overrides: Partial<SettingsSnapshot> = {}): SettingsSnapshot {
   return {
     theme: "system",
+    colorTheme: "notion",
     startOnLogin: false,
     selectedTaskListIds: [],
     selectedCalendarIds: [],

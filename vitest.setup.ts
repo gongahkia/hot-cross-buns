@@ -363,6 +363,7 @@ const hcbApi: HcbApi = {
     get: vi.fn(async () =>
       ok({
         theme: "system" as const,
+        colorTheme: "notion" as const,
         startOnLogin: false,
         selectedTaskListIds: [],
         selectedCalendarIds: [],
@@ -390,6 +391,7 @@ const hcbApi: HcbApi = {
     update: vi.fn(async (request) =>
       ok({
         theme: request.theme ?? "system",
+        colorTheme: request.colorTheme ?? "notion",
         startOnLogin: request.startOnLogin ?? false,
         selectedTaskListIds: request.selectedTaskListIds ?? [],
         selectedCalendarIds: request.selectedCalendarIds ?? [],
