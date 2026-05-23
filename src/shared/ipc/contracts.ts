@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { appColorThemeIds } from "../themeCatalog";
 import { hcbErrorCodeSchema, hcbResultSchema } from "./result";
 
 export const HCB_IPC_VERSION = 1;
@@ -929,6 +930,7 @@ export type GoogleDisconnectRequest = z.input<typeof googleDisconnectRequestSche
 export const settingsGetRequestSchema = emptyRequestSchema;
 
 export const appThemeSchema = z.enum(["system", "light", "dark"]);
+export const appColorThemeSchema = z.enum(appColorThemeIds);
 export const syncModeSchema = z.enum(["manual", "balanced", "near-real-time"]);
 export const trayClickActionSchema = z.enum(["open-menu", "toggle-window", "quick-capture", "open-today"]);
 export const menuBarPanelStyleSchema = z.enum(["adaptive", "agenda", "compact"]);
@@ -971,6 +973,7 @@ export type SavedTaskView = z.infer<typeof savedTaskViewSchema>;
 export const settingsSnapshotSchema = z
   .object({
     theme: appThemeSchema,
+    colorTheme: appColorThemeSchema,
     startOnLogin: z.boolean(),
     quickCaptureShortcut: z.string().min(1).max(120).nullable(),
     selectedTaskListIds: z.array(idSchema).max(100),
@@ -1001,6 +1004,7 @@ export type SettingsSnapshot = z.infer<typeof settingsSnapshotSchema>;
 export const settingsUpdateRequestSchema = z
   .object({
     theme: appThemeSchema.optional(),
+    colorTheme: appColorThemeSchema.optional(),
     startOnLogin: z.boolean().optional(),
     quickCaptureShortcut: z.string().min(1).max(120).nullable().optional(),
     selectedTaskListIds: z.array(idSchema).max(100).optional(),

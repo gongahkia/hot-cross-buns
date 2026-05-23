@@ -185,6 +185,7 @@ interface NoteRow extends Record<string, unknown> {
 
 const DEFAULT_SETTINGS: SettingsSnapshot = {
   theme: "system",
+  colorTheme: "notion",
   startOnLogin: false,
   quickCaptureShortcut: "Ctrl+Space",
   selectedTaskListIds: [],
@@ -2552,6 +2553,7 @@ export class LocalSettingsRepository {
   get(): SettingsSnapshot {
     return {
       theme: this.readSetting("appearance", "theme", DEFAULT_SETTINGS.theme),
+      colorTheme: this.readSetting("appearance", "colorTheme", DEFAULT_SETTINGS.colorTheme),
       startOnLogin: this.readSetting("app", "startOnLogin", DEFAULT_SETTINGS.startOnLogin),
       quickCaptureShortcut: this.readSetting(
         "hotkeys",
@@ -2646,6 +2648,10 @@ export class LocalSettingsRepository {
 
     if (request.theme !== undefined) {
       this.writeSetting("appearance", "theme", request.theme, now);
+    }
+
+    if (request.colorTheme !== undefined) {
+      this.writeSetting("appearance", "colorTheme", request.colorTheme, now);
     }
 
     if (request.startOnLogin !== undefined) {

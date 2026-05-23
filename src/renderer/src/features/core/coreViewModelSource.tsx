@@ -178,6 +178,7 @@ const LOCAL_SEARCH_DEBOUNCE_MS = 24;
 
 const emptySettings: SettingsSnapshot = {
   theme: "system",
+  colorTheme: "notion",
   startOnLogin: false,
   selectedTaskListIds: [],
   selectedCalendarIds: [],
@@ -1643,8 +1644,11 @@ function settingsSections(snapshot: CoreDataSnapshot): SettingsSectionViewModel[
       id: "appearance",
       title: "Appearance",
       status: snapshot.settings.theme,
-      detail: "Theme preference",
-      rows: [{ id: "theme", label: "Theme", value: snapshot.settings.theme }]
+      detail: "Theme and color palette preference",
+      rows: [
+        { id: "theme", label: "Theme", value: snapshot.settings.theme },
+        { id: "color-theme", label: "Color theme", value: snapshot.settings.colorTheme }
+      ]
     },
     {
       id: "hotkeys",

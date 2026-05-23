@@ -201,9 +201,10 @@ export function createPlaceholderDomainServices(): AppDomainServices {
         body: "Placeholder note body for future local note repository data."
       }))
     ],
-    settings: {
-      theme: "system",
-      startOnLogin: false,
+      settings: {
+        theme: "system",
+        colorTheme: "notion",
+        startOnLogin: false,
       quickCaptureShortcut: "Ctrl+Space",
       selectedTaskListIds: ["list-inbox", "list-planning"],
       selectedCalendarIds: ["cal-product", "cal-engineering", "cal-qa"],
@@ -1564,6 +1565,10 @@ function definedSettingsPatch(request: SettingsUpdateRequest): Partial<SettingsS
 
   if (request.theme !== undefined) {
     patch.theme = request.theme as SettingsSnapshot["theme"];
+  }
+
+  if (request.colorTheme !== undefined) {
+    patch.colorTheme = request.colorTheme as SettingsSnapshot["colorTheme"];
   }
 
   if (request.startOnLogin !== undefined) {
