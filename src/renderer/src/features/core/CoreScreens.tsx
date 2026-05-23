@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Dispatch, DragEvent, KeyboardEvent, ReactNode, SetStateAction } from "react";
+import type { Dispatch, DragEvent, KeyboardEvent, ReactNode, SetStateAction, UIEvent } from "react";
 import type {
   CalendarEventCreateRequest,
   CalendarEventRecurrence,
@@ -510,6 +510,11 @@ function EventRow({
           {event.calendar} - {event.location} - {event.notes}
         </span>
       </span>
+      {event.mutationState && event.mutationState !== "synced" ? (
+        <Badge tone={event.mutationState === "failed" ? "danger" : "warning"}>
+          {event.mutationState === "failed" ? "Failed" : "Queued"}
+        </Badge>
+      ) : null}
       <Badge tone="accent">Event</Badge>
     </>
   );
@@ -2724,6 +2729,7 @@ type CalendarRepeatFrequency = "none" | CalendarEventRecurrence["frequency"];
 interface CalendarEventDraft {
   mode: "create" | "edit";
   id?: string;
+  mutationState?: CalendarEventViewModel["mutationState"];
   title: string;
   calendarId: string;
   startsAt: string;
@@ -2769,6 +2775,7 @@ function newCalendarDraft(
 
   return {
     mode: "create",
+    mutationState: undefined,
     title: "",
     calendarId: defaultCalendarId(source),
     startsAt,
@@ -2777,14 +2784,21 @@ function newCalendarDraft(
     location: "",
     notes: "",
     guests: "",
-    reminderMinutes: ""
+    reminderMinutes: "",
+    repeatFrequency: "none",
+    repeatInterval: "1",
+    repeatEndsOn: "",
+    repeatCount: ""
   };
 }
 
 function editCalendarDraft(event: CalendarEventViewModel): CalendarEventDraft {
+  const recurrence = calendarDraftRecurrenceFromRule(event.recurrenceRule);
+
   return {
     mode: "edit",
     id: event.id,
+    mutationState: event.mutationState,
     title: event.title,
     calendarId: event.calendarId,
     startsAt: event.startsAt,
@@ -2793,7 +2807,11 @@ function editCalendarDraft(event: CalendarEventViewModel): CalendarEventDraft {
     location: event.location === "Scheduled" || event.location === "All day" ? "" : event.location,
     notes: event.notes === "Calendar cache" ? "" : event.notes,
     guests: event.guestEmails.join(", "),
-    reminderMinutes: event.reminderMinutes[0] === undefined ? "" : String(event.reminderMinutes[0])
+    reminderMinutes: event.reminderMinutes[0] === undefined ? "" : String(event.reminderMinutes[0]),
+    repeatFrequency: recurrence?.frequency ?? "none",
+    repeatInterval: recurrence ? String(recurrence.interval) : "1",
+    repeatEndsOn: recurrence?.endsOn ?? "",
+    repeatCount: recurrence?.count === null || recurrence?.count === undefined ? "" : String(recurrence.count)
   };
 }
 
@@ -2809,7 +2827,8 @@ function calendarEventPayload(draft: CalendarEventDraft): CalendarEventCreateReq
     location: draft.location,
     notes: draft.notes,
     guestEmails: normalizeGuestEmails(draft.guests.split(",")),
-    reminderMinutes
+    reminderMinutes,
+    recurrence: calendarDraftRecurrence(draft)
   };
 }
 
@@ -2828,6 +2847,7 @@ function calendarEventDraftsEqual(
   return (
     left.mode === right.mode &&
     left.id === right.id &&
+    left.mutationState === right.mutationState &&
     left.title === right.title &&
     left.calendarId === right.calendarId &&
     left.startsAt === right.startsAt &&
@@ -2836,8 +2856,98 @@ function calendarEventDraftsEqual(
     left.location === right.location &&
     left.notes === right.notes &&
     left.guests === right.guests &&
-    left.reminderMinutes === right.reminderMinutes
+    left.reminderMinutes === right.reminderMinutes &&
+    left.repeatFrequency === right.repeatFrequency &&
+    left.repeatInterval === right.repeatInterval &&
+    left.repeatEndsOn === right.repeatEndsOn &&
+    left.repeatCount === right.repeatCount
   );
+}
+
+function calendarDraftRecurrence(draft: CalendarEventDraft): CalendarEventRecurrence | null {
+  if (draft.repeatFrequency === "none") {
+    return null;
+  }
+
+  const interval = Math.min(366, Math.max(1, Number.parseInt(draft.repeatInterval, 10) || 1));
+  const count = draft.repeatCount.trim() === ""
+    ? null
+    : Math.min(366, Math.max(1, Number.parseInt(draft.repeatCount, 10) || 1));
+
+  return {
+    frequency: draft.repeatFrequency,
+    interval,
+    endsOn: draft.repeatEndsOn.trim() || null,
+    count
+  };
+}
+
+function calendarDraftRecurrenceFromRule(rule: string | null | undefined): CalendarEventRecurrence | null {
+  const line = rule
+    ?.split("\n")
+    .map((candidate) => candidate.trim())
+    .find((candidate) => candidate.startsWith("RRULE:"));
+
+  if (!line) {
+    return null;
+  }
+
+  const parts = Object.fromEntries(
+    line
+      .slice("RRULE:".length)
+      .split(";")
+      .map((part) => part.split("=", 2))
+      .filter((part): part is [string, string] => part.length === 2)
+  );
+  const frequency = parts.FREQ?.toLowerCase();
+
+  if (
+    frequency !== "daily" &&
+    frequency !== "weekly" &&
+    frequency !== "monthly" &&
+    frequency !== "yearly"
+  ) {
+    return null;
+  }
+
+  return {
+    frequency,
+    interval: Math.min(366, Math.max(1, Number.parseInt(parts.INTERVAL ?? "1", 10) || 1)),
+    endsOn: parts.UNTIL ? recurrenceDateInputValue(parts.UNTIL) : null,
+    count: parts.COUNT ? Math.min(366, Math.max(1, Number.parseInt(parts.COUNT, 10) || 1)) : null
+  };
+}
+
+function recurrenceDateInputValue(value: string): string | null {
+  const dateOnly = /^(\d{4})(\d{2})(\d{2})/.exec(value);
+
+  return dateOnly ? `${dateOnly[1]}-${dateOnly[2]}-${dateOnly[3]}` : null;
+}
+
+function calendarRecurrenceSummary(draft: CalendarEventDraft): string {
+  const recurrence = calendarDraftRecurrence(draft);
+
+  if (!recurrence) {
+    return "Does not repeat";
+  }
+
+  const unit =
+    recurrence.frequency === "daily"
+      ? "day"
+      : recurrence.frequency === "weekly"
+        ? "week"
+        : recurrence.frequency === "monthly"
+          ? "month"
+          : "year";
+  const cadence = recurrence.interval === 1
+    ? `Every ${unit}`
+    : `Every ${recurrence.interval} ${unit}s`;
+  const qualifiers = [
+    recurrence.endsOn ? `until ${recurrence.endsOn}` : null,
+    recurrence.count ? `${recurrence.count} times` : null
+  ].filter((part): part is string => part !== null);
+
+  return qualifiers.length > 0 ? `${cadence}, ${qualifiers.join(", ")}` : cadence;
 }
 
 function allDayEndInputValue(endsAt: string): string {
@@ -2899,6 +3009,13 @@ function CalendarEventForm({
   return (
     <div className="grid gap-3">
       {error ? <ErrorState description={error} title="Event not saved" /> : null}
+      {draft.mutationState && draft.mutationState !== "synced" ? (
+        <div className="flex justify-end">
+          <Badge tone={draft.mutationState === "failed" ? "danger" : "warning"}>
+            {draft.mutationState === "failed" ? "Failed" : "Queued"}
+          </Badge>
+        </div>
+      ) : null}
       <Input
         aria-label="Event title"
         onChange={(event) => setDraft({ ...draft, title: event.target.value })}
@@ -2982,6 +3099,55 @@ function CalendarEventForm({
           <option value="1440">1 day before</option>
         </select>
       </label>
+      <fieldset className="grid gap-2 rounded-hcbMd border border-border bg-bg-tertiary p-3">
+        <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">Repeat</legend>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+            <span>Frequency</span>
+            <select
+              aria-label="Event repeat frequency"
+              className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              onChange={(event) =>
+                setDraft({ ...draft, repeatFrequency: event.target.value as CalendarRepeatFrequency })
+              }
+              value={draft.repeatFrequency}
+            >
+              <option value="none">Does not repeat</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </label>
+          <Input
+            aria-label="Repeat interval"
+            disabled={draft.repeatFrequency === "none"}
+            min={1}
+            max={366}
+            onChange={(event) => setDraft({ ...draft, repeatInterval: event.target.value })}
+            type="number"
+            value={draft.repeatInterval}
+          />
+          <Input
+            aria-label="Repeat end date"
+            disabled={draft.repeatFrequency === "none"}
+            onChange={(event) => setDraft({ ...draft, repeatEndsOn: event.target.value })}
+            type="date"
+            value={draft.repeatEndsOn}
+          />
+          <Input
+            aria-label="Repeat count"
+            disabled={draft.repeatFrequency === "none"}
+            min={1}
+            max={366}
+            onChange={(event) => setDraft({ ...draft, repeatCount: event.target.value })}
+            placeholder="Occurrences"
+            type="number"
+            value={draft.repeatCount}
+          />
+        </div>
+        <div className="text-[var(--text-xs)] text-text-muted">{calendarRecurrenceSummary(draft)}</div>
+      </fieldset>
       <textarea
         aria-label="Event notes"
         className="min-h-24 w-full resize-none rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary placeholder:text-text-muted transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
@@ -3025,6 +3191,16 @@ function calendarViewActionId(viewId: CalendarViewId): PlannerActionId {
 const dayPlanningHours = Array.from({ length: 12 }, (_, index) => index + 7);
 const calendarEventDragType = "application/x-hcb-calendar-event";
 const calendarEventResizeDragType = "application/x-hcb-calendar-event-resize";
+const calendarDaySlotRowHeight = 88;
+const calendarDayViewportHeight = 520;
+const calendarWeekColumnWidth = 160;
+
+interface CalendarDaySlot {
+  hour: number;
+  label: string;
+  startsAt: string;
+  events: CalendarEventViewModel[];
+}
 
 function hourSlotIso(day: string, hour: number): string {
   return `${day}T${String(hour).padStart(2, "0")}:00:00.000Z`;
@@ -3093,6 +3269,21 @@ function DayView({
 }): JSX.Element {
   const source = useCoreViewModelSource();
   const day = source.calendarDayView.id.slice("day-".length);
+  const slots = useMemo<CalendarDaySlot[]>(
+    () =>
+      dayPlanningHours.map((hour) => ({
+        hour,
+        label: hourSlotLabel(hour),
+        startsAt: hourSlotIso(day, hour),
+        events: source.calendarDayView.events.filter(
+          (event) =>
+            visibleCalendarEvent(event, visibleCalendarIds) &&
+            !event.allDay &&
+            eventOverlapsHour(event, day, hour)
+        )
+      })),
+    [day, source.calendarDayView.events, visibleCalendarIds]
+  );
 
   return (
     <Panel
@@ -3111,51 +3302,48 @@ function DayView({
       title="Day view"
       description={`${source.calendarDayView.weekday}, ${source.calendarDayView.dateLabel}`}
     >
-      <div className="grid gap-2 p-3" role="grid" aria-label="Calendar day view">
-        {dayPlanningHours.map((hour) => {
-          const slotEvents = source.calendarDayView.events.filter(
-            (event) =>
-              visibleCalendarEvent(event, visibleCalendarIds) &&
-              !event.allDay &&
-              eventOverlapsHour(event, day, hour)
-          );
-          const label = hourSlotLabel(hour);
-          const slotStart = hourSlotIso(day, hour);
-
-          return (
+      <div className="p-3" role="grid" aria-label="Calendar day view">
+        <VirtualizedList
+          ariaLabel="Calendar day hour slots"
+          estimateRowHeight={calendarDaySlotRowHeight}
+          getKey={(slot) => slot.hour}
+          items={slots}
+          overscan={2}
+          performanceLabel="calendar.day"
+          viewportHeight={calendarDayViewportHeight}
+          renderRow={(slot) => (
             <div
               className="grid min-h-[72px] grid-cols-[72px_minmax(0,1fr)] gap-3 rounded-hcbMd border border-border bg-bg-tertiary p-2"
-              key={hour}
               onDragOver={allowCalendarDrop}
               onDrop={(dragEvent) => {
                 dragEvent.preventDefault();
                 const resizeEventId = calendarEventResizeDragId(dragEvent);
 
                 if (resizeEventId) {
-                  onResizeEvent(resizeEventId, slotStart);
+                  onResizeEvent(resizeEventId, slot.startsAt);
                   return;
                 }
 
                 const eventId = calendarEventDragId(dragEvent);
 
                 if (eventId) {
-                  onMoveEvent(eventId, slotStart, false);
+                  onMoveEvent(eventId, slot.startsAt, false);
                 }
               }}
               role="row"
             >
               <button
-                aria-label={`Create event at ${label}`}
+                aria-label={`Create event at ${slot.label}`}
                 className="font-mono text-[var(--text-xs)] text-text-muted hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 data-action-id="calendar.create"
-                onClick={() => onCreate({ startsAt: hourSlotIso(day, hour), allDay: false })}
+                onClick={() => onCreate({ startsAt: slot.startsAt, allDay: false })}
                 type="button"
               >
-                {label}
+                {slot.label}
               </button>
               <div className="grid content-start gap-1" role="gridcell">
-                {slotEvents.length > 0 ? (
-                  slotEvents.map((event) => (
+                {slot.events.length > 0 ? (
+                  slot.events.map((event) => (
                     <div
                       className="grid grid-cols-[minmax(0,1fr)_24px] gap-1"
                       key={event.id}
@@ -3194,7 +3382,7 @@ function DayView({
                   <button
                     className="min-h-9 rounded-hcbSm border border-dashed border-border text-left text-[var(--text-sm)] text-text-muted transition-colors duration-fast ease-hcb hover:bg-surface-0 hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                     data-action-id="calendar.create"
-                    onClick={() => onCreate({ startsAt: hourSlotIso(day, hour), allDay: false })}
+                    onClick={() => onCreate({ startsAt: slot.startsAt, allDay: false })}
                     type="button"
                   >
                     Open slot
@@ -3202,8 +3390,8 @@ function DayView({
                 )}
               </div>
             </div>
-          );
-        })}
+          )}
+        />
       </div>
     </Panel>
   );
@@ -3221,14 +3409,44 @@ function WeekView({
   visibleCalendarIds: ReadonlySet<string>;
 }): JSX.Element {
   const source = useCoreViewModelSource();
+  const [scrollLeft, setScrollLeft] = useState(0);
+  const weekWindow = useMemo(() => {
+    const viewportWidth = calendarWeekColumnWidth * 5;
+    const overscan = 1;
+    const visibleCount = Math.ceil(viewportWidth / calendarWeekColumnWidth);
+    const startIndex = Math.max(0, Math.floor(scrollLeft / calendarWeekColumnWidth) - overscan);
+    const endIndex = Math.min(source.calendarWeekDays.length, startIndex + visibleCount + overscan * 2);
+
+    return {
+      endIndex,
+      offsetX: startIndex * calendarWeekColumnWidth,
+      startIndex,
+      totalWidth: source.calendarWeekDays.length * calendarWeekColumnWidth
+    };
+  }, [scrollLeft, source.calendarWeekDays.length]);
+  const visibleWeekDays = source.calendarWeekDays.slice(weekWindow.startIndex, weekWindow.endIndex);
+
+  function handleWeekScroll(event: UIEvent<HTMLDivElement>): void {
+    setScrollLeft(event.currentTarget.scrollLeft);
+  }
 
   return (
     <Panel title="Week view" description="Visible week from cached event range">
-      <div className="grid grid-cols-7 gap-2 p-3" role="grid" aria-label="Calendar week view">
-        {source.calendarWeekDays.map((day) => (
+      <div
+        aria-label="Calendar week view"
+        className="overflow-x-auto p-3"
+        onScroll={handleWeekScroll}
+        role="grid"
+      >
+        <div className="relative min-h-48" style={{ width: weekWindow.totalWidth }}>
+          <div
+            className="absolute inset-y-0 top-0 flex gap-2"
+            style={{ transform: `translateX(${weekWindow.offsetX}px)` }}
+          >
+        {visibleWeekDays.map((day) => (
           <div
             className={cx(
-              "min-h-44 rounded-hcbMd border border-border bg-bg-tertiary p-2 text-left transition-colors duration-fast ease-hcb hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+              "min-h-44 shrink-0 rounded-hcbMd border border-border bg-bg-tertiary p-2 text-left transition-colors duration-fast ease-hcb hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
               day.isToday && "border-accent"
             )}
             key={day.id}
@@ -3259,6 +3477,7 @@ function WeekView({
               )
             }
             role="gridcell"
+            style={{ width: calendarWeekColumnWidth }}
             tabIndex={0}
           >
             <div className="flex items-center justify-between gap-2">
@@ -3289,6 +3508,8 @@ function WeekView({
             </div>
           </div>
         ))}
+          </div>
+        </div>
       </div>
     </Panel>
   );
@@ -3304,6 +3525,23 @@ function MonthView({
   visibleCalendarIds: ReadonlySet<string>;
 }): JSX.Element {
   const source = useCoreViewModelSource();
+  const visibleMonthEventsByDay = useMemo(() => {
+    const eventsByDay = new Map<string, CalendarEventViewModel[]>();
+
+    for (const week of source.calendarMonthWeeks) {
+      for (const day of week.days) {
+        const visibleEvents = day.events.filter((event) =>
+          visibleCalendarEvent(event, visibleCalendarIds)
+        );
+
+        if (visibleEvents.length > 0) {
+          eventsByDay.set(day.id, visibleEvents);
+        }
+      }
+    }
+
+    return eventsByDay;
+  }, [source.calendarMonthWeeks, visibleCalendarIds]);
 
   return (
     <Panel title="Month view" description="Cached event range by day">
@@ -3311,9 +3549,7 @@ function MonthView({
         {source.calendarMonthWeeks.map((week) => (
           <div className="grid grid-cols-7 gap-1" key={week.id} role="row">
             {week.days.map((day) => {
-              const firstVisibleEvent = day.events.find((event) =>
-                visibleCalendarEvent(event, visibleCalendarIds)
-              );
+              const firstVisibleEvent = visibleMonthEventsByDay.get(day.id)?.[0];
 
               return (
                 <div

@@ -400,6 +400,7 @@ export const calendarEventSummarySchema = z
     notes: z.string().max(20_000).optional(),
     guestEmails: z.array(guestEmailSchema).max(50).optional(),
     reminderMinutes: z.array(reminderMinutesSchema).max(10).optional(),
+    mutationState: z.enum(["synced", "queued", "failed"]).optional(),
     timeZone: z.string().min(1).max(120).nullable().optional(),
     recurrenceRule: z.string().min(1).max(1_000).nullable().optional(),
     recurringEventId: z.string().min(1).max(256).nullable().optional(),

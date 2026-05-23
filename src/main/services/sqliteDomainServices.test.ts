@@ -671,6 +671,39 @@ describe("SQLite-backed domain services", () => {
     expect((await domain.sync.status()).pendingMutationCount).toBe(3);
   });
 
+  it("maps pending mutation status onto calendar events", async () => {
+    const { domain, syncRepository } = createTestServices();
+    seedGoogleMirrors(syncRepository);
+
+    const created = await domain.planner.createCalendarEvent({
+      title: "Queued event",
+      calendarId: "acct-1:calendar:product",
+      startsAt: "2026-05-22T11:00:00.000Z",
+      endsAt: "2026-05-22T12:00:00.000Z"
+    });
+
+    expect(created.mutationState).toBe("queued");
+
+    temp!.connection.run(
+      `UPDATE google_pending_mutations
+       SET status = 'failed'
+       WHERE resource_id = ?;`,
+      [created.eventId ?? created.id]
+    );
+
+    const listed = await domain.planner.listCalendarEvents({
+      calendarIds: ["acct-1:calendar:product"],
+      start: "2026-05-22T00:00:00.000Z",
+      end: "2026-05-23T00:00:00.000Z",
+      limit: 20
+    });
+    const failed = listed.items.find((event) => event.eventId === (created.eventId ?? created.id));
+    const detail = await domain.planner.getCalendarEvent({ id: created.id });
+
+    expect(failed?.mutationState).toBe("failed");
+    expect(detail.mutationState).toBe("failed");
+  });
+
   it("schedules task blocks as linked calendar events and supports static availability export", async () => {
     const { domain, syncRepository } = createTestServices();
     seedGoogleMirrors(syncRepository);
@@ -891,6 +924,48 @@ describe("SQLite-backed domain services", () => {
       "2026-05-23T08:00:00.000Z",
       "2026-05-24T08:00:00.000Z"
     ]);
+    expect(dailyInstances[0]?.recurrenceRule).toBe("RRULE:FREQ=DAILY;COUNT=3");
+  });
+
+  it("round-trips local calendar recurrence through create and update", async () => {
+    const { domain, syncRepository } = createTestServices();
+    seedGoogleMirrors(syncRepository);
+
+    const created = await domain.planner.createCalendarEvent({
+      title: "Recurring planning",
+      calendarId: "acct-1:calendar:product",
+      startsAt: "2026-05-22T08:00:00.000Z",
+      endsAt: "2026-05-22T08:30:00.000Z",
+      recurrence: {
+        frequency: "weekly",
+        interval: 2,
+        endsOn: "2026-06-30",
+        count: null
+      }
+    });
+
+    expect(created.recurrenceRule).toBe("RRULE:FREQ=WEEKLY;INTERVAL=2;UNTIL=20260630");
+
+    const events = await domain.planner.listCalendarEvents({
+      calendarIds: ["acct-1:calendar:product"],
+      start: "2026-05-22T00:00:00.000Z",
+      end: "2026-06-30T23:59:59.000Z",
+      limit: 20
+    });
+
+    expect(events.items.filter((event) => event.title === "Recurring planning").length).toBeGreaterThan(1);
+
+    const updated = await domain.planner.updateCalendarEvent({
+      id: created.id,
+      recurrence: {
+        frequency: "yearly",
+        interval: 1,
+        count: 2,
+        endsOn: null
+      }
+    });
+
+    expect(updated.recurrenceRule).toBe("RRULE:FREQ=YEARLY;INTERVAL=1;COUNT=2");
   });
 
   it("uses the calendar visible-range index for calendar id and start/end paths", () => {

@@ -1915,6 +1915,7 @@ function calendarEventViewModel(
     notes: event.notes?.trim() || "Calendar cache",
     guestEmails: event.guestEmails ?? [],
     reminderMinutes: event.reminderMinutes ?? [],
+    mutationState: event.mutationState,
     recurrenceRule: event.recurrenceRule ?? null
   };
 }

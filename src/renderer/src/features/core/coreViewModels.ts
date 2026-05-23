@@ -76,6 +76,7 @@ export interface CalendarEventViewModel {
   notes: string;
   guestEmails: string[];
   reminderMinutes: number[];
+  mutationState?: "synced" | "queued" | "failed";
   recurrenceRule: string | null;
 }
 

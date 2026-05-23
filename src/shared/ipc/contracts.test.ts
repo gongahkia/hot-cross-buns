@@ -113,12 +113,23 @@ describe("shared IPC contracts", () => {
         startsAt: "2026-05-22T09:00:00.000Z",
         endsAt: "2026-05-22T10:00:00.000Z",
         guestEmails: ["ADA@example.com"],
-        reminderMinutes: [10]
+        reminderMinutes: [10],
+        recurrence: {
+          frequency: "weekly",
+          interval: 2,
+          endsOn: "2026-12-31",
+          count: null
+        }
       })
     ).toMatchObject({
       title: "Design review",
       guestEmails: ["ada@example.com"],
-      allDay: false
+      allDay: false,
+      recurrence: {
+        frequency: "weekly",
+        interval: 2,
+        endsOn: "2026-12-31"
+      }
     });
     expect(
       calendarEventCreateRequestSchema.safeParse({
@@ -128,7 +139,28 @@ describe("shared IPC contracts", () => {
         endsAt: "2026-05-22T09:00:00.000Z"
       }).success
     ).toBe(false);
+    expect(
+      calendarEventCreateRequestSchema.safeParse({
+        title: "Bad recurrence",
+        calendarId: "cal-1",
+        startsAt: "2026-05-22T09:00:00.000Z",
+        endsAt: "2026-05-22T10:00:00.000Z",
+        recurrence: {
+          frequency: "weekly",
+          interval: 0
+        }
+      }).success
+    ).toBe(false);
     expect(calendarEventUpdateRequestSchema.safeParse({ id: "event-1" }).success).toBe(false);
+    expect(
+      calendarEventUpdateRequestSchema.parse({
+        id: "event-1",
+        recurrence: null
+      })
+    ).toEqual({
+      id: "event-1",
+      recurrence: null
+    });
   });
 
   it("validates scheduled task blocks and static availability export contracts", () => {

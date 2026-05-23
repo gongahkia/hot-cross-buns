@@ -145,6 +145,7 @@ interface CalendarEventRow extends Record<string, unknown> {
   notes: string | null;
   guestEmailsJson: string | null;
   reminderMinutesJson: string | null;
+  pendingMutationStatus?: "pending" | "applying" | "failed" | null;
   timeZone: string | null;
   recurrenceRule: string | null;
   recurringEventId: string | null;
@@ -882,6 +883,7 @@ export class LocalPlannerRepository {
            events.description AS notes,
            events.attendee_emails_json AS guestEmailsJson,
            events.reminder_minutes_json AS reminderMinutesJson,
+           pending.status AS pendingMutationStatus,
            events.local_time_zone AS timeZone,
            events.recurrence_rule AS recurrenceRule,
            instances.recurring_event_id AS recurringEventId,
@@ -889,6 +891,13 @@ export class LocalPlannerRepository {
          FROM google_calendar_event_instances instances
          INNER JOIN google_calendar_events events ON events.id = instances.event_id
          INNER JOIN google_calendar_lists calendars ON calendars.id = instances.calendar_id
+         LEFT JOIN (
+           SELECT resource_id, MAX(status) AS status
+           FROM google_pending_mutations
+           WHERE resource_type = 'event'
+             AND status IN ('pending', 'applying', 'failed')
+           GROUP BY resource_id
+         ) pending ON pending.resource_id = events.id
          WHERE ${where}
          ORDER BY instances.start_at ASC, instances.end_at ASC, instances.id ASC
          LIMIT ? OFFSET ?;`,
@@ -1589,6 +1598,7 @@ export class LocalPlannerRepository {
            events.description AS notes,
            events.attendee_emails_json AS guestEmailsJson,
            events.reminder_minutes_json AS reminderMinutesJson,
+           pending.status AS pendingMutationStatus,
            events.local_time_zone AS timeZone,
            events.recurrence_rule AS recurrenceRule,
            COALESCE(instances.recurring_event_id, events.recurring_event_id) AS recurringEventId,
@@ -1599,6 +1609,13 @@ export class LocalPlannerRepository {
           AND instances.deleted_at IS NULL
           AND instances.id = ?
          INNER JOIN google_calendar_lists calendars ON calendars.id = events.calendar_id
+         LEFT JOIN (
+           SELECT resource_id, MAX(status) AS status
+           FROM google_pending_mutations
+           WHERE resource_type = 'event'
+             AND status IN ('pending', 'applying', 'failed')
+           GROUP BY resource_id
+         ) pending ON pending.resource_id = events.id
          WHERE (events.id = ? OR instances.id = ?)
            AND events.deleted_at IS NULL
            AND calendars.deleted_at IS NULL
@@ -3502,6 +3519,7 @@ function calendarEventSummary(row: CalendarEventRow): CalendarEventSummary {
     notes: row.notes ?? "",
     guestEmails: parseStringArray(row.guestEmailsJson),
     reminderMinutes: parseNumberArray(row.reminderMinutesJson),
+    mutationState: mutationState(row.pendingMutationStatus),
     timeZone: row.timeZone,
     recurrenceRule: row.recurrenceRule,
     recurringEventId: row.recurringEventId,
@@ -3729,7 +3747,9 @@ function taskStatusFromRow(row: TaskRow): TaskSummary["status"] {
   return row.status === "completed" ? "completed" : "active";
 }
 
-function mutationState(status: TaskRow["pendingMutationStatus"]): TaskSummary["mutationState"] {
+function mutationState(
+  status: TaskRow["pendingMutationStatus"] | CalendarEventRow["pendingMutationStatus"]
+): TaskSummary["mutationState"] {
   if (status === "failed") {
     return "failed";
   }

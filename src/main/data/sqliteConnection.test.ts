@@ -119,7 +119,7 @@ describe("SQLite connection foundation", () => {
         ["native"]
       );
 
-      expect(result.appliedVersions).toEqual([1, 2, 3, 4]);
+      expect(result.appliedVersions).toEqual([1, 2, 3, 4, 5]);
       expect(rows).toEqual([{ title: "SQLite native adapter" }]);
     } finally {
       temporary.cleanup();
@@ -149,8 +149,32 @@ describe("SQLite connection foundation", () => {
         ["event-1"]
       );
 
-      expect(result.appliedVersions).toEqual([1, 2, 3, 4]);
+      expect(result.appliedVersions).toEqual([1, 2, 3, 4, 5]);
       expect(row?.localTimeZone).toBe("Asia/Singapore");
+    } finally {
+      temporary.cleanup();
+    }
+  });
+
+  it("adds calendar event recurrence rule during local migrations", () => {
+    const temporary = createTemporarySqliteConnection("hcb2-sqlite-event-recurrence-migration-");
+
+    try {
+      temporary.connection.exec(`
+        CREATE TABLE google_calendar_events (
+          id TEXT PRIMARY KEY,
+          start_time_zone TEXT,
+          end_time_zone TEXT,
+          local_time_zone TEXT
+        );
+      `);
+
+      runLocalDataMigrations(temporary.connection);
+      const columns = temporary.connection
+        .query<{ name: string }>("PRAGMA table_info(google_calendar_events);")
+        .map((row) => row.name);
+
+      expect(columns).toContain("recurrence_rule");
     } finally {
       temporary.cleanup();
     }

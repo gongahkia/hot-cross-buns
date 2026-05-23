@@ -1270,6 +1270,39 @@ describe("App shell", () => {
     expect(inspector).toHaveAttribute("data-inspector-id", "event-standup");
   });
 
+  it("shows event pending mutation badges in rows and inspector", async () => {
+    const api = seededHcb();
+    api.calendar.listEvents = vi.fn(async () =>
+      ok({
+        items: [
+          {
+            id: "event-standup",
+            calendarId: "cal-product",
+            title: "Planner shell standup",
+            startsAt: `${todayDate}T09:30:00.000Z`,
+            endsAt: `${todayDate}T09:50:00.000Z`,
+            allDay: false,
+            mutationState: "queued" as const,
+            updatedAt: now
+          }
+        ],
+        page: { limit: 250, totalKnown: 1 }
+      })
+    );
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await goToSection("Calendar");
+    const agenda = await screen.findByRole("list", { name: "Calendar agenda" });
+    expect(within(agenda).getByText("Queued")).toBeInTheDocument();
+
+    await user.click(screen.getByText("Planner shell standup"));
+    const inspector = await screen.findByTestId("inspector-shell");
+
+    expect(within(inspector).getByText("Queued")).toBeInTheDocument();
+  });
+
   it("keeps a dirty calendar event inspector open on Escape", async () => {
     installHcb(seededHcb());
     const user = userEvent.setup();
@@ -1455,6 +1488,10 @@ describe("App shell", () => {
     await user.type(screen.getByRole("textbox", { name: "Event location" }), "Room 3");
     await user.type(screen.getByRole("textbox", { name: "Event guests" }), "ada@example.com");
     await user.selectOptions(screen.getByLabelText("Event reminder"), "15");
+    await user.selectOptions(screen.getByLabelText("Event repeat frequency"), "weekly");
+    fireEvent.change(screen.getByLabelText("Repeat interval"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("Repeat end date"), { target: { value: "2026-12-31" } });
+    expect(screen.getByText("Every 2 weeks, until 2026-12-31")).toBeInTheDocument();
     await user.type(screen.getByRole("textbox", { name: "Event notes" }), "Bring mocks.");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -1469,7 +1506,13 @@ describe("App shell", () => {
           location: "Room 3",
           notes: "Bring mocks.",
           guestEmails: ["ada@example.com"],
-          reminderMinutes: [15]
+          reminderMinutes: [15],
+          recurrence: {
+            frequency: "weekly",
+            interval: 2,
+            endsOn: "2026-12-31",
+            count: null
+          }
         })
       );
     });

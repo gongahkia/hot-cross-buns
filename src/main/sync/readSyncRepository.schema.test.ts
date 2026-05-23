@@ -140,6 +140,7 @@ describe("google_calendar_events local timezone column", () => {
       new GoogleSyncRepository(temporary.connection, { defaultTimeZone: "Asia/Singapore" });
       const columns = eventColumnsOf(temporary.connection);
       expect(columns.has("local_time_zone")).toBe(true);
+      expect(columns.has("recurrence_rule")).toBe(true);
     } finally {
       temporary.cleanup();
     }
@@ -184,6 +185,43 @@ describe("google_calendar_events local timezone column", () => {
       const columns = eventColumnsOf(temporary.connection);
 
       expect(columns.has("local_time_zone")).toBe(true);
+    } finally {
+      temporary.cleanup();
+    }
+  });
+
+  it("adds recurrence rule on a pre-existing schema without it", () => {
+    const temporary = createTemporarySqliteConnection("hcb2-event-recurrence-alter-");
+    try {
+      temporary.connection.exec(`
+        CREATE TABLE google_calendar_events (
+          id TEXT PRIMARY KEY,
+          account_id TEXT NOT NULL,
+          calendar_id TEXT NOT NULL,
+          google_id TEXT NOT NULL,
+          status TEXT NOT NULL,
+          summary TEXT NOT NULL,
+          description TEXT,
+          location TEXT,
+          start_at TEXT NOT NULL,
+          start_time_zone TEXT,
+          end_at TEXT NOT NULL,
+          end_time_zone TEXT,
+          is_all_day INTEGER NOT NULL DEFAULT 0,
+          attendee_emails_json TEXT NOT NULL DEFAULT '[]',
+          reminder_minutes_json TEXT NOT NULL DEFAULT '[]',
+          local_time_zone TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          deleted_at TEXT,
+          UNIQUE(account_id, calendar_id, google_id)
+        );
+      `);
+
+      new GoogleSyncRepository(temporary.connection, { defaultTimeZone: "Asia/Singapore" });
+      const columns = eventColumnsOf(temporary.connection);
+
+      expect(columns.has("recurrence_rule")).toBe(true);
     } finally {
       temporary.cleanup();
     }
