@@ -6753,6 +6753,7 @@ function CalendarView(): JSX.Element {
               onCreate={openCreate}
               onMoveEvent={moveCalendarEvent}
               onOpen={openEdit}
+              onResizeEvent={resizeCalendarEvent}
               visibleCalendarIds={visibleCalendarIdSet}
             />
           ) : null}
@@ -6767,6 +6768,7 @@ function CalendarView(): JSX.Element {
               onDayCountChange={setMultiDayCount}
               onMoveEvent={moveCalendarEvent}
               onOpen={openEdit}
+              onResizeEvent={resizeCalendarEvent}
               visibleCalendarIds={visibleCalendarIdSet}
             />
           ) : null}
@@ -6779,6 +6781,7 @@ function CalendarView(): JSX.Element {
               onCreate={openCreate}
               onMoveEvent={moveCalendarEvent}
               onOpen={openEdit}
+              onResizeEvent={resizeCalendarEvent}
               visibleCalendarIds={visibleCalendarIdSet}
             />
           ) : null}
