@@ -640,12 +640,13 @@ function AppShell(): JSX.Element {
 
           <div className="flex min-w-0 shrink-0 items-center gap-2 overflow-x-auto" role="toolbar" aria-label="Planner actions">
             <Button
+              aria-expanded={commandPaletteOpen}
               aria-label="Command palette"
               aria-keyshortcuts="Meta+P Control+P"
               className="min-w-8"
               onClick={openCommandPalette}
               title="Command palette"
-              variant="secondary"
+              variant={commandPaletteOpen ? "secondary" : "ghost"}
             >
               <Command aria-hidden="true" size={15} />
               <span className="hidden rounded-hcbSm border border-border px-1.5 font-mono text-[var(--text-xs)] text-text-muted md:inline">
@@ -688,7 +689,14 @@ function AppShell(): JSX.Element {
               aria-expanded={settingsOpen}
               aria-keyshortcuts="Meta+, Control+,"
               className="min-w-8"
-              onClick={() => setSettingsOpen((open) => !open)}
+              onClick={() => {
+                if (settingsOpen) {
+                  setSettingsOpen(false);
+                  return;
+                }
+
+                openSettingsPanel();
+              }}
               title="Settings"
               variant={settingsOpen ? "secondary" : "ghost"}
             >
