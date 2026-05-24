@@ -779,7 +779,7 @@ describe("App shell", () => {
     await user.click(screen.getByRole("button", { name: /Notifications, \d+ active/ }));
 
     const dialog = await screen.findByRole("dialog", { name: "Notifications" });
-    expect(within(dialog).getByText("App notices")).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { level: 3, name: "App notices" })).toBeInTheDocument();
     expect(within(dialog).queryByText("Local reminders")).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText("Notification lead minutes")).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Request permission" })).not.toBeInTheDocument();
