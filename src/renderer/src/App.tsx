@@ -9,6 +9,8 @@ import {
 import {
   Bell,
   Command,
+  PanelLeftClose,
+  PanelLeftOpen,
   RefreshCw,
   Settings2,
   X
@@ -210,6 +212,7 @@ function AppShell(): JSX.Element {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [taskCommand, setTaskCommand] = useState<TaskSurfaceCommand | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [healthLabel, setHealthLabel] = useState("Starting");
   const [searchQuery, setSearchQuery] = useState("");
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>([]);
@@ -219,6 +222,7 @@ function AppShell(): JSX.Element {
 
   const activeSection = getPlannerSection(activeSectionId);
   const ActiveIcon = activeSection.icon;
+  const SidebarToggleIcon = sidebarOpen ? PanelLeftClose : PanelLeftOpen;
   const appNotifications = getAppNotifications(source);
   const visibleNotification = appNotifications.find(
     (notification) => !dismissedNotificationIds.includes(notification.id)
@@ -248,6 +252,10 @@ function AppShell(): JSX.Element {
   const openCommandPalette = useCallback((): void => {
     commandPaletteOpenStartedAt.current = rendererNow();
     setCommandPaletteOpen(true);
+  }, []);
+
+  const toggleSidebar = useCallback((): void => {
+    setSidebarOpen((open) => !open);
   }, []);
 
   const triggerTaskCommand = useCallback(
@@ -421,6 +429,12 @@ function AppShell(): JSX.Element {
         return;
       }
 
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        toggleSidebar();
+        return;
+      }
+
       if ((event.metaKey || event.ctrlKey) && event.key === ",") {
         event.preventDefault();
         navigateToSection("settings");
@@ -439,7 +453,7 @@ function AppShell(): JSX.Element {
 
     window.addEventListener("keydown", handleGlobalKeyDown);
     return () => window.removeEventListener("keydown", handleGlobalKeyDown);
-  }, [navigateToSection, openCommandPalette, source.refresh]);
+  }, [navigateToSection, openCommandPalette, source.refresh, toggleSidebar]);
 
   useEffect(() => {
     if (!notificationsOpen) {
@@ -484,65 +498,90 @@ function AppShell(): JSX.Element {
 
   return (
     <div
-      className="grid h-dvh min-h-0 overflow-hidden grid-rows-[auto_minmax(0,1fr)] bg-bg-primary text-text-primary md:grid-cols-[72px_minmax(0,1fr)] md:grid-rows-none lg:grid-cols-[232px_minmax(0,1fr)]"
+      className={cx(
+        "grid h-dvh min-h-0 overflow-hidden bg-bg-primary text-text-primary",
+        sidebarOpen
+          ? "grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[72px_minmax(0,1fr)] md:grid-rows-none lg:grid-cols-[232px_minmax(0,1fr)]"
+          : "grid-rows-[minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)] md:grid-rows-none"
+      )}
       data-testid="app-shell"
     >
-      <aside className="flex min-h-0 min-w-0 flex-row items-center overflow-x-auto border-b border-border bg-bg-secondary md:flex-col md:items-stretch md:overflow-hidden md:border-b-0 md:border-r">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center border-r border-border px-3 md:w-auto md:border-b md:border-r-0 lg:justify-start lg:gap-3 lg:px-4">
-          <img
-            alt=""
-            aria-hidden="true"
-            className="size-8 rounded-hcbMd object-cover"
-            draggable={false}
-            src={appIconUrl}
-          />
-          <div className="hidden min-w-0 lg:block">
-            <div className="truncate text-[var(--text-md)] font-semibold">Hot Cross Buns 2</div>
+      {sidebarOpen ? (
+        <aside
+          className="flex min-h-0 min-w-0 flex-row items-center overflow-x-auto border-b border-border bg-bg-secondary md:flex-col md:items-stretch md:overflow-hidden md:border-b-0 md:border-r"
+          id="app-sidebar"
+        >
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center border-r border-border px-3 md:w-auto md:border-b md:border-r-0 lg:justify-start lg:gap-3 lg:px-4">
+            <img
+              alt=""
+              aria-hidden="true"
+              className="size-8 rounded-hcbMd object-cover"
+              draggable={false}
+              src={appIconUrl}
+            />
+            <div className="hidden min-w-0 lg:block">
+              <div className="truncate text-[var(--text-md)] font-semibold">Hot Cross Buns 2</div>
+            </div>
           </div>
-        </div>
 
-        <nav aria-label="Primary" className="flex min-h-0 min-w-0 flex-1 gap-1 overflow-x-auto px-2 py-2 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:py-3">
-          {primaryPlannerSections.map((section) => {
-            const Icon = section.icon;
-            const selected = section.id === activeSectionId;
+          <nav aria-label="Primary" className="flex min-h-0 min-w-0 flex-1 gap-1 overflow-x-auto px-2 py-2 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:py-3">
+            {primaryPlannerSections.map((section) => {
+              const Icon = section.icon;
+              const selected = section.id === activeSectionId;
 
-            return (
-              <button
-                aria-current={selected ? "page" : undefined}
-                aria-label={section.label}
-                className={cx(
-                  "flex h-9 w-auto min-w-9 items-center justify-center gap-3 rounded-hcbMd px-2 text-left text-[var(--text-base)] transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:w-full lg:justify-start lg:px-3",
-                  selected
-                    ? "bg-surface-0 text-text-primary"
-                    : "text-text-secondary hover:bg-surface-0 hover:text-text-primary"
-                )}
-                key={section.id}
-                onClick={() => navigateToSection(section.id)}
-                onKeyDown={(event) => handleNavigationKeyDown(event, section.id)}
-                ref={setSectionButtonRef(section.id)}
-                type="button"
-              >
-                <Icon aria-hidden="true" className="shrink-0" size={16} strokeWidth={2} />
-                <span className="hidden min-w-0 flex-1 truncate lg:inline">{section.label}</span>
-                <span className="hidden shrink-0 text-[var(--text-xs)] text-text-muted lg:inline">
-                  {sectionMetric(source, section.id)}
-                </span>
-              </button>
-            );
-          })}
-        </nav>
+              return (
+                <button
+                  aria-current={selected ? "page" : undefined}
+                  aria-label={section.label}
+                  className={cx(
+                    "flex h-9 w-auto min-w-9 items-center justify-center gap-3 rounded-hcbMd px-2 text-left text-[var(--text-base)] transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:w-full lg:justify-start lg:px-3",
+                    selected
+                      ? "bg-surface-0 text-text-primary"
+                      : "text-text-secondary hover:bg-surface-0 hover:text-text-primary"
+                  )}
+                  key={section.id}
+                  onClick={() => navigateToSection(section.id)}
+                  onKeyDown={(event) => handleNavigationKeyDown(event, section.id)}
+                  ref={setSectionButtonRef(section.id)}
+                  type="button"
+                >
+                  <Icon aria-hidden="true" className="shrink-0" size={16} strokeWidth={2} />
+                  <span className="hidden min-w-0 flex-1 truncate lg:inline">{section.label}</span>
+                  <span className="hidden shrink-0 text-[var(--text-xs)] text-text-muted lg:inline">
+                    {sectionMetric(source, section.id)}
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
 
-        <div className="hidden border-t border-border px-4 py-3 text-[var(--text-xs)] text-text-muted lg:block">
-          <div className="flex items-center justify-between gap-3">
-            <span>Runtime</span>
-            <Badge tone={healthLabel === "Ready" ? "success" : "neutral"}>{healthLabel}</Badge>
+          <div className="hidden border-t border-border px-4 py-3 text-[var(--text-xs)] text-text-muted lg:block">
+            <div className="flex items-center justify-between gap-3">
+              <span>Runtime</span>
+              <Badge tone={healthLabel === "Ready" ? "success" : "neutral"}>{healthLabel}</Badge>
+            </div>
           </div>
-        </div>
-      </aside>
+        </aside>
+      ) : null}
 
       <main className="flex min-h-0 min-w-0 flex-col overflow-hidden">
         <header className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-bg-primary px-3 py-2 sm:flex-nowrap md:px-5">
           <div className="flex min-w-0 items-center gap-3">
+            <Button
+              aria-controls="app-sidebar"
+              aria-expanded={sidebarOpen}
+              aria-keyshortcuts="Meta+S Control+S"
+              aria-label={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+              className="min-w-8"
+              onClick={toggleSidebar}
+              title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+              variant="ghost"
+            >
+              <SidebarToggleIcon aria-hidden="true" size={15} />
+              <span className="hidden rounded-hcbSm border border-border px-1.5 font-mono text-[var(--text-xs)] text-text-muted md:inline">
+                Cmd S
+              </span>
+            </Button>
             <div className="flex size-8 items-center justify-center rounded-hcbMd bg-surface-0 text-accent">
               <ActiveIcon aria-hidden="true" size={18} />
             </div>
