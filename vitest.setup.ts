@@ -529,6 +529,12 @@ const hcbApi: HcbApi = {
         state: "unsupported" as const
       })
     ),
+    listFontFamilies: vi.fn(async () =>
+      ok({
+        platform: "darwin" as const,
+        families: ["Avenir", "SF Pro Text"]
+      })
+    ),
     subscribeAction: vi.fn(() => () => undefined)
   },
   diagnostics: {

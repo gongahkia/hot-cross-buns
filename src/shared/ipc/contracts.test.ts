@@ -374,6 +374,15 @@ describe("shared IPC contracts", () => {
     expect(settingsUpdateRequestSchema.safeParse({ uiFontName: "" }).success).toBe(false);
     expect(settingsUpdateRequestSchema.safeParse({ uiTextSizePoints: 8 }).success).toBe(false);
     expect(settingsUpdateRequestSchema.safeParse({ uiTextSizePoints: 25 }).success).toBe(false);
+    expect(
+      ipcContracts.native.listFontFamilies.responseSchema.parse({
+        platform: "darwin",
+        families: ["Avenir", "SF Pro Text"]
+      })
+    ).toEqual({
+      platform: "darwin",
+      families: ["Avenir", "SF Pro Text"]
+    });
     expect(settingsRecoveryActionRequestSchema.parse({ action: "resetOnboarding" })).toEqual({
       action: "resetOnboarding"
     });

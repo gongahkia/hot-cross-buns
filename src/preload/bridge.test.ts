@@ -200,6 +200,25 @@ describe("preload bridge", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("exposes the native font family list through the typed bridge", async () => {
+    const ipc: IpcBridge = {
+      invoke: vi.fn(async () => ok({ platform: "darwin", families: ["Avenir", "SF Pro Text"] }))
+    };
+
+    const result = await createHcbApi(ipc).native.listFontFamilies();
+
+    expect(ipc.invoke).toHaveBeenCalledWith(
+      IPC_CHANNELS.dispatch,
+      expect.objectContaining({
+        version: HCB_IPC_VERSION,
+        domain: "native",
+        method: "listFontFamilies",
+        request: {}
+      })
+    );
+    expect(result).toEqual(ok({ platform: "darwin", families: ["Avenir", "SF Pro Text"] }));
+  });
+
   it("subscribes to sanitized sync status events only", () => {
     const listeners = new Map<string, (event: unknown, payload: unknown) => void>();
     const ipc: IpcBridge = {

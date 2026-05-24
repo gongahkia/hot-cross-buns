@@ -53,6 +53,7 @@ function scheduleFrame(callback: () => void): void {
 }
 
 const systemFontStack = "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"Segoe UI\", system-ui, Roboto, \"Helvetica Neue\", Arial, sans-serif";
+const monoFontStack = "\"SF Mono\", \"Cascadia Code\", \"Fira Code\", \"JetBrains Mono\", ui-monospace, monospace";
 
 function systemPrefersDark(): boolean {
   return typeof window.matchMedia === "function" &&
@@ -67,6 +68,16 @@ function cssFontFamily(fontName: string | null): string {
   }
 
   return `"${trimmed.replace(/[\\"]/g, "\\$&")}", ${systemFontStack}`;
+}
+
+function cssMonoFontFamily(fontName: string | null): string {
+  const trimmed = fontName?.trim();
+
+  if (!trimmed) {
+    return monoFontStack;
+  }
+
+  return cssFontFamily(trimmed);
 }
 
 function textSizeVariables(baseSize: number): Record<string, string> {
@@ -114,6 +125,7 @@ function useAppliedTheme(settings: SettingsSnapshot): void {
     root.dataset.theme = mode;
     root.dataset.colorTheme = colorTheme.id;
     root.style.setProperty("--font-family", cssFontFamily(settings.uiFontName));
+    root.style.setProperty("--font-family-mono", cssMonoFontFamily(settings.uiFontName));
 
     for (const [name, value] of Object.entries(semanticThemeVariables(colorTheme))) {
       root.style.setProperty(name, value);

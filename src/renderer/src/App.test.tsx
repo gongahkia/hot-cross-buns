@@ -2401,6 +2401,12 @@ describe("App shell", () => {
 
       return ok(settings);
     });
+    api.native.listFontFamilies = vi.fn(async () =>
+      ok({
+        platform: "darwin" as const,
+        families: ["Avenir", "JetBrains Mono", "SF Pro Text"]
+      })
+    );
     installHcb(api);
     const user = userEvent.setup();
     render(<App />);
@@ -2410,6 +2416,7 @@ describe("App shell", () => {
       expect(document.documentElement).toHaveAttribute("data-color-theme", "dracula");
       expect(document.documentElement.style.getPropertyValue("--color-accent")).toBe("#FF79C6");
       expect(document.documentElement.style.getPropertyValue("--font-family")).toContain("\"Inter\"");
+      expect(document.documentElement.style.getPropertyValue("--font-family-mono")).toContain("\"Inter\"");
       expect(document.documentElement.style.getPropertyValue("--text-base")).toBe("15px");
     });
 
@@ -2432,7 +2439,11 @@ describe("App shell", () => {
     await waitFor(() => {
       expect(api.settings.update).toHaveBeenCalledWith({ colorTheme: "githubLight" });
       expect(document.documentElement).toHaveAttribute("data-color-theme", "githubLight");
-      expect(screen.getByRole("button", { name: /GitHub Light/ })).toHaveAttribute("aria-pressed", "true");
+    });
+    expect(screen.queryByText("Light themes")).not.toBeInTheDocument();
+    await waitFor(() => expect(api.native.listFontFamilies).toHaveBeenCalled());
+    await waitFor(() => {
+      expect(document.querySelector('datalist#ui-font-family-options option[value="Avenir"]')).toBeTruthy();
     });
 
     const fontInput = screen.getByRole("combobox", { name: "Font family" });
@@ -2443,6 +2454,7 @@ describe("App shell", () => {
     await waitFor(() => {
       expect(api.settings.update).toHaveBeenCalledWith({ uiFontName: "JetBrains Mono" });
       expect(document.documentElement.style.getPropertyValue("--font-family")).toContain("\"JetBrains Mono\"");
+      expect(document.documentElement.style.getPropertyValue("--font-family-mono")).toContain("\"JetBrains Mono\"");
     });
 
     fireEvent.change(screen.getByLabelText("Text size"), { target: { value: "16" } });

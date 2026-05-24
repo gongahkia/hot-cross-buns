@@ -455,7 +455,7 @@ class ElectronMacNativeAdapter implements NativePlatformAdapter {
           timeout: 2_000
         }
       );
-      const parsed = JSON.parse(stdout.trim()) as unknown;
+      const parsed = JSON.parse(String(stdout).trim()) as unknown;
 
       return Array.isArray(parsed)
         ? parsed.filter((family): family is string => typeof family === "string")

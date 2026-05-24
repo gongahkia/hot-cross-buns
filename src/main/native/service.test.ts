@@ -370,6 +370,17 @@ describe("native shell service", () => {
     });
   });
 
+  it("lists sanitized native font families without exposing renderer privileges", async () => {
+    const adapter = new FakeNativeAdapter();
+    adapter.fontFamilies = ["SF Pro Text", " Avenir ", "", "Avenir"];
+    const { service } = createService({ adapter });
+
+    await expect(service.listFontFamilies()).resolves.toEqual({
+      platform: "darwin",
+      families: ["Avenir", "SF Pro Text"]
+    });
+  });
+
   it("builds an adaptive menu bar snapshot from cached tasks and events", async () => {
     const { adapter, service } = createService({
       tasks: [
