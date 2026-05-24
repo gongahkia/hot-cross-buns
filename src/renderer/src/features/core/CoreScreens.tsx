@@ -4981,6 +4981,11 @@ function CalendarTimelineView({
     () => visibleCalendarTimelineDays(days, visibleCalendarIds),
     [days, visibleCalendarIds]
   );
+  const firstVisibleDayKey = visibleDays[0]
+    ? calendarDayKey(visibleDays[0].day)
+    : days[0]
+      ? calendarDayKey(days[0])
+      : calendarTodayKey();
   const dayColumnMinWidth = days.length <= 1 ? 520 : days.length <= 3 ? 220 : 160;
   const gridTemplateColumns = `repeat(${Math.max(1, days.length)}, minmax(${dayColumnMinWidth}px, 1fr))`;
 
@@ -4991,6 +4996,7 @@ function CalendarTimelineView({
     allDay: boolean
   ): void {
     dragEvent.preventDefault();
+    dragEvent.stopPropagation();
     const eventId = calendarEventDragId(dragEvent);
     const draggedEvent = eventId ? source.calendarEventsById[eventId] : undefined;
 
@@ -5178,6 +5184,10 @@ function CalendarTimelineView({
               aria-label={`${hourSlotLabel(hour)} Open slot`}
               className="grid min-h-14 grid-cols-[64px_minmax(0,1fr)] border-b border-border last:border-b-0"
               key={hour}
+              onDragOver={allowCalendarDrop}
+              onDrop={(dragEvent) =>
+                handleDrop(dragEvent, firstVisibleDayKey, hourSlotIso(firstVisibleDayKey, hour), false)
+              }
               role="row"
             >
               <div className="border-r border-border px-2 py-2 text-right text-[var(--text-xs)] font-semibold text-text-muted">

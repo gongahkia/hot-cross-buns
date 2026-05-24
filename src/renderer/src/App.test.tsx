@@ -833,7 +833,7 @@ describe("App shell", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Tasks" })).toBeInTheDocument();
 
     await user.keyboard("{Meta>}2{/Meta}");
-    expect(screen.getByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Calendar" })).toBeInTheDocument();
 
     await user.keyboard("{Meta>}3{/Meta}");
     expect(screen.getByRole("heading", { level: 1, name: "Notes" })).toBeInTheDocument();
@@ -880,7 +880,7 @@ describe("App shell", () => {
     expect(within(dialog).getByRole("button", { name: "Profile" })).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Appearance" })).toBeInTheDocument();
     expect(within(dialog).getByRole("heading", { level: 2, name: "Language" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "Calendar" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
 
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "Settings" })).not.toBeInTheDocument();
