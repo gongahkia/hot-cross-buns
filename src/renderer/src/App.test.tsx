@@ -2669,9 +2669,7 @@ describe("App shell", () => {
     expect(await screen.findByText("Cache-first startup")).toBeInTheDocument();
 
     await goToSection("Settings");
-    const settingsSupport = screen.getByRole("complementary", { name: "Settings support" });
-    await user.click(within(settingsSupport).getByRole("button", { name: /Local data/ }));
-    await user.click(screen.getByRole("button", { name: "Reset onboarding" }));
+    await user.click(screen.getByRole("button", { name: "Run setup again" }));
 
     await waitFor(() => {
       expect(api.settings.recoveryAction).toHaveBeenCalledWith({ action: "resetOnboarding" });
@@ -2680,52 +2678,32 @@ describe("App shell", () => {
     expect(api.notes.delete).not.toHaveBeenCalled();
   });
 
-  it("refreshes native status after settings changes", async () => {
+  it("updates startup setting from Settings", async () => {
     const api = seededHcb();
-    api.settings.get = vi.fn(async () => ok(testSettings({ showTrayIcon: true })));
+    api.settings.get = vi.fn(async () => ok(testSettings({ startOnLogin: false })));
     api.settings.update = vi.fn(async (request) =>
-      ok(testSettings({ showTrayIcon: request.showTrayIcon ?? true }))
+      ok(testSettings({ startOnLogin: request.startOnLogin ?? false }))
     );
-    api.native.capabilities = vi
-      .fn()
-      .mockResolvedValueOnce(ok(testNativeCapabilities()))
-      .mockResolvedValueOnce(
-        ok(
-          testNativeCapabilities({
-            trayStatus: {
-              state: "disabled",
-              message: "Menu bar icon is disabled in Settings."
-            }
-          })
-        )
-      );
     installHcb(api);
     const user = userEvent.setup();
     render(<App />);
 
     await goToSection("Settings");
-    const settingsSupport = screen.getByRole("complementary", { name: "Settings support" });
-    await user.click(within(settingsSupport).getByRole("button", { name: /Tray/ }));
-    await user.click(screen.getByLabelText("Show menu bar icon"));
+    await user.click(screen.getByRole("checkbox", { name: "Open Hot Cross Buns at login" }));
 
     await waitFor(() => {
-      expect(api.settings.update).toHaveBeenCalledWith({ showTrayIcon: false });
-      expect(api.native.capabilities).toHaveBeenCalledTimes(2);
-      expect(within(settingsSupport).getByRole("button", { name: /Tray Disabled/ })).toBeInTheDocument();
+      expect(api.settings.update).toHaveBeenCalledWith({ startOnLogin: true });
     });
   });
 
-  it("requires confirmation before destructive local data recovery actions", async () => {
+  it("requires confirmation before destructive sync recovery actions", async () => {
     const api = seededHcb();
     installHcb(api);
     const user = userEvent.setup();
     render(<App />);
 
     await goToSection("Settings");
-    const settingsSupport = screen.getByRole("complementary", { name: "Settings support" });
-
-    await user.click(within(settingsSupport).getByRole("button", { name: /Local data/ }));
-    await user.click(screen.getByRole("button", { name: /Clear local Google cache/ }));
+    await user.click(screen.getByRole("button", { name: /Force full resync/ }));
 
     expect(api.settings.recoveryAction).not.toHaveBeenCalled();
     expect(screen.getByRole("heading", { name: "Confirm destructive action" })).toBeInTheDocument();
@@ -2733,15 +2711,15 @@ describe("App shell", () => {
     const confirmButton = screen.getByRole("button", { name: "Confirm" });
     expect(confirmButton).toBeDisabled();
 
-    await user.type(screen.getByRole("textbox", { name: "Confirmation phrase" }), "CLEAR CACHE");
+    await user.type(screen.getByRole("textbox", { name: "Confirmation phrase" }), "FULL RESYNC");
     await user.click(confirmButton);
 
     await waitFor(() => {
       expect(api.settings.recoveryAction).toHaveBeenCalledWith({
-        action: "clearGoogleCache",
+        action: "forceFullResync",
         confirmation: {
           accepted: true,
-          phrase: "CLEAR CACHE"
+          phrase: "FULL RESYNC"
         }
       });
     });
