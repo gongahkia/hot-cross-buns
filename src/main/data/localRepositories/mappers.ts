@@ -1,0 +1,194 @@
+import type {
+  CalendarEventDetail,
+  CalendarEventSummary,
+  CalendarListSummary,
+  NoteDetail,
+  NoteSummary,
+  ScheduledTaskBlockSummary,
+  TaskDetail,
+  TaskListSummary,
+  TaskSummary
+} from "@shared/ipc/contracts";
+import type { CalendarEventRow, CalendarListRow, NoteRow, ScheduledTaskBlockRow, TaskListRow, TaskRow } from "./types";
+import { parseNumberArray, parseStringArray } from "./shared";
+
+export function taskListSummary(row: TaskListRow): TaskListSummary {
+  return {
+    id: row.id,
+    title: row.title,
+    updatedAt: row.updatedAt,
+    taskCount: row.taskCount,
+    activeTaskCount: row.activeTaskCount
+  };
+}
+
+export function taskSummary(row: TaskRow): TaskSummary {
+  const status = taskStatusFromRow(row);
+
+  return {
+    id: row.id,
+    listId: row.listId,
+    title: row.title,
+    status,
+    dueAt: row.dueAt,
+    updatedAt: row.updatedAt,
+    notes: row.notes ?? undefined,
+    parentId: row.parentId,
+    priority: row.priority ?? "none",
+    sortOrder: row.sortOrder,
+    mutationState: mutationState(row.pendingMutationStatus),
+    plannedStart: row.plannedStart ?? null,
+    plannedEnd: row.plannedEnd ?? null,
+    durationMinutes: row.durationMinutes ?? null,
+    lockedSchedule: row.lockedSchedule === 1,
+    snoozeUntil: row.snoozeUntil ?? null,
+    tags: parseTagsJson(row.tagsJson)
+  };
+}
+
+export function parseTagsJson(value: string | null | undefined): string[] {
+  if (!value) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed.filter((entry): entry is string => typeof entry === "string");
+  } catch {
+    return [];
+  }
+}
+
+export function taskDetail(row: TaskRow): TaskDetail {
+  return {
+    ...taskSummary(row)
+  };
+}
+
+export function calendarListSummary(row: CalendarListRow): CalendarListSummary {
+  return {
+    id: row.id,
+    title: row.title,
+    selected: row.selected === 1,
+    timeZone: row.timeZone,
+    updatedAt: row.updatedAt,
+    eventCount: row.eventCount
+  };
+}
+
+export function calendarEventSummary(row: CalendarEventRow): CalendarEventSummary {
+  return {
+    id: row.id,
+    eventId: row.eventId,
+    calendarId: row.calendarId,
+    title: row.title,
+    startsAt: row.startsAt,
+    endsAt: row.endsAt,
+    allDay: row.allDay === 1,
+    updatedAt: row.updatedAt,
+    location: row.location ?? "",
+    notes: row.notes ?? "",
+    guestEmails: parseStringArray(row.guestEmailsJson),
+    reminderMinutes: parseNumberArray(row.reminderMinutesJson),
+    mutationState: mutationState(row.pendingMutationStatus),
+    timeZone: row.timeZone,
+    recurrenceRule: row.recurrenceRule,
+    recurringEventId: row.recurringEventId,
+    originalStartAt: row.originalStartAt
+  };
+}
+
+export function calendarEventDetail(row: CalendarEventRow): CalendarEventDetail {
+  return {
+    ...calendarEventSummary(row),
+    calendarTitle: row.calendarTitle,
+    deepLink: `hotcrossbuns://event/${row.eventId}`
+  };
+}
+
+export function scheduledTaskBlockSummary(row: ScheduledTaskBlockRow): ScheduledTaskBlockSummary {
+  return {
+    id: row.id,
+    taskId: row.taskId,
+    calendarEventId: row.calendarEventId,
+    calendarId: row.calendarId,
+    title: row.title ?? "Scheduled task",
+    startsAt: row.startsAt,
+    endsAt: row.endsAt,
+    durationMinutes: blockDurationMinutes(row),
+    status: row.status,
+    mutationState: mutationState(row.pendingMutationStatus),
+    updatedAt: row.updatedAt
+  };
+}
+
+export function blockDurationMinutes(row: ScheduledTaskBlockRow): number {
+  const startMs = Date.parse(row.startsAt);
+  const endMs = Date.parse(row.endsAt);
+
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    return row.durationMinutes;
+  }
+
+  return Math.max(1, Math.round((endMs - startMs) / 60_000));
+}
+
+export function availabilityLine(event: CalendarEventSummary): string {
+  const label = event.allDay ? "All day" : `${event.startsAt} to ${event.endsAt}`;
+
+  return `- ${label}: ${event.title}`;
+}
+
+export function noteSummary(row: NoteRow): NoteSummary {
+  return {
+    id: row.id,
+    title: row.title,
+    preview: preview(row.body),
+    updatedAt: row.updatedAt
+  };
+}
+
+export function noteDetail(row: NoteRow): NoteDetail {
+  return {
+    ...noteSummary(row),
+    body: row.body
+  };
+}
+
+export function preview(body: string): string {
+  const trimmed = body.trim();
+
+  if (!trimmed) {
+    return "Empty local note";
+  }
+
+  return trimmed.length > 120 ? `${trimmed.slice(0, 117)}...` : trimmed;
+}
+
+export function taskStatusFromRow(row: TaskRow): TaskSummary["status"] {
+  if (row.deletedAt !== undefined && row.deletedAt !== null) {
+    return "deleted";
+  }
+
+  if (row.isHidden === 1) {
+    return "hidden";
+  }
+
+  return row.status === "completed" ? "completed" : "active";
+}
+
+export function mutationState(
+  status: TaskRow["pendingMutationStatus"] | CalendarEventRow["pendingMutationStatus"]
+): TaskSummary["mutationState"] {
+  if (status === "failed") {
+    return "failed";
+  }
+
+  if (status === "pending" || status === "applying") {
+    return "queued";
+  }
+
+  return undefined;
+}

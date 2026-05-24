@@ -1,0 +1,524 @@
+import { randomUUID } from "node:crypto";
+import type { SettingsSnapshot, SettingsUpdateRequest } from "@shared/ipc/contracts";
+import type { SqliteConnection } from "../sqliteConnection";
+import { systemTimeZone, uniqueIds } from "./shared";
+
+const DEFAULT_SETTINGS: SettingsSnapshot = {
+  theme: "system",
+  colorTheme: "notion",
+  appLanguage: "system",
+  uiFontName: null,
+  uiTextSizePoints: 13,
+  perSurfaceFontOverrides: {},
+  performanceMode: "snappy",
+  appBackgroundTranslucencyEnabled: false,
+  appBackgroundOpacity: 1,
+  disableAnimations: false,
+  uiLayoutScale: 1,
+  navigationPlacement: "left",
+  hiddenNavigationTabs: [],
+  hiddenCalendarViewModes: [],
+  monthScrollPastMonths: 0,
+  monthScrollFutureMonths: 1,
+  quickCreateExpandedByDefault: false,
+  restoreWindowStateEnabled: true,
+  startOnLogin: false,
+  quickCaptureShortcut: "Ctrl+Space",
+  selectedTaskListIds: [],
+  selectedCalendarIds: [],
+  setupCompletedAt: null,
+  syncMode: "balanced",
+  eventRetentionDaysBack: 0,
+  completedTaskRetentionDaysBack: 365,
+  showTrayIcon: true,
+  trayClickAction: "open-menu",
+  menuBarPanelStyle: "adaptive",
+  showMenuBarBadge: true,
+  notificationsEnabled: false,
+  notificationLeadMinutes: 10,
+  mcpEnabled: false,
+  mcpPermissionMode: "confirm-writes",
+  mcpPort: 0,
+  defaultTimeZone: systemTimeZone(),
+  todayCapacityMinutes: 480,
+  todayWorkingHoursStart: 6,
+  todayWorkingHoursEnd: 22,
+  diagnosticsIncludePerformance: true,
+  rawGoogleDiagnosticsEnabled: false,
+  savedSearchViews: [],
+  savedTaskViews: []
+};
+
+export class LocalSettingsRepository {
+  constructor(private readonly connection: SqliteConnection) {}
+
+  get(): SettingsSnapshot {
+    return {
+      theme: this.readSetting("appearance", "theme", DEFAULT_SETTINGS.theme),
+      colorTheme: this.readSetting("appearance", "colorTheme", DEFAULT_SETTINGS.colorTheme),
+      appLanguage: this.readSetting("app", "language", DEFAULT_SETTINGS.appLanguage),
+      uiFontName: this.readSetting("appearance", "uiFontName", DEFAULT_SETTINGS.uiFontName),
+      uiTextSizePoints: this.readSetting(
+        "appearance",
+        "uiTextSizePoints",
+        DEFAULT_SETTINGS.uiTextSizePoints
+      ),
+      perSurfaceFontOverrides: this.readSetting(
+        "appearance",
+        "perSurfaceFontOverrides",
+        DEFAULT_SETTINGS.perSurfaceFontOverrides
+      ),
+      performanceMode: this.readSetting(
+        "appearance",
+        "performanceMode",
+        DEFAULT_SETTINGS.performanceMode
+      ),
+      appBackgroundTranslucencyEnabled: this.readSetting(
+        "appearance",
+        "backgroundTranslucencyEnabled",
+        DEFAULT_SETTINGS.appBackgroundTranslucencyEnabled
+      ),
+      appBackgroundOpacity: this.readSetting(
+        "appearance",
+        "backgroundOpacity",
+        DEFAULT_SETTINGS.appBackgroundOpacity
+      ),
+      disableAnimations: this.readSetting(
+        "appearance",
+        "disableAnimations",
+        DEFAULT_SETTINGS.disableAnimations
+      ),
+      uiLayoutScale: this.readSetting("appearance", "uiLayoutScale", DEFAULT_SETTINGS.uiLayoutScale),
+      navigationPlacement: this.readSetting(
+        "appearance",
+        "navigationPlacement",
+        DEFAULT_SETTINGS.navigationPlacement
+      ),
+      hiddenNavigationTabs: this.readSetting(
+        "appearance",
+        "hiddenNavigationTabs",
+        DEFAULT_SETTINGS.hiddenNavigationTabs
+      ),
+      hiddenCalendarViewModes: this.readSetting(
+        "appearance",
+        "hiddenCalendarViewModes",
+        DEFAULT_SETTINGS.hiddenCalendarViewModes
+      ),
+      monthScrollPastMonths: this.readSetting(
+        "appearance",
+        "monthScrollPastMonths",
+        DEFAULT_SETTINGS.monthScrollPastMonths
+      ),
+      monthScrollFutureMonths: this.readSetting(
+        "appearance",
+        "monthScrollFutureMonths",
+        DEFAULT_SETTINGS.monthScrollFutureMonths
+      ),
+      quickCreateExpandedByDefault: this.readSetting(
+        "appearance",
+        "quickCreateExpandedByDefault",
+        DEFAULT_SETTINGS.quickCreateExpandedByDefault
+      ),
+      restoreWindowStateEnabled: this.readSetting(
+        "appearance",
+        "restoreWindowStateEnabled",
+        DEFAULT_SETTINGS.restoreWindowStateEnabled
+      ),
+      startOnLogin: this.readSetting("app", "startOnLogin", DEFAULT_SETTINGS.startOnLogin),
+      quickCaptureShortcut: this.readSetting(
+        "hotkeys",
+        "quickCaptureShortcut",
+        DEFAULT_SETTINGS.quickCaptureShortcut
+      ),
+      selectedTaskListIds: this.readSetting(
+        "google",
+        "selectedTaskListIds",
+        this.defaultSelectedTaskListIds()
+      ),
+      selectedCalendarIds: this.readSetting(
+        "google",
+        "selectedCalendarIds",
+        this.defaultSelectedCalendarIds()
+      ),
+      setupCompletedAt: this.readSetting(
+        "app",
+        "setupCompletedAt",
+        DEFAULT_SETTINGS.setupCompletedAt
+      ),
+      syncMode: this.readSetting("sync", "mode", DEFAULT_SETTINGS.syncMode),
+      eventRetentionDaysBack: this.readSetting(
+        "sync",
+        "eventRetentionDaysBack",
+        DEFAULT_SETTINGS.eventRetentionDaysBack
+      ),
+      completedTaskRetentionDaysBack: this.readSetting(
+        "sync",
+        "completedTaskRetentionDaysBack",
+        DEFAULT_SETTINGS.completedTaskRetentionDaysBack
+      ),
+      showTrayIcon: this.readSetting("tray", "showIcon", DEFAULT_SETTINGS.showTrayIcon),
+      trayClickAction: this.readSetting(
+        "tray",
+        "clickAction",
+        DEFAULT_SETTINGS.trayClickAction
+      ),
+      menuBarPanelStyle: this.readSetting(
+        "tray",
+        "panelStyle",
+        DEFAULT_SETTINGS.menuBarPanelStyle
+      ),
+      showMenuBarBadge: this.readSetting("tray", "showBadge", DEFAULT_SETTINGS.showMenuBarBadge),
+      notificationsEnabled: this.readSetting(
+        "notifications",
+        "enabled",
+        DEFAULT_SETTINGS.notificationsEnabled
+      ),
+      notificationLeadMinutes: this.readSetting(
+        "notifications",
+        "leadMinutes",
+        DEFAULT_SETTINGS.notificationLeadMinutes
+      ),
+      mcpEnabled: this.readSetting("mcp", "enabled", DEFAULT_SETTINGS.mcpEnabled),
+      mcpPermissionMode: this.readSetting(
+        "mcp",
+        "permissionMode",
+        DEFAULT_SETTINGS.mcpPermissionMode
+      ),
+      mcpPort: this.readSetting("mcp", "port", DEFAULT_SETTINGS.mcpPort),
+      defaultTimeZone: this.readSetting(
+        "calendar",
+        "defaultTimeZone",
+        DEFAULT_SETTINGS.defaultTimeZone
+      ),
+      todayCapacityMinutes: this.readSetting(
+        "today",
+        "capacityMinutes",
+        DEFAULT_SETTINGS.todayCapacityMinutes
+      ),
+      todayWorkingHoursStart: this.readSetting(
+        "today",
+        "workingHoursStart",
+        DEFAULT_SETTINGS.todayWorkingHoursStart
+      ),
+      todayWorkingHoursEnd: this.readSetting(
+        "today",
+        "workingHoursEnd",
+        DEFAULT_SETTINGS.todayWorkingHoursEnd
+      ),
+      diagnosticsIncludePerformance: this.readSetting(
+        "diagnostics",
+        "includePerformance",
+        DEFAULT_SETTINGS.diagnosticsIncludePerformance
+      ),
+      rawGoogleDiagnosticsEnabled: this.readSetting(
+        "diagnostics",
+        "rawGooglePayloads",
+        DEFAULT_SETTINGS.rawGoogleDiagnosticsEnabled
+      ),
+      savedSearchViews: this.readSetting(
+        "search",
+        "savedViews",
+        DEFAULT_SETTINGS.savedSearchViews
+      ),
+      savedTaskViews: this.readSetting(
+        "tasks",
+        "savedViews",
+        DEFAULT_SETTINGS.savedTaskViews
+      )
+    };
+  }
+
+  update(request: SettingsUpdateRequest): SettingsSnapshot {
+    const now = new Date().toISOString();
+
+    if (request.theme !== undefined) {
+      this.writeSetting("appearance", "theme", request.theme, now);
+    }
+
+    if (request.colorTheme !== undefined) {
+      this.writeSetting("appearance", "colorTheme", request.colorTheme, now);
+    }
+
+    if (request.appLanguage !== undefined) {
+      this.writeSetting("app", "language", request.appLanguage, now);
+    }
+
+    if (request.uiFontName !== undefined) {
+      this.writeSetting("appearance", "uiFontName", request.uiFontName, now);
+    }
+
+    if (request.uiTextSizePoints !== undefined) {
+      this.writeSetting("appearance", "uiTextSizePoints", request.uiTextSizePoints, now);
+    }
+
+    if (request.perSurfaceFontOverrides !== undefined) {
+      this.writeSetting("appearance", "perSurfaceFontOverrides", request.perSurfaceFontOverrides, now);
+    }
+
+    if (request.performanceMode !== undefined) {
+      this.writeSetting("appearance", "performanceMode", request.performanceMode, now);
+    }
+
+    if (request.appBackgroundTranslucencyEnabled !== undefined) {
+      this.writeSetting(
+        "appearance",
+        "backgroundTranslucencyEnabled",
+        request.appBackgroundTranslucencyEnabled,
+        now
+      );
+    }
+
+    if (request.appBackgroundOpacity !== undefined) {
+      this.writeSetting("appearance", "backgroundOpacity", request.appBackgroundOpacity, now);
+    }
+
+    if (request.disableAnimations !== undefined) {
+      this.writeSetting("appearance", "disableAnimations", request.disableAnimations, now);
+    }
+
+    if (request.uiLayoutScale !== undefined) {
+      this.writeSetting("appearance", "uiLayoutScale", request.uiLayoutScale, now);
+    }
+
+    if (request.navigationPlacement !== undefined) {
+      this.writeSetting("appearance", "navigationPlacement", request.navigationPlacement, now);
+    }
+
+    if (request.hiddenNavigationTabs !== undefined) {
+      this.writeSetting("appearance", "hiddenNavigationTabs", request.hiddenNavigationTabs, now);
+    }
+
+    if (request.hiddenCalendarViewModes !== undefined) {
+      this.writeSetting("appearance", "hiddenCalendarViewModes", request.hiddenCalendarViewModes, now);
+    }
+
+    if (request.monthScrollPastMonths !== undefined) {
+      this.writeSetting("appearance", "monthScrollPastMonths", request.monthScrollPastMonths, now);
+    }
+
+    if (request.monthScrollFutureMonths !== undefined) {
+      this.writeSetting("appearance", "monthScrollFutureMonths", request.monthScrollFutureMonths, now);
+    }
+
+    if (request.quickCreateExpandedByDefault !== undefined) {
+      this.writeSetting(
+        "appearance",
+        "quickCreateExpandedByDefault",
+        request.quickCreateExpandedByDefault,
+        now
+      );
+    }
+
+    if (request.restoreWindowStateEnabled !== undefined) {
+      this.writeSetting(
+        "appearance",
+        "restoreWindowStateEnabled",
+        request.restoreWindowStateEnabled,
+        now
+      );
+    }
+
+    if (request.startOnLogin !== undefined) {
+      this.writeSetting("app", "startOnLogin", request.startOnLogin, now);
+    }
+
+    if (request.quickCaptureShortcut !== undefined) {
+      this.writeSetting("hotkeys", "quickCaptureShortcut", request.quickCaptureShortcut, now);
+    }
+
+    if (request.selectedTaskListIds !== undefined) {
+      this.writeSetting("google", "selectedTaskListIds", uniqueIds(request.selectedTaskListIds), now);
+    }
+
+    if (request.selectedCalendarIds !== undefined) {
+      this.writeSetting("google", "selectedCalendarIds", uniqueIds(request.selectedCalendarIds), now);
+    }
+
+    if (request.setupCompletedAt !== undefined) {
+      this.writeSetting("app", "setupCompletedAt", request.setupCompletedAt, now);
+    }
+
+    if (request.syncMode !== undefined) {
+      this.writeSetting("sync", "mode", request.syncMode, now);
+    }
+
+    if (request.eventRetentionDaysBack !== undefined) {
+      this.writeSetting("sync", "eventRetentionDaysBack", request.eventRetentionDaysBack, now);
+    }
+
+    if (request.completedTaskRetentionDaysBack !== undefined) {
+      this.writeSetting(
+        "sync",
+        "completedTaskRetentionDaysBack",
+        request.completedTaskRetentionDaysBack,
+        now
+      );
+    }
+
+    if (request.showTrayIcon !== undefined) {
+      this.writeSetting("tray", "showIcon", request.showTrayIcon, now);
+    }
+
+    if (request.trayClickAction !== undefined) {
+      this.writeSetting("tray", "clickAction", request.trayClickAction, now);
+    }
+
+    if (request.menuBarPanelStyle !== undefined) {
+      this.writeSetting("tray", "panelStyle", request.menuBarPanelStyle, now);
+    }
+
+    if (request.showMenuBarBadge !== undefined) {
+      this.writeSetting("tray", "showBadge", request.showMenuBarBadge, now);
+    }
+
+    if (request.notificationsEnabled !== undefined) {
+      this.writeSetting("notifications", "enabled", request.notificationsEnabled, now);
+    }
+
+    if (request.notificationLeadMinutes !== undefined) {
+      this.writeSetting("notifications", "leadMinutes", request.notificationLeadMinutes, now);
+    }
+
+    if (request.mcpEnabled !== undefined) {
+      this.writeSetting("mcp", "enabled", request.mcpEnabled, now);
+    }
+
+    if (request.mcpPermissionMode !== undefined) {
+      this.writeSetting("mcp", "permissionMode", request.mcpPermissionMode, now);
+    }
+
+    if (request.mcpPort !== undefined) {
+      this.writeSetting("mcp", "port", request.mcpPort, now);
+    }
+
+    if (request.defaultTimeZone !== undefined) {
+      this.writeSetting("calendar", "defaultTimeZone", request.defaultTimeZone, now);
+    }
+
+    if (request.todayCapacityMinutes !== undefined) {
+      this.writeSetting("today", "capacityMinutes", request.todayCapacityMinutes, now);
+    }
+
+    if (request.todayWorkingHoursStart !== undefined) {
+      this.writeSetting("today", "workingHoursStart", request.todayWorkingHoursStart, now);
+    }
+
+    if (request.todayWorkingHoursEnd !== undefined) {
+      this.writeSetting("today", "workingHoursEnd", request.todayWorkingHoursEnd, now);
+    }
+
+    if (request.diagnosticsIncludePerformance !== undefined) {
+      this.writeSetting(
+        "diagnostics",
+        "includePerformance",
+        request.diagnosticsIncludePerformance,
+        now
+      );
+    }
+
+    if (request.rawGoogleDiagnosticsEnabled !== undefined) {
+      this.writeSetting(
+        "diagnostics",
+        "rawGooglePayloads",
+        request.rawGoogleDiagnosticsEnabled,
+        now
+      );
+    }
+
+    if (request.savedSearchViews !== undefined) {
+      this.writeSetting("search", "savedViews", request.savedSearchViews, now);
+    }
+
+    if (request.savedTaskViews !== undefined) {
+      this.writeSetting("tasks", "savedViews", request.savedTaskViews, now);
+    }
+
+    return this.get();
+  }
+
+  resetMcpTokenRevision(now = new Date().toISOString()): { tokenState: "rotated"; resetAt: string } {
+    this.writeSetting("mcp", "tokenRevision", `rev:${randomUUID()}`, now);
+    this.writeSetting("mcp", "tokenResetAt", now, now);
+
+    return {
+      tokenState: "rotated",
+      resetAt: now
+    };
+  }
+
+  mcpTokenState(): {
+    tokenState: "not_configured" | "configured" | "rotated";
+    lastTokenResetAt?: string;
+  } {
+    const tokenRevision = this.readSetting<string | null>("mcp", "tokenRevision", null);
+    const lastTokenResetAt = this.readSetting<string | null>("mcp", "tokenResetAt", null);
+
+    if (lastTokenResetAt) {
+      return {
+        tokenState: "rotated",
+        lastTokenResetAt
+      };
+    }
+
+    return {
+      tokenState: tokenRevision ? "configured" : "not_configured"
+    };
+  }
+
+  private readSetting<T>(scope: string, key: string, fallback: T): T {
+    const row = this.connection.get<{ valueJson: string }>(
+      `SELECT value_json AS valueJson
+       FROM local_settings
+       WHERE scope = ? AND key = ?
+       LIMIT 1;`,
+      [scope, key]
+    );
+
+    if (!row) {
+      return fallback;
+    }
+
+    try {
+      return JSON.parse(row.valueJson) as T;
+    } catch {
+      return fallback;
+    }
+  }
+
+  private writeSetting(scope: string, key: string, value: unknown, now: string): void {
+    this.connection.run(
+      `INSERT INTO local_settings (scope, key, value_json, updated_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(scope, key) DO UPDATE SET
+         value_json = excluded.value_json,
+         updated_at = excluded.updated_at;`,
+      [scope, key, JSON.stringify(value), now]
+    );
+  }
+
+  private defaultSelectedTaskListIds(): string[] {
+    const rows = this.connection.query<{ id: string }>(
+      `SELECT id
+       FROM google_task_lists
+       WHERE deleted_at IS NULL
+       ORDER BY sort_order ASC, title COLLATE NOCASE ASC, id ASC
+       LIMIT 100;`
+    );
+
+    return rows.map((row) => row.id);
+  }
+
+  private defaultSelectedCalendarIds(): string[] {
+    const rows = this.connection.query<{ id: string }>(
+      `SELECT id
+       FROM google_calendar_lists
+       WHERE deleted_at IS NULL
+         AND is_hidden = 0
+         AND is_selected = 1
+       ORDER BY is_primary DESC, summary COLLATE NOCASE ASC, id ASC
+       LIMIT 100;`
+    );
+
+    return rows.map((row) => row.id);
+  }
+}
