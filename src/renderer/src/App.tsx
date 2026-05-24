@@ -476,6 +476,7 @@ function AppShell(): JSX.Element {
 
           <div className="flex min-w-0 shrink-0 items-center gap-2 overflow-x-auto" role="toolbar" aria-label="Planner actions">
             <Button
+              aria-label="Command palette"
               aria-keyshortcuts="Meta+P Control+P"
               className="min-w-8"
               onClick={openCommandPalette}
@@ -488,6 +489,7 @@ function AppShell(): JSX.Element {
               </span>
             </Button>
             <Button
+              aria-label="Reload"
               aria-keyshortcuts="Meta+R Control+R"
               className="min-w-8"
               data-action-id="sync.refresh"
