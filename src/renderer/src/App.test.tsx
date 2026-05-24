@@ -34,11 +34,6 @@ function primaryNavigation(): HTMLElement {
   return screen.getByRole("navigation", { name: "Primary" });
 }
 
-async function goToSection(label: string): Promise<void> {
-  const user = userEvent.setup();
-  await user.click(within(primaryNavigation()).getByRole("button", { name: new RegExp(label) }));
-}
-
 async function runPaletteCommand(user: ReturnType<typeof userEvent.setup>, query: string, label: RegExp): Promise<void> {
   await user.keyboard("{Meta>}p{/Meta}");
   const dialog = await screen.findByRole("dialog", { name: "Command palette" });
@@ -46,6 +41,28 @@ async function runPaletteCommand(user: ReturnType<typeof userEvent.setup>, query
 
   await user.type(input, query);
   await user.click(within(dialog).getByRole("option", { name: label }));
+}
+
+async function goToSection(label: string): Promise<void> {
+  const user = userEvent.setup();
+
+  if (label === "Settings") {
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await screen.findByRole("dialog", { name: "Settings" });
+    return;
+  }
+
+  if (label === "Search") {
+    await runPaletteCommand(user, "go to search", /Go to Search/);
+    return;
+  }
+
+  if (label === "Today") {
+    await runPaletteCommand(user, "go to today", /Go to Today/);
+    return;
+  }
+
+  await user.click(within(primaryNavigation()).getByRole("button", { name: new RegExp(label) }));
 }
 
 function testDataTransfer(): DataTransfer {
@@ -723,11 +740,13 @@ describe("App shell", () => {
     render(<App />);
 
     expect(screen.getByTestId("app-shell")).toBeInTheDocument();
-    expect(screen.getAllByRole("heading", { name: "Today" })[0]).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { name: "Calendar" })[0]).toBeInTheDocument();
 
-    for (const label of ["Today", "Tasks", "Calendar", "Notes", "Search", "Settings"]) {
+    for (const label of ["Calendar", "Tasks", "Notes"]) {
       expect(within(primaryNavigation()).getByRole("button", { name: new RegExp(label) })).toBeInTheDocument();
     }
+    expect(within(primaryNavigation()).queryByRole("button", { name: /Settings/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
     expect(within(primaryNavigation()).queryByRole("button", { name: /Notifications/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Notifications, \d+ active/ })).toBeInTheDocument();
 
@@ -789,6 +808,26 @@ describe("App shell", () => {
     expect(screen.queryByRole("dialog", { name: "Notifications" })).not.toBeInTheDocument();
   });
 
+  it("opens settings as a centered translucent toolbar overlay", async () => {
+    const user = userEvent.setup();
+    installHcb(seededHcb());
+    render(<App />);
+
+    expect(within(primaryNavigation()).queryByRole("button", { name: /Settings/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Calendar" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Settings" });
+    expect(dialog.parentElement).toHaveClass("place-items-center", "bg-bg-tertiary/45", "backdrop-blur-sm");
+    expect(dialog).toHaveClass("max-w-[1120px]", "bg-bg-primary/90", "backdrop-blur-xl");
+    expect(within(dialog).getByRole("complementary", { name: "Settings support" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Calendar" })).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Settings" })).not.toBeInTheDocument();
+  });
+
   it("routes palette action command shells without waiting on sync or search", async () => {
     const user = userEvent.setup();
     installHcb(seededHcb());
@@ -808,13 +847,13 @@ describe("App shell", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
 
     await runPaletteCommand(user, "force", /Force full resync/);
-    expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Settings" })).toBeInTheDocument();
 
     await runPaletteCommand(user, "mcp", /Toggle MCP server/);
-    expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Settings" })).toBeInTheDocument();
 
     await runPaletteCommand(user, "diagnostics", /Copy diagnostics summary/);
-    expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Settings" })).toBeInTheDocument();
   });
 
   it("shares action IDs across task controls and command palette availability", async () => {
@@ -2604,7 +2643,7 @@ describe("App shell", () => {
     expect(await screen.findByText("Cache-first startup")).toBeInTheDocument();
 
     await goToSection("Settings");
-    expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Settings" })).toBeInTheDocument();
   });
 
   it("resets onboarding from Settings without deleting planner data", async () => {

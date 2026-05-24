@@ -251,6 +251,8 @@ function AppShell(): JSX.Element {
   }, []);
 
   const openSettingsPanel = useCallback((): void => {
+    setCommandPaletteOpen(false);
+    setNotificationsOpen(false);
     setSettingsOpen(true);
   }, []);
 
@@ -268,7 +270,14 @@ function AppShell(): JSX.Element {
 
   const openCommandPalette = useCallback((): void => {
     commandPaletteOpenStartedAt.current = rendererNow();
+    setNotificationsOpen(false);
+    setSettingsOpen(false);
     setCommandPaletteOpen(true);
+  }, []);
+
+  const toggleNotificationsPanel = useCallback((): void => {
+    setSettingsOpen(false);
+    setNotificationsOpen((open) => !open);
   }, []);
 
   const toggleSidebar = useCallback((): void => {
@@ -469,13 +478,13 @@ function AppShell(): JSX.Element {
         !isEditableShortcutTarget(event.target)
       ) {
         event.preventDefault();
-        setNotificationsOpen((open) => !open);
+        toggleNotificationsPanel();
       }
     }
 
     window.addEventListener("keydown", handleGlobalKeyDown);
     return () => window.removeEventListener("keydown", handleGlobalKeyDown);
-  }, [openCommandPalette, openSettingsPanel, source.refresh, toggleSidebar]);
+  }, [openCommandPalette, openSettingsPanel, source.refresh, toggleNotificationsPanel, toggleSidebar]);
 
   useEffect(() => {
     if (!notificationsOpen) {
@@ -648,7 +657,7 @@ function AppShell(): JSX.Element {
               aria-label={`Notifications, ${appNotifications.length} active`}
               aria-keyshortcuts="Meta+N Control+N"
               className="min-w-8"
-              onClick={() => setNotificationsOpen((open) => !open)}
+              onClick={toggleNotificationsPanel}
               title="Notifications"
               variant={notificationsOpen ? "secondary" : "ghost"}
             >
@@ -729,12 +738,12 @@ function AppShell(): JSX.Element {
           <DeferredFirstRunOnboarding source={source} />
         </Suspense>
       ) : null}
-        {notificationsOpen ? (
-          <NotificationsOverlay
-            notifications={appNotifications}
-            onClose={() => setNotificationsOpen(false)}
-          />
-        ) : null}
+      {notificationsOpen ? (
+        <NotificationsOverlay
+          notifications={appNotifications}
+          onClose={() => setNotificationsOpen(false)}
+        />
+      ) : null}
       {settingsOpen ? (
         <SettingsOverlay
           dialogRef={settingsDialogRef}
