@@ -4129,6 +4129,13 @@ function calendarAddUtcMonths(day: string, months: number): string {
   return calendarIsoDate(target);
 }
 
+function calendarMonthOffset(fromDay: string, toDay: string): number {
+  const from = calendarDateFromIsoDate(fromDay);
+  const to = calendarDateFromIsoDate(toDay);
+
+  return (to.getUTCFullYear() - from.getUTCFullYear()) * 12 + to.getUTCMonth() - from.getUTCMonth();
+}
+
 function calendarMonthTitle(day: string): string {
   return new Intl.DateTimeFormat(undefined, {
     month: "long",
@@ -5748,6 +5755,14 @@ function CalendarView(): JSX.Element {
       ),
     [source.calendarAgendaEvents, visibleCalendarIdSet]
   );
+  const visibleCalendarViewIds = useMemo(() => {
+    const hidden = new Set(source.settings.hiddenCalendarViewModes);
+    const visible = (["agenda", "day", "multiDay", "week", "month"] as CalendarViewId[]).filter(
+      (viewId) => !hidden.has(viewId)
+    );
+
+    return visible.length > 0 ? visible : (["month"] as CalendarViewId[]);
+  }, [source.settings.hiddenCalendarViewModes]);
   const visibleEventDayIndex = useMemo(
     () => buildCalendarEventDayIndex(visibleCalendarEvents),
     [visibleCalendarEvents]
@@ -5855,6 +5870,10 @@ function CalendarView(): JSX.Element {
   }
 
   function setCalendarView(viewId: CalendarViewId): void {
+    if (!visibleCalendarViewIds.includes(viewId)) {
+      return;
+    }
+
     calendarNavigationStartedAt.current = rendererNow();
     setActiveViewId(viewId);
   }
@@ -5863,7 +5882,17 @@ function CalendarView(): JSX.Element {
     calendarNavigationStartedAt.current = rendererNow();
     setCalendarAnchorDate((current) => {
       if (activeViewId === "month") {
-        return calendarAddUtcMonths(current, direction);
+        const next = calendarAddUtcMonths(current, direction);
+        const offset = calendarMonthOffset(calendarTodayKey, next);
+
+        if (
+          offset < -source.settings.monthScrollPastMonths ||
+          offset > source.settings.monthScrollFutureMonths
+        ) {
+          return current;
+        }
+
+        return next;
       }
 
       if (activeViewId === "week") {
@@ -5882,6 +5911,12 @@ function CalendarView(): JSX.Element {
     calendarNavigationStartedAt.current = rendererNow();
     setCalendarAnchorDate(calendarTodayKey());
   }
+
+  useEffect(() => {
+    if (!visibleCalendarViewIds.includes(activeViewId)) {
+      setCalendarView(visibleCalendarViewIds[0]);
+    }
+  }, [activeViewId, visibleCalendarViewIds]);
 
   useEffect(() => {
     function handleCalendarCommand(event: Event): void {
@@ -6424,7 +6459,7 @@ function CalendarView(): JSX.Element {
             View
           </span>
           <div className="flex min-w-0 items-center gap-1 rounded-hcbMd border border-border bg-bg-secondary p-1" role="tablist" aria-label="Calendar views">
-            {(["agenda", "day", "multiDay", "week", "month"] as CalendarViewId[]).map((viewId) => (
+            {visibleCalendarViewIds.map((viewId) => (
               <CalendarTabButton
                 actionId={calendarViewActionId(viewId)}
                 active={viewId === activeViewId}

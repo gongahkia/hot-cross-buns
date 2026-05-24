@@ -482,7 +482,9 @@ function AppShell(): JSX.Element {
   useEffect(() => window.hcb?.native.subscribeAction(handleNativeAction), [handleNativeAction]);
 
   useEffect(() => {
-    if (!visiblePrimarySections.some(({ section }) => section.id === activeSectionId)) {
+    const activePrimarySection = primaryPlannerSections.some((section) => section.id === activeSectionId);
+
+    if (activePrimarySection && !visiblePrimarySections.some(({ section }) => section.id === activeSectionId)) {
       const replacement = visiblePrimarySections[0]?.section.id;
 
       if (replacement) {
