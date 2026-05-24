@@ -241,7 +241,7 @@ function AppShell(): JSX.Element {
 
   const source = useCoreViewModelSource();
   useAppliedTheme(source.settings);
-  const [activeSectionId, setActiveSectionId] = useState<SectionId>("calendar");
+  const [activeSectionId, setActiveSectionId] = useState<SectionId>("today");
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [taskCommand, setTaskCommand] = useState<TaskSurfaceCommand | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
