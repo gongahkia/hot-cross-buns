@@ -29,6 +29,8 @@ import {
   CalendarClock,
   CalendarPlus,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Circle,
   Clock3,
   Copy,
@@ -4004,6 +4006,10 @@ interface VisibleCalendarMonthWeek {
   days: VisibleCalendarMonthDay[];
 }
 
+interface CalendarEventDayIndex {
+  eventsByDay: Map<string, CalendarEventViewModel[]>;
+}
+
 function hourSlotIso(day: string, hour: number): string {
   return `${day}T${String(hour).padStart(2, "0")}:00:00.000Z`;
 }
@@ -4090,6 +4096,160 @@ function calendarRangeTitle(days: CalendarDayViewModel[]): string {
     timeZone: "UTC"
   });
   return `${formatter.format(start)} - ${formatter.format(end)}, ${end.getUTCFullYear()}`;
+}
+
+function calendarIsoDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function calendarDateFromIsoDate(day: string): Date {
+  return new Date(`${day}T00:00:00.000Z`);
+}
+
+function calendarTodayKey(): string {
+  return calendarIsoDate(new Date(startOfUtcDayIso(new Date())));
+}
+
+function calendarStartOfUtcDate(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function calendarAddUtcDays(day: string, days: number): string {
+  const date = calendarDateFromIsoDate(day);
+  date.setUTCDate(date.getUTCDate() + days);
+  return calendarIsoDate(date);
+}
+
+function calendarAddUtcMonths(day: string, months: number): string {
+  const source = calendarDateFromIsoDate(day);
+  const target = new Date(Date.UTC(source.getUTCFullYear(), source.getUTCMonth() + months, 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+
+  target.setUTCDate(Math.min(source.getUTCDate(), lastDay));
+  return calendarIsoDate(target);
+}
+
+function calendarMonthTitle(day: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC"
+  }).format(calendarDateFromIsoDate(day));
+}
+
+function calendarWeekdayLabel(date: Date, style: "long" | "short" = "short"): string {
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: style,
+    timeZone: "UTC"
+  }).format(date);
+}
+
+function calendarEventRangeDayKeys(startsAt: string, endsAt: string): string[] {
+  const startMs = Date.parse(startsAt);
+  const endMs = Date.parse(endsAt);
+
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    return [];
+  }
+
+  const keys: string[] = [];
+  const cursor = calendarStartOfUtcDate(new Date(startMs));
+  const lastDay = calendarStartOfUtcDate(new Date(endMs - 1));
+
+  while (cursor.getTime() <= lastDay.getTime()) {
+    keys.push(calendarIsoDate(cursor));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return keys;
+}
+
+function buildCalendarEventDayIndex(events: CalendarEventViewModel[]): CalendarEventDayIndex {
+  const eventsByDay = new Map<string, CalendarEventViewModel[]>();
+
+  for (const event of events) {
+    for (const day of calendarEventRangeDayKeys(event.startsAt, event.endsAt)) {
+      const dayEvents = eventsByDay.get(day) ?? [];
+      dayEvents.push(event);
+      eventsByDay.set(day, dayEvents);
+    }
+  }
+
+  for (const dayEvents of eventsByDay.values()) {
+    dayEvents.sort(
+      (left, right) =>
+        left.startsAt.localeCompare(right.startsAt) ||
+        left.endsAt.localeCompare(right.endsAt) ||
+        left.id.localeCompare(right.id)
+    );
+  }
+
+  return { eventsByDay };
+}
+
+function calendarEventsForDay(index: CalendarEventDayIndex, day: string): CalendarEventViewModel[] {
+  return index.eventsByDay.get(day) ?? [];
+}
+
+function calendarDayViewForDate(
+  index: CalendarEventDayIndex,
+  day: string,
+  variant: "day" | "range" | "month" = "range",
+  currentMonth?: number
+): CalendarDayViewModel {
+  const date = calendarDateFromIsoDate(day);
+
+  return {
+    id: `${variant}-${day}`,
+    weekday: calendarWeekdayLabel(date, variant === "day" ? "long" : "short"),
+    dateLabel: String(date.getUTCDate()),
+    isToday: day === calendarTodayKey(),
+    isOutsideMonth: currentMonth === undefined ? false : date.getUTCMonth() !== currentMonth,
+    events: calendarEventsForDay(index, day)
+  };
+}
+
+function calendarWeekDaysForDate(index: CalendarEventDayIndex, day: string): CalendarDayViewModel[] {
+  const anchor = calendarDateFromIsoDate(day);
+  const sunday = new Date(anchor);
+  sunday.setUTCDate(anchor.getUTCDate() - anchor.getUTCDay());
+
+  return Array.from({ length: 7 }, (_, dayOffset) => {
+    const date = new Date(sunday);
+    date.setUTCDate(sunday.getUTCDate() + dayOffset);
+    return calendarDayViewForDate(index, calendarIsoDate(date), "range");
+  });
+}
+
+function calendarRangeDaysForDate(
+  index: CalendarEventDayIndex,
+  day: string,
+  dayCount: number
+): CalendarDayViewModel[] {
+  const count = Math.max(1, dayCount);
+
+  return Array.from({ length: count }, (_, dayOffset) =>
+    calendarDayViewForDate(index, calendarAddUtcDays(day, dayOffset), count === 1 ? "day" : "range")
+  );
+}
+
+function calendarMonthWeeksForDate(
+  index: CalendarEventDayIndex,
+  day: string
+): CalendarMonthWeekViewModel[] {
+  const anchor = calendarDateFromIsoDate(day);
+  const first = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), 1));
+  const gridStart = new Date(first);
+  gridStart.setUTCDate(first.getUTCDate() - first.getUTCDay());
+
+  return Array.from({ length: 6 }, (_, weekIndex) => ({
+    id: `month-${day}-week-${weekIndex}`,
+    days: Array.from({ length: 7 }, (_, dayIndex) => {
+      const date = new Date(gridStart);
+      date.setUTCDate(gridStart.getUTCDate() + weekIndex * 7 + dayIndex);
+      return calendarDayViewForDate(index, calendarIsoDate(date), "month", first.getUTCMonth());
+    })
+  }));
 }
 
 function calendarPointerTimeIso(
@@ -5069,6 +5229,7 @@ function CalendarTimelineView({
 function DayView({
   availabilityMode,
   availabilitySlots,
+  day,
   onAddAvailabilitySlot,
   onCreate,
   onMoveEvent,
@@ -5077,20 +5238,19 @@ function DayView({
 }: {
   availabilityMode: boolean;
   availabilitySlots: CalendarTimeBlock[];
+  day: CalendarDayViewModel;
   onAddAvailabilitySlot: (slot: CalendarTimeBlock) => void;
   onCreate: (seed?: CalendarCreateSeed) => void;
   onMoveEvent: (eventId: string, startsAt: string, allDay: boolean) => void;
   onOpen: (event: CalendarEventViewModel) => void;
   visibleCalendarIds: ReadonlySet<string>;
 }): JSX.Element {
-  const source = useCoreViewModelSource();
-
   return (
     <CalendarTimelineView
       availabilityMode={availabilityMode}
       availabilitySlots={availabilitySlots}
-      days={[source.calendarDayView]}
-      label={calendarDateTitle(source.calendarDayView)}
+      days={[day]}
+      label={calendarDateTitle(day)}
       onAddAvailabilitySlot={onAddAvailabilitySlot}
       onCreate={onCreate}
       onMoveEvent={onMoveEvent}
@@ -5104,6 +5264,7 @@ function MultiDayView({
   availabilityMode,
   availabilitySlots,
   dayCount,
+  days,
   onAddAvailabilitySlot,
   onCreate,
   onDayCountChange,
@@ -5114,6 +5275,7 @@ function MultiDayView({
   availabilityMode: boolean;
   availabilitySlots: CalendarTimeBlock[];
   dayCount: number;
+  days: CalendarDayViewModel[];
   onAddAvailabilitySlot: (slot: CalendarTimeBlock) => void;
   onCreate: (seed?: CalendarCreateSeed) => void;
   onDayCountChange: (dayCount: number) => void;
@@ -5121,12 +5283,6 @@ function MultiDayView({
   onOpen: (event: CalendarEventViewModel) => void;
   visibleCalendarIds: ReadonlySet<string>;
 }): JSX.Element {
-  const source = useCoreViewModelSource();
-  const days = useMemo(
-    () => source.calendarWeekDays.slice(0, dayCount),
-    [dayCount, source.calendarWeekDays]
-  );
-
   return (
     <CalendarTimelineView
       availabilityMode={availabilityMode}
@@ -5168,6 +5324,7 @@ function MultiDayView({
 function WeekView({
   availabilityMode,
   availabilitySlots,
+  days,
   onAddAvailabilitySlot,
   onCreate,
   onMoveEvent,
@@ -5176,20 +5333,19 @@ function WeekView({
 }: {
   availabilityMode: boolean;
   availabilitySlots: CalendarTimeBlock[];
+  days: CalendarDayViewModel[];
   onAddAvailabilitySlot: (slot: CalendarTimeBlock) => void;
   onCreate: (seed?: CalendarCreateSeed) => void;
   onMoveEvent: (eventId: string, startsAt: string, allDay: boolean) => void;
   onOpen: (event: CalendarEventViewModel) => void;
   visibleCalendarIds: ReadonlySet<string>;
 }): JSX.Element {
-  const source = useCoreViewModelSource();
-
   return (
     <CalendarTimelineView
       availabilityMode={availabilityMode}
       availabilitySlots={availabilitySlots}
-      days={source.calendarWeekDays}
-      label={calendarRangeTitle(source.calendarWeekDays)}
+      days={days}
+      label={calendarRangeTitle(days)}
       onAddAvailabilitySlot={onAddAvailabilitySlot}
       onCreate={onCreate}
       onMoveEvent={onMoveEvent}
@@ -5245,9 +5401,11 @@ function CalendarAgendaEventRow({
 
 function CalendarAgendaView({
   events,
+  label,
   onOpen
 }: {
   events: CalendarEventViewModel[];
+  label: string;
   onOpen: (event: CalendarEventViewModel) => void;
 }): JSX.Element {
   return (
@@ -5255,7 +5413,9 @@ function CalendarAgendaView({
       <div className="flex min-h-12 items-center justify-between gap-3 border-b border-border bg-bg-primary/40 px-3 py-2">
         <div className="min-w-0">
           <div className="truncate text-[var(--text-md)] font-semibold text-text-primary">Agenda</div>
-          <div className="truncate text-[var(--text-xs)] text-text-muted">{events.length} visible events</div>
+          <div className="truncate text-[var(--text-xs)] text-text-muted">
+            {label} - {events.length} visible events
+          </div>
         </div>
       </div>
       {events.length > 0 ? (
@@ -5438,18 +5598,19 @@ function ShareAvailabilityPanel({
 }
 
 function MonthView({
+  weeks,
   onCreate,
   onOpen,
   visibleCalendarIds
 }: {
+  weeks: CalendarMonthWeekViewModel[];
   onCreate: (seed?: CalendarCreateSeed) => void;
   onOpen: (event: CalendarEventViewModel) => void;
   visibleCalendarIds: ReadonlySet<string>;
 }): JSX.Element {
-  const source = useCoreViewModelSource();
   const visibleWeeks = useMemo(
-    () => visibleCalendarMonthWeeks(source.calendarMonthWeeks, visibleCalendarIds),
-    [source.calendarMonthWeeks, visibleCalendarIds]
+    () => visibleCalendarMonthWeeks(weeks, visibleCalendarIds),
+    [weeks, visibleCalendarIds]
   );
 
   return (
