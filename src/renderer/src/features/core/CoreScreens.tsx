@@ -27,6 +27,7 @@ import {
 import {
   AlertTriangle,
   Bell,
+  CalendarClock,
   CalendarPlus,
   CheckCircle2,
   Circle,
@@ -35,6 +36,7 @@ import {
   Eye,
   EyeOff,
   FileText,
+  Flag,
   ListPlus,
   MapPin,
   Pencil,
@@ -152,6 +154,110 @@ function priorityLabel(priority: CorePriority): string {
   }
 
   return `${priority[0].toUpperCase()}${priority.slice(1)} priority`;
+}
+
+function taskDueCue(task: TaskViewModel): { label: string; tone: CompactTone } | null {
+  if (task.status === "completed") {
+    return { label: "Done", tone: "success" };
+  }
+
+  if (!task.dueDate) {
+    return null;
+  }
+
+  const today = dateOnlyFromLocalDate(new Date());
+
+  if (task.dueDate < today) {
+    return { label: "Overdue", tone: "danger" };
+  }
+
+  if (task.dueDate === today) {
+    return { label: "Due today", tone: "warning" };
+  }
+
+  return { label: task.dueLabel, tone: "neutral" };
+}
+
+function taskDurationLabel(minutes: number | null | undefined): string {
+  if (!minutes || minutes <= 0) {
+    return "30 min";
+  }
+
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remaining = minutes % 60;
+
+  return remaining === 0 ? `${hours} hr` : `${hours} hr ${remaining} min`;
+}
+
+function taskScheduleLabel(
+  task: TaskViewModel,
+  scheduledBlock?: ScheduledTaskBlockViewModel
+): string | null {
+  if (scheduledBlock) {
+    return scheduledBlock.status === "orphaned"
+      ? `Orphaned ${scheduledBlock.rangeLabel}`
+      : `Scheduled ${scheduledBlock.rangeLabel}`;
+  }
+
+  if (task.plannedStart && task.plannedEnd) {
+    return `Planned ${timeLabel(task.plannedStart)}-${timeLabel(task.plannedEnd)}`;
+  }
+
+  if (task.durationMinutes) {
+    return taskDurationLabel(task.durationMinutes);
+  }
+
+  return null;
+}
+
+function taskScheduleTone(scheduledBlock?: ScheduledTaskBlockViewModel): CompactTone {
+  if (scheduledBlock?.status === "orphaned") {
+    return "warning";
+  }
+
+  if (scheduledBlock) {
+    return "info";
+  }
+
+  return "neutral";
+}
+
+function taskBridgeDescription(
+  task: TaskViewModel,
+  scheduledBlock?: ScheduledTaskBlockViewModel
+): string {
+  const parts = [task.detail];
+  const scheduleLabel = taskScheduleLabel(task, scheduledBlock);
+
+  if (scheduleLabel) {
+    parts.push(scheduleLabel);
+  }
+
+  if (task.lockedSchedule) {
+    parts.push("Locked");
+  }
+
+  return parts.filter(Boolean).join(" - ");
+}
+
+function scheduledBlockByTaskId(
+  blocks: ScheduledTaskBlockViewModel[]
+): Map<string, ScheduledTaskBlockViewModel> {
+  const byTaskId = new Map<string, ScheduledTaskBlockViewModel>();
+
+  for (const block of blocks) {
+    const existing = byTaskId.get(block.taskId);
+
+    if (!existing || existing.status === "orphaned" || block.status === "scheduled") {
+      byTaskId.set(block.taskId, block);
+    }
+  }
+
+  return byTaskId;
 }
 
 function sourceTone(source: SearchSource): "accent" | "success" | "info" {
@@ -412,6 +518,7 @@ function TaskRow({
   onSelect,
   onToggle,
   selected,
+  scheduledBlock,
   task
 }: {
   bulkSelected: boolean;
@@ -421,8 +528,12 @@ function TaskRow({
   onSelect: (taskId: string) => void;
   onToggle: (taskId: string) => void;
   selected: boolean;
+  scheduledBlock?: ScheduledTaskBlockViewModel;
   task: TaskViewModel;
 }): JSX.Element {
+  const dueCue = taskDueCue(task);
+  const scheduleLabel = taskScheduleLabel(task, scheduledBlock);
+
   return (
     <div
       className={cx(
@@ -454,7 +565,11 @@ function TaskRow({
             >
               {task.title}
             </span>
-            <span className="shrink-0 text-[var(--text-xs)] text-text-muted">{task.dueLabel}</span>
+            {dueCue ? (
+              <Badge aria-label={`Task due state ${task.title}`} tone={dueCue.tone}>
+                {dueCue.label}
+              </Badge>
+            ) : null}
             {task.mutationState && task.mutationState !== "synced" ? (
               <Badge tone={task.mutationState === "failed" ? "danger" : "warning"}>
                 {task.mutationState === "failed" ? "Failed" : "Queued"}
@@ -462,6 +577,25 @@ function TaskRow({
             ) : null}
           </div>
           <p className="truncate text-[var(--text-sm)] text-text-muted">{task.detail}</p>
+          {scheduleLabel || task.tags?.length ? (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {scheduleLabel ? (
+                <Badge
+                  aria-label={`Task schedule ${task.title}`}
+                  className="gap-1"
+                  tone={taskScheduleTone(scheduledBlock)}
+                >
+                  <CalendarClock aria-hidden="true" size={11} />
+                  {scheduleLabel}
+                </Badge>
+              ) : null}
+              {task.tags?.slice(0, 3).map((tag) => (
+                <Badge key={tag} tone="neutral">
+                  +{tag}
+                </Badge>
+              ))}
+            </div>
+          ) : null}
           {task.subtasks.length > 0 ? (
             <div
               aria-label={`Subtasks for ${task.title}`}
@@ -484,7 +618,10 @@ function TaskRow({
           ) : null}
         </button>
         <div className="flex shrink-0 items-center gap-2">
-          <Badge tone={priorityTone(task.priority)}>{priorityLabel(task.priority)}</Badge>
+          <Badge aria-label={`Task priority ${task.title}`} className="gap-1" tone={priorityTone(task.priority)}>
+            <Flag aria-hidden="true" size={11} />
+            {priorityLabel(task.priority)}
+          </Badge>
           <Badge>{task.list}</Badge>
           <IconButton
             icon={Trash2}
@@ -505,6 +642,7 @@ function TaskGroupPanel({
   onDeleteTask,
   onSelectTask,
   onToggleTask,
+  scheduledBlocksByTaskId,
   selectedTaskId
 }: {
   group: TaskGroupViewModel;
@@ -513,6 +651,7 @@ function TaskGroupPanel({
   onDeleteTask: (taskId: string) => void;
   onSelectTask: (taskId: string) => void;
   onToggleTask: (taskId: string) => void;
+  scheduledBlocksByTaskId?: Map<string, ScheduledTaskBlockViewModel>;
   selectedTaskId: string | null;
 }): JSX.Element {
   return (
@@ -535,6 +674,7 @@ function TaskGroupPanel({
             onDelete={onDeleteTask}
             onSelect={onSelectTask}
             onToggle={onToggleTask}
+            scheduledBlock={scheduledBlocksByTaskId?.get(task.id)}
             selected={task.id === selectedTaskId}
             task={task}
           />
@@ -695,6 +835,140 @@ function TodayTimelineRow({
       meta={row.task.dueLabel}
       title={row.task.title}
       trailing={<Badge tone={priorityTone(row.task.priority)}>{priorityLabel(row.task.priority)}</Badge>}
+    />
+  );
+}
+
+function TodayFocusTaskRow({
+  nextStart,
+  onSchedule,
+  onToggleTask,
+  task
+}: {
+  nextStart: string | null;
+  onSchedule: (task: TaskViewModel, startsAt: string) => void;
+  onToggleTask: (taskId: string) => void;
+  task: TaskViewModel;
+}): JSX.Element {
+  const dueCue = taskDueCue(task);
+  const scheduleAtLabel = nextStart ? `Schedule ${task.title} at ${timeLabel(nextStart)}` : `Schedule ${task.title}`;
+
+  return (
+    <ListRow
+      className="transition-colors duration-fast ease-hcb hover:bg-surface-0"
+      description={taskBridgeDescription(task)}
+      draggable={task.status === "open"}
+      leading={<TaskCompletionButton completed={task.status === "completed"} onToggle={onToggleTask} task={task} />}
+      meta={taskDurationLabel(task.durationMinutes)}
+      onDragStart={(event) => {
+        event.dataTransfer.setData("application/x-hcb-task", task.id);
+      }}
+      title={task.title}
+      trailing={
+        <div className="flex shrink-0 items-center gap-1">
+          {dueCue ? <Badge tone={dueCue.tone}>{dueCue.label}</Badge> : null}
+          <Badge aria-label={`Task priority ${task.title}`} className="gap-1" tone={priorityTone(task.priority)}>
+            <Flag aria-hidden="true" size={11} />
+            {priorityLabel(task.priority)}
+          </Badge>
+          <IconButton
+            className="size-7"
+            disabled={!nextStart || task.status !== "open"}
+            icon={CalendarClock}
+            label={scheduleAtLabel}
+            onClick={() => nextStart ? onSchedule(task, nextStart) : undefined}
+            variant="ghost"
+          />
+        </div>
+      }
+    />
+  );
+}
+
+function TodayScheduledBlockRow({
+  block,
+  onMoveBlock,
+  onRepairBlock,
+  onResizeBlock,
+  onUnscheduleBlock
+}: {
+  block: ScheduledTaskBlockViewModel;
+  onMoveBlock: (block: ScheduledTaskBlockViewModel, minutes: number) => void;
+  onRepairBlock: (block: ScheduledTaskBlockViewModel) => void;
+  onResizeBlock: (block: ScheduledTaskBlockViewModel, minutes: number) => void;
+  onUnscheduleBlock: (blockId: string) => void;
+}): JSX.Element {
+  const conflictDetail =
+    block.conflictTitles.length > 0 ? ` - Conflicts with ${block.conflictTitles.join(", ")}` : "";
+
+  return (
+    <ListRow
+      className={block.status === "orphaned" ? "bg-warning/10" : undefined}
+      description={`${block.rangeLabel} - ${block.calendar}${conflictDetail}`}
+      leading={<CalendarClock aria-hidden="true" className="text-accent" size={17} />}
+      meta={taskDurationLabel(block.durationMinutes)}
+      selected={block.isNextUp}
+      title={block.title}
+      trailing={
+        <div className="flex shrink-0 items-center gap-1">
+          {block.isNextUp ? <Badge tone="info">Next</Badge> : null}
+          {block.conflictCount > 0 ? <Badge tone="danger">Conflict</Badge> : null}
+          {block.mutationState && block.mutationState !== "synced" ? (
+            <Badge tone={block.mutationState === "failed" ? "danger" : "warning"}>
+              {block.mutationState === "failed" ? "Failed" : "Queued"}
+            </Badge>
+          ) : (
+            <Badge tone={block.status === "orphaned" ? "warning" : "success"}>
+              {block.status === "orphaned" ? "Needs repair" : "Scheduled"}
+            </Badge>
+          )}
+          {block.status === "orphaned" ? (
+            <IconButton
+              className="size-7"
+              icon={RotateCcw}
+              label={`Repair ${block.title}`}
+              onClick={() => onRepairBlock(block)}
+              variant="ghost"
+            />
+          ) : null}
+          <IconButton
+            className="size-7"
+            icon={StepBack}
+            label={`Move ${block.title} earlier`}
+            onClick={() => onMoveBlock(block, -30)}
+            variant="ghost"
+          />
+          <IconButton
+            className="size-7"
+            icon={StepForward}
+            label={`Move ${block.title} later`}
+            onClick={() => onMoveBlock(block, 30)}
+            variant="ghost"
+          />
+          <IconButton
+            className="size-7"
+            disabled={block.durationMinutes <= 15}
+            icon={Minus}
+            label={`Shorten ${block.title}`}
+            onClick={() => onResizeBlock(block, -15)}
+            variant="ghost"
+          />
+          <IconButton
+            className="size-7"
+            icon={Plus}
+            label={`Lengthen ${block.title}`}
+            onClick={() => onResizeBlock(block, 15)}
+            variant="ghost"
+          />
+          <IconButton
+            className="size-7"
+            icon={X}
+            label={`Unschedule ${block.title}`}
+            onClick={() => onUnscheduleBlock(block.id)}
+            variant="ghost"
+          />
+        </div>
+      }
     />
   );
 }

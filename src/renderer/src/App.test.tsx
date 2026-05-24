@@ -1206,7 +1206,8 @@ describe("App shell", () => {
 
     await goToSection("Calendar");
     expect(await screen.findByText("Agenda view")).toBeInTheDocument();
-    expect(screen.getByText("Planner shell standup")).toBeInTheDocument();
+    const agenda = await screen.findByRole("list", { name: "Calendar agenda" });
+    expect(within(agenda).getByText("Planner shell standup")).toBeInTheDocument();
 
     const tabs = screen.getByRole("tablist", { name: "Calendar views" });
     await user.click(within(tabs).getByRole("tab", { name: "Day" }));
@@ -1345,7 +1346,8 @@ describe("App shell", () => {
     await goToSection("Calendar");
     expect(await screen.findByText("Agenda view")).toBeInTheDocument();
 
-    await user.click(screen.getByText("Planner shell standup"));
+    const agenda = await screen.findByRole("list", { name: "Calendar agenda" });
+    await user.click(within(agenda).getByText("Planner shell standup"));
 
     const inspector = await screen.findByTestId("inspector-shell");
     expect(inspector).toHaveAttribute("data-inspector-kind", "event");
@@ -1384,7 +1386,7 @@ describe("App shell", () => {
     const agenda = await screen.findByRole("list", { name: "Calendar agenda" });
     expect(within(agenda).getByText("Queued")).toBeInTheDocument();
 
-    await user.click(screen.getByText("Planner shell standup"));
+    await user.click(within(agenda).getByText("Planner shell standup"));
     const inspector = await screen.findByTestId("inspector-shell");
 
     expect(within(inspector).getByText("Queued")).toBeInTheDocument();
@@ -1397,7 +1399,8 @@ describe("App shell", () => {
 
     await goToSection("Calendar");
     expect(await screen.findByText("Agenda view")).toBeInTheDocument();
-    await user.click(screen.getByText("Planner shell standup"));
+    const agenda = await screen.findByRole("list", { name: "Calendar agenda" });
+    await user.click(within(agenda).getByText("Planner shell standup"));
 
     const titleInput = await screen.findByRole("textbox", { name: "Event title" });
     await user.clear(titleInput);
@@ -1463,8 +1466,9 @@ describe("App shell", () => {
     render(<App />);
 
     await goToSection("Calendar");
-    expect(await screen.findByText("Planner shell standup")).toBeInTheDocument();
-    expect(screen.getByText("Engineering sync")).toBeInTheDocument();
+    const agenda = await screen.findByRole("list", { name: "Calendar agenda" });
+    expect(await within(agenda).findByText("Planner shell standup")).toBeInTheDocument();
+    expect(within(agenda).getByText("Engineering sync")).toBeInTheDocument();
     expect(screen.getAllByText("UTC").length).toBeGreaterThan(0);
     expect(screen.getByRole("status", { name: "Calendar status" })).toBeInTheDocument();
     expect(within(screen.getByRole("region", { name: "Calendar context" })).getByText("Planner shell standup")).toBeInTheDocument();
@@ -1474,8 +1478,8 @@ describe("App shell", () => {
     await user.click(within(visibility).getByLabelText(/Product/));
 
     await waitFor(() => {
-      expect(screen.queryByText("Planner shell standup")).not.toBeInTheDocument();
-      expect(screen.getByText("Engineering sync")).toBeInTheDocument();
+      expect(within(agenda).queryByText("Planner shell standup")).not.toBeInTheDocument();
+      expect(within(agenda).getByText("Engineering sync")).toBeInTheDocument();
       expect(within(visibility).getByText("Hidden")).toBeInTheDocument();
       expect(within(visibility).getByLabelText(/Show Product/)).toBeInTheDocument();
     });
@@ -1637,7 +1641,8 @@ describe("App shell", () => {
       );
     });
 
-    await user.click(screen.getByText("Planner shell standup"));
+    const agenda = await screen.findByRole("list", { name: "Calendar agenda" });
+    await user.click(within(agenda).getByText("Planner shell standup"));
     const titleInput = screen.getByRole("textbox", { name: "Event title" });
     await user.clear(titleInput);
     await user.type(titleInput, "Planner shell sync");
@@ -1652,7 +1657,7 @@ describe("App shell", () => {
       );
     });
 
-    await user.click(screen.getByText("Planner shell standup"));
+    await user.click(within(agenda).getByText("Planner shell standup"));
     await user.click(screen.getByRole("button", { name: "Delete event" }));
     expect(api.calendar.delete).toHaveBeenCalledWith({ id: "event-standup" });
   });
@@ -1681,7 +1686,8 @@ describe("App shell", () => {
     render(<App />);
 
     await goToSection("Calendar");
-    await user.click(await screen.findByText("Recurring release review"));
+    const agenda = await screen.findByRole("list", { name: "Calendar agenda" });
+    await user.click(await within(agenda).findByText("Recurring release review"));
 
     const inspector = await screen.findByTestId("inspector-shell");
     expect(inspector).toHaveAttribute("data-inspector-kind", "event");
