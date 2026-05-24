@@ -5105,7 +5105,7 @@ function CalendarTimelineView({
         <div className="min-w-[720px]">
           <div className="grid grid-cols-[64px_minmax(0,1fr)] border-b border-border bg-bg-secondary/80">
             <div className="border-r border-border" aria-hidden="true" />
-            <div aria-label={`All-day events ${label}`} className="grid" role="group" style={{ gridTemplateColumns }}>
+            <div className="grid" style={{ gridTemplateColumns }}>
               {visibleDays.map(({ day }) => (
                 <div
                   className="min-h-16 border-r border-border px-2 py-2 text-center last:border-r-0"
@@ -5129,7 +5129,7 @@ function CalendarTimelineView({
             <div className="border-r border-border px-2 py-3 text-[var(--text-xs)] font-semibold text-text-muted">
               All-day
             </div>
-            <div className="grid" style={{ gridTemplateColumns }}>
+            <div aria-label={`All-day events ${label}`} className="grid" role="group" style={{ gridTemplateColumns }}>
               {visibleDays.map(({ allDayEvents, day }) => {
                 const dayKey = calendarDayKey(day);
                 const visibleEvents = allDayEvents.slice(0, calendarTimelineVisibleAllDayCount);
@@ -5175,6 +5175,7 @@ function CalendarTimelineView({
           </div>
           {calendarTimelineHours.map((hour) => (
             <div
+              aria-label={`${hourSlotLabel(hour)} Open slot`}
               className="grid min-h-14 grid-cols-[64px_minmax(0,1fr)] border-b border-border last:border-b-0"
               key={hour}
               role="row"
@@ -6705,8 +6706,8 @@ function CalendarView(): JSX.Element {
           ) : null}
           {activeViewId === "day" ? (
             <DayView
-              availabilityMode={shareAvailabilityOpen}
-              availabilitySlots={shareAvailabilityOpen ? availabilitySlots : []}
+              availabilityMode={false}
+              availabilitySlots={[]}
               day={calendarDay}
               onAddAvailabilitySlot={addAvailabilitySlot}
               onCreate={openCreate}
@@ -6717,8 +6718,8 @@ function CalendarView(): JSX.Element {
           ) : null}
           {activeViewId === "multiDay" ? (
             <MultiDayView
-              availabilityMode={shareAvailabilityOpen}
-              availabilitySlots={shareAvailabilityOpen ? availabilitySlots : []}
+              availabilityMode={false}
+              availabilitySlots={[]}
               dayCount={multiDayCount}
               days={calendarMultiDayDays}
               onAddAvailabilitySlot={addAvailabilitySlot}
@@ -6731,8 +6732,8 @@ function CalendarView(): JSX.Element {
           ) : null}
           {activeViewId === "week" ? (
             <WeekView
-              availabilityMode={shareAvailabilityOpen}
-              availabilitySlots={shareAvailabilityOpen ? availabilitySlots : []}
+              availabilityMode={false}
+              availabilitySlots={[]}
               days={calendarWeekDays}
               onAddAvailabilitySlot={addAvailabilitySlot}
               onCreate={openCreate}
