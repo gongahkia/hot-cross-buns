@@ -186,14 +186,30 @@ interface NoteRow extends Record<string, unknown> {
 const DEFAULT_SETTINGS: SettingsSnapshot = {
   theme: "system",
   colorTheme: "notion",
+  appLanguage: "system",
   uiFontName: null,
   uiTextSizePoints: 13,
+  perSurfaceFontOverrides: {},
+  performanceMode: "snappy",
+  appBackgroundTranslucencyEnabled: false,
+  appBackgroundOpacity: 1,
+  disableAnimations: false,
+  uiLayoutScale: 1,
+  navigationPlacement: "left",
+  hiddenNavigationTabs: [],
+  hiddenCalendarViewModes: [],
+  monthScrollPastMonths: 0,
+  monthScrollFutureMonths: 1,
+  quickCreateExpandedByDefault: false,
+  restoreWindowStateEnabled: true,
   startOnLogin: false,
   quickCaptureShortcut: "Ctrl+Space",
   selectedTaskListIds: [],
   selectedCalendarIds: [],
   setupCompletedAt: null,
   syncMode: "balanced",
+  eventRetentionDaysBack: 0,
+  completedTaskRetentionDaysBack: 365,
   showTrayIcon: true,
   trayClickAction: "open-menu",
   menuBarPanelStyle: "adaptive",
@@ -208,6 +224,7 @@ const DEFAULT_SETTINGS: SettingsSnapshot = {
   todayWorkingHoursStart: 6,
   todayWorkingHoursEnd: 22,
   diagnosticsIncludePerformance: true,
+  rawGoogleDiagnosticsEnabled: false,
   savedSearchViews: [],
   savedTaskViews: []
 };
@@ -2556,11 +2573,73 @@ export class LocalSettingsRepository {
     return {
       theme: this.readSetting("appearance", "theme", DEFAULT_SETTINGS.theme),
       colorTheme: this.readSetting("appearance", "colorTheme", DEFAULT_SETTINGS.colorTheme),
+      appLanguage: this.readSetting("app", "language", DEFAULT_SETTINGS.appLanguage),
       uiFontName: this.readSetting("appearance", "uiFontName", DEFAULT_SETTINGS.uiFontName),
       uiTextSizePoints: this.readSetting(
         "appearance",
         "uiTextSizePoints",
         DEFAULT_SETTINGS.uiTextSizePoints
+      ),
+      perSurfaceFontOverrides: this.readSetting(
+        "appearance",
+        "perSurfaceFontOverrides",
+        DEFAULT_SETTINGS.perSurfaceFontOverrides
+      ),
+      performanceMode: this.readSetting(
+        "appearance",
+        "performanceMode",
+        DEFAULT_SETTINGS.performanceMode
+      ),
+      appBackgroundTranslucencyEnabled: this.readSetting(
+        "appearance",
+        "backgroundTranslucencyEnabled",
+        DEFAULT_SETTINGS.appBackgroundTranslucencyEnabled
+      ),
+      appBackgroundOpacity: this.readSetting(
+        "appearance",
+        "backgroundOpacity",
+        DEFAULT_SETTINGS.appBackgroundOpacity
+      ),
+      disableAnimations: this.readSetting(
+        "appearance",
+        "disableAnimations",
+        DEFAULT_SETTINGS.disableAnimations
+      ),
+      uiLayoutScale: this.readSetting("appearance", "uiLayoutScale", DEFAULT_SETTINGS.uiLayoutScale),
+      navigationPlacement: this.readSetting(
+        "appearance",
+        "navigationPlacement",
+        DEFAULT_SETTINGS.navigationPlacement
+      ),
+      hiddenNavigationTabs: this.readSetting(
+        "appearance",
+        "hiddenNavigationTabs",
+        DEFAULT_SETTINGS.hiddenNavigationTabs
+      ),
+      hiddenCalendarViewModes: this.readSetting(
+        "appearance",
+        "hiddenCalendarViewModes",
+        DEFAULT_SETTINGS.hiddenCalendarViewModes
+      ),
+      monthScrollPastMonths: this.readSetting(
+        "appearance",
+        "monthScrollPastMonths",
+        DEFAULT_SETTINGS.monthScrollPastMonths
+      ),
+      monthScrollFutureMonths: this.readSetting(
+        "appearance",
+        "monthScrollFutureMonths",
+        DEFAULT_SETTINGS.monthScrollFutureMonths
+      ),
+      quickCreateExpandedByDefault: this.readSetting(
+        "appearance",
+        "quickCreateExpandedByDefault",
+        DEFAULT_SETTINGS.quickCreateExpandedByDefault
+      ),
+      restoreWindowStateEnabled: this.readSetting(
+        "appearance",
+        "restoreWindowStateEnabled",
+        DEFAULT_SETTINGS.restoreWindowStateEnabled
       ),
       startOnLogin: this.readSetting("app", "startOnLogin", DEFAULT_SETTINGS.startOnLogin),
       quickCaptureShortcut: this.readSetting(
@@ -2584,6 +2663,16 @@ export class LocalSettingsRepository {
         DEFAULT_SETTINGS.setupCompletedAt
       ),
       syncMode: this.readSetting("sync", "mode", DEFAULT_SETTINGS.syncMode),
+      eventRetentionDaysBack: this.readSetting(
+        "sync",
+        "eventRetentionDaysBack",
+        DEFAULT_SETTINGS.eventRetentionDaysBack
+      ),
+      completedTaskRetentionDaysBack: this.readSetting(
+        "sync",
+        "completedTaskRetentionDaysBack",
+        DEFAULT_SETTINGS.completedTaskRetentionDaysBack
+      ),
       showTrayIcon: this.readSetting("tray", "showIcon", DEFAULT_SETTINGS.showTrayIcon),
       trayClickAction: this.readSetting(
         "tray",
@@ -2638,6 +2727,11 @@ export class LocalSettingsRepository {
         "includePerformance",
         DEFAULT_SETTINGS.diagnosticsIncludePerformance
       ),
+      rawGoogleDiagnosticsEnabled: this.readSetting(
+        "diagnostics",
+        "rawGooglePayloads",
+        DEFAULT_SETTINGS.rawGoogleDiagnosticsEnabled
+      ),
       savedSearchViews: this.readSetting(
         "search",
         "savedViews",
@@ -2662,12 +2756,83 @@ export class LocalSettingsRepository {
       this.writeSetting("appearance", "colorTheme", request.colorTheme, now);
     }
 
+    if (request.appLanguage !== undefined) {
+      this.writeSetting("app", "language", request.appLanguage, now);
+    }
+
     if (request.uiFontName !== undefined) {
       this.writeSetting("appearance", "uiFontName", request.uiFontName, now);
     }
 
     if (request.uiTextSizePoints !== undefined) {
       this.writeSetting("appearance", "uiTextSizePoints", request.uiTextSizePoints, now);
+    }
+
+    if (request.perSurfaceFontOverrides !== undefined) {
+      this.writeSetting("appearance", "perSurfaceFontOverrides", request.perSurfaceFontOverrides, now);
+    }
+
+    if (request.performanceMode !== undefined) {
+      this.writeSetting("appearance", "performanceMode", request.performanceMode, now);
+    }
+
+    if (request.appBackgroundTranslucencyEnabled !== undefined) {
+      this.writeSetting(
+        "appearance",
+        "backgroundTranslucencyEnabled",
+        request.appBackgroundTranslucencyEnabled,
+        now
+      );
+    }
+
+    if (request.appBackgroundOpacity !== undefined) {
+      this.writeSetting("appearance", "backgroundOpacity", request.appBackgroundOpacity, now);
+    }
+
+    if (request.disableAnimations !== undefined) {
+      this.writeSetting("appearance", "disableAnimations", request.disableAnimations, now);
+    }
+
+    if (request.uiLayoutScale !== undefined) {
+      this.writeSetting("appearance", "uiLayoutScale", request.uiLayoutScale, now);
+    }
+
+    if (request.navigationPlacement !== undefined) {
+      this.writeSetting("appearance", "navigationPlacement", request.navigationPlacement, now);
+    }
+
+    if (request.hiddenNavigationTabs !== undefined) {
+      this.writeSetting("appearance", "hiddenNavigationTabs", request.hiddenNavigationTabs, now);
+    }
+
+    if (request.hiddenCalendarViewModes !== undefined) {
+      this.writeSetting("appearance", "hiddenCalendarViewModes", request.hiddenCalendarViewModes, now);
+    }
+
+    if (request.monthScrollPastMonths !== undefined) {
+      this.writeSetting("appearance", "monthScrollPastMonths", request.monthScrollPastMonths, now);
+    }
+
+    if (request.monthScrollFutureMonths !== undefined) {
+      this.writeSetting("appearance", "monthScrollFutureMonths", request.monthScrollFutureMonths, now);
+    }
+
+    if (request.quickCreateExpandedByDefault !== undefined) {
+      this.writeSetting(
+        "appearance",
+        "quickCreateExpandedByDefault",
+        request.quickCreateExpandedByDefault,
+        now
+      );
+    }
+
+    if (request.restoreWindowStateEnabled !== undefined) {
+      this.writeSetting(
+        "appearance",
+        "restoreWindowStateEnabled",
+        request.restoreWindowStateEnabled,
+        now
+      );
     }
 
     if (request.startOnLogin !== undefined) {
@@ -2692,6 +2857,19 @@ export class LocalSettingsRepository {
 
     if (request.syncMode !== undefined) {
       this.writeSetting("sync", "mode", request.syncMode, now);
+    }
+
+    if (request.eventRetentionDaysBack !== undefined) {
+      this.writeSetting("sync", "eventRetentionDaysBack", request.eventRetentionDaysBack, now);
+    }
+
+    if (request.completedTaskRetentionDaysBack !== undefined) {
+      this.writeSetting(
+        "sync",
+        "completedTaskRetentionDaysBack",
+        request.completedTaskRetentionDaysBack,
+        now
+      );
     }
 
     if (request.showTrayIcon !== undefined) {
@@ -2751,6 +2929,15 @@ export class LocalSettingsRepository {
         "diagnostics",
         "includePerformance",
         request.diagnosticsIncludePerformance,
+        now
+      );
+    }
+
+    if (request.rawGoogleDiagnosticsEnabled !== undefined) {
+      this.writeSetting(
+        "diagnostics",
+        "rawGooglePayloads",
+        request.rawGoogleDiagnosticsEnabled,
         now
       );
     }

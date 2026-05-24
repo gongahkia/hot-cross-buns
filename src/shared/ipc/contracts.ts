@@ -934,9 +934,31 @@ export const appColorThemeSchema = z.enum(appColorThemeIds);
 export const uiTextSizePointsSchema = z.number().min(9).max(24);
 export const uiFontNameSchema = z.string().trim().min(1).max(120).nullable();
 export const syncModeSchema = z.enum(["manual", "balanced", "near-real-time"]);
+export const appLanguageSchema = z.enum(["system", "en"]);
+export const settingsPerformanceModeSchema = z.enum(["snappy", "rich"]);
+export const navigationPlacementSchema = z.enum(["left", "right"]);
+export const navigationTabSchema = z.enum(["tasks", "calendar", "notes"]);
+export const calendarViewModeSchema = z.enum(["agenda", "day", "multiDay", "week", "month"]);
 export const trayClickActionSchema = z.enum(["open-menu", "toggle-window", "quick-capture", "open-today"]);
 export const menuBarPanelStyleSchema = z.enum(["adaptive", "agenda", "compact"]);
 export const mcpPermissionModeSchema = z.enum(["read-only", "confirm-writes", "allow-writes"]);
+export const perSurfaceFontKeySchema = z.enum([
+  "markdownEditor",
+  "sidebar",
+  "calendarGrid",
+  "taskList",
+  "inspector",
+  "menuBar"
+]);
+export const perSurfaceFontOverrideSchema = z
+  .object({
+    uiFontName: uiFontNameSchema,
+    uiTextSizePoints: uiTextSizePointsSchema.nullable()
+  })
+  .strict();
+export const perSurfaceFontOverridesSchema = z
+  .record(perSurfaceFontKeySchema, perSurfaceFontOverrideSchema)
+  .default({});
 
 export const savedSearchViewSchema = z
   .object({
@@ -976,14 +998,30 @@ export const settingsSnapshotSchema = z
   .object({
     theme: appThemeSchema,
     colorTheme: appColorThemeSchema,
+    appLanguage: appLanguageSchema,
     uiFontName: uiFontNameSchema,
     uiTextSizePoints: uiTextSizePointsSchema,
+    perSurfaceFontOverrides: perSurfaceFontOverridesSchema,
+    performanceMode: settingsPerformanceModeSchema,
+    appBackgroundTranslucencyEnabled: z.boolean(),
+    appBackgroundOpacity: z.number().min(0.35).max(1),
+    disableAnimations: z.boolean(),
+    uiLayoutScale: z.number().min(0.8).max(1.5),
+    navigationPlacement: navigationPlacementSchema,
+    hiddenNavigationTabs: z.array(navigationTabSchema).max(2),
+    hiddenCalendarViewModes: z.array(calendarViewModeSchema).max(4),
+    monthScrollPastMonths: z.number().int().min(0).max(24),
+    monthScrollFutureMonths: z.number().int().min(0).max(24),
+    quickCreateExpandedByDefault: z.boolean(),
+    restoreWindowStateEnabled: z.boolean(),
     startOnLogin: z.boolean(),
     quickCaptureShortcut: z.string().min(1).max(120).nullable(),
     selectedTaskListIds: z.array(idSchema).max(100),
     selectedCalendarIds: z.array(idSchema).max(100),
     setupCompletedAt: isoDateTimeSchema.nullable(),
     syncMode: syncModeSchema,
+    eventRetentionDaysBack: z.number().int().min(0).max(3650),
+    completedTaskRetentionDaysBack: z.number().int().min(0).max(3650),
     showTrayIcon: z.boolean(),
     trayClickAction: trayClickActionSchema,
     menuBarPanelStyle: menuBarPanelStyleSchema,
@@ -998,6 +1036,7 @@ export const settingsSnapshotSchema = z
     todayWorkingHoursStart: z.number().int().min(0).max(23),
     todayWorkingHoursEnd: z.number().int().min(1).max(24),
     diagnosticsIncludePerformance: z.boolean(),
+    rawGoogleDiagnosticsEnabled: z.boolean(),
     savedSearchViews: z.array(savedSearchViewSchema).max(20),
     savedTaskViews: z.array(savedTaskViewSchema).max(20)
   })
@@ -1009,14 +1048,30 @@ export const settingsUpdateRequestSchema = z
   .object({
     theme: appThemeSchema.optional(),
     colorTheme: appColorThemeSchema.optional(),
+    appLanguage: appLanguageSchema.optional(),
     uiFontName: uiFontNameSchema.optional(),
     uiTextSizePoints: uiTextSizePointsSchema.optional(),
+    perSurfaceFontOverrides: perSurfaceFontOverridesSchema.optional(),
+    performanceMode: settingsPerformanceModeSchema.optional(),
+    appBackgroundTranslucencyEnabled: z.boolean().optional(),
+    appBackgroundOpacity: z.number().min(0.35).max(1).optional(),
+    disableAnimations: z.boolean().optional(),
+    uiLayoutScale: z.number().min(0.8).max(1.5).optional(),
+    navigationPlacement: navigationPlacementSchema.optional(),
+    hiddenNavigationTabs: z.array(navigationTabSchema).max(2).optional(),
+    hiddenCalendarViewModes: z.array(calendarViewModeSchema).max(4).optional(),
+    monthScrollPastMonths: z.number().int().min(0).max(24).optional(),
+    monthScrollFutureMonths: z.number().int().min(0).max(24).optional(),
+    quickCreateExpandedByDefault: z.boolean().optional(),
+    restoreWindowStateEnabled: z.boolean().optional(),
     startOnLogin: z.boolean().optional(),
     quickCaptureShortcut: z.string().min(1).max(120).nullable().optional(),
     selectedTaskListIds: z.array(idSchema).max(100).optional(),
     selectedCalendarIds: z.array(idSchema).max(100).optional(),
     setupCompletedAt: isoDateTimeSchema.nullable().optional(),
     syncMode: syncModeSchema.optional(),
+    eventRetentionDaysBack: z.number().int().min(0).max(3650).optional(),
+    completedTaskRetentionDaysBack: z.number().int().min(0).max(3650).optional(),
     showTrayIcon: z.boolean().optional(),
     trayClickAction: trayClickActionSchema.optional(),
     menuBarPanelStyle: menuBarPanelStyleSchema.optional(),
@@ -1031,6 +1086,7 @@ export const settingsUpdateRequestSchema = z
     todayWorkingHoursStart: z.number().int().min(0).max(23).optional(),
     todayWorkingHoursEnd: z.number().int().min(1).max(24).optional(),
     diagnosticsIncludePerformance: z.boolean().optional(),
+    rawGoogleDiagnosticsEnabled: z.boolean().optional(),
     savedSearchViews: z.array(savedSearchViewSchema).max(20).optional(),
     savedTaskViews: z.array(savedTaskViewSchema).max(20).optional()
   })

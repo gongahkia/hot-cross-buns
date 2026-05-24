@@ -101,6 +101,7 @@ export function createSqliteDomainServices(
       : undefined;
   const sync = new LocalSyncControlService({
     repository: options.syncRepository,
+    settingsRepository: options.settingsRepository,
     tasksTransport: options.syncTasksTransport ?? noopTasksTransport,
     calendarTransport: options.syncCalendarTransport ?? noopCalendarTransport,
     mutationWorker
@@ -330,6 +331,7 @@ export function createSqliteDomainServices(
 
 class LocalSyncControlService implements SyncControlDomainService {
   private readonly repository: GoogleSyncRepository;
+  private readonly settingsRepository: LocalSettingsRepository;
   private readonly readSync: GoogleReadSyncService;
   private readonly mutationWorker: GooglePendingMutationWorker | undefined;
   private readonly listeners = new Set<SyncStatusListener>();
@@ -337,11 +339,13 @@ class LocalSyncControlService implements SyncControlDomainService {
 
   constructor(options: {
     repository: GoogleSyncRepository;
+    settingsRepository: LocalSettingsRepository;
     tasksTransport: GoogleTasksReadTransport;
     calendarTransport: GoogleCalendarReadTransport;
     mutationWorker?: GooglePendingMutationWorker;
   }) {
     this.repository = options.repository;
+    this.settingsRepository = options.settingsRepository;
     this.mutationWorker = options.mutationWorker;
     this.readSync = new GoogleReadSyncService({
       repository: options.repository,
@@ -386,11 +390,14 @@ class LocalSyncControlService implements SyncControlDomainService {
     this.emit();
 
     try {
+      const settings = this.settingsRepository.get();
       await this.mutationWorker?.drainDue();
       await this.readSync.runReadSync({
         account: this.repository.latestAccountStatus() ?? signedOutAccount(),
         resources,
-        full: request.full ?? false
+        full: request.full ?? false,
+        eventRetentionDaysBack: settings.eventRetentionDaysBack,
+        completedTaskRetentionDaysBack: settings.completedTaskRetentionDaysBack
       });
     } finally {
       this.running = false;

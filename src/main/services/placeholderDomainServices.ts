@@ -204,14 +204,30 @@ export function createPlaceholderDomainServices(): AppDomainServices {
       settings: {
         theme: "system",
         colorTheme: "notion",
+        appLanguage: "system",
         uiFontName: null,
         uiTextSizePoints: 13,
+        perSurfaceFontOverrides: {},
+        performanceMode: "snappy",
+        appBackgroundTranslucencyEnabled: false,
+        appBackgroundOpacity: 1,
+        disableAnimations: false,
+        uiLayoutScale: 1,
+        navigationPlacement: "left",
+        hiddenNavigationTabs: [],
+        hiddenCalendarViewModes: [],
+        monthScrollPastMonths: 0,
+        monthScrollFutureMonths: 1,
+        quickCreateExpandedByDefault: false,
+        restoreWindowStateEnabled: true,
         startOnLogin: false,
       quickCaptureShortcut: "Ctrl+Space",
       selectedTaskListIds: ["list-inbox", "list-planning"],
       selectedCalendarIds: ["cal-product", "cal-engineering", "cal-qa"],
       setupCompletedAt: nowIso,
       syncMode: "balanced",
+      eventRetentionDaysBack: 0,
+      completedTaskRetentionDaysBack: 365,
       showTrayIcon: true,
       trayClickAction: "open-menu",
       menuBarPanelStyle: "adaptive",
@@ -226,6 +242,7 @@ export function createPlaceholderDomainServices(): AppDomainServices {
       todayWorkingHoursStart: 6,
       todayWorkingHoursEnd: 22,
       diagnosticsIncludePerformance: true,
+      rawGoogleDiagnosticsEnabled: false,
       savedSearchViews: [],
       savedTaskViews: []
     },
@@ -1577,12 +1594,68 @@ function definedSettingsPatch(request: SettingsUpdateRequest): Partial<SettingsS
     patch.colorTheme = request.colorTheme as SettingsSnapshot["colorTheme"];
   }
 
+  if (request.appLanguage !== undefined) {
+    patch.appLanguage = request.appLanguage;
+  }
+
   if (request.uiFontName !== undefined) {
     patch.uiFontName = request.uiFontName;
   }
 
   if (request.uiTextSizePoints !== undefined) {
     patch.uiTextSizePoints = request.uiTextSizePoints;
+  }
+
+  if (request.perSurfaceFontOverrides !== undefined) {
+    patch.perSurfaceFontOverrides = request.perSurfaceFontOverrides;
+  }
+
+  if (request.performanceMode !== undefined) {
+    patch.performanceMode = request.performanceMode;
+  }
+
+  if (request.appBackgroundTranslucencyEnabled !== undefined) {
+    patch.appBackgroundTranslucencyEnabled = request.appBackgroundTranslucencyEnabled;
+  }
+
+  if (request.appBackgroundOpacity !== undefined) {
+    patch.appBackgroundOpacity = request.appBackgroundOpacity;
+  }
+
+  if (request.disableAnimations !== undefined) {
+    patch.disableAnimations = request.disableAnimations;
+  }
+
+  if (request.uiLayoutScale !== undefined) {
+    patch.uiLayoutScale = request.uiLayoutScale;
+  }
+
+  if (request.navigationPlacement !== undefined) {
+    patch.navigationPlacement = request.navigationPlacement;
+  }
+
+  if (request.hiddenNavigationTabs !== undefined) {
+    patch.hiddenNavigationTabs = [...new Set(request.hiddenNavigationTabs)];
+  }
+
+  if (request.hiddenCalendarViewModes !== undefined) {
+    patch.hiddenCalendarViewModes = [...new Set(request.hiddenCalendarViewModes)];
+  }
+
+  if (request.monthScrollPastMonths !== undefined) {
+    patch.monthScrollPastMonths = request.monthScrollPastMonths;
+  }
+
+  if (request.monthScrollFutureMonths !== undefined) {
+    patch.monthScrollFutureMonths = request.monthScrollFutureMonths;
+  }
+
+  if (request.quickCreateExpandedByDefault !== undefined) {
+    patch.quickCreateExpandedByDefault = request.quickCreateExpandedByDefault;
+  }
+
+  if (request.restoreWindowStateEnabled !== undefined) {
+    patch.restoreWindowStateEnabled = request.restoreWindowStateEnabled;
   }
 
   if (request.startOnLogin !== undefined) {
@@ -1607,6 +1680,14 @@ function definedSettingsPatch(request: SettingsUpdateRequest): Partial<SettingsS
 
   if (request.syncMode !== undefined) {
     patch.syncMode = request.syncMode;
+  }
+
+  if (request.eventRetentionDaysBack !== undefined) {
+    patch.eventRetentionDaysBack = request.eventRetentionDaysBack;
+  }
+
+  if (request.completedTaskRetentionDaysBack !== undefined) {
+    patch.completedTaskRetentionDaysBack = request.completedTaskRetentionDaysBack;
   }
 
   if (request.showTrayIcon !== undefined) {
@@ -1663,6 +1744,10 @@ function definedSettingsPatch(request: SettingsUpdateRequest): Partial<SettingsS
 
   if (request.diagnosticsIncludePerformance !== undefined) {
     patch.diagnosticsIncludePerformance = request.diagnosticsIncludePerformance;
+  }
+
+  if (request.rawGoogleDiagnosticsEnabled !== undefined) {
+    patch.rawGoogleDiagnosticsEnabled = request.rawGoogleDiagnosticsEnabled;
   }
 
   if (request.savedSearchViews !== undefined) {
