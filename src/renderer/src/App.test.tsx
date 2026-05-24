@@ -876,7 +876,10 @@ describe("App shell", () => {
     expect(dialog.parentElement).toHaveClass("place-items-center", "bg-bg-tertiary/45", "backdrop-blur-sm");
     expect(dialog).toHaveClass("max-w-[1120px]", "bg-bg-primary");
     expect(dialog).not.toHaveClass("bg-bg-primary/90", "backdrop-blur-xl");
-    expect(within(dialog).getByRole("complementary", { name: "Settings support" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "General" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(dialog).getByRole("button", { name: "Profile" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Appearance" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { level: 2, name: "Language" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Calendar" })).toBeInTheDocument();
 
     await user.keyboard("{Escape}");
