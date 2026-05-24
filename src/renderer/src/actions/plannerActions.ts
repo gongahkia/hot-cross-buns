@@ -17,7 +17,6 @@ export type PlannerActionId =
   | "navigation.tasks"
   | "navigation.calendar"
   | "navigation.notes"
-  | "navigation.notifications"
   | "navigation.settings"
   | "sync.refresh"
   | "sync.forceFullResync"

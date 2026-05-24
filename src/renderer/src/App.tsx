@@ -441,10 +441,10 @@ function AppShell(): JSX.Element {
 
   return (
     <div
-      className="grid h-screen min-h-[520px] grid-rows-[auto_minmax(0,1fr)] bg-bg-primary text-text-primary md:min-h-[640px] md:grid-cols-[72px_minmax(0,1fr)] md:grid-rows-none lg:grid-cols-[232px_minmax(0,1fr)]"
+      className="grid h-dvh min-h-0 overflow-hidden grid-rows-[auto_minmax(0,1fr)] bg-bg-primary text-text-primary md:grid-cols-[72px_minmax(0,1fr)] md:grid-rows-none lg:grid-cols-[232px_minmax(0,1fr)]"
       data-testid="app-shell"
     >
-      <aside className="flex min-h-0 flex-row items-center overflow-x-auto border-b border-border bg-bg-secondary md:flex-col md:items-stretch md:overflow-hidden md:border-b-0 md:border-r">
+      <aside className="flex min-h-0 min-w-0 flex-row items-center overflow-x-auto border-b border-border bg-bg-secondary md:flex-col md:items-stretch md:overflow-hidden md:border-b-0 md:border-r">
         <div className="flex h-14 w-14 shrink-0 items-center justify-center border-r border-border px-3 md:w-auto md:border-b md:border-r-0 lg:justify-start lg:gap-3 lg:px-4">
           <img
             alt=""
@@ -459,7 +459,7 @@ function AppShell(): JSX.Element {
           </div>
         </div>
 
-        <nav aria-label="Primary" className="flex min-w-0 flex-1 gap-1 overflow-x-auto px-2 py-2 md:flex-col md:overflow-visible md:py-3">
+        <nav aria-label="Primary" className="flex min-h-0 min-w-0 flex-1 gap-1 overflow-x-auto px-2 py-2 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:py-3">
           {plannerSections.map((section) => {
             const Icon = section.icon;
             const selected = section.id === activeSectionId;
@@ -498,8 +498,8 @@ function AppShell(): JSX.Element {
         </div>
       </aside>
 
-      <main className="flex min-w-0 flex-col">
-        <header className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-border bg-bg-primary px-3 py-2 sm:flex-nowrap md:px-5">
+      <main className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+        <header className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-bg-primary px-3 py-2 sm:flex-nowrap md:px-5">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex size-8 items-center justify-center rounded-hcbMd bg-surface-0 text-accent">
               <ActiveIcon aria-hidden="true" size={18} />
@@ -560,7 +560,7 @@ function AppShell(): JSX.Element {
 
         <section
           aria-labelledby="planner-title"
-          className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-2 sm:p-3 md:p-4"
+          className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-auto p-2 sm:p-3 md:p-4"
         >
           <RenderTimingBoundary id={`section:${activeSectionId}`}>
             <SectionContent
@@ -662,7 +662,7 @@ function NotificationsOverlay({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-end bg-bg-tertiary/45 p-3 backdrop-blur-sm sm:p-5"
+      className="fixed inset-0 z-50 flex items-start justify-end overflow-auto bg-bg-tertiary/45 p-3 backdrop-blur-sm sm:p-5"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
@@ -672,7 +672,7 @@ function NotificationsOverlay({
       <section
         aria-labelledby="notifications-overlay-title"
         aria-modal="true"
-        className="mt-12 flex max-h-[calc(100vh-96px)] w-full max-w-[720px] flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary/95 shadow-2xl"
+        className="flex max-h-[calc(100dvh-24px)] w-full max-w-[720px] flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary/95 shadow-2xl sm:mt-12 sm:max-h-[calc(100dvh-96px)]"
         role="dialog"
       >
         <header className="flex min-h-14 items-center justify-between gap-3 border-b border-border bg-bg-secondary/80 px-4 py-3">
