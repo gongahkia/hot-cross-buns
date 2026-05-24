@@ -1199,7 +1199,6 @@ async function loadCoreData(): Promise<CoreDataSnapshot> {
     notes,
     settings,
     syncStatus,
-    health,
     native
   ] = await Promise.all([
     window.hcb.tasks.listTaskLists({ limit: 100 }).then((result) => unwrap(result, "Task lists failed")),
@@ -1222,7 +1221,6 @@ async function loadCoreData(): Promise<CoreDataSnapshot> {
     window.hcb.notes.list({ limit: 50 }).then((result) => unwrap(result, "Notes failed")),
     window.hcb.settings.get().then((result) => unwrap(result, "Settings failed")),
     window.hcb.sync.status().then((result) => unwrap(result, "Sync status failed")),
-    window.hcb.diagnostics.health().then((result) => unwrap(result, "Diagnostics failed")),
     window.hcb.native.capabilities().then((result) => unwrap(result, "Native status failed"))
   ]);
   const scheduleDate = dateOnlyFromLocalDate(new Date());
@@ -1248,7 +1246,6 @@ async function loadCoreData(): Promise<CoreDataSnapshot> {
     settings,
     syncStatus,
     googleStatus: emptyGoogleStatus,
-    health,
     native
   };
 }
