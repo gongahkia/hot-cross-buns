@@ -4,25 +4,23 @@ Run these before the platform port prompts. Each visual prompt should be run wit
 
 - `artifacts/reference-screenshots/apple-calendar/`
 - `artifacts/reference-screenshots/notion-calendar/`
-- `artifacts/reference-screenshots/ticktick/`
-- `artifacts/reference-screenshots/hcb-before/`
+- optional current Hot Cross Buns 2 before screenshots: `artifacts/reference-screenshots/hcb-before/`
 
-Use Apple Calendar, Notion Calendar, and TickTick as reference products only. Extract layout, density, navigation, interaction, and performance lessons. Do not copy protected branding, exact icons, exact copy, product names in UI, or proprietary artwork.
+Use Apple Calendar and Notion Calendar as reference products only. Extract layout, density, navigation, interaction, and performance lessons. Do not copy protected branding, exact icons, exact copy, product names in UI, or proprietary artwork. Do not add other reference products unless they are explicitly re-added later.
 
 ### P7A Calendar Reference Screenshot Intake
 
-Run first, before editing renderer UI. Attach or point to Apple Calendar, Notion Calendar, TickTick, and current Hot Cross Buns 2 screenshots.
+Run first, before editing renderer UI. Attach or point to Apple Calendar and Notion Calendar screenshots. Include current Hot Cross Buns 2 before screenshots only if they exist.
 
 ```text
 You are Codex 5.5 running with extra-high reasoning in /Users/gongahkia/Desktop/coding/projects/hot-cross-buns-2.
 
-Goal: turn Apple Calendar, Notion Calendar, TickTick, and current Hot Cross Buns 2 screenshots into a scoped frontend implementation plan.
+Goal: turn Apple Calendar, Notion Calendar, and any available current Hot Cross Buns 2 screenshots into a scoped frontend implementation plan.
 
 Screenshot inputs:
 - Apple Calendar: artifacts/reference-screenshots/apple-calendar/
 - Notion Calendar: artifacts/reference-screenshots/notion-calendar/
-- TickTick: artifacts/reference-screenshots/ticktick/
-- Current Hot Cross Buns 2 before screenshots: artifacts/reference-screenshots/hcb-before/
+- Current Hot Cross Buns 2 before screenshots, optional: artifacts/reference-screenshots/hcb-before/
 
 Read first:
 - docs/README.md
@@ -43,8 +41,7 @@ Tasks:
 - Inventory each screenshot by product, viewport, surface, and useful UI idea.
 - Extract product-agnostic patterns only:
   - Apple Calendar: compact day/week/month density, time grid rhythm, event color treatment, navigation placement, all-day row behavior.
-  - Notion Calendar: source visibility, sidebar/context organization, calm visual hierarchy, quick event editing, keyboard-friendly commands.
-  - TickTick: task-calendar bridge, scheduled task blocks, due/priority affordances, completion flow, compact filters.
+  - Notion Calendar: source visibility, sidebar/context organization, calm visual hierarchy, quick event editing, keyboard-friendly commands, availability and time-blocking context.
 - Compare those patterns with the current Hot Cross Buns 2 renderer.
 - Identify a small set of frontend edits that fit the existing React, Tailwind, design-token, typed preload, and local-cache architecture.
 - Create or update docs/improvements/07-calendar-reference-frontend-plan.md with:
@@ -66,6 +63,7 @@ Acceptance checks:
 - The plan names the screenshots actually used.
 - The plan separates visual polish, interaction behavior, data/backend needs, tests, and performance work.
 - The plan lists blocked items clearly when screenshots are missing.
+- No additional reference products are introduced unless the user explicitly re-adds them.
 ```
 
 ### P7B Apple Calendar Density And Calendar Grid Pass
@@ -79,7 +77,7 @@ Goal: improve the Hot Cross Buns 2 calendar screen using Apple Calendar screensh
 
 Screenshot inputs:
 - Apple Calendar: artifacts/reference-screenshots/apple-calendar/
-- Current Hot Cross Buns 2 before screenshots: artifacts/reference-screenshots/hcb-before/
+- Current Hot Cross Buns 2 before screenshots, optional: artifacts/reference-screenshots/hcb-before/
 
 Read first:
 - docs/README.md
@@ -125,7 +123,7 @@ Goal: improve calendar source management, contextual event editing, and workspac
 
 Screenshot inputs:
 - Notion Calendar: artifacts/reference-screenshots/notion-calendar/
-- Current Hot Cross Buns 2 before screenshots: artifacts/reference-screenshots/hcb-before/
+- Current Hot Cross Buns 2 before screenshots, optional: artifacts/reference-screenshots/hcb-before/
 
 Read first:
 - docs/README.md
@@ -161,18 +159,19 @@ Acceptance checks:
 - Summarize source/context changes, screenshots reviewed, accessibility checks, and remaining gaps.
 ```
 
-### P7D TickTick Task Calendar Scheduling Pass
+### P7D Task Calendar Bridge Scheduling Pass
 
-Run after P7A. Use TickTick screenshots as the primary reference for task-calendar integration and completion-oriented workflows.
+Run after P7A, P7B, and P7C if scheduled task blocks still need a focused pass. Use Apple Calendar and Notion Calendar screenshots plus `docs/improvements/07-calendar-reference-frontend-plan.md` as the reference set.
 
 ```text
 You are Codex 5.5 running with extra-high reasoning in /Users/gongahkia/Desktop/coding/projects/hot-cross-buns-2.
 
-Goal: improve task scheduling, scheduled task blocks, due/priority cues, and completion flow using TickTick screenshots as product-agnostic reference material.
+Goal: improve task scheduling, scheduled task blocks, due/priority cues, and completion flow using the existing Hot Cross Buns architecture plus Apple Calendar and Notion Calendar product-agnostic reference lessons.
 
 Screenshot inputs:
-- TickTick: artifacts/reference-screenshots/ticktick/
-- Current Hot Cross Buns 2 before screenshots: artifacts/reference-screenshots/hcb-before/
+- Apple Calendar: artifacts/reference-screenshots/apple-calendar/
+- Notion Calendar: artifacts/reference-screenshots/notion-calendar/
+- Current Hot Cross Buns 2 before screenshots, optional: artifacts/reference-screenshots/hcb-before/
 
 Read first:
 - docs/README.md
@@ -193,11 +192,13 @@ Implement:
 - Improve the path from task list to scheduled calendar block and back.
 - Make scheduled task blocks, overdue/due-today state, priority, completion, and orphaned scheduled blocks easier to recognize.
 - Keep task completion optimistic and local-feeling while preserving existing mutation and preload behavior.
-- Improve compact filters or chips only where they reduce friction for task-calendar workflows.
+- Improve compact filters, chips, or source/context cues only where they reduce friction for task-calendar workflows.
+- Preserve Today as the primary task-calendar bridge surface and avoid adding task overlays to Calendar unless the view model can provide bounded per-day indexes.
 - Add focused renderer tests for scheduling, moving scheduled task blocks, orphan handling, and completion cues if behavior changes.
 
 Do not:
-- Copy TickTick branding, exact visual design, exact copy, or proprietary interaction wording.
+- Add other reference products.
+- Copy Apple or Notion branding, exact visual design, exact copy, icons, or proprietary interaction wording.
 - Add backend scope unless a missing API blocks a documented core workflow.
 - Recompute large task/event groupings inside render.
 - Remove visible loading, offline, error, conflict, or retry states.
@@ -211,7 +212,7 @@ Acceptance checks:
 
 ### P7E Cross-Device Frontend Polish Pass
 
-Run after P7B through P7D. Use all reference screenshots plus current app screenshots at multiple sizes.
+Run after P7B through P7D. Use Apple Calendar and Notion Calendar reference screenshots plus current app screenshots at multiple sizes.
 
 ```text
 You are Codex 5.5 running with extra-high reasoning in /Users/gongahkia/Desktop/coding/projects/hot-cross-buns-2.
@@ -221,8 +222,7 @@ Goal: polish the Hot Cross Buns 2 frontend for different desktop and small-scree
 Screenshot inputs:
 - Apple Calendar: artifacts/reference-screenshots/apple-calendar/
 - Notion Calendar: artifacts/reference-screenshots/notion-calendar/
-- TickTick: artifacts/reference-screenshots/ticktick/
-- Current Hot Cross Buns 2 before screenshots: artifacts/reference-screenshots/hcb-before/
+- Current Hot Cross Buns 2 before screenshots, optional: artifacts/reference-screenshots/hcb-before/
 
 Target sizes:
 - 1440 x 900 desktop
