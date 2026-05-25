@@ -20,16 +20,16 @@ export function SettingsTabButton({
     <button
       aria-pressed={active}
       className={cx(
-        "grid min-h-20 min-w-24 place-items-center gap-1 rounded-hcbLg border px-4 py-2 text-center transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        "inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-hcbMd border px-2.5 text-[var(--text-base)] font-medium transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         active
-          ? "border-border bg-surface-0 text-accent"
+          ? "border-border bg-surface-0 text-text-primary"
           : "border-transparent text-text-muted hover:bg-surface-0 hover:text-text-primary"
       )}
       onClick={onClick}
       type="button"
     >
-      <Icon aria-hidden="true" size={30} strokeWidth={2} />
-      <span className="text-[var(--text-sm)] font-semibold">{label}</span>
+      <Icon aria-hidden="true" className="shrink-0" size={16} strokeWidth={2} />
+      <span className="truncate">{label}</span>
     </button>
   );
 }
@@ -42,9 +42,9 @@ export function SettingsGroup({
   title: string;
 }): JSX.Element {
   return (
-    <section className="grid gap-2">
-      <h2 className="px-3 text-[var(--text-lg)] font-bold text-text-primary">{title}</h2>
-      <div className="overflow-hidden rounded-hcbLg border border-border bg-bg-secondary">
+    <section className="grid gap-1.5">
+      <h2 className="px-1 text-[var(--text-md)] font-semibold text-text-primary">{title}</h2>
+      <div className="overflow-hidden rounded-hcbMd border border-border bg-bg-secondary">
         {children}
       </div>
     </section>
@@ -63,15 +63,15 @@ export function SettingsControlRow({
   label: string;
 }): JSX.Element {
   return (
-    <div className="grid min-h-14 gap-2 border-b border-border px-3 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-      <div className="flex min-w-0 items-start gap-3">
+    <div className="grid min-h-11 gap-2 border-b border-border px-3 py-2 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+      <div className="flex min-w-0 items-start gap-2.5">
         {Icon ? (
-          <Icon aria-hidden="true" className="mt-0.5 shrink-0 text-text-muted" size={18} />
+          <Icon aria-hidden="true" className="mt-0.5 shrink-0 text-text-muted" size={16} />
         ) : null}
         <div className="min-w-0">
-          <div className="truncate text-[var(--text-md)] font-semibold text-text-primary">{label}</div>
+          <div className="truncate text-[var(--text-base)] font-medium text-text-primary">{label}</div>
           {description ? (
-            <p className="mt-1 text-[var(--text-sm)] text-text-muted">{description}</p>
+            <p className="mt-0.5 text-[var(--text-sm)] text-text-muted">{description}</p>
           ) : null}
         </div>
       </div>

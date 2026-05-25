@@ -258,8 +258,8 @@ export function SettingsView({
   }
 
   return (
-    <div className="grid min-h-0 gap-4">
-      <div className="flex flex-wrap items-center justify-center gap-2 border-b border-border bg-bg-secondary px-2 pb-3">
+    <div className="grid min-h-0 gap-3">
+      <div className="flex min-w-0 items-center gap-1 overflow-x-auto border-b border-border pb-2">
         <SettingsTabButton
           active={selectedSettingsTab === "general"}
           icon={Settings2}
@@ -308,11 +308,11 @@ export function SettingsView({
         <Search
           aria-hidden="true"
           className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"
-          size={17}
+          size={15}
         />
         <Input
           aria-label="Search settings"
-          className="h-11 pl-10 text-[var(--text-lg)]"
+          className="pl-9"
           onChange={(event) => setSettingsQuery(event.currentTarget.value)}
           placeholder="Search settings"
           value={settingsQuery}
