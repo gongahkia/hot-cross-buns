@@ -1,6 +1,7 @@
 import type { SettingsSnapshot, SettingsUpdateRequest } from "@shared/ipc/contracts";
 import { Bell, Download, Play, Volume2 } from "lucide-react";
 import { Badge, Button } from "../../../../components/primitives";
+import { playCompletionSound } from "../../completionSounds";
 import { displayAccelerator } from "../../hotkeys";
 import {
   SegmentedControl,
@@ -32,27 +33,6 @@ export function AlertsSettingsTab({
     }
 
     updateSettings({ notificationsEnabled: checked });
-  }
-
-  function previewSound(soundId: SettingsSnapshot["taskCompletionSoundId"]): void {
-    const AudioContextConstructor = window.AudioContext ?? window.webkitAudioContext;
-
-    if (!AudioContextConstructor) {
-      return;
-    }
-
-    const context = new AudioContextConstructor();
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    const frequency = soundId === "pop" ? 420 : soundId === "chime" ? 660 : soundId === "click" ? 320 : 520;
-
-    oscillator.frequency.value = frequency;
-    gain.gain.setValueAtTime(0.08, context.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.16);
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start();
-    oscillator.stop(context.currentTime + 0.18);
   }
 
   return (
@@ -89,7 +69,7 @@ export function AlertsSettingsTab({
         />
         <SettingsControlRow label="Task sound">
           <SoundPicker
-            onPreview={() => previewSound(settings.taskCompletionSoundId)}
+            onPreview={() => playCompletionSound(settings.taskCompletionSoundId)}
             onChange={(value) => updateSettings({ taskCompletionSoundId: value })}
             value={settings.taskCompletionSoundId}
           />
@@ -103,7 +83,7 @@ export function AlertsSettingsTab({
         />
         <SettingsControlRow label="Event sound">
           <SoundPicker
-            onPreview={() => previewSound(settings.eventCompletionSoundId)}
+            onPreview={() => playCompletionSound(settings.eventCompletionSoundId)}
             onChange={(value) => updateSettings({ eventCompletionSoundId: value })}
             value={settings.eventCompletionSoundId}
           />

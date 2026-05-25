@@ -103,6 +103,7 @@ export interface NativeMenuBarSnapshot {
   statusLabel?: string;
   syncLabel: string;
   badgeLabel?: string;
+  dockBadgeLabel?: string;
   tooltip: string;
   sections: NativeMenuBarSection[];
   calendar?: NativeMenuBarCalendarSnapshot;

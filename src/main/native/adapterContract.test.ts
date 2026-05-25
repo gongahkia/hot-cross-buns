@@ -3,6 +3,10 @@ import {
   nativeCapabilitiesResponseSchema,
   type SettingsSnapshot
 } from "@shared/ipc/contracts";
+import {
+  defaultHistoryCategoryVisibility,
+  defaultKeybindings
+} from "@shared/settingsCatalog";
 import { createNoopNativeAdapter } from "./noopAdapter";
 import { NativeShellService } from "./service";
 
@@ -22,6 +26,7 @@ function defaultSettings(overrides: Partial<SettingsSnapshot> = {}): SettingsSna
     navigationPlacement: "left",
     hiddenNavigationTabs: [],
     hiddenCalendarViewModes: [],
+    showCompletedInCalendarViews: true,
     monthScrollPastMonths: 0,
     monthScrollFutureMonths: 1,
     quickCreateExpandedByDefault: false,
@@ -31,15 +36,43 @@ function defaultSettings(overrides: Partial<SettingsSnapshot> = {}): SettingsSna
     selectedCalendarIds: [],
     setupCompletedAt: "2026-05-22T00:00:00.000Z",
     syncMode: "balanced",
+    syncTasksEnabled: true,
+    syncCalendarEventsEnabled: true,
     eventRetentionDaysBack: 0,
     completedTaskRetentionDaysBack: 365,
     quickCaptureShortcut: "Ctrl+Space",
+    keybindings: defaultKeybindings,
     showTrayIcon: true,
     trayClickAction: "open-menu",
     menuBarPanelStyle: "adaptive",
+    menuBarIconName: "pin",
     showMenuBarBadge: true,
+    showDockBadge: true,
     notificationsEnabled: true,
     notificationLeadMinutes: 10,
+    taskCompletionSoundEnabled: true,
+    taskCompletionSoundId: "glass",
+    eventCompletionSoundEnabled: true,
+    eventCompletionSoundId: "pop",
+    importedSoundCount: 0,
+    globalQuickAddHotkeyEnabled: true,
+    perTabListFilters: {
+      tasks: { useCustomFilter: false, selectedTaskListIds: [] },
+      notes: { useCustomFilter: false, selectedTaskListIds: [] }
+    },
+    portableExportOnlySelectedTaskLists: false,
+    portableExportOnlySelectedCalendars: false,
+    portableExportOnlyFutureCurrentEvents: false,
+    dailyLocalBackupEnabled: false,
+    localBackupRetentionCount: 14,
+    lastLocalBackupAt: null,
+    visibleHistoryEntryCount: 50,
+    historyStorageCap: 5_000,
+    historyCategoryVisibility: defaultHistoryCategoryVisibility,
+    dismissedDuplicateGroupIds: [],
+    taskTemplates: [],
+    eventTemplates: [],
+    lastUpdateCheckAt: null,
     mcpEnabled: false,
     mcpPermissionMode: "confirm-writes",
     mcpPort: 0,

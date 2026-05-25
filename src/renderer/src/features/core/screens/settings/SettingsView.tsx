@@ -10,7 +10,7 @@ import {
   resolveAppColorTheme,
   resolveAppThemeMode
 } from "@shared/ipc/themeCatalog";
-import { Brush, Copy, Settings2, Users } from "lucide-react";
+import { Bell, Brush, Copy, Info, Keyboard, Search, Settings2, SlidersHorizontal, Users } from "lucide-react";
 import { useInspector } from "../../../../components/Inspector";
 import { Button, Input, Panel, StatusBanner } from "../../../../components/primitives";
 import { useCoreViewModelSource } from "../../coreViewModelSource";
@@ -20,12 +20,16 @@ import {
   sanitizedJson
 } from "../../coreScreenShared";
 import { AppearanceSettingsTab } from "./AppearanceSettingsTab";
+import { AboutSettingsTab } from "./AboutSettingsTab";
+import { AdvancedSettingsTab } from "./AdvancedSettingsTab";
+import { AlertsSettingsTab } from "./AlertsSettingsTab";
 import { GeneralSettingsTab } from "./GeneralSettingsTab";
+import { HotkeysSettingsTab } from "./HotkeysSettingsTab";
 import { ProfileSettingsTab } from "./ProfileSettingsTab";
 import { SettingsTabButton } from "./SettingsPrimitives";
 import { recoveryPhrase } from "./settingsUtils";
 
-type SettingsTabId = "general" | "profile" | "appearance";
+type SettingsTabId = "general" | "profile" | "appearance" | "hotkeys" | "alerts" | "advanced" | "about";
 
 export function SettingsView(): JSX.Element {
   const source = useCoreViewModelSource();
@@ -37,6 +41,7 @@ export function SettingsView(): JSX.Element {
   const [confirmationInput, setConfirmationInput] = useState("");
   const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
   const [selectedSettingsTab, setSelectedSettingsTab] = useState<SettingsTabId>("general");
+  const [settingsQuery, setSettingsQuery] = useState("");
   const [customRetentionAmount, setCustomRetentionAmount] = useState("60");
   const [customRetentionUnit, setCustomRetentionUnit] = useState<"days" | "months" | "years">("days");
   const settings = source.settings;
@@ -264,6 +269,45 @@ export function SettingsView(): JSX.Element {
           label="Appearance"
           onClick={() => setSelectedSettingsTab("appearance")}
         />
+        <SettingsTabButton
+          active={selectedSettingsTab === "hotkeys"}
+          icon={Keyboard}
+          label="Hotkeys"
+          onClick={() => setSelectedSettingsTab("hotkeys")}
+        />
+        <SettingsTabButton
+          active={selectedSettingsTab === "alerts"}
+          icon={Bell}
+          label="Alerts"
+          onClick={() => setSelectedSettingsTab("alerts")}
+        />
+        <SettingsTabButton
+          active={selectedSettingsTab === "advanced"}
+          icon={SlidersHorizontal}
+          label="Advanced"
+          onClick={() => setSelectedSettingsTab("advanced")}
+        />
+        <SettingsTabButton
+          active={selectedSettingsTab === "about"}
+          icon={Info}
+          label="About"
+          onClick={() => setSelectedSettingsTab("about")}
+        />
+      </div>
+
+      <div className="relative">
+        <Search
+          aria-hidden="true"
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"
+          size={17}
+        />
+        <Input
+          aria-label="Search settings"
+          className="h-11 pl-10 text-[var(--text-lg)]"
+          onChange={(event) => setSettingsQuery(event.currentTarget.value)}
+          placeholder="Search settings"
+          value={settingsQuery}
+        />
       </div>
 
       {source.settingsMutationError ? (
@@ -341,6 +385,39 @@ export function SettingsView(): JSX.Element {
           matchingColorThemes={matchingColorThemes}
           settings={settings}
           updateBaseTheme={updateBaseTheme}
+          updateSettings={updateSettings}
+        />
+      ) : null}
+
+      {selectedSettingsTab === "hotkeys" ? (
+        <HotkeysSettingsTab
+          query={settingsQuery}
+          settings={settings}
+          updateSettings={updateSettings}
+        />
+      ) : null}
+
+      {selectedSettingsTab === "alerts" ? (
+        <AlertsSettingsTab settings={settings} updateSettings={updateSettings} />
+      ) : null}
+
+      {selectedSettingsTab === "advanced" ? (
+        <AdvancedSettingsTab
+          beginRecoveryAction={beginRecoveryAction}
+          calendarSources={source.calendarSources}
+          settings={settings}
+          taskLists={source.taskLists}
+          updateSelectedCalendar={updateSelectedCalendar}
+          updateSelectedTaskList={updateSelectedTaskList}
+          updateSettings={updateSettings}
+        />
+      ) : null}
+
+      {selectedSettingsTab === "about" ? (
+        <AboutSettingsTab
+          beginRecoveryAction={beginRecoveryAction}
+          diagnostics={diagnostics}
+          settings={settings}
           updateSettings={updateSettings}
         />
       ) : null}

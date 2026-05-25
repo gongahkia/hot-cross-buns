@@ -117,21 +117,25 @@ export class NativeShellService implements NativeDomainService {
       this.applyAutostartSetting(snapshot.startOnLogin);
     }
 
+    const quickCaptureShortcut = snapshot.globalQuickAddHotkeyEnabled
+      ? snapshot.quickCaptureShortcut
+      : null;
+
     if (!this.deferredStarted) {
       this.status = {
         ...this.status,
         quickCaptureShortcut: {
           ...this.status.quickCaptureShortcut,
-          accelerator: snapshot.quickCaptureShortcut,
-          state: snapshot.quickCaptureShortcut ? "pending" : "disabled",
+          accelerator: quickCaptureShortcut,
+          state: quickCaptureShortcut ? "pending" : "disabled",
           registered: false,
-          ...(snapshot.quickCaptureShortcut ? {} : { message: "Quick capture shortcut is not configured." })
+          ...(quickCaptureShortcut ? {} : { message: "Global quick-add hotkey is disabled in Settings." })
         }
       };
       return;
     }
 
-    this.registerQuickCaptureShortcut(snapshot.quickCaptureShortcut);
+    this.registerQuickCaptureShortcut(quickCaptureShortcut);
   }
 
   capabilities(): NativeCapabilitiesResponse {
@@ -202,12 +206,15 @@ export class NativeShellService implements NativeDomainService {
   private async runDeferredStartup(): Promise<void> {
     try {
       this.setupTray();
-      this.registerQuickCaptureShortcut(this.options.settings.get().quickCaptureShortcut);
+      const settings = this.options.settings.get();
+      this.registerQuickCaptureShortcut(
+        settings.globalQuickAddHotkeyEnabled ? settings.quickCaptureShortcut : null
+      );
       this.registerProtocolClient();
       this.scheduleNotificationsFromCache();
       await this.checkForUpdates();
-      this.applyAutostartSetting(this.options.settings.get().startOnLogin);
-      this.updateMcpDeferredStatus(this.options.settings.get());
+      this.applyAutostartSetting(settings.startOnLogin);
+      this.updateMcpDeferredStatus(settings);
       this.status = {
         ...this.status,
         deferredStartup: {
@@ -592,6 +599,10 @@ export class NativeShellService implements NativeDomainService {
       settings.showMenuBarBadge && overdueTasks.length > 0
         ? cappedBadgeLabel(overdueTasks.length)
         : undefined;
+    const dockBadgeLabel =
+      settings.showDockBadge && overdueTasks.length > 0
+        ? cappedBadgeLabel(overdueTasks.length)
+        : undefined;
     const tooltip = statusLabel
       ? `Hot Cross Buns 2 - ${statusLabel}`
       : subtitle
@@ -606,6 +617,7 @@ export class NativeShellService implements NativeDomainService {
       statusLabel,
       syncLabel,
       badgeLabel,
+      dockBadgeLabel,
       tooltip,
       sections,
       calendar,
@@ -1197,6 +1209,10 @@ function initialStatus(
   capabilities: NativePlatformCapabilities,
   settings: SettingsSnapshot
 ): NativeCapabilitiesResponse {
+  const quickCaptureShortcut = settings.globalQuickAddHotkeyEnabled
+    ? settings.quickCaptureShortcut
+    : null;
+
   return {
     platform: capabilities.platform,
     notifications: capabilities.notifications,
@@ -1209,15 +1225,17 @@ function initialStatus(
         : featureStatus("disabled", "Menu bar icon is disabled in Settings.")
       : featureStatus("unsupported", "Tray/menu bar adapter is unavailable."),
     quickCaptureShortcut: {
-      accelerator: settings.quickCaptureShortcut,
+      accelerator: quickCaptureShortcut,
       registered: false,
       state: capabilities.globalShortcuts
-        ? settings.quickCaptureShortcut
+        ? quickCaptureShortcut
           ? "pending"
           : "disabled"
         : "unsupported",
       message: capabilities.globalShortcuts
-        ? "Quick capture shortcut registration is deferred until the shell is visible."
+        ? quickCaptureShortcut
+          ? "Quick capture shortcut registration is deferred until the shell is visible."
+          : "Global quick-add hotkey is disabled in Settings."
         : "Global shortcuts are not supported by this platform adapter."
     },
     notificationsStatus: {

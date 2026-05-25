@@ -245,6 +245,7 @@ class ElectronMacNativeAdapter implements NativePlatformAdapter {
     this.tray?.setImage(image);
     this.tray?.setToolTip(snapshot.tooltip);
     this.tray?.setTitle(title);
+    app.dock?.setBadge(snapshot.dockBadgeLabel ?? "");
 
     return snapshot;
   }
@@ -254,6 +255,7 @@ class ElectronMacNativeAdapter implements NativePlatformAdapter {
     this.clearTrayRefreshTimer();
     this.tray?.destroy();
     this.tray = undefined;
+    app.dock?.setBadge("");
   }
 
   private clearTrayRefreshTimer(): void {

@@ -49,6 +49,7 @@ import { Badge, Button, IconButton, Input, Panel, StatusBanner, cx } from "../..
 import { EmptyState, ErrorState, LoadingState } from "../../../components/states";
 import { rendererNow, reportRendererTimingSince } from "../../../hooks/useRenderTiming";
 import { useCoreViewModelSource } from "../coreViewModelSource";
+import { playCompletionSound } from "../completionSounds";
 import type {
   CorePriority,
   TaskFilterId,
@@ -962,6 +963,9 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
     }
 
     saved = await source.completeTask(taskId);
+    if (saved && source.settings.taskCompletionSoundEnabled) {
+      playCompletionSound(source.settings.taskCompletionSoundId);
+    }
     reportRendererTimingSince("tasks.completion", startedAt, {
       action,
       saved
@@ -1033,6 +1037,9 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
           : await source.completeTask(task.id);
 
       if (saved) {
+        if (task.status !== "completed" && source.settings.taskCompletionSoundEnabled) {
+          playCompletionSound(source.settings.taskCompletionSoundId);
+        }
         changedTaskIds.push(task.id);
       }
     }

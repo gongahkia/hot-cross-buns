@@ -19,6 +19,10 @@ import type {
   NativeTrayActions,
   ScheduledNativeNotification
 } from "./types";
+import {
+  defaultHistoryCategoryVisibility,
+  defaultKeybindings
+} from "@shared/settingsCatalog";
 
 const now = new Date("2026-05-22T12:00:00.000Z");
 
@@ -44,6 +48,7 @@ function defaultSettings(overrides: Partial<SettingsSnapshot> = {}): SettingsSna
     navigationPlacement: "left",
     hiddenNavigationTabs: [],
     hiddenCalendarViewModes: [],
+    showCompletedInCalendarViews: true,
     monthScrollPastMonths: 0,
     monthScrollFutureMonths: 1,
     quickCreateExpandedByDefault: false,
@@ -53,15 +58,43 @@ function defaultSettings(overrides: Partial<SettingsSnapshot> = {}): SettingsSna
     selectedCalendarIds: [],
     setupCompletedAt: "2026-05-22T00:00:00.000Z",
     syncMode: "balanced",
+    syncTasksEnabled: true,
+    syncCalendarEventsEnabled: true,
     eventRetentionDaysBack: 0,
     completedTaskRetentionDaysBack: 365,
     quickCaptureShortcut: "Ctrl+Space",
+    keybindings: defaultKeybindings,
     showTrayIcon: true,
     trayClickAction: "open-menu",
     menuBarPanelStyle: "adaptive",
+    menuBarIconName: "pin",
     showMenuBarBadge: true,
+    showDockBadge: true,
     notificationsEnabled: true,
     notificationLeadMinutes: 10,
+    taskCompletionSoundEnabled: true,
+    taskCompletionSoundId: "glass",
+    eventCompletionSoundEnabled: true,
+    eventCompletionSoundId: "pop",
+    importedSoundCount: 0,
+    globalQuickAddHotkeyEnabled: true,
+    perTabListFilters: {
+      tasks: { useCustomFilter: false, selectedTaskListIds: [] },
+      notes: { useCustomFilter: false, selectedTaskListIds: [] }
+    },
+    portableExportOnlySelectedTaskLists: false,
+    portableExportOnlySelectedCalendars: false,
+    portableExportOnlyFutureCurrentEvents: false,
+    dailyLocalBackupEnabled: false,
+    localBackupRetentionCount: 14,
+    lastLocalBackupAt: null,
+    visibleHistoryEntryCount: 50,
+    historyStorageCap: 5_000,
+    historyCategoryVisibility: defaultHistoryCategoryVisibility,
+    dismissedDuplicateGroupIds: [],
+    taskTemplates: [],
+    eventTemplates: [],
+    lastUpdateCheckAt: null,
     mcpEnabled: false,
     mcpPermissionMode: "confirm-writes",
     mcpPort: 0,
@@ -455,7 +488,7 @@ describe("native shell service", () => {
 
   it("builds a calendar-style menu bar snapshot with month and selected day data", async () => {
     const { adapter, service } = createService({
-      settings: defaultSettings({ menuBarPanelStyle: "agenda" }),
+      settings: defaultSettings({ menuBarPanelStyle: "calendar" }),
       tasks: [
         {
           id: "task-today",
@@ -487,7 +520,7 @@ describe("native shell service", () => {
     const snapshot = adapter.trayActions?.snapshot();
 
     expect(snapshot).toMatchObject({
-      panelStyle: "agenda",
+      panelStyle: "calendar",
       title: "Calendar",
       syncLabel: "Local",
       calendar: {

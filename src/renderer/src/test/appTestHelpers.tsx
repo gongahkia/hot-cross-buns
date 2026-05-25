@@ -9,6 +9,10 @@ import type {
 } from "@shared/ipc/contracts";
 import type { HcbApi } from "@shared/ipc/preloadApi";
 import { ok } from "@shared/ipc/result";
+import {
+  defaultHistoryCategoryVisibility,
+  defaultKeybindings
+} from "@shared/settingsCatalog";
 
 export const originalHcb = window.hcb;
 export const todayDate = new Date().toISOString().slice(0, 10);
@@ -127,6 +131,7 @@ export function testSettings(overrides: Partial<SettingsSnapshot> = {}): Setting
     navigationPlacement: "left",
     hiddenNavigationTabs: [],
     hiddenCalendarViewModes: [],
+    showCompletedInCalendarViews: true,
     monthScrollPastMonths: 0,
     monthScrollFutureMonths: 1,
     quickCreateExpandedByDefault: false,
@@ -136,15 +141,43 @@ export function testSettings(overrides: Partial<SettingsSnapshot> = {}): Setting
     selectedCalendarIds: [],
     setupCompletedAt: now,
     syncMode: "balanced",
+    syncTasksEnabled: true,
+    syncCalendarEventsEnabled: true,
     eventRetentionDaysBack: 0,
     completedTaskRetentionDaysBack: 365,
     quickCaptureShortcut: null,
+    keybindings: defaultKeybindings,
     showTrayIcon: true,
     trayClickAction: "open-menu",
     menuBarPanelStyle: "adaptive",
+    menuBarIconName: "pin",
     showMenuBarBadge: true,
+    showDockBadge: true,
     notificationsEnabled: false,
     notificationLeadMinutes: 10,
+    taskCompletionSoundEnabled: true,
+    taskCompletionSoundId: "glass",
+    eventCompletionSoundEnabled: true,
+    eventCompletionSoundId: "pop",
+    importedSoundCount: 0,
+    globalQuickAddHotkeyEnabled: false,
+    perTabListFilters: {
+      tasks: { useCustomFilter: false, selectedTaskListIds: [] },
+      notes: { useCustomFilter: false, selectedTaskListIds: [] }
+    },
+    portableExportOnlySelectedTaskLists: false,
+    portableExportOnlySelectedCalendars: false,
+    portableExportOnlyFutureCurrentEvents: false,
+    dailyLocalBackupEnabled: false,
+    localBackupRetentionCount: 14,
+    lastLocalBackupAt: null,
+    visibleHistoryEntryCount: 50,
+    historyStorageCap: 5_000,
+    historyCategoryVisibility: defaultHistoryCategoryVisibility,
+    dismissedDuplicateGroupIds: [],
+    taskTemplates: [],
+    eventTemplates: [],
+    lastUpdateCheckAt: null,
     mcpEnabled: false,
     mcpPermissionMode: "confirm-writes",
     mcpPort: 0,

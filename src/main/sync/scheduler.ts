@@ -33,7 +33,11 @@ export class SyncScheduler {
   applySettings(settings: SettingsSnapshot): void {
     this.clear();
 
-    if (!this.started || settings.syncMode === "manual") {
+    if (
+      !this.started ||
+      settings.syncMode === "manual" ||
+      (!settings.syncTasksEnabled && !settings.syncCalendarEventsEnabled)
+    ) {
       return;
     }
 
@@ -43,7 +47,10 @@ export class SyncScheduler {
   triggerSoon(delayMs = 250): void {
     const settings = this.options.getSettings();
 
-    if (settings.syncMode === "manual") {
+    if (
+      settings.syncMode === "manual" ||
+      (!settings.syncTasksEnabled && !settings.syncCalendarEventsEnabled)
+    ) {
       return;
     }
 

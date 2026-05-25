@@ -131,7 +131,7 @@ export function displayAccelerator(accelerator: string | null | undefined): stri
 }
 
 export function duplicateAccelerators(
-  keybindings: Record<HotkeyActionId, string | null>
+  keybindings: Partial<Record<HotkeyActionId, string | null>>
 ): Map<string, HotkeyActionId[]> {
   const byAccelerator = new Map<string, HotkeyActionId[]>();
 
