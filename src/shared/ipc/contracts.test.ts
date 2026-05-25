@@ -23,6 +23,10 @@ import {
   taskListRequestSchema
 } from "./contracts";
 import { hcbErrorSchema, hcbResultSchema, ok, validationError } from "./result";
+import {
+  defaultHistoryCategoryVisibility,
+  defaultKeybindings
+} from "../settingsCatalog";
 import { z } from "zod";
 
 describe("shared IPC contracts", () => {
@@ -345,6 +349,7 @@ describe("shared IPC contracts", () => {
         navigationPlacement: "left",
         hiddenNavigationTabs: [],
         hiddenCalendarViewModes: [],
+        showCompletedInCalendarViews: true,
         monthScrollPastMonths: 0,
         monthScrollFutureMonths: 1,
         quickCreateExpandedByDefault: false,
@@ -355,14 +360,41 @@ describe("shared IPC contracts", () => {
         selectedCalendarIds: [],
         setupCompletedAt: null,
         syncMode: "balanced",
+        syncTasksEnabled: true,
+        syncCalendarEventsEnabled: true,
         eventRetentionDaysBack: 0,
         completedTaskRetentionDaysBack: 365,
         showTrayIcon: true,
         trayClickAction: "open-menu",
         menuBarPanelStyle: "adaptive",
+        menuBarIconName: "pin",
         showMenuBarBadge: true,
+        showDockBadge: true,
         notificationsEnabled: false,
         notificationLeadMinutes: 10,
+        taskCompletionSoundEnabled: true,
+        taskCompletionSoundId: "glass",
+        eventCompletionSoundEnabled: true,
+        eventCompletionSoundId: "pop",
+        importedSoundCount: 0,
+        globalQuickAddHotkeyEnabled: false,
+        perTabListFilters: {
+          tasks: { useCustomFilter: false, selectedTaskListIds: [] },
+          notes: { useCustomFilter: false, selectedTaskListIds: [] }
+        },
+        portableExportOnlySelectedTaskLists: false,
+        portableExportOnlySelectedCalendars: false,
+        portableExportOnlyFutureCurrentEvents: false,
+        dailyLocalBackupEnabled: false,
+        localBackupRetentionCount: 14,
+        lastLocalBackupAt: null,
+        visibleHistoryEntryCount: 50,
+        historyStorageCap: 5_000,
+        historyCategoryVisibility: defaultHistoryCategoryVisibility,
+        dismissedDuplicateGroupIds: [],
+        taskTemplates: [],
+        eventTemplates: [],
+        lastUpdateCheckAt: null,
         mcpEnabled: false,
         mcpPermissionMode: "confirm-writes",
         mcpPort: 0,
@@ -372,6 +404,7 @@ describe("shared IPC contracts", () => {
         todayWorkingHoursEnd: 22,
         diagnosticsIncludePerformance: true,
         rawGoogleDiagnosticsEnabled: false,
+        keybindings: defaultKeybindings,
         savedSearchViews: [],
         savedTaskViews: []
       }).setupCompletedAt
