@@ -695,18 +695,11 @@ function menuBarPanelSize(
   snapshot: NativeMenuBarSnapshot,
   maxHeight: number
 ): { width: number; height: number } {
-  if (snapshot.panelStyle === "agenda") {
+  if (snapshot.panelStyle === "calendar") {
     const selectedRows = snapshot.calendar?.selectedItems.length ?? 0;
     return {
       width: 320,
       height: Math.min(maxHeight, Math.max(620, 474 + Math.min(selectedRows, 7) * 42))
-    };
-  }
-
-  if (snapshot.panelStyle === "compact") {
-    return {
-      width: 320,
-      height: Math.min(maxHeight, 360)
     };
   }
 
@@ -725,11 +718,9 @@ function menuBarPanelDataUrl(snapshot: NativeMenuBarSnapshot): string {
 
 function menuBarPanelHtml(snapshot: NativeMenuBarSnapshot): string {
   const panel =
-    snapshot.panelStyle === "agenda" && snapshot.calendar
+    snapshot.panelStyle === "calendar" && snapshot.calendar
       ? calendarPanelMarkup(snapshot)
-      : snapshot.panelStyle === "compact"
-        ? compactPanelMarkup(snapshot)
-        : adaptivePanelMarkup(snapshot);
+      : adaptivePanelMarkup(snapshot);
 
   return `<!doctype html>
 <html lang="en">

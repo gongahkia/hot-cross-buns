@@ -285,6 +285,50 @@ export function createSqliteDomainServices(
           };
         }
 
+        if (request.action === "backupNow") {
+          const backup = options.settingsRepository.createLocalBackup();
+          return {
+            action: request.action,
+            accepted: true,
+            destructive: false,
+            requiresReload: false,
+            message: `Local backup created at ${backup.path}.`
+          };
+        }
+
+        if (request.action === "exportPortableArchive") {
+          const archive = options.settingsRepository.exportPortableArchive();
+          return {
+            action: request.action,
+            accepted: true,
+            destructive: false,
+            requiresReload: false,
+            message: `Portable archive exported to ${archive.path}.`
+          };
+        }
+
+        if (request.action === "resetDuplicateDismissals") {
+          options.settingsRepository.update({ dismissedDuplicateGroupIds: [] });
+          return {
+            action: request.action,
+            accepted: true,
+            destructive: false,
+            requiresReload: false,
+            message: "Duplicate dismissal history was reset."
+          };
+        }
+
+        if (request.action === "checkForUpdates") {
+          options.settingsRepository.update({ lastUpdateCheckAt: new Date().toISOString() });
+          return {
+            action: request.action,
+            accepted: true,
+            destructive: false,
+            requiresReload: false,
+            message: "Update check timestamp refreshed. GitHub release checks remain handled by the native updater status."
+          };
+        }
+
         requireRecoveryConfirmation(request, "RESET MCP TOKEN");
         const reset = options.settingsRepository.resetMcpTokenRevision();
         mcpState.tokenState = reset.tokenState;
@@ -368,7 +412,14 @@ class LocalSyncControlService implements SyncControlDomainService {
   }
 
   async runNow(request: SyncRunNowRequest): Promise<SyncRunNowResponse> {
-    const resources = normalizedResources(request.resources);
+    const settings = this.settingsRepository.get();
+    const resources = normalizedResources(request.resources).filter((resource) => {
+      if (resource === "tasks") {
+        return settings.syncTasksEnabled;
+      }
+
+      return settings.syncCalendarEventsEnabled;
+    });
 
     if (request.dryRun) {
       return {
@@ -390,15 +441,16 @@ class LocalSyncControlService implements SyncControlDomainService {
     this.emit();
 
     try {
-      const settings = this.settingsRepository.get();
       await this.mutationWorker?.drainDue();
-      await this.readSync.runReadSync({
-        account: this.repository.latestAccountStatus() ?? signedOutAccount(),
-        resources,
-        full: request.full ?? false,
-        eventRetentionDaysBack: settings.eventRetentionDaysBack,
-        completedTaskRetentionDaysBack: settings.completedTaskRetentionDaysBack
-      });
+      if (resources.length > 0) {
+        await this.readSync.runReadSync({
+          account: this.repository.latestAccountStatus() ?? signedOutAccount(),
+          resources,
+          full: request.full ?? false,
+          eventRetentionDaysBack: settings.eventRetentionDaysBack,
+          completedTaskRetentionDaysBack: settings.completedTaskRetentionDaysBack
+        });
+      }
     } finally {
       this.running = false;
       this.emit();

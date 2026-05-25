@@ -569,7 +569,7 @@ export class NativeShellService implements NativeDomainService {
       tomorrowEvents
     });
     const todayCount = todayTasks.length + todayEvents.length;
-    const calendar = settings.menuBarPanelStyle === "agenda"
+    const calendar = settings.menuBarPanelStyle === "calendar"
       ? menuBarCalendarSnapshot(todayStart, todayEvents, todayTasks, now)
       : undefined;
     const account = menuBarAccountSnapshot(this.options.account?.latest() ?? null);
@@ -581,11 +581,11 @@ export class NativeShellService implements NativeDomainService {
     const title =
       settings.menuBarPanelStyle === "adaptive"
         ? "Agenda"
-        : settings.menuBarPanelStyle === "agenda"
+        : settings.menuBarPanelStyle === "calendar"
           ? "Calendar"
           : menuBarTitle(overdueTasks.length, todayCount, currentEvent, nextEvent);
     const subtitle =
-      settings.menuBarPanelStyle === "adaptive" || settings.menuBarPanelStyle === "agenda"
+      settings.menuBarPanelStyle === "adaptive" || settings.menuBarPanelStyle === "calendar"
         ? undefined
         : menuBarSubtitle(overdueTasks.length, todayCount, tomorrowTasks.length + tomorrowEvents.length);
     const badgeLabel =
@@ -718,23 +718,6 @@ function menuBarSections(
   style: SettingsSnapshot["menuBarPanelStyle"],
   data: MenuBarSnapshotData
 ): NativeMenuBarSnapshot["sections"] {
-  if (style === "compact") {
-    return [
-      {
-        title: "Overview",
-        items: [
-          {
-            label: `${data.overdueTasks.length} overdue`,
-            detail: `${data.todayTasks.length + data.todayEvents.length} due or scheduled today`
-          },
-          { label: "Open Today", route: { kind: "today" } },
-          { label: "Open Tasks", route: { kind: "tasks" } },
-          { label: "Open Calendar", route: { kind: "calendar" } }
-        ]
-      }
-    ];
-  }
-
   if (style === "adaptive") {
     return [
       {

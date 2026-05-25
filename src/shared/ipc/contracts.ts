@@ -174,10 +174,18 @@ export {
   appLanguageSchema,
   appThemeSchema,
   calendarViewModeSchema,
+  completionSoundIdSchema,
+  eventTemplateSchema,
+  historyCategoryVisibilitySchema,
+  hotkeyActionIdSchema,
+  keybindingsSchema,
+  menuBarIconNameSchema,
   mcpPermissionModeSchema,
   menuBarPanelStyleSchema,
   navigationPlacementSchema,
   navigationTabSchema,
+  perTabListFilterSchema,
+  perTabListFiltersSchema,
   perSurfaceFontKeySchema,
   perSurfaceFontOverrideSchema,
   perSurfaceFontOverridesSchema,
@@ -191,15 +199,18 @@ export {
   settingsSnapshotSchema,
   settingsUpdateRequestSchema,
   syncModeSchema,
+  taskTemplateSchema,
   trayClickActionSchema,
   uiFontNameSchema,
   uiTextSizePointsSchema,
+  type EventTemplate,
   type SavedSearchView,
   type SavedTaskView,
   type SettingsRecoveryActionRequest,
   type SettingsRecoveryActionResponse,
   type SettingsSnapshot,
-  type SettingsUpdateRequest
+  type SettingsUpdateRequest,
+  type TaskTemplate
 } from "./contracts/settings";
 
 export {

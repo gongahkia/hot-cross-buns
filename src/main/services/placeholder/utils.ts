@@ -218,6 +218,11 @@ export function definedSettingsPatch(request: SettingsUpdateRequest): Partial<Se
     patch.quickCaptureShortcut = request.quickCaptureShortcut;
   }
 
+  if (request.keybindings !== undefined) {
+    patch.keybindings = request.keybindings;
+    patch.quickCaptureShortcut = request.keybindings["task.quickCapture"];
+  }
+
   if (request.selectedTaskListIds !== undefined) {
     patch.selectedTaskListIds = [...new Set(request.selectedTaskListIds)];
   }
@@ -232,6 +237,14 @@ export function definedSettingsPatch(request: SettingsUpdateRequest): Partial<Se
 
   if (request.syncMode !== undefined) {
     patch.syncMode = request.syncMode;
+  }
+
+  if (request.syncTasksEnabled !== undefined) {
+    patch.syncTasksEnabled = request.syncTasksEnabled;
+  }
+
+  if (request.syncCalendarEventsEnabled !== undefined) {
+    patch.syncCalendarEventsEnabled = request.syncCalendarEventsEnabled;
   }
 
   if (request.eventRetentionDaysBack !== undefined) {
@@ -254,8 +267,16 @@ export function definedSettingsPatch(request: SettingsUpdateRequest): Partial<Se
     patch.menuBarPanelStyle = request.menuBarPanelStyle;
   }
 
+  if (request.menuBarIconName !== undefined) {
+    patch.menuBarIconName = request.menuBarIconName;
+  }
+
   if (request.showMenuBarBadge !== undefined) {
     patch.showMenuBarBadge = request.showMenuBarBadge;
+  }
+
+  if (request.showDockBadge !== undefined) {
+    patch.showDockBadge = request.showDockBadge;
   }
 
   if (request.notificationsEnabled !== undefined) {
@@ -264,6 +285,86 @@ export function definedSettingsPatch(request: SettingsUpdateRequest): Partial<Se
 
   if (request.notificationLeadMinutes !== undefined) {
     patch.notificationLeadMinutes = request.notificationLeadMinutes;
+  }
+
+  if (request.taskCompletionSoundEnabled !== undefined) {
+    patch.taskCompletionSoundEnabled = request.taskCompletionSoundEnabled;
+  }
+
+  if (request.taskCompletionSoundId !== undefined) {
+    patch.taskCompletionSoundId = request.taskCompletionSoundId;
+  }
+
+  if (request.eventCompletionSoundEnabled !== undefined) {
+    patch.eventCompletionSoundEnabled = request.eventCompletionSoundEnabled;
+  }
+
+  if (request.eventCompletionSoundId !== undefined) {
+    patch.eventCompletionSoundId = request.eventCompletionSoundId;
+  }
+
+  if (request.importedSoundCount !== undefined) {
+    patch.importedSoundCount = request.importedSoundCount;
+  }
+
+  if (request.globalQuickAddHotkeyEnabled !== undefined) {
+    patch.globalQuickAddHotkeyEnabled = request.globalQuickAddHotkeyEnabled;
+  }
+
+  if (request.perTabListFilters !== undefined) {
+    patch.perTabListFilters = request.perTabListFilters;
+  }
+
+  if (request.portableExportOnlySelectedTaskLists !== undefined) {
+    patch.portableExportOnlySelectedTaskLists = request.portableExportOnlySelectedTaskLists;
+  }
+
+  if (request.portableExportOnlySelectedCalendars !== undefined) {
+    patch.portableExportOnlySelectedCalendars = request.portableExportOnlySelectedCalendars;
+  }
+
+  if (request.portableExportOnlyFutureCurrentEvents !== undefined) {
+    patch.portableExportOnlyFutureCurrentEvents = request.portableExportOnlyFutureCurrentEvents;
+  }
+
+  if (request.dailyLocalBackupEnabled !== undefined) {
+    patch.dailyLocalBackupEnabled = request.dailyLocalBackupEnabled;
+  }
+
+  if (request.localBackupRetentionCount !== undefined) {
+    patch.localBackupRetentionCount = request.localBackupRetentionCount;
+  }
+
+  if (request.lastLocalBackupAt !== undefined) {
+    patch.lastLocalBackupAt = request.lastLocalBackupAt;
+  }
+
+  if (request.visibleHistoryEntryCount !== undefined) {
+    patch.visibleHistoryEntryCount = request.visibleHistoryEntryCount;
+  }
+
+  if (request.historyStorageCap !== undefined) {
+    patch.historyStorageCap = request.historyStorageCap;
+  }
+
+  if (request.historyCategoryVisibility !== undefined) {
+    patch.historyCategoryVisibility = request.historyCategoryVisibility;
+  }
+
+  if (request.dismissedDuplicateGroupIds !== undefined) {
+    patch.dismissedDuplicateGroupIds = [...new Set(request.dismissedDuplicateGroupIds)];
+  }
+
+  if (request.taskTemplates !== undefined) {
+    patch.taskTemplates = request.taskTemplates;
+  }
+
+  if (request.eventTemplates !== undefined) {
+    patch.eventTemplates = request.eventTemplates;
+  }
+
+  if (request.lastUpdateCheckAt !== undefined) {
+    patch.lastUpdateCheckAt = request.lastUpdateCheckAt;
   }
 
   if (request.mcpEnabled !== undefined) {
@@ -314,7 +415,16 @@ export function definedSettingsPatch(request: SettingsUpdateRequest): Partial<Se
 }
 
 export function recoveryPhrase(
-  action: "refresh" | "forceFullResync" | "clearGoogleCache" | "resetOnboarding" | "resetMcpToken"
+  action:
+    | "refresh"
+    | "forceFullResync"
+    | "clearGoogleCache"
+    | "resetOnboarding"
+    | "resetMcpToken"
+    | "backupNow"
+    | "exportPortableArchive"
+    | "resetDuplicateDismissals"
+    | "checkForUpdates"
 ): string {
   if (action === "forceFullResync") {
     return "FULL RESYNC";
@@ -332,7 +442,16 @@ export function recoveryPhrase(
 }
 
 export function recoveryMessage(
-  action: "refresh" | "forceFullResync" | "clearGoogleCache" | "resetOnboarding" | "resetMcpToken"
+  action:
+    | "refresh"
+    | "forceFullResync"
+    | "clearGoogleCache"
+    | "resetOnboarding"
+    | "resetMcpToken"
+    | "backupNow"
+    | "exportPortableArchive"
+    | "resetDuplicateDismissals"
+    | "checkForUpdates"
 ): string {
   if (action === "forceFullResync") {
     return "Sync checkpoints were cleared and a full resync was requested.";
@@ -348,6 +467,22 @@ export function recoveryMessage(
 
   if (action === "resetOnboarding") {
     return "Onboarding will be shown again without changing planner data.";
+  }
+
+  if (action === "backupNow") {
+    return "Local backup was created.";
+  }
+
+  if (action === "exportPortableArchive") {
+    return "Portable archive was exported.";
+  }
+
+  if (action === "resetDuplicateDismissals") {
+    return "Duplicate dismissal history was reset.";
+  }
+
+  if (action === "checkForUpdates") {
+    return "Update check timestamp was refreshed.";
   }
 
   return "Refresh requested for selected Google resources.";

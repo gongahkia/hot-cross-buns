@@ -4,6 +4,10 @@ import type {
   SettingsSnapshot,
   SyncStatusResponse
 } from "@shared/ipc/contracts";
+import {
+  defaultHistoryCategoryVisibility,
+  defaultKeybindings
+} from "@shared/settingsCatalog";
 import type { CoreDataSnapshot } from "./types";
 
 export const emptySyncStatus: SyncStatusResponse = {
@@ -43,15 +47,49 @@ export const emptySettings: SettingsSnapshot = {
   selectedCalendarIds: [],
   setupCompletedAt: null,
   syncMode: "balanced",
+  syncTasksEnabled: true,
+  syncCalendarEventsEnabled: true,
   eventRetentionDaysBack: 0,
   completedTaskRetentionDaysBack: 365,
   quickCaptureShortcut: "Ctrl+Space",
+  keybindings: defaultKeybindings,
   showTrayIcon: true,
   trayClickAction: "open-menu",
   menuBarPanelStyle: "adaptive",
+  menuBarIconName: "pin",
   showMenuBarBadge: true,
+  showDockBadge: true,
   notificationsEnabled: false,
   notificationLeadMinutes: 10,
+  taskCompletionSoundEnabled: true,
+  taskCompletionSoundId: "glass",
+  eventCompletionSoundEnabled: true,
+  eventCompletionSoundId: "pop",
+  importedSoundCount: 0,
+  globalQuickAddHotkeyEnabled: false,
+  perTabListFilters: {
+    tasks: {
+      useCustomFilter: false,
+      selectedTaskListIds: []
+    },
+    notes: {
+      useCustomFilter: false,
+      selectedTaskListIds: []
+    }
+  },
+  portableExportOnlySelectedTaskLists: false,
+  portableExportOnlySelectedCalendars: false,
+  portableExportOnlyFutureCurrentEvents: false,
+  dailyLocalBackupEnabled: false,
+  localBackupRetentionCount: 14,
+  lastLocalBackupAt: null,
+  visibleHistoryEntryCount: 50,
+  historyStorageCap: 5_000,
+  historyCategoryVisibility: defaultHistoryCategoryVisibility,
+  dismissedDuplicateGroupIds: [],
+  taskTemplates: [],
+  eventTemplates: [],
+  lastUpdateCheckAt: null,
   mcpEnabled: false,
   mcpPermissionMode: "confirm-writes",
   mcpPort: 0,

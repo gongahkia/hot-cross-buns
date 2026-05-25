@@ -51,7 +51,24 @@ export interface UpdateNoteInput {
   now?: ISODateTimeString;
 }
 
-export type SettingScope = "app" | "account" | "sync" | "appearance" | "hotkeys" | "tray" | "mcp";
+export type SettingScope =
+  | "app"
+  | "account"
+  | "sync"
+  | "appearance"
+  | "hotkeys"
+  | "tray"
+  | "dock"
+  | "notifications"
+  | "sounds"
+  | "filters"
+  | "portable"
+  | "backups"
+  | "history"
+  | "duplicates"
+  | "templates"
+  | "updates"
+  | "mcp";
 
 export interface SettingRecord<T extends JsonValue = JsonValue> {
   scope: SettingScope;

@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
+import { copyFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import type { SettingsSnapshot, SettingsUpdateRequest } from "@shared/ipc/contracts";
+import {
+  defaultHistoryCategoryVisibility,
+  defaultKeybindings,
+  hotkeyActionIds
+} from "@shared/settingsCatalog";
 import type { SqliteConnection } from "../sqliteConnection";
 import { systemTimeZone, uniqueIds } from "./shared";
 
@@ -24,18 +31,52 @@ const DEFAULT_SETTINGS: SettingsSnapshot = {
   restoreWindowStateEnabled: true,
   startOnLogin: false,
   quickCaptureShortcut: "Ctrl+Space",
+  keybindings: defaultKeybindings,
   selectedTaskListIds: [],
   selectedCalendarIds: [],
   setupCompletedAt: null,
   syncMode: "balanced",
+  syncTasksEnabled: true,
+  syncCalendarEventsEnabled: true,
   eventRetentionDaysBack: 0,
   completedTaskRetentionDaysBack: 365,
   showTrayIcon: true,
   trayClickAction: "open-menu",
   menuBarPanelStyle: "adaptive",
+  menuBarIconName: "pin",
   showMenuBarBadge: true,
+  showDockBadge: true,
   notificationsEnabled: false,
   notificationLeadMinutes: 10,
+  taskCompletionSoundEnabled: true,
+  taskCompletionSoundId: "glass",
+  eventCompletionSoundEnabled: true,
+  eventCompletionSoundId: "pop",
+  importedSoundCount: 0,
+  globalQuickAddHotkeyEnabled: false,
+  perTabListFilters: {
+    tasks: {
+      useCustomFilter: false,
+      selectedTaskListIds: []
+    },
+    notes: {
+      useCustomFilter: false,
+      selectedTaskListIds: []
+    }
+  },
+  portableExportOnlySelectedTaskLists: false,
+  portableExportOnlySelectedCalendars: false,
+  portableExportOnlyFutureCurrentEvents: false,
+  dailyLocalBackupEnabled: false,
+  localBackupRetentionCount: 14,
+  lastLocalBackupAt: null,
+  visibleHistoryEntryCount: 50,
+  historyStorageCap: 5_000,
+  historyCategoryVisibility: defaultHistoryCategoryVisibility,
+  dismissedDuplicateGroupIds: [],
+  taskTemplates: [],
+  eventTemplates: [],
+  lastUpdateCheckAt: null,
   mcpEnabled: false,
   mcpPermissionMode: "confirm-writes",
   mcpPort: 0,
@@ -130,6 +171,7 @@ export class LocalSettingsRepository {
         "quickCaptureShortcut",
         DEFAULT_SETTINGS.quickCaptureShortcut
       ),
+      keybindings: this.readKeybindings(),
       selectedTaskListIds: this.readSetting(
         "google",
         "selectedTaskListIds",
@@ -146,6 +188,12 @@ export class LocalSettingsRepository {
         DEFAULT_SETTINGS.setupCompletedAt
       ),
       syncMode: this.readSetting("sync", "mode", DEFAULT_SETTINGS.syncMode),
+      syncTasksEnabled: this.readSetting("sync", "tasksEnabled", DEFAULT_SETTINGS.syncTasksEnabled),
+      syncCalendarEventsEnabled: this.readSetting(
+        "sync",
+        "calendarEventsEnabled",
+        DEFAULT_SETTINGS.syncCalendarEventsEnabled
+      ),
       eventRetentionDaysBack: this.readSetting(
         "sync",
         "eventRetentionDaysBack",
@@ -162,12 +210,12 @@ export class LocalSettingsRepository {
         "clickAction",
         DEFAULT_SETTINGS.trayClickAction
       ),
-      menuBarPanelStyle: this.readSetting(
-        "tray",
-        "panelStyle",
-        DEFAULT_SETTINGS.menuBarPanelStyle
+      menuBarPanelStyle: normalizeMenuBarPanelStyle(
+        this.readSetting("tray", "panelStyle", DEFAULT_SETTINGS.menuBarPanelStyle)
       ),
+      menuBarIconName: this.readSetting("tray", "iconName", DEFAULT_SETTINGS.menuBarIconName),
       showMenuBarBadge: this.readSetting("tray", "showBadge", DEFAULT_SETTINGS.showMenuBarBadge),
+      showDockBadge: this.readSetting("dock", "showBadge", DEFAULT_SETTINGS.showDockBadge),
       notificationsEnabled: this.readSetting(
         "notifications",
         "enabled",
@@ -177,6 +225,98 @@ export class LocalSettingsRepository {
         "notifications",
         "leadMinutes",
         DEFAULT_SETTINGS.notificationLeadMinutes
+      ),
+      taskCompletionSoundEnabled: this.readSetting(
+        "sounds",
+        "taskCompletionEnabled",
+        DEFAULT_SETTINGS.taskCompletionSoundEnabled
+      ),
+      taskCompletionSoundId: this.readSetting(
+        "sounds",
+        "taskCompletionId",
+        DEFAULT_SETTINGS.taskCompletionSoundId
+      ),
+      eventCompletionSoundEnabled: this.readSetting(
+        "sounds",
+        "eventCompletionEnabled",
+        DEFAULT_SETTINGS.eventCompletionSoundEnabled
+      ),
+      eventCompletionSoundId: this.readSetting(
+        "sounds",
+        "eventCompletionId",
+        DEFAULT_SETTINGS.eventCompletionSoundId
+      ),
+      importedSoundCount: this.readSetting(
+        "sounds",
+        "importedCount",
+        DEFAULT_SETTINGS.importedSoundCount
+      ),
+      globalQuickAddHotkeyEnabled: this.readSetting(
+        "hotkeys",
+        "globalQuickAddEnabled",
+        DEFAULT_SETTINGS.globalQuickAddHotkeyEnabled
+      ),
+      perTabListFilters: this.readSetting(
+        "filters",
+        "perTabListFilters",
+        DEFAULT_SETTINGS.perTabListFilters
+      ),
+      portableExportOnlySelectedTaskLists: this.readSetting(
+        "portable",
+        "onlySelectedTaskLists",
+        DEFAULT_SETTINGS.portableExportOnlySelectedTaskLists
+      ),
+      portableExportOnlySelectedCalendars: this.readSetting(
+        "portable",
+        "onlySelectedCalendars",
+        DEFAULT_SETTINGS.portableExportOnlySelectedCalendars
+      ),
+      portableExportOnlyFutureCurrentEvents: this.readSetting(
+        "portable",
+        "onlyFutureCurrentEvents",
+        DEFAULT_SETTINGS.portableExportOnlyFutureCurrentEvents
+      ),
+      dailyLocalBackupEnabled: this.readSetting(
+        "backups",
+        "dailyEnabled",
+        DEFAULT_SETTINGS.dailyLocalBackupEnabled
+      ),
+      localBackupRetentionCount: this.readSetting(
+        "backups",
+        "retentionCount",
+        DEFAULT_SETTINGS.localBackupRetentionCount
+      ),
+      lastLocalBackupAt: this.readSetting(
+        "backups",
+        "lastBackupAt",
+        DEFAULT_SETTINGS.lastLocalBackupAt
+      ),
+      visibleHistoryEntryCount: this.readSetting(
+        "history",
+        "visibleEntryCount",
+        DEFAULT_SETTINGS.visibleHistoryEntryCount
+      ),
+      historyStorageCap: this.readSetting(
+        "history",
+        "storageCap",
+        DEFAULT_SETTINGS.historyStorageCap
+      ),
+      historyCategoryVisibility: this.readSetting(
+        "history",
+        "categoryVisibility",
+        DEFAULT_SETTINGS.historyCategoryVisibility
+      ),
+      dismissedDuplicateGroupIds: this.readSetting(
+        "duplicates",
+        "dismissedGroupIds",
+        DEFAULT_SETTINGS.dismissedDuplicateGroupIds
+      ),
+      taskTemplates: this.readSetting("templates", "tasks", DEFAULT_SETTINGS.taskTemplates),
+      eventTemplates: this.readSetting("templates", "events", DEFAULT_SETTINGS.eventTemplates),
+      lastUpdateCheckAt: this.readSetting(
+        "updates",
+        "lastCheckAt",
+        DEFAULT_SETTINGS.lastUpdateCheckAt
       ),
       mcpEnabled: this.readSetting("mcp", "enabled", DEFAULT_SETTINGS.mcpEnabled),
       mcpPermissionMode: this.readSetting(
@@ -326,6 +466,17 @@ export class LocalSettingsRepository {
       this.writeSetting("hotkeys", "quickCaptureShortcut", request.quickCaptureShortcut, now);
     }
 
+    if (request.keybindings !== undefined) {
+      const keybindings = normalizeKeybindings(request.keybindings);
+      this.writeSetting("hotkeys", "keybindings", keybindings, now);
+      this.writeSetting(
+        "hotkeys",
+        "quickCaptureShortcut",
+        keybindings["task.quickCapture"],
+        now
+      );
+    }
+
     if (request.selectedTaskListIds !== undefined) {
       this.writeSetting("google", "selectedTaskListIds", uniqueIds(request.selectedTaskListIds), now);
     }
@@ -340,6 +491,14 @@ export class LocalSettingsRepository {
 
     if (request.syncMode !== undefined) {
       this.writeSetting("sync", "mode", request.syncMode, now);
+    }
+
+    if (request.syncTasksEnabled !== undefined) {
+      this.writeSetting("sync", "tasksEnabled", request.syncTasksEnabled, now);
+    }
+
+    if (request.syncCalendarEventsEnabled !== undefined) {
+      this.writeSetting("sync", "calendarEventsEnabled", request.syncCalendarEventsEnabled, now);
     }
 
     if (request.eventRetentionDaysBack !== undefined) {
@@ -367,8 +526,16 @@ export class LocalSettingsRepository {
       this.writeSetting("tray", "panelStyle", request.menuBarPanelStyle, now);
     }
 
+    if (request.menuBarIconName !== undefined) {
+      this.writeSetting("tray", "iconName", request.menuBarIconName, now);
+    }
+
     if (request.showMenuBarBadge !== undefined) {
       this.writeSetting("tray", "showBadge", request.showMenuBarBadge, now);
+    }
+
+    if (request.showDockBadge !== undefined) {
+      this.writeSetting("dock", "showBadge", request.showDockBadge, now);
     }
 
     if (request.notificationsEnabled !== undefined) {
@@ -377,6 +544,86 @@ export class LocalSettingsRepository {
 
     if (request.notificationLeadMinutes !== undefined) {
       this.writeSetting("notifications", "leadMinutes", request.notificationLeadMinutes, now);
+    }
+
+    if (request.taskCompletionSoundEnabled !== undefined) {
+      this.writeSetting("sounds", "taskCompletionEnabled", request.taskCompletionSoundEnabled, now);
+    }
+
+    if (request.taskCompletionSoundId !== undefined) {
+      this.writeSetting("sounds", "taskCompletionId", request.taskCompletionSoundId, now);
+    }
+
+    if (request.eventCompletionSoundEnabled !== undefined) {
+      this.writeSetting("sounds", "eventCompletionEnabled", request.eventCompletionSoundEnabled, now);
+    }
+
+    if (request.eventCompletionSoundId !== undefined) {
+      this.writeSetting("sounds", "eventCompletionId", request.eventCompletionSoundId, now);
+    }
+
+    if (request.importedSoundCount !== undefined) {
+      this.writeSetting("sounds", "importedCount", request.importedSoundCount, now);
+    }
+
+    if (request.globalQuickAddHotkeyEnabled !== undefined) {
+      this.writeSetting("hotkeys", "globalQuickAddEnabled", request.globalQuickAddHotkeyEnabled, now);
+    }
+
+    if (request.perTabListFilters !== undefined) {
+      this.writeSetting("filters", "perTabListFilters", request.perTabListFilters, now);
+    }
+
+    if (request.portableExportOnlySelectedTaskLists !== undefined) {
+      this.writeSetting("portable", "onlySelectedTaskLists", request.portableExportOnlySelectedTaskLists, now);
+    }
+
+    if (request.portableExportOnlySelectedCalendars !== undefined) {
+      this.writeSetting("portable", "onlySelectedCalendars", request.portableExportOnlySelectedCalendars, now);
+    }
+
+    if (request.portableExportOnlyFutureCurrentEvents !== undefined) {
+      this.writeSetting("portable", "onlyFutureCurrentEvents", request.portableExportOnlyFutureCurrentEvents, now);
+    }
+
+    if (request.dailyLocalBackupEnabled !== undefined) {
+      this.writeSetting("backups", "dailyEnabled", request.dailyLocalBackupEnabled, now);
+    }
+
+    if (request.localBackupRetentionCount !== undefined) {
+      this.writeSetting("backups", "retentionCount", request.localBackupRetentionCount, now);
+    }
+
+    if (request.lastLocalBackupAt !== undefined) {
+      this.writeSetting("backups", "lastBackupAt", request.lastLocalBackupAt, now);
+    }
+
+    if (request.visibleHistoryEntryCount !== undefined) {
+      this.writeSetting("history", "visibleEntryCount", request.visibleHistoryEntryCount, now);
+    }
+
+    if (request.historyStorageCap !== undefined) {
+      this.writeSetting("history", "storageCap", request.historyStorageCap, now);
+    }
+
+    if (request.historyCategoryVisibility !== undefined) {
+      this.writeSetting("history", "categoryVisibility", request.historyCategoryVisibility, now);
+    }
+
+    if (request.dismissedDuplicateGroupIds !== undefined) {
+      this.writeSetting("duplicates", "dismissedGroupIds", uniqueIds(request.dismissedDuplicateGroupIds), now);
+    }
+
+    if (request.taskTemplates !== undefined) {
+      this.writeSetting("templates", "tasks", request.taskTemplates, now);
+    }
+
+    if (request.eventTemplates !== undefined) {
+      this.writeSetting("templates", "events", request.eventTemplates, now);
+    }
+
+    if (request.lastUpdateCheckAt !== undefined) {
+      this.writeSetting("updates", "lastCheckAt", request.lastUpdateCheckAt, now);
     }
 
     if (request.mcpEnabled !== undefined) {
@@ -465,6 +712,44 @@ export class LocalSettingsRepository {
     };
   }
 
+  createLocalBackup(now = new Date().toISOString()): { path: string; backedUpAt: string } {
+    const backupsDirectory = join(dirname(this.connection.databasePath), "Backups");
+    const fileSafeTimestamp = now.replace(/[:.]/g, "-");
+    const backupPath = join(backupsDirectory, `hot-cross-buns-2-${fileSafeTimestamp}.sqlite3`);
+
+    mkdirSync(backupsDirectory, { recursive: true });
+    this.connection.run("PRAGMA wal_checkpoint(FULL);");
+    copyFileSync(this.connection.databasePath, backupPath);
+    this.writeSetting("backups", "lastBackupAt", now, now);
+
+    return {
+      path: backupPath,
+      backedUpAt: now
+    };
+  }
+
+  exportPortableArchive(now = new Date().toISOString()): { path: string; exportedAt: string } {
+    const exportDirectory = join(
+      dirname(this.connection.databasePath),
+      "PortableExports",
+      `hot-cross-buns-2-${now.replace(/[:.]/g, "-")}`
+    );
+
+    mkdirSync(exportDirectory, { recursive: true });
+    writeFileSync(
+      join(exportDirectory, "settings.json"),
+      `${JSON.stringify(this.get(), null, 2)}\n`,
+      "utf8"
+    );
+    this.connection.run("PRAGMA wal_checkpoint(FULL);");
+    copyFileSync(this.connection.databasePath, join(exportDirectory, "cache-state.sqlite3"));
+
+    return {
+      path: exportDirectory,
+      exportedAt: now
+    };
+  }
+
   private readSetting<T>(scope: string, key: string, fallback: T): T {
     const row = this.connection.get<{ valueJson: string }>(
       `SELECT value_json AS valueJson
@@ -496,6 +781,24 @@ export class LocalSettingsRepository {
     );
   }
 
+  private readKeybindings(): SettingsSnapshot["keybindings"] {
+    const saved = this.readSetting<Partial<SettingsSnapshot["keybindings"]>>(
+      "hotkeys",
+      "keybindings",
+      {}
+    );
+    const quickCaptureShortcut = this.readSetting(
+      "hotkeys",
+      "quickCaptureShortcut",
+      DEFAULT_SETTINGS.quickCaptureShortcut
+    );
+
+    return normalizeKeybindings({
+      ...saved,
+      "task.quickCapture": saved["task.quickCapture"] ?? quickCaptureShortcut
+    });
+  }
+
   private defaultSelectedTaskListIds(): string[] {
     const rows = this.connection.query<{ id: string }>(
       `SELECT id
@@ -521,4 +824,32 @@ export class LocalSettingsRepository {
 
     return rows.map((row) => row.id);
   }
+}
+
+function normalizeKeybindings(
+  value: Partial<SettingsSnapshot["keybindings"]>
+): SettingsSnapshot["keybindings"] {
+  const normalized: SettingsSnapshot["keybindings"] = { ...DEFAULT_SETTINGS.keybindings };
+
+  for (const actionId of hotkeyActionIds) {
+    const accelerator = value[actionId];
+
+    if (accelerator === undefined) {
+      continue;
+    }
+
+    normalized[actionId] = typeof accelerator === "string" && accelerator.trim().length > 0
+      ? accelerator.trim()
+      : null;
+  }
+
+  return normalized;
+}
+
+function normalizeMenuBarPanelStyle(value: unknown): SettingsSnapshot["menuBarPanelStyle"] {
+  if (value === "calendar" || value === "agenda") {
+    return "calendar";
+  }
+
+  return "adaptive";
 }

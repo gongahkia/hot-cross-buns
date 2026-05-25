@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  defaultHistoryCategoryVisibility,
+  defaultKeybindings,
+  historyCategoryIds,
+  hotkeyActionIds
+} from "../../settingsCatalog";
 import { appColorThemeIds } from "../themeCatalog";
 import { emptyRequestSchema, idSchema, isoDateTimeSchema } from "./core";
 import { taskStatusSchema } from "./tasks";
@@ -20,12 +26,43 @@ export const trayClickActionSchema = z.enum([
   "quick-capture",
   "open-today"
 ]);
-export const menuBarPanelStyleSchema = z.enum(["adaptive", "agenda", "compact"]);
+export const menuBarPanelStyleSchema = z.enum(["adaptive", "calendar"]);
 export const mcpPermissionModeSchema = z.enum([
   "read-only",
   "confirm-writes",
   "allow-writes"
 ]);
+export const hotkeyActionIdSchema = z.enum(hotkeyActionIds);
+export const keybindingsSchema = z
+  .record(hotkeyActionIdSchema, z.string().trim().min(1).max(120).nullable())
+  .default(defaultKeybindings);
+export const completionSoundIdSchema = z.enum(["glass", "pop", "chime", "click"]);
+export const menuBarIconNameSchema = z.enum(["pin", "calendar", "bun", "checklist"]);
+export const perTabListFilterSchema = z
+  .object({
+    useCustomFilter: z.boolean(),
+    selectedTaskListIds: z.array(idSchema).max(100)
+  })
+  .strict();
+export const perTabListFiltersSchema = z
+  .object({
+    tasks: perTabListFilterSchema,
+    notes: perTabListFilterSchema
+  })
+  .strict();
+export const defaultPerTabListFilters = {
+  tasks: {
+    useCustomFilter: false,
+    selectedTaskListIds: []
+  },
+  notes: {
+    useCustomFilter: false,
+    selectedTaskListIds: []
+  }
+} satisfies z.infer<typeof perTabListFiltersSchema>;
+export const historyCategoryVisibilitySchema = z
+  .record(z.enum(historyCategoryIds), z.boolean())
+  .default(defaultHistoryCategoryVisibility);
 export const perSurfaceFontKeySchema = z.enum([
   "markdownEditor",
   "sidebar",
@@ -78,6 +115,39 @@ export const savedTaskViewSchema = z
 
 export type SavedTaskView = z.infer<typeof savedTaskViewSchema>;
 
+export const taskTemplateSchema = z
+  .object({
+    id: idSchema,
+    name: z.string().min(1).max(80),
+    title: z.string().min(1).max(200),
+    notes: z.string().max(4_000).nullable(),
+    dueExpression: z.string().min(1).max(120).nullable(),
+    listId: idSchema.nullable(),
+    createdAt: isoDateTimeSchema,
+    updatedAt: isoDateTimeSchema
+  })
+  .strict();
+
+export type TaskTemplate = z.infer<typeof taskTemplateSchema>;
+
+export const eventTemplateSchema = z
+  .object({
+    id: idSchema,
+    name: z.string().min(1).max(80),
+    title: z.string().min(1).max(200),
+    notes: z.string().max(4_000).nullable(),
+    location: z.string().max(500).nullable(),
+    calendarId: idSchema.nullable(),
+    startExpression: z.string().min(1).max(120).nullable(),
+    endExpression: z.string().min(1).max(120).nullable(),
+    attendeeEmails: z.array(z.string().email()).max(50),
+    createdAt: isoDateTimeSchema,
+    updatedAt: isoDateTimeSchema
+  })
+  .strict();
+
+export type EventTemplate = z.infer<typeof eventTemplateSchema>;
+
 export const settingsSnapshotSchema = z
   .object({
     theme: appThemeSchema,
@@ -100,18 +170,43 @@ export const settingsSnapshotSchema = z
     restoreWindowStateEnabled: z.boolean(),
     startOnLogin: z.boolean(),
     quickCaptureShortcut: z.string().min(1).max(120).nullable(),
+    keybindings: keybindingsSchema,
     selectedTaskListIds: z.array(idSchema).max(100),
     selectedCalendarIds: z.array(idSchema).max(100),
     setupCompletedAt: isoDateTimeSchema.nullable(),
     syncMode: syncModeSchema,
+    syncTasksEnabled: z.boolean(),
+    syncCalendarEventsEnabled: z.boolean(),
     eventRetentionDaysBack: z.number().int().min(0).max(3650),
     completedTaskRetentionDaysBack: z.number().int().min(0).max(3650),
     showTrayIcon: z.boolean(),
     trayClickAction: trayClickActionSchema,
     menuBarPanelStyle: menuBarPanelStyleSchema,
+    menuBarIconName: menuBarIconNameSchema,
     showMenuBarBadge: z.boolean(),
+    showDockBadge: z.boolean(),
     notificationsEnabled: z.boolean(),
     notificationLeadMinutes: z.number().int().min(0).max(28 * 24 * 60),
+    taskCompletionSoundEnabled: z.boolean(),
+    taskCompletionSoundId: completionSoundIdSchema,
+    eventCompletionSoundEnabled: z.boolean(),
+    eventCompletionSoundId: completionSoundIdSchema,
+    importedSoundCount: z.number().int().nonnegative().max(10_000),
+    globalQuickAddHotkeyEnabled: z.boolean(),
+    perTabListFilters: perTabListFiltersSchema,
+    portableExportOnlySelectedTaskLists: z.boolean(),
+    portableExportOnlySelectedCalendars: z.boolean(),
+    portableExportOnlyFutureCurrentEvents: z.boolean(),
+    dailyLocalBackupEnabled: z.boolean(),
+    localBackupRetentionCount: z.number().int().min(1).max(365),
+    lastLocalBackupAt: isoDateTimeSchema.nullable(),
+    visibleHistoryEntryCount: z.number().int().min(10).max(500),
+    historyStorageCap: z.number().int().min(100).max(50_000),
+    historyCategoryVisibility: historyCategoryVisibilitySchema,
+    dismissedDuplicateGroupIds: z.array(idSchema).max(1_000),
+    taskTemplates: z.array(taskTemplateSchema).max(50),
+    eventTemplates: z.array(eventTemplateSchema).max(50),
+    lastUpdateCheckAt: isoDateTimeSchema.nullable(),
     mcpEnabled: z.boolean(),
     mcpPermissionMode: mcpPermissionModeSchema,
     mcpPort: z.number().int().min(0).max(65535),
@@ -150,18 +245,43 @@ export const settingsUpdateRequestSchema = z
     restoreWindowStateEnabled: z.boolean().optional(),
     startOnLogin: z.boolean().optional(),
     quickCaptureShortcut: z.string().min(1).max(120).nullable().optional(),
+    keybindings: keybindingsSchema.optional(),
     selectedTaskListIds: z.array(idSchema).max(100).optional(),
     selectedCalendarIds: z.array(idSchema).max(100).optional(),
     setupCompletedAt: isoDateTimeSchema.nullable().optional(),
     syncMode: syncModeSchema.optional(),
+    syncTasksEnabled: z.boolean().optional(),
+    syncCalendarEventsEnabled: z.boolean().optional(),
     eventRetentionDaysBack: z.number().int().min(0).max(3650).optional(),
     completedTaskRetentionDaysBack: z.number().int().min(0).max(3650).optional(),
     showTrayIcon: z.boolean().optional(),
     trayClickAction: trayClickActionSchema.optional(),
     menuBarPanelStyle: menuBarPanelStyleSchema.optional(),
+    menuBarIconName: menuBarIconNameSchema.optional(),
     showMenuBarBadge: z.boolean().optional(),
+    showDockBadge: z.boolean().optional(),
     notificationsEnabled: z.boolean().optional(),
     notificationLeadMinutes: z.number().int().min(0).max(28 * 24 * 60).optional(),
+    taskCompletionSoundEnabled: z.boolean().optional(),
+    taskCompletionSoundId: completionSoundIdSchema.optional(),
+    eventCompletionSoundEnabled: z.boolean().optional(),
+    eventCompletionSoundId: completionSoundIdSchema.optional(),
+    importedSoundCount: z.number().int().nonnegative().max(10_000).optional(),
+    globalQuickAddHotkeyEnabled: z.boolean().optional(),
+    perTabListFilters: perTabListFiltersSchema.optional(),
+    portableExportOnlySelectedTaskLists: z.boolean().optional(),
+    portableExportOnlySelectedCalendars: z.boolean().optional(),
+    portableExportOnlyFutureCurrentEvents: z.boolean().optional(),
+    dailyLocalBackupEnabled: z.boolean().optional(),
+    localBackupRetentionCount: z.number().int().min(1).max(365).optional(),
+    lastLocalBackupAt: isoDateTimeSchema.nullable().optional(),
+    visibleHistoryEntryCount: z.number().int().min(10).max(500).optional(),
+    historyStorageCap: z.number().int().min(100).max(50_000).optional(),
+    historyCategoryVisibility: historyCategoryVisibilitySchema.optional(),
+    dismissedDuplicateGroupIds: z.array(idSchema).max(1_000).optional(),
+    taskTemplates: z.array(taskTemplateSchema).max(50).optional(),
+    eventTemplates: z.array(eventTemplateSchema).max(50).optional(),
+    lastUpdateCheckAt: isoDateTimeSchema.nullable().optional(),
     mcpEnabled: z.boolean().optional(),
     mcpPermissionMode: mcpPermissionModeSchema.optional(),
     mcpPort: z.number().int().min(0).max(65535).optional(),
@@ -186,7 +306,11 @@ export const settingsRecoveryActionSchema = z.enum([
   "forceFullResync",
   "clearGoogleCache",
   "resetOnboarding",
-  "resetMcpToken"
+  "resetMcpToken",
+  "backupNow",
+  "exportPortableArchive",
+  "resetDuplicateDismissals",
+  "checkForUpdates"
 ]);
 
 export const settingsRecoveryActionRequestSchema = z
