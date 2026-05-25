@@ -119,7 +119,7 @@ describe("SQLite connection foundation", () => {
         ["native"]
       );
 
-      expect(result.appliedVersions).toEqual([1, 2, 3, 4, 5]);
+      expect(result.appliedVersions).toEqual([1, 2, 3, 4, 5, 6]);
       expect(rows).toEqual([{ title: "SQLite native adapter" }]);
     } finally {
       temporary.cleanup();
@@ -149,7 +149,7 @@ describe("SQLite connection foundation", () => {
         ["event-1"]
       );
 
-      expect(result.appliedVersions).toEqual([1, 2, 3, 4, 5]);
+      expect(result.appliedVersions).toEqual([1, 2, 3, 4, 5, 6]);
       expect(row?.localTimeZone).toBe("Asia/Singapore");
     } finally {
       temporary.cleanup();

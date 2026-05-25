@@ -47,7 +47,12 @@ import type {
   GoogleTasksWriteTransport
 } from "../google";
 import { GooglePendingMutationWorker } from "../sync/mutationWorker";
-import type { LocalPlannerRepository, LocalSettingsRepository } from "../data/localRepositories";
+import type {
+  LocalHistoryRepository,
+  LocalPlannerRepository,
+  LocalSettingsRepository
+} from "../data/localRepositories";
+import { appLogger } from "../diagnostics/appLogger";
 import { GoogleReadSyncService } from "../sync/readSyncService";
 import type { GoogleSyncRepository } from "../sync/readSyncRepository";
 import type { ReadSyncResource } from "../sync/types";
@@ -70,6 +75,7 @@ export interface SqliteDomainServiceOptions {
   plannerRepository: LocalPlannerRepository;
   settingsRepository: LocalSettingsRepository;
   syncRepository: GoogleSyncRepository;
+  historyRepository?: LocalHistoryRepository;
   syncTasksTransport?: GoogleTasksReadTransport;
   syncCalendarTransport?: GoogleCalendarReadTransport;
   syncTasksWriteTransport?: GoogleTasksWriteTransport;
@@ -102,6 +108,7 @@ export function createSqliteDomainServices(
   const sync = new LocalSyncControlService({
     repository: options.syncRepository,
     settingsRepository: options.settingsRepository,
+    historyRepository: options.historyRepository,
     tasksTransport: options.syncTasksTransport ?? noopTasksTransport,
     calendarTransport: options.syncCalendarTransport ?? noopCalendarTransport,
     mutationWorker
@@ -376,6 +383,7 @@ export function createSqliteDomainServices(
 class LocalSyncControlService implements SyncControlDomainService {
   private readonly repository: GoogleSyncRepository;
   private readonly settingsRepository: LocalSettingsRepository;
+  private readonly historyRepository: LocalHistoryRepository | undefined;
   private readonly readSync: GoogleReadSyncService;
   private readonly mutationWorker: GooglePendingMutationWorker | undefined;
   private readonly listeners = new Set<SyncStatusListener>();
@@ -384,12 +392,14 @@ class LocalSyncControlService implements SyncControlDomainService {
   constructor(options: {
     repository: GoogleSyncRepository;
     settingsRepository: LocalSettingsRepository;
+    historyRepository?: LocalHistoryRepository;
     tasksTransport: GoogleTasksReadTransport;
     calendarTransport: GoogleCalendarReadTransport;
     mutationWorker?: GooglePendingMutationWorker;
   }) {
     this.repository = options.repository;
     this.settingsRepository = options.settingsRepository;
+    this.historyRepository = options.historyRepository;
     this.mutationWorker = options.mutationWorker;
     this.readSync = new GoogleReadSyncService({
       repository: options.repository,
@@ -441,15 +451,20 @@ class LocalSyncControlService implements SyncControlDomainService {
     this.emit();
 
     try {
-      await this.mutationWorker?.drainDue();
+      const mutationRun = await this.mutationWorker?.drainDue();
+
+      if (mutationRun) {
+        appLogger.info("mutation drain completed", "mutation", mutationRun);
+      }
       if (resources.length > 0) {
-        await this.readSync.runReadSync({
+        const result = await this.readSync.runReadSync({
           account: this.repository.latestAccountStatus() ?? signedOutAccount(),
           resources,
           full: request.full ?? false,
           eventRetentionDaysBack: settings.eventRetentionDaysBack,
           completedTaskRetentionDaysBack: settings.completedTaskRetentionDaysBack
         });
+        this.recordSyncHistory(result.summaries, result.ok);
       }
     } finally {
       this.running = false;
@@ -476,6 +491,24 @@ class LocalSyncControlService implements SyncControlDomainService {
 
     for (const listener of this.listeners) {
       listener(status);
+    }
+  }
+
+  private recordSyncHistory(
+    summaries: ReadonlyArray<{ resource: ReadSyncResource; itemCount: number; listCount: number; durationMs: number }>,
+    ok: boolean
+  ): void {
+    for (const summary of summaries) {
+      this.historyRepository?.record({
+        kind: summary.resource === "tasks" ? "sync.task" : "sync.event",
+        summary: ok ? "Synced Google resource" : "Google resource sync failed",
+        metadata: {
+          resource: summary.resource,
+          itemCount: summary.itemCount,
+          listCount: summary.listCount,
+          durationMs: summary.durationMs
+        }
+      });
     }
   }
 }

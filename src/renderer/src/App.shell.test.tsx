@@ -211,7 +211,7 @@ describe("App shell", () => {
     expect(await screen.findByRole("dialog", { name: "Settings" })).toBeInTheDocument();
 
     await runPaletteCommand(user, "diagnostics", /Copy diagnostics summary/);
-    expect(await screen.findByRole("dialog", { name: "Settings" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Diagnostics" })).toBeInTheDocument();
   });
 
   it("shares action IDs across task controls and command palette availability", async () => {

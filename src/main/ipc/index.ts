@@ -4,6 +4,7 @@ import type { ServiceContainer } from "../services/serviceContainer";
 import { createCoreIpcHandlers } from "./coreHandlers";
 import { createDiagnosticsIpcHandlers } from "./diagnostics";
 import { createIpcMetrics, registerIpcDispatcher } from "./registry";
+import { appLogger } from "../diagnostics/appLogger";
 
 export interface HcbIpcLifecycleHooks {
   onShellVisible?: () => void;
@@ -22,7 +23,17 @@ export function registerHcbIpc(
       ...createCoreIpcHandlers(services.domain)
     ],
     {
-      metrics
+      metrics,
+      logger: {
+        debug: (event) => {
+          if (event.outcome === "success") {
+            appLogger.debug("ipc request completed", "ipc", event);
+            return;
+          }
+
+          appLogger.warn("ipc request failed", "ipc", event);
+        }
+      }
     }
   );
 

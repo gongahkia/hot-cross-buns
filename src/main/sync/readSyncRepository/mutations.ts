@@ -104,6 +104,42 @@ export function listDuePendingMutations(
     .map(pendingMutationFromRow);
 }
 
+export function listActivePendingMutations(
+  connection: SqliteConnection,
+  options: { limit?: number } = {}
+): PendingGoogleMutation[] {
+  const limit = Math.max(1, Math.min(200, options.limit ?? 100));
+
+  return connection
+    .query<PendingGoogleMutationRow>(
+      `SELECT
+         id,
+         account_id AS accountId,
+         resource_type AS resourceType,
+         resource_id AS resourceId,
+         operation,
+         payload_json AS payloadJson,
+         status,
+         attempt_count AS attemptCount,
+         next_retry_at AS nextRetryAt,
+         last_error_code AS lastErrorCode,
+         last_error_message AS lastErrorMessage,
+         created_at AS createdAt,
+         updated_at AS updatedAt,
+         applied_at AS appliedAt
+       FROM google_pending_mutations
+       WHERE resource_type IN ('task', 'task_list', 'event')
+         AND status IN ('pending', 'applying', 'failed')
+       ORDER BY
+         CASE status WHEN 'failed' THEN 0 WHEN 'applying' THEN 1 ELSE 2 END,
+         created_at ASC,
+         id ASC
+       LIMIT ?;`,
+      [limit]
+    )
+    .map(pendingMutationFromRow);
+}
+
 export function pendingMutationById(
   connection: SqliteConnection,
   id: string
@@ -193,6 +229,55 @@ export function markMutationFailed(
       input.id
     ]
   );
+}
+
+export function retryPendingMutation(
+  connection: SqliteConnection,
+  id: string,
+  now: string
+): PendingGoogleMutation | null {
+  const result = connection.run(
+    `UPDATE google_pending_mutations
+     SET status = 'pending',
+         next_retry_at = NULL,
+         last_error_code = NULL,
+         last_error_message = NULL,
+         updated_at = ?
+     WHERE id = ?
+       AND status = 'failed';`,
+    [now, id]
+  );
+
+  return result.changes > 0 ? pendingMutationById(connection, id) : null;
+}
+
+export function cancelPendingMutation(
+  connection: SqliteConnection,
+  id: string,
+  now: string
+): PendingGoogleMutation | null {
+  const current = pendingMutationById(connection, id);
+
+  if (!current || !["pending", "applying", "failed"].includes(current.status)) {
+    return null;
+  }
+
+  connection.run(
+    `UPDATE google_pending_mutations
+     SET status = 'cancelled',
+         next_retry_at = NULL,
+         updated_at = ?
+     WHERE id = ?
+       AND status IN ('pending', 'applying', 'failed');`,
+    [now, id]
+  );
+
+  return {
+    ...current,
+    status: "cancelled",
+    nextRetryAt: null,
+    updatedAt: now
+  };
 }
 
 export function pauseAccountForMutationAuthFailure(

@@ -204,6 +204,12 @@ export class CalendarLocalRepository extends TaskLocalRepository {
           now
         })
       ]);
+      this.recordHistory({
+        kind: "event.create",
+        resourceId: id,
+        summary: "Created calendar event",
+        metadata: { queued: true, calendarId: calendar.id }
+      });
 
       return this.getCalendarEvent(id);
     });
@@ -267,6 +273,12 @@ export class CalendarLocalRepository extends TaskLocalRepository {
           now
         })
       ]);
+      this.recordHistory({
+        kind: "event.edit",
+        resourceId: existing.eventId,
+        summary: "Edited calendar event",
+        metadata: { queued: true, calendarId: targetCalendar.id }
+      });
 
       return this.getCalendarEvent(existing.eventId);
     });
@@ -304,6 +316,12 @@ export class CalendarLocalRepository extends TaskLocalRepository {
           now
         })
       ]);
+      this.recordHistory({
+        kind: "event.delete",
+        resourceId: existing.eventId,
+        summary: "Deleted calendar event",
+        metadata: { queued: true, calendarId: existing.calendarId }
+      });
 
       return {
         id: existing.eventId,

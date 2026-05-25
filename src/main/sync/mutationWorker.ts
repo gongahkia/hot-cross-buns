@@ -6,6 +6,7 @@ import {
   type GoogleCalendarWriteTransport,
   type GoogleTasksWriteTransport
 } from "../google";
+import { appLogger } from "../diagnostics/appLogger";
 import type {
   CalendarEventMutationTarget,
   GoogleSyncRepository,
@@ -119,6 +120,7 @@ export class GooglePendingMutationWorker {
         now: this.now().toISOString(),
         limit
       });
+      appLogger.info("mutation drain start", "mutation", { count: mutations.length });
 
       for (const queued of mutations) {
         const accountId = queued.accountId;
@@ -139,6 +141,11 @@ export class GooglePendingMutationWorker {
         try {
           await this.applyMutation(mutation);
           this.repository.markMutationApplied(mutation.id, this.now().toISOString());
+          appLogger.info("mutation applied", "mutation", {
+            operation: mutation.operation,
+            resourceType: mutation.resourceType,
+            resourceId: mutation.resourceId
+          });
           appliedCount += 1;
         } catch (thrown) {
           const failure = this.classifyFailure(thrown, mutation.attemptCount + 1);
@@ -158,6 +165,13 @@ export class GooglePendingMutationWorker {
             errorMessage: failure.message,
             nextRetryAt: failure.nextRetryAt,
             now: this.now().toISOString()
+          });
+          appLogger.warn("mutation failed", "mutation", {
+            operation: mutation.operation,
+            resourceType: mutation.resourceType,
+            resourceId: mutation.resourceId,
+            errorCode: failure.code,
+            attemptCount: mutation.attemptCount + 1
           });
 
           if (failure.nextRetryAt !== undefined) {

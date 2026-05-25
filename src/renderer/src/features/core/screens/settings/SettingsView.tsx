@@ -31,7 +31,11 @@ import { recoveryPhrase } from "./settingsUtils";
 
 type SettingsTabId = "general" | "profile" | "appearance" | "hotkeys" | "alerts" | "advanced" | "about";
 
-export function SettingsView(): JSX.Element {
+export function SettingsView({
+  onOpenDiagnostics
+}: {
+  onOpenDiagnostics?: () => void;
+} = {}): JSX.Element {
   const source = useCoreViewModelSource();
   const { open: openInspector } = useInspector();
   const [confirmation, setConfirmation] = useState<{
@@ -164,6 +168,11 @@ export function SettingsView(): JSX.Element {
   }
 
   async function openDiagnosticsDetails(): Promise<void> {
+    if (onOpenDiagnostics) {
+      onOpenDiagnostics();
+      return;
+    }
+
     const summaryResult = diagnostics ? null : await window.hcb?.diagnostics.summary();
     const freshDiagnostics = diagnostics ?? (summaryResult?.ok ? summaryResult.data : null);
     const payload = sanitizedJson(freshDiagnostics ?? { rows: source.settingsSections[0]?.rows ?? [] });

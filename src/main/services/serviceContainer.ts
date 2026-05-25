@@ -1,8 +1,10 @@
 import { createAppSqliteConnection, type SqliteConnection } from "../data/sqliteConnection";
 import { dirname } from "node:path";
+import { appLogger } from "../diagnostics/appLogger";
 import { MacOsKeychainSecretStore, UnsupportedSecretStore, type SecretStore } from "../credentials/secretStore";
 import { runLocalDataMigrations, type MigrationResult } from "../data/migrations";
 import {
+  LocalHistoryRepository,
   LocalPerformanceRepository,
   LocalPlannerRepository,
   LocalSettingsRepository
@@ -45,6 +47,7 @@ export interface LocalDataService {
   plannerRepository: LocalPlannerRepository;
   settingsRepository: LocalSettingsRepository;
   syncRepository: GoogleSyncRepository;
+  historyRepository: LocalHistoryRepository;
   performanceRepository: LocalPerformanceRepository;
 }
 
@@ -97,6 +100,7 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
   const defaultTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const migrations = runLocalDataMigrations(connection, { defaultTimeZone });
   const performanceRepository = new LocalPerformanceRepository(connection);
+  const historyRepository = new LocalHistoryRepository(connection);
   const plannerRepository = new LocalPlannerRepository(connection, performanceRepository);
   const settingsRepository = new LocalSettingsRepository(connection);
   const syncRepository = new GoogleSyncRepository(connection, { defaultTimeZone });
@@ -125,6 +129,7 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
     plannerRepository,
     settingsRepository,
     syncRepository,
+    historyRepository,
     syncTasksTransport: options.syncTasksTransport ?? runtimeTasksTransport,
     syncCalendarTransport: options.syncCalendarTransport ?? runtimeCalendarTransport,
     syncTasksWriteTransport: options.syncTasksWriteTransport ?? runtimeTasksTransport,
@@ -174,13 +179,20 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
       get: () => sqliteDomain.settings.get(),
       update: async (request) => {
         const snapshot = await sqliteDomain.settings.update(request);
+        historyRepository.enforceRetention(snapshot.historyStorageCap);
         nativeShell.applySettings(snapshot);
         syncScheduler?.applySettings(snapshot);
         await mcpController.applySettings(snapshot);
         return snapshot;
       },
       recoveryAction: async (request) => {
+        appLogger.info("recovery action requested", "settings", { action: request.action });
         const response = await sqliteDomain.settings.recoveryAction(request);
+        historyRepository.record({
+          kind: `recovery.${request.action}`,
+          summary: "Ran recovery action",
+          metadata: { action: request.action, destructive: response.destructive }
+        });
 
         if (request.action === "resetMcpToken") {
           await mcpController.resetToken();
@@ -232,6 +244,7 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
       plannerRepository,
       settingsRepository,
       syncRepository,
+      historyRepository,
       performanceRepository
     },
     performance: performanceRepository,

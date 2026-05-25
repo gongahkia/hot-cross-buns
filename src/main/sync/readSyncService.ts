@@ -5,6 +5,7 @@ import type {
   GoogleTasksReadTransport
 } from "../google";
 import { GoogleApiError } from "../google";
+import { appLogger } from "../diagnostics/appLogger";
 import { SyncBackoffPolicy } from "./backoffPolicy";
 import type { GoogleSyncRepository } from "./readSyncRepository";
 import type {
@@ -76,6 +77,7 @@ export class GoogleReadSyncService {
 
       events.push(progressEvent);
       this.repository.recordProgressEvent(progressEvent);
+      appLogger.info("sync progress", "sync", progressEvent);
       this.eventSink?.(progressEvent);
     };
 

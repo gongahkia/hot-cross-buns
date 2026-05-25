@@ -36,14 +36,17 @@ import {
 import {
   calendarMutationTarget as readCalendarMutationTarget,
   calendarEventMutationTarget as readCalendarEventMutationTarget,
+  cancelPendingMutation as cancelStoredPendingMutation,
   claimPendingMutation as claimStoredPendingMutation,
   enqueuePendingMutation as enqueueStoredPendingMutation,
+  listActivePendingMutations as listStoredActivePendingMutations,
   listDuePendingMutations as listStoredDuePendingMutations,
   markMutationApplied as markStoredMutationApplied,
   markMutationFailed as markStoredMutationFailed,
   pauseAccountForMutationAuthFailure as pauseStoredAccountForMutationAuthFailure,
   pendingMutationById as readPendingMutationById,
   pendingMutationDiagnostics as readPendingMutationDiagnostics,
+  retryPendingMutation as retryStoredPendingMutation,
   taskListMutationTarget as readTaskListMutationTarget,
   taskMutationTarget as readTaskMutationTarget
 } from "./mutations";
@@ -181,6 +184,10 @@ export class GoogleSyncRepository {
     return listStoredDuePendingMutations(this.connection, options);
   }
 
+  listActivePendingMutations(options: { limit?: number } = {}): PendingGoogleMutation[] {
+    return listStoredActivePendingMutations(this.connection, options);
+  }
+
   pendingMutationById(id: string): PendingGoogleMutation | null {
     return readPendingMutationById(this.connection, id);
   }
@@ -202,6 +209,14 @@ export class GoogleSyncRepository {
     now: string;
   }): void {
     markStoredMutationFailed(this.connection, input);
+  }
+
+  retryPendingMutation(id: string, now: string): PendingGoogleMutation | null {
+    return retryStoredPendingMutation(this.connection, id, now);
+  }
+
+  cancelPendingMutation(id: string, now: string): PendingGoogleMutation | null {
+    return cancelStoredPendingMutation(this.connection, id, now);
   }
 
   pauseAccountForMutationAuthFailure(input: {

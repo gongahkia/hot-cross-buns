@@ -12,6 +12,7 @@ const bearerPattern = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const oauthCodePattern = /\b(code|code_verifier|codeVerifier|state)=([^&\s]+)/gi;
 const googleApiKeyPattern = /\bAIza[0-9A-Za-z_-]{20,}\b/g;
 const likelyJwtPattern = /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{8,}\b/g;
+const emailPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const macUserPathPattern = /\/Users\/[^/\s]+/g;
 const windowsUserPathPattern = /[A-Z]:\\Users\\[^\\\s]+/gi;
 const homeDirectory = typeof process === "undefined" ? undefined : process.env.HOME;
@@ -35,6 +36,7 @@ export function redactSensitiveText(value: string, maxLength = MAX_REDACTED_TEXT
     .replace(oauthCodePattern, (_match, key: string) => `${key}=${REDACTED_VALUE}`)
     .replace(googleApiKeyPattern, REDACTED_VALUE)
     .replace(likelyJwtPattern, REDACTED_VALUE)
+    .replace(emailPattern, REDACTED_VALUE)
     .replace(macUserPathPattern, "~")
     .replace(windowsUserPathPattern, "~")
     .replace(/[\r\n]+/g, " ")

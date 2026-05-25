@@ -271,6 +271,12 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
           now
         })
       ]);
+      this.recordHistory({
+        kind: "task.create",
+        resourceId: id,
+        summary: "Created task",
+        metadata: { queued: true, taskListId: list.id }
+      });
 
       return this.getTask(id);
     });
@@ -406,6 +412,12 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
       }
 
       this.connection.executeTransaction(operations);
+      this.recordHistory({
+        kind: "task.edit",
+        resourceId: request.id,
+        summary: "Edited task",
+        metadata: { queued: googleBackedPatch, taskListId: targetList.id }
+      });
 
       return this.getTask(request.id);
     });
@@ -459,6 +471,12 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
           now
         })
       ]);
+      this.recordHistory({
+        kind: "task.delete",
+        resourceId: request.id,
+        summary: "Deleted task",
+        metadata: { queued: true, taskListId: existing.listId }
+      });
 
       return { id: request.id, queued: true, revision: now };
     });
@@ -493,6 +511,12 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
           now
         })
       ]);
+      this.recordHistory({
+        kind: "task_list.create",
+        resourceId: id,
+        summary: "Created task list",
+        metadata: { queued: true }
+      });
 
       return this.requireTaskListSummary(id);
     });
@@ -526,6 +550,12 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
           now
         })
       ]);
+      this.recordHistory({
+        kind: "task_list.rename",
+        resourceId: request.id,
+        summary: "Renamed task list",
+        metadata: { queued: true }
+      });
 
       return this.requireTaskListSummary(request.id);
     });
@@ -565,6 +595,12 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
           now
         })
       ]);
+      this.recordHistory({
+        kind: "task_list.delete",
+        resourceId: request.id,
+        summary: "Deleted task list",
+        metadata: { queued: true }
+      });
 
       return { id: request.id, queued: true, revision: now };
     });
@@ -602,6 +638,12 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
           now
         })
       ]);
+      this.recordHistory({
+        kind: completed ? "task.complete" : "task.reopen",
+        resourceId: id,
+        summary: completed ? "Completed task" : "Reopened task",
+        metadata: { queued: true, taskListId: existing.listId }
+      });
 
       return this.getTask(id);
     });

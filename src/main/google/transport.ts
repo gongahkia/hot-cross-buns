@@ -1,4 +1,5 @@
 import { redactErrorMessage } from "@shared/redaction";
+import { appLogger } from "../diagnostics/appLogger";
 
 export type GoogleHttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
@@ -127,6 +128,7 @@ export class GoogleHttpApiTransport implements GoogleApiTransport {
   }
 
   private async perform(request: GoogleApiRequest): Promise<Response> {
+    const startedAt = Date.now();
     const accessToken = await this.tokenProvider.accessToken(this.accountId);
     const headers = new Headers({
       Accept: "application/json",
@@ -149,8 +151,19 @@ export class GoogleHttpApiTransport implements GoogleApiTransport {
     let response: Response;
 
     try {
+      appLogger.info("google request start", "google", {
+        method: init.method ?? "GET",
+        path: request.path,
+        queryCount: Object.keys(request.query ?? {}).length,
+        queryNames: Object.keys(request.query ?? {}).sort().join(",")
+      });
       response = await this.fetchImpl(this.buildUrl(request), init);
     } catch {
+      appLogger.warn("google request failed before response", "google", {
+        method: init.method ?? "GET",
+        path: request.path,
+        durationMs: Date.now() - startedAt
+      });
       throw new GoogleApiError({
         kind: "transport",
         message: "Google request failed before a response was received"
@@ -159,6 +172,13 @@ export class GoogleHttpApiTransport implements GoogleApiTransport {
 
     if (!response.ok) {
       const body = await safeResponseText(response);
+      appLogger.warn("google request failed", "google", {
+        method: init.method ?? "GET",
+        path: request.path,
+        status: response.status,
+        durationMs: Date.now() - startedAt,
+        responseBodyBytes: Buffer.byteLength(body)
+      });
 
       throw GoogleApiError.fromHttpStatus(
         response.status,
@@ -166,6 +186,12 @@ export class GoogleHttpApiTransport implements GoogleApiTransport {
         retryAfterHeaderMs(response.headers.get("retry-after"))
       );
     }
+    appLogger.info("google request succeeded", "google", {
+      method: init.method ?? "GET",
+      path: request.path,
+      status: response.status,
+      durationMs: Date.now() - startedAt
+    });
 
     return response;
   }

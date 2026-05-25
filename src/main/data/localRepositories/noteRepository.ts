@@ -75,6 +75,12 @@ export class NoteLocalRepository extends ScheduledTaskBlockLocalRepository {
       );
 
       this.reindexNoteLinksAndProperties(id, body, now);
+      this.recordHistory({
+        kind: "note.create",
+        resourceId: id,
+        summary: "Created note",
+        metadata: { queued: false }
+      });
 
       return this.getNote(id);
     });
@@ -99,6 +105,12 @@ export class NoteLocalRepository extends ScheduledTaskBlockLocalRepository {
       );
 
       this.reindexNoteLinksAndProperties(request.id, nextBody, now);
+      this.recordHistory({
+        kind: "note.edit",
+        resourceId: request.id,
+        summary: "Edited note",
+        metadata: { queued: false }
+      });
 
       return this.getNote(request.id);
     });
@@ -255,6 +267,12 @@ export class NoteLocalRepository extends ScheduledTaskBlockLocalRepository {
       if (result.changes === 0) {
         throw notFound("Note was not found.");
       }
+      this.recordHistory({
+        kind: "note.delete",
+        resourceId: request.id,
+        summary: "Deleted note",
+        metadata: { queued: false }
+      });
 
       return {
         id: request.id,

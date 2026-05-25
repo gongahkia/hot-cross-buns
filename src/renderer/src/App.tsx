@@ -9,6 +9,7 @@ import {
 import {
   Bell,
   Command,
+  Gauge,
   PanelLeftClose,
   PanelLeftOpen,
   RefreshCw,
@@ -21,6 +22,7 @@ import { InspectorProvider, InspectorShell } from "./components/Inspector";
 import { Badge, Button, IconButton, StatusBanner, cx } from "./components/primitives";
 import { getPlannerSection, primaryPlannerSections, type SectionId } from "./data/mockPlanner";
 import { getAppNotifications, type AppNotification, type AppNotificationTone } from "./features/core/appNotifications";
+import { DiagnosticsOverlay } from "./features/core/DiagnosticsOverlay";
 import { SectionContent, SettingsView, type TaskSurfaceCommand } from "./features/core/CoreScreens";
 import {
   CoreDataProvider,
@@ -246,6 +248,7 @@ function AppShell(): JSX.Element {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [taskCommand, setTaskCommand] = useState<TaskSurfaceCommand | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [healthLabel, setHealthLabel] = useState("Starting");
@@ -304,7 +307,15 @@ function AppShell(): JSX.Element {
   const openSettingsPanel = useCallback((): void => {
     setCommandPaletteOpen(false);
     setNotificationsOpen(false);
+    setDiagnosticsOpen(false);
     setSettingsOpen(true);
+  }, []);
+
+  const openDiagnosticsPanel = useCallback((): void => {
+    setCommandPaletteOpen(false);
+    setNotificationsOpen(false);
+    setSettingsOpen(false);
+    setDiagnosticsOpen(true);
   }, []);
 
   const navigateOrOpenSettings = useCallback(
@@ -322,13 +333,21 @@ function AppShell(): JSX.Element {
   const openCommandPalette = useCallback((): void => {
     commandPaletteOpenStartedAt.current = rendererNow();
     setNotificationsOpen(false);
+    setDiagnosticsOpen(false);
     setSettingsOpen(false);
     setCommandPaletteOpen(true);
   }, []);
 
   const toggleNotificationsPanel = useCallback((): void => {
     setSettingsOpen(false);
+    setDiagnosticsOpen(false);
     setNotificationsOpen((open) => !open);
+  }, []);
+
+  const toggleDiagnosticsPanel = useCallback((): void => {
+    setSettingsOpen(false);
+    setNotificationsOpen(false);
+    setDiagnosticsOpen((open) => !open);
   }, []);
 
   const toggleSidebar = useCallback((): void => {
@@ -402,6 +421,11 @@ function AppShell(): JSX.Element {
         return true;
       }
 
+      if (command.id === "diagnostics.copy") {
+        openDiagnosticsPanel();
+        return true;
+      }
+
       if (command.sectionId === "settings") {
         openSettingsPanel();
         return true;
@@ -420,7 +444,7 @@ function AppShell(): JSX.Element {
       triggerTaskCommand(command.taskCommand as TaskSurfaceCommand["id"]);
       return true;
     },
-    [navigateToSection, openSettingsPanel, source.refresh, triggerTaskCommand]
+    [navigateToSection, openDiagnosticsPanel, openSettingsPanel, source.refresh, triggerTaskCommand]
   );
 
   const runHotkeyAction = useCallback(
@@ -504,6 +528,11 @@ function AppShell(): JSX.Element {
         return;
       }
 
+      if (actionId === "navigation.diagnostics.toggle") {
+        toggleDiagnosticsPanel();
+        return;
+      }
+
       if (actionId === "navigation.sidebar.toggle") {
         toggleSidebar();
         return;
@@ -524,6 +553,7 @@ function AppShell(): JSX.Element {
       navigateToPrimarySection,
       navigateToSection,
       openCommandPalette,
+      toggleDiagnosticsPanel,
       openSettingsPanel,
       source.refresh,
       source.runRecoveryAction,
@@ -660,6 +690,22 @@ function AppShell(): JSX.Element {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [notificationsOpen]);
+
+  useEffect(() => {
+    if (!diagnosticsOpen) {
+      return;
+    }
+
+    function handleKeyDown(event: globalThis.KeyboardEvent): void {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setDiagnosticsOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [diagnosticsOpen]);
 
   useEffect(() => {
     if (!settingsOpen) {
@@ -845,6 +891,20 @@ function AppShell(): JSX.Element {
               </span>
             </Button>
             <Button
+              aria-expanded={diagnosticsOpen}
+              aria-label="Diagnostics"
+              aria-keyshortcuts="Meta+D Control+D"
+              className="min-w-8"
+              onClick={toggleDiagnosticsPanel}
+              title="Diagnostics"
+              variant={diagnosticsOpen ? "secondary" : "ghost"}
+            >
+              <Gauge aria-hidden="true" size={15} />
+              <span className="hidden rounded-hcbSm border border-border px-1.5 font-mono text-[var(--text-xs)] text-text-muted md:inline">
+                {displayAccelerator(source.settings.keybindings["navigation.diagnostics.toggle"])}
+              </span>
+            </Button>
+            <Button
               aria-label="Reload"
               aria-keyshortcuts="Meta+R Control+R"
               className="min-w-8"
@@ -926,9 +986,13 @@ function AppShell(): JSX.Element {
           onClose={() => setNotificationsOpen(false)}
         />
       ) : null}
+      {diagnosticsOpen ? (
+        <DiagnosticsOverlay onClose={() => setDiagnosticsOpen(false)} />
+      ) : null}
       {settingsOpen ? (
         <SettingsOverlay
           dialogRef={settingsDialogRef}
+          onOpenDiagnostics={openDiagnosticsPanel}
           onClose={() => setSettingsOpen(false)}
         />
       ) : null}
@@ -1033,9 +1097,11 @@ function NotificationsOverlay({
 
 function SettingsOverlay({
   dialogRef,
+  onOpenDiagnostics,
   onClose
 }: {
   dialogRef: RefObject<HTMLElement>;
+  onOpenDiagnostics: () => void;
   onClose: () => void;
 }): JSX.Element {
   return (
@@ -1071,7 +1137,7 @@ function SettingsOverlay({
         </header>
 
         <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
-          <SettingsView />
+          <SettingsView onOpenDiagnostics={onOpenDiagnostics} />
         </div>
       </section>
     </div>

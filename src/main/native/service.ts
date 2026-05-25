@@ -170,6 +170,12 @@ export class NativeShellService implements NativeDomainService {
     return permission;
   }
 
+  rescheduleNotificationsForDiagnostics(): NativeCapabilitiesResponse["notificationsStatus"] {
+    this.scheduleNotificationsFromCache();
+
+    return structuredClone(this.status.notificationsStatus);
+  }
+
   handleDeepLink(rawUrl: string): boolean {
     const action = parseHotCrossBunsDeepLink(rawUrl);
 

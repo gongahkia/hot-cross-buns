@@ -1,6 +1,7 @@
 import { app, BrowserWindow, session } from "electron";
 import { join } from "node:path";
 import { IPC_CHANNELS, type NativeAction } from "@shared/ipc/contracts";
+import { appLogger } from "./diagnostics/appLogger";
 import { registerHcbIpc } from "./ipc";
 import { brandAssetPath } from "./native/brandAssets";
 import { createElectronMacNativeAdapter } from "./native/electronMacAdapter";
@@ -25,6 +26,10 @@ if (process.env.HCB_USER_DATA_DIR && !app.isPackaged) {
 app.setName(macAppDisplayName);
 
 markStartupTiming("processStartedMs");
+appLogger.info("app launch", "misc", {
+  version: app.getVersion(),
+  launchMode: app.isPackaged ? "packaged" : "development"
+});
 
 app.on("open-url", (event, url) => {
   event.preventDefault();
@@ -191,6 +196,8 @@ function createMainWindow(): BrowserWindow {
 
 app.whenReady().then(() => {
   markStartupTiming("appReadyMs");
+  appLogger.configure({ logsDirectory: nativeAdapter.appPaths().logsDirectory });
+  appLogger.info("app ready", "misc");
   configureSessionHardening(session.defaultSession, { isPackaged: app.isPackaged });
   services = createServiceContainer({
     appPaths: nativeAdapter.appPaths(),

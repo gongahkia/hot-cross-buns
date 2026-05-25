@@ -119,7 +119,7 @@ describe("App settings and onboarding", () => {
     });
   });
 
-  it("opens sanitized diagnostics details in the inspector", async () => {
+  it("opens the diagnostics workspace from settings", async () => {
     const api = seededHcb();
     const base = await api.diagnostics.summary();
     if (!base.ok) {
@@ -138,12 +138,11 @@ describe("App settings and onboarding", () => {
     await goToSection("Settings");
     await user.click(screen.getByRole("button", { name: /Open diagnostics/ }));
 
-    const inspector = await screen.findByTestId("inspector-shell");
-    expect(inspector).toHaveAttribute("data-inspector-kind", "diagnostics");
-    const json = screen.getByLabelText("Sanitized diagnostics JSON");
-    expect(json).toHaveTextContent("redaction");
-    expect(json).not.toHaveTextContent("raw-google-token");
-    expect(within(inspector).getByRole("button", { name: "Copy" })).toBeInTheDocument();
+    const dialog = await screen.findByRole("dialog", { name: "Diagnostics" });
+    expect(dialog).toBeInTheDocument();
+    expect(dialog).not.toHaveTextContent("raw-google-token");
+    expect(within(dialog).getByRole("button", { name: "Overview" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Support" })).toBeInTheDocument();
   });
 
   it("updates general settings controls through settings IPC", async () => {

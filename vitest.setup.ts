@@ -797,6 +797,73 @@ const hcbApi: HcbApi = {
           sensitiveBodies: "omitted" as const
         }
       })
+    ),
+    logs: vi.fn(async () =>
+      ok({
+        entries: [],
+        retainedEntryCount: 0,
+        persistedText: ""
+      })
+    ),
+    clearLogs: vi.fn(async () =>
+      ok({
+        clearedAt: now
+      })
+    ),
+    revealLogsFolder: vi.fn(async () =>
+      ok({
+        opened: true,
+        path: "/tmp/hot-cross-buns-2-test/logs",
+        message: "Logs folder opened."
+      })
+    ),
+    history: vi.fn(async () =>
+      ok({
+        entries: [],
+        retainedEntryCount: 0
+      })
+    ),
+    pendingMutations: vi.fn(async () =>
+      ok({
+        mutations: []
+      })
+    ),
+    retryPendingMutation: vi.fn(async (request) =>
+      ok({
+        id: request.id,
+        status: "pending" as const,
+        updatedAt: now
+      })
+    ),
+    cancelPendingMutation: vi.fn(async (request) =>
+      ok({
+        id: request.id,
+        status: "cancelled" as const,
+        updatedAt: now
+      })
+    ),
+    copyableSummary: vi.fn(async () =>
+      ok({
+        text: "Hot Cross Buns 2 diagnostics\nStatus: ok",
+        generatedAt: now
+      })
+    ),
+    exportBundle: vi.fn(async () =>
+      ok({
+        exported: true,
+        path: "/tmp/hot-cross-buns-2-test/diagnostics.txt",
+        message: "Diagnostic bundle exported."
+      })
+    ),
+    rescheduleNotifications: vi.fn(async () =>
+      ok({
+        status: {
+          state: "unsupported" as const,
+          permission: "unsupported" as const,
+          scheduledCount: 0
+        },
+        message: "Notification scheduling is unavailable in tests."
+      })
     )
   }
 };

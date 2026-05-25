@@ -196,6 +196,12 @@ export class ScheduledTaskBlockLocalRepository extends CalendarLocalRepository {
           now
         })
       ]);
+      this.recordHistory({
+        kind: "schedule.create",
+        resourceId: blockId,
+        summary: "Scheduled task block",
+        metadata: { queued: true, taskId: task.id, calendarId: calendar.id }
+      });
 
       return this.requireScheduledTaskBlock(blockId);
     });
@@ -281,6 +287,12 @@ export class ScheduledTaskBlockLocalRepository extends CalendarLocalRepository {
             ]
           }
         ]);
+        this.recordHistory({
+          kind: "schedule.repair",
+          resourceId: request.id,
+          summary: "Repaired scheduled task block",
+          metadata: { queued: true, taskId: task.id, calendarId: targetCalendar.id }
+        });
 
         return this.requireScheduledTaskBlock(request.id);
       }
@@ -348,6 +360,12 @@ export class ScheduledTaskBlockLocalRepository extends CalendarLocalRepository {
           ]
         }
       ]);
+      this.recordHistory({
+        kind: "schedule.move",
+        resourceId: request.id,
+        summary: "Moved scheduled task block",
+        metadata: { queued: true, calendarId: targetCalendar.id }
+      });
 
       return this.requireScheduledTaskBlock(request.id);
     });
@@ -398,6 +416,12 @@ export class ScheduledTaskBlockLocalRepository extends CalendarLocalRepository {
       }
 
       this.connection.executeTransaction(operations);
+      this.recordHistory({
+        kind: "schedule.delete",
+        resourceId: request.id,
+        summary: "Unscheduled task block",
+        metadata: { queued: deleteCalendarEvent && event !== undefined }
+      });
 
       return {
         id: request.id,

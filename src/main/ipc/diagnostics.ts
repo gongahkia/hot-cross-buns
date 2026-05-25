@@ -1,13 +1,20 @@
-import { app } from "electron";
+import { app, dialog, shell } from "electron";
+import { writeFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import {
   ipcContracts,
+  type DiagnosticsHistoryRequest,
+  type DiagnosticsLogsRequest,
+  type DiagnosticsPendingMutationsRequest,
   type DiagnosticsSummaryResponse,
   type DiagnosticsHealthResponse,
   type DiagnosticsPerformanceRequest,
   type LocalPerformanceTiming
 } from "@shared/ipc/contracts";
 import { DIAGNOSTIC_OMITTED_VALUE } from "@shared/redaction";
+import { HcbPublicError } from "@shared/ipc/result";
+import { redactDiagnosticText, redactDiagnosticsValue } from "./diagnosticsRedaction";
+import { appLogger } from "../diagnostics/appLogger";
 import { getStartupTimings, markStartupTiming } from "../startupTiming";
 import { appBuildMetadata } from "../buildMetadata";
 import { createNoopNativeAdapter } from "../native/noopAdapter";
@@ -101,6 +108,223 @@ export function createDiagnosticsIpcHandlers(
     {
       contract: ipcContracts.diagnostics.summary,
       handle: () => diagnosticsSummary(services, metrics, performanceTimings)
+    },
+    {
+      contract: ipcContracts.diagnostics.logs,
+      handle: (request) => {
+        const parsed = request as DiagnosticsLogsRequest;
+        return {
+          entries: appLogger.recentEntries(parsed.limit ?? 200, parsed.minimumLevel ?? "info"),
+          retainedEntryCount: appLogger.retainedEntryCount(),
+          persistedText: appLogger.loadPersistedLog(),
+          ...(appLogger.logsDirectory() === undefined ? {} : { logsDirectory: appLogger.logsDirectory() })
+        };
+      }
+    },
+    {
+      contract: ipcContracts.diagnostics.clearLogs,
+      handle: () => {
+        appLogger.clearLogs();
+        appLogger.info("logs cleared", "diagnostics");
+
+        return {
+          clearedAt: new Date().toISOString()
+        };
+      }
+    },
+    {
+      contract: ipcContracts.diagnostics.revealLogsFolder,
+      handle: async () => {
+        const directory = appLogger.logsDirectory();
+
+        if (directory === undefined) {
+          return {
+            opened: false,
+            message: "Log directory is unavailable for this runtime."
+          };
+        }
+
+        const error = await shell.openPath(directory);
+
+        return {
+          opened: error.length === 0,
+          path: directory,
+          message: error.length === 0 ? "Logs folder opened." : error
+        };
+      }
+    },
+    {
+      contract: ipcContracts.diagnostics.history,
+      handle: (request) => {
+        const parsed = request as DiagnosticsHistoryRequest;
+
+        return {
+          entries: services?.localData.historyRepository.listRecent(parsed.limit ?? 100) ?? [],
+          retainedEntryCount: services?.localData.historyRepository.count() ?? 0
+        };
+      }
+    },
+    {
+      contract: ipcContracts.diagnostics.pendingMutations,
+      handle: (request) => {
+        const parsed = request as DiagnosticsPendingMutationsRequest;
+
+        return {
+          mutations: (services?.localData.syncRepository.listActivePendingMutations({
+            limit: parsed.limit ?? 100
+          }) ?? []).map((mutation) => ({
+            id: mutation.id,
+            accountId: mutation.accountId,
+            resourceType: mutation.resourceType,
+            resourceId: mutation.resourceId,
+            operation: mutation.operation,
+            status:
+              mutation.status === "applying" || mutation.status === "failed"
+                ? mutation.status
+                : "pending",
+            attemptCount: mutation.attemptCount,
+            nextRetryAt: mutation.nextRetryAt,
+            lastErrorCode: mutation.lastErrorCode,
+            lastErrorMessage:
+              mutation.lastErrorMessage === null
+                ? null
+                : redactDiagnosticText(mutation.lastErrorMessage),
+            createdAt: mutation.createdAt,
+            updatedAt: mutation.updatedAt
+          }))
+        };
+      }
+    },
+    {
+      contract: ipcContracts.diagnostics.retryPendingMutation,
+      handle: (request) => {
+        const id = (request as { id: string }).id;
+        const now = new Date().toISOString();
+        const mutation = services?.localData.syncRepository.retryPendingMutation(id, now);
+
+        if (!mutation) {
+          throw new HcbPublicError({
+            code: "VALIDATION_ERROR",
+            message: "Pending mutation could not be retried.",
+            recoverable: true
+          });
+        }
+
+        services?.localData.historyRepository.record({
+          kind: "mutation.retry",
+          resourceId: mutation.id,
+          summary: "Retried pending mutation",
+          metadata: { operation: mutation.operation }
+        });
+
+        return {
+          id: mutation.id,
+          status: "pending" as const,
+          updatedAt: mutation.updatedAt
+        };
+      }
+    },
+    {
+      contract: ipcContracts.diagnostics.cancelPendingMutation,
+      handle: (request) => {
+        const id = (request as { id: string }).id;
+        const now = new Date().toISOString();
+        const mutation = services?.localData.syncRepository.cancelPendingMutation(id, now);
+
+        if (!mutation) {
+          throw new HcbPublicError({
+            code: "VALIDATION_ERROR",
+            message: "Pending mutation could not be cancelled.",
+            recoverable: true
+          });
+        }
+
+        services?.localData.historyRepository.record({
+          kind: "mutation.cancel",
+          resourceId: mutation.id,
+          summary: "Cancelled pending mutation",
+          metadata: { operation: mutation.operation }
+        });
+
+        return {
+          id: mutation.id,
+          status: "cancelled" as const,
+          updatedAt: mutation.updatedAt
+        };
+      }
+    },
+    {
+      contract: ipcContracts.diagnostics.copyableSummary,
+      handle: async () => {
+        const summary = await diagnosticsSummary(services, metrics, performanceTimings);
+        const text = buildDiagnosticSummaryText({
+          summary,
+          services,
+          metrics
+        });
+
+        return {
+          text,
+          generatedAt: new Date().toISOString()
+        };
+      }
+    },
+    {
+      contract: ipcContracts.diagnostics.exportBundle,
+      handle: async () => {
+        const summary = await diagnosticsSummary(services, metrics, performanceTimings);
+        const text = buildDiagnosticBundleText({
+          summary,
+          services,
+          metrics
+        });
+        const defaultPath = `hot-cross-buns-diagnostics-${filenameTimestamp()}.txt`;
+        const result = await dialog.showSaveDialog({
+          title: "Export diagnostic bundle",
+          defaultPath,
+          filters: [{ name: "Text", extensions: ["txt"] }]
+        });
+
+        if (result.canceled || result.filePath === undefined) {
+          return {
+            exported: false,
+            message: "Diagnostic bundle export was cancelled."
+          };
+        }
+
+        await writeFile(result.filePath, text, "utf8");
+        appLogger.info("diagnostic bundle exported", "diagnostics", { path: result.filePath });
+
+        return {
+          exported: true,
+          path: result.filePath,
+          message: "Diagnostic bundle exported."
+        };
+      }
+    },
+    {
+      contract: ipcContracts.diagnostics.rescheduleNotifications,
+      handle: () => {
+        const status = services?.nativeShell.rescheduleNotificationsForDiagnostics();
+
+        if (!status) {
+          throw new HcbPublicError({
+            code: "SERVICE_UNAVAILABLE",
+            message: "Native notification scheduling is unavailable.",
+            recoverable: true
+          });
+        }
+
+        appLogger.info("notifications rescheduled", "diagnostics", {
+          scheduledCount: status.scheduledCount,
+          state: status.state
+        });
+
+        return {
+          status,
+          message: status.message ?? "Notification schedule refreshed."
+        };
+      }
     }
   ];
 }
@@ -302,4 +526,109 @@ function redactionGuarantees(): DiagnosticsSummaryResponse["redaction"] {
     mcpBearerTokens: "redacted",
     sensitiveBodies: "omitted"
   };
+}
+
+function buildDiagnosticSummaryText(input: {
+  summary: DiagnosticsSummaryResponse;
+  services: ServiceContainer | undefined;
+  metrics: IpcMetricsRecorder;
+}): string {
+  const summary = input.summary;
+  const cachePath = input.services?.localData.connection.databasePath ?? "unavailable";
+  const lines = [
+    "Hot Cross Buns 2 Diagnostics",
+    `Generated: ${summary.generatedAt}`,
+    `Version: ${summary.build.version}`,
+    `Environment: ${summary.build.environment}`,
+    "",
+    "Status",
+    `Account: ${summary.account.state}`,
+    `Sync: ${summary.sync.state}`,
+    `Mode: ${summary.sync.mode}`,
+    `Last sync: ${summary.sync.lastCompletedAt ?? "Never"}`,
+    `Pending writes: ${summary.pendingMutations.totalCount}`,
+    "",
+    "Local data",
+    `Task lists: ${summary.cache.taskListCount}`,
+    `Tasks: ${summary.cache.taskCount}`,
+    `Calendars: ${summary.cache.calendarCount}`,
+    `Events: ${summary.cache.eventCount}`,
+    `Notes: ${summary.cache.noteCount}`,
+    `Sync checkpoints: ${summary.checkpoints.totalCount}`,
+    "",
+    "Native",
+    `Platform: ${summary.native.platform}`,
+    `Adapter: ${summary.native.adapterId}`,
+    `Notifications: ${summary.native.flags.supportsNotifications}`,
+    `Diagnostics: ${summary.native.flags.supportsDiagnosticsCollection}`,
+    "",
+    "Paths",
+    `Cache: ${cachePath}`,
+    `Logs: ${appLogger.logsDirectory() ?? "Unavailable"}`,
+    "",
+    "Redaction",
+    `Credentials: ${summary.redaction.credentials}`,
+    `Google payloads: ${summary.redaction.googlePayloads}`,
+    `MCP tokens: ${summary.redaction.mcpBearerTokens}`,
+    `Sensitive bodies: ${summary.redaction.sensitiveBodies}`,
+    "",
+    "IPC",
+    JSON.stringify(redactDiagnosticsValue(input.metrics.snapshot()), null, 2)
+  ];
+
+  return redactDiagnosticText(lines.join("\n"));
+}
+
+function buildDiagnosticBundleText(input: {
+  summary: DiagnosticsSummaryResponse;
+  services: ServiceContainer | undefined;
+  metrics: IpcMetricsRecorder;
+}): string {
+  const pendingMutations =
+    input.services?.localData.syncRepository.listActivePendingMutations({ limit: 200 }) ?? [];
+  const history = input.services?.localData.historyRepository.listRecent(200) ?? [];
+  const sections = [
+    "=== Hot Cross Buns 2 Diagnostic Bundle ===",
+    buildDiagnosticSummaryText(input),
+    "",
+    `=== Pending Mutations (${pendingMutations.length}) ===`,
+    safeDiagnosticJson(pendingMutations),
+    "",
+    `=== History (${history.length}) ===`,
+    history
+      .map((entry) =>
+        `${entry.timestamp} [${entry.kind}] ${entry.summary}${entry.metadataLine ? ` ${entry.metadataLine}` : ""}`
+      )
+      .join("\n") || "none",
+    "",
+    "=== Recent Logs ===",
+    appLogger.loadPersistedLog() || appLogger.recentEntries(500, "debug").map((entry) => entry.formattedLine).join("\n") || "none",
+    "",
+    "=== Native Capability Report ===",
+    safeDiagnosticJson(input.summary.native),
+    "",
+    "=== Build ===",
+    safeDiagnosticJson(input.summary.build)
+  ];
+
+  return redactDiagnosticText(sections.join("\n"));
+}
+
+function safeDiagnosticJson(value: unknown): string {
+  return redactDiagnosticText(JSON.stringify(redactDiagnosticsValue(value), null, 2));
+}
+
+function filenameTimestamp(): string {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, "0");
+
+  return [
+    now.getUTCFullYear(),
+    pad(now.getUTCMonth() + 1),
+    pad(now.getUTCDate()),
+    "-",
+    pad(now.getUTCHours()),
+    pad(now.getUTCMinutes()),
+    pad(now.getUTCSeconds())
+  ].join("");
 }

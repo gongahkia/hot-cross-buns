@@ -30,7 +30,7 @@ export interface AppLoggerInput {
   level: DiagnosticsLogLevel;
   category: string;
   message: string;
-  metadata?: Record<string, unknown>;
+  metadata?: object;
 }
 
 export const appLogger = {
@@ -39,19 +39,19 @@ export const appLogger = {
     ensureLogsDirectory();
   },
 
-  debug(message: string, category = "misc", metadata?: Record<string, unknown>): void {
+  debug(message: string, category = "misc", metadata?: object): void {
     log({ level: "debug", category, message, metadata });
   },
 
-  info(message: string, category = "misc", metadata?: Record<string, unknown>): void {
+  info(message: string, category = "misc", metadata?: object): void {
     log({ level: "info", category, message, metadata });
   },
 
-  warn(message: string, category = "misc", metadata?: Record<string, unknown>): void {
+  warn(message: string, category = "misc", metadata?: object): void {
     log({ level: "warn", category, message, metadata });
   },
 
-  error(message: string, category = "misc", metadata?: Record<string, unknown>): void {
+  error(message: string, category = "misc", metadata?: object): void {
     log({ level: "error", category, message, metadata });
   },
 
@@ -130,7 +130,7 @@ export function log(input: AppLoggerInput): void {
   }
 }
 
-function metadataText(metadata: Record<string, unknown> | undefined): string {
+function metadataText(metadata: object | undefined): string {
   if (!metadata || Object.keys(metadata).length === 0) {
     return "";
   }
