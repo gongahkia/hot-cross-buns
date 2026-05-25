@@ -1,4 +1,4 @@
-import type { HotkeyActionId } from "@shared/settingsCatalog";
+import type { HotkeyActionId } from "@shared/ipc/contracts";
 
 export interface HotkeyDefinition {
   id: HotkeyActionId;

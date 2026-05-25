@@ -262,6 +262,15 @@ export {
 } from "./contracts/native";
 
 export {
+  defaultHistoryCategoryVisibility,
+  defaultKeybindings,
+  historyCategoryIds,
+  hotkeyActionIds,
+  type HistoryCategoryId,
+  type HotkeyActionId
+} from "../settingsCatalog";
+
+export {
   diagnosticsCachedDataRenderedRequestSchema,
   diagnosticsHealthRequestSchema,
   diagnosticsHealthResponseSchema,
