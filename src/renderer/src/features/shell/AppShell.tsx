@@ -42,7 +42,7 @@ export function AppShell(): JSX.Element {
 
   const source = useCoreViewModelSource();
   useAppliedTheme(source.settings);
-  const [activeSectionId, setActiveSectionId] = useState<SectionId>("today");
+  const [activeSectionId, setActiveSectionId] = useState<SectionId>("calendar");
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [taskCommand, setTaskCommand] = useState<TaskSurfaceCommand | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -52,9 +52,11 @@ export function AppShell(): JSX.Element {
   const [healthLabel, setHealthLabel] = useState("Starting");
   const [searchQuery, setSearchQuery] = useState("");
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>([]);
+  const [visibleCalendarIds, setVisibleCalendarIds] = useState<string[]>([]);
   const shellVisibleReported = useRef(false);
   const commandPaletteOpenStartedAt = useRef<number | null>(null);
   const settingsDialogRef = useRef<HTMLElement | null>(null);
+  const calendarVisibilityInitialized = useRef(false);
 
   const activeSection = getPlannerSection(activeSectionId);
   const appNotifications = getAppNotifications(source);
@@ -68,6 +70,14 @@ export function AppShell(): JSX.Element {
       .map((section, index) => ({ section, shortcutKey: String(index + 1) }))
       .filter(({ section }) => !hidden.has(section.id));
   }, [source.settings.hiddenNavigationTabs]);
+  const availableCalendarIds = useMemo(
+    () => new Set(source.calendarSources.map((calendar) => calendar.id)),
+    [source.calendarSources]
+  );
+  const visibleCalendarIdSet = useMemo(
+    () => new Set(visibleCalendarIds.filter((calendarId) => availableCalendarIds.has(calendarId))),
+    [availableCalendarIds, visibleCalendarIds]
+  );
   const sidebarOnRight = source.settings.navigationPlacement === "right";
   const onboardingVisible =
     source.settings.setupCompletedAt === null &&
@@ -76,8 +86,26 @@ export function AppShell(): JSX.Element {
     source.dataState !== "error";
 
   const navigateToSection = useCallback((sectionId: SectionId): void => {
-    setActiveSectionId(sectionId);
+    setActiveSectionId(sectionId === "today" ? "calendar" : sectionId);
   }, []);
+
+  const toggleVisibleCalendar = useCallback((calendarId: string, selected: boolean): void => {
+    setVisibleCalendarIds((current) => {
+      const next = new Set(current);
+
+      if (selected) {
+        next.add(calendarId);
+      } else {
+        next.delete(calendarId);
+      }
+
+      return Array.from(next);
+    });
+  }, []);
+
+  const showAllCalendars = useCallback((): void => {
+    setVisibleCalendarIds(source.calendarSources.map((calendar) => calendar.id));
+  }, [source.calendarSources]);
 
   const dismissNotification = useCallback((id: string): void => {
     setDismissedNotificationIds((current) =>
@@ -220,7 +248,7 @@ export function AppShell(): JSX.Element {
         return;
       }
 
-      navigateToSection("today");
+      navigateToSection("calendar");
     },
     [navigateToSection, openSettingsPanel, source.refresh, triggerTaskCommand]
   );
@@ -229,7 +257,6 @@ export function AppShell(): JSX.Element {
     (command: PlannerAction): boolean => {
       if (command.id === "sync.refresh") {
         source.refresh();
-        navigateToSection("today");
         return true;
       }
 
@@ -289,7 +316,7 @@ export function AppShell(): JSX.Element {
       }
 
       if (actionId === "print.today") {
-        navigateToSection("today");
+        navigateToSection("calendar");
         window.setTimeout(() => window.print(), 0);
         return;
       }
@@ -311,7 +338,7 @@ export function AppShell(): JSX.Element {
       }
 
       if (actionId === "navigation.today") {
-        navigateToPrimarySection("today");
+        navigateToPrimarySection("calendar");
         return;
       }
 
@@ -395,6 +422,33 @@ export function AppShell(): JSX.Element {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (source.calendarSources.length === 0) {
+      setVisibleCalendarIds([]);
+      calendarVisibilityInitialized.current = false;
+      return;
+    }
+
+    if (!calendarVisibilityInitialized.current) {
+      const selectedCalendarIds = source.calendarSources
+        .filter((calendar) => calendar.selected)
+        .map((calendar) => calendar.id);
+
+      setVisibleCalendarIds(
+        selectedCalendarIds.length > 0
+          ? selectedCalendarIds
+          : source.calendarSources.map((calendar) => calendar.id)
+      );
+      calendarVisibilityInitialized.current = true;
+      return;
+    }
+
+    setVisibleCalendarIds((current) => {
+      const next = current.filter((calendarId) => availableCalendarIds.has(calendarId));
+      return next.length === current.length ? current : next;
+    });
+  }, [availableCalendarIds, source.calendarSources]);
 
   useEffect(() => {
     if (shellVisibleReported.current || !shellCanBeReported(source)) {
@@ -548,9 +602,12 @@ export function AppShell(): JSX.Element {
         <AppSidebar
           activeSectionId={activeSectionId}
           healthLabel={healthLabel}
+          onShowAllCalendars={showAllCalendars}
+          onToggleVisibleCalendar={toggleVisibleCalendar}
           onNavigateToSection={navigateToSection}
           sidebarOnRight={sidebarOnRight}
           source={source}
+          visibleCalendarIds={visibleCalendarIdSet}
           visiblePrimarySections={visiblePrimarySections}
         />
       ) : null}
@@ -583,6 +640,7 @@ export function AppShell(): JSX.Element {
               searchQuery={searchQuery}
               setSearchQuery={setSearchQuery}
               taskCommand={taskCommand}
+              visibleCalendarIds={visibleCalendarIdSet}
             />
           </RenderTimingBoundary>
         </section>

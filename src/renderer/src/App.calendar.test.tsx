@@ -16,6 +16,13 @@ import {
 } from "./test/appTestHelpers";
 
 describe("App calendar", () => {
+  function addTestUtcDays(day: string, offset: number): string {
+    const date = new Date(`${day}T00:00:00.000Z`);
+
+    date.setUTCDate(date.getUTCDate() + offset);
+    return date.toISOString().slice(0, 10);
+  }
+
   it("switches calendar agenda, day, week, and month shells", async () => {
     installHcb(seededHcb());
     const user = userEvent.setup();
@@ -27,6 +34,8 @@ describe("App calendar", () => {
     expect(within(agenda).getByText("Planner shell standup")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Share availability" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Share Availability" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Calendar context" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Calendar visibility" })).not.toBeInTheDocument();
 
     const tabs = screen.getByRole("tablist", { name: "Calendar views" });
     await user.click(within(tabs).getByRole("tab", { name: "Day" }));
@@ -173,6 +182,42 @@ describe("App calendar", () => {
     expect(within(monthGrid).getByRole("button", { name: "Launch freeze" })).toBeInTheDocument();
     expect(within(monthGrid).getByRole("button", { name: "Design sync" })).toBeInTheDocument();
     expect(within(monthGrid).getByText("2 more")).toBeInTheDocument();
+  });
+
+  it("renders multi-day all-day events as one spanning timeline segment", async () => {
+    const api = seededHcb();
+    api.calendar.listEvents = vi.fn(async () =>
+      ok({
+        items: [
+          {
+            id: "event-sleepover",
+            calendarId: "cal-product",
+            title: "Sleepover",
+            startsAt: `${todayDate}T00:00:00.000Z`,
+            endsAt: `${addTestUtcDays(todayDate, 3)}T00:00:00.000Z`,
+            allDay: true,
+            updatedAt: now
+          }
+        ],
+        page: { limit: 250, totalKnown: 1 }
+      })
+    );
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await goToSection("Calendar");
+    const tabs = screen.getByRole("tablist", { name: "Calendar views" });
+    await user.click(within(tabs).getByRole("tab", { name: "Multi-Day" }));
+
+    expect(await screen.findByRole("grid", { name: "Calendar multi-day view" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Sleepover" })).toHaveLength(1);
+
+    const segment = document.querySelector('[data-calendar-all-day-segment="event-sleepover"]') as HTMLElement;
+
+    expect(segment).toHaveAttribute("data-start-day-index", "0");
+    expect(segment).toHaveAttribute("data-day-span", "3");
+    expect(segment).toHaveAttribute("data-lane-index", "0");
   });
 
   it("opens calendar creation from keyboard-focused grid cells", async () => {
@@ -348,19 +393,16 @@ describe("App calendar", () => {
     const agenda = await screen.findByRole("list", { name: "Calendar agenda" });
     expect(await within(agenda).findByText("Planner shell standup")).toBeInTheDocument();
     expect(within(agenda).getByText("Engineering sync")).toBeInTheDocument();
-    expect(screen.getAllByText("UTC").length).toBeGreaterThan(0);
     expect(screen.getByRole("status", { name: "Calendar status" })).toBeInTheDocument();
-    expect(within(screen.getByRole("region", { name: "Calendar context" })).getByText("Planner shell standup")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Calendar context" })).not.toBeInTheDocument();
 
-    const visibility = screen.getByRole("group", { name: "Calendar visibility" });
-    expect(within(visibility).getByText("Shown")).toBeInTheDocument();
-    await user.click(within(visibility).getByLabelText(/Product/));
+    const visibility = screen.getByRole("group", { name: "Sidebar calendar visibility" });
+    await user.click(within(visibility).getByLabelText("Hide Product"));
 
     await waitFor(() => {
       expect(within(agenda).queryByText("Planner shell standup")).not.toBeInTheDocument();
       expect(within(agenda).getByText("Engineering sync")).toBeInTheDocument();
-      expect(within(visibility).getByText("Hidden")).toBeInTheDocument();
-      expect(within(visibility).getByLabelText(/Show Product/)).toBeInTheDocument();
+      expect(within(visibility).getByLabelText("Show Product")).toBeInTheDocument();
     });
   });
 

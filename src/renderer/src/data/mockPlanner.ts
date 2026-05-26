@@ -3,8 +3,7 @@ import {
   ListTodo,
   Search,
   Settings,
-  StickyNote,
-  SunMedium
+  StickyNote
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -30,14 +29,6 @@ export interface MockTask {
   completed: boolean;
 }
 
-export interface MockCalendarEvent {
-  id: string;
-  title: string;
-  calendar: string;
-  timeLabel: string;
-  location: string;
-}
-
 export interface MockNote {
   id: string;
   title: string;
@@ -60,14 +51,6 @@ export interface MockSetting {
 }
 
 export const plannerSections: PlannerSection[] = [
-  {
-    id: "today",
-    label: "Today",
-    title: "Today",
-    subtitle: "Daily agenda from local cache",
-    metric: "9 items",
-    icon: SunMedium
-  },
   {
     id: "tasks",
     label: "Tasks",
@@ -162,30 +145,6 @@ export const mockTasks: MockTask[] = [
   }
 ];
 
-export const mockEvents: MockCalendarEvent[] = [
-  {
-    id: "event-standup",
-    title: "Planner shell standup",
-    calendar: "Product",
-    timeLabel: "09:30",
-    location: "Local mock"
-  },
-  {
-    id: "event-focus",
-    title: "Focused implementation block",
-    calendar: "Engineering",
-    timeLabel: "11:00",
-    location: "Desk"
-  },
-  {
-    id: "event-review",
-    title: "Renderer acceptance review",
-    calendar: "QA",
-    timeLabel: "15:30",
-    location: "Codex"
-  }
-];
-
 export const mockNotes: MockNote[] = [
   {
     id: "note-cache-first",
@@ -274,7 +233,9 @@ export const mockSearchResults: MockSearchResult[] = [
 ];
 
 export function getPlannerSection(sectionId: SectionId): PlannerSection {
-  return plannerSections.find((section) => section.id === sectionId) ?? plannerSections[0];
+  return plannerSections.find((section) => section.id === sectionId) ??
+    plannerSections.find((section) => section.id === "calendar") ??
+    plannerSections[0];
 }
 
 export function priorityLabel(priority: Priority): string {
@@ -283,19 +244,4 @@ export function priorityLabel(priority: Priority): string {
   }
 
   return `${priority[0].toUpperCase()}${priority.slice(1)} priority`;
-}
-
-export function buildTodayRows(): Array<MockTask | MockCalendarEvent> {
-  return [
-    mockEvents[0],
-    mockTasks[0],
-    mockEvents[1],
-    mockTasks[1],
-    mockEvents[2],
-    mockTasks[2]
-  ];
-}
-
-export function isMockEvent(item: MockTask | MockCalendarEvent): item is MockCalendarEvent {
-  return "calendar" in item;
 }

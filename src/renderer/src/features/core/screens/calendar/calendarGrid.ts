@@ -9,10 +9,12 @@ import type {
 import type {
   CalendarDaySlot,
   CalendarEventDayIndex,
+  CalendarTimelineAllDaySegment,
   CalendarTimelineEventLayout,
   CalendarTimeBlock,
   VisibleCalendarDay,
   VisibleCalendarMonthWeek,
+  VisibleCalendarTimeline,
   VisibleCalendarTimelineDay
 } from "./types";
 
@@ -126,6 +128,12 @@ function calendarIsoDate(date: Date): string {
 
 function calendarDateFromIsoDate(day: string): Date {
   return new Date(`${day}T00:00:00.000Z`);
+}
+
+function calendarUtcDayOffset(fromDay: string, toDay: string): number {
+  return Math.round(
+    (calendarDateFromIsoDate(toDay).getTime() - calendarDateFromIsoDate(fromDay).getTime()) / 86_400_000
+  );
 }
 
 export function calendarTodayKey(): string {
@@ -440,6 +448,112 @@ export function visibleCalendarTimelineDays(
       timedEventLayouts: calendarTimelineEventLayouts(visibleDay.timedEvents, dayKey)
     };
   });
+}
+
+export function visibleCalendarTimeline(
+  days: CalendarDayViewModel[],
+  visibleCalendarIds: ReadonlySet<string>
+): VisibleCalendarTimeline {
+  const visibleDays = visibleCalendarTimelineDays(days, visibleCalendarIds);
+  const allDayLayout = calendarTimelineAllDayLayout(visibleDays.map(({ day }) => day), visibleCalendarIds);
+
+  return {
+    allDayOverflowCounts: allDayLayout.overflowCounts,
+    allDaySegments: allDayLayout.segments,
+    days: visibleDays
+  };
+}
+
+function calendarTimelineAllDayLayout(
+  days: CalendarDayViewModel[],
+  visibleCalendarIds: ReadonlySet<string>
+): { overflowCounts: number[]; segments: CalendarTimelineAllDaySegment[] } {
+  const dayKeys = days.map(calendarDayKey);
+  const firstDayKey = dayKeys[0];
+  const lastDayKey = dayKeys.at(-1);
+  const uniqueEvents = new Map<string, CalendarEventViewModel>();
+
+  if (!firstDayKey || !lastDayKey) {
+    return { overflowCounts: [], segments: [] };
+  }
+
+  for (const day of days) {
+    for (const event of day.events) {
+      if (event.allDay && visibleCalendarEvent(event, visibleCalendarIds)) {
+        uniqueEvents.set(event.id, event);
+      }
+    }
+  }
+
+  const candidates = [...uniqueEvents.values()]
+    .map((event) => {
+      const range = calendarEventRangeDayKeys(event);
+      const eventStartDay = range[0];
+      const eventEndDay = range.at(-1);
+
+      if (!eventStartDay || !eventEndDay || eventEndDay < firstDayKey || eventStartDay > lastDayKey) {
+        return null;
+      }
+
+      const startDayIndex = Math.max(0, calendarUtcDayOffset(firstDayKey, eventStartDay));
+      const endDayIndex = Math.min(days.length - 1, calendarUtcDayOffset(firstDayKey, eventEndDay));
+
+      if (startDayIndex > endDayIndex) {
+        return null;
+      }
+
+      return {
+        daySpan: endDayIndex - startDayIndex + 1,
+        endDayIndex,
+        endsAfterRange: eventEndDay > lastDayKey,
+        event,
+        startDayIndex,
+        startsBeforeRange: eventStartDay < firstDayKey
+      };
+    })
+    .filter((candidate): candidate is Omit<CalendarTimelineAllDaySegment, "laneIndex"> & {
+      endDayIndex: number;
+    } => candidate !== null)
+    .sort(
+      (left, right) =>
+        left.startDayIndex - right.startDayIndex ||
+        right.daySpan - left.daySpan ||
+        left.event.startsAt.localeCompare(right.event.startsAt) ||
+        left.event.endsAt.localeCompare(right.event.endsAt) ||
+        left.event.id.localeCompare(right.event.id)
+    );
+  const laneEnds: number[] = [];
+  const overflowCounts = Array.from({ length: days.length }, () => 0);
+  const segments: CalendarTimelineAllDaySegment[] = [];
+
+  for (const candidate of candidates) {
+    let laneIndex = laneEnds.findIndex((endDayIndex) => endDayIndex < candidate.startDayIndex);
+
+    if (laneIndex < 0) {
+      laneIndex = laneEnds.length;
+      laneEnds.push(candidate.endDayIndex);
+    } else {
+      laneEnds[laneIndex] = candidate.endDayIndex;
+    }
+
+    if (laneIndex >= calendarTimelineVisibleAllDayCount) {
+      for (let dayIndex = candidate.startDayIndex; dayIndex <= candidate.endDayIndex; dayIndex += 1) {
+        overflowCounts[dayIndex] += 1;
+      }
+      continue;
+    }
+
+    segments.push({
+      daySpan: candidate.daySpan,
+      endsAfterRange: candidate.endsAfterRange,
+      event: candidate.event,
+      laneIndex,
+      startDayIndex: candidate.startDayIndex,
+      startsBeforeRange: candidate.startsBeforeRange
+    });
+  }
+
+  return { overflowCounts, segments };
 }
 
 function calendarTimelineEventLayouts(

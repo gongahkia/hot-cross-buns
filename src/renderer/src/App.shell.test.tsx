@@ -57,7 +57,7 @@ describe("App shell", () => {
     render(<App />);
 
     expect(screen.getByTestId("app-shell")).toBeInTheDocument();
-    expect(screen.getAllByRole("heading", { name: "Today" })[0]).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Calendar" })).toBeInTheDocument();
 
     for (const label of ["Calendar", "Tasks", "Notes"]) {
       expect(within(primaryNavigation()).getByRole("button", { name: new RegExp(label) })).toBeInTheDocument();
@@ -68,7 +68,7 @@ describe("App shell", () => {
     expect(screen.getByRole("button", { name: /Notifications, \d+ active/ })).toBeInTheDocument();
 
     expect(await screen.findByText("Fresh local cache")).toBeInTheDocument();
-    expect(screen.getByText("Nothing cached yet")).toBeInTheDocument();
+    expect(screen.getByText("No agenda items")).toBeInTheDocument();
 
     await waitFor(() => {
       expect(originalHcb?.tasks.listTaskLists).toHaveBeenCalled();
@@ -172,7 +172,7 @@ describe("App shell", () => {
     render(<App />);
 
     expect(within(primaryNavigation()).queryByRole("button", { name: /Settings/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Calendar" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Settings" }));
 
@@ -184,7 +184,7 @@ describe("App shell", () => {
     expect(within(dialog).getByRole("button", { name: "Profile" })).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Appearance" })).toBeInTheDocument();
     expect(within(dialog).getByRole("heading", { level: 2, name: "Language" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Calendar" })).toBeInTheDocument();
 
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "Settings" })).not.toBeInTheDocument();
@@ -206,7 +206,7 @@ describe("App shell", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Quick capture" })).toBeInTheDocument();
 
     await runPaletteCommand(user, "refresh", /Refresh/);
-    expect(screen.getByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Calendar" })).toBeInTheDocument();
 
     await runPaletteCommand(user, "force", /Force full resync/);
     expect(await screen.findByRole("dialog", { name: "Settings" })).toBeInTheDocument();
@@ -258,7 +258,6 @@ describe("App shell", () => {
     render(<App />);
 
     expect(await screen.findByText("Local cache ready")).toBeInTheDocument();
-    expect(screen.getAllByText("Draft inbox triage rules")[0]).toBeInTheDocument();
     expect(screen.getByText("Planner shell standup")).toBeInTheDocument();
 
     await goToSection("Tasks");

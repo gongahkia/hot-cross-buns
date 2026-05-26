@@ -14,7 +14,6 @@ export type PlannerActionId =
   | "note.create"
   | "search.open"
   | "search.syntax"
-  | "navigation.today"
   | "navigation.tasks"
   | "navigation.calendar"
   | "navigation.notes"
@@ -94,7 +93,7 @@ export const plannerActions: PlannerAction[] = [
     description: "Open the task capture surface",
     category: "Create",
     keywords: ["capture", "inbox"],
-    sectionId: "today",
+    sectionId: "tasks",
     taskCommand: "task.quickCapture"
   },
   {
@@ -112,14 +111,6 @@ export const plannerActions: PlannerAction[] = [
     category: "Task",
     keywords: ["delete", "remove", "selected", "task"],
     sectionId: "tasks"
-  },
-  {
-    id: "navigation.today",
-    label: "Go to Today",
-    description: "Show the daily planner",
-    category: "Navigate",
-    keywords: ["today", "planner"],
-    sectionId: "today"
   },
   {
     id: "navigation.tasks",
@@ -235,7 +226,7 @@ export const plannerActions: PlannerAction[] = [
     description: "Refresh local cache and diagnostics",
     category: "Sync",
     keywords: ["sync", "refresh"],
-    sectionId: "today"
+    sectionId: "calendar"
   },
   {
     id: "sync.forceFullResync",

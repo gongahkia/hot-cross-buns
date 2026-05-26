@@ -4,7 +4,7 @@ import type { CalendarEventUpdateRequest } from "@shared/ipc/contracts";
 import { AlertTriangle, CalendarClock, CalendarPlus, ChevronLeft, ChevronRight, Save, Trash2, X } from "lucide-react";
 import type { PlannerActionId } from "../../../../actions/plannerActions";
 import { useInspector } from "../../../../components/Inspector";
-import { Button, IconButton, Panel, StatusBanner } from "../../../../components/primitives";
+import { Button, IconButton, StatusBanner } from "../../../../components/primitives";
 import { rendererNow, reportRendererTimingSince } from "../../../../hooks/useRenderTiming";
 import { useCoreViewModelSource } from "../../coreViewModelSource";
 import type { CalendarEventViewModel, CalendarViewId } from "../../coreViewModels";
@@ -21,8 +21,6 @@ import {
 import { CalendarAgendaView } from "./CalendarAgendaView";
 import { CalendarEventForm } from "./CalendarEventForm";
 import {
-  CalendarContextPanel,
-  CalendarSourceVisibilityList,
   CalendarStatusStrip,
   ShareAvailabilityPanel
 } from "./CalendarSidebar";
@@ -86,7 +84,11 @@ function calendarViewActionId(viewId: CalendarViewId): PlannerActionId {
   return `calendar.view.${viewId}` as PlannerActionId;
 }
 
-export function CalendarView(): JSX.Element {
+export function CalendarView({
+  visibleCalendarIds
+}: {
+  visibleCalendarIds: ReadonlySet<string>;
+}): JSX.Element {
   const source = useCoreViewModelSource();
   const {
     close: closeInspector,
@@ -119,9 +121,7 @@ export function CalendarView(): JSX.Element {
   const [availabilityError, setAvailabilityError] = useState<string | undefined>();
   const [availabilityBusyBlockCount, setAvailabilityBusyBlockCount] = useState<number | null>(null);
   const [availabilityPending, setAvailabilityPending] = useState(false);
-  const [visibleCalendarIds, setVisibleCalendarIds] = useState<string[]>([]);
   const calendarNavigationStartedAt = useRef<number | null>(null);
-  const calendarVisibilityInitialized = useRef(false);
   const calendarDraftRef = useRef<CalendarEventDraft | null>(draft);
   const calendarDraftBaselineRef = useRef<CalendarEventDraft | null>(draft);
   const calendarInspectorDirtyRef = useRef(false);
@@ -148,16 +148,12 @@ export function CalendarView(): JSX.Element {
     () => new Set(source.calendarSources.map((calendar) => calendar.id)),
     [source.calendarSources]
   );
-  const visibleCalendarIdSet = useMemo(
-    () => new Set(visibleCalendarIds.filter((calendarId) => availableCalendarIds.has(calendarId))),
-    [availableCalendarIds, visibleCalendarIds]
-  );
   const visibleCalendarEvents = useMemo(
     () =>
       source.calendarAgendaEvents.filter((event) =>
-        visibleCalendarEvent(event, visibleCalendarIdSet)
+        visibleCalendarEvent(event, visibleCalendarIds)
       ),
-    [source.calendarAgendaEvents, visibleCalendarIdSet]
+    [source.calendarAgendaEvents, visibleCalendarIds]
   );
   const visibleCalendarViewIds = useMemo(() => {
     const hidden = new Set(source.settings.hiddenCalendarViewModes);
@@ -191,9 +187,6 @@ export function CalendarView(): JSX.Element {
     () => calendarEventsForDay(visibleEventDayIndex, calendarAnchorDate),
     [calendarAnchorDate, visibleEventDayIndex]
   );
-  const visibleUpcomingEvent = useMemo(() => {
-    return visibleCalendarEvents[0] ?? null;
-  }, [visibleCalendarEvents]);
   const selectedAvailabilityCalendarIds = availabilityCalendarIds.filter((calendarId) =>
     availableCalendarIds.has(calendarId)
   );
@@ -361,33 +354,6 @@ export function CalendarView(): JSX.Element {
 
     setAvailabilityCalendarId(defaultCalendarId(source));
   }, [availabilityCalendarId, source, source.calendarSources]);
-
-  useEffect(() => {
-    if (source.calendarSources.length === 0) {
-      setVisibleCalendarIds([]);
-      calendarVisibilityInitialized.current = false;
-      return;
-    }
-
-    if (!calendarVisibilityInitialized.current) {
-      const selectedCalendarIds = source.calendarSources
-        .filter((calendar) => calendar.selected)
-        .map((calendar) => calendar.id);
-
-      setVisibleCalendarIds(
-        selectedCalendarIds.length > 0
-          ? selectedCalendarIds
-          : source.calendarSources.map((calendar) => calendar.id)
-      );
-      calendarVisibilityInitialized.current = true;
-      return;
-    }
-
-    setVisibleCalendarIds((current) => {
-      const next = current.filter((calendarId) => availableCalendarIds.has(calendarId));
-      return next.length === current.length ? current : next;
-    });
-  }, [availableCalendarIds, source.calendarSources]);
 
   useEffect(() => {
     scheduleRendererFrame(() => {
@@ -822,24 +788,6 @@ export function CalendarView(): JSX.Element {
     source.refresh();
   }
 
-  function toggleVisibleCalendar(calendarId: string, selected: boolean): void {
-    setVisibleCalendarIds((current) => {
-      const next = new Set(current);
-
-      if (selected) {
-        next.add(calendarId);
-      } else {
-        next.delete(calendarId);
-      }
-
-      return Array.from(next);
-    });
-  }
-
-  function showAllCalendars(): void {
-    setVisibleCalendarIds(source.calendarSources.map((calendar) => calendar.id));
-  }
-
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -909,7 +857,7 @@ export function CalendarView(): JSX.Element {
           ) : null}
           <CalendarStatusStrip
             source={source}
-            visibleCalendarCount={visibleCalendarIdSet.size}
+            visibleCalendarCount={visibleCalendarIds.size}
             visibleEventCount={visibleCalendarEvents.length}
           />
         </div>
@@ -935,58 +883,35 @@ export function CalendarView(): JSX.Element {
       <SectionChrome
         title="Calendar"
         sidebar={
-          <div className="grid gap-3">
-            <Panel
-              title="Calendars"
-              description="Visible sources"
-              action={
-                <Button onClick={showAllCalendars} size="sm" variant="ghost">
-                  Show all
-                </Button>
-              }
-            >
-              <CalendarSourceVisibilityList
-                calendars={source.calendarSources}
-                defaultTimeZone={source.settings.defaultTimeZone}
-                onToggle={toggleVisibleCalendar}
-                visibleCalendarIds={visibleCalendarIdSet}
-              />
-            </Panel>
-            <CalendarContextPanel
-              defaultTimeZone={source.settings.defaultTimeZone}
-              event={visibleUpcomingEvent}
-              onOpen={openEdit}
+          shareAvailabilityVisible && shareAvailabilityOpen ? (
+            <ShareAvailabilityPanel
+              calendarId={availabilityCalendarId}
+              calendars={source.calendarSources}
+              durationMinutes={availabilityDurationMinutes}
+              error={availabilityError}
+              onCalendarChange={setAvailabilityCalendarId}
+              onClose={() => setShareAvailabilityOpen(false)}
+              onCopySnippet={copyAvailabilitySnippet}
+              onCreateHolds={() => void createAvailabilityHolds()}
+              onDurationChange={setAvailabilityDurationMinutes}
+              onEndDateChange={setAvailabilityEndDate}
+              onExportAvailability={() => void exportAvailability()}
+              onRemoveSlot={removeAvailabilitySlot}
+              onStartDateChange={setAvailabilityStartDate}
+              onTitleChange={setAvailabilityTitle}
+              pending={availabilityHoldPending}
+              exportBusyBlockCount={availabilityBusyBlockCount}
+              exportPending={availabilityPending}
+              exportText={availabilityText}
+              pendingHoldCount={source.syncStatus.pendingMutationCount}
+              slots={availabilitySlots}
+              snippet={availabilitySnippet}
+              startDate={availabilityStartDate}
+              timeZone={source.settings.defaultTimeZone}
+              title={availabilityTitle}
+              endDate={availabilityEndDate}
             />
-            {shareAvailabilityVisible && shareAvailabilityOpen ? (
-              <ShareAvailabilityPanel
-                calendarId={availabilityCalendarId}
-                calendars={source.calendarSources}
-                durationMinutes={availabilityDurationMinutes}
-                error={availabilityError}
-                onCalendarChange={setAvailabilityCalendarId}
-                onClose={() => setShareAvailabilityOpen(false)}
-                onCopySnippet={copyAvailabilitySnippet}
-                onCreateHolds={() => void createAvailabilityHolds()}
-                onDurationChange={setAvailabilityDurationMinutes}
-                onEndDateChange={setAvailabilityEndDate}
-                onExportAvailability={() => void exportAvailability()}
-                onRemoveSlot={removeAvailabilitySlot}
-                onStartDateChange={setAvailabilityStartDate}
-                onTitleChange={setAvailabilityTitle}
-                pending={availabilityHoldPending}
-                exportBusyBlockCount={availabilityBusyBlockCount}
-                exportPending={availabilityPending}
-                exportText={availabilityText}
-                pendingHoldCount={source.syncStatus.pendingMutationCount}
-                slots={availabilitySlots}
-                snippet={availabilitySnippet}
-                startDate={availabilityStartDate}
-                timeZone={source.settings.defaultTimeZone}
-                title={availabilityTitle}
-                endDate={availabilityEndDate}
-              />
-            ) : null}
-          </div>
+          ) : undefined
         }
       >
         <div className="h-full min-h-0 overflow-auto pr-1">
@@ -1007,7 +932,7 @@ export function CalendarView(): JSX.Element {
               onMoveEvent={moveCalendarEvent}
               onOpen={openEdit}
               onResizeEvent={resizeCalendarEvent}
-              visibleCalendarIds={visibleCalendarIdSet}
+              visibleCalendarIds={visibleCalendarIds}
             />
           ) : null}
           {activeViewId === "multiDay" ? (
@@ -1022,7 +947,7 @@ export function CalendarView(): JSX.Element {
               onMoveEvent={moveCalendarEvent}
               onOpen={openEdit}
               onResizeEvent={resizeCalendarEvent}
-              visibleCalendarIds={visibleCalendarIdSet}
+              visibleCalendarIds={visibleCalendarIds}
             />
           ) : null}
           {activeViewId === "week" ? (
@@ -1035,7 +960,7 @@ export function CalendarView(): JSX.Element {
               onMoveEvent={moveCalendarEvent}
               onOpen={openEdit}
               onResizeEvent={resizeCalendarEvent}
-              visibleCalendarIds={visibleCalendarIdSet}
+              visibleCalendarIds={visibleCalendarIds}
             />
           ) : null}
           {activeViewId === "month" ? (
@@ -1043,7 +968,7 @@ export function CalendarView(): JSX.Element {
               weeks={calendarMonthWeeks}
               onCreate={openCreate}
               onOpen={openEdit}
-              visibleCalendarIds={visibleCalendarIdSet}
+              visibleCalendarIds={visibleCalendarIds}
             />
           ) : null}
         </div>

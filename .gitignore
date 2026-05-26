@@ -18,3 +18,5 @@ artifacts/screenshots
 
 .DS_Store
 *.log
+AGENTS.md
+CLAUDE.md

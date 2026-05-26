@@ -22,7 +22,7 @@ import {
   calendarTodayKey,
   hourSlotIso,
   hourSlotLabel,
-  visibleCalendarTimelineDays
+  visibleCalendarTimeline
 } from "./calendarGrid";
 import {
   allowCalendarDrop,
@@ -31,7 +31,9 @@ import {
   startCalendarEventDrag,
   startCalendarEventResizeDrag
 } from "./calendarDrag";
-import type { CalendarCreateSeed, CalendarTimeBlock } from "./types";
+import type { CalendarCreateSeed, CalendarTimeBlock, CalendarTimelineAllDaySegment } from "./types";
+
+const allDayLaneHeight = 28;
 
 function CalendarTimelineEventChip({
   className,
@@ -109,6 +111,13 @@ function timelineEventStyle({
   };
 }
 
+function allDaySegmentStyle(segment: CalendarTimelineAllDaySegment): CSSProperties {
+  return {
+    gridColumn: `${segment.startDayIndex + 1} / span ${segment.daySpan}`,
+    gridRow: `${segment.laneIndex + 1}`
+  };
+}
+
 function CalendarTimelineView({
   availabilityMode = false,
   availabilitySlots = [],
@@ -150,9 +159,15 @@ function CalendarTimelineView({
     startsAt: string;
   } | null>(null);
   const suppressNextClickRef = useRef(false);
-  const visibleDays = useMemo(
-    () => visibleCalendarTimelineDays(days, visibleCalendarIds),
+  const timeline = useMemo(
+    () => visibleCalendarTimeline(days, visibleCalendarIds),
     [days, visibleCalendarIds]
+  );
+  const visibleDays = timeline.days;
+  const hasAllDayOverflow = timeline.allDayOverflowCounts.some((count) => count > 0);
+  const allDayRowHeight = Math.max(
+    112,
+    calendarTimelineVisibleAllDayCount * allDayLaneHeight + (hasAllDayOverflow ? allDayLaneHeight : 0) + 16
   );
   const firstVisibleDayKey = visibleDays[0]
     ? calendarDayKey(visibleDays[0].day)
@@ -315,52 +330,94 @@ function CalendarTimelineView({
               ))}
             </div>
           </div>
-          <div className="grid min-h-28 grid-cols-[64px_minmax(0,1fr)] border-b border-border">
+          <div
+            className="grid grid-cols-[64px_minmax(0,1fr)] border-b border-border"
+            style={{ minHeight: allDayRowHeight }}
+          >
             <div className="border-r border-border px-2 py-3 text-[var(--text-xs)] font-semibold text-text-muted">
               All-day
             </div>
-            <div aria-label={`All-day events ${label}`} className="grid" role="group" style={{ gridTemplateColumns }}>
-              {visibleDays.map(({ allDayEvents, day }) => {
-                const dayKey = calendarDayKey(day);
-                const visibleEvents = allDayEvents.slice(0, calendarTimelineVisibleAllDayCount);
-                const overflowCount = Math.max(0, allDayEvents.length - visibleEvents.length);
+            <div
+              aria-label={`All-day events ${label}`}
+              className="relative"
+              role="group"
+              style={{ minHeight: allDayRowHeight }}
+            >
+              <div className="absolute inset-0 grid" style={{ gridTemplateColumns }}>
+                {visibleDays.map(({ day }) => {
+                  const dayKey = calendarDayKey(day);
 
-                return (
-                  <div
-                    className="grid min-h-28 content-start gap-1 border-r border-border bg-bg-tertiary px-2 py-2 last:border-r-0 hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                    key={day.id}
-                    onClick={() => {
-                      if (!availabilityMode) {
-                        onCreate({ startsAt: `${dayKey}T00:00:00.000Z`, allDay: true });
+                  return (
+                    <div
+                      className="border-r border-border bg-bg-tertiary last:border-r-0 hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                      key={day.id}
+                      onClick={() => {
+                        if (!availabilityMode) {
+                          onCreate({ startsAt: `${dayKey}T00:00:00.000Z`, allDay: true });
+                        }
+                      }}
+                      onDragOver={allowCalendarDrop}
+                      onDrop={(dragEvent) =>
+                        handleDrop(dragEvent, dayKey, `${dayKey}T00:00:00.000Z`, true)
                       }
-                    }}
-                    onDragOver={allowCalendarDrop}
-                    onDrop={(dragEvent) =>
-                      handleDrop(dragEvent, dayKey, `${dayKey}T00:00:00.000Z`, true)
-                    }
-                    onKeyDown={(event) =>
-                      !availabilityMode
-                        ? handleActivationKeyDown(event, () =>
-                            onCreate({ startsAt: `${dayKey}T00:00:00.000Z`, allDay: true })
-                          )
-                        : undefined
-                    }
-                    role="gridcell"
-                    tabIndex={0}
+                      onKeyDown={(event) =>
+                        !availabilityMode
+                          ? handleActivationKeyDown(event, () =>
+                              onCreate({ startsAt: `${dayKey}T00:00:00.000Z`, allDay: true })
+                            )
+                          : undefined
+                      }
+                      role="gridcell"
+                      tabIndex={0}
+                    />
+                  );
+                })}
+              </div>
+              <div
+                className="pointer-events-none relative grid gap-y-1 py-2"
+                style={{
+                  gridTemplateColumns,
+                  gridTemplateRows: `repeat(${
+                    calendarTimelineVisibleAllDayCount + (hasAllDayOverflow ? 1 : 0)
+                  }, ${allDayLaneHeight}px)`,
+                  minHeight: allDayRowHeight
+                }}
+              >
+                {timeline.allDaySegments.map((segment) => (
+                  <div
+                    className="pointer-events-auto min-w-0 px-2"
+                    data-calendar-all-day-segment={segment.event.id}
+                    data-day-span={segment.daySpan}
+                    data-ends-after-range={segment.endsAfterRange}
+                    data-lane-index={segment.laneIndex}
+                    data-start-day-index={segment.startDayIndex}
+                    data-starts-before-range={segment.startsBeforeRange}
+                    key={segment.event.id}
+                    style={allDaySegmentStyle(segment)}
                   >
-                    {visibleEvents.map((calendarEvent) => (
-                      <CalendarTimelineEventChip
-                        event={calendarEvent}
-                        key={calendarEvent.id}
-                        labelVariant="title"
-                        onMoveEvent={onMoveEvent}
-                        onOpen={onOpen}
-                      />
-                    ))}
-                    {overflowCount > 0 ? <CalendarOverflowChip count={overflowCount} /> : null}
+                    <CalendarTimelineEventChip
+                      event={segment.event}
+                      labelVariant="title"
+                      onMoveEvent={onMoveEvent}
+                      onOpen={onOpen}
+                    />
                   </div>
-                );
-              })}
+                ))}
+                {timeline.allDayOverflowCounts.map((count, dayIndex) =>
+                  count > 0 ? (
+                    <div
+                      className="min-w-0 px-2"
+                      key={`${visibleDays[dayIndex]?.day.id ?? dayIndex}-overflow`}
+                      style={{
+                        gridColumn: `${dayIndex + 1}`,
+                        gridRow: `${calendarTimelineVisibleAllDayCount + 1}`
+                      }}
+                    >
+                      <CalendarOverflowChip count={count} />
+                    </div>
+                  ) : null
+                )}
+              </div>
             </div>
           </div>
           <div className="relative">

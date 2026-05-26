@@ -4,7 +4,6 @@ import { NotesView } from "./screens/NotesView";
 import { SearchView } from "./screens/SearchView";
 import { SettingsView } from "./screens/SettingsView";
 import { TasksView, type TaskSurfaceCommand } from "./screens/TasksView";
-import { TodayView } from "./screens/TodayView";
 
 export { SettingsView };
 export type { TaskSurfaceCommand };
@@ -13,19 +12,21 @@ export function SectionContent({
   activeSectionId,
   searchQuery,
   setSearchQuery,
-  taskCommand
+  taskCommand,
+  visibleCalendarIds
 }: {
   activeSectionId: SectionId;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   taskCommand?: TaskSurfaceCommand | null;
+  visibleCalendarIds: ReadonlySet<string>;
 }): JSX.Element {
   if (activeSectionId === "tasks") {
     return <TasksView command={taskCommand} />;
   }
 
   if (activeSectionId === "calendar") {
-    return <CalendarView />;
+    return <CalendarView visibleCalendarIds={visibleCalendarIds} />;
   }
 
   if (activeSectionId === "notes") {
@@ -40,5 +41,5 @@ export function SectionContent({
     return <SettingsView />;
   }
 
-  return <TodayView />;
+  return <CalendarView visibleCalendarIds={visibleCalendarIds} />;
 }

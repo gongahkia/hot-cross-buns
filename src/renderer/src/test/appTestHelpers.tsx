@@ -61,7 +61,7 @@ export async function goToSection(label: string): Promise<void> {
   }
 
   if (label === "Today") {
-    await runPaletteCommand(user, "go to today", /Go to Today/);
+    await runPaletteCommand(user, "calendar agenda", /Calendar agenda view/);
     return;
   }
 
