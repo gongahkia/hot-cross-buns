@@ -8,6 +8,7 @@ import {
   installHcb,
   now,
   runPaletteCommand,
+  seededTaskDetail,
   seededHcb
 } from "./test/appTestHelpers";
 
@@ -201,6 +202,35 @@ describe("App tasks", () => {
     await user.keyboard("{Escape}");
     expect(screen.getByTestId("inspector-shell")).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Task title" })).toHaveValue("Draft inbox triage rules v2");
+  });
+
+  it("renders existing task notes as markdown in read-only details", async () => {
+    const api = seededHcb();
+    api.tasks.list = vi.fn(async () =>
+      ok({
+        items: [
+          {
+            ...seededTaskDetail("task-inbox-rules", {
+              notes: "# Checklist\n\n- [x] Capture **context**\n- [ ] Ship"
+            }),
+            listId: "list-inbox"
+          }
+        ],
+        page: { limit: 100, totalKnown: 1 }
+      })
+    );
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await goToSection("Tasks");
+    await user.click(await screen.findByRole("button", { name: /^Draft inbox triage rules / }));
+
+    const inspector = await screen.findByTestId("inspector-shell");
+    const preview = within(inspector).getByRole("region", { name: "Task notes preview" });
+    expect(within(preview).getByRole("heading", { name: "Checklist" })).toBeInTheDocument();
+    expect(within(preview).getByText("context")).toBeInTheDocument();
+    expect(within(preview).getAllByRole("checkbox")).toHaveLength(2);
   });
 
   it("reverts optimistic task creation and retries recoverable task errors", async () => {
