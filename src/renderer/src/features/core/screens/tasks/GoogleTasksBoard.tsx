@@ -4,6 +4,7 @@ import {
   Check,
   CheckCircle2,
   CornerDownRight,
+  ListPlus,
   MoreVertical,
   Paperclip,
   Plus,
@@ -133,6 +134,7 @@ export function GoogleTasksBoard({
   source,
   starred
 }: GoogleTasksBoardProps): JSX.Element {
+  const starredVisibleCount = activeRootTasks(source).filter((task) => starred.ids.has(task.id)).length;
   const columns = useMemo(() => {
     if (selectedView.kind === "starred") {
       return [
@@ -173,7 +175,7 @@ export function GoogleTasksBoard({
         selectedView={selectedView}
         setSelectedView={setSelectedView}
         source={source}
-        starredCount={starred.ids.size}
+        starredCount={starredVisibleCount}
       />
       <div className="min-h-0 min-w-0 overflow-hidden rounded-hcbLg bg-bg-secondary">
         <div
@@ -187,6 +189,7 @@ export function GoogleTasksBoard({
                 key={column.id}
                 list={column.list}
                 listSort={column.list ? listSorts[column.list.id] ?? "myOrder" : "starred"}
+                onCreateList={onCreateList}
                 onCreateTask={onCreateTask}
                 onDeleteList={onDeleteList}
                 onDeleteTask={onDeleteTask}

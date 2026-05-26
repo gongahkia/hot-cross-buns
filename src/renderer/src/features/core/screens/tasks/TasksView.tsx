@@ -314,16 +314,6 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
     });
   }
 
-  function toggleQuickCapture(): void {
-    setQuickCaptureOpen((open) => {
-      if (!open) {
-        quickCaptureOpenStartedAt.current = rendererNow();
-      }
-
-      return !open;
-    });
-  }
-
   async function deleteTask(taskId: string): Promise<void> {
     const deleted = await source.deleteTask(taskId);
 
