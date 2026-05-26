@@ -25,6 +25,7 @@ import {
   Pencil,
   Filter,
   Minus,
+  MoreVertical,
   PanelLeft,
   PanelRight,
   Plus,
@@ -40,16 +41,22 @@ import {
   Search,
   Settings2,
   Trash2,
+  Star,
   Users,
   X
 } from "lucide-react";
 import { useInspector } from "../../../components/Inspector";
-import { Badge, Button, ListRow, Panel, cx } from "../../../components/primitives";
+import { Badge, Button, IconButton, ListRow, Panel, cx } from "../../../components/primitives";
 import { EmptyState } from "../../../components/states";
 import { VirtualizedList } from "../../../components/VirtualizedList";
 import { rendererNow, reportRendererTimingSince } from "../../../hooks/useRenderTiming";
 import { useCoreViewModelSource } from "../coreViewModelSource";
 import type { NoteViewModel } from "../coreViewModels";
+import {
+  readLocalStorageNumberRecord,
+  readLocalStorageStringArray,
+  writeLocalStorageJSON
+} from "../localStorageHelpers";
 import {
   NoteInspectorBody,
   type NoteDraftValue,
@@ -66,6 +73,11 @@ import {
   priorityTone,
   scheduleRendererFrame
 } from "../coreScreenShared";
+
+type NoteBoardSelection = "all" | "starred";
+
+const starredNotesStorageKey = "hcb.starredNoteIds";
+const starredNotesAtStorageKey = "hcb.starredNoteAt";
 
 function TaskNotesView(): JSX.Element {
   const source = useCoreViewModelSource();
@@ -144,11 +156,35 @@ export function NotesView(): JSX.Element {
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(
     source.initialNotes[0]?.id ?? null
   );
+  const [selectedNoteView, setSelectedNoteView] = useState<NoteBoardSelection>("all");
+  const [starredNoteIds, setStarredNoteIds] = useState<Set<string>>(
+    () => new Set(readLocalStorageStringArray(starredNotesStorageKey))
+  );
+  const [starredNoteAt, setStarredNoteAt] = useState<Record<string, number>>(
+    () => readLocalStorageNumberRecord(starredNotesAtStorageKey)
+  );
   const [draftCounter, setDraftCounter] = useState(1);
   const requestedNoteDetails = useRef(new Set<string>());
   const lastNoteEditReportAt = useRef(0);
   const noteInspectorBodyRef = useRef<NoteInspectorBodyHandle | null>(null);
   const selectedNote = notes.find((note) => note.id === selectedNoteId) ?? null;
+  const visibleNotes = useMemo(() => {
+    if (selectedNoteView === "starred") {
+      return notes
+        .filter((note) => starredNoteIds.has(note.id))
+        .sort((left, right) => (starredNoteAt[right.id] ?? 0) - (starredNoteAt[left.id] ?? 0));
+    }
+
+    return notes;
+  }, [notes, selectedNoteView, starredNoteAt, starredNoteIds]);
+
+  useEffect(() => {
+    writeLocalStorageJSON(starredNotesStorageKey, [...starredNoteIds]);
+  }, [starredNoteIds]);
+
+  useEffect(() => {
+    writeLocalStorageJSON(starredNotesAtStorageKey, starredNoteAt);
+  }, [starredNoteAt]);
 
   useEffect(() => {
     requestedNoteDetails.current.clear();
@@ -475,6 +511,25 @@ export function NotesView(): JSX.Element {
       await window.hcb?.notes.delete({ id: note.id });
     }
 
+    setStarredNoteIds((current) => {
+      if (!current.has(note.id)) {
+        return current;
+      }
+
+      const next = new Set(current);
+      next.delete(note.id);
+      return next;
+    });
+    setStarredNoteAt((current) => {
+      if (!(note.id in current)) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[note.id];
+      return next;
+    });
+
     const nextNotes = notes.filter((candidate) => candidate.id !== note.id);
     const nextNote = nextNotes[0] ?? null;
 
@@ -489,75 +544,242 @@ export function NotesView(): JSX.Element {
     await closeInspector();
   }
 
+  function toggleNoteStar(noteId: string): void {
+    setStarredNoteIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(noteId)) {
+        next.delete(noteId);
+        setStarredNoteAt((timestamps) => {
+          const result = { ...timestamps };
+          delete result[noteId];
+          return result;
+        });
+      } else {
+        next.add(noteId);
+        setStarredNoteAt((timestamps) => ({
+          ...timestamps,
+          [noteId]: Date.now()
+        }));
+      }
+
+      return next;
+    });
+  }
+
   return (
-    <div className="grid h-full min-h-0">
+    <div className="grid h-full min-h-0 grid-cols-1 gap-3 lg:grid-cols-[260px_minmax(0,1fr)]">
+      <aside className="min-h-0 rounded-hcbLg bg-bg-secondary p-3" aria-label="Notes navigation">
+        <Button
+          aria-label={actionLabel("note.create")}
+          className="h-12 min-w-32 justify-start rounded-hcbLg shadow-sm"
+          data-action-id="note.create"
+          onClick={() => void createNote()}
+          title={actionDescription("note.create")}
+          variant="secondary"
+        >
+          <Plus aria-hidden="true" size={18} />
+          Create
+        </Button>
+        <div className="mt-5 grid gap-1">
+          <NoteSidebarButton
+            count={notes.length}
+            icon="all"
+            label="All notes"
+            onClick={() => setSelectedNoteView("all")}
+            selected={selectedNoteView === "all"}
+          />
+          <NoteSidebarButton
+            count={notes.filter((note) => starredNoteIds.has(note.id)).length}
+            icon="star"
+            label="Starred"
+            onClick={() => setSelectedNoteView("starred")}
+            selected={selectedNoteView === "starred"}
+          />
+        </div>
+        <div className="mt-5 grid gap-1">
+          <Button className="justify-start" onClick={createDailyNote} variant="ghost">
+            <CalendarPlus aria-hidden="true" size={16} />
+            Daily note
+          </Button>
+          <Button className="justify-start" onClick={createMeetingNote} variant="ghost">
+            <Pencil aria-hidden="true" size={16} />
+            Meeting note
+          </Button>
+        </div>
+      </aside>
       <Panel
-        action={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              data-action-id="note.create"
-              onClick={() => void createNote()}
-              size="sm"
-              title={actionDescription("note.create")}
-              variant="primary"
-            >
-              <Plus aria-hidden="true" size={14} />
-              {actionLabel("note.create")}
-            </Button>
-            <Button onClick={createDailyNote} size="sm" variant="secondary">
-              <CalendarPlus aria-hidden="true" size={14} />
-              Daily note
-            </Button>
-            <Button onClick={createMeetingNote} size="sm" variant="ghost">
-              <Pencil aria-hidden="true" size={14} />
-              Meeting note
-            </Button>
-          </div>
-        }
-        title="Local notes"
-        description="Select a note to open details in the Inspector"
+        action={<Badge tone="neutral">{visibleNotes.length}</Badge>}
+        title={selectedNoteView === "starred" ? "Starred notes" : "Local notes"}
+        description={selectedNoteView === "starred" ? "All starred local notes" : "Select a note to open details in the Inspector"}
       >
         <VirtualizedList
-          ariaLabel="Local notes"
+          ariaLabel={selectedNoteView === "starred" ? "Starred notes" : "Local notes"}
           emptyState={
             <EmptyState
-              description="Create a local note to populate SQLite."
-              title="No local notes"
+              description={selectedNoteView === "starred" ? "Star notes to collect them here." : "Create a local note to populate SQLite."}
+              title={selectedNoteView === "starred" ? "No starred notes" : "No local notes"}
             />
           }
           estimateRowHeight={66}
           getKey={(note) => note.id}
-          items={notes}
+          items={visibleNotes}
           performanceLabel="notes.list"
           renderRow={(note) => (
-            <div className="border-b border-border last:border-b-0" role="listitem">
-              <button
-                aria-current={note.id === selectedNoteId ? "true" : undefined}
-                className={cx(
-                  "flex min-h-[66px] w-full items-center gap-3 px-3 py-2 text-left transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                  note.id === selectedNoteId ? "bg-surface-0" : "bg-transparent hover:bg-surface-0"
-                )}
-                onClick={() => void selectNote(note.id)}
-                type="button"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="truncate text-[var(--text-md)] font-medium text-text-primary">
-                      {note.title}
-                    </span>
-                    <span className="shrink-0 text-[var(--text-xs)] text-text-muted">
-                      {note.updatedLabel}
-                    </span>
-                  </div>
-                  <p className="truncate text-[var(--text-sm)] text-text-muted">{note.preview}</p>
-                </div>
-                <Badge tone="info">Local</Badge>
-              </button>
-            </div>
+            <NoteBoardRow
+              key={note.id}
+              note={note}
+              onDeleteNote={(noteId) => void deleteNote(noteId)}
+              onOpenNote={(noteId) => void selectNote(noteId)}
+              onToggleStar={toggleNoteStar}
+              selected={note.id === selectedNoteId}
+              starred={starredNoteIds.has(note.id)}
+            />
           )}
           viewportHeight={520}
         />
       </Panel>
+    </div>
+  );
+}
+
+function NoteSidebarButton({
+  count,
+  icon,
+  label,
+  onClick,
+  selected
+}: {
+  count: number;
+  icon: "all" | "star";
+  label: string;
+  onClick: () => void;
+  selected: boolean;
+}): JSX.Element {
+  return (
+    <button
+      aria-current={selected ? "page" : undefined}
+      className={cx(
+        "grid h-9 grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-2 rounded-hcbLg px-2 text-left transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        selected ? "bg-accent/20 text-text-primary" : "text-text-secondary hover:bg-surface-0 hover:text-text-primary"
+      )}
+      onClick={onClick}
+      type="button"
+    >
+      {icon === "star" ? (
+        <Star aria-hidden="true" className={selected ? "fill-current" : undefined} size={17} />
+      ) : (
+        <FileText aria-hidden="true" size={17} />
+      )}
+      <span className="truncate text-[var(--text-base)] font-medium">{label}</span>
+      <span className="text-[var(--text-xs)] text-text-muted">{count}</span>
+    </button>
+  );
+}
+
+function NoteBoardRow({
+  note,
+  onDeleteNote,
+  onOpenNote,
+  onToggleStar,
+  selected,
+  starred
+}: {
+  note: NoteViewModel;
+  onDeleteNote: (noteId: string) => void;
+  onOpenNote: (noteId: string) => void;
+  onToggleStar: (noteId: string) => void;
+  selected: boolean;
+  starred: boolean;
+}): JSX.Element {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  return (
+    <div
+      className={cx(
+        "group relative grid min-h-[66px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-3 py-2 last:border-b-0 transition-colors duration-fast ease-hcb",
+        selected ? "bg-surface-0" : "bg-transparent hover:bg-surface-0"
+      )}
+      role="listitem"
+    >
+      <button
+        aria-current={selected ? "true" : undefined}
+        className="min-w-0 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        onClick={() => onOpenNote(note.id)}
+        type="button"
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-[var(--text-md)] font-medium text-text-primary">
+            {note.title}
+          </span>
+          <span className="shrink-0 text-[var(--text-xs)] text-text-muted">
+            {note.updatedLabel}
+          </span>
+        </div>
+        <p className="truncate text-[var(--text-sm)] text-text-muted">{note.preview}</p>
+      </button>
+      <div
+        className={cx(
+          "relative flex items-center gap-1 transition-opacity duration-fast ease-hcb group-focus-within:opacity-100 group-hover:opacity-100",
+          starred || menuOpen ? "opacity-100" : "opacity-0"
+        )}
+      >
+        <IconButton
+          className="size-7 rounded-full"
+          icon={MoreVertical}
+          label={`Open actions for ${note.title}`}
+          onClick={() => setMenuOpen((open) => !open)}
+          variant="ghost"
+        />
+        <IconButton
+          className={cx("size-7 rounded-full", starred ? "text-accent [&_svg]:fill-current" : undefined)}
+          icon={Star}
+          label={starred ? `Unstar ${note.title}` : `Star ${note.title}`}
+          onClick={() => onToggleStar(note.id)}
+          variant="ghost"
+        />
+        {menuOpen ? (
+          <NoteActionMenu
+            onDelete={() => {
+              onDeleteNote(note.id);
+              setMenuOpen(false);
+            }}
+            onEdit={() => {
+              onOpenNote(note.id);
+              setMenuOpen(false);
+            }}
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function NoteActionMenu({
+  onDelete,
+  onEdit
+}: {
+  onDelete: () => void;
+  onEdit: () => void;
+}): JSX.Element {
+  return (
+    <div className="absolute right-0 top-8 z-30 w-56 overflow-hidden rounded-hcbLg border border-border bg-bg-primary py-2 shadow-xl">
+      <button
+        className="flex min-h-9 w-full items-center gap-3 px-4 text-left text-[var(--text-base)] text-text-primary transition-colors duration-fast ease-hcb hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        onClick={onEdit}
+        type="button"
+      >
+        <Pencil aria-hidden="true" size={18} />
+        Edit note
+      </button>
+      <button
+        className="flex min-h-9 w-full items-center gap-3 px-4 text-left text-[var(--text-base)] text-danger transition-colors duration-fast ease-hcb hover:bg-danger/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        onClick={onDelete}
+        type="button"
+      >
+        <Trash2 aria-hidden="true" size={18} />
+        Delete
+      </button>
     </div>
   );
 }
