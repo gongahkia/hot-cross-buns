@@ -1,9 +1,19 @@
 export const GOOGLE_TASKS_SCOPE = "https://www.googleapis.com/auth/tasks";
 export const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
+export const GOOGLE_OPENID_SCOPE = "openid";
+export const GOOGLE_EMAIL_SCOPE = "email";
+export const GOOGLE_PROFILE_SCOPE = "profile";
 
 export const REQUIRED_GOOGLE_SCOPES = [GOOGLE_TASKS_SCOPE, GOOGLE_CALENDAR_SCOPE] as const;
+export const DEFAULT_GOOGLE_AUTHORIZATION_SCOPES = [
+  GOOGLE_TASKS_SCOPE,
+  GOOGLE_CALENDAR_SCOPE,
+  GOOGLE_OPENID_SCOPE,
+  GOOGLE_EMAIL_SCOPE,
+  GOOGLE_PROFILE_SCOPE
+] as const;
 
-export type GoogleOAuthScope = (typeof REQUIRED_GOOGLE_SCOPES)[number] | string;
+export type GoogleOAuthScope = (typeof DEFAULT_GOOGLE_AUTHORIZATION_SCOPES)[number] | string;
 
 export type GoogleConnectionState =
   | "signed_out"

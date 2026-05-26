@@ -6,6 +6,7 @@ import {
   type GoogleOAuthAuthorizationCodeTransport
 } from "./oauth";
 import {
+  DEFAULT_GOOGLE_AUTHORIZATION_SCOPES,
   GOOGLE_CALENDAR_SCOPE,
   GOOGLE_TASKS_SCOPE,
   sanitizeGoogleAccountConnectionStatus
@@ -48,6 +49,9 @@ describe("desktop Google OAuth boundary", () => {
 
     expect(authorizationUrl.searchParams.get("scope")).toContain(GOOGLE_TASKS_SCOPE);
     expect(authorizationUrl.searchParams.get("scope")).toContain(GOOGLE_CALENDAR_SCOPE);
+    expect(authorizationUrl.searchParams.get("scope")).toContain("openid");
+    expect(authorizationUrl.searchParams.get("scope")).toContain("email");
+    expect(authorizationUrl.searchParams.get("scope")).toContain("profile");
     expect(authorizationUrl.searchParams.get("scope")).not.toContain("drive");
     expect(authorizationUrl.searchParams.get("code_challenge_method")).toBe("S256");
 
@@ -61,7 +65,7 @@ describe("desktop Google OAuth boundary", () => {
         code: "oauth-code",
         clientId: "desktop-client-id",
         redirectUri: "http://127.0.0.1:42813/oauth/google/callback",
-        scopes: [GOOGLE_TASKS_SCOPE, GOOGLE_CALENDAR_SCOPE]
+        scopes: DEFAULT_GOOGLE_AUTHORIZATION_SCOPES
       })
     );
     expect(await credentialAdapter.readTokenSet("google:google-user-1")).toMatchObject({

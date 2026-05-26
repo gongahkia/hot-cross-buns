@@ -164,7 +164,7 @@ interface GoogleEventMutationDto {
 }
 
 const CALENDAR_LIST_FIELDS =
-  "items(id,summary,description,timeZone,backgroundColor,foregroundColor,selected,hidden,primary,accessRole,etag,updated)";
+  "items(id,summary,description,timeZone,backgroundColor,foregroundColor,selected,hidden,primary,accessRole,etag)";
 const EVENTS_FIELDS =
   "nextPageToken,nextSyncToken,items(id,summary,description,location,status,start,end,recurrence,recurringEventId,originalStartTime,etag,updated,sequence,transparency,visibility,attendees(email),reminders(overrides(method,minutes)))";
 

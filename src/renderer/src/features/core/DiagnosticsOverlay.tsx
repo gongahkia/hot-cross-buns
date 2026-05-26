@@ -271,7 +271,14 @@ export function DiagnosticsOverlay({ onClose }: DiagnosticsOverlayProps): JSX.El
       (logs?.entries ?? []).map((entry) => entry.formattedLine).join("\n");
 
     await navigator.clipboard?.writeText(text);
-    setMessage({ tone: "success", text: "Logs copied." });
+    setMessage({ tone: "success", text: "All logs copied." });
+  }
+
+  async function copyVisibleLogs(): Promise<void> {
+    const text = filteredLogs.map((entry) => entry.formattedLine).join("\n");
+
+    await navigator.clipboard?.writeText(text);
+    setMessage({ tone: "success", text: "Visible logs copied." });
   }
 
   async function copyHistory(): Promise<void> {
@@ -370,6 +377,7 @@ export function DiagnosticsOverlay({ onClose }: DiagnosticsOverlayProps): JSX.El
             <LogsTab
               clearLogs={clearLogs}
               copyLogs={copyLogs}
+              copyVisibleLogs={copyVisibleLogs}
               filteredLogs={filteredLogs}
               logLevel={logLevel}
               logQuery={logQuery}
@@ -556,6 +564,7 @@ function SyncTab({
 function LogsTab({
   clearLogs,
   copyLogs,
+  copyVisibleLogs,
   filteredLogs,
   logLevel,
   logQuery,
@@ -567,6 +576,7 @@ function LogsTab({
 }: {
   clearLogs: () => Promise<void>;
   copyLogs: () => Promise<void>;
+  copyVisibleLogs: () => Promise<void>;
   filteredLogs: DiagnosticsLogEntry[];
   logLevel: DiagnosticsLogLevel;
   logQuery: string;
@@ -597,6 +607,14 @@ function LogsTab({
             ))}
           </div>
           <div className="flex-1" />
+          <Button disabled={filteredLogs.length === 0} onClick={() => void copyVisibleLogs()}>
+            <ClipboardCopy aria-hidden="true" size={15} />
+            Copy visible
+          </Button>
+          <Button disabled={(logs?.entries.length ?? 0) === 0} onClick={() => void copyLogs()}>
+            <ClipboardCopy aria-hidden="true" size={15} />
+            Copy all
+          </Button>
           <Button onClick={refreshLogs}>
             <RefreshCw aria-hidden="true" size={15} />
             Refresh

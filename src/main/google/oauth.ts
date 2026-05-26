@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { GoogleCredentialAdapter } from "./credentials";
 import {
-  REQUIRED_GOOGLE_SCOPES,
+  DEFAULT_GOOGLE_AUTHORIZATION_SCOPES,
   normalizeGoogleScopes,
   sanitizeGoogleAccountConnectionStatus,
   type GoogleAccountConnectionRecord,
@@ -125,7 +125,7 @@ export class DesktopGoogleOAuthService {
   beginAuthorization(): GoogleOAuthAuthorizationRequestDto {
     const state = randomBase64Url(24);
     const codeVerifier = randomBase64Url(64);
-    const scopes = this.clientConfig.scopes ?? REQUIRED_GOOGLE_SCOPES;
+    const scopes = this.clientConfig.scopes ?? DEFAULT_GOOGLE_AUTHORIZATION_SCOPES;
     const expiresAtMs = this.now().getTime() + OAUTH_STATE_TTL_MS;
     const authorizationUrl = this.authorizationUrl({
       state,

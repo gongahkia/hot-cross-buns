@@ -4,8 +4,9 @@ import type {
   SettingsSnapshot,
   TaskListSummary
 } from "@shared/ipc/contracts";
-import { Save, ShieldCheck, Trash2, Users } from "lucide-react";
-import { Badge, Button, Input } from "../../../../components/primitives";
+import { useState } from "react";
+import { Eye, EyeOff, Save, ShieldCheck, Trash2, Users } from "lucide-react";
+import { Badge, Button, IconButton, Input, cx } from "../../../../components/primitives";
 import { EmptyState } from "../../../../components/states";
 import {
   SettingsControlRow,
@@ -46,11 +47,13 @@ export function ProfileSettingsTab({
   updateSelectedCalendar,
   updateSelectedTaskList
 }: ProfileSettingsTabProps): JSX.Element {
+  const [showClientSecret, setShowClientSecret] = useState(false);
   const selectedTaskLists = new Set(settings.selectedTaskListIds);
   const selectedCalendars = new Set(settings.selectedCalendarIds);
   const account = googleStatus.account;
-  const accountLabel = account?.displayName || account?.email || "Not connected";
-  const accountDetail = account?.email ?? account?.connectionState ?? "Google account is not connected";
+  const connected = account?.connectionState === "connected";
+  const accountLabel = account?.displayName || account?.email || (connected ? "Connected Google account" : "Not connected");
+  const accountDetail = account?.email ?? account?.googleAccountId ?? account?.connectionState ?? "Google account is not connected";
 
   return (
     <div className="grid gap-5">
@@ -65,21 +68,31 @@ export function ProfileSettingsTab({
           </Badge>
         </SettingsControlRow>
         <SettingsControlRow label="Desktop OAuth client ID">
-          <Input
-            aria-label="Google OAuth client ID"
-            onChange={(event) => setGoogleClientId(event.currentTarget.value)}
-            placeholder="Client ID from Google Cloud Console"
-            value={googleClientId}
-          />
+          <div className="w-full max-w-full sm:w-[42rem]">
+            <Input
+              aria-label="Google OAuth client ID"
+              onChange={(event) => setGoogleClientId(event.currentTarget.value)}
+              placeholder="Client ID from Google Cloud Console"
+              value={googleClientId}
+            />
+          </div>
         </SettingsControlRow>
         <SettingsControlRow label="Client secret (optional)">
-          <Input
-            aria-label="Google OAuth client secret"
-            onChange={(event) => setGoogleClientSecret(event.currentTarget.value)}
-            placeholder={googleStatus.hasClientSecret ? "Stored in Keychain" : "Optional for Desktop clients"}
-            type="password"
-            value={googleClientSecret}
-          />
+          <div className="flex w-full max-w-full items-center gap-2 sm:w-[42rem]">
+            <Input
+              aria-label="Google OAuth client secret"
+              onChange={(event) => setGoogleClientSecret(event.currentTarget.value)}
+              placeholder={googleStatus.hasClientSecret ? "Stored in Keychain" : "Optional for Desktop clients"}
+              type={showClientSecret ? "text" : "password"}
+              value={googleClientSecret}
+            />
+            <IconButton
+              icon={showClientSecret ? EyeOff : Eye}
+              label={showClientSecret ? "Hide client secret" : "Show client secret"}
+              onClick={() => setShowClientSecret((current) => !current)}
+              variant="secondary"
+            />
+          </div>
         </SettingsControlRow>
         <div className="flex flex-wrap items-center gap-2 px-3 pb-3">
           <Button
@@ -98,15 +111,34 @@ export function ProfileSettingsTab({
       </SettingsGroup>
 
       <SettingsGroup title="Google accounts">
-        <SettingsControlRow
-          description={accountDetail}
-          icon={Users}
-          label={accountLabel}
-        >
-          <Badge tone={account?.connectionState === "connected" ? "success" : "warning"}>
-            {account?.connectionState === "connected" ? "Active" : "Disconnected"}
+        <div className="grid min-h-11 gap-2 border-b border-border px-3 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+          <div className="flex min-w-0 items-center gap-2.5">
+            {account?.avatarUrl ? (
+              <img
+                alt=""
+                className="size-8 shrink-0 rounded-full border border-border bg-surface-0 object-cover"
+                referrerPolicy="no-referrer"
+                src={account.avatarUrl}
+              />
+            ) : (
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-surface-0 text-text-muted">
+                <Users aria-hidden="true" size={16} />
+              </div>
+            )}
+            <div className="min-w-0">
+              <div className="truncate text-[var(--text-base)] font-medium text-text-primary">{accountLabel}</div>
+              <p className={cx(
+                "mt-0.5 truncate text-[var(--text-sm)]",
+                connected ? "text-text-muted" : "text-warning"
+              )}>
+                {accountDetail}
+              </p>
+            </div>
+          </div>
+          <Badge tone={connected ? "success" : "warning"}>
+            {connected ? "Active" : "Disconnected"}
           </Badge>
-        </SettingsControlRow>
+        </div>
         <div className="flex flex-wrap items-center gap-2 px-3 pb-3">
           <Button
             disabled={!googleStatus.oauthClientConfigured}

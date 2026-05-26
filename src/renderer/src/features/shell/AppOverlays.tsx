@@ -1,6 +1,6 @@
 import type { RefObject } from "react";
 import { Bell, Settings2, X } from "lucide-react";
-import { Badge, IconButton, StatusBanner } from "../../components/primitives";
+import { Badge, Button, IconButton, StatusBanner } from "../../components/primitives";
 import { SettingsView } from "../core/CoreScreens";
 import type { AppNotification, AppNotificationTone } from "../core/appNotifications";
 
@@ -22,11 +22,17 @@ function notificationBadgeTone(tone: AppNotificationTone): "neutral" | "success"
 
 export function NotificationsOverlay({
   notifications,
-  onClose
+  onClose,
+  onDismiss,
+  onDismissAll
 }: {
   notifications: AppNotification[];
   onClose: () => void;
+  onDismiss: (id: string) => void;
+  onDismissAll: () => void;
 }): JSX.Element {
+  const hasNotifications = notifications.length > 0;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-end overflow-auto bg-bg-tertiary/45 p-3 backdrop-blur-sm sm:p-5"
@@ -61,26 +67,52 @@ export function NotificationsOverlay({
           <section className="grid gap-2">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-[var(--text-md)] font-semibold">App notices</h3>
-              <Badge tone={notifications.length > 1 ? "warning" : "neutral"}>
-                {notifications.length}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge tone={notifications.length > 1 ? "warning" : "neutral"}>
+                  {notifications.length}
+                </Badge>
+                <Button
+                  disabled={!hasNotifications}
+                  onClick={onDismissAll}
+                  size="sm"
+                  variant="ghost"
+                >
+                  Dismiss all
+                </Button>
+              </div>
             </div>
             <div className="grid gap-2" role="list">
-              {notifications.map((notification) => (
-                <div
-                  className="grid gap-1 rounded-hcbMd border border-border bg-bg-tertiary px-3 py-2"
-                  key={notification.id}
-                  role="listitem"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="min-w-0 truncate text-[var(--text-base)] font-medium">
-                      {notification.title}
-                    </span>
-                    <Badge tone={notificationBadgeTone(notification.tone)}>{notification.status}</Badge>
+              {hasNotifications ? (
+                notifications.map((notification) => (
+                  <div
+                    className="grid gap-1 rounded-hcbMd border border-border bg-bg-tertiary px-3 py-2"
+                    key={notification.id}
+                    role="listitem"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="min-w-0 truncate text-[var(--text-base)] font-medium">
+                        {notification.title}
+                      </span>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Badge tone={notificationBadgeTone(notification.tone)}>{notification.status}</Badge>
+                        <IconButton
+                          className="size-7"
+                          icon={X}
+                          label="Dismiss notification"
+                          onClick={() => onDismiss(notification.id)}
+                          size="sm"
+                          variant="ghost"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[var(--text-sm)] text-text-muted">{notification.description}</p>
                   </div>
-                  <p className="text-[var(--text-sm)] text-text-muted">{notification.description}</p>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="rounded-hcbMd border border-border bg-bg-tertiary px-3 py-4 text-[var(--text-sm)] text-text-muted">
+                  No app notices.
+                </p>
+              )}
             </div>
           </section>
         </div>

@@ -158,6 +158,10 @@ describe("App shell", () => {
     expect(within(dialog).queryByRole("button", { name: "Request permission" })).not.toBeInTheDocument();
     expect(within(dialog).queryByText("Delivery status")).not.toBeInTheDocument();
 
+    await user.click(within(dialog).getByRole("button", { name: "Dismiss all" }));
+    expect(within(dialog).getByText("No app notices.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Notifications, 0 active" })).toBeInTheDocument();
+
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "Notifications" })).not.toBeInTheDocument();
   });

@@ -17,12 +17,21 @@ interface GoogleTokenResponse {
   error_description?: string;
 }
 
+interface GoogleUserInfoResponse {
+  sub?: string;
+  email?: string;
+  name?: string;
+  picture?: string;
+  locale?: string;
+}
+
 export class GoogleOAuthHttpTransport
   implements GoogleOAuthAuthorizationCodeTransport, GoogleOAuthRefreshTransport
 {
   constructor(
     private readonly options: {
       tokenEndpoint?: string;
+      userInfoEndpoint?: string;
       fetchImpl?: typeof fetch;
       now?: () => Date;
     } = {}
@@ -39,10 +48,12 @@ export class GoogleOAuthHttpTransport
       client_id: request.clientId,
       ...(request.clientSecret === undefined ? {} : { client_secret: request.clientSecret })
     });
+    const tokenSet = tokenSetFromResponse(response, this.now());
+    const account = await this.requestUserInfo(tokenSet.accessToken);
 
     return {
-      tokenSet: tokenSetFromResponse(response, this.now()),
-      account: {},
+      tokenSet,
+      account,
       grantedScopes: response.scope
     };
   }
@@ -105,6 +116,40 @@ export class GoogleOAuthHttpTransport
     return decoded;
   }
 
+  private async requestUserInfo(accessToken: string): Promise<GoogleOAuthExchangeResult["account"]> {
+    const fetchImpl = this.options.fetchImpl ?? fetch;
+    let response: Response;
+
+    try {
+      response = await fetchImpl(
+        this.options.userInfoEndpoint ?? "https://openidconnect.googleapis.com/v1/userinfo",
+        {
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${accessToken}`
+          }
+        }
+      );
+    } catch {
+      return {};
+    }
+
+    if (!response.ok) {
+      return {};
+    }
+
+    const text = await response.text();
+    const decoded = decodeUserInfoResponse(text);
+
+    return {
+      ...(decoded.sub === undefined ? {} : { googleAccountId: decoded.sub }),
+      ...(decoded.email === undefined ? {} : { email: decoded.email }),
+      ...(decoded.name === undefined ? {} : { displayName: decoded.name }),
+      ...(decoded.picture === undefined ? {} : { avatarUrl: decoded.picture }),
+      ...(decoded.locale === undefined ? {} : { locale: decoded.locale })
+    };
+  }
+
   private now(): Date {
     return this.options.now?.() ?? new Date();
   }
@@ -135,5 +180,17 @@ function decodeTokenResponse(text: string): GoogleTokenResponse {
     return JSON.parse(text) as GoogleTokenResponse;
   } catch {
     throw new Error("Google OAuth response was not valid JSON.");
+  }
+}
+
+function decodeUserInfoResponse(text: string): GoogleUserInfoResponse {
+  if (text.length === 0) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text) as GoogleUserInfoResponse;
+  } catch {
+    return {};
   }
 }

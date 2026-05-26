@@ -1,7 +1,7 @@
 import type { SqliteConnection } from "../data/sqliteConnection";
 import { KeychainGoogleOAuthClientSecretStore } from "./keychainCredentials";
 import type { DesktopGoogleOAuthClientConfig } from "./oauth";
-import { REQUIRED_GOOGLE_SCOPES } from "./types";
+import { DEFAULT_GOOGLE_AUTHORIZATION_SCOPES } from "./types";
 
 export interface GoogleOAuthClientConfigSnapshot {
   configured: boolean;
@@ -62,7 +62,7 @@ export class GoogleOAuthClientConfigStore {
       clientId,
       ...(clientSecret === null ? {} : { clientSecret }),
       redirectUri,
-      scopes: REQUIRED_GOOGLE_SCOPES
+      scopes: DEFAULT_GOOGLE_AUTHORIZATION_SCOPES
     };
   }
 

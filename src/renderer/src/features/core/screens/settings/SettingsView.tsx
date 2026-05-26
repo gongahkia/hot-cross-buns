@@ -213,7 +213,6 @@ export function SettingsView({
     const result = await window.hcb.google.saveOAuthClient(request);
 
     if (result.ok) {
-      setGoogleClientSecret("");
       setRecoveryMessage("Google OAuth client configuration saved.");
       source.setGoogleStatus(result.data);
       return;

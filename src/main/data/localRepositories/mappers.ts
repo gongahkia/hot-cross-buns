@@ -12,6 +12,15 @@ import type {
 import type { CalendarEventRow, CalendarListRow, NoteRow, ScheduledTaskBlockRow, TaskListRow, TaskRow } from "./types";
 import { parseNumberArray, parseStringArray } from "./shared";
 
+const textLimits = {
+  calendarTitle: 500,
+  eventTitle: 500,
+  eventLocation: 1_000,
+  eventNotes: 20_000,
+  recurrenceRule: 1_000,
+  timeZone: 120
+} as const;
+
 export function taskListSummary(row: TaskListRow): TaskListSummary {
   return {
     id: row.id,
@@ -70,9 +79,9 @@ export function taskDetail(row: TaskRow): TaskDetail {
 export function calendarListSummary(row: CalendarListRow): CalendarListSummary {
   return {
     id: row.id,
-    title: row.title,
+    title: truncateText(row.title, textLimits.calendarTitle),
     selected: row.selected === 1,
-    timeZone: row.timeZone,
+    timeZone: truncateNullableText(row.timeZone, textLimits.timeZone),
     updatedAt: row.updatedAt,
     eventCount: row.eventCount
   };
@@ -83,18 +92,20 @@ export function calendarEventSummary(row: CalendarEventRow): CalendarEventSummar
     id: row.id,
     eventId: row.eventId,
     calendarId: row.calendarId,
-    title: row.title,
+    title: truncateText(row.title, textLimits.eventTitle),
     startsAt: row.startsAt,
     endsAt: row.endsAt,
     allDay: row.allDay === 1,
     updatedAt: row.updatedAt,
-    location: row.location ?? "",
-    notes: row.notes ?? "",
-    guestEmails: parseStringArray(row.guestEmailsJson),
-    reminderMinutes: parseNumberArray(row.reminderMinutesJson),
+    location: truncateText(row.location ?? "", textLimits.eventLocation),
+    notes: truncateText(row.notes ?? "", textLimits.eventNotes),
+    guestEmails: parseStringArray(row.guestEmailsJson).slice(0, 50),
+    reminderMinutes: parseNumberArray(row.reminderMinutesJson)
+      .filter((minutes) => minutes >= 0 && minutes <= 28 * 24 * 60)
+      .slice(0, 10),
     mutationState: mutationState(row.pendingMutationStatus),
-    timeZone: row.timeZone,
-    recurrenceRule: row.recurrenceRule,
+    timeZone: truncateNullableText(row.timeZone, textLimits.timeZone),
+    recurrenceRule: truncateNullableText(row.recurrenceRule, textLimits.recurrenceRule),
     recurringEventId: row.recurringEventId,
     originalStartAt: row.originalStartAt
   };
@@ -191,4 +202,24 @@ export function mutationState(
   }
 
   return undefined;
+}
+
+function truncateNullableText(value: string | null | undefined, maxLength: number): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  return truncateText(value, maxLength);
+}
+
+function truncateText(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  if (maxLength <= 3) {
+    return value.slice(0, maxLength);
+  }
+
+  return `${value.slice(0, maxLength - 3).trimEnd()}...`;
 }

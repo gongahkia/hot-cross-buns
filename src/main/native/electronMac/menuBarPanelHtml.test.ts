@@ -34,4 +34,51 @@ describe("menu bar panel HTML", () => {
     expect(html).not.toContain("Buy <milk>");
     expect(menuBarPanelDataUrl(snapshot)).toMatch(/^data:text\/html;charset=utf-8,/);
   });
+
+  it("renders agenda rows without leading icons", () => {
+    const snapshot: NativeMenuBarSnapshot = {
+      panelStyle: "adaptive",
+      primaryClickAction: "open-menu",
+      title: "Agenda",
+      syncLabel: "Synced",
+      tooltip: "Tooltip",
+      sections: [
+        {
+          title: "Today",
+          items: [
+            {
+              label: "Focus block",
+              detail: "9:00 AM-10:00 AM",
+              route: { kind: "event", id: "event-1" }
+            }
+          ]
+        }
+      ]
+    };
+
+    const html = menuBarPanelHtml(snapshot);
+
+    expect(html).toContain("Focus block");
+    expect(html).not.toContain("row-icon");
+  });
+
+  it("renders the account block without the old avatar offset", () => {
+    const snapshot: NativeMenuBarSnapshot = {
+      panelStyle: "adaptive",
+      primaryClickAction: "open-menu",
+      title: "Agenda",
+      syncLabel: "Synced",
+      tooltip: "Tooltip",
+      sections: [],
+      account: {
+        displayName: "Google account",
+        connectionState: "connected"
+      }
+    };
+
+    const html = menuBarPanelHtml(snapshot);
+
+    expect(html).not.toContain("class=\"avatar\"");
+    expect(html).toContain("<span class=\"account-name\">Connected</span>");
+  });
 });

@@ -58,9 +58,10 @@ export function AppShell(): JSX.Element {
 
   const activeSection = getPlannerSection(activeSectionId);
   const appNotifications = getAppNotifications(source);
-  const visibleNotification = appNotifications.find(
+  const visibleNotifications = appNotifications.filter(
     (notification) => !dismissedNotificationIds.includes(notification.id)
   );
+  const visibleNotification = visibleNotifications[0];
   const visiblePrimarySections = useMemo<VisiblePrimarySection[]>(() => {
     const hidden = new Set<SectionId>(source.settings.hiddenNavigationTabs);
     return primaryPlannerSections
@@ -77,6 +78,24 @@ export function AppShell(): JSX.Element {
   const navigateToSection = useCallback((sectionId: SectionId): void => {
     setActiveSectionId(sectionId);
   }, []);
+
+  const dismissNotification = useCallback((id: string): void => {
+    setDismissedNotificationIds((current) =>
+      current.includes(id) ? current : [...current, id]
+    );
+  }, []);
+
+  const dismissAllVisibleNotifications = useCallback((): void => {
+    setDismissedNotificationIds((current) => {
+      const next = new Set(current);
+
+      for (const notification of visibleNotifications) {
+        next.add(notification.id);
+      }
+
+      return [...next];
+    });
+  }, [visibleNotifications]);
 
   const navigateToPrimarySection = useCallback(
     (sectionId: SectionId): void => {
@@ -495,13 +514,11 @@ export function AppShell(): JSX.Element {
     }
 
     const timeout = window.setTimeout(() => {
-      setDismissedNotificationIds((current) =>
-        current.includes(visibleNotification.id) ? current : [...current, visibleNotification.id]
-      );
+      dismissNotification(visibleNotification.id);
     }, 6_000);
 
     return () => window.clearTimeout(timeout);
-  }, [visibleNotification?.id]);
+  }, [dismissNotification, visibleNotification?.id]);
 
   useEffect(() => {
     if (!commandPaletteOpen) {
@@ -541,7 +558,7 @@ export function AppShell(): JSX.Element {
       <main className={cx("flex min-h-0 min-w-0 flex-col overflow-hidden", sidebarOnRight ? "md:order-1" : "md:order-2")}>
         <AppHeader
           activeSectionTitle={activeSection.title}
-          appNotificationsCount={appNotifications.length}
+          appNotificationsCount={visibleNotifications.length}
           commandPaletteOpen={commandPaletteOpen}
           diagnosticsOpen={diagnosticsOpen}
           keybindings={source.settings.keybindings}
@@ -596,8 +613,10 @@ export function AppShell(): JSX.Element {
       ) : null}
       {notificationsOpen ? (
         <NotificationsOverlay
-          notifications={appNotifications}
+          notifications={visibleNotifications}
           onClose={() => setNotificationsOpen(false)}
+          onDismiss={dismissNotification}
+          onDismissAll={dismissAllVisibleNotifications}
         />
       ) : null}
       {diagnosticsOpen ? (
@@ -613,11 +632,7 @@ export function AppShell(): JSX.Element {
       {visibleNotification && !notificationsOpen ? (
         <AppNotificationToast
           notification={visibleNotification}
-          onDismiss={() =>
-            setDismissedNotificationIds((current) =>
-              current.includes(visibleNotification.id) ? current : [...current, visibleNotification.id]
-            )
-          }
+          onDismiss={() => dismissNotification(visibleNotification.id)}
         />
       ) : null}
     </div>

@@ -22,6 +22,12 @@ Required Google scopes:
 - `https://www.googleapis.com/auth/tasks`
 - `https://www.googleapis.com/auth/calendar`
 
+Requested identity scopes for account display:
+
+- `openid`
+- `email`
+- `profile`
+
 Do not request Google Drive or broader account scopes in v1.
 
 ## Tasks Mapping

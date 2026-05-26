@@ -120,8 +120,7 @@ export function menuBarPanelHtml(snapshot: NativeMenuBarSnapshot): string {
       }
       .native-row {
         display: grid;
-        grid-template-columns: 22px minmax(0, 1fr);
-        gap: 8px;
+        grid-template-columns: minmax(0, 1fr);
         min-height: 38px;
         align-items: center;
         padding: 4px 4px;
@@ -130,46 +129,6 @@ export function menuBarPanelHtml(snapshot: NativeMenuBarSnapshot): string {
         text-decoration: none;
       }
       .native-row:hover { background: var(--hover); }
-      .row-icon {
-        width: 18px;
-        height: 18px;
-        justify-self: center;
-        opacity: 0.58;
-        position: relative;
-      }
-      .row-icon.event::before,
-      .row-icon.placeholder::before {
-        content: "";
-        position: absolute;
-        inset: 2px;
-        border: 1.5px solid currentColor;
-        border-radius: 3px;
-      }
-      .row-icon.event::after {
-        content: "";
-        position: absolute;
-        left: 6px;
-        top: 7px;
-        width: 2px;
-        height: 2px;
-        background: currentColor;
-        box-shadow: 4px 0 0 currentColor, 0 4px 0 currentColor, 4px 4px 0 currentColor;
-      }
-      .row-icon.task {
-        border: 1.5px solid currentColor;
-        border-radius: 50%;
-      }
-      .row-icon.task::after {
-        content: "";
-        position: absolute;
-        left: 5px;
-        top: 5px;
-        width: 7px;
-        height: 4px;
-        border-left: 1.5px solid currentColor;
-        border-bottom: 1.5px solid currentColor;
-        transform: rotate(-45deg);
-      }
       .row-title,
       .row-detail {
         display: block;
@@ -198,38 +157,10 @@ export function menuBarPanelHtml(snapshot: NativeMenuBarSnapshot): string {
       }
       .account {
         display: grid;
-        grid-template-columns: 28px minmax(0, 1fr) 18px;
+        grid-template-columns: minmax(0, 1fr) 18px;
         align-items: center;
-        gap: 8px;
-        padding: 4px 0;
-      }
-      .avatar {
-        width: 20px;
-        height: 20px;
-        border: 1.5px solid var(--muted);
-        border-radius: 50%;
-        position: relative;
-        opacity: 0.75;
-      }
-      .avatar::before {
-        content: "";
-        position: absolute;
-        left: 6px;
-        top: 4px;
-        width: 6px;
-        height: 6px;
-        border: 1.5px solid currentColor;
-        border-radius: 50%;
-      }
-      .avatar::after {
-        content: "";
-        position: absolute;
-        left: 4px;
-        bottom: 3px;
-        width: 10px;
-        height: 5px;
-        border: 1.5px solid currentColor;
-        border-radius: 8px 8px 3px 3px;
+        gap: 10px;
+        padding: 7px 4px;
       }
       .account-kicker {
         display: block;
@@ -488,15 +419,9 @@ function rowsMarkup(items: NativeMenuBarItem[]): string {
   return items.map((item) => {
     const href = menuBarItemHref(item);
     const disabled = href === "#";
-    const kind = item.route?.kind === "event"
-      ? "event"
-      : item.route?.kind === "task"
-        ? "task"
-        : "placeholder";
 
     return `
       <a class="native-row ${disabled ? "disabled" : ""}" href="${escapeHtml(href)}" aria-disabled="${disabled}">
-        <span class="row-icon ${kind}" aria-hidden="true"></span>
         <span class="row-text">
           <span class="row-title">${escapeHtml(item.label)}</span>
           ${item.detail ? `<span class="row-detail">${escapeHtml(item.detail)}</span>` : ""}
@@ -510,13 +435,15 @@ function accountMarkup(snapshot: NativeMenuBarSnapshot): string {
     return "";
   }
 
+  const hasProfileText = snapshot.account.displayName !== "Google account" || Boolean(snapshot.account.email);
+  const accountName = hasProfileText ? snapshot.account.displayName : "Connected";
+
   return `
     <div class="divider"></div>
     <section class="account">
-      <span class="avatar" aria-hidden="true"></span>
       <span class="account-copy">
         <span class="account-kicker">Google account</span>
-        <span class="account-name">${escapeHtml(snapshot.account.displayName)}</span>
+        <span class="account-name">${escapeHtml(accountName)}</span>
         ${snapshot.account.email ? `<span class="account-email">${escapeHtml(snapshot.account.email)}</span>` : ""}
       </span>
       <span class="chevrons" aria-hidden="true">v</span>

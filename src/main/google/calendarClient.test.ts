@@ -32,6 +32,31 @@ function transportWithEvents(items: unknown[]): GoogleApiTransport {
 }
 
 describe("Google Calendar mapping", () => {
+  it("uses CalendarList fields accepted by the Google Calendar API", async () => {
+    const getJsonCalls: Parameters<GoogleApiTransport["getJson"]>[0][] = [];
+    const getJson = async <T,>(request: Parameters<GoogleApiTransport["getJson"]>[0]): Promise<T> => {
+      getJsonCalls.push(request);
+
+      return { items: [] } as T;
+    };
+    const adapter = new GoogleCalendarHttpAdapter({
+      getJson,
+      getJsonWithMetadata: vi.fn(),
+      send: vi.fn()
+    });
+
+    await adapter.listCalendarLists();
+
+    expect(getJsonCalls[0]).toMatchObject({
+      path: "/calendar/v3/users/me/calendarList",
+      query: {
+        fields:
+          "items(id,summary,description,timeZone,backgroundColor,foregroundColor,selected,hidden,primary,accessRole,etag)"
+      }
+    });
+    expect(String(getJsonCalls[0]?.query?.fields)).not.toContain("updated");
+  });
+
   it("maps timed and all-day events without exposing raw payloads", async () => {
     const adapter = new GoogleCalendarHttpAdapter(
       transportWithEvents([
