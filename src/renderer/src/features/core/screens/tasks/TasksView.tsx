@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { Save, Trash2, X } from "lucide-react";
+import { Pencil, Save, Trash2, X } from "lucide-react";
 import { useInspector } from "../../../../components/Inspector";
 import { Button } from "../../../../components/primitives";
 import { rendererNow, reportRendererTimingSince } from "../../../../hooks/useRenderTiming";
@@ -12,6 +12,7 @@ import {
   writeLocalStorageJSON
 } from "../../localStorageHelpers";
 import {
+  TaskInspectorDetails,
   TaskInspectorBody,
   taskDraftsEqual,
   type TaskDraft
@@ -72,12 +73,14 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
   const [listSorts, setListSorts] = useState<Record<string, TaskListSort>>({});
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [draft, setDraftState] = useState<TaskDraft>(() => newTaskDraft(source));
+  const [taskInspectorMode, setTaskInspectorModeState] = useState<"view" | "edit">("edit");
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
   const [quickCaptureInput, setQuickCaptureInput] = useState("");
   const taskDraftRef = useRef<TaskDraft>(draft);
   const taskDraftBaselineRef = useRef<TaskDraft>(draft);
   const taskInspectorDirtyRef = useRef(false);
   const taskInspectorInstanceRef = useRef(0);
+  const taskInspectorModeRef = useRef<"view" | "edit">("edit");
   const handledCommandNonce = useRef<number | null>(null);
   const quickCaptureOpenStartedAt = useRef<number | null>(null);
   const setDraft = useCallback<Dispatch<SetStateAction<TaskDraft>>>((next) => {
@@ -102,6 +105,11 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
   const canSaveTask = canSaveTaskDraft(draft, source.taskMutationPending);
   const canCaptureTask =
     parsedQuickTask.title.length > 0 && parsedQuickTask.listId.length > 0 && !source.taskMutationPending;
+
+  function setTaskInspectorMode(mode: "view" | "edit"): void {
+    taskInspectorModeRef.current = mode;
+    setTaskInspectorModeState(mode);
+  }
 
   useEffect(() => {
     const listId = defaultTaskListId(source);
@@ -154,11 +162,11 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
       return;
     }
 
-    const dirty = !taskDraftsEqual(draft, taskDraftBaselineRef.current);
+    const dirty = taskInspectorMode === "edit" && !taskDraftsEqual(draft, taskDraftBaselineRef.current);
     taskInspectorDirtyRef.current = dirty;
     updateInspector({
-      actions: taskInspectorActions(draft),
-      body: taskInspectorBody(draft),
+      actions: taskInspectorActions(draft, taskInspectorMode),
+      body: taskInspectorBody(draft, taskInspectorMode),
       dirty,
       title: taskInspectorTitle(draft)
     });
@@ -168,6 +176,7 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
     draft,
     parentOptions,
     selectedTask?.id,
+    taskInspectorMode,
     source.taskLists,
     source.taskMutationPending,
     updateInspector
@@ -183,10 +192,26 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
   }
 
   function canReplaceTaskInspector(): boolean {
-    return currentInspector?.kind !== "task" || !taskInspectorDirtyRef.current;
+    return (
+      currentInspector?.kind !== "task" ||
+      taskInspectorModeRef.current !== "edit" ||
+      !taskInspectorDirtyRef.current
+    );
   }
 
-  function taskInspectorBody(nextDraft: TaskDraft): ReactNode {
+  function taskInspectorBody(nextDraft: TaskDraft, mode = taskInspectorModeRef.current): ReactNode {
+    if (nextDraft.mode === "edit" && mode === "view") {
+      return (
+        <TaskInspectorDetails
+          draft={nextDraft}
+          key={`view-${taskInspectorInstanceRef.current}`}
+          parentOptions={taskParentOptions(source.largeTaskWindow, nextDraft)}
+          source={source}
+          task={selectedTask}
+        />
+      );
+    }
+
     return (
       <TaskInspectorBody
         canSaveTask={canSaveTaskDraft(nextDraft, source.taskMutationPending)}
@@ -202,7 +227,33 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
     );
   }
 
-  function taskInspectorActions(nextDraft: TaskDraft): ReactNode {
+  function taskInspectorActions(nextDraft: TaskDraft, mode = taskInspectorModeRef.current): ReactNode {
+    if (nextDraft.mode === "edit" && mode === "view") {
+      return (
+        <div className="flex w-full items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Button
+              data-action-id="task.deleteSelected"
+              onClick={() => nextDraft.id ? void deleteTask(nextDraft.id) : undefined}
+              size="sm"
+              variant="danger"
+            >
+              <Trash2 aria-hidden="true" size={14} />
+              Delete
+            </Button>
+            <Button onClick={() => setTaskInspectorMode("edit")} size="sm" variant="secondary">
+              <Pencil aria-hidden="true" size={14} />
+              Edit
+            </Button>
+          </div>
+          <Button onClick={() => void cancelTaskInspector()} size="sm" variant="ghost">
+            <X aria-hidden="true" size={14} />
+            Close
+          </Button>
+        </div>
+      );
+    }
+
     return (
       <>
         {nextDraft.mode === "edit" ? (
@@ -233,19 +284,23 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
     );
   }
 
-  function openTaskInspector(nextDraft: TaskDraft): void {
+  function openTaskInspector(
+    nextDraft: TaskDraft,
+    mode: "view" | "edit" = nextDraft.mode === "edit" ? "view" : "edit"
+  ): void {
     taskInspectorInstanceRef.current += 1;
     taskDraftBaselineRef.current = nextDraft;
     taskDraftRef.current = nextDraft;
     taskInspectorDirtyRef.current = false;
+    setTaskInspectorMode(mode);
     setDraft(nextDraft);
     openInspector({
-      actions: taskInspectorActions(nextDraft),
-      body: taskInspectorBody(nextDraft),
+      actions: taskInspectorActions(nextDraft, mode),
+      body: taskInspectorBody(nextDraft, mode),
       dirty: false,
       id: nextDraft.id ?? "new",
       kind: "task",
-      onConfirmClose: () => !taskInspectorDirtyRef.current,
+      onConfirmClose: () => taskInspectorModeRef.current !== "edit" || !taskInspectorDirtyRef.current,
       title: taskInspectorTitle(nextDraft)
     });
   }
@@ -256,7 +311,7 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
     }
 
     setSelectedTaskId(null);
-    openTaskInspector(newTaskDraft(source, listId ? { listId } : {}));
+    openTaskInspector(newTaskDraft(source, listId ? { listId } : {}), "edit");
     setQuickCaptureOpen(false);
   }
 
@@ -267,7 +322,7 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
 
     const task = source.getTaskById(taskId);
     setSelectedTaskId(taskId);
-    openTaskInspector(editTaskDraft(task));
+    openTaskInspector(editTaskDraft(task), "view");
   }
 
   async function saveTask(): Promise<void> {
@@ -286,6 +341,7 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
       taskDraftBaselineRef.current = nextDraft;
       taskDraftRef.current = nextDraft;
       taskInspectorDirtyRef.current = false;
+      setTaskInspectorMode("edit");
       setSelectedTaskId(null);
       setDraft(nextDraft);
       await closeInspector();
@@ -325,6 +381,7 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
       taskDraftBaselineRef.current = nextDraft;
       taskDraftRef.current = nextDraft;
       taskInspectorDirtyRef.current = false;
+      setTaskInspectorMode("edit");
       setSelectedTaskId(null);
       setDraft(nextDraft);
       await closeInspector();
@@ -336,6 +393,7 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
     taskDraftBaselineRef.current = nextDraft;
     taskDraftRef.current = nextDraft;
     taskInspectorDirtyRef.current = false;
+    setTaskInspectorMode("edit");
     setSelectedTaskId(null);
     setDraft(nextDraft);
     await closeInspector();
@@ -380,7 +438,8 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
       newTaskDraft(source, {
         listId: task.listId,
         parentId: task.id
-      })
+      }),
+      "edit"
     );
   }
 

@@ -179,6 +179,130 @@ function MarkdownPreview({
   );
 }
 
+export function NoteInspectorSummary({
+  note,
+  notes,
+  onOpenNote
+}: {
+  note: NoteViewModel;
+  notes: NoteViewModel[];
+  onOpenNote: (noteId: string) => Promise<void> | void;
+}): JSX.Element {
+  const noteByNormalizedTitle = useMemo(
+    () => new Map(notes.map((candidate) => [normalizedNoteTitle(candidate.title), candidate])),
+    [notes]
+  );
+  const links = useMemo(() => extractNoteLinks(note.body), [note.body]);
+  const properties = useMemo(() => extractNoteProperties(note.body), [note.body]);
+  const backlinks = useMemo(
+    () =>
+      notes.filter(
+        (candidate) =>
+          candidate.id !== note.id &&
+          extractNoteLinks(candidate.body).some(
+            (title) => normalizedNoteTitle(title) === normalizedNoteTitle(note.title)
+          )
+      ),
+    [note.body, note.id, note.title, notes]
+  );
+
+  function openLinkedNoteByTitle(title: string): void {
+    const linkedNote = noteByNormalizedTitle.get(normalizedNoteTitle(title));
+
+    if (linkedNote) {
+      void onOpenNote(linkedNote.id);
+    }
+  }
+
+  return (
+    <div className="grid gap-4">
+      <div className="grid gap-2 rounded-hcbLg border border-border bg-bg-tertiary p-4">
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <h3 className="min-w-0 truncate text-[var(--text-xl)] font-semibold text-text-primary">
+            {note.title || "Untitled note"}
+          </h3>
+          <Badge tone="success">Saved</Badge>
+        </div>
+        <p className="text-[var(--text-sm)] text-text-muted">{note.updatedLabel}</p>
+        {note.preview ? (
+          <p className="text-[var(--text-base)] leading-relaxed text-text-secondary">{note.preview}</p>
+        ) : null}
+      </div>
+
+      <MarkdownPreview body={note.body} onOpenNoteLink={openLinkedNoteByTitle} />
+
+      <div className="grid gap-2">
+        <div className="text-[var(--text-xs)] font-semibold uppercase text-text-muted">Properties</div>
+        {properties.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {properties.map((property) => (
+              <Badge key={`${property.key}-${property.value}`} tone="info">
+                {property.key}: {property.value}
+              </Badge>
+            ))}
+          </div>
+        ) : (
+          <span className="text-[var(--text-sm)] text-text-muted">No properties</span>
+        )}
+      </div>
+
+      <div className="grid gap-3 rounded-hcbMd border border-border bg-bg-tertiary p-3">
+        <div className="grid gap-2">
+          <div className="text-[var(--text-xs)] font-semibold uppercase text-text-muted">Links</div>
+          {links.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {links.map((title) => {
+                const link = parsePlannerLink(title);
+                const linkedNote = link.kind === "note"
+                  ? noteByNormalizedTitle.get(normalizedNoteTitle(link.label))
+                  : undefined;
+                const action = linkedNote ? () => void onOpenNote(linkedNote.id) : () => undefined;
+
+                return (
+                  <button
+                    aria-label={linkedNote ? `Open linked note ${linkedNote.title}` : `${link.kind} link ${link.label}`}
+                    className={linkButtonClass(linkedNote ? "accent" : "neutral")}
+                    key={title}
+                    onClick={action}
+                    type="button"
+                  >
+                    <Search aria-hidden="true" size={14} />
+                    {linkedNote ? linkedNote.title : `${link.kind}: ${link.label}`}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <span className="text-[var(--text-sm)] text-text-muted">None</span>
+          )}
+        </div>
+
+        <div className="grid gap-2">
+          <div className="text-[var(--text-xs)] font-semibold uppercase text-text-muted">Backlinks</div>
+          {backlinks.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {backlinks.map((backlink) => (
+                <button
+                  aria-label={`Open backlink ${backlink.title}`}
+                  className={linkButtonClass("accent")}
+                  key={backlink.id}
+                  onClick={() => void onOpenNote(backlink.id)}
+                  type="button"
+                >
+                  <RotateCcw aria-hidden="true" size={14} />
+                  {backlink.title}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <span className="text-[var(--text-sm)] text-text-muted">None</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function linkButtonClass(tone: "accent" | "warning" | "neutral"): string {
   return cx(
     "inline-flex min-h-8 items-center gap-1 rounded-hcbSm border px-2 text-[var(--text-sm)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",

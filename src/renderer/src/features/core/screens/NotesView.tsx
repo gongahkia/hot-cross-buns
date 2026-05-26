@@ -60,6 +60,7 @@ import {
 } from "../localStorageHelpers";
 import {
   NoteInspectorBody,
+  NoteInspectorSummary,
   type NoteDraftValue,
   type NoteInspectorBodyHandle
 } from "../inspectors/NoteInspectorBody";
