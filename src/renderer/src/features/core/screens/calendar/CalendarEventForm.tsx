@@ -19,7 +19,22 @@ import {
   calendarDraftRangeLabel,
   calendarRecurrenceSummary
 } from "./drafts";
-import type { CalendarCreateMode, CalendarEventDraft, CalendarRepeatFrequency } from "./types";
+import type { CalendarCreateMode, CalendarEventDraft, CalendarRepeatFrequency, CalendarRepeatWeekday } from "./types";
+
+const repeatWeekdays: Array<{ id: CalendarRepeatWeekday; label: string }> = [
+  { id: "SU", label: "S" },
+  { id: "MO", label: "M" },
+  { id: "TU", label: "T" },
+  { id: "WE", label: "W" },
+  { id: "TH", label: "T" },
+  { id: "FR", label: "F" },
+  { id: "SA", label: "S" }
+];
+
+function repeatWeekdayForIso(value: string): CalendarRepeatWeekday {
+  const date = new Date(value);
+  return repeatWeekdays[Number.isFinite(date.getTime()) ? date.getUTCDay() : 0]?.id ?? "SU";
+}
 
 function DetailItem({
   children,

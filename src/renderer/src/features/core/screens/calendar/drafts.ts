@@ -8,7 +8,15 @@ import {
   normalizeReminderMinutes,
   startOfUtcDayIso
 } from "../../coreScreenShared";
-import type { CalendarCreateSeed, CalendarEventDraft } from "./types";
+import type { CalendarCreateSeed, CalendarEventDraft, CalendarRepeatWeekday } from "./types";
+
+const recurrenceWeekdays: CalendarRepeatWeekday[] = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+
+function recurrenceWeekdayForIso(value: string): CalendarRepeatWeekday {
+  const date = new Date(value);
+
+  return recurrenceWeekdays[Number.isFinite(date.getTime()) ? date.getUTCDay() : 0] ?? "SU";
+}
 
 export function defaultCalendarId(source: ReturnType<typeof useCoreViewModelSource>): string {
   return (
@@ -57,9 +65,12 @@ export function newCalendarDraft(
     guests: "",
     reminderMinutes: "",
     repeatFrequency: "none",
+    repeatCustomFrequency: "weekly",
+    repeatEndMode: "never",
     repeatInterval: "1",
     repeatEndsOn: "",
-    repeatCount: ""
+    repeatCount: "",
+    repeatWeekdays: [recurrenceWeekdayForIso(startsAt)]
   };
 }
 
@@ -79,10 +90,13 @@ export function editCalendarDraft(event: CalendarEventViewModel): CalendarEventD
     notes: event.notes === "Calendar cache" ? "" : event.notes,
     guests: event.guestEmails.join(", "),
     reminderMinutes: event.reminderMinutes[0] === undefined ? "" : String(event.reminderMinutes[0]),
-    repeatFrequency: recurrence?.frequency ?? "none",
+    repeatFrequency: recurrence?.repeatFrequency ?? "none",
+    repeatCustomFrequency: recurrence?.repeatCustomFrequency ?? "weekly",
+    repeatEndMode: recurrence?.repeatEndMode ?? "never",
     repeatInterval: recurrence ? String(recurrence.interval) : "1",
     repeatEndsOn: recurrence?.endsOn ?? "",
-    repeatCount: recurrence?.count === null || recurrence?.count === undefined ? "" : String(recurrence.count)
+    repeatCount: recurrence?.count === null || recurrence?.count === undefined ? "" : String(recurrence.count),
+    repeatWeekdays: recurrence?.byDay?.length ? recurrence.byDay : [recurrenceWeekdayForIso(event.startsAt)]
   };
 }
 
@@ -129,9 +143,12 @@ export function calendarEventDraftsEqual(
     left.guests === right.guests &&
     left.reminderMinutes === right.reminderMinutes &&
     left.repeatFrequency === right.repeatFrequency &&
+    left.repeatCustomFrequency === right.repeatCustomFrequency &&
+    left.repeatEndMode === right.repeatEndMode &&
     left.repeatInterval === right.repeatInterval &&
     left.repeatEndsOn === right.repeatEndsOn &&
-    left.repeatCount === right.repeatCount
+    left.repeatCount === right.repeatCount &&
+    left.repeatWeekdays.join(",") === right.repeatWeekdays.join(",")
   );
 }
 
@@ -140,20 +157,28 @@ function calendarDraftRecurrence(draft: CalendarEventDraft): CalendarEventRecurr
     return null;
   }
 
+  const frequency = draft.repeatFrequency === "custom" ? draft.repeatCustomFrequency : draft.repeatFrequency;
   const interval = Math.min(366, Math.max(1, Number.parseInt(draft.repeatInterval, 10) || 1));
-  const count = draft.repeatCount.trim() === ""
+  const count = draft.repeatEndMode !== "after" || draft.repeatCount.trim() === ""
     ? null
     : Math.min(366, Math.max(1, Number.parseInt(draft.repeatCount, 10) || 1));
 
   return {
-    frequency: draft.repeatFrequency,
-    interval,
-    endsOn: draft.repeatEndsOn.trim() || null,
-    count
+    frequency,
+    interval: draft.repeatFrequency === "custom" ? interval : 1,
+    endsOn: draft.repeatEndMode === "on" ? draft.repeatEndsOn.trim() || null : null,
+    count,
+    ...(draft.repeatFrequency === "custom" && frequency === "weekly" && draft.repeatWeekdays.length > 0
+      ? { byDay: draft.repeatWeekdays }
+      : {})
   };
 }
 
-function calendarDraftRecurrenceFromRule(rule: string | null | undefined): CalendarEventRecurrence | null {
+function calendarDraftRecurrenceFromRule(rule: string | null | undefined): (CalendarEventRecurrence & {
+  repeatCustomFrequency: CalendarEventRecurrence["frequency"];
+  repeatEndMode: CalendarEventDraft["repeatEndMode"];
+  repeatFrequency: CalendarEventDraft["repeatFrequency"];
+}) | null {
   const line = rule
     ?.split("\n")
     .map((candidate) => candidate.trim())
@@ -171,6 +196,9 @@ function calendarDraftRecurrenceFromRule(rule: string | null | undefined): Calen
       .filter((part): part is [string, string] => part.length === 2)
   );
   const frequency = parts.FREQ?.toLowerCase();
+  const byDay = parts.BYDAY
+    ?.split(",")
+    .filter((day): day is CalendarRepeatWeekday => recurrenceWeekdays.includes(day as CalendarRepeatWeekday));
 
   if (
     frequency !== "daily" &&
@@ -181,11 +209,20 @@ function calendarDraftRecurrenceFromRule(rule: string | null | undefined): Calen
     return null;
   }
 
+  const interval = Math.min(366, Math.max(1, Number.parseInt(parts.INTERVAL ?? "1", 10) || 1));
+  const count = parts.COUNT ? Math.min(366, Math.max(1, Number.parseInt(parts.COUNT, 10) || 1)) : null;
+  const endsOn = parts.UNTIL ? recurrenceDateInputValue(parts.UNTIL) : null;
+  const custom = interval !== 1 || count !== null || endsOn !== null || (byDay?.length ?? 0) > 0;
+
   return {
     frequency,
-    interval: Math.min(366, Math.max(1, Number.parseInt(parts.INTERVAL ?? "1", 10) || 1)),
-    endsOn: parts.UNTIL ? recurrenceDateInputValue(parts.UNTIL) : null,
-    count: parts.COUNT ? Math.min(366, Math.max(1, Number.parseInt(parts.COUNT, 10) || 1)) : null
+    interval,
+    endsOn,
+    count,
+    ...(byDay?.length ? { byDay } : {}),
+    repeatCustomFrequency: frequency,
+    repeatEndMode: count !== null ? "after" : endsOn !== null ? "on" : "never",
+    repeatFrequency: custom ? "custom" : frequency
   };
 }
 
@@ -213,12 +250,27 @@ export function calendarRecurrenceSummary(draft: CalendarEventDraft): string {
   const cadence = recurrence.interval === 1
     ? `Every ${unit}`
     : `Every ${recurrence.interval} ${unit}s`;
+  const weekdayLabels = recurrence.frequency === "weekly" && recurrence.byDay?.length
+    ? ` on ${recurrence.byDay.map(recurrenceWeekdayLabel).join(", ")}`
+    : "";
   const qualifiers = [
     recurrence.endsOn ? `until ${recurrence.endsOn}` : null,
     recurrence.count ? `${recurrence.count} times` : null
   ].filter((part): part is string => part !== null);
 
-  return qualifiers.length > 0 ? `${cadence}, ${qualifiers.join(", ")}` : cadence;
+  return qualifiers.length > 0 ? `${cadence}${weekdayLabels}, ${qualifiers.join(", ")}` : `${cadence}${weekdayLabels}`;
+}
+
+function recurrenceWeekdayLabel(day: CalendarRepeatWeekday): string {
+  return {
+    SU: "Sun",
+    MO: "Mon",
+    TU: "Tue",
+    WE: "Wed",
+    TH: "Thu",
+    FR: "Fri",
+    SA: "Sat"
+  }[day];
 }
 
 export function allDayEndInputValue(endsAt: string): string {
