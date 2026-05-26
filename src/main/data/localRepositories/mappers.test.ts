@@ -1,9 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { calendarEventDetailSchema, calendarEventSummarySchema } from "@shared/ipc/contracts";
-import { calendarEventDetail, calendarEventSummary } from "./mappers";
-import type { CalendarEventRow } from "./types";
+import {
+  calendarEventDetailSchema,
+  calendarEventSummarySchema,
+  calendarListSummarySchema
+} from "@shared/ipc/contracts";
+import { calendarEventDetail, calendarEventSummary, calendarListSummary } from "./mappers";
+import type { CalendarEventRow, CalendarListRow } from "./types";
 
 describe("local repository mappers", () => {
+  it("passes Google calendar colors through list summaries", () => {
+    const row: CalendarListRow = {
+      id: "acct-1:calendar:primary",
+      title: "Primary",
+      selected: 1,
+      timeZone: "Asia/Singapore",
+      backgroundColor: "#34a853",
+      foregroundColor: "#ffffff",
+      updatedAt: "2026-05-22T00:00:00.000Z",
+      eventCount: 12
+    };
+
+    const summary = calendarListSummary(row);
+
+    expect(calendarListSummarySchema.safeParse(summary).success).toBe(true);
+    expect(summary.backgroundColor).toBe("#34a853");
+    expect(summary.foregroundColor).toBe("#ffffff");
+  });
+
   it("keeps synced calendar event summaries inside IPC response limits", () => {
     const row: CalendarEventRow = {
       id: "acct-1:event-instance:event-1",

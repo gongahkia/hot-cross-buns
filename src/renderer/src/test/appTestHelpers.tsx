@@ -443,6 +443,8 @@ export function seededHcb(): HcbApi {
               title: "Product",
               selected: true,
               timeZone: "UTC",
+              backgroundColor: "#34a853",
+              foregroundColor: "#ffffff",
               updatedAt: now,
               eventCount: 1
             }

@@ -32,6 +32,10 @@ describe("App calendar", () => {
     expect(await screen.findByText("Agenda view")).toBeInTheDocument();
     const agenda = await screen.findByRole("list", { name: "Calendar agenda" });
     expect(within(agenda).getByText("Planner shell standup")).toBeInTheDocument();
+    const standupRow = within(agenda).getByText("Planner shell standup").closest("button");
+    const agendaAccent = standupRow?.querySelector("span[aria-hidden='true']") as HTMLElement;
+
+    expect(agendaAccent.style.backgroundColor).toBe("rgb(52, 168, 83)");
     expect(screen.queryByRole("button", { name: "Share availability" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Share Availability" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Calendar context" })).not.toBeInTheDocument();
@@ -40,6 +44,9 @@ describe("App calendar", () => {
     const tabs = screen.getByRole("tablist", { name: "Calendar views" });
     await user.click(within(tabs).getByRole("tab", { name: "Day" }));
     expect(screen.getByRole("grid", { name: "Calendar day view" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "09:30-09:50 Planner shell standup" }).style.borderLeftColor).toBe(
+      "rgb(52, 168, 83)"
+    );
     expect(screen.getByRole("button", { name: "Share availability" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Share Availability" })).toBeInTheDocument();
 
@@ -345,6 +352,8 @@ describe("App calendar", () => {
             title: "Product",
             selected: true,
             timeZone: "UTC",
+            backgroundColor: "#34a853",
+            foregroundColor: "#ffffff",
             updatedAt: now,
             eventCount: 1
           },
@@ -353,6 +362,8 @@ describe("App calendar", () => {
             title: "Engineering",
             selected: true,
             timeZone: "UTC",
+            backgroundColor: "#fbbc04",
+            foregroundColor: "#202124",
             updatedAt: now,
             eventCount: 1
           }
