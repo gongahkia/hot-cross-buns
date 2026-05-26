@@ -3,6 +3,7 @@ import { Bell, CalendarPlus, Clock3, FileText, Gift, ListPlus, MapPin, RotateCcw
 import { Badge, Input, cx } from "../../../../components/primitives";
 import { ErrorState } from "../../../../components/states";
 import type { useCoreViewModelSource } from "../../coreViewModelSource";
+import { MarkdownPreview } from "../../MarkdownPreview";
 import {
   addUtcDaysIso,
   dateInputToIso,
@@ -122,7 +123,13 @@ export function CalendarEventDetails({
 
       <DetailItem icon={FileText} label="Notes">
         {draft.notes.trim() ? (
-          <div className="whitespace-pre-wrap leading-relaxed text-text-secondary">{draft.notes}</div>
+          <MarkdownPreview
+            ariaLabel="Event notes preview"
+            body={draft.notes}
+            emptyDescription="No notes"
+            emptyTitle="No notes"
+            variant="plain"
+          />
         ) : (
           <span className="text-text-muted">No notes</span>
         )}

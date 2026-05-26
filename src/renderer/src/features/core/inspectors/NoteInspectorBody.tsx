@@ -7,13 +7,13 @@ import {
   useRef,
   useState
 } from "react";
-import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
+import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Link2, Pencil, RotateCcw, Search } from "lucide-react";
 import type { NoteLinkSuggestResponse } from "@shared/ipc/contracts";
 import { useDirtyState, useInspector } from "../../../components/Inspector";
 import { Badge, Button, Input, cx } from "../../../components/primitives";
-import { EmptyState } from "../../../components/states";
 import type { NoteViewModel } from "../coreViewModels";
+import { MarkdownPreview } from "../MarkdownPreview";
 import {
   extractNoteLinks,
   extractNoteProperties,
@@ -45,140 +45,6 @@ function noteDraftValuesEqual(left: NoteDraftValue, right: NoteDraftValue): bool
   return left.title === right.title && left.body === right.body;
 }
 
-function renderInlineNoteLinks(
-  value: string,
-  onOpenNoteLink: (title: string) => void
-): ReactNode[] {
-  const nodes: ReactNode[] = [];
-  const pattern = /\[\[([^\]]{1,160})\]\]/g;
-  let cursor = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = pattern.exec(value)) !== null) {
-    const title = match[1]?.trim() ?? "";
-    const link = parsePlannerLink(title);
-
-    if (match.index > cursor) {
-      nodes.push(value.slice(cursor, match.index));
-    }
-
-    nodes.push(link.kind === "note" ? (
-      <button
-        className="rounded-hcbSm px-1 text-accent underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        key={`${title}-${match.index}`}
-        onClick={() => onOpenNoteLink(link.label)}
-        type="button"
-      >
-        {link.label}
-      </button>
-    ) : (
-      <span
-        className="inline-flex rounded-hcbSm border border-border bg-bg-tertiary px-1 text-text-secondary"
-        key={`${title}-${match.index}`}
-      >
-        {link.kind}: {link.label}
-      </span>
-    ));
-    cursor = match.index + match[0].length;
-  }
-
-  if (cursor < value.length) {
-    nodes.push(value.slice(cursor));
-  }
-
-  return nodes.length > 0 ? nodes : [value];
-}
-
-function MarkdownPreview({
-  body,
-  onOpenNoteLink
-}: {
-  body: string;
-  onOpenNoteLink: (title: string) => void;
-}): JSX.Element {
-  const lines = body.split(/\r?\n/);
-
-  if (body.trim().length === 0) {
-    return <EmptyState description="This note has no body yet." title="Empty note" />;
-  }
-
-  return (
-    <div
-      aria-label="Note preview"
-      className="grid min-h-[260px] content-start gap-2 rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary"
-      role="region"
-    >
-      {lines.map((line, index) => {
-        const trimmed = line.trim();
-
-        if (!trimmed) {
-          return <div aria-hidden="true" className="h-2" key={`blank-${index}`} />;
-        }
-
-        const heading = /^(#{1,3})\s+(.+)$/.exec(trimmed);
-        if (heading) {
-          const level = heading[1].length;
-          const className =
-            level === 1
-              ? "text-[var(--text-xl)] font-semibold"
-              : level === 2
-                ? "text-[var(--text-lg)] font-semibold"
-                : "text-[var(--text-md)] font-semibold";
-
-          return (
-            <div className={className} key={`heading-${index}`}>
-              {renderInlineNoteLinks(heading[2], onOpenNoteLink)}
-            </div>
-          );
-        }
-
-        const taskItem = /^[-*]\s+\[( |x|X)\]\s+(.+)$/.exec(trimmed);
-        if (taskItem) {
-          const checked = taskItem[1].toLowerCase() === "x";
-
-          return (
-            <div className="flex items-start gap-2" key={`task-${index}`}>
-              <input
-                checked={checked}
-                className="mt-1 accent-[var(--color-accent)]"
-                readOnly
-                type="checkbox"
-              />
-              <span className={cx("min-w-0", checked && "text-text-muted line-through")}>
-                {renderInlineNoteLinks(taskItem[2], onOpenNoteLink)}
-              </span>
-            </div>
-          );
-        }
-
-        const listItem = /^[-*]\s+(.+)$/.exec(trimmed);
-        if (listItem) {
-          return (
-            <div className="flex items-start gap-2" key={`list-${index}`}>
-              <span className="text-text-muted">-</span>
-              <span className="min-w-0">{renderInlineNoteLinks(listItem[1], onOpenNoteLink)}</span>
-            </div>
-          );
-        }
-
-        const quote = /^>\s+(.+)$/.exec(trimmed);
-        if (quote) {
-          return (
-            <blockquote
-              className="border-l-2 border-accent pl-3 text-text-secondary"
-              key={`quote-${index}`}
-            >
-              {renderInlineNoteLinks(quote[1], onOpenNoteLink)}
-            </blockquote>
-          );
-        }
-
-        return <p key={`paragraph-${index}`}>{renderInlineNoteLinks(trimmed, onOpenNoteLink)}</p>;
-      })}
-    </div>
-  );
-}
-
 export function NoteInspectorSummary({
   note,
   notes,
@@ -206,14 +72,6 @@ export function NoteInspectorSummary({
     [note.body, note.id, note.title, notes]
   );
 
-  function openLinkedNoteByTitle(title: string): void {
-    const linkedNote = noteByNormalizedTitle.get(normalizedNoteTitle(title));
-
-    if (linkedNote) {
-      void onOpenNote(linkedNote.id);
-    }
-  }
-
   return (
     <div className="grid gap-4">
       <div className="grid gap-2 rounded-hcbLg border border-border bg-bg-tertiary p-4">
@@ -229,7 +87,7 @@ export function NoteInspectorSummary({
         ) : null}
       </div>
 
-      <MarkdownPreview body={note.body} onOpenNoteLink={openLinkedNoteByTitle} />
+      <MarkdownPreview ariaLabel="Note preview" body={note.body} />
 
       <div className="grid gap-2">
         <div className="text-[var(--text-xs)] font-semibold uppercase text-text-muted">Properties</div>
@@ -581,14 +439,6 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
       }
     }
 
-    function openLinkedNoteByTitle(title: string): void {
-      const linkedNote = noteByNormalizedTitle.get(normalizedNoteTitle(title));
-
-      if (linkedNote) {
-        void onOpenNote(linkedNote.id);
-      }
-    }
-
     function handleLinkChipKeyDown(
       event: ReactKeyboardEvent<HTMLButtonElement>,
       action: () => void
@@ -645,7 +495,7 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
               value={dirty.value.body}
             />
           ) : (
-            <MarkdownPreview body={dirty.value.body} onOpenNoteLink={openLinkedNoteByTitle} />
+            <MarkdownPreview ariaLabel="Note preview" body={dirty.value.body} />
           )}
         </div>
 
