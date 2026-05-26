@@ -114,7 +114,7 @@ export function calendarEventSummary(row: CalendarEventRow): CalendarEventSummar
 export function calendarEventDetail(row: CalendarEventRow): CalendarEventDetail {
   return {
     ...calendarEventSummary(row),
-    calendarTitle: row.calendarTitle,
+    calendarTitle: truncateText(row.calendarTitle, textLimits.calendarTitle),
     deepLink: `hotcrossbuns://event/${row.eventId}`
   };
 }
