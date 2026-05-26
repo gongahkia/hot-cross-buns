@@ -6,7 +6,11 @@ import { Button } from "../../../../components/primitives";
 import { rendererNow, reportRendererTimingSince } from "../../../../hooks/useRenderTiming";
 import { useCoreViewModelSource } from "../../coreViewModelSource";
 import { playCompletionSound } from "../../completionSounds";
-import type { TaskFilterId } from "../../coreViewModels";
+import {
+  readLocalStorageNumberRecord,
+  readLocalStorageStringArray,
+  writeLocalStorageJSON
+} from "../../localStorageHelpers";
 import {
   TaskInspectorBody,
   taskDraftsEqual,
@@ -18,17 +22,9 @@ import {
   scheduledBlockByTaskId
 } from "../../coreScreenShared";
 import {
-  BulkTaskSelectionBanner,
   QuickCapturePanel,
-  SavedTaskPerspectivesPanel,
-  TaskFilterToolbar,
-  TaskHeader,
-  TaskListsSidebarPanel,
   TaskMutationErrorBanner,
-  TaskPerspectiveContent,
-  TaskPerspectiveTabs,
-  TaskRefreshPanel,
-  TasksSectionChrome
+  TaskRefreshPanel
 } from "./TaskPanels";
 import { parseQuickTaskInput } from "./quickTaskParser";
 import {
@@ -42,10 +38,6 @@ import {
   taskUpdatePayload
 } from "./taskDrafts";
 import {
-  buildTaskPerspective,
-  type TaskPerspectiveId
-} from "./taskPerspectives";
-import {
   GoogleTasksBoard,
   type TaskBoardSelection,
   type TaskListSort
@@ -58,33 +50,6 @@ export interface TaskSurfaceCommand {
 
 const starredTasksStorageKey = "hcb.starredTaskIds";
 const starredTasksAtStorageKey = "hcb.starredTaskAt";
-
-function readStoredStringArray(key: string): string[] {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(key) ?? "[]");
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-function readStoredNumberRecord(key: string): Record<string, number> {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(key) ?? "{}");
-
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return {};
-    }
-
-    return Object.fromEntries(
-      Object.entries(parsed).filter((entry): entry is [string, number] =>
-        typeof entry[0] === "string" && typeof entry[1] === "number"
-      )
-    );
-  } catch {
-    return {};
-  }
-}
 
 export function TasksView({ command }: { command?: TaskSurfaceCommand | null }): JSX.Element {
   const source = useCoreViewModelSource();
