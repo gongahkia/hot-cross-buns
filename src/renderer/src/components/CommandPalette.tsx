@@ -130,6 +130,16 @@ export function CommandPalette({
   }, [query]);
 
   useEffect(() => {
+    const input = inputRef.current;
+
+    if (!input || document.activeElement !== input || input.selectionStart !== query.length) {
+      return;
+    }
+
+    input.scrollLeft = input.scrollWidth;
+  }, [query]);
+
+  useEffect(() => {
     if (activeOptionCount === 0) {
       setHighlightedIndex(0);
       return;
@@ -218,14 +228,14 @@ export function CommandPalette({
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-start justify-center bg-bg-tertiary/45 px-4 pt-[12vh] backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-bg-tertiary/45 px-4 pt-[12vh] backdrop-blur-sm"
       onKeyDown={handleDialogKeyDown}
       role="presentation"
     >
       <div
         aria-labelledby="command-palette-title"
         aria-modal="true"
-        className="w-full max-w-[620px] overflow-hidden rounded-hcbLg border border-border bg-bg-secondary shadow-2xl"
+        className="w-full max-w-[960px] overflow-hidden rounded-hcbLg border border-border bg-bg-secondary shadow-2xl"
         role="dialog"
       >
         <div className="flex h-11 items-center gap-3 border-b border-border px-3">
