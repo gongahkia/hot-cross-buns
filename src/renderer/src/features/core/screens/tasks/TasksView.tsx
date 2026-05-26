@@ -45,10 +45,45 @@ import {
   buildTaskPerspective,
   type TaskPerspectiveId
 } from "./taskPerspectives";
+import {
+  GoogleTasksBoard,
+  type TaskBoardSelection,
+  type TaskListSort
+} from "./GoogleTasksBoard";
 
 export interface TaskSurfaceCommand {
   id: "task.create" | "task.quickCapture";
   nonce: number;
+}
+
+const starredTasksStorageKey = "hcb.starredTaskIds";
+const starredTasksAtStorageKey = "hcb.starredTaskAt";
+
+function readStoredStringArray(key: string): string[] {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(key) ?? "[]");
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function readStoredNumberRecord(key: string): Record<string, number> {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(key) ?? "{}");
+
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsed).filter((entry): entry is [string, number] =>
+        typeof entry[0] === "string" && typeof entry[1] === "number"
+      )
+    );
+  } catch {
+    return {};
+  }
 }
 
 export function TasksView({ command }: { command?: TaskSurfaceCommand | null }): JSX.Element {
@@ -62,6 +97,14 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
   const [activeFilterId, setActiveFilterId] = useState<TaskFilterId>("open");
   const [activePerspectiveId, setActivePerspectiveId] = useState<TaskPerspectiveId>("projects");
   const [activeSavedTaskViewId, setActiveSavedTaskViewId] = useState<string | null>(null);
+  const [selectedBoardView, setSelectedBoardView] = useState<TaskBoardSelection>({ kind: "all" });
+  const [starredTaskIds, setStarredTaskIds] = useState<Set<string>>(
+    () => new Set(readStoredStringArray(starredTasksStorageKey))
+  );
+  const [starredTaskAt, setStarredTaskAt] = useState<Record<string, number>>(
+    () => readStoredNumberRecord(starredTasksAtStorageKey)
+  );
+  const [listSorts, setListSorts] = useState<Record<string, TaskListSort>>({});
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [draft, setDraftState] = useState<TaskDraft>(() => newTaskDraft(source));
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
@@ -170,6 +213,7 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
 
     handledCommandNonce.current = command.nonce;
     setActiveFilterId("open");
+    setSelectedBoardView({ kind: "all" });
 
     if (command.id === "task.quickCapture") {
       quickCaptureOpenStartedAt.current = rendererNow();
@@ -179,6 +223,14 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
 
     openNewTask();
   }, [command, source]);
+
+  useEffect(() => {
+    window.localStorage.setItem(starredTasksStorageKey, JSON.stringify([...starredTaskIds]));
+  }, [starredTaskIds]);
+
+  useEffect(() => {
+    window.localStorage.setItem(starredTasksAtStorageKey, JSON.stringify(starredTaskAt));
+  }, [starredTaskAt]);
 
   useEffect(() => {
     if (!quickCaptureOpen) {
@@ -292,13 +344,13 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
     });
   }
 
-  function openNewTask(): void {
+  function openNewTask(listId?: string): void {
     if (!canReplaceTaskInspector()) {
       return;
     }
 
     setSelectedTaskId(null);
-    openTaskInspector(newTaskDraft(source));
+    openTaskInspector(newTaskDraft(source, listId ? { listId } : {}));
     setActiveFilterId("open");
     setQuickCaptureOpen(false);
   }
@@ -547,21 +599,90 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
   }
 
   function addSubtaskDraft(): void {
-    if (!selectedTask) {
+    addSubtaskForTask(selectedTask);
+  }
+
+  function addSubtaskForTask(task: typeof selectedTask): void {
+    if (!task) {
       return;
     }
 
     setSelectedTaskId(null);
     openTaskInspector(
       newTaskDraft(source, {
-        listId: selectedTask.listId,
-        parentId: selectedTask.id
+        listId: task.listId,
+        parentId: task.id
       })
     );
   }
 
   function deleteTaskList(taskListId: string): void {
     void source.deleteTaskList(taskListId);
+  }
+
+  function promptCreateTaskList(): void {
+    const title = window.prompt("Create new list")?.trim();
+
+    if (!title || source.taskMutationPending) {
+      return;
+    }
+
+    void source.createTaskList({ title });
+  }
+
+  function promptRenameTaskList(taskList: { id: string; title: string }): void {
+    const title = window.prompt("Rename list", taskList.title)?.trim();
+
+    if (!title || title === taskList.title || source.taskMutationPending) {
+      return;
+    }
+
+    void source.renameTaskList({ id: taskList.id, title });
+  }
+
+  function confirmDeleteTaskList(taskListId: string): void {
+    const taskList = source.taskLists.find((list) => list.id === taskListId);
+    const title = taskList?.title ?? "this list";
+
+    if (!window.confirm(`Delete ${title}? This also deletes cached tasks in the list.`)) {
+      return;
+    }
+
+    deleteTaskList(taskListId);
+  }
+
+  function toggleTaskStar(taskId: string): void {
+    setStarredTaskIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(taskId)) {
+        next.delete(taskId);
+        setStarredTaskAt((timestamps) => {
+          const result = { ...timestamps };
+          delete result[taskId];
+          return result;
+        });
+      } else {
+        next.add(taskId);
+        setStarredTaskAt((timestamps) => ({
+          ...timestamps,
+          [taskId]: Date.now()
+        }));
+      }
+
+      return next;
+    });
+  }
+
+  function setListSort(listId: string, sort: TaskListSort): void {
+    setListSorts((current) => ({
+      ...current,
+      [listId]: sort
+    }));
+  }
+
+  function moveTaskToList(taskId: string, listId: string): void {
+    void source.moveTask({ id: taskId, listId, parentId: null });
   }
 
   function deleteSavedTaskView(viewId: string): void {
@@ -605,33 +726,7 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
 
       <TaskMutationErrorBanner source={source} />
 
-      <BulkTaskSelectionBanner
-        bulkCompletionLabel={bulkCompletionLabel}
-        bulkMoveTargetListId={bulkMoveTargetListId}
-        bulkSelectedTaskIdsInWindow={bulkSelectedTaskIdsInWindow}
-        bulkSelectedTasks={bulkSelectedTasks}
-        onClearSelection={() => setBulkSelectedTaskIds([])}
-        onCompleteSelectedTasks={() => void completeBulkSelectedTasks()}
-        onDeleteSelectedTasks={() => void deleteBulkSelectedTasks()}
-        onMoveSelectedTasks={() => void moveBulkSelectedTasks()}
-        onSelectMoveList={setBulkMoveListId}
-        source={source}
-      />
-
-      <TasksSectionChrome
-        sidebar={
-          <TaskListsSidebarPanel
-            listTitleDrafts={listTitleDrafts}
-            newListTitle={newListTitle}
-            onCreateTaskList={() => void createTaskList()}
-            onDeleteTaskList={deleteTaskList}
-            onRenameTaskList={(taskListId, currentTitle) => void renameTaskList(taskListId, currentTitle)}
-            setListTitleDrafts={setListTitleDrafts}
-            setNewListTitle={setNewListTitle}
-            source={source}
-          />
-        }
-      >
+      <div className="grid min-h-0 flex-1 gap-3">
         {quickCaptureOpen ? (
           <QuickCapturePanel
             canCaptureTask={canCaptureTask}
@@ -643,27 +738,27 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
           />
         ) : null}
         {source.dataState === "stale" ? <TaskRefreshPanel /> : null}
-        {activePerspectiveId === "saved" ? (
-          <SavedTaskPerspectivesPanel
-            activeSavedTaskView={activeSavedTaskView}
-            onDeleteSavedTaskView={deleteSavedTaskView}
-            onSelectSavedTaskView={setActiveSavedTaskViewId}
-            source={source}
-          />
-        ) : null}
-        <TaskPerspectiveContent
-          activeFilterId={activeFilterId}
-          activePerspective={activeTaskPerspective}
-          bulkSelectedTaskIdsInWindow={bulkSelectedTaskIdsInWindow}
-          onBulkSelectTask={setTaskBulkSelected}
+        <GoogleTasksBoard
+          listSorts={listSorts}
+          onAddSubtask={addSubtaskForTask}
+          onCreateList={promptCreateTaskList}
+          onCreateTask={openNewTask}
+          onDeleteList={confirmDeleteTaskList}
           onDeleteTask={(taskId) => void deleteTask(taskId)}
-          onSelectTask={selectTask}
+          onMoveTask={moveTaskToList}
+          onOpenTask={selectTask}
+          onRenameList={promptRenameTaskList}
+          onSetListSort={setListSort}
+          onToggleStar={toggleTaskStar}
           onToggleTask={(taskId) => void toggleTask(taskId)}
           scheduledBlocksByTask={scheduledBlocksByTask}
           selectedTaskId={selectedTaskId}
-          shouldRenderPerspectiveGroups={shouldRenderPerspectiveGroups}
+          selectedView={selectedBoardView}
+          setSelectedView={setSelectedBoardView}
+          source={source}
+          starred={{ ids: starredTaskIds, starredAt: starredTaskAt }}
         />
-      </TasksSectionChrome>
+      </div>
     </div>
   );
 }

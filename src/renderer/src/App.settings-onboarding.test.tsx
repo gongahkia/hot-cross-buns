@@ -44,7 +44,6 @@ describe("App settings and onboarding", () => {
 
   it("filters settings results and switches to the matching tab", async () => {
     installHcb(seededHcb());
-    const user = userEvent.setup();
     render(<App />);
 
     await goToSection("Settings");
@@ -52,15 +51,7 @@ describe("App settings and onboarding", () => {
     const dialog = await screen.findByRole("dialog", { name: "Settings" });
     const search = within(dialog).getByRole("textbox", { name: "Search settings" });
 
-    await user.type(search, "menubar");
-
-    // eslint-disable-next-line no-console
-    console.log(
-      within(dialog)
-        .getAllByRole("button")
-        .filter((button) => button.hasAttribute("aria-pressed"))
-        .map((button) => `${button.textContent}:${button.getAttribute("aria-pressed")}`)
-    );
+    fireEvent.change(search, { target: { value: "menubar" } });
 
     await waitFor(() => {
       expect(within(dialog).getByRole("button", { name: "Alerts" })).toHaveAttribute("aria-pressed", "true");
@@ -70,8 +61,7 @@ describe("App settings and onboarding", () => {
     expect(within(dialog).queryByRole("heading", { level: 2, name: "Notifications" })).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("heading", { level: 2, name: "Language" })).not.toBeInTheDocument();
 
-    await user.clear(search);
-    await user.type(search, "performance");
+    fireEvent.change(search, { target: { value: "performance" } });
 
     await waitFor(() => {
       expect(within(dialog).getByRole("button", { name: "General" })).toHaveAttribute("aria-pressed", "true");

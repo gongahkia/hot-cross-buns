@@ -1,0 +1,630 @@
+import { useMemo, useState, type ReactNode } from "react";
+import {
+  CalendarClock,
+  Check,
+  CheckCircle2,
+  CornerDownRight,
+  MoreVertical,
+  Paperclip,
+  Plus,
+  Star,
+  Target,
+  Trash2
+} from "lucide-react";
+import type { TaskListSummary } from "@shared/ipc/contracts";
+import { Badge, Button, IconButton, cx } from "../../../../components/primitives";
+import { EmptyState } from "../../../../components/states";
+import type { CoreViewModelSource } from "../../coreViewModelSource";
+import type { ScheduledTaskBlockViewModel, TaskViewModel } from "../../coreViewModels";
+import {
+  TaskCompletionButton,
+  taskScheduleLabel,
+  taskScheduleTone
+} from "../../coreScreenShared";
+
+export type TaskBoardSelection =
+  | { kind: "all" }
+  | { kind: "starred" }
+  | { kind: "list"; listId: string };
+
+export type TaskListSort = "myOrder" | "date" | "deadline" | "starred" | "title";
+
+interface StarredState {
+  ids: Set<string>;
+  starredAt: Record<string, number>;
+}
+
+interface GoogleTasksBoardProps {
+  listSorts: Record<string, TaskListSort>;
+  onCreateList: () => void;
+  onCreateTask: (listId?: string) => void;
+  onDeleteList: (listId: string) => void;
+  onDeleteTask: (taskId: string) => void;
+  onMoveTask: (taskId: string, listId: string) => void;
+  onOpenTask: (taskId: string) => void;
+  onRenameList: (list: TaskListSummary) => void;
+  onSetListSort: (listId: string, sort: TaskListSort) => void;
+  onToggleStar: (taskId: string) => void;
+  onToggleTask: (taskId: string) => void;
+  onAddSubtask: (task: TaskViewModel) => void;
+  scheduledBlocksByTask: Map<string, ScheduledTaskBlockViewModel>;
+  selectedTaskId: string | null;
+  selectedView: TaskBoardSelection;
+  setSelectedView: (selection: TaskBoardSelection) => void;
+  source: CoreViewModelSource;
+  starred: StarredState;
+}
+
+const sortLabels: Record<TaskListSort, string> = {
+  myOrder: "My order",
+  date: "Date",
+  deadline: "Deadline",
+  starred: "Starred recently",
+  title: "Title"
+};
+
+function activeRootTasks(source: CoreViewModelSource): TaskViewModel[] {
+  return source.largeTaskWindow.filter(
+    (task) => task.parentId === null && task.status === "open"
+  );
+}
+
+function visibleListTasks(source: CoreViewModelSource, listId: string): TaskViewModel[] {
+  return activeRootTasks(source).filter((task) => task.listId === listId);
+}
+
+function sortTasks(
+  tasks: TaskViewModel[],
+  sort: TaskListSort,
+  starred: StarredState
+): TaskViewModel[] {
+  return [...tasks].sort((left, right) => {
+    if (sort === "title") {
+      return left.title.localeCompare(right.title);
+    }
+
+    if (sort === "deadline") {
+      return (left.dueDate ?? "9999-12-31").localeCompare(right.dueDate ?? "9999-12-31");
+    }
+
+    if (sort === "date") {
+      return (Date.parse(right.updatedAt ?? "") || 0) - (Date.parse(left.updatedAt ?? "") || 0);
+    }
+
+    if (sort === "starred") {
+      return (starred.starredAt[right.id] ?? 0) - (starred.starredAt[left.id] ?? 0);
+    }
+
+    return 0;
+  });
+}
+
+function selectionEquals(left: TaskBoardSelection, right: TaskBoardSelection): boolean {
+  return left.kind === right.kind && (left.kind !== "list" || right.kind !== "list" || left.listId === right.listId);
+}
+
+function taskPreview(task: TaskViewModel): string {
+  const text = task.detail.trim();
+
+  if (!text || text === "Task cached locally") {
+    return "";
+  }
+
+  return text;
+}
+
+export function GoogleTasksBoard({
+  listSorts,
+  onCreateList,
+  onCreateTask,
+  onDeleteList,
+  onDeleteTask,
+  onMoveTask,
+  onOpenTask,
+  onRenameList,
+  onSetListSort,
+  onToggleStar,
+  onToggleTask,
+  onAddSubtask,
+  scheduledBlocksByTask,
+  selectedTaskId,
+  selectedView,
+  setSelectedView,
+  source,
+  starred
+}: GoogleTasksBoardProps): JSX.Element {
+  const columns = useMemo(() => {
+    if (selectedView.kind === "starred") {
+      return [
+        {
+          id: "starred",
+          list: null,
+          title: "Starred tasks",
+          tasks: sortTasks(
+            activeRootTasks(source).filter((task) => starred.ids.has(task.id)),
+            "starred",
+            starred
+          )
+        }
+      ];
+    }
+
+    const lists = selectedView.kind === "list"
+      ? source.taskLists.filter((list) => list.id === selectedView.listId)
+      : source.taskLists;
+
+    return lists.map((list) => ({
+      id: list.id,
+      list,
+      title: list.title,
+      tasks: sortTasks(
+        visibleListTasks(source, list.id),
+        listSorts[list.id] ?? "myOrder",
+        starred
+      )
+    }));
+  }, [listSorts, selectedView, source, starred]);
+
+  return (
+    <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[260px_minmax(0,1fr)]">
+      <TaskBoardSidebar
+        onCreateList={onCreateList}
+        onCreateTask={() => onCreateTask()}
+        selectedView={selectedView}
+        setSelectedView={setSelectedView}
+        source={source}
+        starredCount={starred.ids.size}
+      />
+      <div className="min-h-0 min-w-0 overflow-hidden rounded-hcbLg bg-bg-secondary">
+        <div
+          className="flex h-full min-h-[480px] min-w-0 gap-3 overflow-x-auto p-3"
+          role="list"
+          aria-label={selectedView.kind === "starred" ? "Starred task lists" : "Task lists"}
+        >
+          {columns.length > 0 ? (
+            columns.map((column) => (
+              <TaskListColumn
+                key={column.id}
+                list={column.list}
+                listSort={column.list ? listSorts[column.list.id] ?? "myOrder" : "starred"}
+                onCreateTask={onCreateTask}
+                onDeleteList={onDeleteList}
+                onDeleteTask={onDeleteTask}
+                onMoveTask={onMoveTask}
+                onOpenTask={onOpenTask}
+                onRenameList={onRenameList}
+                onSetListSort={onSetListSort}
+                onToggleStar={onToggleStar}
+                onToggleTask={onToggleTask}
+                onAddSubtask={onAddSubtask}
+                scheduledBlocksByTask={scheduledBlocksByTask}
+                selectedTaskId={selectedTaskId}
+                source={source}
+                starred={starred}
+                tasks={column.tasks}
+                title={column.title}
+              />
+            ))
+          ) : (
+            <div className="grid min-h-[360px] min-w-80 flex-1 place-items-center rounded-hcbLg border border-border bg-bg-primary">
+              <EmptyState
+                description="Create a Google Tasks list to start collecting tasks."
+                title="No task lists"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TaskBoardSidebar({
+  onCreateList,
+  onCreateTask,
+  selectedView,
+  setSelectedView,
+  source,
+  starredCount
+}: {
+  onCreateList: () => void;
+  onCreateTask: () => void;
+  selectedView: TaskBoardSelection;
+  setSelectedView: (selection: TaskBoardSelection) => void;
+  source: CoreViewModelSource;
+  starredCount: number;
+}): JSX.Element {
+  return (
+    <aside className="min-h-0 rounded-hcbLg bg-bg-secondary p-3" aria-label="Task board navigation">
+      <Button className="h-12 min-w-32 justify-start rounded-hcbLg shadow-sm" onClick={onCreateTask} variant="secondary">
+        <Plus aria-hidden="true" size={18} />
+        Create
+      </Button>
+      <div className="mt-5 grid gap-1">
+        <TaskSidebarButton
+          count={activeRootTasks(source).length}
+          icon="all"
+          label="All tasks"
+          onClick={() => setSelectedView({ kind: "all" })}
+          selected={selectionEquals(selectedView, { kind: "all" })}
+        />
+        <TaskSidebarButton
+          count={starredCount}
+          icon="star"
+          label="Starred"
+          onClick={() => setSelectedView({ kind: "starred" })}
+          selected={selectionEquals(selectedView, { kind: "starred" })}
+        />
+      </div>
+      <div className="mt-6">
+        <div className="px-2 text-[var(--text-sm)] font-semibold text-text-primary">Lists</div>
+        <div className="mt-2 grid gap-1">
+          {source.taskLists.map((list) => (
+            <TaskSidebarButton
+              count={visibleListTasks(source, list.id).length}
+              icon="list"
+              key={list.id}
+              label={list.title}
+              onClick={() => setSelectedView({ kind: "list", listId: list.id })}
+              selected={selectionEquals(selectedView, { kind: "list", listId: list.id })}
+            />
+          ))}
+        </div>
+      </div>
+      <Button className="mt-5 justify-start" onClick={onCreateList} variant="ghost">
+        <Plus aria-hidden="true" size={16} />
+        Create new list
+      </Button>
+    </aside>
+  );
+}
+
+function TaskSidebarButton({
+  count,
+  icon,
+  label,
+  onClick,
+  selected
+}: {
+  count: number;
+  icon: "all" | "list" | "star";
+  label: string;
+  onClick: () => void;
+  selected: boolean;
+}): JSX.Element {
+  return (
+    <button
+      aria-current={selected ? "page" : undefined}
+      className={cx(
+        "grid h-9 grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-2 rounded-hcbLg px-2 text-left transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        selected ? "bg-accent/20 text-text-primary" : "text-text-secondary hover:bg-surface-0 hover:text-text-primary"
+      )}
+      onClick={onClick}
+      type="button"
+    >
+      {icon === "star" ? (
+        <Star aria-hidden="true" className={selected ? "fill-current" : undefined} size={17} />
+      ) : icon === "all" ? (
+        <CheckCircle2 aria-hidden="true" size={17} />
+      ) : (
+        <Check aria-hidden="true" size={17} />
+      )}
+      <span className="truncate text-[var(--text-base)] font-medium">{label}</span>
+      <span className="text-[var(--text-xs)] text-text-muted">{count}</span>
+    </button>
+  );
+}
+
+function TaskListColumn({
+  list,
+  listSort,
+  onCreateTask,
+  onDeleteList,
+  onDeleteTask,
+  onMoveTask,
+  onOpenTask,
+  onRenameList,
+  onSetListSort,
+  onToggleStar,
+  onToggleTask,
+  onAddSubtask,
+  scheduledBlocksByTask,
+  selectedTaskId,
+  source,
+  starred,
+  tasks,
+  title
+}: {
+  list: TaskListSummary | null;
+  listSort: TaskListSort;
+  onCreateTask: (listId?: string) => void;
+  onDeleteList: (listId: string) => void;
+  onDeleteTask: (taskId: string) => void;
+  onMoveTask: (taskId: string, listId: string) => void;
+  onOpenTask: (taskId: string) => void;
+  onRenameList: (list: TaskListSummary) => void;
+  onSetListSort: (listId: string, sort: TaskListSort) => void;
+  onToggleStar: (taskId: string) => void;
+  onToggleTask: (taskId: string) => void;
+  onAddSubtask: (task: TaskViewModel) => void;
+  scheduledBlocksByTask: Map<string, ScheduledTaskBlockViewModel>;
+  selectedTaskId: string | null;
+  source: CoreViewModelSource;
+  starred: StarredState;
+  tasks: TaskViewModel[];
+  title: string;
+}): JSX.Element {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  return (
+    <section
+      className="flex max-h-full w-[min(420px,calc(100vw-2rem))] shrink-0 flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary"
+      role="listitem"
+    >
+      <div className="relative flex items-center gap-2 px-4 py-3">
+        <h2 className="min-w-0 flex-1 truncate text-[var(--text-xl)] font-medium text-text-primary">{title}</h2>
+        {list ? (
+          <IconButton
+            aria-expanded={menuOpen}
+            className="rounded-full"
+            icon={MoreVertical}
+            label={`Open ${list.title} list menu`}
+            onClick={() => setMenuOpen((open) => !open)}
+            variant="ghost"
+          />
+        ) : null}
+        {menuOpen && list ? (
+          <ListActionMenu
+            list={list}
+            onClose={() => setMenuOpen(false)}
+            onDeleteList={onDeleteList}
+            onRenameList={onRenameList}
+            onSetListSort={onSetListSort}
+            selectedSort={listSort}
+          />
+        ) : null}
+      </div>
+      <button
+        className="flex h-9 items-center gap-3 px-4 text-left text-[var(--text-base)] font-medium text-accent transition-colors duration-fast ease-hcb hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        onClick={() => onCreateTask(list?.id)}
+        type="button"
+      >
+        <CheckCircle2 aria-hidden="true" size={18} />
+        {list ? "Add a task" : "Add a starred task"}
+      </button>
+      <div className="min-h-0 flex-1 overflow-y-auto pb-3">
+        {tasks.length > 0 ? (
+          tasks.map((task) => (
+            <GoogleTaskRow
+              key={task.id}
+              onDeleteTask={onDeleteTask}
+              onMoveTask={onMoveTask}
+              onOpenTask={onOpenTask}
+              onToggleStar={onToggleStar}
+              onToggleTask={onToggleTask}
+              onAddSubtask={onAddSubtask}
+              scheduledBlock={scheduledBlocksByTask.get(task.id)}
+              selected={selectedTaskId === task.id}
+              source={source}
+              starred={starred.ids.has(task.id)}
+              task={task}
+            />
+          ))
+        ) : (
+          <div className="grid min-h-[320px] place-items-center px-6">
+            <EmptyState
+              description={list ? "Add a task to keep this list moving." : "Star tasks from any list to collect them here."}
+              title={list ? "No tasks yet" : "No starred tasks"}
+            />
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ListActionMenu({
+  list,
+  onClose,
+  onDeleteList,
+  onRenameList,
+  onSetListSort,
+  selectedSort
+}: {
+  list: TaskListSummary;
+  onClose: () => void;
+  onDeleteList: (listId: string) => void;
+  onRenameList: (list: TaskListSummary) => void;
+  onSetListSort: (listId: string, sort: TaskListSort) => void;
+  selectedSort: TaskListSort;
+}): JSX.Element {
+  function chooseSort(sort: TaskListSort): void {
+    onSetListSort(list.id, sort);
+    onClose();
+  }
+
+  return (
+    <div className="absolute right-3 top-12 z-30 w-72 overflow-hidden rounded-hcbLg border border-border bg-bg-primary py-2 shadow-xl">
+      <div className="px-4 py-2 text-[var(--text-sm)] font-medium text-text-secondary">Sort by</div>
+      {(Object.keys(sortLabels) as TaskListSort[]).map((sort) => (
+        <MenuButton key={sort} onClick={() => chooseSort(sort)}>
+          <span className="w-5">{selectedSort === sort ? <Check aria-hidden="true" size={16} /> : null}</span>
+          {sortLabels[sort]}
+        </MenuButton>
+      ))}
+      <MenuSeparator />
+      <MenuButton onClick={() => { onRenameList(list); onClose(); }}>Rename list</MenuButton>
+      <MenuButton onClick={() => { onDeleteList(list.id); onClose(); }}>Delete list</MenuButton>
+      <MenuButton disabled>Move list to first position</MenuButton>
+      <MenuSeparator />
+      <MenuButton onClick={() => { window.print(); onClose(); }}>Print list</MenuButton>
+      <MenuButton disabled>Delete all completed tasks</MenuButton>
+      <MenuButton disabled>Clean up old tasks</MenuButton>
+    </div>
+  );
+}
+
+function GoogleTaskRow({
+  onDeleteTask,
+  onMoveTask,
+  onOpenTask,
+  onToggleStar,
+  onToggleTask,
+  onAddSubtask,
+  scheduledBlock,
+  selected,
+  source,
+  starred,
+  task
+}: {
+  onDeleteTask: (taskId: string) => void;
+  onMoveTask: (taskId: string, listId: string) => void;
+  onOpenTask: (taskId: string) => void;
+  onToggleStar: (taskId: string) => void;
+  onToggleTask: (taskId: string) => void;
+  onAddSubtask: (task: TaskViewModel) => void;
+  scheduledBlock?: ScheduledTaskBlockViewModel;
+  selected: boolean;
+  source: CoreViewModelSource;
+  starred: boolean;
+  task: TaskViewModel;
+}): JSX.Element {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const scheduleLabel = taskScheduleLabel(task, scheduledBlock);
+  const preview = taskPreview(task);
+
+  return (
+    <div
+      className={cx(
+        "group relative grid grid-cols-[32px_minmax(0,1fr)_auto] gap-2 px-4 py-2 transition-colors duration-fast ease-hcb",
+        selected ? "bg-surface-0" : "hover:bg-surface-0"
+      )}
+      role="listitem"
+    >
+      <TaskCompletionButton completed={false} onToggle={onToggleTask} task={task} />
+      <button
+        className="min-w-0 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        onClick={() => onOpenTask(task.id)}
+        type="button"
+      >
+        <div className="line-clamp-2 text-[var(--text-md)] font-medium text-text-primary">{task.title}</div>
+        {preview ? <p className="mt-0.5 line-clamp-2 text-[var(--text-sm)] text-text-secondary">{preview}</p> : null}
+        {scheduleLabel || task.dueDate ? (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {task.dueDate ? (
+              <Badge className="gap-1">
+                <CalendarClock aria-hidden="true" size={12} />
+                {task.dueLabel}
+              </Badge>
+            ) : null}
+            {scheduleLabel ? (
+              <Badge className="gap-1" tone={taskScheduleTone(scheduledBlock)}>
+                <Target aria-hidden="true" size={12} />
+                {scheduleLabel}
+              </Badge>
+            ) : null}
+          </div>
+        ) : null}
+      </button>
+      <div className="relative flex items-start gap-1 opacity-0 transition-opacity duration-fast ease-hcb group-hover:opacity-100 group-focus-within:opacity-100">
+        <IconButton
+          className="size-7 rounded-full"
+          icon={MoreVertical}
+          label={`Open actions for ${task.title}`}
+          onClick={() => setMenuOpen((open) => !open)}
+          variant="ghost"
+        />
+        <IconButton
+          className={cx("size-7 rounded-full", starred ? "text-accent" : undefined)}
+          icon={Star}
+          label={starred ? `Unstar ${task.title}` : `Star ${task.title}`}
+          onClick={() => onToggleStar(task.id)}
+          variant="ghost"
+        />
+        {menuOpen ? (
+          <TaskActionMenu
+            onAddSubtask={() => { onAddSubtask(task); setMenuOpen(false); }}
+            onDelete={() => { onDeleteTask(task.id); setMenuOpen(false); }}
+            onMoveTask={(listId) => { onMoveTask(task.id, listId); setMenuOpen(false); }}
+            onOpen={() => { onOpenTask(task.id); setMenuOpen(false); }}
+            source={source}
+            task={task}
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function TaskActionMenu({
+  onAddSubtask,
+  onDelete,
+  onMoveTask,
+  onOpen,
+  source,
+  task
+}: {
+  onAddSubtask: () => void;
+  onDelete: () => void;
+  onMoveTask: (listId: string) => void;
+  onOpen: () => void;
+  source: CoreViewModelSource;
+  task: TaskViewModel;
+}): JSX.Element {
+  return (
+    <div className="absolute right-0 top-8 z-30 w-64 overflow-hidden rounded-hcbLg border border-border bg-bg-primary py-2 shadow-xl">
+      <MenuButton onClick={onOpen}>
+        <Target aria-hidden="true" size={18} />
+        Add deadline
+      </MenuButton>
+      <MenuButton onClick={onAddSubtask}>
+        <CornerDownRight aria-hidden="true" size={18} />
+        Add a subtask
+      </MenuButton>
+      <MenuButton disabled>
+        <Paperclip aria-hidden="true" size={18} />
+        Add attachment
+      </MenuButton>
+      <MenuButton onClick={onDelete}>
+        <Trash2 aria-hidden="true" size={18} />
+        Delete
+      </MenuButton>
+      <MenuSeparator />
+      {source.taskLists.map((list) => (
+        <MenuButton
+          disabled={list.id === task.listId}
+          key={list.id}
+          onClick={() => onMoveTask(list.id)}
+        >
+          <span className="w-5">{list.id === task.listId ? <Check aria-hidden="true" size={16} /> : null}</span>
+          {list.title}
+        </MenuButton>
+      ))}
+    </div>
+  );
+}
+
+function MenuButton({
+  children,
+  disabled,
+  onClick
+}: {
+  children: ReactNode;
+  disabled?: boolean;
+  onClick?: () => void;
+}): JSX.Element {
+  return (
+    <button
+      className="flex min-h-9 w-full items-center gap-3 px-4 text-left text-[var(--text-base)] text-text-primary transition-colors duration-fast ease-hcb hover:bg-surface-0 disabled:cursor-not-allowed disabled:text-text-muted disabled:hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      disabled={disabled}
+      onClick={onClick}
+      type="button"
+    >
+      {children}
+    </button>
+  );
+}
+
+function MenuSeparator(): JSX.Element {
+  return <div className="my-2 h-px bg-border" />;
+}
