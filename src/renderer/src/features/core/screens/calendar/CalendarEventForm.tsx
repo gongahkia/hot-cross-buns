@@ -265,7 +265,8 @@ export function CalendarEventForm({
     setDraft({
       ...draft,
       startsAt,
-      endsAt: currentEnd <= Date.parse(startsAt) ? new Date(minimumEnd).toISOString() : draft.endsAt
+      endsAt: currentEnd <= Date.parse(startsAt) ? new Date(minimumEnd).toISOString() : draft.endsAt,
+      repeatWeekdays: [repeatWeekdayForIso(startsAt)]
     });
   }
 
@@ -283,7 +284,59 @@ export function CalendarEventForm({
       allDay: true,
       startsAt,
       endsAt: addUtcDaysIso(startsAt, 1),
-      repeatFrequency: createMode === "birthday" ? "yearly" : draft.repeatFrequency
+      repeatFrequency: createMode === "birthday" ? "yearly" : draft.repeatFrequency,
+      repeatWeekdays: [repeatWeekdayForIso(startsAt)]
+    });
+  }
+
+  function setRepeatFrequency(value: CalendarRepeatFrequency): void {
+    if (value === "none") {
+      setDraft({
+        ...draft,
+        repeatFrequency: "none",
+        repeatEndMode: "never",
+        repeatEndsOn: "",
+        repeatCount: ""
+      });
+      return;
+    }
+
+    if (value === "custom") {
+      setDraft({
+        ...draft,
+        repeatFrequency: "custom",
+        repeatCustomFrequency: draft.repeatFrequency !== "none" && draft.repeatFrequency !== "custom"
+          ? draft.repeatFrequency
+          : draft.repeatCustomFrequency,
+        repeatWeekdays: draft.repeatWeekdays.length > 0 ? draft.repeatWeekdays : [repeatWeekdayForIso(draft.startsAt)]
+      });
+      return;
+    }
+
+    setDraft({
+      ...draft,
+      repeatFrequency: value,
+      repeatCustomFrequency: value,
+      repeatEndMode: "never",
+      repeatInterval: "1",
+      repeatEndsOn: "",
+      repeatCount: "",
+      repeatWeekdays: value === "weekly" ? [repeatWeekdayForIso(draft.startsAt)] : draft.repeatWeekdays
+    });
+  }
+
+  function toggleRepeatWeekday(day: CalendarRepeatWeekday): void {
+    const current = new Set(draft.repeatWeekdays);
+
+    if (current.has(day)) {
+      current.delete(day);
+    } else {
+      current.add(day);
+    }
+
+    setDraft({
+      ...draft,
+      repeatWeekdays: repeatWeekdays.map((weekday) => weekday.id).filter((weekday) => current.has(weekday))
     });
   }
 
@@ -537,7 +590,7 @@ export function CalendarEventForm({
               aria-label="Event repeat frequency"
               className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               onChange={(event) =>
-                setDraft({ ...draft, repeatFrequency: event.target.value as CalendarRepeatFrequency })
+                setRepeatFrequency(event.target.value as CalendarRepeatFrequency)
               }
               value={draft.repeatFrequency}
             >
@@ -546,35 +599,113 @@ export function CalendarEventForm({
               <option value="weekly">Weekly</option>
               <option value="monthly">Monthly</option>
               <option value="yearly">Yearly</option>
+              <option value="custom">Custom</option>
             </select>
           </label>
-          <Input
-            aria-label="Repeat interval"
-            disabled={draft.repeatFrequency === "none"}
-            min={1}
-            max={366}
-            onChange={(event) => setDraft({ ...draft, repeatInterval: event.target.value })}
-            type="number"
-            value={draft.repeatInterval}
-          />
-          <Input
-            aria-label="Repeat end date"
-            disabled={draft.repeatFrequency === "none"}
-            onChange={(event) => setDraft({ ...draft, repeatEndsOn: event.target.value })}
-            type="date"
-            value={draft.repeatEndsOn}
-          />
-          <Input
-            aria-label="Repeat count"
-            disabled={draft.repeatFrequency === "none"}
-            min={1}
-            max={366}
-            onChange={(event) => setDraft({ ...draft, repeatCount: event.target.value })}
-            placeholder="Occurrences"
-            type="number"
-            value={draft.repeatCount}
-          />
         </div>
+        {draft.repeatFrequency === "custom" ? (
+          <div className="grid gap-3 rounded-hcbMd border border-border bg-surface-0 p-3">
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 sm:grid-cols-[120px_minmax(0,1fr)_minmax(0,1fr)] sm:items-end">
+              <span className="hidden pb-2 text-[var(--text-sm)] text-text-secondary sm:block">Repeat every</span>
+              <Input
+                aria-label="Repeat interval"
+                min={1}
+                max={366}
+                onChange={(event) => setDraft({ ...draft, repeatInterval: event.target.value })}
+                type="number"
+                value={draft.repeatInterval}
+              />
+              <select
+                aria-label="Repeat unit"
+                className="h-8 rounded-hcbMd border border-border bg-bg-tertiary px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    repeatCustomFrequency: event.target.value as CalendarEventDraft["repeatCustomFrequency"]
+                  })
+                }
+                value={draft.repeatCustomFrequency}
+              >
+                <option value="daily">day</option>
+                <option value="weekly">week</option>
+                <option value="monthly">month</option>
+                <option value="yearly">year</option>
+              </select>
+            </div>
+            {draft.repeatCustomFrequency === "weekly" ? (
+              <div className="grid gap-2">
+                <span className="text-[var(--text-sm)] text-text-secondary">Repeat on</span>
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Repeat weekdays">
+                  {repeatWeekdays.map((weekday) => {
+                    const selected = draft.repeatWeekdays.includes(weekday.id);
+
+                    return (
+                      <button
+                        aria-pressed={selected}
+                        className={cx(
+                          "flex size-8 items-center justify-center rounded-full text-[var(--text-sm)] font-semibold transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                          selected ? "bg-accent text-bg-tertiary" : "bg-bg-tertiary text-text-secondary hover:bg-surface-1"
+                        )}
+                        key={weekday.id}
+                        onClick={() => toggleRepeatWeekday(weekday.id)}
+                        type="button"
+                      >
+                        {weekday.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+            <fieldset className="grid gap-2">
+              <legend className="text-[var(--text-sm)] text-text-secondary">Ends</legend>
+              <label className="grid min-h-8 grid-cols-[24px_72px_minmax(0,1fr)] items-center gap-2 text-[var(--text-sm)] text-text-secondary">
+                <input
+                  checked={draft.repeatEndMode === "never"}
+                  className="accent-[var(--color-accent)]"
+                  onChange={() => setDraft({ ...draft, repeatEndMode: "never", repeatEndsOn: "", repeatCount: "" })}
+                  type="radio"
+                />
+                <span>Never</span>
+              </label>
+              <label className="grid min-h-8 grid-cols-[24px_72px_minmax(0,1fr)] items-center gap-2 text-[var(--text-sm)] text-text-secondary">
+                <input
+                  checked={draft.repeatEndMode === "on"}
+                  className="accent-[var(--color-accent)]"
+                  onChange={() => setDraft({ ...draft, repeatEndMode: "on", repeatCount: "" })}
+                  type="radio"
+                />
+                <span>On</span>
+                <Input
+                  aria-label="Repeat end date"
+                  disabled={draft.repeatEndMode !== "on"}
+                  onChange={(event) => setDraft({ ...draft, repeatEndsOn: event.target.value })}
+                  type="date"
+                  value={draft.repeatEndsOn}
+                />
+              </label>
+              <label className="grid min-h-8 grid-cols-[24px_72px_minmax(0,1fr)] items-center gap-2 text-[var(--text-sm)] text-text-secondary">
+                <input
+                  checked={draft.repeatEndMode === "after"}
+                  className="accent-[var(--color-accent)]"
+                  onChange={() => setDraft({ ...draft, repeatEndMode: "after", repeatEndsOn: "" })}
+                  type="radio"
+                />
+                <span>After</span>
+                <Input
+                  aria-label="Repeat count"
+                  disabled={draft.repeatEndMode !== "after"}
+                  min={1}
+                  max={366}
+                  onChange={(event) => setDraft({ ...draft, repeatCount: event.target.value })}
+                  placeholder="Occurrences"
+                  type="number"
+                  value={draft.repeatCount}
+                />
+              </label>
+            </fieldset>
+          </div>
+        ) : null}
         <div className="text-[var(--text-xs)] text-text-muted">{calendarRecurrenceSummary(draft)}</div>
       </fieldset>
       <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
