@@ -23,10 +23,10 @@ import {
   taskScheduleTone
 } from "../../coreScreenShared";
 
-export type TaskBoardSelection =
-  | { kind: "all" }
-  | { kind: "starred" }
-  | { kind: "list"; listId: string };
+export interface TaskBoardSelection {
+  mode: "lists" | "starred";
+  listIds: string[] | null;
+}
 
 export type TaskListSort = "myOrder" | "date" | "deadline" | "starred" | "title";
 
@@ -100,10 +100,6 @@ function sortTasks(
   });
 }
 
-function selectionEquals(left: TaskBoardSelection, right: TaskBoardSelection): boolean {
-  return left.kind === right.kind && (left.kind !== "list" || right.kind !== "list" || left.listId === right.listId);
-}
-
 function taskPreview(task: TaskViewModel): string {
   const text = task.detail.trim();
 
@@ -135,8 +131,11 @@ export function GoogleTasksBoard({
   starred
 }: GoogleTasksBoardProps): JSX.Element {
   const starredVisibleCount = activeRootTasks(source).filter((task) => starred.ids.has(task.id)).length;
+  const allListIds = source.taskLists.map((list) => list.id);
+  const visibleListIds = selectedView.listIds ?? allListIds;
+  const visibleListIdSet = new Set(visibleListIds);
   const columns = useMemo(() => {
-    if (selectedView.kind === "starred") {
+    if (selectedView.mode === "starred") {
       return [
         {
           id: "starred",
@@ -151,9 +150,7 @@ export function GoogleTasksBoard({
       ];
     }
 
-    const lists = selectedView.kind === "list"
-      ? source.taskLists.filter((list) => list.id === selectedView.listId)
-      : source.taskLists;
+    const lists = source.taskLists.filter((list) => visibleListIdSet.has(list.id));
 
     return lists.map((list) => ({
       id: list.id,
@@ -165,7 +162,7 @@ export function GoogleTasksBoard({
         starred
       )
     }));
-  }, [listSorts, selectedView, source, starred]);
+  }, [listSorts, selectedView.mode, source, starred, visibleListIdSet]);
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[260px_minmax(0,1fr)]">
@@ -176,12 +173,13 @@ export function GoogleTasksBoard({
         setSelectedView={setSelectedView}
         source={source}
         starredCount={starredVisibleCount}
+        visibleListIds={visibleListIds}
       />
       <div className="min-h-0 min-w-0 overflow-hidden rounded-hcbLg bg-bg-secondary">
         <div
           className="flex h-full min-h-[480px] min-w-0 gap-3 overflow-x-auto p-3"
           role="list"
-          aria-label={selectedView.kind === "starred" ? "Starred task lists" : "Task lists"}
+          aria-label={selectedView.mode === "starred" ? "Starred task lists" : "Task lists"}
         >
           {columns.length > 0 ? (
             columns.map((column) => (
@@ -211,8 +209,12 @@ export function GoogleTasksBoard({
           ) : (
             <div className="grid min-h-[360px] min-w-80 flex-1 place-items-center rounded-hcbLg border border-border bg-bg-primary">
               <EmptyState
-                description="Create a Google Tasks list to start collecting tasks."
-                title="No task lists"
+                description={
+                  source.taskLists.length > 0
+                    ? "Select at least one list from the sidebar to show it here."
+                    : "Create a Google Tasks list to start collecting tasks."
+                }
+                title={source.taskLists.length > 0 ? "No visible task lists" : "No task lists"}
               />
             </div>
           )}
@@ -228,7 +230,8 @@ function TaskBoardSidebar({
   selectedView,
   setSelectedView,
   source,
-  starredCount
+  starredCount,
+  visibleListIds
 }: {
   onCreateList: () => void;
   onCreateTask: () => void;
@@ -236,7 +239,35 @@ function TaskBoardSidebar({
   setSelectedView: (selection: TaskBoardSelection) => void;
   source: CoreViewModelSource;
   starredCount: number;
+  visibleListIds: string[];
 }): JSX.Element {
+  const allListIds = source.taskLists.map((list) => list.id);
+  const visibleListIdSet = new Set(visibleListIds);
+
+  function selectAllLists(): void {
+    setSelectedView({ mode: "lists", listIds: null });
+  }
+
+  function selectStarredTasks(): void {
+    setSelectedView({ mode: "starred", listIds: selectedView.listIds });
+  }
+
+  function toggleList(listId: string): void {
+    const nextSet = new Set(visibleListIds);
+
+    if (nextSet.has(listId)) {
+      nextSet.delete(listId);
+    } else {
+      nextSet.add(listId);
+    }
+
+    const nextListIds = allListIds.filter((id) => nextSet.has(id));
+    setSelectedView({
+      mode: "lists",
+      listIds: nextListIds.length === allListIds.length ? null : nextListIds
+    });
+  }
+
   return (
     <aside className="min-h-0 rounded-hcbLg bg-bg-secondary p-3" aria-label="Task board navigation">
       <Button className="h-12 min-w-32 justify-start rounded-hcbLg shadow-sm" onClick={onCreateTask} variant="secondary">
@@ -248,28 +279,27 @@ function TaskBoardSidebar({
           count={activeRootTasks(source).length}
           icon="all"
           label="All tasks"
-          onClick={() => setSelectedView({ kind: "all" })}
-          selected={selectionEquals(selectedView, { kind: "all" })}
+          onClick={selectAllLists}
+          selected={selectedView.mode === "lists" && selectedView.listIds === null}
         />
         <TaskSidebarButton
           count={starredCount}
           icon="star"
           label="Starred"
-          onClick={() => setSelectedView({ kind: "starred" })}
-          selected={selectionEquals(selectedView, { kind: "starred" })}
+          onClick={selectStarredTasks}
+          selected={selectedView.mode === "starred"}
         />
       </div>
       <div className="mt-6">
         <div className="px-2 text-[var(--text-sm)] font-semibold text-text-primary">Lists</div>
         <div className="mt-2 grid gap-1">
           {source.taskLists.map((list) => (
-            <TaskSidebarButton
+            <TaskListCheckbox
+              checked={visibleListIdSet.has(list.id)}
               count={visibleListTasks(source, list.id).length}
-              icon="list"
               key={list.id}
               label={list.title}
-              onClick={() => setSelectedView({ kind: "list", listId: list.id })}
-              selected={selectionEquals(selectedView, { kind: "list", listId: list.id })}
+              onClick={() => toggleList(list.id)}
             />
           ))}
         </div>
@@ -290,7 +320,7 @@ function TaskSidebarButton({
   selected
 }: {
   count: number;
-  icon: "all" | "list" | "star";
+  icon: "all" | "star";
   label: string;
   onClick: () => void;
   selected: boolean;
@@ -307,11 +337,47 @@ function TaskSidebarButton({
     >
       {icon === "star" ? (
         <Star aria-hidden="true" className={selected ? "fill-current" : undefined} size={17} />
-      ) : icon === "all" ? (
-        <CheckCircle2 aria-hidden="true" size={17} />
       ) : (
-        <Check aria-hidden="true" size={17} />
+        <CheckCircle2 aria-hidden="true" size={17} />
       )}
+      <span className="truncate text-[var(--text-base)] font-medium">{label}</span>
+      <span className="text-[var(--text-xs)] text-text-muted">{count}</span>
+    </button>
+  );
+}
+
+function TaskListCheckbox({
+  checked,
+  count,
+  label,
+  onClick
+}: {
+  checked: boolean;
+  count: number;
+  label: string;
+  onClick: () => void;
+}): JSX.Element {
+  return (
+    <button
+      aria-checked={checked}
+      aria-label={label}
+      className={cx(
+        "grid h-9 grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-2 rounded-hcbLg px-2 text-left transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        checked ? "text-text-primary" : "text-text-secondary hover:bg-surface-0 hover:text-text-primary"
+      )}
+      onClick={onClick}
+      role="checkbox"
+      type="button"
+    >
+      <span
+        aria-hidden="true"
+        className={cx(
+          "flex size-4 items-center justify-center rounded-[4px] border",
+          checked ? "border-accent bg-accent text-bg-primary" : "border-text-muted bg-transparent"
+        )}
+      >
+        {checked ? <Check size={12} strokeWidth={3} /> : null}
+      </span>
       <span className="truncate text-[var(--text-base)] font-medium">{label}</span>
       <span className="text-[var(--text-xs)] text-text-muted">{count}</span>
     </button>

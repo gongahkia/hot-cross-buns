@@ -23,6 +23,17 @@ describe("App tasks", () => {
     expect(await screen.findByRole("heading", { name: "Inbox" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Planning" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /All tasks/ })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("checkbox", { name: "Inbox" })).toHaveAttribute("aria-checked", "true");
+    const planningToggle = screen.getByRole("checkbox", { name: "Planning" });
+    expect(planningToggle).toHaveAttribute("aria-checked", "true");
+
+    await user.click(planningToggle);
+    expect(planningToggle).toHaveAttribute("aria-checked", "false");
+    expect(screen.queryByRole("heading", { name: "Planning" })).not.toBeInTheDocument();
+
+    await user.click(planningToggle);
+    expect(planningToggle).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("heading", { name: "Planning" })).toBeInTheDocument();
 
     const inboxTasks = screen.getByRole("list", { name: "Inbox tasks" });
     expect(within(inboxTasks).getByText("Draft inbox triage rules")).toBeInTheDocument();

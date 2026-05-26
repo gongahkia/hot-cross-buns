@@ -6,6 +6,7 @@ import {
   Brush,
   CalendarClock,
   CalendarPlus,
+  Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -156,7 +157,7 @@ export function NotesView(): JSX.Element {
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(
     source.initialNotes[0]?.id ?? null
   );
-  const [selectedNoteView, setSelectedNoteView] = useState<NoteBoardSelection>("all");
+  const [selectedNoteViews, setSelectedNoteViews] = useState<NoteBoardSelection[]>(["all"]);
   const [starredNoteIds, setStarredNoteIds] = useState<Set<string>>(
     () => new Set(readLocalStorageStringArray(starredNotesStorageKey))
   );
@@ -168,15 +169,31 @@ export function NotesView(): JSX.Element {
   const lastNoteEditReportAt = useRef(0);
   const noteInspectorBodyRef = useRef<NoteInspectorBodyHandle | null>(null);
   const selectedNote = notes.find((note) => note.id === selectedNoteId) ?? null;
-  const visibleNotes = useMemo(() => {
-    if (selectedNoteView === "starred") {
-      return notes
+  const starredNotes = useMemo(
+    () =>
+      notes
         .filter((note) => starredNoteIds.has(note.id))
-        .sort((left, right) => (starredNoteAt[right.id] ?? 0) - (starredNoteAt[left.id] ?? 0));
-    }
-
-    return notes;
-  }, [notes, selectedNoteView, starredNoteAt, starredNoteIds]);
+        .sort((left, right) => (starredNoteAt[right.id] ?? 0) - (starredNoteAt[left.id] ?? 0)),
+    [notes, starredNoteAt, starredNoteIds]
+  );
+  const noteViewColumns = useMemo(
+    () =>
+      selectedNoteViews.map((view) => ({
+        id: view,
+        title: view === "starred" ? "Starred notes" : "Local notes",
+        description:
+          view === "starred"
+            ? "All starred local notes"
+            : "Select a note to open details in the Inspector",
+        emptyDescription:
+          view === "starred"
+            ? "Star notes to collect them here."
+            : "Create a local note to populate SQLite.",
+        emptyTitle: view === "starred" ? "No starred notes" : "No local notes",
+        notes: view === "starred" ? starredNotes : notes
+      })),
+    [notes, selectedNoteViews, starredNotes]
+  );
 
   useEffect(() => {
     writeLocalStorageJSON(starredNotesStorageKey, [...starredNoteIds]);
@@ -567,6 +584,16 @@ export function NotesView(): JSX.Element {
     });
   }
 
+  function toggleNoteView(view: NoteBoardSelection): void {
+    setSelectedNoteViews((current) => {
+      if (current.includes(view)) {
+        return current.filter((selectedView) => selectedView !== view);
+      }
+
+      return view === "all" ? [view, ...current] : [...current, view];
+    });
+  }
+
   return (
     <div className="grid h-full min-h-0 grid-cols-1 gap-3 lg:grid-cols-[260px_minmax(0,1fr)]">
       <aside className="min-h-0 rounded-hcbLg bg-bg-secondary p-3" aria-label="Notes navigation">
@@ -582,19 +609,17 @@ export function NotesView(): JSX.Element {
           Create
         </Button>
         <div className="mt-5 grid gap-1">
-          <NoteSidebarButton
+          <NoteSidebarCheckbox
+            checked={selectedNoteViews.includes("all")}
             count={notes.length}
-            icon="all"
             label="All notes"
-            onClick={() => setSelectedNoteView("all")}
-            selected={selectedNoteView === "all"}
+            onClick={() => toggleNoteView("all")}
           />
-          <NoteSidebarButton
+          <NoteSidebarCheckbox
+            checked={selectedNoteViews.includes("starred")}
             count={notes.filter((note) => starredNoteIds.has(note.id)).length}
-            icon="star"
             label="Starred"
-            onClick={() => setSelectedNoteView("starred")}
-            selected={selectedNoteView === "starred"}
+            onClick={() => toggleNoteView("starred")}
           />
         </div>
         <div className="mt-5 grid gap-1">
@@ -608,69 +633,95 @@ export function NotesView(): JSX.Element {
           </Button>
         </div>
       </aside>
-      <Panel
-        action={<Badge tone="neutral">{visibleNotes.length}</Badge>}
-        title={selectedNoteView === "starred" ? "Starred notes" : "Local notes"}
-        description={selectedNoteView === "starred" ? "All starred local notes" : "Select a note to open details in the Inspector"}
-      >
-        <VirtualizedList
-          ariaLabel={selectedNoteView === "starred" ? "Starred notes" : "Local notes"}
-          emptyState={
-            <EmptyState
-              description={selectedNoteView === "starred" ? "Star notes to collect them here." : "Create a local note to populate SQLite."}
-              title={selectedNoteView === "starred" ? "No starred notes" : "No local notes"}
-            />
-          }
-          estimateRowHeight={66}
-          getKey={(note) => note.id}
-          items={visibleNotes}
-          performanceLabel="notes.list"
-          renderRow={(note) => (
-            <NoteBoardRow
-              key={note.id}
-              note={note}
-              onDeleteNote={(noteId) => void deleteNote(noteId)}
-              onOpenNote={(noteId) => void selectNote(noteId)}
-              onToggleStar={toggleNoteStar}
-              selected={note.id === selectedNoteId}
-              starred={starredNoteIds.has(note.id)}
-            />
+      <div className="min-h-0 min-w-0 overflow-hidden rounded-hcbLg bg-bg-secondary">
+        <div
+          className="flex h-full min-h-[480px] min-w-0 gap-3 overflow-x-auto p-3"
+          role="list"
+          aria-label="Note views"
+        >
+          {noteViewColumns.length > 0 ? (
+            noteViewColumns.map((column) => (
+              <Panel
+                action={<Badge tone="neutral">{column.notes.length}</Badge>}
+                className="flex max-h-full w-[min(520px,calc(100vw-2rem))] shrink-0 flex-col overflow-hidden bg-bg-primary"
+                description={column.description}
+                key={column.id}
+                role="listitem"
+                title={column.title}
+              >
+                <VirtualizedList
+                  ariaLabel={column.title}
+                  emptyState={
+                    <EmptyState
+                      description={column.emptyDescription}
+                      title={column.emptyTitle}
+                    />
+                  }
+                  estimateRowHeight={66}
+                  getKey={(note) => note.id}
+                  items={column.notes}
+                  performanceLabel={`notes.${column.id}.list`}
+                  renderRow={(note) => (
+                    <NoteBoardRow
+                      key={note.id}
+                      note={note}
+                      onDeleteNote={(noteId) => void deleteNote(noteId)}
+                      onOpenNote={(noteId) => void selectNote(noteId)}
+                      onToggleStar={toggleNoteStar}
+                      selected={note.id === selectedNoteId}
+                      starred={starredNoteIds.has(note.id)}
+                    />
+                  )}
+                  viewportHeight={520}
+                />
+              </Panel>
+            ))
+          ) : (
+            <div className="grid min-h-[360px] min-w-80 flex-1 place-items-center rounded-hcbLg border border-border bg-bg-primary">
+              <EmptyState
+                description="Select at least one note view from the sidebar to show it here."
+                title="No visible note views"
+              />
+            </div>
           )}
-          viewportHeight={520}
-        />
-      </Panel>
+        </div>
+      </div>
     </div>
   );
 }
 
-function NoteSidebarButton({
+function NoteSidebarCheckbox({
+  checked,
   count,
-  icon,
   label,
-  onClick,
-  selected
+  onClick
 }: {
+  checked: boolean;
   count: number;
-  icon: "all" | "star";
   label: string;
   onClick: () => void;
-  selected: boolean;
 }): JSX.Element {
   return (
     <button
-      aria-current={selected ? "page" : undefined}
+      aria-checked={checked}
+      aria-label={label}
       className={cx(
         "grid h-9 grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-2 rounded-hcbLg px-2 text-left transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-        selected ? "bg-accent/20 text-text-primary" : "text-text-secondary hover:bg-surface-0 hover:text-text-primary"
+        checked ? "text-text-primary" : "text-text-secondary hover:bg-surface-0 hover:text-text-primary"
       )}
       onClick={onClick}
+      role="checkbox"
       type="button"
     >
-      {icon === "star" ? (
-        <Star aria-hidden="true" className={selected ? "fill-current" : undefined} size={17} />
-      ) : (
-        <FileText aria-hidden="true" size={17} />
-      )}
+      <span
+        aria-hidden="true"
+        className={cx(
+          "flex size-4 items-center justify-center rounded-[4px] border",
+          checked ? "border-accent bg-accent text-bg-primary" : "border-text-muted bg-transparent"
+        )}
+      >
+        {checked ? <Check size={12} strokeWidth={3} /> : null}
+      </span>
       <span className="truncate text-[var(--text-base)] font-medium">{label}</span>
       <span className="text-[var(--text-xs)] text-text-muted">{count}</span>
     </button>

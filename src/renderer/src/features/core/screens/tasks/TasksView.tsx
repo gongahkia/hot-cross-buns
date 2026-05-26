@@ -59,7 +59,10 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
     open: openInspector,
     update: updateInspector
   } = useInspector();
-  const [selectedBoardView, setSelectedBoardView] = useState<TaskBoardSelection>({ kind: "all" });
+  const [selectedBoardView, setSelectedBoardView] = useState<TaskBoardSelection>({
+    mode: "lists",
+    listIds: null
+  });
   const [starredTaskIds, setStarredTaskIds] = useState<Set<string>>(
     () => new Set(readLocalStorageStringArray(starredTasksStorageKey))
   );
@@ -116,7 +119,7 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
     }
 
     handledCommandNonce.current = command.nonce;
-    setSelectedBoardView({ kind: "all" });
+    setSelectedBoardView({ mode: "lists", listIds: null });
 
     if (command.id === "task.quickCapture") {
       quickCaptureOpenStartedAt.current = rendererNow();
