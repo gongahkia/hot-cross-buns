@@ -119,7 +119,7 @@ describe("SQLite connection foundation", () => {
         ["native"]
       );
 
-      expect(result.appliedVersions).toEqual([1, 2, 3, 4, 5, 6, 7]);
+      expect(result.appliedVersions).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
       expect(rows).toEqual([{ title: "SQLite native adapter" }]);
     } finally {
       temporary.cleanup();
@@ -149,8 +149,58 @@ describe("SQLite connection foundation", () => {
         ["event-1"]
       );
 
-      expect(result.appliedVersions).toEqual([1, 2, 3, 4, 5, 6, 7]);
+      expect(result.appliedVersions).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
       expect(row?.localTimeZone).toBe("Asia/Singapore");
+    } finally {
+      temporary.cleanup();
+    }
+  });
+
+  it("forces one calendar full resync when existing events predate color id caching", () => {
+    const temporary = createTemporarySqliteConnection("hcb2-sqlite-event-color-resync-");
+
+    try {
+      temporary.connection.exec(`
+        CREATE TABLE google_calendar_events (
+          id TEXT PRIMARY KEY,
+          start_time_zone TEXT,
+          end_time_zone TEXT,
+          local_time_zone TEXT,
+          recurrence_rule TEXT,
+          color_id TEXT,
+          deleted_at TEXT
+        );
+
+        CREATE TABLE google_sync_checkpoints (
+          id TEXT PRIMARY KEY,
+          account_id TEXT NOT NULL,
+          resource_type TEXT NOT NULL,
+          resource_id TEXT NOT NULL,
+          checkpoint_type TEXT NOT NULL,
+          checkpoint_value TEXT NOT NULL,
+          metadata_json TEXT NOT NULL DEFAULT '{}',
+          last_successful_sync_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE(account_id, resource_type, resource_id, checkpoint_type)
+        );
+
+        INSERT INTO google_calendar_events (id, color_id, deleted_at)
+        VALUES ('event-1', NULL, NULL);
+
+        INSERT INTO google_sync_checkpoints (
+          id, account_id, resource_type, resource_id, checkpoint_type,
+          checkpoint_value, last_successful_sync_at, updated_at
+        ) VALUES
+          ('calendar-checkpoint', 'account-1', 'calendar', 'calendar-1', 'sync_token', 'token', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z'),
+          ('task-checkpoint', 'account-1', 'task_list', 'tasks-1', 'watermark', 'token', '2026-05-22T00:00:00.000Z', '2026-05-22T00:00:00.000Z');
+      `);
+
+      runLocalDataMigrations(temporary.connection);
+      const rows = temporary.connection.query<{ resourceType: string }>(
+        "SELECT resource_type AS resourceType FROM google_sync_checkpoints ORDER BY resource_type;"
+      );
+
+      expect(rows).toEqual([{ resourceType: "task_list" }]);
     } finally {
       temporary.cleanup();
     }

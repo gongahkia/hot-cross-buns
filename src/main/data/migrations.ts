@@ -250,6 +250,44 @@ CREATE INDEX IF NOT EXISTS idx_local_history_entries_recent
             }
           ];
     }
+  },
+  {
+    version: 8,
+    name: "calendar event color backfill resync",
+    operations: (connection) => {
+      if (!tableExists(connection, "google_calendar_events") || !tableExists(connection, "google_sync_checkpoints")) {
+        return [];
+      }
+
+      const columns = new Set(
+        connection
+          .query<{ name: string }>("PRAGMA table_info(google_calendar_events);")
+          .map((row) => row.name)
+      );
+
+      if (!columns.has("color_id")) {
+        return [];
+      }
+
+      const missingColorPredicate = columns.has("deleted_at")
+        ? "deleted_at IS NULL AND color_id IS NULL"
+        : "color_id IS NULL";
+
+      return [
+        {
+          kind: "run",
+          sql: `DELETE FROM google_sync_checkpoints
+                WHERE resource_type = 'calendar'
+                  AND checkpoint_type = 'sync_token'
+                  AND EXISTS (
+                    SELECT 1
+                    FROM google_calendar_events
+                    WHERE ${missingColorPredicate}
+                    LIMIT 1
+                  );`
+        }
+      ];
+    }
   }
 ];
 
