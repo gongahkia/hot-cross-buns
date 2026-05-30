@@ -65,11 +65,7 @@ export function AppHeader({
             {displayAccelerator(keybindings["navigation.sidebar.toggle"])}
           </span>
         </Button>
-        <div className="min-w-0">
-          <h1 className="truncate text-[var(--text-xl)] font-bold" id="planner-title">
-            {activeSectionTitle}
-          </h1>
-        </div>
+        <h1 className="sr-only" id="planner-title">{activeSectionTitle}</h1>
       </div>
 
       <div className="flex min-w-0 shrink-0 items-center gap-2 overflow-x-auto" role="toolbar" aria-label="Planner actions">

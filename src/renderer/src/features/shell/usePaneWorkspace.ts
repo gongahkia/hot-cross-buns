@@ -93,6 +93,11 @@ export function usePaneWorkspace(): {
         ? {
             ...current,
             focusedPaneId: paneId,
+            recentWebPages: content.kind === "web"
+              ? current.recentWebPages.map((page) =>
+                  page.url === content.url ? { ...page, title: content.title } : page
+                )
+              : current.recentWebPages,
             root: replacePaneContent(current.root, paneId, content)
           }
         : current

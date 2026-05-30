@@ -49,9 +49,9 @@ function CalendarTimelineEventChip({
   onOpen: (event: CalendarEventViewModel) => void;
 }): JSX.Element {
   return (
-    <div className={cx("grid h-full grid-cols-[minmax(0,1fr)_10px] items-stretch gap-1", className)}>
+    <>
       <CalendarEventChip
-        className="h-full min-h-0 px-1.5 py-0.5 text-[11px]"
+        className={cx("h-full min-h-0 px-1.5 py-0.5 text-[11px]", className)}
         draggable
         event={event}
         labelVariant={labelVariant}
@@ -79,14 +79,14 @@ function CalendarTimelineEventChip({
       {!event.allDay ? (
         <button
           aria-label={`Resize ${event.title} end`}
-          className="rounded-hcbSm border border-border bg-surface-0 hover:bg-surface-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="sr-only"
           draggable
           onDragStart={(dragEvent) => startCalendarEventResizeDrag(dragEvent, event.id)}
           title={`Resize ${event.title} end`}
           type="button"
         />
       ) : null}
-    </div>
+    </>
   );
 }
 

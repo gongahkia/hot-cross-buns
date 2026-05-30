@@ -120,6 +120,7 @@ export function CalendarHeader({
           Share availability
         </Button>
       ) : null}
+      <div aria-label="Calendar status" className="sr-only" role="status" />
     </div>
   );
 }

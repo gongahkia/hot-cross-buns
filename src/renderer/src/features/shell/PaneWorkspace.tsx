@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DragEvent, FormEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { ArrowDownToLine, ArrowRightToLine, ExternalLink, GripVertical, LayoutGrid, X } from "lucide-react";
 import { Button, cx } from "../../components/primitives";
@@ -404,20 +404,7 @@ function PaneLeafContent({
 
   if (leaf.content.kind === "web") {
     return (
-      <div className="flex h-full min-h-0 flex-col">
-        <div className="flex min-h-8 items-center gap-2 border-b border-border px-3 text-[var(--text-xs)] text-text-muted">
-          <ExternalLink aria-hidden="true" size={13} />
-          <span className="truncate">{leaf.content.url}</span>
-        </div>
-        <webview
-          className="min-h-0 flex-1 bg-bg-primary"
-          data-testid="split-webview"
-          key={`${leaf.id}:${leaf.content.url}`}
-          partition={`persist:hcb-split-pane-${leaf.id}`}
-          src={leaf.content.url}
-          webpreferences="contextIsolation=yes,nodeIntegration=no,sandbox=yes"
-        />
-      </div>
+      <WebPaneContent content={leaf.content} onReplacePane={onReplacePane} paneId={leaf.id} />
     );
   }
 
@@ -429,6 +416,72 @@ function PaneLeafContent({
         visibleCalendarIds={visibleCalendarIds}
       />
     </section>
+  );
+}
+
+type WebviewElement = HTMLElement & {
+  getTitle?: () => string;
+};
+
+function WebPaneContent({
+  content,
+  onReplacePane,
+  paneId
+}: {
+  content: Extract<PaneContent, { kind: "web" }>;
+  onReplacePane: (paneId: string, content: PaneContent) => void;
+  paneId: string;
+}): JSX.Element {
+  const webviewRef = useRef<WebviewElement | null>(null);
+
+  useEffect(() => {
+    const webview = webviewRef.current;
+
+    if (!webview) {
+      return;
+    }
+
+    function syncTitle(event?: Event): void {
+      const eventTitle = event ? (event as Event & { title?: string }).title : undefined;
+      const title = (eventTitle ?? webviewRef.current?.getTitle?.() ?? "").trim();
+
+      if (!title || title === content.title) {
+        return;
+      }
+
+      onReplacePane(paneId, { ...content, title });
+    }
+
+    const listener: EventListener = (event) => syncTitle(event);
+    webview.addEventListener("page-title-updated", listener);
+    webview.addEventListener("did-finish-load", listener);
+    webview.addEventListener("dom-ready", listener);
+
+    return () => {
+      webview.removeEventListener("page-title-updated", listener);
+      webview.removeEventListener("did-finish-load", listener);
+      webview.removeEventListener("dom-ready", listener);
+    };
+  }, [content, onReplacePane, paneId]);
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex min-h-8 items-center gap-2 border-b border-border px-3 text-[var(--text-xs)] text-text-muted">
+        <ExternalLink aria-hidden="true" size={13} />
+        <span className="truncate">{content.url}</span>
+      </div>
+      <webview
+        className="min-h-0 flex-1 bg-bg-primary"
+        data-testid="split-webview"
+        key={`${paneId}:${content.url}`}
+        partition={`persist:hcb-split-pane-${paneId}`}
+        ref={(node) => {
+          webviewRef.current = node as WebviewElement | null;
+        }}
+        src={content.url}
+        webpreferences="contextIsolation=yes,nodeIntegration=no,sandbox=yes"
+      />
+    </div>
   );
 }
 
