@@ -239,7 +239,9 @@ function PaneLeaf({
   const [dropZone, setDropZone] = useState<PaneDropZone | null>(null);
 
   function handleDragOver(event: DragEvent<HTMLElement>): void {
-    if (!event.dataTransfer.types.includes(paneDragDataType)) {
+    const dragTypes = Array.from(event.dataTransfer.types ?? []);
+
+    if (dragTypes.length > 0 && !dragTypes.includes(paneDragDataType)) {
       return;
     }
 
@@ -257,8 +259,9 @@ function PaneLeaf({
     }
 
     event.preventDefault();
+    const nextDropZone = dropZone ?? paneDropZone(event);
     setDropZone(null);
-    onMovePane(sourcePaneId, leaf.id, paneDropZone(event));
+    onMovePane(sourcePaneId, leaf.id, nextDropZone);
   }
 
   return (
@@ -354,7 +357,13 @@ function PaneLeaf({
           visibleSectionIds={visibleSectionIds}
         />
       </div>
-      {dropZone ? <div aria-hidden="true" className={paneDropPreviewClass(dropZone)} /> : null}
+      {dropZone ? (
+        <div
+          aria-hidden="true"
+          className={paneDropPreviewClass(dropZone)}
+          data-pane-drop-preview={dropZone}
+        />
+      ) : null}
     </section>
   );
 }

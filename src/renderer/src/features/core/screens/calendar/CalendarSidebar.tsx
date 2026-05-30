@@ -63,12 +63,10 @@ export function calendarStatusSummary(source: ReturnType<typeof useCoreViewModel
 
 export function CalendarStatusStrip({
   source,
-  visibleCalendarCount,
-  visibleEventCount
+  visibleCalendarCount
 }: {
   source: ReturnType<typeof useCoreViewModelSource>;
   visibleCalendarCount: number;
-  visibleEventCount: number;
 }): JSX.Element {
   const status = calendarStatusSummary(source);
 
@@ -78,10 +76,8 @@ export function CalendarStatusStrip({
       className="flex min-w-0 flex-wrap items-center justify-end gap-2"
       role="status"
     >
-      <Badge tone={status.tone}>{status.label}</Badge>
+      <Badge title={status.detail} tone={status.tone}>{status.label}</Badge>
       <Badge tone="accent">Visible calendars: {visibleCalendarCount}</Badge>
-      <Badge tone="neutral">{visibleEventCount} events</Badge>
-      <Badge tone="neutral">Default timezone: {source.settings.defaultTimeZone}</Badge>
     </div>
   );
 }
@@ -217,7 +213,9 @@ export function CalendarContextPanel({
             <span className="flex min-w-0 flex-wrap items-center gap-2 text-[var(--text-xs)] text-text-muted">
               <Badge tone="neutral">{event.allDay ? "All day" : event.rangeLabel}</Badge>
               <Badge tone="neutral">{event.calendar}</Badge>
-              <Badge tone="neutral">{event.timeZone || defaultTimeZone}</Badge>
+              {event.timeZone && event.timeZone !== defaultTimeZone ? (
+                <Badge tone="neutral">{event.timeZone}</Badge>
+              ) : null}
             </span>
             {event.location ? (
               <span className="inline-flex min-w-0 items-center gap-1 text-[var(--text-xs)] text-text-muted">

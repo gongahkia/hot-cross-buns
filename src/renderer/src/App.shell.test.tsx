@@ -132,8 +132,49 @@ describe("App shell", () => {
     expect(within(await screen.findByRole("region", { name: "Choose split view pane" })).getByText("Recent webpages")).toBeInTheDocument();
   });
 
+  it("opens typed webpages from the split view chooser", async () => {
+    const user = userEvent.setup();
+    window.localStorage.clear();
+    installHcb(seededHcb());
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Split view" }));
+    const chooserPane = await screen.findByRole("region", { name: "Choose split view pane" });
+
+    await user.type(within(chooserPane).getByLabelText("Webpage URL"), "example.com");
+    await user.click(within(chooserPane).getByRole("button", { name: "Open" }));
+
+    const webPane = await screen.findByRole("region", { name: "example.com pane" });
+    expect(within(webPane).getByTestId("split-webview")).toHaveAttribute("src", "https://example.com/");
+  });
+
+  it("uses pane and diagnostics hotkeys", async () => {
+    window.localStorage.clear();
+    installHcb(seededHcb());
+    render(<App />);
+
+    fireEvent.keyDown(window, { key: ".", metaKey: true });
+    expect(await screen.findByRole("dialog", { name: "Diagnostics" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close diagnostics" }));
+
+    fireEvent.keyDown(window, { key: "d", metaKey: true });
+    await waitFor(() => expect(screen.getAllByTestId("pane-leaf")).toHaveLength(2));
+    expect(screen.getByTestId("pane-split")).toHaveAttribute("data-pane-direction", "row");
+
+    fireEvent.keyDown(window, { key: "d", metaKey: true, shiftKey: true });
+    await waitFor(() => expect(screen.getAllByTestId("pane-leaf")).toHaveLength(3));
+    expect(screen.getAllByTestId("pane-split").some((split) => split.getAttribute("data-pane-direction") === "column")).toBe(true);
+
+    fireEvent.keyDown(window, { key: "w", metaKey: true });
+    await waitFor(() => expect(screen.getAllByTestId("pane-leaf")).toHaveLength(2));
+
+    fireEvent.keyDown(window, { key: "t", metaKey: true });
+    await waitFor(() => expect(screen.getAllByTestId("pane-leaf")).toHaveLength(3));
+  });
+
   it("splits, closes, drags, and restores pane layouts", async () => {
     const user = userEvent.setup();
+    window.localStorage.clear();
     installHcb(seededHcb());
     render(<App />);
 
@@ -150,11 +191,28 @@ describe("App shell", () => {
     expect(await screen.findAllByTestId("pane-leaf")).toHaveLength(2);
 
     const calendarPane = screen.getByRole("region", { name: "Calendar pane" });
+    calendarPane.getBoundingClientRect = () => ({
+      bottom: 500,
+      height: 500,
+      left: 0,
+      right: 500,
+      top: 0,
+      width: 500,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    });
     const transfer = testDataTransfer();
     fireEvent.dragStart(within(tasksPane).getByRole("button", { name: "Drag pane Tasks" }), {
       dataTransfer: transfer
     });
-    fireEvent.drop(calendarPane, { dataTransfer: transfer });
+    fireEvent.dragOver(calendarPane, { clientX: 250, clientY: 10, dataTransfer: transfer });
+
+    await waitFor(() => {
+      expect(calendarPane.querySelector("[data-pane-drop-preview]")).toBeInTheDocument();
+    });
+
+    fireEvent.drop(calendarPane, { clientX: 250, clientY: 10, dataTransfer: transfer });
 
     expect(screen.getAllByTestId("pane-leaf")).toHaveLength(2);
     expect(window.localStorage.getItem("hcb.paneWorkspace.v1")).toContain("tasks");

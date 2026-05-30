@@ -690,6 +690,7 @@ export function AppShell(): JSX.Element {
             onFocusPane={paneWorkspace.focusPane}
             onMovePane={paneWorkspace.movePane}
             onOpenRecentWebPage={paneWorkspace.openRecentWebPage}
+            onOpenWebPage={paneWorkspace.openWebPageInPane}
             onReplacePane={paneWorkspace.replacePane}
             onSetSplitRatio={paneWorkspace.setSplitRatio}
             onSplitPane={paneWorkspace.splitPane}

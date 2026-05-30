@@ -254,7 +254,6 @@ export function CalendarView({
         source={source}
         visibleCalendarCount={visibleCalendarIds.size}
         visibleCalendarViewIds={visibleCalendarViewIds}
-        visibleEventCount={visibleCalendarEvents.length}
       />
 
       {calendarActionError ? (

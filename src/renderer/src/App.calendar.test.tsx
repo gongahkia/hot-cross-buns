@@ -350,7 +350,7 @@ describe("App calendar", () => {
     expect(within(inspectorBody).getByText("Product")).toBeInTheDocument();
     expect(within(inspectorBody).getAllByText(new RegExp(`${todayDate}.*09:30-09:50`)).length).toBeGreaterThan(0);
     expect(within(inspectorBody).getByText("20 min")).toBeInTheDocument();
-    expect(within(inspectorBody).getAllByText("UTC").length).toBeGreaterThan(0);
+    expect(within(inspectorBody).queryByText("UTC")).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Event title" })).not.toBeInTheDocument();
 
     await user.click(
@@ -482,7 +482,10 @@ describe("App calendar", () => {
     const agenda = await screen.findByRole("list", { name: "Calendar agenda" });
     expect(await within(agenda).findByText("Planner shell standup")).toBeInTheDocument();
     expect(within(agenda).getByText("Engineering sync")).toBeInTheDocument();
-    expect(screen.getByRole("status", { name: "Calendar status" })).toBeInTheDocument();
+    const status = screen.getByRole("status", { name: "Calendar status" });
+    expect(status).toBeInTheDocument();
+    expect(within(status).queryByText(/\d+ events/)).not.toBeInTheDocument();
+    expect(within(status).queryByText(/Default timezone/)).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Calendar context" })).not.toBeInTheDocument();
 
     const visibility = screen.getByRole("group", { name: "Sidebar calendar visibility" });

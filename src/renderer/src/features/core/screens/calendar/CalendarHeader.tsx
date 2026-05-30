@@ -50,8 +50,7 @@ export function CalendarHeader({
   shareAvailabilityVisible,
   source,
   visibleCalendarCount,
-  visibleCalendarViewIds,
-  visibleEventCount
+  visibleCalendarViewIds
 }: {
   activeViewId: CalendarViewId;
   calendarRangeLabel: string;
@@ -67,7 +66,6 @@ export function CalendarHeader({
   source: CoreViewModelSource;
   visibleCalendarCount: number;
   visibleCalendarViewIds: CalendarViewId[];
-  visibleEventCount: number;
 }): JSX.Element {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -134,7 +132,6 @@ export function CalendarHeader({
         <CalendarStatusStrip
           source={source}
           visibleCalendarCount={visibleCalendarCount}
-          visibleEventCount={visibleEventCount}
         />
       </div>
     </div>

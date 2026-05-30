@@ -168,6 +168,7 @@ export function CalendarEventDetails({
     ? calendarReminderSummary(draft.reminderMinutes)
     : "None";
   const repeats = draft.repeatFrequency !== "none";
+  const showSourceTimeZone = sourceTimeZone !== defaultTimeZone;
 
   return (
     <div className="grid gap-4">
@@ -194,7 +195,7 @@ export function CalendarEventDetails({
             <span className="truncate">{calendarDraftRangeLabel(draft)}</span>
           </span>
           <Badge tone="neutral">{calendarDraftDurationLabel(draft)}</Badge>
-          <Badge tone="neutral">{sourceTimeZone}</Badge>
+          {showSourceTimeZone ? <Badge tone="neutral">{sourceTimeZone}</Badge> : null}
         </div>
       </div>
 
@@ -202,7 +203,9 @@ export function CalendarEventDetails({
         <DetailItem icon={Clock3} label="Time">
           <div className="grid gap-1">
             <span>{calendarDraftRangeLabel(draft)}</span>
-            <span className="text-[var(--text-sm)] text-text-muted">{sourceTimeZone}</span>
+            {showSourceTimeZone ? (
+              <span className="text-[var(--text-sm)] text-text-muted">{sourceTimeZone}</span>
+            ) : null}
           </div>
         </DetailItem>
         {repeats ? (
