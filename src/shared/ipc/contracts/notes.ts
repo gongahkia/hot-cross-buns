@@ -18,9 +18,22 @@ export const noteListRequestSchema = z
 
 export type NoteListRequest = z.input<typeof noteListRequestSchema>;
 
+export const noteListSummarySchema = z
+  .object({
+    id: idSchema,
+    title: z.string().min(1).max(200),
+    noteCount: z.number().int().nonnegative(),
+    updatedAt: isoDateTimeSchema
+  })
+  .strict();
+
+export type NoteListSummary = z.infer<typeof noteListSummarySchema>;
+
 export const noteSummarySchema = z
   .object({
     id: idSchema,
+    listId: idSchema,
+    listTitle: z.string().min(1).max(200),
     title: z.string().min(1).max(500),
     preview: z.string().max(500),
     updatedAt: isoDateTimeSchema
@@ -29,7 +42,9 @@ export const noteSummarySchema = z
 
 export type NoteSummary = z.infer<typeof noteSummarySchema>;
 
-export const noteListResponseSchema = pagedListResponseSchema(noteSummarySchema, MAX_LIST_LIMIT);
+export const noteListResponseSchema = pagedListResponseSchema(noteSummarySchema, MAX_LIST_LIMIT).extend({
+  lists: z.array(noteListSummarySchema)
+});
 export type NoteListResponse = z.infer<typeof noteListResponseSchema>;
 
 export const noteDetailSchema = noteSummarySchema
@@ -42,6 +57,7 @@ export type NoteDetail = z.infer<typeof noteDetailSchema>;
 
 export const noteCreateRequestSchema = z
   .object({
+    listId: idSchema.optional(),
     title: z.string().min(1).max(500),
     body: z.string().max(50_000).default("")
   })
@@ -52,11 +68,12 @@ export type NoteCreateRequest = z.input<typeof noteCreateRequestSchema>;
 export const noteUpdateRequestSchema = z
   .object({
     id: idSchema,
+    listId: idSchema.optional(),
     title: z.string().min(1).max(500).optional(),
     body: z.string().max(50_000).optional()
   })
   .strict()
-  .refine((request) => request.title !== undefined || request.body !== undefined, {
+  .refine((request) => request.title !== undefined || request.body !== undefined || request.listId !== undefined, {
     message: "At least one note field must be supplied"
   });
 

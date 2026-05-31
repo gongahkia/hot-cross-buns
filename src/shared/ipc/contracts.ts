@@ -118,6 +118,7 @@ export {
   noteLinkSuggestResponseSchema,
   noteListRequestSchema,
   noteListResponseSchema,
+  noteListSummarySchema,
   noteSummarySchema,
   noteUpdateRequestSchema,
   type NoteBrokenLinksRequest,
@@ -129,6 +130,7 @@ export {
   type NoteLinkSuggestResponse,
   type NoteListRequest,
   type NoteListResponse,
+  type NoteListSummary,
   type NoteSummary,
   type NoteUpdateRequest
 } from "./contracts/notes";
