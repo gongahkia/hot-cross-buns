@@ -1,3 +1,78 @@
+```text
+You are Codex 5.5 running with extra-high reasoning in /Users/gongahkia/Desktop/coding/projects/hot-cross-buns-2.
+
+Goal: close the feature-parity gaps documented in stuff-missing-from-hcb2-to-add-july-2026.md, after first producing an implementation plan and conducting a focused user interview. Do not start code changes until the plan is reviewed and the interview answers are incorporated.
+
+Read first:
+- stuff-missing-from-hcb2-to-add-july-2026.md
+- docs/README.md
+- docs/agents/workflow.md
+- docs/specs/platforms.md
+- docs/security/privacy-and-threat-model.md
+- docs/performance/performance-strategy.md
+- docs/testing/qa-plan.md
+- docs/improvements/01-user-facing-feature-parity.md
+- docs/improvements/02-backend-optimizations.md
+- docs/improvements/03-database-optimizations.md
+- docs/improvements/04-test-coverage-parity.md
+- docs/improvements/05-general-parity-and-release-polish.md
+- docs/improvements/06-frontend-ux-ui-competitive-improvements.md
+
+Phase 0 - verify and interview before implementation:
+- Audit the current repo and ../hot-cross-buns where needed. Re-classify each item in stuff-missing-from-hcb2-to-add-july-2026.md as Present, Partial, Missing, or Deferred-with-reason.
+- Inspect these critical files before finalizing the plan: src/main/mcp/toolRegistry.ts, src/renderer/src/features/core/inspectors/TaskInspectorBody.tsx, src/renderer/src/features/core/screens/settings/AdvancedSettingsTab.tsx, src/renderer/src/features/core/screens/calendar/CalendarEventForm.tsx, src/main/sync/readSyncRepository/recurrence.ts, src/main/native/notificationScheduling.ts.
+- Conduct a user interview before coding. Ask about priority, acceptable slices, UX expectations, platform scope, data migration tolerance, security/encryption expectations, testing depth, and whether any gap should be deferred.
+- Produce a dependency-aware implementation plan with slices, migrations, UI surfaces, IPC/contracts, tests, manual QA, and rollback/data-safety notes.
+- After plan approval, implement in small reviewed slices. Keep changes scoped to the approved gaps.
+
+Implement or explicitly resolve every Confidently Missing gap:
+- Task management: Kanban view; first-class tags with tag repository, tag-task many-to-many, tag colors, tag CRUD, and @tag extraction; hierarchical Areas with area sort/color; natural-language task/event parsing for due dates and times; task starring/flagging; bulk task operations for multi-select complete/reschedule/move/tag with coalescing; task/event duplication actions; duplicate-task detection and duplicate-review window.
+- Calendar: Year view with 4x3 mini-month heatmap; configurable 2-7 day multi-day view; single-day grid view; drag-to-create on calendar grids; attendee management UI with RSVP, response status, and invitations; Google Meet/Hangouts attachment on event create; custom event reminders editor; visibility/transparency controls for busy/free and public/private; recurring-event scope picker for this, this-and-future, and all; day-agenda popover from month/week click; RRULE editor UI instead of raw recurrence handling only.
+- Search and quick actions: regex and field-operator advanced search including attendee:, duration>30m, has:notes, due<+7d; custom-filter DSL with list:, tag:, AND/OR/NOT, relative dates, and saved queries; pinned filters in sidebar and menu-bar popover with count badges; Spotlight indexing for tasks and events; split quick switcher/quick-add model with Cmd+O for go and Shift+Cmd+P for do.
+- Keyboard and shortcuts: leader-key Cmd+K chord bindings; which-key HUD overlay; per-action keybinding customization UI backed by a chord-capable engine.
+- Settings, distribution, and platform integrations: local cache encryption with AES-256-GCM and PBKDF2 or Argon2 passphrase plus session unlock sheet; per-surface font customization across six surfaces by family/size/weight; custom color-scheme editor beyond presets; Dock badge with overdue count; sync-mode selector for manual, balanced, and near-real-time; past-event retention cutoff where 0 means keep forever; past-task/overdue cleanup behavior configuration; in-app update checker using GitHub Releases polling, version comparison, and download prompt; macOS Share extension to quick task; App Intents for Shortcuts to open task editor, open event editor, and open Today; Today print export.
+- Data import/export and attachments: portable .hcbexport package with manifest, state, bundled attachments, SHA-256 verification, and dry-run import diff; ICS calendar import; local file attachments for notes/events with image/file refs; local-pointer-repair UI for broken attachment paths.
+- Today/Home surface: dedicated Today view showing overdue, due-today, and upcoming events while respecting sidebar filters.
+- Performance and ops: low-power-mode and constrained-network detection feeding sync backoff multipliers; prepared snapshots/pre-bucketed event indexes for large accounts with a 15k-event regression suite target; notification permission primer screen separate from generic onboarding.
+- Localisation: string catalogue/i18n scaffold equivalent to the original app's .xcstrings coverage for the React app.
+
+Complete every Partial item or re-classify it with evidence:
+- Snooze: surface inspector controls and any missing snooze UX around local_snooze_until/snoozeUntil.
+- Task templates/Event templates: implement expander logic and template-instantiation UX, including {{today}}, {{+Nd}}, {{prompt:Label}}, and {{clipboard}}.
+- Local notification scheduling: surface customizable lead times such as 9 AM due-date task notifications and 15-minute event notifications, and document/handle the 64-notification cap behavior.
+- History: add renderer history-window UI for mutation logs beyond MCP audit.
+- Subtask hierarchy: expose hierarchical edits in the task inspector while preserving Google Tasks parent/child sync.
+
+Resolve every Genuinely Unclear item with runtime/static evidence:
+- MCP tool catalogue parity vs original, including exact tool names such as hcb_today, hcb_week, hcb_search, hcb_create_task, and per-tool dry-run/confirm-write/allow-write permission modes.
+- Snooze UX depth.
+- Template engine behavior.
+- Recurrence editing depth in CalendarEventForm.tsx and recurrence sync code.
+- Subtask UX depth.
+
+Implementation requirements:
+- Add migrations and typed IPC/contracts where schema or renderer/main boundaries change.
+- Keep security posture intact: no credential leaks, no weakened CSP, no remote code loading, no unsafe SQL/string query construction, no silent permission bypass.
+- Preserve existing Google Tasks/Calendar sync semantics and offline replay behavior.
+- Add focused unit/integration tests for parsers, migrations, reducers/stores, IPC, search/filter DSL, keybindings, import/export verification, encryption, notification scheduling, and calendar recurrence behavior.
+- Add Playwright/manual QA coverage for major user workflows: Today, Kanban, tags/areas, calendar views, advanced search/pinned filters, settings, import/export, attachments, update checker, and share/intent flows where locally testable.
+- Update docs and the gap file as each item is implemented or re-classified.
+
+Do not:
+- Claim parity until every listed gap is implemented, verified, or explicitly deferred by the user.
+- Auto-refactor unrelated modules.
+- Start Linux/Windows port work from this prompt.
+- Copy protected UI, branding, exact copy, icons, or proprietary behavior from reference apps.
+- Hide unresolved static-read uncertainty; label it with evidence and next action.
+
+Acceptance checks:
+- Run install/build/typecheck/unit tests relevant to the implemented slices.
+- Run Playwright smoke/regression flows for changed UI.
+- Run any migration/import/export/encryption verification commands added by the implementation.
+- Manually verify the highest-risk workflows from the user-approved plan.
+- Final summary must include implemented gaps, deferred gaps with user-approved reasons, test commands/results, manual QA evidence, migration/data-safety notes, and any remaining risk.
+```
+
 ## July 2026 Frontend Reference Prompts
 
 Run these before the platform port prompts. Each visual prompt should be run with screenshots attached in the chat or placed under the suggested local folders:
