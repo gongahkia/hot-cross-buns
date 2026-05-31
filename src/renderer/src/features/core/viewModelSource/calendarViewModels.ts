@@ -86,7 +86,7 @@ export function stableCalendarEventViewModel(
     timeZone,
     allDay: event.allDay,
     location: event.location?.trim() || (event.allDay ? "All day" : "Scheduled"),
-    notes: event.notes?.trim() || "Calendar cache",
+    notes: event.notes?.trim() || "No notes",
     guestEmails: event.guestEmails ?? [],
     reminderMinutes: event.reminderMinutes ?? [],
     mutationState: event.mutationState,

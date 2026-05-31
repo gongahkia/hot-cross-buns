@@ -344,8 +344,8 @@ export function CommandPalette({
           ) : search.state === "loading" || search.state === "stale" ? (
             <div className="grid min-h-28 place-items-center text-center">
               <div>
-                <p className="text-[var(--text-md)] font-semibold text-text-primary">Searching local cache</p>
-                <p className="mt-1 text-[var(--text-sm)] text-text-muted">Tasks, events, notes, birthdays, and cached calendar text.</p>
+                <p className="text-[var(--text-md)] font-semibold text-text-primary">Searching planner data</p>
+                <p className="mt-1 text-[var(--text-sm)] text-text-muted">Tasks, events, notes, birthdays, and calendar text.</p>
               </div>
             </div>
           ) : searchResults.length > 0 ? (

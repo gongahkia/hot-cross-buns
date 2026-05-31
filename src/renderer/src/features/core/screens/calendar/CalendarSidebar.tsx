@@ -101,7 +101,7 @@ export function CalendarSourceVisibilityList({
       ) : null}
       {calendars.length === 0 ? (
         <EmptyState
-          description="No calendars have been cached yet."
+          description="No calendars are available yet."
           title="No calendars"
         />
       ) : null}

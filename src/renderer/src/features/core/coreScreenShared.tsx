@@ -375,23 +375,23 @@ export function CacheStatePanel({ title }: { title: string }): JSX.Element | nul
 
   if (source.dataState === "loading") {
     return (
-      <Panel title={title} description="Local cache">
-        <LoadingState description="Reading cached planner data from SQLite." />
+      <Panel title={title} description="Planner data">
+        <LoadingState description="Reading planner data." />
       </Panel>
     );
   }
 
   if (source.dataState === "error" && !source.hasCachedData) {
     return (
-      <Panel title={title} description="Local cache">
-        <ErrorState description={source.errorMessage ?? "The local cache request failed."} />
+      <Panel title={title} description="Planner data">
+        <ErrorState description={source.errorMessage ?? "The planner data request failed."} />
       </Panel>
     );
   }
 
   if (source.dataState === "offline" && !source.hasCachedData) {
     return (
-      <Panel title={title} description="Local cache">
+      <Panel title={title} description="Planner data">
         <OfflineState description="The preload bridge is unavailable in this renderer context." />
       </Panel>
     );
@@ -399,10 +399,10 @@ export function CacheStatePanel({ title }: { title: string }): JSX.Element | nul
 
   if (source.dataState === "empty" && !source.hasCachedData) {
     return (
-      <Panel title={title} description="Local cache">
+      <Panel title={title} description="Planner data">
         <EmptyState
-          description="No cached tasks, events, or notes are stored in SQLite yet."
-          title="Nothing cached yet"
+          description="No tasks, events, or notes are available yet."
+          title="Nothing here yet"
         />
       </Panel>
     );

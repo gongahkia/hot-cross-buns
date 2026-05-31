@@ -89,7 +89,7 @@ export function editCalendarDraft(event: CalendarEventViewModel): CalendarEventD
     endsAt: event.endsAt,
     allDay: event.allDay,
     location: event.location === "Scheduled" || event.location === "All day" ? "" : event.location,
-    notes: event.notes === "Calendar cache" ? "" : event.notes,
+    notes: event.notes === "No notes" ? "" : event.notes,
     guests: event.guestEmails.join(", "),
     reminderMinutes: event.reminderMinutes[0] === undefined ? "" : String(event.reminderMinutes[0]),
     repeatFrequency: recurrence?.repeatFrequency ?? "none",

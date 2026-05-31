@@ -477,7 +477,7 @@ export function useNotesController(source: CoreViewModelSource): {
     const result = await window.hcb?.notes.createList({ title });
 
     if (result?.ok) {
-      setLocalNoteLists((current) => [...current, result.data]);
+      setLocalNoteLists((current) => [...current, { ...result.data, title: displayNoteListTitle(result.data.title) }]);
     }
   }
 
