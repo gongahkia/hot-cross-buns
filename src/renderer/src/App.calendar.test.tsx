@@ -31,11 +31,10 @@ describe("App calendar", () => {
     await goToSection("Calendar");
     expect(await screen.findByText("Agenda view")).toBeInTheDocument();
     const agenda = await screen.findByRole("list", { name: "Calendar agenda" });
-    expect(within(agenda).getByText("Planner shell standup")).toBeInTheDocument();
-    const standupRow = within(agenda).getByText("Planner shell standup").closest("button");
-    const agendaAccent = standupRow?.querySelector("span[aria-hidden='true']") as HTMLElement;
+    const agendaTitle = within(agenda).getByText("Planner shell standup");
 
-    expect(agendaAccent.style.backgroundColor).toBe("rgb(52, 168, 83)");
+    expect(agendaTitle).toBeInTheDocument();
+    expect(agendaTitle.style.backgroundColor).toBe("rgb(52, 168, 83)");
     expect(screen.queryByRole("button", { name: "Share availability" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Share Availability" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Calendar context" })).not.toBeInTheDocument();
@@ -44,7 +43,7 @@ describe("App calendar", () => {
     const tabs = screen.getByRole("tablist", { name: "Calendar views" });
     await user.click(within(tabs).getByRole("tab", { name: "Day" }));
     expect(screen.getByRole("grid", { name: "Calendar day view" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "09:30-09:50 Planner shell standup" }).style.borderLeftColor).toBe(
+    expect(screen.getByRole("button", { name: "09:30-09:50 Planner shell standup" }).style.backgroundColor).toBe(
       "rgb(52, 168, 83)"
     );
     expect(screen.getByRole("button", { name: "Share availability" })).toBeInTheDocument();
@@ -119,7 +118,7 @@ describe("App calendar", () => {
     expect(firstLayout).toHaveAttribute("data-duration-minutes", "30");
     expect(firstLayout).toHaveAttribute("data-lane-count", "2");
     expect(firstLayout).toHaveAttribute("data-lane-index", "0");
-    expect(firstLayout).toHaveStyle({ top: "1872px", height: "48px" });
+    expect(firstLayout).toHaveStyle({ top: "1248px", height: "32px" });
     expect(secondLayout).toHaveAttribute("data-lane-count", "2");
     expect(secondLayout).toHaveAttribute("data-lane-index", "1");
   });
