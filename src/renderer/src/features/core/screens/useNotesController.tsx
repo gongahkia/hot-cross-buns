@@ -29,8 +29,10 @@ export function useNotesController(source: CoreViewModelSource): {
   createDailyNote: () => void;
   createMeetingNote: () => void;
   createNote: () => Promise<void>;
+  createNoteList: () => Promise<void>;
   deleteNote: (noteId: string) => Promise<void>;
   noteViewColumns: NoteViewColumn[];
+  noteLists: CoreViewModelSource["noteLists"];
   notes: NoteViewModel[];
   selectedNoteId: string | null;
   selectedNoteViews: NoteBoardSelection[];
@@ -48,6 +50,7 @@ export function useNotesController(source: CoreViewModelSource): {
     update: updateInspector
   } = useInspector();
   const [notes, setNotes] = useState<NoteViewModel[]>(source.initialNotes);
+  const [localNoteLists, setLocalNoteLists] = useState(source.noteLists);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(
     source.initialNotes[0]?.id ?? null
   );
@@ -65,8 +68,8 @@ export function useNotesController(source: CoreViewModelSource): {
   const noteInspectorBodyRef = useRef<NoteInspectorBodyHandle | null>(null);
   const noteInspectorModeRef = useRef<"view" | "edit">("edit");
   const selectedNote = notes.find((note) => note.id === selectedNoteId) ?? null;
-  const noteLists = source.noteLists.length > 0
-    ? source.noteLists
+  const noteLists = localNoteLists.length > 0
+    ? localNoteLists
     : [{ id: "note-list:default", title: "Local notes", noteCount: notes.length, updatedAt: new Date().toISOString() }];
   const allNoteCount = Math.max(source.resourceCounts.notes, notes.length);
   const starredNotes = useMemo(
@@ -139,6 +142,10 @@ export function useNotesController(source: CoreViewModelSource): {
         : source.initialNotes[0]?.id ?? null
     );
   }, [source.initialNotes]);
+
+  useEffect(() => {
+    setLocalNoteLists(source.noteLists);
+  }, [source.noteLists]);
 
   useEffect(() => {
     if (
@@ -455,6 +462,15 @@ export function useNotesController(source: CoreViewModelSource): {
     );
   }
 
+  async function createNoteList(): Promise<void> {
+    const title = `Note list ${localNoteLists.length + 1}`;
+    const result = await window.hcb?.notes.createList({ title });
+
+    if (result?.ok) {
+      setLocalNoteLists((current) => [...current, result.data]);
+    }
+  }
+
   function updateNoteDraft(noteId: string, draft: NoteDraftValue): void {
     const startedAt = rendererNow();
     setNotes((current) =>
@@ -611,8 +627,10 @@ export function useNotesController(source: CoreViewModelSource): {
     createDailyNote,
     createMeetingNote,
     createNote,
+    createNoteList,
     deleteNote,
     noteViewColumns,
+    noteLists,
     notes,
     selectedNoteId,
     selectedNoteViews,

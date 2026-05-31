@@ -495,6 +495,12 @@ export function createPlaceholderPlannerViewService(
 
       return clone(note);
     },
+    createNoteList: (request) => ({
+      id: `note-list:${request.title.trim().toLowerCase().replaceAll(" ", "-") || state.notes.length + 1}`,
+      title: request.title.trim(),
+      noteCount: 0,
+      updatedAt: new Date().toISOString()
+    }),
     createNote: (request) => {
       const now = new Date().toISOString();
       const body = request.body ?? "";

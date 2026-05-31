@@ -13,6 +13,7 @@ export function NotesSidebar({
   onCreateDailyNote,
   onCreateMeetingNote,
   onCreateNote,
+  onCreateNoteList,
   onToggleCollapsed,
   onToggleView,
   noteLists,
@@ -24,6 +25,7 @@ export function NotesSidebar({
   onCreateDailyNote: () => void;
   onCreateMeetingNote: () => void;
   onCreateNote: () => void;
+  onCreateNoteList: () => void;
   onToggleCollapsed: () => void;
   onToggleView: (view: NoteBoardSelection) => void;
   noteLists: NoteListSummary[];
@@ -93,6 +95,10 @@ export function NotesSidebar({
             />
           ))}
         </div>
+        <Button className="mt-2 justify-start" onClick={onCreateNoteList} variant="ghost">
+          <Plus aria-hidden="true" size={16} />
+          Create note list
+        </Button>
       </div>
       <div className="mt-5 grid gap-1">
         <Button className="justify-start" onClick={onCreateDailyNote} variant="ghost">

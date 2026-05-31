@@ -331,11 +331,14 @@ describe("App shell", () => {
         items: [
           {
             id: "note-cache-first",
+            listId: "note-list:default",
+            listTitle: "Local notes",
             title: "Cache-first startup",
             preview: "Renderer paints from SQLite.",
             updatedAt: now
           }
         ],
+        lists: [{ id: "note-list:default", title: "Local notes", noteCount: 1, updatedAt: now }],
         page: { limit: 50, totalKnown: 321 }
       });
     installHcb(api);
