@@ -116,7 +116,7 @@ export function AppHeader({
         </Button>
         <Button
           aria-label="Split view"
-          aria-keyshortcuts="Meta+T Control+T"
+          aria-keyshortcuts="Meta+D Control+D"
           className="min-w-8"
           onClick={onOpenSplitPane}
           title="Split view"
@@ -124,7 +124,7 @@ export function AppHeader({
         >
           <PanelRightOpen aria-hidden="true" size={15} />
           <span className="hidden rounded-hcbSm border border-border px-1.5 font-mono text-[var(--text-xs)] text-text-muted md:inline">
-            {displayAccelerator(keybindings["pane.create"])}
+            {displayAccelerator(keybindings["pane.split.horizontal"])}
           </span>
         </Button>
         <Button

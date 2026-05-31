@@ -3,12 +3,6 @@ import type { SectionId } from "../../data/mockPlanner";
 export const paneWorkspaceStorageKey = "hcb.paneWorkspace.v1";
 export const maxPaneLeaves = 4;
 
-export interface SplitPaneWebPage {
-  id: string;
-  title: string;
-  url: string;
-}
-
 export type PaneSplitDirection = "row" | "column";
 export type PaneDropZone = "left" | "right" | "top" | "bottom" | "center";
 

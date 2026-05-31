@@ -11,6 +11,7 @@ import {
   maxPaneLeaves,
   paneSectionIds,
   splitPaneUrlLabel,
+  splitPaneWebContentTitle,
   splitPaneWebUrl,
   type PaneContent,
   type PaneDropZone,
@@ -344,7 +345,6 @@ function PaneLeafContent({
   if (leaf.content.kind === "chooser") {
     return (
       <PaneChooser
-        activeSectionId={activeSectionId}
         onOpenWebPage={onOpenWebPage}
         openSectionIds={openSectionIds}
         onSelectSection={(sectionId) => onReplacePane(leaf.id, { kind: "section", sectionId })}
@@ -384,11 +384,61 @@ function WebPaneContent({
   paneId: string;
 }): JSX.Element {
   const webviewRef = useRef<WebviewElement | null>(null);
+  const activeTab = activeSplitPaneWebTab(content);
+  const [webPageUrl, setWebPageUrl] = useState("");
+  const [webPageError, setWebPageError] = useState<string | null>(null);
+
+  function replaceWebContent(nextContent: Extract<PaneContent, { kind: "web" }>): void {
+    onReplacePane(paneId, nextContent);
+  }
+
+  function selectTab(tabId: string): void {
+    replaceWebContent({ ...content, activeTabId: tabId });
+  }
+
+  function closeTab(tabId: string): void {
+    if (content.tabs.length <= 1) {
+      onReplacePane(paneId, { kind: "chooser" });
+      return;
+    }
+
+    const nextTabs = content.tabs.filter((tab) => tab.id !== tabId);
+    const nextActiveTabId = content.activeTabId === tabId ? nextTabs.at(-1)?.id ?? nextTabs[0].id : content.activeTabId;
+    replaceWebContent({ ...content, activeTabId: nextActiveTabId, tabs: nextTabs });
+  }
+
+  function newTab(): void {
+    const tab = createSplitPaneWebTab("", "New tab");
+    replaceWebContent({
+      ...content,
+      activeTabId: tab.id,
+      tabs: [...content.tabs, tab].slice(-12)
+    });
+  }
+
+  function openActiveTab(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    const url = splitPaneWebUrl(webPageUrl, window.location.href);
+
+    if (!url) {
+      setWebPageError("Enter an http or https URL.");
+      return;
+    }
+
+    setWebPageError(null);
+    setWebPageUrl("");
+    replaceWebContent({
+      ...content,
+      tabs: content.tabs.map((tab) =>
+        tab.id === activeTab.id ? { ...tab, title: splitPaneUrlLabel(url), url } : tab
+      )
+    });
+  }
 
   useEffect(() => {
     const webview = webviewRef.current;
 
-    if (!webview) {
+    if (!webview || !activeTab.url) {
       return;
     }
 
@@ -396,11 +446,16 @@ function WebPaneContent({
       const eventTitle = event ? (event as Event & { title?: string }).title : undefined;
       const title = (eventTitle ?? webviewRef.current?.getTitle?.() ?? "").trim();
 
-      if (!title || title === content.title) {
+      if (!title || title === activeTab.title) {
         return;
       }
 
-      onReplacePane(paneId, { ...content, title });
+      replaceWebContent({
+        ...content,
+        tabs: content.tabs.map((tab) =>
+          tab.id === activeTab.id ? { ...tab, title } : tab
+        )
+      });
     }
 
     const listener: EventListener = (event) => syncTitle(event);
@@ -413,45 +468,105 @@ function WebPaneContent({
       webview.removeEventListener("did-finish-load", listener);
       webview.removeEventListener("dom-ready", listener);
     };
-  }, [content, onReplacePane, paneId]);
+  }, [activeTab.id, activeTab.title, activeTab.url, content, onReplacePane, paneId]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex min-h-8 items-center gap-2 border-b border-border px-3 text-[var(--text-xs)] text-text-muted">
-        <ExternalLink aria-hidden="true" size={13} />
-        <span className="truncate">{content.url}</span>
+      <div className="flex min-h-9 items-center gap-1 overflow-x-auto border-b border-border bg-bg-secondary px-2">
+        {content.tabs.map((tab) => (
+          <button
+            aria-label={`Select ${tab.title}`}
+            className={cx(
+              "flex h-7 min-w-28 max-w-52 items-center gap-1 rounded-hcbSm px-2 text-left text-[var(--text-xs)] transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+              tab.id === activeTab.id ? "bg-surface-0 text-text-primary" : "text-text-muted hover:bg-surface-0"
+            )}
+            key={tab.id}
+            onClick={() => selectTab(tab.id)}
+            type="button"
+          >
+            <span className="min-w-0 flex-1 truncate">{tab.title}</span>
+            <span
+              aria-label={`Close ${tab.title}`}
+              className="rounded-hcbSm p-0.5 hover:bg-bg-tertiary"
+              onClick={(event) => {
+                event.stopPropagation();
+                closeTab(tab.id);
+              }}
+              role="button"
+              tabIndex={-1}
+            >
+              <X aria-hidden="true" size={12} />
+            </span>
+          </button>
+        ))}
+        <Button
+          aria-label="New web tab"
+          className="size-7 shrink-0 px-0"
+          onClick={newTab}
+          title="New web tab"
+          variant="ghost"
+        >
+          <Plus aria-hidden="true" size={14} />
+        </Button>
       </div>
-      <webview
-        className="min-h-0 flex-1 bg-bg-primary"
-        data-testid="split-webview"
-        key={`${paneId}:${content.url}`}
-        partition={`persist:hcb-split-pane-${paneId}`}
-        ref={(node) => {
-          webviewRef.current = node as WebviewElement | null;
-        }}
-        src={content.url}
-        webpreferences="contextIsolation=yes,nodeIntegration=no,sandbox=yes"
-      />
+      {activeTab.url ? (
+        <>
+          <div className="flex min-h-8 items-center gap-2 border-b border-border px-3 text-[var(--text-xs)] text-text-muted">
+            <ExternalLink aria-hidden="true" size={13} />
+            <span className="truncate">{splitPaneUrlLabel(activeTab.url)}</span>
+          </div>
+          <webview
+            className="min-h-0 flex-1 bg-bg-primary"
+            data-testid="split-webview"
+            key={`${paneId}:${activeTab.id}:${activeTab.url}`}
+            partition={`persist:hcb-split-pane-${paneId}-${activeTab.id}`}
+            ref={(node) => {
+              webviewRef.current = node as WebviewElement | null;
+            }}
+            src={activeTab.url}
+            webpreferences="contextIsolation=yes,nodeIntegration=no,sandbox=yes"
+          />
+        </>
+      ) : (
+        <div className="grid min-h-0 flex-1 place-items-center p-4">
+          <form className="grid w-full max-w-lg gap-2" onSubmit={openActiveTab}>
+            <div className="flex min-w-0 gap-2">
+              <input
+                aria-label="Webpage URL"
+                autoFocus
+                className="h-9 min-w-0 flex-1 rounded-hcbMd border border-border bg-surface-0 px-3 text-[var(--text-base)] text-text-primary placeholder:text-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                onChange={(event) => {
+                  setWebPageUrl(event.target.value);
+                  setWebPageError(null);
+                }}
+                placeholder="https://example.com"
+                type="text"
+                value={webPageUrl}
+              />
+              <Button disabled={webPageUrl.trim().length === 0} type="submit" variant="secondary">
+                Open
+              </Button>
+            </div>
+            {webPageError ? <p className="text-[var(--text-xs)] text-danger">{webPageError}</p> : null}
+          </form>
+        </div>
+      )}
     </div>
   );
 }
 
 function PaneChooser({
-  activeSectionId,
-  onOpenRecentWebPage,
   onOpenWebPage,
+  openSectionIds,
   onSelectSection,
-  recentWebPages,
   visibleSectionIds
 }: {
-  activeSectionId: SectionId;
-  onOpenRecentWebPage: (pageId: string) => void;
   onOpenWebPage: (rawUrl: string, label: string | null) => boolean;
+  openSectionIds: ReadonlySet<SectionId>;
   onSelectSection: (sectionId: SectionId) => void;
-  recentWebPages: SplitPaneWebPage[];
   visibleSectionIds: SectionId[];
 }): JSX.Element {
-  const appSections = visibleSectionIds.filter((sectionId) => sectionId !== activeSectionId);
+  const appSections = visibleSectionIds.filter((sectionId) => !openSectionIds.has(sectionId));
   const [webPageUrl, setWebPageUrl] = useState("");
   const [webPageError, setWebPageError] = useState<string | null>(null);
 
@@ -468,8 +583,36 @@ function PaneChooser({
   }
 
   return (
-    <div className="h-full min-h-0 overflow-auto p-4">
-      <div className="grid gap-5">
+    <div className="grid h-full min-h-0 place-items-center overflow-auto p-4">
+      <div className="grid w-full max-w-3xl gap-5">
+        <PaneChooserGroup title="App tabs">
+          <div className="grid gap-2">
+            {appSections.length > 0 ? appSections.map((sectionId) => {
+              const section = getPlannerSection(sectionId);
+              const Icon = section.icon;
+
+              return (
+                <button
+                  className="flex min-h-12 min-w-0 items-center gap-3 rounded-hcbMd border border-border bg-bg-secondary px-3 py-2 text-left transition-colors duration-fast ease-hcb hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  key={sectionId}
+                  onClick={() => onSelectSection(sectionId)}
+                  type="button"
+                >
+                  <Icon aria-hidden="true" className="shrink-0 text-text-muted" size={17} />
+                  <span className="min-w-0">
+                    <span className="block truncate text-[var(--text-base)] font-medium text-text-primary">{section.title}</span>
+                    <span className="block truncate text-[var(--text-xs)] text-text-muted">{section.subtitle}</span>
+                  </span>
+                </button>
+              );
+            }) : (
+              <p className="rounded-hcbMd border border-dashed border-border px-3 py-4 text-[var(--text-sm)] text-text-muted">
+                All app tabs are already open.
+              </p>
+            )}
+          </div>
+        </PaneChooserGroup>
+
         <PaneChooserGroup title="Open webpage">
           <form className="grid gap-2" onSubmit={handleOpenWebPage}>
             <div className="flex min-w-0 gap-2">
@@ -490,52 +633,6 @@ function PaneChooser({
             </div>
             {webPageError ? <p className="text-[var(--text-xs)] text-danger">{webPageError}</p> : null}
           </form>
-        </PaneChooserGroup>
-
-        <PaneChooserGroup title="Recent webpages">
-          {recentWebPages.length > 0 ? (
-            <div className="grid gap-2">
-              {recentWebPages.map((page) => (
-                <button
-                  className="grid min-h-14 min-w-0 gap-1 rounded-hcbMd border border-border bg-bg-secondary px-3 py-2 text-left transition-colors duration-fast ease-hcb hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                  key={page.id}
-                  onClick={() => onOpenRecentWebPage(page.id)}
-                  type="button"
-                >
-                  <span className="truncate text-[var(--text-base)] font-medium text-text-primary">{page.title}</span>
-                  <span className="truncate text-[var(--text-xs)] text-text-muted">{splitPaneUrlLabel(page.url)}</span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="rounded-hcbMd border border-dashed border-border px-3 py-4 text-[var(--text-sm)] text-text-muted">
-              No webpages opened in Hot Cross Buns yet.
-            </p>
-          )}
-        </PaneChooserGroup>
-
-        <PaneChooserGroup title="App tabs">
-          <div className="grid gap-2">
-            {appSections.map((sectionId) => {
-              const section = getPlannerSection(sectionId);
-              const Icon = section.icon;
-
-              return (
-                <button
-                  className="flex min-h-12 min-w-0 items-center gap-3 rounded-hcbMd border border-border bg-bg-secondary px-3 py-2 text-left transition-colors duration-fast ease-hcb hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                  key={sectionId}
-                  onClick={() => onSelectSection(sectionId)}
-                  type="button"
-                >
-                  <Icon aria-hidden="true" className="shrink-0 text-text-muted" size={17} />
-                  <span className="min-w-0">
-                    <span className="block truncate text-[var(--text-base)] font-medium text-text-primary">{section.title}</span>
-                    <span className="block truncate text-[var(--text-xs)] text-text-muted">{section.subtitle}</span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
         </PaneChooserGroup>
       </div>
     </div>
@@ -606,7 +703,7 @@ function paneContentTitle(content: PaneContent): string {
   }
 
   if (content.kind === "web") {
-    return content.title;
+    return splitPaneWebContentTitle(content);
   }
 
   return getPlannerSection(content.sectionId).title;

@@ -30,6 +30,7 @@ export const hotkeyDefinitions: HotkeyDefinition[] = [
   { id: "pane.focus.right", label: "Focus Pane Right", group: "Navigation" },
   { id: "pane.focus.up", label: "Focus Pane Up", group: "Navigation" },
   { id: "pane.focus.down", label: "Focus Pane Down", group: "Navigation" },
+  { id: "web.tab.create", label: "New Web Tab", group: "Navigation" },
   { id: "calendar.view.agenda", label: "Agenda View", group: "Calendar" },
   { id: "calendar.view.day", label: "Day View", group: "Calendar" },
   { id: "calendar.view.multiDay", label: "Multi-day View", group: "Calendar" },

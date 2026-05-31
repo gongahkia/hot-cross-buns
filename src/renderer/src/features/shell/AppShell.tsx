@@ -470,6 +470,11 @@ export function AppShell(): JSX.Element {
         return;
       }
 
+      if (actionId === "web.tab.create") {
+        paneWorkspace.newWebTab(paneWorkspace.focusedPaneId);
+        return;
+      }
+
       if (actionId === "pane.close") {
         paneWorkspace.closePane(paneWorkspace.focusedPaneId);
         return;
@@ -518,6 +523,7 @@ export function AppShell(): JSX.Element {
       paneWorkspace.closePane,
       paneWorkspace.focusPaneByDirection,
       paneWorkspace.focusedPaneId,
+      paneWorkspace.newWebTab,
       paneWorkspace.openChooser,
       paneWorkspace.splitPane,
       toggleDiagnosticsPanel,
@@ -755,12 +761,10 @@ export function AppShell(): JSX.Element {
             onClosePane={paneWorkspace.closePane}
             onFocusPane={paneWorkspace.focusPane}
             onMovePane={paneWorkspace.movePane}
-            onOpenRecentWebPage={paneWorkspace.openRecentWebPage}
             onOpenWebPage={paneWorkspace.openWebPageInPane}
             onReplacePane={paneWorkspace.replacePane}
             onSetSplitRatio={paneWorkspace.setSplitRatio}
             onSplitPane={paneWorkspace.splitPane}
-            recentWebPages={paneWorkspace.recentWebPages}
             root={paneWorkspace.root}
             taskCommand={taskCommand}
             visibleCalendarIds={visibleCalendarIdSet}

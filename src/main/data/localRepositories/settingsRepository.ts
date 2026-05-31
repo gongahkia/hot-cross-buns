@@ -829,6 +829,9 @@ function normalizeKeybindings(
     value["navigation.diagnostics.toggle"] === "CmdOrCtrl+D" &&
     value["pane.split.horizontal"] === undefined &&
     value["pane.split.vertical"] === undefined;
+  const shouldMigratePaneCreateDefault =
+    value["pane.create"] === "CmdOrCtrl+T" &&
+    value["web.tab.create"] === undefined;
 
   for (const actionId of hotkeyActionIds) {
     const accelerator = value[actionId];
@@ -844,6 +847,10 @@ function normalizeKeybindings(
 
   if (shouldMigrateDiagnosticsDefault) {
     normalized["navigation.diagnostics.toggle"] = DEFAULT_SETTINGS.keybindings["navigation.diagnostics.toggle"];
+  }
+
+  if (shouldMigratePaneCreateDefault) {
+    normalized["pane.create"] = DEFAULT_SETTINGS.keybindings["pane.create"];
   }
 
   return normalized;

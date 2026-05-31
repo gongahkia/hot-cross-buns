@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { SectionId } from "../../data/mockPlanner";
 import { writeLocalStorageJSON } from "../core/localStorageHelpers";
 import {
-  activeSplitPaneWebTab,
   closePaneLeaf,
   createDefaultPaneTree,
   createSplitPaneWebContent,
