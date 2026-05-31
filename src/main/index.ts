@@ -23,7 +23,8 @@ const rendererReadyFallbackMs = 8_000;
 let revealFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 let deferredRuntimeStarted = false;
 let quittingAfterSync = false;
-let syncQuitWindow: BrowserWindow | null = null;
+let startupSyncInProgress = false;
+let syncStatusWindow: BrowserWindow | null = null;
 const macAppDisplayName = "Hot Cross Buns";
 
 if (process.env.HCB_USER_DATA_DIR && !app.isPackaged) {
@@ -123,53 +124,56 @@ function showMainWindow(): void {
   revealMainWindow(mainWindow, true);
 }
 
-function showQuitSyncWindow(): BrowserWindow {
-  if (syncQuitWindow && !syncQuitWindow.isDestroyed()) {
-    syncQuitWindow.show();
-    return syncQuitWindow;
+function showSyncStatusWindow(pendingMutationCount: number, parent: BrowserWindow | null = mainWindow): BrowserWindow {
+  if (syncStatusWindow && !syncStatusWindow.isDestroyed()) {
+    syncStatusWindow.show();
+    return syncStatusWindow;
   }
 
-  syncQuitWindow = new BrowserWindow({
+  syncStatusWindow = new BrowserWindow({
     alwaysOnTop: true,
     backgroundColor: "#1e1e2e",
     height: 132,
     maximizable: false,
     minimizable: false,
-    modal: Boolean(mainWindow),
-    parent: mainWindow ?? undefined,
+    modal: Boolean(parent),
+    parent: parent ?? undefined,
     resizable: false,
     show: false,
     title: "Hot Cross Buns 2",
     width: 420
   });
-  syncQuitWindow.removeMenu();
-  syncQuitWindow.on("closed", () => {
-    syncQuitWindow = null;
+  syncStatusWindow.removeMenu();
+  syncStatusWindow.on("closed", () => {
+    syncStatusWindow = null;
   });
-  void syncQuitWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(quitSyncHtml)}`);
-  syncQuitWindow.once("ready-to-show", () => {
-    syncQuitWindow?.show();
+  void syncStatusWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(syncStatusHtml(pendingMutationCount))}`);
+  syncStatusWindow.once("ready-to-show", () => {
+    syncStatusWindow?.show();
   });
-  return syncQuitWindow;
+  return syncStatusWindow;
 }
 
-async function syncBeforeQuit(): Promise<void> {
+async function runFullSyncWithStatusWindow(reason: "quit" | "startup", parent: BrowserWindow | null = mainWindow): Promise<void> {
   const activeServices = services;
 
   if (!activeServices) {
     return;
   }
 
-  showQuitSyncWindow();
+  const status = await activeServices.domain.sync.status();
+  const statusWindow = showSyncStatusWindow(status.pendingMutationCount, parent);
 
   try {
     await activeServices.domain.sync.runNow({ resources: ["tasks", "calendar"] });
   } catch (error) {
-    appLogger.warn("quit sync failed", "sync", {
+    appLogger.warn(`${reason} sync failed`, "sync", {
       message: error instanceof Error ? error.message : String(error)
     });
   } finally {
-    syncQuitWindow?.close();
+    if (!statusWindow.isDestroyed()) {
+      statusWindow.close();
+    }
   }
 }
 
@@ -252,7 +256,7 @@ function createMainWindow(): BrowserWindow {
   return window;
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   markStartupTiming("appReadyMs");
   appLogger.configure({ logsDirectory: nativeAdapter.appPaths().logsDirectory });
   appLogger.info("app ready", "misc");
@@ -273,6 +277,9 @@ app.whenReady().then(() => {
   registerHcbIpc(services, {
     onShellVisible: handleRendererShellVisible
   });
+  startupSyncInProgress = true;
+  await runFullSyncWithStatusWindow("startup", null);
+  startupSyncInProgress = false;
   mainWindow = createMainWindow();
 
   for (const url of pendingDeepLinks.splice(0)) {
@@ -291,6 +298,10 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   mainWindow = null;
 
+  if (startupSyncInProgress) {
+    return;
+  }
+
   if (process.platform !== "darwin") {
     app.quit();
   }
@@ -299,7 +310,7 @@ app.on("window-all-closed", () => {
 app.on("before-quit", (event) => {
   if (!quittingAfterSync && services) {
     event.preventDefault();
-    void syncBeforeQuit().finally(() => {
+    void runFullSyncWithStatusWindow("quit", mainWindow).finally(() => {
       quittingAfterSync = true;
       app.quit();
     });
@@ -310,7 +321,8 @@ app.on("before-quit", (event) => {
   services = null;
 });
 
-const quitSyncHtml = `<!doctype html>
+function syncStatusHtml(pendingMutationCount: number): string {
+  return `<!doctype html>
 <html>
   <head>
     <meta charset="utf-8">
@@ -369,9 +381,10 @@ const quitSyncHtml = `<!doctype html>
   </head>
   <body>
     <main class="wrap" role="status" aria-live="polite">
-      <div class="title">Hot Cross Buns 2</div>
-      <div class="row">Added/modified: 0 up 1 down<br>Removed: 0 up 0 down</div>
+      <div class="title">Syncing</div>
+      <div class="row">Queued writes: ${pendingMutationCount}<br>Removed: 0 up 0 down</div>
       <div class="bar"></div>
     </main>
   </body>
 </html>`;
+}

@@ -162,7 +162,11 @@ describe("App shell", () => {
     expect(within(splitPane).queryByRole("button", { name: /Split Tasks/ })).not.toBeInTheDocument();
     expect(within(splitPane).queryByRole("button", { name: "Choose content for Tasks" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Split view" }));
-    expect(within(await screen.findByRole("region", { name: "Choose split view pane" })).getByText("Recent webpages")).toBeInTheDocument();
+    splitPane = await screen.findByRole("region", { name: "Choose split view pane" });
+    expect(within(splitPane).queryByText("Recent webpages")).not.toBeInTheDocument();
+    expect(within(splitPane).queryByRole("button", { name: /Tasks/ })).not.toBeInTheDocument();
+    expect(within(splitPane).queryByRole("button", { name: /Calendar/ })).not.toBeInTheDocument();
+    expect(within(splitPane).getByRole("button", { name: /Notes/ })).toBeInTheDocument();
   });
 
   it("opens typed webpages from the split view chooser", async () => {
@@ -179,6 +183,11 @@ describe("App shell", () => {
 
     const webPane = await screen.findByRole("region", { name: "example.com pane" });
     expect(within(webPane).getByTestId("split-webview")).toHaveAttribute("src", "https://example.com/");
+
+    fireEvent.keyDown(window, { key: "t", metaKey: true });
+    expect(screen.getAllByTestId("pane-leaf")).toHaveLength(2);
+    expect(within(webPane).getByRole("button", { name: "Select New tab" })).toBeInTheDocument();
+    expect(within(webPane).getByLabelText("Webpage URL")).toBeInTheDocument();
   });
 
   it("uses pane and diagnostics hotkeys", async () => {
@@ -202,7 +211,7 @@ describe("App shell", () => {
     await waitFor(() => expect(screen.getAllByTestId("pane-leaf")).toHaveLength(2));
 
     fireEvent.keyDown(window, { key: "t", metaKey: true });
-    await waitFor(() => expect(screen.getAllByTestId("pane-leaf")).toHaveLength(3));
+    await waitFor(() => expect(screen.getAllByTestId("pane-leaf")).toHaveLength(2));
   });
 
   it("closes a single pane to the chooser before closing the window", async () => {
@@ -275,7 +284,6 @@ describe("App shell", () => {
       "hcb.paneWorkspace.v1",
       JSON.stringify({
         focusedPaneId: "pane-notes",
-        recentWebPages: [],
         root: {
           id: "split-root",
           kind: "split",
