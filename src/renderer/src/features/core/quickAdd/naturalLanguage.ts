@@ -496,7 +496,7 @@ function extractRecurrence(text: string, now: Date): RecurrenceHit | null {
   return null;
 
   function matchEveryUnit(value: string): Omit<RecurrenceHit, "display" | "ranges"> | null {
-    const match = /\b(?:every|each)\s+(\d{1,3})?\s*(day|days|week|weeks|month|months|year|years)(?:\s+on\s+([a-z,\s/&-]{2,80}))?/.exec(value);
+    const match = /\b(?:every|each)\s+(\d{1,3})?\s*(days|day|weeks|week|months|month|years|year)(?:\s+on\s+([a-z,\s/&-]{2,80}))?/.exec(value);
 
     if (!match) {
       return null;
@@ -730,7 +730,7 @@ function rawTime(match: RegExpExecArray, hourGroup: number, minuteGroup: number,
 function matchTimeExpression(text: string): TimeHit | null {
   const lower = text.toLowerCase();
   const timeToken = String.raw`(\d{1,2})(?:[:.](\d{2}))?\s*((?:a|p)\.?m\.?)?`;
-  const rangePattern = new RegExp(String.raw`\b(?:from\s+)?${timeToken}\s*(?:-|\u2013|\u2014|to|until|til|till)\s*${timeToken}\b`);
+  const rangePattern = new RegExp(String.raw`\b(?:from\s+|at\s+)?${timeToken}\s*(?:-|\u2013|\u2014|to|until|til|till)\s*${timeToken}\b`);
   const range = rangePattern.exec(lower);
 
   if (range) {
@@ -755,7 +755,7 @@ function matchTimeExpression(text: string): TimeHit | null {
     return start && end ? { start, end, index: range.index, length: range[0].length } : null;
   }
 
-  const keyword = /\b(noon|midnight)\b/.exec(lower);
+  const keyword = /\b(?:at\s+)?(noon|midnight)\b/.exec(lower);
 
   if (keyword) {
     return {
@@ -766,21 +766,21 @@ function matchTimeExpression(text: string): TimeHit | null {
     };
   }
 
-  const ampm = /\b(\d{1,2})(?:[:.](\d{2}))?\s*(a|p)\.?m\.?\b/.exec(lower);
+  const ampm = /\b(?:at\s+)?(\d{1,2})(?:[:.](\d{2}))?\s*(a|p)\.?m\.?\b/.exec(lower);
 
   if (ampm) {
     const start = resolveTime(rawTime(ampm, 1, 2, 3) ?? { hour: -1, minute: -1, meridiem: null });
     return start ? { start, end: null, index: ampm.index, length: ampm[0].length } : null;
   }
 
-  const compact = /\b(\d{1,2})([0-5]\d)\s*(a|p)\.?m\.?\b/.exec(lower);
+  const compact = /\b(?:at\s+)?(\d{1,2})([0-5]\d)\s*(a|p)\.?m\.?\b/.exec(lower);
 
   if (compact) {
     const start = resolveTime(rawTime(compact, 1, 2, 3) ?? { hour: -1, minute: -1, meridiem: null });
     return start ? { start, end: null, index: compact.index, length: compact[0].length } : null;
   }
 
-  const twentyFour = /\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/.exec(lower);
+  const twentyFour = /\b(?:at\s+)?([01]?\d|2[0-3])[:.]([0-5]\d)\b/.exec(lower);
 
   if (twentyFour) {
     const start = resolveTime(rawTime(twentyFour, 1, 2) ?? { hour: -1, minute: -1, meridiem: null });

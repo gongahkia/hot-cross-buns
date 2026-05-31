@@ -368,7 +368,6 @@ describe("shared IPC contracts", () => {
         quickCreateExpandedByDefault: false,
         restoreWindowStateEnabled: true,
         startOnLogin: false,
-        quickCaptureShortcut: null,
         selectedTaskListIds: [],
         selectedCalendarIds: [],
         setupCompletedAt: null,
@@ -380,7 +379,7 @@ describe("shared IPC contracts", () => {
         showTrayIcon: true,
         trayClickAction: "open-menu",
         menuBarPanelStyle: "adaptive",
-        menuBarIconName: "pin",
+        menuBarIconName: "bun",
         showMenuBarBadge: true,
         showDockBadge: true,
         notificationsEnabled: false,
@@ -390,7 +389,6 @@ describe("shared IPC contracts", () => {
         eventCompletionSoundEnabled: true,
         eventCompletionSoundId: "pop",
         importedSoundCount: 0,
-        globalQuickAddHotkeyEnabled: false,
         perTabListFilters: {
           tasks: { useCustomFilter: false, selectedTaskListIds: [] },
           notes: { useCustomFilter: false, selectedTaskListIds: [] }
@@ -493,11 +491,6 @@ describe("shared IPC contracts", () => {
       tray: false,
       deepLinks: false,
       trayStatus: { state: "unsupported" },
-      quickCaptureShortcut: {
-        accelerator: null,
-        registered: false,
-        state: "unsupported"
-      },
       notificationsStatus: {
         permission: "unsupported",
         scheduledCount: 0,

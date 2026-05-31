@@ -312,7 +312,6 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
 
     setSelectedTaskId(null);
     openTaskInspector(newTaskDraft(source, draftSeed), "edit");
-    setQuickCaptureOpen(false);
   }
 
   function selectTask(taskId: string): void {

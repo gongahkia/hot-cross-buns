@@ -460,12 +460,11 @@ const hcbApi: HcbApi = {
         syncCalendarEventsEnabled: true,
         eventRetentionDaysBack: 0,
         completedTaskRetentionDaysBack: 365,
-        quickCaptureShortcut: null,
         keybindings: defaultKeybindings,
         showTrayIcon: true,
         trayClickAction: "open-menu" as const,
         menuBarPanelStyle: "adaptive" as const,
-        menuBarIconName: "pin" as const,
+        menuBarIconName: "bun" as const,
         showMenuBarBadge: true,
         showDockBadge: true,
         notificationsEnabled: false,
@@ -475,7 +474,6 @@ const hcbApi: HcbApi = {
         eventCompletionSoundEnabled: true,
         eventCompletionSoundId: "pop" as const,
         importedSoundCount: 0,
-        globalQuickAddHotkeyEnabled: false,
         perTabListFilters: {
           tasks: { useCustomFilter: false, selectedTaskListIds: [] },
           notes: { useCustomFilter: false, selectedTaskListIds: [] }
@@ -538,12 +536,11 @@ const hcbApi: HcbApi = {
         syncCalendarEventsEnabled: request.syncCalendarEventsEnabled ?? true,
         eventRetentionDaysBack: request.eventRetentionDaysBack ?? 0,
         completedTaskRetentionDaysBack: request.completedTaskRetentionDaysBack ?? 365,
-        quickCaptureShortcut: request.quickCaptureShortcut ?? null,
         keybindings: request.keybindings ?? defaultKeybindings,
         showTrayIcon: request.showTrayIcon ?? true,
         trayClickAction: request.trayClickAction ?? "open-menu",
         menuBarPanelStyle: request.menuBarPanelStyle ?? "adaptive",
-        menuBarIconName: request.menuBarIconName ?? "pin",
+        menuBarIconName: request.menuBarIconName ?? "bun",
         showMenuBarBadge: request.showMenuBarBadge ?? true,
         showDockBadge: request.showDockBadge ?? true,
         notificationsEnabled: request.notificationsEnabled ?? false,
@@ -553,7 +550,6 @@ const hcbApi: HcbApi = {
         eventCompletionSoundEnabled: request.eventCompletionSoundEnabled ?? true,
         eventCompletionSoundId: request.eventCompletionSoundId ?? "pop",
         importedSoundCount: request.importedSoundCount ?? 0,
-        globalQuickAddHotkeyEnabled: request.globalQuickAddHotkeyEnabled ?? false,
         perTabListFilters: request.perTabListFilters ?? {
           tasks: { useCustomFilter: false, selectedTaskListIds: [] },
           notes: { useCustomFilter: false, selectedTaskListIds: [] }
@@ -629,12 +625,6 @@ const hcbApi: HcbApi = {
         trayStatus: {
           state: "unsupported" as const,
           message: "Tray/menu bar is unavailable."
-        },
-        quickCaptureShortcut: {
-          accelerator: null,
-          registered: false,
-          state: "unsupported" as const,
-          message: "Global shortcuts are unavailable."
         },
         notificationsStatus: {
           permission: "unsupported" as const,

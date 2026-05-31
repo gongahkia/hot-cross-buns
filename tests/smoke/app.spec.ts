@@ -177,19 +177,7 @@ test("launches, navigates, opens command palette, and creates core items", async
     await page.getByRole("button", { name: "Close settings" }).click();
     await expect(page.getByRole("dialog", { name: "Settings" })).toBeHidden();
 
-    await page.keyboard.press("Control+P");
-    await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
-    await page.getByRole("searchbox", { name: "Filter commands" }).fill("quick capture");
-    await page.keyboard.press("Enter");
-    await expect(page.locator("#planner-title")).toHaveText("Tasks");
-    await expect(page.getByRole("textbox", { name: "Quick capture task" })).toBeVisible();
-
-    await page
-      .getByRole("textbox", { name: "Quick capture task" })
-      .fill("Smoke quick capture today #Inbox");
-    await page.keyboard.press("Enter");
-    await expect(page.getByRole("button", { name: /Smoke quick capture/ }).first()).toBeVisible();
-
+    await page.getByRole("button", { name: "Tasks" }).click();
     await page.getByRole("button", { name: /^Create$/ }).click();
     await page.getByRole("textbox", { name: "Task title" }).fill("Smoke UI task");
     await page.getByRole("button", { name: /^Save$/ }).click();

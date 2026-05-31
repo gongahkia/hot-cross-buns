@@ -107,7 +107,7 @@ describe("App tasks", () => {
     expect(api.tasks.deleteTaskList).toHaveBeenCalledWith({ id: "list-planning" });
   });
 
-  it("creates, edits, deletes, and quick-captures tasks through preload", async () => {
+  it("creates, edits, and deletes tasks through preload", async () => {
     const api = seededHcb();
     installHcb(api);
     const user = userEvent.setup();
@@ -162,27 +162,6 @@ describe("App tasks", () => {
     await user.click(within(screen.getByTestId("inspector-actions")).getByRole("button", { name: "Delete" }));
     expect(api.tasks.delete).toHaveBeenCalledWith({ id: "task-calendar-fixtures" });
 
-    await runPaletteCommand(user, "quick capture", /Quick capture/);
-    await user.type(
-      screen.getByRole("textbox", { name: "Quick capture task" }),
-      "Review notes 2026-05-23 #Planning @2pm ~30m !locked +ops"
-    );
-    await user.click(screen.getByRole("button", { name: "Capture" }));
-
-    await waitFor(() => {
-      expect(api.tasks.create).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          title: "Review notes",
-          listId: "list-planning",
-          dueDate: "2026-05-23",
-          durationMinutes: 30,
-          lockedSchedule: true,
-          plannedStart: expect.any(String),
-          plannedEnd: expect.any(String),
-          tags: ["ops"]
-        })
-      );
-    });
   });
 
   it("opens the task inspector from a row and blocks Escape while dirty", async () => {

@@ -50,6 +50,30 @@ describe("quick add natural language parsing", () => {
     expect(allDay.startDate?.getDate()).toBe(25);
   });
 
+  it("parses recurring event cadence, ending, and locations", () => {
+    const weekly = parseQuickAddEvent("Run club every Mon/Wed at 6:30pm until Jun 1 at \"East Coast Park\"", now);
+
+    expect(weekly.summary).toBe("Run club");
+    expect(weekly.location).toBe("East Coast Park");
+    expect(weekly.startDate?.getHours()).toBe(18);
+    expect(weekly.startDate?.getMinutes()).toBe(30);
+    expect(weekly.recurrence).toMatchObject({
+      frequency: "weekly",
+      interval: 1,
+      endsOn: "2026-06-01",
+      byDay: ["MO", "WE"]
+    });
+
+    const monthly = parseQuickAddEvent("Pay rent every 2 months for 5 times", now);
+
+    expect(monthly.summary).toBe("Pay rent");
+    expect(monthly.recurrence).toMatchObject({
+      frequency: "monthly",
+      interval: 2,
+      count: 5
+    });
+  });
+
   it("strips matched routing tags", () => {
     expect(stripHashToken("Lunch #Product", "Product")).toBe("Lunch");
   });

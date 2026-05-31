@@ -1,6 +1,6 @@
 import type { SettingsSnapshot, SettingsUpdateRequest } from "@shared/ipc/contracts";
 import { Bell, Download, Play, Volume2 } from "lucide-react";
-import { Button } from "../../../../components/primitives";
+import { Badge, Button } from "../../../../components/primitives";
 import { playCompletionSound } from "../../completionSounds";
 import {
   SegmentedControl,

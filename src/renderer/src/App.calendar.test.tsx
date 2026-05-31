@@ -540,6 +540,45 @@ describe("App calendar", () => {
     expect(screen.queryByTestId("inspector-shell")).not.toBeInTheDocument();
     vi.mocked(api.calendar.update).mockClear();
 
+    const occupiedTransfer = testDataTransfer();
+    const occupiedTarget = [...document.querySelectorAll<HTMLElement>("[data-calendar-event-layout]")]
+      .find((element) => element.getAttribute("data-calendar-event-layout") !== "event-standup") ?? null;
+    const occupiedDay = occupiedTarget?.closest<HTMLElement>("[data-calendar-day-events]");
+
+    expect(occupiedTarget).not.toBeNull();
+    expect(occupiedDay).not.toBeNull();
+    vi.spyOn(occupiedDay as HTMLElement, "getBoundingClientRect").mockReturnValue({
+      bottom: 1536,
+      height: 1536,
+      left: 0,
+      right: 160,
+      top: 0,
+      width: 160,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    });
+    fireEvent.dragStart(eventButton, { dataTransfer: occupiedTransfer });
+    fireEvent.dragOver(occupiedTarget as HTMLElement, {
+      clientY: 11 * 64,
+      dataTransfer: occupiedTransfer
+    });
+    expect(document.querySelector("[data-calendar-drop-preview]")).toBeInTheDocument();
+    fireEvent.drop(occupiedTarget as HTMLElement, {
+      clientY: 11 * 64,
+      dataTransfer: occupiedTransfer
+    });
+
+    await waitFor(() => {
+      expect(api.calendar.update).toHaveBeenCalledWith({
+        id: "event-standup",
+        startsAt: `${todayDate}T00:00:00.000Z`,
+        endsAt: `${todayDate}T00:20:00.000Z`,
+        allDay: false
+      });
+    });
+    vi.mocked(api.calendar.update).mockClear();
+
     const moveTransfer = testDataTransfer();
     const moveTarget = screen.getByRole("row", { name: "11:00 Open slot" });
 

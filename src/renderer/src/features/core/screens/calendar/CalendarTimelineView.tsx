@@ -314,7 +314,8 @@ function CalendarTimelineView({
       return null;
     }
 
-    const offset = Math.min(Math.max(dragEvent.clientX - rect.left, 0), Math.max(1, rect.width) - 1);
+    const clientX = Number.isFinite(dragEvent.clientX) ? dragEvent.clientX : rect.left;
+    const offset = Math.min(Math.max(clientX - rect.left, 0), Math.max(1, rect.width) - 1);
     const index = Math.min(visibleDays.length - 1, Math.floor((offset / Math.max(1, rect.width)) * visibleDays.length));
     const day = visibleDays[index]?.day;
     return day ? calendarDayKey(day) : null;
@@ -328,7 +329,8 @@ function CalendarTimelineView({
       return null;
     }
 
-    const offset = Math.min(Math.max(dragEvent.clientY - rect.top, 0), Math.max(1, rect.height) - 1);
+    const clientY = Number.isFinite(dragEvent.clientY) ? dragEvent.clientY : rect.top;
+    const offset = Math.min(Math.max(clientY - rect.top, 0), Math.max(1, rect.height) - 1);
     const totalMinutes = Math.min(
       23 * 60 + 45,
       Math.max(0, Math.floor(((offset / Math.max(1, rect.height)) * 24 * 60) / 15) * 15)
@@ -703,6 +705,7 @@ function CalendarTimelineView({
                     .map((segment) => (
                       <div
                         className="absolute left-2 right-2 rounded-hcbSm border border-info bg-info/15"
+                        data-calendar-drop-preview
                         key={segment.id}
                         style={{ height: segment.height, top: segment.top }}
                       />

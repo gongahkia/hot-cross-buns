@@ -127,9 +127,9 @@ describe("App shell", () => {
     const palette = await screen.findByRole("dialog", { name: "Command palette" });
 
     await user.type(within(palette).getByRole("searchbox", { name: "Filter commands" }), "quick add");
-    await user.click(within(palette).getByRole("option", { name: /Quick add/ }));
+    await user.click(within(palette).getByRole("option", { name: /Quick Add/ }));
 
-    const quickAdd = await screen.findByRole("dialog", { name: "Quick add" });
+    const quickAdd = await screen.findByRole("dialog", { name: "Quick Add" });
     await user.type(
       within(quickAdd).getByRole("textbox", { name: "Quick add text" }),
       "Lunch with Bob tomorrow 1pm at Philz #Product"
@@ -475,12 +475,12 @@ describe("App shell", () => {
     await runPaletteCommand(user, "new event", /New event/);
     expect(screen.getByRole("heading", { level: 1, name: "Calendar" })).toBeInTheDocument();
 
-    await runPaletteCommand(user, "quick capture", /Quick capture/);
-    expect(screen.getByRole("heading", { level: 1, name: "Tasks" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "Quick capture" })).toBeInTheDocument();
+    await runPaletteCommand(user, "quick add", /Quick Add/);
+    expect(await screen.findByRole("dialog", { name: "Quick Add" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
 
     await runPaletteCommand(user, "refresh", /Refresh/);
-    expect(screen.getByRole("heading", { level: 1, name: "Tasks" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Calendar" })).toBeInTheDocument();
 
     await runPaletteCommand(user, "force", /Force full resync/);
     expect(await screen.findByRole("dialog", { name: "Settings" })).toBeInTheDocument();
@@ -509,13 +509,6 @@ describe("App shell", () => {
     expect(within(dialog).getByRole("option", { name: /New task/ })).toHaveAttribute(
       "data-action-id",
       "task.create"
-    );
-
-    await user.clear(input);
-    await user.type(input, "quick capture");
-    expect(within(dialog).getByRole("option", { name: /Quick capture/ })).toHaveAttribute(
-      "data-action-id",
-      "task.quickCapture"
     );
 
     await user.clear(input);

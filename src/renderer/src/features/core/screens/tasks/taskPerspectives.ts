@@ -5,7 +5,7 @@ import type {
   TaskGroupViewModel,
   TaskViewModel
 } from "../../coreViewModels";
-import { addLocalDays, dateOnlyFromLocalDate } from "./quickTaskParser";
+import { addLocalDays, dateOnlyFromLocalDate } from "./taskDateUtils";
 
 export type TaskPerspectiveId = "inbox" | "forecast" | "review" | "tags" | "projects" | "saved";
 

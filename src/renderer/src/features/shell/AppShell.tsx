@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { NativeAction, SettingsSnapshot } from "@shared/ipc/contracts";
+import type { CalendarEventRecurrence, NativeAction, SettingsSnapshot } from "@shared/ipc/contracts";
 import type { PlannerAction } from "../../actions/plannerActions";
 import type { QuickAddSubmitPayload } from "../../components/QuickAddDialog";
 import { cx } from "../../components/primitives";
@@ -46,6 +46,24 @@ const DeferredQuickAddDialog = lazy(() =>
     default: module.QuickAddDialog
   }))
 );
+
+function quickAddRecurrenceDraft(recurrence: CalendarEventRecurrence | null): Record<string, unknown> {
+  if (!recurrence) {
+    return {};
+  }
+
+  const custom = recurrence.interval !== 1 || Boolean(recurrence.endsOn) || Boolean(recurrence.count) || Boolean(recurrence.byDay?.length);
+
+  return {
+    repeatFrequency: custom ? "custom" : recurrence.frequency,
+    repeatCustomFrequency: recurrence.frequency,
+    repeatInterval: String(recurrence.interval),
+    repeatEndMode: recurrence.endsOn ? "on" : recurrence.count ? "after" : "never",
+    repeatEndsOn: recurrence.endsOn ?? "",
+    repeatCount: recurrence.count ? String(recurrence.count) : "",
+    ...(recurrence.byDay?.length ? { repeatWeekdays: recurrence.byDay } : {})
+  };
+}
 
 function closestAnchor(target: EventTarget | null): HTMLAnchorElement | null {
   return target instanceof Element ? target.closest<HTMLAnchorElement>("a[href]") : null;
@@ -355,7 +373,8 @@ export function AppShell(): JSX.Element {
               endsAt: payload.endsAt,
               allDay: payload.allDay,
               location: payload.location,
-              notes: payload.notes
+              notes: payload.notes,
+              ...quickAddRecurrenceDraft(payload.recurrence)
             }
           }
         }));

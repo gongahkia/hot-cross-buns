@@ -61,12 +61,11 @@ function defaultSettings(overrides: Partial<SettingsSnapshot> = {}): SettingsSna
     syncCalendarEventsEnabled: true,
     eventRetentionDaysBack: 0,
     completedTaskRetentionDaysBack: 365,
-    quickCaptureShortcut: "Ctrl+Space",
     keybindings: defaultKeybindings,
     showTrayIcon: true,
     trayClickAction: "open-menu",
     menuBarPanelStyle: "adaptive",
-    menuBarIconName: "pin",
+    menuBarIconName: "bun",
     showMenuBarBadge: true,
     showDockBadge: true,
     notificationsEnabled: true,
@@ -76,7 +75,6 @@ function defaultSettings(overrides: Partial<SettingsSnapshot> = {}): SettingsSna
     eventCompletionSoundEnabled: true,
     eventCompletionSoundId: "pop",
     importedSoundCount: 0,
-    globalQuickAddHotkeyEnabled: true,
     perTabListFilters: {
       tasks: { useCustomFilter: false, selectedTaskListIds: [] },
       notes: { useCustomFilter: false, selectedTaskListIds: [] }
@@ -359,7 +357,7 @@ describe("native shell service", () => {
     await flushNativeStartup();
 
     expect(adapter.trayCreateCount).toBe(1);
-    expect(adapter.registeredShortcuts).toEqual(["Ctrl+Space"]);
+    expect(adapter.registeredShortcuts).toEqual([]);
     expect(adapter.protocolSchemes).toEqual(["hotcrossbuns"]);
     expect(adapter.scheduledNotifications.map((request) => request.id)).toEqual([
       "task:task-1",
@@ -369,34 +367,10 @@ describe("native shell service", () => {
       deferredStartup: {
         state: "complete"
       },
-      quickCaptureShortcut: {
-        registered: true,
-        state: "ready"
-      },
       notificationsStatus: {
         scheduledCount: 2,
         state: "ready"
       }
-    });
-  });
-
-  it("reports recoverable quick capture shortcut conflicts", async () => {
-    const adapter = new FakeNativeAdapter();
-    adapter.shortcutResult = {
-      ok: false,
-      state: "conflict",
-      message: "Ctrl+Space is already registered by another app."
-    };
-    const { service } = createService({ adapter });
-
-    service.startDeferredStartup();
-    await flushNativeStartup();
-
-    expect(service.capabilities().quickCaptureShortcut).toEqual({
-      accelerator: "Ctrl+Space",
-      registered: false,
-      state: "conflict",
-      message: "Ctrl+Space is already registered by another app."
     });
   });
 
@@ -405,11 +379,9 @@ describe("native shell service", () => {
 
     service.startDeferredStartup();
     await flushNativeStartup();
-    adapter.trayActions?.quickCapture();
     adapter.trayActions?.openSettings();
     adapter.trayActions?.refresh();
 
-    expect(dispatch).toHaveBeenCalledWith({ type: "quickCapture" });
     expect(dispatch).toHaveBeenCalledWith({ type: "openSettings" });
     expect(dispatch).toHaveBeenCalledWith({ type: "refresh" });
     expect(sync).toHaveBeenCalledWith({
@@ -592,14 +564,13 @@ describe("native shell service", () => {
     });
   });
 
-  it("applies settings changes to tray, hotkey, notifications, and MCP status", async () => {
+  it("applies settings changes to tray, notifications, and MCP status", async () => {
     const { adapter, service, settings } = createService();
 
     service.startDeferredStartup();
     await flushNativeStartup();
 
     settings.current = defaultSettings({
-      quickCaptureShortcut: "Alt+Space",
       showTrayIcon: false,
       notificationsEnabled: false,
       mcpEnabled: true,
@@ -607,15 +578,10 @@ describe("native shell service", () => {
     });
     service.applySettings(settings.current);
 
-    expect(adapter.unregisteredShortcuts).toEqual(["Ctrl+Space"]);
-    expect(adapter.registeredShortcuts).toEqual(["Ctrl+Space", "Alt+Space"]);
+    expect(adapter.unregisteredShortcuts).toEqual([]);
+    expect(adapter.registeredShortcuts).toEqual([]);
     expect(adapter.trayDestroyCount).toBe(1);
     expect(service.capabilities()).toMatchObject({
-      quickCaptureShortcut: {
-        accelerator: "Alt+Space",
-        registered: true,
-        state: "ready"
-      },
       trayStatus: {
         state: "disabled"
       },
@@ -629,19 +595,13 @@ describe("native shell service", () => {
     });
 
     settings.current = defaultSettings({
-      quickCaptureShortcut: null,
       showTrayIcon: true,
       notificationsEnabled: false
     });
     service.applySettings(settings.current);
 
-    expect(adapter.unregisteredShortcuts).toEqual(["Ctrl+Space", "Alt+Space"]);
+    expect(adapter.unregisteredShortcuts).toEqual([]);
     expect(adapter.trayCreateCount).toBe(2);
-    expect(service.capabilities().quickCaptureShortcut).toMatchObject({
-      accelerator: null,
-      registered: false,
-      state: "disabled"
-    });
   });
 
   it("redacts native adapter status messages before exposing them", async () => {

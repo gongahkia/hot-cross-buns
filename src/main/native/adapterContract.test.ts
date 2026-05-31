@@ -39,12 +39,11 @@ function defaultSettings(overrides: Partial<SettingsSnapshot> = {}): SettingsSna
     syncCalendarEventsEnabled: true,
     eventRetentionDaysBack: 0,
     completedTaskRetentionDaysBack: 365,
-    quickCaptureShortcut: "Ctrl+Space",
     keybindings: defaultKeybindings,
     showTrayIcon: true,
     trayClickAction: "open-menu",
     menuBarPanelStyle: "adaptive",
-    menuBarIconName: "pin",
+    menuBarIconName: "bun",
     showMenuBarBadge: true,
     showDockBadge: true,
     notificationsEnabled: true,
@@ -54,7 +53,6 @@ function defaultSettings(overrides: Partial<SettingsSnapshot> = {}): SettingsSna
     eventCompletionSoundEnabled: true,
     eventCompletionSoundId: "pop",
     importedSoundCount: 0,
-    globalQuickAddHotkeyEnabled: true,
     perTabListFilters: {
       tasks: { useCustomFilter: false, selectedTaskListIds: [] },
       notes: { useCustomFilter: false, selectedTaskListIds: [] }

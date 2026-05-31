@@ -17,9 +17,9 @@ describe("menu bar panel navigation", () => {
   });
 
   it("round-trips action hrefs", () => {
-    expect(parseMenuBarPanelUrl(panelActionHref("quickCapture"))).toEqual({
+    expect(parseMenuBarPanelUrl(panelActionHref("refresh"))).toEqual({
       kind: "action",
-      action: "quickCapture"
+      action: "refresh"
     });
   });
 

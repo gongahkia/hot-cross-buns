@@ -1,7 +1,9 @@
 import type { SavedTaskView } from "@shared/ipc/contracts";
+import type { Dispatch, SetStateAction } from "react";
 import {
   CheckCircle2,
   Filter,
+  ListPlus,
   Plus,
   RotateCcw,
   Save,

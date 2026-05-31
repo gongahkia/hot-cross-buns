@@ -279,7 +279,7 @@ describe("preload bridge", () => {
     listeners.get(IPC_CHANNELS.nativeAction)?.(
       {},
       {
-        type: "quickCapture"
+        type: "openSettings"
       }
     );
     listeners.get(IPC_CHANNELS.nativeAction)?.(
@@ -295,7 +295,7 @@ describe("preload bridge", () => {
 
     expect(listener).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenCalledWith({
-      type: "quickCapture"
+      type: "openSettings"
     });
 
     unsubscribe();
