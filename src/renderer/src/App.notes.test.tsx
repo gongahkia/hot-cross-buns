@@ -91,17 +91,22 @@ describe("App notes", () => {
         items: [
           {
             id: "note-cache-first",
+            listId: "note-list:default",
+            listTitle: "Local notes",
             title: "Cache-first startup",
             preview: "Renderer paints from SQLite.",
             updatedAt: now
           },
           {
             id: "note-daily",
+            listId: "note-list:default",
+            listTitle: "Local notes",
             title: "Daily note",
             preview: "Backlink review.",
             updatedAt: now
           }
         ],
+        lists: [{ id: "note-list:default", title: "Local notes", noteCount: 2, updatedAt: now }],
         page: { limit: 50, totalKnown: 2 }
       })
     );
@@ -110,6 +115,8 @@ describe("App notes", () => {
         id === "note-daily"
           ? {
               id,
+              listId: "note-list:default",
+              listTitle: "Local notes",
               title: "Daily note",
               preview: "Backlink review.",
               body: "Review backlinks.",
@@ -117,6 +124,8 @@ describe("App notes", () => {
             }
           : {
               id,
+              listId: "note-list:default",
+              listTitle: "Local notes",
               title: "Cache-first startup",
               preview: "Renderer paints from SQLite.",
               body: "Renderer paints from SQLite before fresh sync completes.",
@@ -156,17 +165,22 @@ describe("App notes", () => {
         items: [
           {
             id: "note-project",
+            listId: "note-list:default",
+            listTitle: "Local notes",
             title: "Project plan",
             preview: "See [[Daily note]]",
             updatedAt: now
           },
           {
             id: "note-daily",
+            listId: "note-list:default",
+            listTitle: "Local notes",
             title: "Daily note",
             preview: "Back to [[Project plan]]",
             updatedAt: now
           }
         ],
+        lists: [{ id: "note-list:default", title: "Local notes", noteCount: 2, updatedAt: now }],
         page: { limit: 50, totalKnown: 2 }
       })
     );
@@ -175,6 +189,8 @@ describe("App notes", () => {
         id === "note-daily"
           ? {
               id,
+              listId: "note-list:default",
+              listTitle: "Local notes",
               title: "Daily note",
               preview: "Back to [[Project plan]]",
               body: "Back to [[Project plan]]",
@@ -182,6 +198,8 @@ describe("App notes", () => {
             }
           : {
               id,
+              listId: "note-list:default",
+              listTitle: "Local notes",
               title: "Project plan",
               preview: "See [[Daily note]]",
               body: "# Plan\n- [x] Kickoff\nSee [[Daily note]]",
@@ -280,6 +298,8 @@ describe("App notes", () => {
     api.notes.get = vi.fn(async ({ id }) =>
       ok({
         id,
+        listId: "note-list:default",
+        listTitle: "Local notes",
         title: "Cache-first startup",
         preview: "See [[Missing note]]",
         body: "See [[Missing note]]",
