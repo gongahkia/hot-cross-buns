@@ -306,15 +306,26 @@ const hcbApi: HcbApi = {
     list: vi.fn(async (request = {}) =>
       ok({
         items: [],
+        lists: [{ id: "note-list:default", title: "Local notes", noteCount: 0, updatedAt: now }],
         page: {
           limit: request.limit ?? 50,
           totalKnown: 0
         }
       })
     ),
+    createList: vi.fn(async (request) =>
+      ok({
+        id: "note-list-created",
+        title: request.title,
+        noteCount: 0,
+        updatedAt: now
+      })
+    ),
     get: vi.fn(async (request) =>
       ok({
         id: request.id,
+        listId: "note-list:default",
+        listTitle: "Local notes",
         title: "Test note",
         preview: "",
         body: "",
@@ -324,6 +335,8 @@ const hcbApi: HcbApi = {
     create: vi.fn(async (request) =>
       ok({
         id: "note-created",
+        listId: request.listId ?? "note-list:default",
+        listTitle: "Local notes",
         title: request.title,
         preview: request.body ?? "",
         body: request.body ?? "",
@@ -333,6 +346,8 @@ const hcbApi: HcbApi = {
     update: vi.fn(async (request) =>
       ok({
         id: request.id,
+        listId: request.listId ?? "note-list:default",
+        listTitle: "Local notes",
         title: request.title ?? "Updated note",
         preview: request.body ?? "",
         body: request.body ?? "",
@@ -431,7 +446,7 @@ const hcbApi: HcbApi = {
         hiddenNavigationTabs: [],
         hiddenCalendarViewModes: [],
         showCompletedInCalendarViews: true,
-        calendarTimelineDensity: "compact",
+        calendarTimelineDensity: "compact" as const,
         monthScrollPastMonths: 0,
         monthScrollFutureMonths: 1,
         quickCreateExpandedByDefault: false,
@@ -509,6 +524,7 @@ const hcbApi: HcbApi = {
         hiddenNavigationTabs: request.hiddenNavigationTabs ?? [],
         hiddenCalendarViewModes: request.hiddenCalendarViewModes ?? [],
         showCompletedInCalendarViews: request.showCompletedInCalendarViews ?? true,
+        calendarTimelineDensity: request.calendarTimelineDensity ?? "compact",
         monthScrollPastMonths: request.monthScrollPastMonths ?? 0,
         monthScrollFutureMonths: request.monthScrollFutureMonths ?? 1,
         quickCreateExpandedByDefault: request.quickCreateExpandedByDefault ?? false,

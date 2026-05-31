@@ -9,6 +9,7 @@ import type {
   ChangeEvent,
   InputHTMLAttributes,
   KeyboardEvent,
+  MutableRefObject,
   Ref,
   TextareaHTMLAttributes
 } from "react";
@@ -55,7 +56,7 @@ function setRefs<T>(node: T, refs: Array<Ref<T> | undefined>): void {
     if (typeof ref === "function") {
       ref(node);
     } else {
-      ref.current = node;
+      (ref as MutableRefObject<T>).current = node;
     }
   }
 }
