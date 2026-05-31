@@ -185,6 +185,7 @@ export const emptySnapshot: CoreDataSnapshot = {
     overloadMinutes: 0
   },
   notes: [],
+  noteLists: [],
   settings: emptySettings,
   syncStatus: emptySyncStatus,
   googleStatus: emptyGoogleStatus,

@@ -15,6 +15,7 @@ export function NotesView(): JSX.Element {
     createNote,
     deleteNote,
     noteViewColumns,
+    moveNoteToList,
     selectedNoteId,
     selectedNoteViews,
     selectNote,
@@ -43,6 +44,7 @@ export function NotesView(): JSX.Element {
         onCreateNote={() => void createNote()}
         onToggleCollapsed={() => setSidebarCollapsed((collapsed) => !collapsed)}
         onToggleView={toggleNoteView}
+        noteLists={source.noteLists}
         selectedNoteViews={selectedNoteViews}
         starredNoteCount={starredNoteCount}
       />
@@ -50,6 +52,7 @@ export function NotesView(): JSX.Element {
         allNoteCount={allNoteCount}
         columns={noteViewColumns}
         onDeleteNote={(noteId) => void deleteNote(noteId)}
+        onMoveNote={(noteId, listId) => void moveNoteToList(noteId, listId)}
         onOpenNote={(noteId, mode = "view") => void selectNote(noteId, mode)}
         onToggleStar={toggleNoteStar}
         selectedNoteId={selectedNoteId}

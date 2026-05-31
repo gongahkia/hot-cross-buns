@@ -72,6 +72,7 @@ export async function loadCoreData(settingsPromise?: Promise<SettingsSnapshot>):
     scheduledTaskBlocks: scheduledTaskBlocks.items,
     scheduleSuggestion,
     notes: notes.items,
+    noteLists: notes.lists,
     settings,
     syncStatus,
     googleStatus: emptyGoogleStatus,

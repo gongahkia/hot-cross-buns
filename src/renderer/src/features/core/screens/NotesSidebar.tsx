@@ -1,4 +1,5 @@
 import { CalendarPlus, Check, PanelLeftClose, PanelLeftOpen, Pencil, Plus } from "lucide-react";
+import type { NoteListSummary } from "@shared/ipc/contracts";
 import { Button, IconButton, cx } from "../../../components/primitives";
 import {
   actionDescription,
@@ -14,6 +15,7 @@ export function NotesSidebar({
   onCreateNote,
   onToggleCollapsed,
   onToggleView,
+  noteLists,
   selectedNoteViews,
   starredNoteCount
 }: {
@@ -24,6 +26,7 @@ export function NotesSidebar({
   onCreateNote: () => void;
   onToggleCollapsed: () => void;
   onToggleView: (view: NoteBoardSelection) => void;
+  noteLists: NoteListSummary[];
   selectedNoteViews: NoteBoardSelection[];
   starredNoteCount: number;
 }): JSX.Element {
@@ -76,6 +79,20 @@ export function NotesSidebar({
           label="Starred"
           onClick={() => onToggleView("starred")}
         />
+      </div>
+      <div className="mt-6">
+        <div className="px-2 text-[var(--text-sm)] font-semibold text-text-primary">Lists</div>
+        <div className="mt-2 grid gap-1">
+          {noteLists.map((list) => (
+            <NoteSidebarCheckbox
+              checked={selectedNoteViews.includes(`list:${list.id}`)}
+              count={list.noteCount}
+              key={list.id}
+              label={list.title}
+              onClick={() => onToggleView(`list:${list.id}`)}
+            />
+          ))}
+        </div>
       </div>
       <div className="mt-5 grid gap-1">
         <Button className="justify-start" onClick={onCreateDailyNote} variant="ghost">

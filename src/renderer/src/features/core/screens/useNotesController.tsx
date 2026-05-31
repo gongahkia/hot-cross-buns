@@ -37,6 +37,7 @@ export function useNotesController(source: CoreViewModelSource): {
   selectNote: (noteId: string, mode?: "view" | "edit") => Promise<void>;
   starredNoteCount: number;
   starredNoteIds: ReadonlySet<string>;
+  moveNoteToList: (noteId: string, listId: string) => Promise<void>;
   toggleNoteStar: (noteId: string) => void;
   toggleNoteView: (view: NoteBoardSelection) => void;
 } {
@@ -64,6 +65,9 @@ export function useNotesController(source: CoreViewModelSource): {
   const noteInspectorBodyRef = useRef<NoteInspectorBodyHandle | null>(null);
   const noteInspectorModeRef = useRef<"view" | "edit">("edit");
   const selectedNote = notes.find((note) => note.id === selectedNoteId) ?? null;
+  const noteLists = source.noteLists.length > 0
+    ? source.noteLists
+    : [{ id: "note-list:default", title: "Local notes", noteCount: notes.length, updatedAt: new Date().toISOString() }];
   const allNoteCount = Math.max(source.resourceCounts.notes, notes.length);
   const starredNotes = useMemo(
     () =>
@@ -74,21 +78,43 @@ export function useNotesController(source: CoreViewModelSource): {
   );
   const noteViewColumns = useMemo(
     () =>
-      selectedNoteViews.map((view) => ({
-        id: view,
-        title: view === "starred" ? "Starred notes" : "Local notes",
-        description:
-          view === "starred"
-            ? "All starred local notes"
-            : "Select a note to open details in the Inspector",
-        emptyDescription:
-          view === "starred"
-            ? "Star notes to collect them here."
-            : "Create a local note to populate SQLite.",
-        emptyTitle: view === "starred" ? "No starred notes" : "No local notes",
-        notes: view === "starred" ? starredNotes : notes
-      })),
-    [notes, selectedNoteViews, starredNotes]
+      selectedNoteViews.map((view) => {
+        if (view === "starred") {
+          return {
+            id: view,
+            title: "Starred notes",
+            description: "All starred local notes",
+            emptyDescription: "Star notes to collect them here.",
+            emptyTitle: "No starred notes",
+            notes: starredNotes
+          };
+        }
+
+        if (view.startsWith("list:")) {
+          const listId = view.slice("list:".length);
+          const list = noteLists.find((candidate) => candidate.id === listId);
+
+          return {
+            id: view,
+            listId,
+            title: list?.title ?? "Local notes",
+            description: "Notes in this list",
+            emptyDescription: "Drag notes here or create a note in this list.",
+            emptyTitle: "No notes in this list",
+            notes: notes.filter((note) => note.listId === listId)
+          };
+        }
+
+        return {
+          id: view,
+          title: "All notes",
+          description: "Select a note to open details in the Inspector",
+          emptyDescription: "Create a local note to populate SQLite.",
+          emptyTitle: "No local notes",
+          notes
+        };
+      }),
+    [noteLists, notes, selectedNoteViews, starredNotes]
   );
 
   function setNoteInspectorMode(mode: "view" | "edit"): void {
@@ -136,6 +162,8 @@ export function useNotesController(source: CoreViewModelSource): {
           note.id === selectedNote.id
             ? {
                 id: result.data.id,
+                listId: result.data.listId,
+                listTitle: result.data.listTitle,
                 title: result.data.title,
                 body: result.data.body,
                 preview: result.data.preview,
@@ -172,6 +200,8 @@ export function useNotesController(source: CoreViewModelSource): {
             currentNote.id === result.data.id
               ? {
                   id: result.data.id,
+                  listId: result.data.listId,
+                  listTitle: result.data.listTitle,
                   title: result.data.title,
                   body: result.data.body,
                   preview: result.data.preview,
@@ -328,6 +358,8 @@ export function useNotesController(source: CoreViewModelSource): {
     const fallbackId = `note-draft-${draftCounter}`;
     const fallbackNote: NoteViewModel = {
       id: fallbackId,
+      listId: "note-list:default",
+      listTitle: "Local notes",
       title: "Untitled note",
       body: "",
       preview: "Empty local note",
@@ -348,6 +380,8 @@ export function useNotesController(source: CoreViewModelSource): {
       requestedNoteDetails.current.add(result.data.id);
       const persisted = {
         id: result.data.id,
+        listId: result.data.listId,
+        listTitle: result.data.listTitle,
         title: result.data.title,
         body: result.data.body,
         preview: result.data.preview,
@@ -370,6 +404,8 @@ export function useNotesController(source: CoreViewModelSource): {
     const fallbackId = `note-draft-${draftCounter}`;
     const fallbackNote: NoteViewModel = {
       id: fallbackId,
+      listId: "note-list:default",
+      listTitle: "Local notes",
       title,
       body,
       preview: buildNotePreview(body),
@@ -387,6 +423,8 @@ export function useNotesController(source: CoreViewModelSource): {
       requestedNoteDetails.current.add(result.data.id);
       const persisted = {
         id: result.data.id,
+        listId: result.data.listId,
+        listTitle: result.data.listTitle,
         title: result.data.title,
         body: result.data.body,
         preview: result.data.preview,
@@ -527,6 +565,37 @@ export function useNotesController(source: CoreViewModelSource): {
     });
   }
 
+  async function moveNoteToList(noteId: string, listId: string): Promise<void> {
+    const note = notes.find((candidate) => candidate.id === noteId);
+    const list = noteLists.find((candidate) => candidate.id === listId);
+
+    if (!note || !list) {
+      return;
+    }
+
+    setNotes((current) =>
+      current.map((candidate) =>
+        candidate.id === noteId
+          ? { ...candidate, listId, listTitle: list.title }
+          : candidate
+      )
+    );
+
+    if (!note.id.startsWith("note-draft-")) {
+      const result = await window.hcb?.notes.update({ id: note.id, listId });
+
+      if (!result?.ok) {
+        setNotes((current) =>
+          current.map((candidate) =>
+            candidate.id === noteId
+              ? { ...candidate, listId: note.listId, listTitle: note.listTitle }
+              : candidate
+          )
+        );
+      }
+    }
+  }
+
   function toggleNoteView(view: NoteBoardSelection): void {
     setSelectedNoteViews((current) => {
       if (current.includes(view)) {
@@ -550,6 +619,7 @@ export function useNotesController(source: CoreViewModelSource): {
     selectNote,
     starredNoteCount: notes.filter((note) => starredNoteIds.has(note.id)).length,
     starredNoteIds,
+    moveNoteToList,
     toggleNoteStar,
     toggleNoteView
   };

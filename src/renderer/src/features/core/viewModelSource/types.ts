@@ -6,6 +6,7 @@ import type {
   DiagnosticsSummaryResponse,
   GoogleStatusResponse,
   NativeCapabilitiesResponse,
+  NoteListSummary,
   NoteSummary,
   ScheduledTaskBlockCreateRequest,
   ScheduledTaskBlockMoveRequest,
@@ -53,6 +54,7 @@ export interface CoreViewModelSource {
   getTaskFilterViewModel: (filterId: TaskFilterId) => TaskFilterViewModel;
   hasCachedData: boolean;
   initialNotes: NoteViewModel[];
+  noteLists: NoteListSummary[];
   isOffline: boolean;
   isStale: boolean;
   largeTaskWindow: TaskViewModel[];
@@ -117,6 +119,7 @@ export interface CoreDataSnapshot {
   scheduledTaskBlocks: ScheduledTaskBlockSummary[];
   scheduleSuggestion: CalendarScheduleSuggestResponse;
   notes: NoteSummary[];
+  noteLists: NoteListSummary[];
   settings: SettingsSnapshot;
   syncStatus: SyncStatusResponse;
   googleStatus: GoogleStatusResponse;

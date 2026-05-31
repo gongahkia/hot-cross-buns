@@ -81,8 +81,10 @@ import {
   noteDetailSchema,
   noteLinkSuggestRequestSchema,
   noteLinkSuggestResponseSchema,
+  noteListCreateRequestSchema,
   noteListRequestSchema,
   noteListResponseSchema,
+  noteListSummarySchema,
   noteUpdateRequestSchema
 } from "./notes";
 import { searchQueryRequestSchema, searchQueryResponseSchema } from "./search";
@@ -227,6 +229,7 @@ export const ipcContracts = {
   },
   notes: {
     list: defineIpcContract("notes", "list", noteListRequestSchema, noteListResponseSchema),
+    createList: defineIpcContract("notes", "createList", noteListCreateRequestSchema, noteListSummarySchema),
     get: defineIpcContract("notes", "get", entityByIdRequestSchema, noteDetailSchema),
     create: defineIpcContract("notes", "create", noteCreateRequestSchema, noteDetailSchema),
     update: defineIpcContract("notes", "update", noteUpdateRequestSchema, noteDetailSchema),

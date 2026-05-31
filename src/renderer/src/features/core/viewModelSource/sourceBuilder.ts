@@ -172,6 +172,7 @@ export function buildCoreViewModelSource(
       taskFilterViewModels.find((filter) => filter.id === filterId) ?? taskFilterViewModels[0],
     hasCachedData: hasSnapshotData(snapshot),
     initialNotes: notes,
+    noteLists: snapshot.noteLists,
     isOffline: options.state === "offline" || snapshot.syncStatus.offline === true,
     isStale: options.state === "stale" || snapshot.syncStatus.stale === true,
     largeTaskWindow: tasks,

@@ -29,6 +29,14 @@ export const noteListSummarySchema = z
 
 export type NoteListSummary = z.infer<typeof noteListSummarySchema>;
 
+export const noteListCreateRequestSchema = z
+  .object({
+    title: z.string().min(1).max(200)
+  })
+  .strict();
+
+export type NoteListCreateRequest = z.input<typeof noteListCreateRequestSchema>;
+
 export const noteSummarySchema = z
   .object({
     id: idSchema,
