@@ -288,6 +288,65 @@ CREATE INDEX IF NOT EXISTS idx_local_history_entries_recent
         }
       ];
     }
+  },
+  {
+    version: 9,
+    name: "local note lists",
+    operations: (connection) => {
+      const now = new Date().toISOString();
+      const operations: SqliteWriteOperation[] = [
+        {
+          kind: "exec",
+          sql: `
+CREATE TABLE IF NOT EXISTS local_note_lists (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  deleted_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_local_note_lists_updated
+  ON local_note_lists(deleted_at, updated_at DESC);
+`
+        },
+        {
+          kind: "run",
+          sql: `INSERT INTO local_note_lists (id, title, created_at, updated_at)
+                VALUES ('note-list:default', 'Local notes', ?, ?)
+                ON CONFLICT(id) DO NOTHING;`,
+          params: [now, now]
+        }
+      ];
+
+      if (tableExists(connection, "local_notes")) {
+        const columns = new Set(
+          connection
+            .query<{ name: string }>("PRAGMA table_info(local_notes);")
+            .map((row) => row.name)
+        );
+
+        if (!columns.has("list_id")) {
+          operations.push({
+            kind: "run",
+            sql: "ALTER TABLE local_notes ADD COLUMN list_id TEXT;"
+          });
+        }
+
+        operations.push(
+          {
+            kind: "run",
+            sql: "UPDATE local_notes SET list_id = 'note-list:default' WHERE list_id IS NULL OR TRIM(list_id) = '';"
+          },
+          {
+            kind: "run",
+            sql: "CREATE INDEX IF NOT EXISTS idx_local_notes_list ON local_notes(list_id, deleted_at, updated_at DESC);"
+          }
+        );
+      }
+
+      return operations;
+    }
   }
 ];
 

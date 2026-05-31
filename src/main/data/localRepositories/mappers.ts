@@ -3,13 +3,14 @@ import type {
   CalendarEventSummary,
   CalendarListSummary,
   NoteDetail,
+  NoteListSummary,
   NoteSummary,
   ScheduledTaskBlockSummary,
   TaskDetail,
   TaskListSummary,
   TaskSummary
 } from "@shared/ipc/contracts";
-import type { CalendarEventRow, CalendarListRow, NoteRow, ScheduledTaskBlockRow, TaskListRow, TaskRow } from "./types";
+import type { CalendarEventRow, CalendarListRow, NoteListRow, NoteRow, ScheduledTaskBlockRow, TaskListRow, TaskRow } from "./types";
 import { parseNumberArray, parseStringArray } from "./shared";
 
 const textLimits = {
@@ -159,6 +160,8 @@ export function availabilityLine(event: CalendarEventSummary): string {
 export function noteSummary(row: NoteRow): NoteSummary {
   return {
     id: row.id,
+    listId: row.listId,
+    listTitle: row.listTitle,
     title: row.title,
     preview: preview(row.body),
     updatedAt: row.updatedAt
@@ -169,6 +172,15 @@ export function noteDetail(row: NoteRow): NoteDetail {
   return {
     ...noteSummary(row),
     body: row.body
+  };
+}
+
+export function noteListSummary(row: NoteListRow): NoteListSummary {
+  return {
+    id: row.id,
+    title: row.title,
+    noteCount: row.noteCount,
+    updatedAt: row.updatedAt
   };
 }
 

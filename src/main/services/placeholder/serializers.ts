@@ -93,6 +93,8 @@ export function calendarDetail(event: CalendarRecord): CalendarEventDetail {
 export function noteSummary(note: NoteDetail): NoteSummary {
   return {
     id: note.id,
+    listId: note.listId,
+    listTitle: note.listTitle,
     title: note.title,
     preview: note.preview,
     updatedAt: note.updatedAt

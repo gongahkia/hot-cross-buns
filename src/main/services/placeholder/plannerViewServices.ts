@@ -469,14 +469,23 @@ export function createPlaceholderPlannerViewService(
         DEFAULT_LIST_LIMIT,
         MAX_LIST_LIMIT
       ),
-    listNotes: (request) =>
-      pageItems(
+    listNotes: (request) => ({
+      ...pageItems(
         state.notes.map(noteSummary),
         request.cursor,
         request.limit,
         DEFAULT_LIST_LIMIT,
         MAX_LIST_LIMIT
       ),
+      lists: [
+        {
+          id: "note-list:default",
+          title: "Local notes",
+          noteCount: state.notes.length,
+          updatedAt: nowIso
+        }
+      ]
+    }),
     getNote: ({ id }) => {
       const note = state.notes.find((candidate) => candidate.id === id);
 
@@ -491,6 +500,8 @@ export function createPlaceholderPlannerViewService(
       const body = request.body ?? "";
       const note: NoteDetail = {
         id: `note-local-${state.notes.length + 1}`,
+        listId: request.listId ?? "note-list:default",
+        listTitle: "Local notes",
         title: request.title,
         body,
         preview: preview(body),
@@ -515,6 +526,11 @@ export function createPlaceholderPlannerViewService(
       if (request.body !== undefined) {
         note.body = request.body;
         note.preview = preview(request.body);
+      }
+
+      if (request.listId !== undefined) {
+        note.listId = request.listId;
+        note.listTitle = "Local notes";
       }
 
       note.updatedAt = new Date().toISOString();

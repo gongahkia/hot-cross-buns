@@ -148,6 +148,8 @@ export function createMcpDomainServices(state: PlaceholderState): McpDomainServi
         const body = optionalText(input, "body") ?? "";
         const note: NoteDetail = {
           id,
+          listId: "note-list:default",
+          listTitle: "Local notes",
           title: requiredText(input, "title"),
           preview: preview(body),
           body,
