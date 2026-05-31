@@ -180,14 +180,14 @@ function NoteBoardRow({
         type="button"
       >
         <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-[var(--text-md)] font-medium text-text-primary">
+          <span className="min-w-0 flex-1 whitespace-normal break-words text-[var(--text-md)] font-medium leading-snug text-text-primary">
             {note.title}
           </span>
           <span className="shrink-0 text-[var(--text-xs)] text-text-muted">
             {note.updatedLabel}
           </span>
         </div>
-        <p className="truncate text-[var(--text-sm)] text-text-muted">{note.preview}</p>
+        <p className="line-clamp-2 break-words text-[var(--text-sm)] text-text-muted">{note.preview}</p>
       </button>
       <div
         className={cx(

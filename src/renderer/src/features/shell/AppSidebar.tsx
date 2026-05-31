@@ -103,7 +103,6 @@ function SidebarCalendarDropdown({
 
 export function AppSidebar({
   activeSectionId,
-  healthLabel,
   onShowAllCalendars,
   onToggleVisibleCalendar,
   onNavigateToSection,
@@ -113,7 +112,6 @@ export function AppSidebar({
   visiblePrimarySections
 }: {
   activeSectionId: SectionId;
-  healthLabel: string;
   onShowAllCalendars: () => void;
   onToggleVisibleCalendar: (calendarId: string, visible: boolean) => void;
   onNavigateToSection: (sectionId: SectionId) => void;
@@ -239,12 +237,6 @@ export function AppSidebar({
         })}
       </nav>
 
-      <div className="hidden border-t border-border px-4 py-3 text-[var(--text-xs)] text-text-muted lg:block">
-        <div className="flex items-center justify-between gap-3">
-          <span>Runtime</span>
-          <Badge tone={healthLabel === "Ready" ? "success" : "neutral"}>{healthLabel}</Badge>
-        </div>
-      </div>
     </aside>
   );
 }

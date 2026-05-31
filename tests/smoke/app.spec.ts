@@ -8,7 +8,7 @@ import { GoogleSyncRepository } from "../../src/main/sync/readSyncRepository";
 
 const now = "2026-05-22T00:00:00.000Z";
 
-test.setTimeout(60_000);
+test.setTimeout(90_000);
 
 function seedSmokeDatabase(appSupportDirectory: string): void {
   const connection = createAppSqliteConnection({ appSupportDirectory });
@@ -105,7 +105,7 @@ test("launches, navigates, opens command palette, and creates core items", async
     const page = await electronApp.firstWindow();
 
     await expect(page.getByTestId("app-shell")).toBeVisible();
-    await expect(page.locator("#planner-title")).toHaveText("Today");
+    await expect(page.locator("#planner-title")).toHaveText("Calendar");
     const firstRunSetup = page.getByRole("dialog", { name: "First-run setup" });
 
     await expect(firstRunSetup).toBeVisible({ timeout: 20_000 });
@@ -125,15 +125,27 @@ test("launches, navigates, opens command palette, and creates core items", async
 
     await page.keyboard.press("Control+P");
     await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
-    await page.getByRole("searchbox", { name: "Filter commands" }).fill("go to search");
+    await page.getByRole("searchbox", { name: "Filter commands" }).fill("go to tasks");
     await page.keyboard.press("Enter");
-    await expect(page.locator("#planner-title")).toHaveText("Search");
+    await expect(page.locator("#planner-title")).toHaveText("Tasks");
 
     await page.keyboard.press("Control+P");
     await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
-    await page.getByRole("searchbox", { name: "Filter commands" }).fill("go to today");
+    await page.getByRole("searchbox", { name: "Filter commands" }).fill("go to calendar");
     await page.keyboard.press("Enter");
-    await expect(page.locator("#planner-title")).toHaveText("Today");
+    await expect(page.locator("#planner-title")).toHaveText("Calendar");
+
+    await page.keyboard.press("Control+P");
+    await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
+    await page.getByRole("searchbox", { name: "Filter commands" }).fill("quick add");
+    await page.keyboard.press("Enter");
+    const quickAdd = page.getByRole("dialog", { name: "Quick add" });
+    await expect(quickAdd).toBeVisible();
+    await quickAdd.getByRole("textbox", { name: "Quick add text" }).fill("Smoke quick lunch tomorrow 1pm at Test Cafe");
+    await quickAdd.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.getByRole("textbox", { name: "Event title" })).toHaveValue("Smoke quick lunch");
+    await expect(page.getByRole("textbox", { name: "Event location" })).toHaveValue("Test Cafe");
+    await page.getByRole("button", { name: "Cancel" }).click();
 
     await page.getByRole("button", { name: "Settings" }).click();
     await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
@@ -153,7 +165,7 @@ test("launches, navigates, opens command palette, and creates core items", async
     await page.keyboard.press("Enter");
     await expect(page.getByRole("button", { name: /Smoke quick capture/ }).first()).toBeVisible();
 
-    await page.getByRole("button", { name: /^New task$/ }).click();
+    await page.getByRole("button", { name: /^Create$/ }).click();
     await page.getByRole("textbox", { name: "Task title" }).fill("Smoke UI task");
     await page.getByRole("button", { name: /^Save$/ }).click();
     await expect(page.getByRole("button", { name: /Smoke UI task/ }).first()).toBeVisible();

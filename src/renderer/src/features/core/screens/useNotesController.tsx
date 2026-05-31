@@ -233,9 +233,24 @@ export function useNotesController(source: CoreViewModelSource): {
 
   useEffect(() => {
     function handleNoteCommand(event: Event): void {
-      const detail = (event as CustomEvent<{ action: string; noteId?: string }>).detail;
+      const detail = (event as CustomEvent<{
+        action: string;
+        body?: string;
+        listId?: string;
+        noteId?: string;
+        title?: string;
+      }>).detail;
 
       if (detail?.action === "new-note") {
+        if (detail.title !== undefined || detail.body !== undefined || detail.listId !== undefined) {
+          void createNoteWithTemplate(
+            detail.title?.trim() || "Untitled note",
+            detail.body ?? "",
+            detail.listId
+          );
+          return;
+        }
+
         void createNote();
       }
 
@@ -413,16 +428,17 @@ export function useNotesController(source: CoreViewModelSource): {
     }
   }
 
-  async function createNoteWithTemplate(title: string, body: string): Promise<void> {
+  async function createNoteWithTemplate(title: string, body: string, listId?: string): Promise<void> {
     if (noteInspectorModeRef.current === "edit") {
       await noteInspectorBodyRef.current?.flush();
     }
 
+    const listTitle = noteLists.find((list) => list.id === listId)?.title ?? defaultNoteListTitle;
     const fallbackId = `note-draft-${draftCounter}`;
     const fallbackNote: NoteViewModel = {
       id: fallbackId,
-      listId: "note-list:default",
-      listTitle: defaultNoteListTitle,
+      listId: listId ?? "note-list:default",
+      listTitle,
       title,
       body,
       preview: buildNotePreview(body),
@@ -434,7 +450,11 @@ export function useNotesController(source: CoreViewModelSource): {
     setSelectedNoteId(fallbackId);
     openNoteInspector(fallbackNote, "edit");
 
-    const result = await window.hcb?.notes.create({ title, body });
+    const result = await window.hcb?.notes.create({
+      title,
+      body,
+      ...(listId ? { listId } : {})
+    });
 
     if (result?.ok) {
       requestedNoteDetails.current.add(result.data.id);

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { NativeAction, SettingsSnapshot } from "@shared/ipc/contracts";
 import type { PlannerAction } from "../../actions/plannerActions";
+import type { QuickAddSubmitPayload } from "../../components/QuickAddDialog";
 import { cx } from "../../components/primitives";
 import { primaryPlannerSections, type SectionId } from "../../data/mockPlanner";
 import { getAppNotifications } from "../core/appNotifications";
@@ -40,6 +41,12 @@ const DeferredFirstRunOnboarding = lazy(() =>
   }))
 );
 
+const DeferredQuickAddDialog = lazy(() =>
+  import("../../components/QuickAddDialog").then((module) => ({
+    default: module.QuickAddDialog
+  }))
+);
+
 function closestAnchor(target: EventTarget | null): HTMLAnchorElement | null {
   return target instanceof Element ? target.closest<HTMLAnchorElement>("a[href]") : null;
 }
@@ -55,8 +62,8 @@ export function AppShell(): JSX.Element {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [healthLabel, setHealthLabel] = useState("Starting");
   const [commandPaletteInitialQuery, setCommandPaletteInitialQuery] = useState("");
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>([]);
   const [visibleCalendarIds, setVisibleCalendarIds] = useState<string[]>([]);
@@ -179,6 +186,14 @@ export function AppShell(): JSX.Element {
     setCommandPaletteOpen(true);
   }, []);
 
+  const openQuickAdd = useCallback((): void => {
+    setCommandPaletteOpen(false);
+    setNotificationsOpen(false);
+    setDiagnosticsOpen(false);
+    setSettingsOpen(false);
+    setQuickAddOpen(true);
+  }, []);
+
   const toggleNotificationsPanel = useCallback((): void => {
     setSettingsOpen(false);
     setDiagnosticsOpen(false);
@@ -265,6 +280,11 @@ export function AppShell(): JSX.Element {
 
   const handlePaletteCommand = useCallback(
     (command: PlannerAction): boolean => {
+      if (command.id === "quickAdd.open") {
+        openQuickAdd();
+        return true;
+      }
+
       if (command.id === "sync.refresh") {
         source.refresh();
         return true;
@@ -287,7 +307,66 @@ export function AppShell(): JSX.Element {
       triggerTaskCommand(command.taskCommand as TaskSurfaceCommand["id"]);
       return true;
     },
-    [openDiagnosticsPanel, openSettingsPanel, source.refresh, triggerTaskCommand]
+    [openDiagnosticsPanel, openQuickAdd, openSettingsPanel, source.refresh, triggerTaskCommand]
+  );
+
+  const handleQuickAddSubmit = useCallback(
+    (payload: QuickAddSubmitPayload): void => {
+      setQuickAddOpen(false);
+
+      if (payload.mode === "task") {
+        navigateToSection("tasks");
+        window.setTimeout(() => {
+          window.dispatchEvent(new CustomEvent("hcb:task-command", {
+            detail: {
+              action: "new-task",
+              draft: {
+                title: payload.title,
+                notes: payload.notes,
+                dueDate: payload.dueDate,
+                listId: payload.listId
+              }
+            }
+          }));
+        }, 0);
+        return;
+      }
+
+      if (payload.mode === "note") {
+        navigateToSection("notes");
+        window.setTimeout(() => {
+          window.dispatchEvent(new CustomEvent("hcb:note-command", {
+            detail: {
+              action: "new-note",
+              title: payload.title,
+              body: payload.body,
+              listId: payload.listId
+            }
+          }));
+        }, 0);
+        return;
+      }
+
+      navigateToSection("calendar");
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("hcb:calendar-command", {
+          detail: {
+            action: "quick-add",
+            createMode: payload.mode,
+            draft: {
+              title: payload.title,
+              calendarId: payload.calendarId,
+              startsAt: payload.startsAt,
+              endsAt: payload.endsAt,
+              allDay: payload.allDay,
+              location: payload.location,
+              notes: payload.notes
+            }
+          }
+        }));
+      }, 0);
+    },
+    [navigateToSection]
   );
 
   const runHotkeyAction = useCallback(
@@ -452,27 +531,6 @@ export function AppShell(): JSX.Element {
   );
 
   useEffect(() => {
-    let cancelled = false;
-
-    if (!window.hcb) {
-      setHealthLabel("Renderer only");
-      return;
-    }
-
-    window.hcb.diagnostics.health().then((result) => {
-      if (cancelled) {
-        return;
-      }
-
-      setHealthLabel(result.ok ? "Ready" : "Diagnostics unavailable");
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
     if (source.calendarSources.length === 0) {
       setVisibleCalendarIds([]);
       calendarVisibilityInitialized.current = false;
@@ -508,6 +566,7 @@ export function AppShell(): JSX.Element {
     scheduleFrame(() => {
       void window.hcb?.diagnostics.markShellVisible();
       void import("../../components/CommandPalette");
+      void import("../../components/QuickAddDialog");
     });
   }, [source]);
 
@@ -659,7 +718,6 @@ export function AppShell(): JSX.Element {
       {sidebarOpen ? (
         <AppSidebar
           activeSectionId={paneWorkspace.activeSectionId}
-          healthLabel={healthLabel}
           onShowAllCalendars={showAllCalendars}
           onToggleVisibleCalendar={toggleVisibleCalendar}
           onNavigateToSection={navigateToSection}
@@ -729,6 +787,15 @@ export function AppShell(): JSX.Element {
           />
         </Suspense>
       </RenderTimingBoundary>
+
+      <Suspense fallback={null}>
+        <DeferredQuickAddDialog
+          onClose={() => setQuickAddOpen(false)}
+          onSubmit={handleQuickAddSubmit}
+          open={quickAddOpen}
+          source={source}
+        />
+      </Suspense>
 
       {onboardingVisible ? (
         <Suspense fallback={null}>

@@ -191,13 +191,13 @@ export function SyncProgressOverlay({
       <section className="w-[min(420px,calc(100vw-48px))] overflow-hidden rounded-hcbLg border border-border bg-bg-primary shadow-2xl">
         <header className="flex min-h-10 items-center gap-2 border-b border-border bg-bg-secondary px-3 py-2">
           <RefreshCw aria-hidden="true" className="animate-spin text-accent" size={16} />
-          <h2 className="text-[var(--text-base)] font-semibold text-text-primary">Syncing...</h2>
+          <h2 className="text-[var(--text-base)] font-semibold text-text-primary">Hot Cross Buns 2</h2>
         </header>
         <div className="grid gap-1 px-4 py-3 text-center text-[var(--text-sm)] font-medium text-text-secondary">
           <div>{pendingText}</div>
           <div>Removed: 0 up 0 down</div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-0">
-            <div className="h-full w-1/2 animate-pulse rounded-full bg-accent" />
+            <div className="h-full w-1/2 animate-pulse rounded-full bg-accent shadow-[0_0_16px_var(--color-accent)]" />
           </div>
         </div>
       </section>

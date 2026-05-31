@@ -22,10 +22,16 @@ import {
 } from "./drafts";
 import type { CalendarCreateMode, CalendarCreateSeed, CalendarEventDraft } from "./types";
 
+interface CalendarCreateOptions {
+  createMode?: CalendarCreateMode;
+  draft?: Partial<CalendarEventDraft>;
+  taskListId?: string;
+}
+
 export function useCalendarEventInspector(source: CoreViewModelSource): {
   calendarActionError: string | undefined;
   moveCalendarEvent: (eventId: string, startsAt: string, allDay: boolean) => void;
-  openCreate: (seed?: CalendarCreateSeed) => void;
+  openCreate: (seed?: CalendarCreateSeed, options?: CalendarCreateOptions) => void;
   openEdit: (event: CalendarEventViewModel) => void;
   resizeCalendarEvent: (eventId: string, endsAt: string) => void;
   setCalendarActionError: Dispatch<SetStateAction<string | undefined>>;
@@ -71,9 +77,33 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     setCalendarInspectorModeState(mode);
   }
 
-  function setCreateMode(mode: CalendarCreateMode): void {
+  function applyCreateModeToDraft(nextDraft: CalendarEventDraft, mode: CalendarCreateMode): CalendarEventDraft {
+    if (mode !== "birthday") {
+      return nextDraft;
+    }
+
+    const startsAt = startOfUtcDayIso(nextDraft.startsAt);
+    return {
+      ...nextDraft,
+      allDay: true,
+      startsAt,
+      endsAt: addUtcDaysIso(startsAt, 1),
+      repeatFrequency: "yearly",
+      repeatCustomFrequency: "yearly",
+      repeatEndMode: "never",
+      repeatCount: "",
+      repeatEndsOn: "",
+      repeatInterval: "1"
+    };
+  }
+
+  function setCreateModeValue(mode: CalendarCreateMode): void {
     createModeRef.current = mode;
     setCreateModeState(mode);
+  }
+
+  function setCreateMode(mode: CalendarCreateMode): void {
+    setCreateModeValue(mode);
 
     if (mode === "birthday") {
       setDraft((current) => {
@@ -81,19 +111,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
           return current;
         }
 
-        const startsAt = startOfUtcDayIso(current.startsAt);
-        return {
-          ...current,
-          allDay: true,
-          startsAt,
-          endsAt: addUtcDaysIso(startsAt, 1),
-          repeatFrequency: "yearly",
-          repeatCustomFrequency: "yearly",
-          repeatEndMode: "never",
-          repeatCount: "",
-          repeatEndsOn: "",
-          repeatInterval: "1"
-        };
+        return applyCreateModeToDraft(current, mode);
       });
     }
   }
@@ -187,7 +205,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     return (
       <CalendarEventForm
         calendars={source.calendarSources}
-        createMode={createMode}
+        createMode={createModeRef.current}
         defaultTimeZone={source.settings.defaultTimeZone}
         draft={nextDraft}
         error={formError}
@@ -271,14 +289,21 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     });
   }
 
-  function openCreate(seed?: CalendarCreateSeed): void {
+  function openCreate(seed?: CalendarCreateSeed, options: CalendarCreateOptions = {}): void {
     if (!canReplaceEventInspector()) {
       return;
     }
 
-    setCreateMode("event");
-    setCreateTaskListId(defaultTaskListId(source));
-    openEventInspector(newCalendarDraft(source, seed), "edit");
+    const nextMode = options.createMode ?? "event";
+    const nextDraft = applyCreateModeToDraft({
+      ...newCalendarDraft(source, seed),
+      ...options.draft,
+      mode: "create"
+    }, nextMode);
+
+    setCreateModeValue(nextMode);
+    setCreateTaskListId(options.taskListId ?? defaultTaskListId(source));
+    openEventInspector(nextDraft, "edit");
   }
 
   function openEdit(event: CalendarEventViewModel): void {

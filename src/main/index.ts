@@ -131,7 +131,7 @@ function showQuitSyncWindow(): BrowserWindow {
 
   syncQuitWindow = new BrowserWindow({
     alwaysOnTop: true,
-    backgroundColor: "#2b2b2b",
+    backgroundColor: "#1e1e2e",
     height: 132,
     maximizable: false,
     minimizable: false,
@@ -139,7 +139,7 @@ function showQuitSyncWindow(): BrowserWindow {
     parent: mainWindow ?? undefined,
     resizable: false,
     show: false,
-    title: "Syncing...",
+    title: "Hot Cross Buns 2",
     width: 420
   });
   syncQuitWindow.removeMenu();
@@ -316,10 +316,26 @@ const quitSyncHtml = `<!doctype html>
     <meta charset="utf-8">
     <style>
       * { box-sizing: border-box; }
+      :root {
+        --sync-bg: #1e1e2e;
+        --sync-text: #cdd6f4;
+        --sync-muted: #bac2de;
+        --sync-track: #313244;
+        --sync-fill: #89b4fa;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --sync-bg: #f8fafc;
+          --sync-text: #1f2937;
+          --sync-muted: #64748b;
+          --sync-track: #e2e8f0;
+          --sync-fill: #2563eb;
+        }
+      }
       body {
         margin: 0;
-        background: #2b2b2b;
-        color: #f2f0df;
+        background: var(--sync-bg);
+        color: var(--sync-text);
         font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
       .wrap {
@@ -331,19 +347,20 @@ const quitSyncHtml = `<!doctype html>
         text-align: center;
       }
       .title { font-size: 15px; font-weight: 700; }
-      .row { color: #ded9be; line-height: 1.35; }
+      .row { color: var(--sync-muted); line-height: 1.35; }
       .bar {
         height: 8px;
         overflow: hidden;
         border-radius: 999px;
-        background: #525252;
+        background: var(--sync-track);
       }
       .bar::before {
         display: block;
         width: 55%;
         height: 100%;
         border-radius: inherit;
-        background: #3b82f6;
+        background: var(--sync-fill);
+        box-shadow: 0 0 16px var(--sync-fill);
         content: "";
         animation: pulse 1s ease-in-out infinite alternate;
       }
@@ -352,7 +369,7 @@ const quitSyncHtml = `<!doctype html>
   </head>
   <body>
     <main class="wrap" role="status" aria-live="polite">
-      <div class="title">Syncing...</div>
+      <div class="title">Hot Cross Buns 2</div>
       <div class="row">Added/modified: 0 up 1 down<br>Removed: 0 up 0 down</div>
       <div class="bar"></div>
     </main>

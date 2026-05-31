@@ -1,6 +1,7 @@
 import type { SectionId } from "../data/mockPlanner";
 
 export type PlannerActionId =
+  | "quickAdd.open"
   | "task.create"
   | "task.quickCapture"
   | "task.completeSelected"
@@ -56,6 +57,14 @@ export interface PlannerActionAvailability {
 }
 
 export const plannerActions: PlannerAction[] = [
+  {
+    id: "quickAdd.open",
+    label: "Quick add",
+    description: "Create from natural language",
+    category: "Create",
+    keywords: ["quick", "add", "natural", "language", "event", "task", "note", "birthday"],
+    sectionId: "calendar"
+  },
   {
     id: "task.create",
     label: "New task",
@@ -228,6 +237,13 @@ export function plannerActionAvailability(
   action: PlannerAction,
   context: PlannerActionContext
 ): PlannerActionAvailability {
+  if (action.id === "quickAdd.open" && !context.hasTaskLists && !context.hasCalendars) {
+    return {
+      enabled: false,
+      reason: "No destinations"
+    };
+  }
+
   if ((action.id === "task.create" || action.id === "task.quickCapture") && !context.hasTaskLists) {
     return {
       enabled: false,

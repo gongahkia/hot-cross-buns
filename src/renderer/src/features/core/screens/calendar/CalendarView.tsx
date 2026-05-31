@@ -32,6 +32,7 @@ import {
 } from "./calendarGrid";
 import { useCalendarAvailability } from "./useCalendarAvailability";
 import { useCalendarEventInspector } from "./useCalendarEventInspector";
+import type { CalendarCreateMode, CalendarCreateSeed, CalendarEventDraft } from "./types";
 
 export function CalendarView({
   visibleCalendarIds
@@ -193,10 +194,24 @@ export function CalendarView({
 
   useEffect(() => {
     function handleCalendarCommand(event: Event): void {
-      const detail = (event as CustomEvent<{ action: string; eventId?: string; viewId?: CalendarViewId }>).detail;
+      const detail = (event as CustomEvent<{
+        action: string;
+        createMode?: CalendarCreateMode;
+        draft?: Partial<CalendarEventDraft>;
+        eventId?: string;
+        seed?: CalendarCreateSeed;
+        viewId?: CalendarViewId;
+      }>).detail;
 
       if (detail?.action === "new-event") {
-        openCreate();
+        openCreate(detail.seed);
+      }
+
+      if (detail?.action === "quick-add") {
+        openCreate(undefined, {
+          createMode: detail.createMode,
+          draft: detail.draft
+        });
       }
 
       if (detail?.action === "open-event" && detail.eventId) {

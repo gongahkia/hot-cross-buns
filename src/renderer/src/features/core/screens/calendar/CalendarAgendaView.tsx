@@ -28,7 +28,7 @@ function CalendarAgendaEventRow({
     >
       <span className="min-w-0">
         <span
-          className="inline-block max-w-full truncate rounded-hcbSm px-2 py-0.5 text-[var(--text-md)] font-semibold text-text-primary"
+          className="inline-block max-w-full whitespace-normal break-words rounded-hcbSm px-2 py-0.5 text-[var(--text-md)] font-semibold leading-snug text-text-primary"
           style={fillStyle}
         >
           {event.title}

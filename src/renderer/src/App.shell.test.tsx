@@ -17,12 +17,20 @@ import {
   todayDate
 } from "./test/appTestHelpers";
 
+function expectSyncOverlayTitle(): void {
+  expect(
+    screen.getAllByRole("status").some((status) =>
+      within(status).queryByText("Hot Cross Buns 2") !== null
+    )
+  ).toBe(true);
+}
+
 describe("App shell", () => {
   it("renders the syncing state while preload reads are pending", () => {
     installHcb(loadingHcb());
     render(<App />);
 
-    expect(screen.getByText("Syncing...")).toBeInTheDocument();
+    expectSyncOverlayTitle();
     expect(screen.getByText("Reading planner data.")).toBeInTheDocument();
   });
 
@@ -45,7 +53,7 @@ describe("App shell", () => {
     render(<App />);
 
     await waitFor(() => expect(api.diagnostics.markShellVisible).toHaveBeenCalledTimes(1));
-    expect(screen.getByText("Syncing...")).toBeInTheDocument();
+    expectSyncOverlayTitle();
   });
 
   it("reports the shell visible after the settings theme can be applied", async () => {
@@ -66,6 +74,7 @@ describe("App shell", () => {
     for (const label of ["Calendar", "Tasks", "Notes"]) {
       expect(within(primaryNavigation()).getByRole("button", { name: new RegExp(label) })).toBeInTheDocument();
     }
+    expect(screen.queryByText("Runtime")).not.toBeInTheDocument();
     expect(within(primaryNavigation()).queryByRole("button", { name: /Settings/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
     expect(within(primaryNavigation()).queryByRole("button", { name: /Notifications/ })).not.toBeInTheDocument();
@@ -106,6 +115,29 @@ describe("App shell", () => {
     await user.click(within(dialog).getByRole("option", { name: /Go to Notes/ }));
     expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Notes" })).toBeInTheDocument();
+  });
+
+  it("opens quick add from the command palette and fills the event inspector", async () => {
+    const user = userEvent.setup();
+    installHcb(seededHcb());
+    render(<App />);
+
+    await screen.findByText("Planner shell standup");
+    await user.keyboard("{Meta>}p{/Meta}");
+    const palette = await screen.findByRole("dialog", { name: "Command palette" });
+
+    await user.type(within(palette).getByRole("searchbox", { name: "Filter commands" }), "quick add");
+    await user.click(within(palette).getByRole("option", { name: /Quick add/ }));
+
+    const quickAdd = await screen.findByRole("dialog", { name: "Quick add" });
+    await user.type(
+      within(quickAdd).getByRole("textbox", { name: "Quick add text" }),
+      "Lunch with Bob tomorrow 1pm at Philz #Product"
+    );
+    await user.click(within(quickAdd).getByRole("button", { name: "Add" }));
+
+    expect(await screen.findByRole("textbox", { name: "Event title" })).toHaveValue("Lunch with Bob");
+    expect(screen.getByRole("textbox", { name: "Event location" })).toHaveValue("Philz");
   });
 
   it("opens a split view chooser for other app tabs", async () => {

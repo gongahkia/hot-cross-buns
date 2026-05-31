@@ -170,7 +170,7 @@ export function CalendarEventChip({
     <button
       aria-label={label}
       className={cx(
-        "group flex min-h-6 w-full min-w-0 cursor-default items-center gap-1.5 rounded-hcbSm border border-border bg-surface-0 px-2 py-1 text-left text-[var(--text-xs)] text-text-secondary shadow-sm transition-colors duration-fast ease-hcb hover:bg-surface-1 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        "group flex min-h-6 w-full min-w-0 cursor-default items-start gap-1.5 rounded-hcbSm border border-border bg-surface-0 px-2 py-1 text-left text-[var(--text-xs)] text-text-secondary shadow-sm transition-colors duration-fast ease-hcb hover:bg-surface-1 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         draggable && "cursor-grab active:cursor-grabbing",
         event.allDay && "font-medium",
         fillStyle && "hover:brightness-95",
@@ -189,7 +189,7 @@ export function CalendarEventChip({
       title={`${label} - ${event.calendar}`}
       type="button"
     >
-      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span className="min-w-0 flex-1 whitespace-normal break-words leading-tight">{label}</span>
       {event.mutationState && event.mutationState !== "synced" ? (
         <span
           aria-hidden="true"

@@ -141,11 +141,20 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
 
   useEffect(() => {
     function handleTaskCommand(event: Event): void {
-      const detail = (event as CustomEvent<{ action: string; taskId?: string }>).detail;
+      const detail = (event as CustomEvent<{
+        action: string;
+        taskId?: string;
+        draft?: Partial<Omit<TaskDraft, "mode">>;
+      }>).detail;
 
       if (detail?.action === "open-task" && detail.taskId) {
         setSelectedBoardView({ mode: "lists", listIds: null });
         selectTask(detail.taskId);
+      }
+
+      if (detail?.action === "new-task") {
+        setSelectedBoardView({ mode: "lists", listIds: null });
+        openNewTask(detail.draft ?? {});
       }
     }
 
@@ -320,13 +329,15 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
     });
   }
 
-  function openNewTask(listId?: string): void {
+  function openNewTask(seed?: string | Partial<Omit<TaskDraft, "mode">>): void {
     if (!canReplaceTaskInspector()) {
       return;
     }
 
+    const draftSeed = typeof seed === "string" ? { listId: seed } : seed ?? {};
+
     setSelectedTaskId(null);
-    openTaskInspector(newTaskDraft(source, listId ? { listId } : {}), "edit");
+    openTaskInspector(newTaskDraft(source, draftSeed), "edit");
     setQuickCaptureOpen(false);
   }
 
