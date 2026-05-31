@@ -362,6 +362,7 @@ describe("shared IPC contracts", () => {
         hiddenNavigationTabs: [],
         hiddenCalendarViewModes: [],
         showCompletedInCalendarViews: true,
+        calendarTimelineDensity: "compact",
         monthScrollPastMonths: 0,
         monthScrollFutureMonths: 1,
         quickCreateExpandedByDefault: false,
@@ -444,6 +445,8 @@ describe("shared IPC contracts", () => {
       }).success
     ).toBe(false);
     expect(settingsUpdateRequestSchema.safeParse({ menuBarIconName: "bolt" }).success).toBe(true);
+    expect(settingsUpdateRequestSchema.safeParse({ calendarTimelineDensity: "comfortable" }).success).toBe(true);
+    expect(settingsUpdateRequestSchema.safeParse({ calendarTimelineDensity: "huge" }).success).toBe(false);
     expect(settingsUpdateRequestSchema.safeParse({ taskCompletionSoundId: "coin" }).success).toBe(true);
     expect(settingsUpdateRequestSchema.safeParse({ eventCompletionSoundId: "sparkle" }).success).toBe(
       true

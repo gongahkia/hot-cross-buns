@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { DragEvent, FormEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
-import { ArrowDownToLine, ArrowRightToLine, ExternalLink, GripVertical, LayoutGrid, X } from "lucide-react";
+import { ExternalLink, GripVertical, X } from "lucide-react";
 import { Button, cx } from "../../components/primitives";
 import { getPlannerSection, type SectionId } from "../../data/mockPlanner";
 import { SectionContent, type TaskSurfaceCommand } from "../core/CoreScreens";
@@ -304,43 +304,17 @@ function PaneLeaf({
         </div>
         <div className="flex shrink-0 items-center gap-1" role="toolbar" aria-label={`${title} pane actions`}>
           <Button
-            aria-label={`Split ${title} right`}
-            className="size-7 px-0"
-            disabled={!canSplit}
-            onClick={() => onSplitPane(leaf.id, "row")}
-            title="Split right"
-            variant="ghost"
-          >
-            <ArrowRightToLine aria-hidden="true" size={14} />
-          </Button>
-          <Button
-            aria-label={`Split ${title} bottom`}
-            className="size-7 px-0"
-            disabled={!canSplit}
-            onClick={() => onSplitPane(leaf.id, "column")}
-            title="Split bottom"
-            variant="ghost"
-          >
-            <ArrowDownToLine aria-hidden="true" size={14} />
-          </Button>
-          <Button
-            aria-label={`Choose content for ${title}`}
-            className="size-7 px-0"
-            onClick={() => onReplacePane(leaf.id, { kind: "chooser" })}
-            title="Choose content"
-            variant="ghost"
-          >
-            <LayoutGrid aria-hidden="true" size={14} />
-          </Button>
-          <Button
             aria-label={`Close ${title} pane`}
-            className="size-7 px-0"
+            className="min-h-8 gap-2 px-2"
             disabled={!canClose}
             onClick={() => onClosePane(leaf.id)}
             title="Close pane"
             variant="ghost"
           >
-            <X aria-hidden="true" size={14} />
+            <X aria-hidden="true" size={18} />
+            <span className="rounded-hcbSm border border-border px-1.5 font-mono text-[var(--text-xs)] text-text-muted">
+              Cmd W
+            </span>
           </Button>
         </div>
       </div>

@@ -47,6 +47,7 @@ function defaultSettings(overrides: Partial<SettingsSnapshot> = {}): SettingsSna
     hiddenNavigationTabs: [],
     hiddenCalendarViewModes: [],
     showCompletedInCalendarViews: true,
+    calendarTimelineDensity: "compact",
     monthScrollPastMonths: 0,
     monthScrollFutureMonths: 1,
     quickCreateExpandedByDefault: false,

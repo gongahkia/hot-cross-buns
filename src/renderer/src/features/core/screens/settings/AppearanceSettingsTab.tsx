@@ -390,6 +390,25 @@ export function AppearanceSettingsTab({
             />
           </div>
         </SettingsControlRow>
+        <SettingsControlRow
+          description="Controls hour row height in day, multi-day, and week views."
+          label="Calendar timeline density"
+        >
+          <select
+            aria-label="Calendar timeline density"
+            className={settingsSelectClass}
+            onChange={(event) =>
+              updateSettings({
+                calendarTimelineDensity: event.target.value as SettingsSnapshot["calendarTimelineDensity"]
+              })
+            }
+            value={settings.calendarTimelineDensity}
+          >
+            <option value="compact">Compact</option>
+            <option value="comfortable">Comfortable</option>
+            <option value="spacious">Spacious</option>
+          </select>
+        </SettingsControlRow>
         <SettingsSwitch
           checked={settings.quickCreateExpandedByDefault}
           description="Calendar quick creation opens with optional fields visible when supported."

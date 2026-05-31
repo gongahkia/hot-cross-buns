@@ -190,6 +190,10 @@ export function definedSettingsPatch(request: SettingsUpdateRequest): Partial<Se
     patch.showCompletedInCalendarViews = request.showCompletedInCalendarViews;
   }
 
+  if (request.calendarTimelineDensity !== undefined) {
+    patch.calendarTimelineDensity = request.calendarTimelineDensity;
+  }
+
   if (request.monthScrollPastMonths !== undefined) {
     patch.monthScrollPastMonths = request.monthScrollPastMonths;
   }

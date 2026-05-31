@@ -37,6 +37,7 @@ export const emptySettings: SettingsSnapshot = {
   hiddenNavigationTabs: [],
   hiddenCalendarViewModes: [],
   showCompletedInCalendarViews: true,
+  calendarTimelineDensity: "compact",
   monthScrollPastMonths: 0,
   monthScrollFutureMonths: 1,
   quickCreateExpandedByDefault: false,

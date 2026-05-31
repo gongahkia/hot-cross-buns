@@ -56,6 +56,7 @@ export function usePaneWorkspace(): {
   focusedSectionId: SectionId | null;
   focusedTitle: string;
   focusPane: (paneId: string) => void;
+  focusPaneByDirection: (direction: "left" | "right" | "up" | "down") => void;
   movePane: (sourcePaneId: string, targetPaneId: string, dropZone: PaneDropZone) => void;
   openChooser: () => void;
   openRecentWebPage: (pageId: string, paneId: string) => void;
@@ -85,6 +86,57 @@ export function usePaneWorkspace(): {
         ? { ...current, focusedPaneId: paneId }
         : current
     );
+  }, []);
+
+  const focusPaneByDirection = useCallback((direction: "left" | "right" | "up" | "down"): void => {
+    setState((current) => {
+      const currentElement = document.querySelector<HTMLElement>(`[data-pane-id="${current.focusedPaneId}"]`);
+
+      if (!currentElement) {
+        return current;
+      }
+
+      const currentRect = currentElement.getBoundingClientRect();
+      const currentCenter = {
+        x: currentRect.left + currentRect.width / 2,
+        y: currentRect.top + currentRect.height / 2
+      };
+      const candidates = paneLeafIds(current.root)
+        .filter((paneId) => paneId !== current.focusedPaneId)
+        .flatMap((paneId) => {
+          const element = document.querySelector<HTMLElement>(`[data-pane-id="${paneId}"]`);
+
+          if (!element) {
+            return [];
+          }
+
+          const rect = element.getBoundingClientRect();
+          const center = {
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2
+          };
+          const dx = center.x - currentCenter.x;
+          const dy = center.y - currentCenter.y;
+
+          if (
+            (direction === "left" && dx >= 0) ||
+            (direction === "right" && dx <= 0) ||
+            (direction === "up" && dy >= 0) ||
+            (direction === "down" && dy <= 0)
+          ) {
+            return [];
+          }
+
+          const primary = direction === "left" || direction === "right" ? Math.abs(dx) : Math.abs(dy);
+          const secondary = direction === "left" || direction === "right" ? Math.abs(dy) : Math.abs(dx);
+
+          return [{ paneId, score: primary * 1_000 + secondary }];
+        })
+        .sort((left, right) => left.score - right.score);
+      const nextPaneId = candidates[0]?.paneId;
+
+      return nextPaneId ? { ...current, focusedPaneId: nextPaneId } : current;
+    });
   }, []);
 
   const replacePane = useCallback((paneId: string, content: PaneContent): void => {
@@ -299,6 +351,7 @@ export function usePaneWorkspace(): {
       focusedSectionId,
       focusedTitle,
       focusPane,
+      focusPaneByDirection,
       movePane,
       openChooser,
       openRecentWebPage,
@@ -316,6 +369,7 @@ export function usePaneWorkspace(): {
       canSplit,
       closePane,
       focusPane,
+      focusPaneByDirection,
       focusedSectionId,
       focusedTitle,
       movePane,

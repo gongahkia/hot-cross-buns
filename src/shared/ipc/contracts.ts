@@ -175,6 +175,7 @@ export {
   appThemeSchema,
   calendarEventColorOverrideSchema,
   calendarEventColorOverridesSchema,
+  calendarTimelineDensitySchema,
   calendarViewModeSchema,
   completionSoundIdSchema,
   eventTemplateSchema,
