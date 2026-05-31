@@ -700,6 +700,7 @@ function GoogleTaskRow({
         {menuOpen ? (
           <TaskActionMenu
             anchorPoint={menuPoint ?? undefined}
+            onClose={() => setMenuOpen(false)}
             onAddSubtask={() => { onAddSubtask(task); setMenuOpen(false); }}
             onCreateList={() => { onCreateList(); setMenuOpen(false); }}
             onDelete={() => { onDeleteTask(task.id); setMenuOpen(false); }}
@@ -716,6 +717,7 @@ function GoogleTaskRow({
 
 function TaskActionMenu({
   anchorPoint,
+  onClose,
   onAddSubtask,
   onCreateList,
   onDelete,
@@ -725,6 +727,7 @@ function TaskActionMenu({
   task
 }: {
   anchorPoint?: { x: number; y: number };
+  onClose: () => void;
   onAddSubtask: () => void;
   onCreateList: () => void;
   onDelete: () => void;
@@ -734,7 +737,7 @@ function TaskActionMenu({
   task: TaskViewModel;
 }): JSX.Element {
   return (
-    <FloatingMenu anchorPoint={anchorPoint} width={320}>
+    <FloatingMenu anchorPoint={anchorPoint} onClose={onClose} width={320}>
       <MenuButton onClick={onOpen}>
         <Target aria-hidden="true" size={18} />
         Add deadline

@@ -205,6 +205,7 @@ function NoteBoardRow({
         {menuOpen ? (
           <NoteActionMenu
             anchorPoint={menuPoint ?? undefined}
+            onClose={() => setMenuOpen(false)}
             onDelete={() => {
               onDeleteNote(note.id);
               setMenuOpen(false);
@@ -222,15 +223,17 @@ function NoteBoardRow({
 
 function NoteActionMenu({
   anchorPoint,
+  onClose,
   onDelete,
   onEdit
 }: {
   anchorPoint?: { x: number; y: number };
+  onClose: () => void;
   onDelete: () => void;
   onEdit: () => void;
 }): JSX.Element {
   return (
-    <FloatingMenu anchorPoint={anchorPoint} width={224}>
+    <FloatingMenu anchorPoint={anchorPoint} onClose={onClose} width={224}>
       <button
         className="flex min-h-9 w-full items-center gap-3 px-4 text-left text-[var(--text-base)] text-text-primary transition-colors duration-fast ease-hcb hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         onClick={onEdit}

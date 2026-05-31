@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode, RefObject } from "react";
 import { createPortal } from "react-dom";
 import { cx } from "./primitives";
@@ -14,15 +14,49 @@ export function FloatingMenu({
   anchorRef,
   children,
   className,
+  onClose,
   width = 256
 }: {
   anchorPoint?: { x: number; y: number };
   anchorRef?: RefObject<HTMLElement>;
   children: ReactNode;
   className?: string;
+  onClose?: () => void;
   width?: number;
 }): JSX.Element | null {
   const [position, setPosition] = useState<FloatingMenuPosition | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!onClose) {
+      return undefined;
+    }
+
+    function closeFromOutside(event: MouseEvent | PointerEvent): void {
+      const target = event.target;
+
+      if (target instanceof Node && menuRef.current?.contains(target)) {
+        return;
+      }
+
+      onClose();
+    }
+
+    function closeOnEscape(event: KeyboardEvent): void {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    document.addEventListener("pointerdown", closeFromOutside, true);
+    document.addEventListener("contextmenu", closeFromOutside, true);
+    document.addEventListener("keydown", closeOnEscape, true);
+    return () => {
+      document.removeEventListener("pointerdown", closeFromOutside, true);
+      document.removeEventListener("contextmenu", closeFromOutside, true);
+      document.removeEventListener("keydown", closeOnEscape, true);
+    };
+  }, [onClose]);
 
   useLayoutEffect(() => {
     function updatePosition(): void {
@@ -81,6 +115,7 @@ export function FloatingMenu({
         "fixed z-[1000] overflow-y-auto rounded-hcbLg border border-border bg-bg-primary py-2 shadow-xl",
         className
       )}
+      ref={menuRef}
       style={style}
     >
       {children}

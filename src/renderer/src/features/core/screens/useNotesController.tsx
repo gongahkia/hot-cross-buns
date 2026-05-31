@@ -23,6 +23,15 @@ import type { NoteBoardSelection, NoteViewColumn } from "./notesTypes";
 
 const starredNotesStorageKey = "hcb.starredNoteIds";
 const starredNotesAtStorageKey = "hcb.starredNoteAt";
+const defaultNoteListTitle = "Notes";
+
+function displayNoteListTitle(title: string): string {
+  return title === "Local notes" ? defaultNoteListTitle : title;
+}
+
+function displayNote(note: NoteViewModel): NoteViewModel {
+  return { ...note, listTitle: displayNoteListTitle(note.listTitle) };
+}
 
 export function useNotesController(source: CoreViewModelSource): {
   allNoteCount: number;
@@ -49,7 +58,7 @@ export function useNotesController(source: CoreViewModelSource): {
     open: openInspector,
     update: updateInspector
   } = useInspector();
-  const [notes, setNotes] = useState<NoteViewModel[]>(source.initialNotes);
+  const [notes, setNotes] = useState<NoteViewModel[]>(() => source.initialNotes.map(displayNote));
   const [localNoteLists, setLocalNoteLists] = useState(source.noteLists);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(
     source.initialNotes[0]?.id ?? null
@@ -68,9 +77,10 @@ export function useNotesController(source: CoreViewModelSource): {
   const noteInspectorBodyRef = useRef<NoteInspectorBodyHandle | null>(null);
   const noteInspectorModeRef = useRef<"view" | "edit">("edit");
   const selectedNote = notes.find((note) => note.id === selectedNoteId) ?? null;
-  const noteLists = localNoteLists.length > 0
+  const noteLists = (localNoteLists.length > 0
     ? localNoteLists
-    : [{ id: "note-list:default", title: "Local notes", noteCount: notes.length, updatedAt: new Date().toISOString() }];
+    : [{ id: "note-list:default", title: defaultNoteListTitle, noteCount: notes.length, updatedAt: new Date().toISOString() }]
+  ).map((list) => ({ ...list, title: displayNoteListTitle(list.title) }));
   const allNoteCount = Math.max(source.resourceCounts.notes, notes.length);
   const starredNotes = useMemo(
     () =>
@@ -86,7 +96,7 @@ export function useNotesController(source: CoreViewModelSource): {
           return {
             id: view,
             title: "Starred notes",
-            description: "All starred local notes",
+            description: "All starred notes",
             emptyDescription: "Star notes to collect them here.",
             emptyTitle: "No starred notes",
             notes: starredNotes
@@ -100,7 +110,7 @@ export function useNotesController(source: CoreViewModelSource): {
           return {
             id: view,
             listId,
-            title: list?.title ?? "Local notes",
+            title: list?.title ?? defaultNoteListTitle,
             description: "Notes in this list",
             emptyDescription: "Drag notes here or create a note in this list.",
             emptyTitle: "No notes in this list",
@@ -112,8 +122,8 @@ export function useNotesController(source: CoreViewModelSource): {
           id: view,
           title: "All notes",
           description: "Select a note to open details in the Inspector",
-          emptyDescription: "Create a local note to populate SQLite.",
-          emptyTitle: "No local notes",
+          emptyDescription: "Create a note to populate this view.",
+          emptyTitle: "No notes",
           notes
         };
       }),
@@ -135,7 +145,7 @@ export function useNotesController(source: CoreViewModelSource): {
 
   useEffect(() => {
     requestedNoteDetails.current.clear();
-    setNotes(source.initialNotes);
+    setNotes(source.initialNotes.map(displayNote));
     setSelectedNoteId((current) =>
       current && source.initialNotes.some((note) => note.id === current)
         ? current
@@ -170,7 +180,7 @@ export function useNotesController(source: CoreViewModelSource): {
             ? {
                 id: result.data.id,
                 listId: result.data.listId,
-                listTitle: result.data.listTitle,
+                listTitle: displayNoteListTitle(result.data.listTitle),
                 title: result.data.title,
                 body: result.data.body,
                 preview: result.data.preview,
@@ -208,7 +218,7 @@ export function useNotesController(source: CoreViewModelSource): {
               ? {
                   id: result.data.id,
                   listId: result.data.listId,
-                  listTitle: result.data.listTitle,
+                  listTitle: displayNoteListTitle(result.data.listTitle),
                   title: result.data.title,
                   body: result.data.body,
                   preview: result.data.preview,
@@ -366,10 +376,10 @@ export function useNotesController(source: CoreViewModelSource): {
     const fallbackNote: NoteViewModel = {
       id: fallbackId,
       listId: "note-list:default",
-      listTitle: "Local notes",
+      listTitle: defaultNoteListTitle,
       title: "Untitled note",
       body: "",
-      preview: "Empty local note",
+      preview: "Empty note",
       updatedLabel: "Just now"
     };
 
@@ -388,7 +398,7 @@ export function useNotesController(source: CoreViewModelSource): {
       const persisted = {
         id: result.data.id,
         listId: result.data.listId,
-        listTitle: result.data.listTitle,
+        listTitle: displayNoteListTitle(result.data.listTitle),
         title: result.data.title,
         body: result.data.body,
         preview: result.data.preview,
@@ -412,7 +422,7 @@ export function useNotesController(source: CoreViewModelSource): {
     const fallbackNote: NoteViewModel = {
       id: fallbackId,
       listId: "note-list:default",
-      listTitle: "Local notes",
+      listTitle: defaultNoteListTitle,
       title,
       body,
       preview: buildNotePreview(body),
@@ -431,7 +441,7 @@ export function useNotesController(source: CoreViewModelSource): {
       const persisted = {
         id: result.data.id,
         listId: result.data.listId,
-        listTitle: result.data.listTitle,
+        listTitle: displayNoteListTitle(result.data.listTitle),
         title: result.data.title,
         body: result.data.body,
         preview: result.data.preview,
@@ -484,7 +494,7 @@ export function useNotesController(source: CoreViewModelSource): {
           title: draft.title,
           body: draft.body,
           preview: buildNotePreview(draft.body),
-          updatedLabel: "Edited locally"
+          updatedLabel: "Edited"
         };
       })
     );

@@ -15,7 +15,7 @@ import {
   useRenderTiming
 } from "../../hooks/useRenderTiming";
 import { AppHeader } from "./AppHeader";
-import { AppNotificationToast, NotificationsOverlay, SettingsOverlay } from "./AppOverlays";
+import { NotificationsOverlay, SettingsOverlay, SyncProgressOverlay } from "./AppOverlays";
 import { AppSidebar } from "./AppSidebar";
 import { PaneWorkspace } from "./PaneWorkspace";
 import { splitPaneWebUrl } from "./paneWorkspaceModel";
@@ -69,7 +69,6 @@ export function AppShell(): JSX.Element {
   const visibleNotifications = appNotifications.filter(
     (notification) => !dismissedNotificationIds.includes(notification.id)
   );
-  const visibleNotification = visibleNotifications[0];
   const visiblePrimarySections = useMemo<VisiblePrimarySection[]>(() => {
     const hidden = new Set<SectionId>(source.settings.hiddenNavigationTabs);
     return primaryPlannerSections
@@ -634,18 +633,6 @@ export function AppShell(): JSX.Element {
   }, [settingsOpen]);
 
   useEffect(() => {
-    if (!visibleNotification) {
-      return;
-    }
-
-    const timeout = window.setTimeout(() => {
-      dismissNotification(visibleNotification.id);
-    }, 6_000);
-
-    return () => window.clearTimeout(timeout);
-  }, [dismissNotification, visibleNotification?.id]);
-
-  useEffect(() => {
     if (!commandPaletteOpen) {
       return;
     }
@@ -766,12 +753,7 @@ export function AppShell(): JSX.Element {
           onClose={() => setSettingsOpen(false)}
         />
       ) : null}
-      {visibleNotification && !notificationsOpen ? (
-        <AppNotificationToast
-          notification={visibleNotification}
-          onDismiss={() => dismissNotification(visibleNotification.id)}
-        />
-      ) : null}
+      <SyncProgressOverlay dataState={source.dataState} status={source.syncStatus} />
     </div>
   );
 }
