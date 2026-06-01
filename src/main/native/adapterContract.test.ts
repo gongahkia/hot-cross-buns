@@ -23,6 +23,8 @@ function defaultSettings(overrides: Partial<SettingsSnapshot> = {}): SettingsSna
     uiLayoutScale: 1,
     navigationPlacement: "left",
     hiddenNavigationTabs: [],
+    navigationTabOrder: ["calendar", "tasks", "notes"],
+    toolbarActionOrder: ["commandPalette", "notifications", "diagnostics", "splitPane", "refresh", "settings"],
     hiddenCalendarViewModes: [],
     showCompletedInCalendarViews: true,
     calendarTimelineDensity: "compact",
