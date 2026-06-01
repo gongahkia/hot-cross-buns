@@ -8,6 +8,7 @@ import type {
   NoteLinkSuggestRequest,
   NoteLinkSuggestResponse,
   NoteListCreateRequest,
+  NoteListDeleteRequest,
   NoteListRequest,
   NoteListRenameRequest,
   NoteListResponse,
@@ -21,7 +22,8 @@ import {
   countRows,
   notFound,
   pageBounds,
-  pageFromRows
+  pageFromRows,
+  validationFailure
 } from "./shared";
 import { ScheduledTaskBlockLocalRepository } from "./scheduledTaskBlockRepository";
 import type { NoteListRow, NoteRow } from "./types";
@@ -140,6 +142,53 @@ export class NoteLocalRepository extends ScheduledTaskBlockLocalRepository {
       }
 
       return noteListSummary(row);
+    });
+  }
+
+  deleteNoteList(request: NoteListDeleteRequest): { id: string; queued: boolean; revision: string } {
+    return this.measureSqlite("notes.deleteList", () => {
+      if (request.id === defaultNoteListId) {
+        throw validationFailure("Default note list cannot be deleted.");
+      }
+
+      const existing = this.connection.get<{ id: string }>(
+        `SELECT id
+         FROM local_note_lists
+         WHERE id = ? AND deleted_at IS NULL
+         LIMIT 1;`,
+        [request.id]
+      );
+
+      if (!existing) {
+        throw notFound("Note list was not found.");
+      }
+
+      const now = new Date().toISOString();
+
+      this.connection.executeTransaction([
+        {
+          kind: "run",
+          sql: `UPDATE local_notes
+                SET list_id = ?, updated_at = ?
+                WHERE list_id = ? AND deleted_at IS NULL;`,
+          params: [defaultNoteListId, now, request.id]
+        },
+        {
+          kind: "run",
+          sql: `UPDATE local_note_lists
+                SET deleted_at = ?, updated_at = ?
+                WHERE id = ? AND deleted_at IS NULL;`,
+          params: [now, now, request.id]
+        }
+      ]);
+      this.recordHistory({
+        kind: "note_list.delete",
+        resourceId: request.id,
+        summary: "Deleted note list",
+        metadata: { queued: false }
+      });
+
+      return { id: request.id, queued: false, revision: now };
     });
   }
 

@@ -1,5 +1,4 @@
-import { Check, CheckCircle2, PanelLeftClose, PanelLeftOpen, Plus, Star } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { Check, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
 import type { NoteListSummary } from "@shared/ipc/contracts";
 import { Button, IconButton, cx } from "../../../components/primitives";
 import {
@@ -9,17 +8,14 @@ import {
 import type { NoteBoardSelection } from "./notesTypes";
 
 export function NotesSidebar({
-  allNoteCount,
   collapsed,
   onCreateNote,
   onCreateNoteList,
   onToggleCollapsed,
   onToggleView,
   noteLists,
-  selectedNoteViews,
-  starredNoteCount
+  selectedNoteViews
 }: {
-  allNoteCount: number;
   collapsed: boolean;
   onCreateNote: () => void;
   onCreateNoteList: () => void;
@@ -27,7 +23,6 @@ export function NotesSidebar({
   onToggleView: (view: NoteBoardSelection) => void;
   noteLists: NoteListSummary[];
   selectedNoteViews: NoteBoardSelection[];
-  starredNoteCount: number;
 }): JSX.Element {
   if (collapsed) {
     return (
@@ -65,22 +60,6 @@ export function NotesSidebar({
           variant="ghost"
         />
       </div>
-      <div className="mt-5 grid gap-1">
-        <NoteSidebarButton
-          active={selectedNoteViews.includes("all")}
-          count={allNoteCount}
-          icon={CheckCircle2}
-          label="All notes"
-          onClick={() => onToggleView("all")}
-        />
-        <NoteSidebarButton
-          active={selectedNoteViews.includes("starred")}
-          count={starredNoteCount}
-          icon={Star}
-          label="Starred"
-          onClick={() => onToggleView("starred")}
-        />
-      </div>
       <div className="mt-6">
         <div className="px-2 text-[var(--text-sm)] font-semibold text-text-primary">Lists</div>
         <div className="mt-2 grid gap-1">
@@ -100,37 +79,6 @@ export function NotesSidebar({
         </Button>
       </div>
     </aside>
-  );
-}
-
-function NoteSidebarButton({
-  active,
-  count,
-  icon: Icon,
-  label,
-  onClick
-}: {
-  active: boolean;
-  count: number;
-  icon: LucideIcon;
-  label: string;
-  onClick: () => void;
-}): JSX.Element {
-  return (
-    <button
-      aria-current={active ? "true" : undefined}
-      aria-label={label}
-      className={cx(
-        "grid h-9 grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-2 rounded-hcbLg px-2 text-left transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-        active ? "bg-accent/20 text-text-primary" : "text-text-secondary hover:bg-surface-0 hover:text-text-primary"
-      )}
-      onClick={onClick}
-      type="button"
-    >
-      <Icon aria-hidden="true" className={active ? "text-accent" : "text-text-secondary"} size={18} />
-      <span className="truncate text-[var(--text-base)] font-medium">{label}</span>
-      <span className="text-[var(--text-xs)] text-text-muted">{count}</span>
-    </button>
   );
 }
 

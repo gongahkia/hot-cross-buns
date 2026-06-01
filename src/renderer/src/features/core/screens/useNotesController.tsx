@@ -24,7 +24,18 @@ import type { NoteBoardSelection, NoteViewColumn } from "./notesTypes";
 
 const starredNotesStorageKey = "hcb.starredNoteIds";
 const starredNotesAtStorageKey = "hcb.starredNoteAt";
+const defaultNoteListId = "note-list:default";
 const defaultNoteListTitle = "Notes";
+
+function noteListSelection(listId: string): NoteBoardSelection {
+  return `list:${listId}`;
+}
+
+function initialNoteViews(noteLists: CoreViewModelSource["noteLists"]): NoteBoardSelection[] {
+  return noteLists.length > 0
+    ? noteLists.map((list) => noteListSelection(list.id))
+    : [noteListSelection(defaultNoteListId)];
+}
 
 function displayNoteListTitle(title: string): string {
   return title === "Local notes" ? defaultNoteListTitle : title;
@@ -35,9 +46,9 @@ function displayNote(note: NoteViewModel): NoteViewModel {
 }
 
 export function useNotesController(source: CoreViewModelSource): {
-  allNoteCount: number;
   createNote: () => Promise<void>;
   createNoteList: () => Promise<void>;
+  deleteNoteList: (listId: string, title: string) => Promise<void>;
   deleteNote: (noteId: string) => Promise<void>;
   noteViewColumns: NoteViewColumn[];
   noteLists: CoreViewModelSource["noteLists"];
@@ -45,7 +56,6 @@ export function useNotesController(source: CoreViewModelSource): {
   selectedNoteId: string | null;
   selectedNoteViews: NoteBoardSelection[];
   selectNote: (noteId: string, mode?: "view" | "edit") => Promise<void>;
-  starredNoteCount: number;
   starredNoteIds: ReadonlySet<string>;
   moveNoteToList: (noteId: string, listId: string) => Promise<void>;
   renameNoteList: (listId: string, currentTitle: string) => Promise<void>;
@@ -63,7 +73,9 @@ export function useNotesController(source: CoreViewModelSource): {
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(
     source.initialNotes[0]?.id ?? null
   );
-  const [selectedNoteViews, setSelectedNoteViews] = useState<NoteBoardSelection[]>(["all"]);
+  const [selectedNoteViews, setSelectedNoteViews] = useState<NoteBoardSelection[]>(() =>
+    initialNoteViews(source.noteLists)
+  );
   const [noteInspectorMode, setNoteInspectorModeState] = useState<"view" | "edit">("edit");
   const [starredNoteIds, setStarredNoteIds] = useState<Set<string>>(
     () => new Set(readLocalStorageStringArray(starredNotesStorageKey))
@@ -80,9 +92,9 @@ export function useNotesController(source: CoreViewModelSource): {
   const selectedNote = notes.find((note) => note.id === selectedNoteId) ?? null;
   const noteLists = (localNoteLists.length > 0
     ? localNoteLists
-    : [{ id: "note-list:default", title: defaultNoteListTitle, noteCount: notes.length, updatedAt: new Date().toISOString() }]
+    : [{ id: defaultNoteListId, title: defaultNoteListTitle, noteCount: notes.length, updatedAt: new Date().toISOString() }]
   ).map((list) => ({ ...list, title: displayNoteListTitle(list.title) }));
-  const allNoteCount = Math.max(source.resourceCounts.notes, notes.length);
+  const noteListSignature = noteLists.map((list) => list.id).join("\n");
   const noteTemplateOptions = useMemo<NoteTemplateOption[]>(() => {
     const today = dateInputValue(new Date().toISOString());
 
@@ -108,52 +120,22 @@ export function useNotesController(source: CoreViewModelSource): {
       }))
     ];
   }, [source.settings.noteTemplates]);
-  const starredNotes = useMemo(
-    () =>
-      notes
-        .filter((note) => starredNoteIds.has(note.id))
-        .sort((left, right) => (starredNoteAt[right.id] ?? 0) - (starredNoteAt[left.id] ?? 0)),
-    [notes, starredNoteAt, starredNoteIds]
-  );
   const noteViewColumns = useMemo(
     () =>
       selectedNoteViews.map((view) => {
-        if (view === "starred") {
-          return {
-            id: view,
-            title: "Starred notes",
-            description: "All starred notes",
-            emptyDescription: "Star notes to collect them here.",
-            emptyTitle: "No starred notes",
-            notes: starredNotes
-          };
-        }
-
-        if (view.startsWith("list:")) {
-          const listId = view.slice("list:".length);
-          const list = noteLists.find((candidate) => candidate.id === listId);
-
-          return {
-            id: view,
-            listId,
-            title: list?.title ?? defaultNoteListTitle,
-            description: "Notes in this list",
-            emptyDescription: "Drag notes here or create a note in this list.",
-            emptyTitle: "No notes in this list",
-            notes: notes.filter((note) => note.listId === listId)
-          };
-        }
-
+        const listId = view.slice("list:".length);
+        const list = noteLists.find((candidate) => candidate.id === listId);
         return {
           id: view,
-          title: "All notes",
-          description: "Select a note to open details in the Inspector",
-          emptyDescription: "Create a note to populate this view.",
-          emptyTitle: "No notes",
-          notes
+          listId,
+          title: list?.title ?? defaultNoteListTitle,
+          description: "Notes in this list",
+          emptyDescription: "Drag notes here or create a note in this list.",
+          emptyTitle: "No notes in this list",
+          notes: notes.filter((note) => note.listId === listId)
         };
       }),
-    [noteLists, notes, selectedNoteViews, starredNotes]
+    [noteLists, notes, selectedNoteViews]
   );
 
   function setNoteInspectorMode(mode: "view" | "edit"): void {
@@ -182,6 +164,16 @@ export function useNotesController(source: CoreViewModelSource): {
   useEffect(() => {
     setLocalNoteLists(source.noteLists);
   }, [source.noteLists]);
+
+  useEffect(() => {
+    const availableViews = noteLists.map((list) => noteListSelection(list.id));
+    const available = new Set<NoteBoardSelection>(availableViews);
+
+    setSelectedNoteViews((current) => {
+      const next = current.filter((view) => available.has(view));
+      return next.length > 0 ? next : availableViews;
+    });
+  }, [noteListSignature]);
 
   useEffect(() => {
     if (
@@ -517,7 +509,45 @@ export function useNotesController(source: CoreViewModelSource): {
 
     if (result?.ok) {
       setLocalNoteLists((current) => [...current, { ...result.data, title: displayNoteListTitle(result.data.title) }]);
+      setSelectedNoteViews((current) => [...current, noteListSelection(result.data.id)]);
     }
+  }
+
+  async function deleteNoteList(listId: string, title: string): Promise<void> {
+    if (listId === defaultNoteListId) {
+      return;
+    }
+
+    if (!window.confirm(`Delete ${title}? Notes in this list move to Notes.`)) {
+      return;
+    }
+
+    const result = await window.hcb?.notes.deleteList({ id: listId });
+
+    if (!result?.ok) {
+      return;
+    }
+
+    const defaultList = noteLists.find((list) => list.id === defaultNoteListId);
+    const defaultTitle = defaultList?.title ?? defaultNoteListTitle;
+    const movedCount = notes.filter((note) => note.listId === listId).length;
+
+    setLocalNoteLists((current) =>
+      current
+        .filter((list) => list.id !== listId)
+        .map((list) =>
+          list.id === defaultNoteListId ? { ...list, noteCount: list.noteCount + movedCount } : list
+        )
+    );
+    setNotes((current) =>
+      current.map((note) =>
+        note.listId === listId ? { ...note, listId: defaultNoteListId, listTitle: defaultTitle } : note
+      )
+    );
+    setSelectedNoteViews((current) => {
+      const next = current.filter((view) => view !== noteListSelection(listId));
+      return next.length > 0 ? next : [noteListSelection(defaultNoteListId)];
+    });
   }
 
   async function renameNoteList(listId: string, currentTitle: string): Promise<void> {
@@ -688,14 +718,14 @@ export function useNotesController(source: CoreViewModelSource): {
         return current.filter((selectedView) => selectedView !== view);
       }
 
-      return view === "all" ? [view, ...current] : [...current, view];
+      return [...current, view];
     });
   }
 
   return {
-    allNoteCount,
     createNote,
     createNoteList,
+    deleteNoteList,
     deleteNote,
     noteViewColumns,
     noteLists,
@@ -703,7 +733,6 @@ export function useNotesController(source: CoreViewModelSource): {
     selectedNoteId,
     selectedNoteViews,
     selectNote,
-    starredNoteCount: notes.filter((note) => starredNoteIds.has(note.id)).length,
     starredNoteIds,
     moveNoteToList,
     renameNoteList,

@@ -216,7 +216,7 @@ export function ShareAvailabilityPanel({
     "h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
   return (
-    <Panel className="flex h-full min-h-[680px] flex-col overflow-hidden">
+    <Panel className="flex flex-col overflow-hidden self-start">
       <div className="flex min-h-12 items-center justify-between gap-3 border-b border-border px-3 py-2">
         <div className="inline-flex min-w-0 items-center gap-2">
           <CalendarPlus aria-hidden="true" className="text-accent" size={16} />
@@ -224,7 +224,7 @@ export function ShareAvailabilityPanel({
         </div>
         <IconButton icon={X} label="Close share availability" onClick={onClose} size="sm" variant="ghost" />
       </div>
-      <div className="grid min-h-0 flex-1 auto-rows-max content-start gap-3 overflow-auto p-3">
+      <div className="grid auto-rows-max content-start gap-3 p-3">
         <Input
           aria-label="Availability title"
           onChange={(event) => onTitleChange(event.target.value)}

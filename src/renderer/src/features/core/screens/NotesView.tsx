@@ -12,9 +12,9 @@ export function NotesView(): JSX.Element {
   const { autoCollapsed, containerRef } = useAutoCollapsedSidebar();
   const effectiveSidebarCollapsed = sidebarCollapsed || autoCollapsed;
   const {
-    allNoteCount,
     createNote,
     createNoteList,
+    deleteNoteList,
     deleteNote,
     noteViewColumns,
     noteLists,
@@ -22,7 +22,6 @@ export function NotesView(): JSX.Element {
     selectedNoteId,
     selectedNoteViews,
     selectNote,
-    starredNoteCount,
     starredNoteIds,
     renameNoteList,
     toggleNoteStar,
@@ -44,7 +43,6 @@ export function NotesView(): JSX.Element {
       ref={containerRef}
     >
       <NotesSidebar
-        allNoteCount={allNoteCount}
         collapsed={effectiveSidebarCollapsed}
         onCreateNote={() => void createNote()}
         onCreateNoteList={() => void createNoteList()}
@@ -52,11 +50,10 @@ export function NotesView(): JSX.Element {
         onToggleView={toggleNoteView}
         noteLists={noteLists}
         selectedNoteViews={selectedNoteViews}
-        starredNoteCount={starredNoteCount}
       />
       <NotesBoard
-        allNoteCount={allNoteCount}
         columns={noteViewColumns}
+        onDeleteNoteList={(listId, title) => void deleteNoteList(listId, title)}
         onDeleteNote={(noteId) => void deleteNote(noteId)}
         onMoveNote={(noteId, listId) => void moveNoteToList(noteId, listId)}
         onOpenNote={(noteId, mode = "view") => void selectNote(noteId, mode)}

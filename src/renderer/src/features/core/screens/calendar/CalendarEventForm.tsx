@@ -14,11 +14,13 @@ import {
   addUtcDaysIso,
   dateInputToIso,
   dateInputValue,
-  dateTimeLocalInputToIso,
-  dateTimeLocalInputValue,
   startOfUtcDayIso
 } from "../../coreScreenShared";
 import { CalendarSourceSwatch } from "./CalendarEventChips";
+import {
+  calendarDateTimeLocalInputToIso,
+  calendarDateTimeLocalInputValue
+} from "./calendarDateUtils";
 import {
   allDayEndInputValue,
   calendarDraftDurationLabel,
@@ -610,10 +612,10 @@ export function CalendarEventForm({
             onChange={(event) =>
               draft.allDay
                 ? setAllDayStart(event.target.value)
-                : setDraft({ ...draft, startsAt: dateTimeLocalInputToIso(event.target.value) })
+                : setDraft({ ...draft, startsAt: calendarDateTimeLocalInputToIso(event.target.value, sourceTimeZone) })
             }
             type={draft.allDay ? "date" : "datetime-local"}
-            value={draft.allDay ? dateInputValue(draft.startsAt) : dateTimeLocalInputValue(draft.startsAt)}
+            value={draft.allDay ? dateInputValue(draft.startsAt) : calendarDateTimeLocalInputValue(draft.startsAt, sourceTimeZone)}
           />
           <Input
             aria-label="Event ends"
@@ -621,10 +623,10 @@ export function CalendarEventForm({
             onChange={(event) =>
               draft.allDay
                 ? setAllDayEnd(event.target.value)
-                : setDraft({ ...draft, endsAt: dateTimeLocalInputToIso(event.target.value) })
+                : setDraft({ ...draft, endsAt: calendarDateTimeLocalInputToIso(event.target.value, sourceTimeZone) })
             }
             type={draft.allDay ? "date" : "datetime-local"}
-            value={draft.allDay ? allDayEndInputValue(draft.endsAt) : dateTimeLocalInputValue(draft.endsAt)}
+            value={draft.allDay ? allDayEndInputValue(draft.endsAt) : calendarDateTimeLocalInputValue(draft.endsAt, sourceTimeZone)}
           />
         </div>
       </fieldset>

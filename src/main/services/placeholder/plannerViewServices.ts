@@ -507,6 +507,20 @@ export function createPlaceholderPlannerViewService(
       noteCount: state.notes.filter((note) => note.listId === request.id).length,
       updatedAt: new Date().toISOString()
     }),
+    deleteNoteList: (request) => {
+      for (const note of state.notes) {
+        if (note.listId === request.id) {
+          note.listId = "note-list:default";
+          note.listTitle = "Local notes";
+        }
+      }
+
+      return {
+        id: request.id,
+        queued: false,
+        revision: new Date().toISOString()
+      };
+    },
     createNote: (request) => {
       const now = new Date().toISOString();
       const body = request.body ?? "";

@@ -257,6 +257,8 @@ export function CalendarView({
     return <CacheStatePanel title="Calendar" />;
   }
 
+  const availabilityMode = shareAvailabilityVisible && shareAvailabilityOpen;
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       <CalendarHeader
@@ -335,8 +337,8 @@ export function CalendarView({
           ) : null}
           {activeViewId === "day" ? (
             <DayView
-              availabilityMode={false}
-              availabilitySlots={[]}
+              availabilityMode={availabilityMode}
+              availabilitySlots={availabilitySlots}
               day={calendarDay}
               onAddAvailabilitySlot={addAvailabilitySlot}
               onCreate={openCreate}
@@ -348,8 +350,8 @@ export function CalendarView({
           ) : null}
           {activeViewId === "multiDay" ? (
             <MultiDayView
-              availabilityMode={false}
-              availabilitySlots={[]}
+              availabilityMode={availabilityMode}
+              availabilitySlots={availabilitySlots}
               dayCount={multiDayCount}
               days={calendarMultiDayDays}
               onAddAvailabilitySlot={addAvailabilitySlot}
@@ -363,8 +365,8 @@ export function CalendarView({
           ) : null}
           {activeViewId === "week" ? (
             <WeekView
-              availabilityMode={false}
-              availabilitySlots={[]}
+              availabilityMode={availabilityMode}
+              availabilitySlots={availabilitySlots}
               days={calendarWeekDays}
               onAddAvailabilitySlot={addAvailabilitySlot}
               onCreate={openCreate}

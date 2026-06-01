@@ -120,6 +120,30 @@ export function calendarCurrentDayKey(timeZone = "UTC"): string {
   return calendarCurrentLocalPoint(timeZone).dayKey;
 }
 
+export function calendarDateTimeLocalInputValue(value: string, timeZone = "UTC"): string {
+  const parsed = new Date(value);
+
+  if (!Number.isFinite(parsed.getTime())) {
+    return "";
+  }
+
+  const point = calendarLocalPoint(value, timeZone);
+  const hour = Math.floor(point.minutes / 60);
+  const minute = point.minutes % 60;
+
+  return `${point.dayKey}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+export function calendarDateTimeLocalInputToIso(value: string, timeZone = "UTC"): string {
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/.exec(value);
+
+  if (!match) {
+    return new Date().toISOString();
+  }
+
+  return zonedDateTimeIso(match[1], Number(match[2]), Number(match[3]), timeZone);
+}
+
 export function calendarStartOfUtcDate(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }

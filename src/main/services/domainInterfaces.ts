@@ -29,6 +29,7 @@ import type {
   NoteLinkSuggestRequest,
   NoteLinkSuggestResponse,
   NoteListCreateRequest,
+  NoteListDeleteRequest,
   NoteListRequest,
   NoteListRenameRequest,
   NoteListResponse,

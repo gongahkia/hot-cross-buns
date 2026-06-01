@@ -10,8 +10,8 @@ import type { NoteViewColumn } from "./notesTypes";
 const noteDragType = "application/x-hcb-note-id";
 
 export function NotesBoard({
-  allNoteCount,
   columns,
+  onDeleteNoteList,
   onDeleteNote,
   onMoveNote,
   onOpenNote,
@@ -20,8 +20,8 @@ export function NotesBoard({
   selectedNoteId,
   starredNoteIds
 }: {
-  allNoteCount: number;
   columns: NoteViewColumn[];
+  onDeleteNoteList: (listId: string, title: string) => void;
   onDeleteNote: (noteId: string) => void;
   onMoveNote: (noteId: string, listId: string) => void;
   onOpenNote: (noteId: string, mode?: "view" | "edit") => void;
@@ -42,8 +42,9 @@ export function NotesBoard({
             <Panel
               action={
                 <NoteColumnAction
-                  count={column.id === "all" ? allNoteCount : column.notes.length}
+                  count={column.notes.length}
                   listId={column.listId}
+                  onDeleteNoteList={onDeleteNoteList}
                   onRenameNoteList={onRenameNoteList}
                   title={column.title}
                 />
@@ -100,16 +101,19 @@ export function NotesBoard({
 function NoteColumnAction({
   count,
   listId,
+  onDeleteNoteList,
   onRenameNoteList,
   title
 }: {
   count: number;
-  listId?: string;
+  listId: string;
+  onDeleteNoteList: (listId: string, title: string) => void;
   onRenameNoteList: (listId: string, currentTitle: string) => void;
   title: string;
 }): JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null);
+  const canDelete = listId !== "note-list:default";
 
   return (
     <div className="flex items-center gap-1">
@@ -130,7 +134,12 @@ function NoteColumnAction({
           {menuOpen ? (
             <NoteListActionMenu
               anchorPoint={menuPoint ?? undefined}
+              canDelete={canDelete}
               onClose={() => setMenuOpen(false)}
+              onDelete={() => {
+                onDeleteNoteList(listId, title);
+                setMenuOpen(false);
+              }}
               onRename={() => {
                 onRenameNoteList(listId, title);
                 setMenuOpen(false);
@@ -278,11 +287,15 @@ function NoteBoardRow({
 
 function NoteListActionMenu({
   anchorPoint,
+  canDelete,
   onClose,
+  onDelete,
   onRename
 }: {
   anchorPoint?: { x: number; y: number };
+  canDelete: boolean;
   onClose: () => void;
+  onDelete: () => void;
   onRename: () => void;
 }): JSX.Element {
   return (
@@ -295,6 +308,16 @@ function NoteListActionMenu({
         <Pencil aria-hidden="true" size={18} />
         Rename list
       </button>
+      {canDelete ? (
+        <button
+          className="flex min-h-9 w-full items-center gap-3 px-4 text-left text-[var(--text-base)] text-danger transition-colors duration-fast ease-hcb hover:bg-danger/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          onClick={onDelete}
+          type="button"
+        >
+          <Trash2 aria-hidden="true" size={18} />
+          Delete list
+        </button>
+      ) : null}
     </FloatingMenu>
   );
 }

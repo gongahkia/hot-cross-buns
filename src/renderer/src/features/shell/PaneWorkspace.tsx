@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { DragEvent, FormEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
-import { ExternalLink, GripVertical, Plus, Search, X } from "lucide-react";
+import { ExternalLink, GripVertical, Plus, X } from "lucide-react";
 import { Button, cx } from "../../components/primitives";
 import { getPlannerSection, type SectionId } from "../../data/mockPlanner";
 import { SectionContent, type TaskSurfaceCommand } from "../core/CoreScreens";
@@ -632,13 +632,13 @@ function PaneChooser({
                 />
                 <Button
                   aria-label="Open webpage"
-                  className="size-9 px-0"
+                  className="h-9 px-4"
                   disabled={webPageUrl.trim().length === 0}
                   title="Open webpage"
                   type="submit"
                   variant="secondary"
                 >
-                  <Search aria-hidden="true" size={16} />
+                  Open
                 </Button>
               </div>
               {webPageError ? <p className="text-[var(--text-xs)] text-danger">{webPageError}</p> : null}
