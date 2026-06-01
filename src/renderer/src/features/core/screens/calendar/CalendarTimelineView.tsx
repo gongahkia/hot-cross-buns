@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, DragEvent, PointerEvent, ReactNode } from "react";
+import type { CSSProperties, DragEvent, MouseEvent, PointerEvent, ReactNode } from "react";
 import { Minus, Plus } from "lucide-react";
 import { IconButton, cx } from "../../../../components/primitives";
 import { useCoreViewModelSource } from "../../coreViewModelSource";
@@ -411,8 +411,10 @@ function CalendarTimelineView({
     }
   }
 
+  type TimeDragEvent = PointerEvent<HTMLElement> | MouseEvent<HTMLElement>;
+
   function updateTimeDrag(
-    pointerEvent: PointerEvent<HTMLElement>,
+    pointerEvent: TimeDragEvent,
     dayKey: string,
     hour: number
   ): CalendarTimeBlock | null {
@@ -438,7 +440,7 @@ function CalendarTimelineView({
   }
 
   function handleTimePointerDown(
-    pointerEvent: PointerEvent<HTMLElement>,
+    pointerEvent: TimeDragEvent,
     dayKey: string,
     hour: number
   ): void {
@@ -460,7 +462,7 @@ function CalendarTimelineView({
   }
 
   function handleTimePointerUp(
-    pointerEvent: PointerEvent<HTMLElement>,
+    pointerEvent: TimeDragEvent,
     dayKey: string,
     hour: number
   ): void {
@@ -692,6 +694,9 @@ function CalendarTimelineView({
                         }}
                         onDragOver={(dragEvent) => previewDrop(dragEvent, dayKey, startsAt, false)}
                         onDrop={(dragEvent) => handleDrop(dragEvent, dayKey, startsAt, false)}
+                        onMouseDown={(mouseEvent) => handleTimePointerDown(mouseEvent, dayKey, hour)}
+                        onMouseMove={(mouseEvent) => updateTimeDrag(mouseEvent, dayKey, hour)}
+                        onMouseUp={(mouseEvent) => handleTimePointerUp(mouseEvent, dayKey, hour)}
                         onPointerDown={(pointerEvent) => handleTimePointerDown(pointerEvent, dayKey, hour)}
                         onPointerEnter={(pointerEvent) => {
                           if (timelineDragRef.current) {

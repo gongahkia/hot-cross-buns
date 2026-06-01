@@ -1,4 +1,4 @@
-import type { PointerEvent } from "react";
+import type { MouseEvent, PointerEvent } from "react";
 import type { CalendarTimeBlock } from "./types";
 import {
   addUtcMinutesIso,
@@ -10,7 +10,7 @@ import {
 export function calendarPointerTimeIso(
   dayKey: string,
   hour: number,
-  event: PointerEvent<HTMLElement>,
+  event: PointerEvent<HTMLElement> | MouseEvent<HTMLElement>,
   timeZone = "UTC"
 ): string {
   const rect = event.currentTarget.getBoundingClientRect();

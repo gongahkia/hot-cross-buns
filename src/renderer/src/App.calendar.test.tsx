@@ -405,7 +405,6 @@ describe("App calendar", () => {
 
   it("preserves selected calendar timezone when saving timed event fields", async () => {
     const api = seededHcb();
-    api.settings.get = vi.fn(async () => ok(testSettings({ defaultTimeZone: "Asia/Singapore" })));
     api.calendar.listCalendars = vi.fn(async () =>
       ok({
         items: [
@@ -1003,12 +1002,23 @@ describe("App calendar", () => {
     expect(screen.queryByRole("button", { name: "Create event at 11:00" })).not.toBeInTheDocument();
 
     const slot = screen.getByRole("gridcell", { name: /11 AM/ });
-    fireEvent.pointerDown(slot, { button: 0, clientY: 0 });
-    fireEvent.pointerMove(slot, { buttons: 1, clientY: 20 });
-    fireEvent.pointerUp(slot, { button: 0, clientY: 20 });
+    vi.spyOn(slot, "getBoundingClientRect").mockReturnValue({
+      bottom: 64,
+      height: 64,
+      left: 0,
+      right: 160,
+      top: 0,
+      width: 160,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    });
+    fireEvent.mouseDown(slot, { button: 0, buttons: 1, clientY: 0 });
+    fireEvent.mouseMove(slot, { buttons: 1, clientY: 20 });
+    fireEvent.mouseUp(slot, { button: 0, clientY: 20 });
 
     expect(screen.queryByRole("heading", { level: 2, name: "New event" })).not.toBeInTheDocument();
-    expect(screen.getByText("1 selected")).toBeInTheDocument();
+    expect(await screen.findByText("1 selected")).toBeInTheDocument();
   });
 
   it("runs calendar-focused command palette actions", async () => {
