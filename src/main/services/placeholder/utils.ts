@@ -182,6 +182,14 @@ export function definedSettingsPatch(request: SettingsUpdateRequest): Partial<Se
     patch.hiddenNavigationTabs = [...new Set(request.hiddenNavigationTabs)];
   }
 
+  if (request.navigationTabOrder !== undefined) {
+    patch.navigationTabOrder = [...new Set(request.navigationTabOrder)];
+  }
+
+  if (request.toolbarActionOrder !== undefined) {
+    patch.toolbarActionOrder = [...new Set(request.toolbarActionOrder)];
+  }
+
   if (request.hiddenCalendarViewModes !== undefined) {
     patch.hiddenCalendarViewModes = [...new Set(request.hiddenCalendarViewModes)];
   }

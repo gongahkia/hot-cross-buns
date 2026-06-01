@@ -865,6 +865,25 @@ function normalizeMenuBarPanelStyle(value: unknown): SettingsSnapshot["menuBarPa
   return "adaptive";
 }
 
+function normalizeOrder<T extends string>(value: readonly T[], defaults: readonly T[]): T[] {
+  const allowed = new Set(defaults);
+  const next: T[] = [];
+
+  for (const item of value) {
+    if (allowed.has(item) && !next.includes(item)) {
+      next.push(item);
+    }
+  }
+
+  for (const item of defaults) {
+    if (!next.includes(item)) {
+      next.push(item);
+    }
+  }
+
+  return next;
+}
+
 function normalizeTrayClickAction(value: unknown): SettingsSnapshot["trayClickAction"] {
   if (value === "toggle-window" || value === "open-today" || value === "open-menu") {
     return value;
