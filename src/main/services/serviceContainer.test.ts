@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { MemorySecretStore } from "../credentials/secretStore";
 import {
   GOOGLE_CALENDAR_SCOPE,
   GOOGLE_TASKS_SCOPE,
+  KeychainGoogleCredentialAdapter,
   sanitizeGoogleAccountConnectionStatus,
   type GoogleCalendarReadTransport,
   type GoogleCalendarWriteTransport,
@@ -54,6 +56,102 @@ describe("service container integration", () => {
         })
       );
     } finally {
+      services.close();
+      rmSync(appSupportDirectory, { recursive: true, force: true });
+    }
+  });
+
+  it("wires runtime Google write transports by default", async () => {
+    const appSupportDirectory = mkdtempSync(join(tmpdir(), "hcb2-service-runtime-writes-"));
+    const secretStore = new MemorySecretStore();
+    const tasksRead: GoogleTasksReadTransport = {
+      listTaskLists: vi.fn(async () => [
+        {
+          id: "inbox",
+          title: "Inbox",
+          updatedAt: "2026-05-22T00:00:00.000Z"
+        }
+      ]),
+      listTasks: vi.fn(async () => ({
+        tasks: [],
+        serverDate: "2026-05-22T00:00:00.000Z"
+      }))
+    };
+    const calendarRead: GoogleCalendarReadTransport = {
+      listCalendarLists: vi.fn(async () => []),
+      listEvents: vi.fn(async () => ({ events: [], nextSyncToken: null }))
+    };
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+
+      expect(init?.method).toBe("POST");
+      expect(headers.get("Authorization")).toBe("Bearer access-token");
+
+      return new Response(
+        JSON.stringify({
+          id: "remote-task-1",
+          title: "Runtime write",
+          status: "needsAction",
+          updated: "2026-05-22T00:00:00.000Z"
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const services = createServiceContainer({
+      appSupportDirectory,
+      enableRuntimeGoogle: true,
+      secretStore,
+      syncTasksTransport: tasksRead,
+      syncCalendarTransport: calendarRead
+    });
+
+    try {
+      await services.domain.google.saveOAuthClient({
+        clientId: "desktop-client-id.apps.googleusercontent.com"
+      });
+      await new KeychainGoogleCredentialAdapter(secretStore).saveTokenSet("acct-1", {
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+        scope: `${GOOGLE_TASKS_SCOPE} ${GOOGLE_CALENDAR_SCOPE}`,
+        tokenType: "Bearer"
+      });
+      services.localData.syncRepository.upsertAccountStatus(
+        sanitizeGoogleAccountConnectionStatus({
+          accountId: "acct-1",
+          googleAccountId: "acct-1",
+          email: "planner@example.com",
+          connectionState: "connected",
+          grantedScopes: [GOOGLE_TASKS_SCOPE, GOOGLE_CALENDAR_SCOPE],
+          lastAuthenticatedAt: "2026-05-22T00:00:00.000Z",
+          updatedAt: "2026-05-22T00:00:00.000Z"
+        })
+      );
+      services.localData.syncRepository.writeTaskLists(
+        "acct-1",
+        [{ id: "inbox", title: "Inbox", updatedAt: "2026-05-22T00:00:00.000Z" }],
+        "2026-05-22T00:00:00.000Z"
+      );
+
+      const created = await services.domain.planner.createTask({
+        title: "Runtime write",
+        listId: "acct-1:task-list:inbox"
+      });
+
+      await services.domain.sync.runNow({ resources: ["tasks"] });
+
+      expect(fetchMock).toHaveBeenCalled();
+      expect(
+        services.localData.connection.get<{ status: string }>(
+          "SELECT status FROM google_pending_mutations WHERE resource_id = ?;",
+          [created.id]
+        )
+      ).toEqual({ status: "applied" });
+    } finally {
+      vi.unstubAllGlobals();
       services.close();
       rmSync(appSupportDirectory, { recursive: true, force: true });
     }

@@ -246,7 +246,7 @@ describe("App settings and onboarding", () => {
       "desktop-client-id.apps.googleusercontent.com"
     );
     await user.click(within(dialog).getByRole("button", { name: "Save OAuth Client" }));
-    expect(connectButton).toBeEnabled();
+    await waitFor(() => expect(connectButton).toBeEnabled());
 
     await user.click(connectButton);
 
