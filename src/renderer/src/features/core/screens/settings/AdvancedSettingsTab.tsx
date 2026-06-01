@@ -63,6 +63,7 @@ export function AdvancedSettingsTab({
 }: AdvancedSettingsTabProps): JSX.Element {
   const selectedTaskLists = new Set(settings.selectedTaskListIds);
   const selectedCalendars = new Set(settings.selectedCalendarIds);
+  const noteTemplates = settings.noteTemplates ?? [];
 
   function updatePerTabFilter(
     tab: keyof SettingsSnapshot["perTabListFilters"],
@@ -152,10 +153,10 @@ export function AdvancedSettingsTab({
     const now = new Date().toISOString();
     updateSettings({
       noteTemplates: [
-        ...settings.noteTemplates,
+        ...noteTemplates,
         {
           id: crypto.randomUUID(),
-          name: `Note Template ${settings.noteTemplates.length + 1}`,
+          name: `Note Template ${noteTemplates.length + 1}`,
           title: "Untitled note",
           body: "",
           createdAt: now,
@@ -171,7 +172,7 @@ export function AdvancedSettingsTab({
   ): void {
     const now = new Date().toISOString();
     updateSettings({
-      noteTemplates: settings.noteTemplates.map((template) =>
+      noteTemplates: noteTemplates.map((template) =>
         template.id === templateId ? { ...template, ...patch, updatedAt: now } : template
       )
     });
@@ -498,9 +499,9 @@ export function AdvancedSettingsTab({
             New Note Template
           </Button>
         </SettingsControlRow>
-        {settings.noteTemplates.length === 0 ? (
+        {noteTemplates.length === 0 ? (
           <EmptyState description="No custom note templates yet." title="No note templates" />
-        ) : settings.noteTemplates.map((template) => (
+        ) : noteTemplates.map((template) => (
           <div className="grid gap-2 border-b border-border px-3 py-3 last:border-b-0" key={template.id}>
             <div className="grid gap-2 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_auto]">
               <Input
@@ -516,7 +517,7 @@ export function AdvancedSettingsTab({
               <Button
                 onClick={() =>
                   updateSettings({
-                    noteTemplates: settings.noteTemplates.filter((candidate) => candidate.id !== template.id)
+                    noteTemplates: noteTemplates.filter((candidate) => candidate.id !== template.id)
                   })
                 }
                 variant="ghost"

@@ -100,7 +100,7 @@ export function useNotesController(source: CoreViewModelSource): {
         title: `Meeting ${today}`,
         body: `status: draft\ntags: meeting\ndate: ${today}\n\n# Meeting ${today}\nAttendees:\n\nNotes:\n\nDecisions:\n- \n`
       },
-      ...source.settings.noteTemplates.map((template) => ({
+      ...(source.settings.noteTemplates ?? []).map((template) => ({
         id: template.id,
         name: template.name,
         title: template.title,

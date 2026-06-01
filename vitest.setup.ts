@@ -321,6 +321,14 @@ const hcbApi: HcbApi = {
         updatedAt: now
       })
     ),
+    renameList: vi.fn(async (request) =>
+      ok({
+        id: request.id,
+        title: request.title,
+        noteCount: 0,
+        updatedAt: now
+      })
+    ),
     get: vi.fn(async (request) =>
       ok({
         id: request.id,
@@ -490,6 +498,7 @@ const hcbApi: HcbApi = {
         dismissedDuplicateGroupIds: [],
         taskTemplates: [],
         eventTemplates: [],
+        noteTemplates: [],
         lastUpdateCheckAt: null,
         mcpEnabled: false,
         mcpPermissionMode: "confirm-writes" as const,
@@ -566,6 +575,7 @@ const hcbApi: HcbApi = {
         dismissedDuplicateGroupIds: request.dismissedDuplicateGroupIds ?? [],
         taskTemplates: request.taskTemplates ?? [],
         eventTemplates: request.eventTemplates ?? [],
+        noteTemplates: request.noteTemplates ?? [],
         lastUpdateCheckAt: request.lastUpdateCheckAt ?? null,
         mcpEnabled: request.mcpEnabled ?? false,
         mcpPermissionMode: request.mcpPermissionMode ?? "confirm-writes",
