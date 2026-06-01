@@ -46,6 +46,9 @@ export const noteListRenameRequestSchema = z
 
 export type NoteListRenameRequest = z.input<typeof noteListRenameRequestSchema>;
 
+export const noteListDeleteRequestSchema = entityByIdRequestSchema;
+export type NoteListDeleteRequest = z.input<typeof noteListDeleteRequestSchema>;
+
 export const noteSummarySchema = z
   .object({
     id: idSchema,

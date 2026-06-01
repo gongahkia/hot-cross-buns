@@ -178,6 +178,7 @@ export interface PlannerViewDomainService {
   listNotes: (request: NoteListRequest) => MaybePromise<NoteListResponse>;
   createNoteList: (request: NoteListCreateRequest) => MaybePromise<NoteListSummary>;
   renameNoteList: (request: NoteListRenameRequest) => MaybePromise<NoteListSummary>;
+  deleteNoteList: (request: NoteListDeleteRequest) => MaybePromise<{ id: string; queued: boolean; revision?: string }>;
   getNote: (request: EntityByIdRequest) => MaybePromise<NoteDetail>;
   createNote: (request: NoteCreateRequest) => MaybePromise<NoteDetail>;
   updateNote: (request: NoteUpdateRequest) => MaybePromise<NoteDetail>;
