@@ -1,4 +1,5 @@
 import { createServer, type Server } from "node:http";
+import { HcbPublicError } from "@shared/ipc/result";
 import { redactErrorMessage } from "@shared/redaction";
 import { DesktopGoogleOAuthService, type GoogleOAuthAuthorizationRequestDto } from "./oauth";
 import type { GoogleCredentialAdapter } from "./credentials";
@@ -36,7 +37,7 @@ export class GoogleOAuthLoopbackController {
 
     if (clientConfig === null) {
       server.close();
-      throw new Error("Configure a Google Desktop OAuth client ID before connecting.");
+      throw publicOAuthError("Save a Google Desktop OAuth client ID before connecting.");
     }
 
     this.server = server;
@@ -52,7 +53,7 @@ export class GoogleOAuthLoopbackController {
 
     if (!opened.ok) {
       await this.stop();
-      throw new Error(opened.message ?? "Could not open the Google authorization URL.");
+      throw publicOAuthError(opened.message ?? "Could not open the Google authorization URL.");
     }
 
     return {
@@ -108,6 +109,14 @@ export class GoogleOAuthLoopbackController {
       return callbackPage(500, redactErrorMessage(message));
     }
   }
+}
+
+function publicOAuthError(message: string): HcbPublicError {
+  return new HcbPublicError({
+    code: "SERVICE_UNAVAILABLE",
+    message,
+    recoverable: true
+  });
 }
 
 function startLoopbackServer(
