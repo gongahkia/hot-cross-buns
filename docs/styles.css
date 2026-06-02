@@ -631,6 +631,39 @@ kbd {
   padding-bottom: 2px;
 }
 
+/* promo art */
+.promos {
+  padding: clamp(72px, 10vw, 120px) clamp(20px, 4vw, 56px);
+  max-width: 1240px;
+  margin: 0 auto;
+  border-top: 1px solid color-mix(in srgb, var(--surface0) 55%, transparent);
+}
+.promos-head {
+  max-width: 760px;
+  margin: 0 auto 42px;
+  text-align: center;
+}
+.promos-head .eyebrow { display: block; margin-bottom: 14px; }
+.promo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(16px, 2vw, 28px);
+  align-items: start;
+}
+.promo-card {
+  margin: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--mantle);
+  border: 1px solid color-mix(in srgb, var(--surface0) 70%, transparent);
+  box-shadow: var(--shadow);
+}
+.promo-card img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 /* updates */
 .updates {
   padding: clamp(72px, 10vw, 120px) clamp(20px, 4vw, 56px);
@@ -1033,8 +1066,8 @@ body.modal-open {
   .keys-grid { grid-template-columns: 1fr; gap: 32px; }
   .key-col dl > div { gap: 12px; }
 
-  /* views / menubar / reviews / updates / download padding */
-  .views, .menubar, .reviews, .updates, .download {
+  /* views / menubar / reviews / promos / updates / download padding */
+  .views, .menubar, .reviews, .promos, .updates, .download {
     padding-left: 18px; padding-right: 18px;
   }
   .section-head { margin-bottom: 36px; }
@@ -1045,6 +1078,20 @@ body.modal-open {
 
   .reviews { padding-top: 56px; padding-bottom: 56px; }
   .review-list li { font-size: 1.05rem; }
+
+  .promos { padding-top: 56px; padding-bottom: 56px; }
+  .promos-head { margin-bottom: 28px; }
+  .promo-grid {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    scroll-snap-type: x mandatory;
+  }
+  .promo-card {
+    flex: 0 0 min(78vw, 320px);
+    scroll-snap-align: center;
+  }
 
   .update-entry { grid-template-columns: 1fr; gap: 10px; }
 
