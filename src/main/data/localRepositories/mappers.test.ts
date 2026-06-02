@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   calendarEventDetailSchema,
   calendarEventSummarySchema,
-  calendarListSummarySchema
+  calendarListSummarySchema,
+  taskSummarySchema
 } from "@shared/ipc/contracts";
-import { calendarEventDetail, calendarEventSummary, calendarListSummary } from "./mappers";
-import type { CalendarEventRow, CalendarListRow } from "./types";
+import { calendarEventDetail, calendarEventSummary, calendarListSummary, taskSummary } from "./mappers";
+import type { CalendarEventRow, CalendarListRow, TaskRow } from "./types";
 
 describe("local repository mappers", () => {
   it("passes Google calendar colors through list summaries", () => {
@@ -25,6 +26,27 @@ describe("local repository mappers", () => {
     expect(calendarListSummarySchema.safeParse(summary).success).toBe(true);
     expect(summary.backgroundColor).toBe("#34a853");
     expect(summary.foregroundColor).toBe("#ffffff");
+  });
+
+  it("maps hidden completed Google tasks as completed", () => {
+    const row: TaskRow = {
+      id: "acct-1:task-list-1:task-1",
+      listId: "acct-1:task-list-1",
+      listTitle: "My Tasks",
+      title: "Done task",
+      status: "completed",
+      notes: null,
+      dueAt: null,
+      parentId: null,
+      deletedAt: null,
+      isHidden: 1,
+      updatedAt: "2026-06-02T00:00:00.000Z"
+    };
+
+    const summary = taskSummary(row);
+
+    expect(taskSummarySchema.safeParse(summary).success).toBe(true);
+    expect(summary.status).toBe("completed");
   });
 
   it("keeps synced calendar event summaries inside IPC response limits", () => {

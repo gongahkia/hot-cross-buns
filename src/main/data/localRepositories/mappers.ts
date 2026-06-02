@@ -199,11 +199,11 @@ export function taskStatusFromRow(row: TaskRow): TaskSummary["status"] {
     return "deleted";
   }
 
-  if (row.isHidden === 1) {
-    return "hidden";
+  if (row.status === "completed") {
+    return "completed";
   }
 
-  return row.status === "completed" ? "completed" : "active";
+  return row.isHidden === 1 ? "hidden" : "active";
 }
 
 export function mutationState(

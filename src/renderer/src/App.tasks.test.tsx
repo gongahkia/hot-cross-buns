@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import type { TaskListSummary, TaskSummary } from "@shared/ipc/contracts";
 import { err, ok } from "@shared/ipc/result";
 import App from "./App";
 import {
@@ -118,6 +119,57 @@ describe("App tasks", () => {
     expect(screen.getByText("Second page task")).toBeInTheDocument();
     expect(api.tasks.list).toHaveBeenCalledWith({ status: "all", limit: 100 });
     expect(api.tasks.list).toHaveBeenCalledWith({ status: "all", limit: 100, cursor: "page-2" });
+  });
+
+  it("shows hidden completed Google tasks in completed disclosure", async () => {
+    const api = seededHcb();
+    const inbox: TaskListSummary = {
+      id: "list-inbox",
+      title: "Inbox",
+      updatedAt: now,
+      taskCount: 2,
+      activeTaskCount: 1
+    };
+    const openTask: TaskSummary = {
+      id: "task-open",
+      listId: inbox.id,
+      title: "Open dated task",
+      status: "active",
+      priority: "none",
+      dueAt: now,
+      updatedAt: now
+    };
+    const hiddenCompletedTask: TaskSummary = {
+      id: "task-hidden-completed",
+      listId: inbox.id,
+      title: "Old completed task",
+      status: "completed",
+      priority: "none",
+      dueAt: null,
+      updatedAt: now
+    };
+    api.tasks.listTaskLists = vi.fn(async () =>
+      ok({ items: [inbox], page: { limit: 100, totalKnown: 1 } })
+    );
+    api.tasks.list = vi.fn(async (request = {}) => {
+      if (request.status === "hidden") {
+        return ok({ items: [hiddenCompletedTask], page: { limit: 100, totalKnown: 1 } });
+      }
+      if (request.status === "deleted") {
+        return ok({ items: [], page: { limit: 100, totalKnown: 0 } });
+      }
+      return ok({ items: [openTask], page: { limit: 100, totalKnown: 1 } });
+    });
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await goToSection("Tasks");
+
+    expect(await screen.findByRole("button", { name: "All tasks 1" })).toBeInTheDocument();
+    const completedToggle = screen.getByRole("button", { name: "Completed (1)" });
+    await user.click(completedToggle);
+    expect(screen.getByText("Old completed task")).toBeInTheDocument();
   });
 
   it("opens task and list action menus for move, delete, sorting, rename, and list creation", async () => {
