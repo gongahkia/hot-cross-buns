@@ -107,6 +107,16 @@ describe("App shell", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Notes" })).toBeInTheDocument();
   });
 
+  it("opens the command palette from the toolbar button", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Command palette" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Command palette" });
+    expect(within(dialog).getByRole("searchbox", { name: "Filter commands" })).toHaveValue("");
+  });
+
   it("opens quick add from the command palette and fills the event inspector", async () => {
     const user = userEvent.setup();
     installHcb(seededHcb());

@@ -60,7 +60,7 @@ export function AppHeader({
         aria-label={t("action.commandPalette")}
         className="min-w-8"
         key="commandPalette"
-        onClick={onOpenCommandPalette}
+        onClick={() => onOpenCommandPalette()}
         title={t("action.commandPalette")}
         variant={commandPaletteOpen ? "secondary" : "ghost"}
       >
