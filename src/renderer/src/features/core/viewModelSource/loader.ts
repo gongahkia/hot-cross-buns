@@ -1,4 +1,18 @@
-import type { SettingsSnapshot } from "@shared/ipc/contracts";
+import type {
+  CalendarListRequest,
+  CalendarListResponse,
+  CalendarRangeRequest,
+  CalendarRangeResponse,
+  NoteListRequest,
+  NoteListResponse,
+  ScheduledTaskBlockListRequest,
+  ScheduledTaskBlockListResponse,
+  SettingsSnapshot,
+  TaskListRequest,
+  TaskListResponse,
+  TaskListsRequest,
+  TaskListsResponse
+} from "@shared/ipc/contracts";
 import { dateOnlyFromLocalDate, visibleCalendarRange } from "./dateFormat";
 import { unwrap } from "./result";
 import { uniqueTasks } from "./taskViewModels";
@@ -18,11 +32,11 @@ function knownTotal(pageTotal: number | undefined, itemCount: number): number {
   return pageTotal ?? itemCount;
 }
 
-async function loadAllPages<Request extends CursorRequest, Item, Response extends PagedResponse<Item>>(
-  loadPage: (request: Request) => Promise<Response>,
-  request: Request
+async function loadAllPages<Request extends CursorRequest, Response extends PagedResponse<unknown>>(
+  request: Request,
+  loadPage: (request: Request) => Promise<Response>
 ): Promise<Response> {
-  const items: Item[] = [];
+  const items: unknown[] = [];
   let firstPage: Response | null = null;
   let lastPage: Response | null = null;
   let cursor = request.cursor;
@@ -51,7 +65,7 @@ async function loadAllPages<Request extends CursorRequest, Item, Response extend
       ...pageMetadata,
       totalKnown: lastPage.page.totalKnown ?? firstPage.page.totalKnown ?? items.length
     }
-  };
+  } as Response;
 }
 
 export async function loadCoreData(settingsPromise?: Promise<SettingsSnapshot>): Promise<CoreDataSnapshot> {
@@ -59,9 +73,10 @@ export async function loadCoreData(settingsPromise?: Promise<SettingsSnapshot>):
     throw new Error("Preload bridge is unavailable.");
   }
 
+  const hcb = window.hcb;
   const range = visibleCalendarRange();
   const settingsLoad =
-    settingsPromise ?? window.hcb.settings.get().then((result) => unwrap(result, "Settings failed"));
+    settingsPromise ?? hcb.settings.get().then((result) => unwrap(result, "Settings failed"));
   const [
     taskLists,
     tasks,
@@ -77,47 +92,47 @@ export async function loadCoreData(settingsPromise?: Promise<SettingsSnapshot>):
     native
   ] = await Promise.all([
     loadAllPages(
-      (request) => window.hcb.tasks.listTaskLists(request).then((result) => unwrap(result, "Task lists failed")),
-      { limit: 100 }
+      { limit: 100 },
+      (request) => hcb.tasks.listTaskLists(request).then((result) => unwrap(result, "Task lists failed"))
     ),
-    loadAllPages(
-      (request) => window.hcb.tasks.list(request).then((result) => unwrap(result, "Tasks failed")),
-      { status: "all", limit: 100 }
+    loadAllPages<TaskListRequest, TaskListResponse>(
+      { status: "all", limit: 100 },
+      (request) => hcb.tasks.list(request).then((result) => unwrap(result, "Tasks failed"))
     ),
-    loadAllPages(
-      (request) => window.hcb.tasks.list(request).then((result) => unwrap(result, "Hidden tasks failed")),
-      { status: "hidden", limit: 100 }
+    loadAllPages<TaskListRequest, TaskListResponse>(
+      { status: "hidden", limit: 100 },
+      (request) => hcb.tasks.list(request).then((result) => unwrap(result, "Hidden tasks failed"))
     ),
-    loadAllPages(
-      (request) => window.hcb.tasks.list(request).then((result) => unwrap(result, "Deleted tasks failed")),
-      { status: "deleted", limit: 100 }
+    loadAllPages<TaskListRequest, TaskListResponse>(
+      { status: "deleted", limit: 100 },
+      (request) => hcb.tasks.list(request).then((result) => unwrap(result, "Deleted tasks failed"))
     ),
-    loadAllPages(
-      (request) => window.hcb.calendar.listCalendars(request).then((result) => unwrap(result, "Calendars failed")),
-      { limit: 100 }
+    loadAllPages<CalendarListRequest, CalendarListResponse>(
+      { limit: 100 },
+      (request) => hcb.calendar.listCalendars(request).then((result) => unwrap(result, "Calendars failed"))
     ),
-    loadAllPages(
-      (request) => window.hcb.calendar.listEvents(request).then((result) => unwrap(result, "Calendar events failed")),
-      { start: range.start, end: range.end, limit: 500 }
+    loadAllPages<CalendarRangeRequest, CalendarRangeResponse>(
+      { start: range.start, end: range.end, limit: 500 },
+      (request) => hcb.calendar.listEvents(request).then((result) => unwrap(result, "Calendar events failed"))
     ),
-    loadAllPages(
+    loadAllPages<ScheduledTaskBlockListRequest, ScheduledTaskBlockListResponse>(
+      { start: range.start, end: range.end, limit: 500 },
       (request) =>
-        window.hcb.calendar
+        hcb.calendar
           .listScheduledTaskBlocks(request)
-          .then((result) => unwrap(result, "Scheduled task blocks failed")),
-      { start: range.start, end: range.end, limit: 500 }
+          .then((result) => unwrap(result, "Scheduled task blocks failed"))
     ),
-    loadAllPages(
-      (request) => window.hcb.notes.list(request).then((result) => unwrap(result, "Notes failed")),
-      { limit: 100 }
+    loadAllPages<NoteListRequest, NoteListResponse>(
+      { limit: 100 },
+      (request) => hcb.notes.list(request).then((result) => unwrap(result, "Notes failed"))
     ),
     settingsLoad,
-    window.hcb.sync.status().then((result) => unwrap(result, "Sync status failed")),
-    window.hcb.google.status().then((result) => unwrap(result, "Google status failed")),
-    window.hcb.native.capabilities().then((result) => unwrap(result, "Native status failed"))
+    hcb.sync.status().then((result) => unwrap(result, "Sync status failed")),
+    hcb.google.status().then((result) => unwrap(result, "Google status failed")),
+    hcb.native.capabilities().then((result) => unwrap(result, "Native status failed"))
   ]);
   const scheduleDate = dateOnlyFromLocalDate(new Date());
-  const scheduleSuggestion = await window.hcb.calendar
+  const scheduleSuggestion = await hcb.calendar
     .scheduleSuggest({
       date: scheduleDate,
       capacityMinutes: settings.todayCapacityMinutes,
