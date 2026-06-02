@@ -1,21 +1,21 @@
-# Hot Cross Buns Portable Export
+# Hot Cross Buns 2 Portable Export
 
 Portable exports use a directory package with the `.hcbexport` extension. The
-format is intended for lossless migration between Macs while Hot Cross Buns is
+format is intended for lossless migration between Macs while Hot Cross Buns 2 is
 still Google-backed. It is not the future local-first source-of-truth backend
 tracked in #12.
 
 ## Layout
 
 ```text
-HotCrossBuns-Portable-YYYYMMDD-HHMMSS.hcbexport/
+HotCrossBuns2-Portable-YYYYMMDD-HHMMSS.hcbexport/
   manifest.json
-  hot-cross-buns-state.json
+  hot-cross-buns-2-state.json
   Attachments/
     copied-local-file-or-image
 ```
 
-`hot-cross-buns-state.json` contains the cached app state:
+`hot-cross-buns-2-state.json` contains the cached app state:
 
 - Google account metadata cached by the app
 - task lists and tasks
@@ -35,7 +35,7 @@ at copies in the importing Mac's Application Support attachments folder.
 - `formatVersion`: current archive schema version. Unknown versions are refused.
 - `exportedAt`: export timestamp.
 - `appVersion`: app version that wrote the archive when available.
-- `stateFile`: state payload file name, currently `hot-cross-buns-state.json`.
+- `stateFile`: state payload file name, currently `hot-cross-buns-2-state.json`.
 - `attachmentDirectory`: attachment folder name, currently `Attachments`.
 - `attachments`: reachable local pointers that were bundled.
 - `skippedPointers`: original file URLs that were missing, unreadable, or
@@ -57,7 +57,7 @@ integrity checks is treated as corrupt and is not copied or relinked.
 
 ## Import Semantics
 
-Portable import is destructive for cached Hot Cross Buns data on the importing
+Portable import is destructive for cached Hot Cross Buns 2 data on the importing
 Mac. Users must confirm replacement before local cached tasks, events,
 calendars, task lists, settings, sync checkpoints, and queued mutations are
 replaced by the archive state.

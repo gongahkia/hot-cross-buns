@@ -1,6 +1,6 @@
 # Transition Performance Profiling
 
-This workflow measures primary Hot Cross Buns screen transitions against the
+This workflow measures primary Hot Cross Buns 2 screen transitions against the
 P95 under 1 second first-content target.
 
 ## Real user benchmark scale
