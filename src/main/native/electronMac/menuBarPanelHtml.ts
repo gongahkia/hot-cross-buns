@@ -17,7 +17,7 @@ export function menuBarPanelHtml(snapshot: NativeMenuBarSnapshot): string {
     <meta charset="utf-8">
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; style-src 'unsafe-inline'; navigate-to hcb-panel:"
+      content="default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; navigate-to hcb-panel:"
     >
     <meta name="color-scheme" content="light dark">
     <title>Hot Cross Buns 2 menu bar panel</title>
@@ -157,7 +157,7 @@ export function menuBarPanelHtml(snapshot: NativeMenuBarSnapshot): string {
       }
       .account {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 18px;
+        grid-template-columns: minmax(0, 1fr) 32px;
         align-items: center;
         gap: 10px;
         padding: 7px 4px;
@@ -186,10 +186,27 @@ export function menuBarPanelHtml(snapshot: NativeMenuBarSnapshot): string {
         font-size: 12px;
         line-height: 16px;
       }
-      .chevrons {
+      .account-avatar {
+        display: inline-flex;
+        width: 32px;
+        height: 32px;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border: 1px solid var(--separator);
+        border-radius: 999px;
+        background: var(--hover);
         color: var(--muted);
-        font-size: 16px;
+        font-size: 13px;
         font-weight: 700;
+        line-height: 1;
+        text-transform: uppercase;
+      }
+      .account-avatar img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
       }
       .quick-actions {
         display: grid;
@@ -436,6 +453,10 @@ function accountMarkup(snapshot: NativeMenuBarSnapshot): string {
 
   const hasProfileText = snapshot.account.displayName !== "Google account" || Boolean(snapshot.account.email);
   const accountName = hasProfileText ? snapshot.account.displayName : "Connected";
+  const fallbackInitial = accountName.trim().charAt(0) || "G";
+  const avatarMarkup = snapshot.account.avatarUrl
+    ? `<span class="account-avatar"><img alt="" referrerpolicy="no-referrer" src="${escapeHtml(snapshot.account.avatarUrl)}"></span>`
+    : `<span class="account-avatar" aria-hidden="true">${escapeHtml(fallbackInitial)}</span>`;
 
   return `
     <div class="divider"></div>
@@ -445,7 +466,7 @@ function accountMarkup(snapshot: NativeMenuBarSnapshot): string {
         <span class="account-name">${escapeHtml(accountName)}</span>
         ${snapshot.account.email ? `<span class="account-email">${escapeHtml(snapshot.account.email)}</span>` : ""}
       </span>
-      <span class="chevrons" aria-hidden="true">v</span>
+      ${avatarMarkup}
     </section>`;
 }
 

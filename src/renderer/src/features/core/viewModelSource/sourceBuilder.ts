@@ -10,6 +10,7 @@ import {
   scheduledTaskBlockConflicts,
   scheduledTaskBlockViewModel,
   stableCalendarEventViewModel,
+  stableTaskCalendarEventViewModel,
   weekDays
 } from "./calendarViewModels";
 import { dayKey, shortDateTime, startOfUtcDay, syncLabel, timeLabel } from "./dateFormat";
@@ -84,7 +85,6 @@ export function buildCoreViewModelSource(
     )
   );
   const scheduledTaskIds = new Set(baseScheduledTaskBlocks.map((block) => block.taskId));
-  const eventDayIndex = buildCalendarEventDayIndex(events);
   const rootTasks = tasks.filter((task) => task.parentId === null);
   const openTasks = rootTasks.filter((task) => task.status === "open");
   const openDatedTasks = openTasks.filter((task) => task.dueDate !== null);
@@ -95,6 +95,27 @@ export function buildCoreViewModelSource(
   const completedTasks = rootTasks.filter((task) => task.status === "completed");
   const hiddenTasks = rootTasks.filter((task) => task.status === "hidden");
   const deletedTasks = rootTasks.filter((task) => task.status === "deleted");
+  const selectedTaskListIds = new Set(
+    snapshot.settings.selectedTaskListIds.length > 0
+      ? snapshot.settings.selectedTaskListIds
+      : snapshot.taskLists.map((taskList) => taskList.id)
+  );
+  const taskCalendarEvents = rootTasks
+    .filter(taskHasDueDate)
+    .filter((task) => selectedTaskListIds.has(task.listId))
+    .filter((task) =>
+      task.status === "open" ||
+      (snapshot.settings.showCompletedInCalendarViews && task.status === "completed")
+    )
+    .map((task) =>
+      stableTaskCalendarEventViewModel(
+        task,
+        snapshot.settings.defaultTimeZone,
+        options.calendarEventViewModelCache
+      )
+    );
+  const calendarItems = [...events, ...taskCalendarEvents];
+  const eventDayIndex = buildCalendarEventDayIndex(calendarItems);
   const now = new Date();
   const today = startOfUtcDay(now);
   const todayKey = dayKey(today);
@@ -159,7 +180,7 @@ export function buildCoreViewModelSource(
 
   return {
     appearanceReady: options.appearanceReady,
-    calendarAgendaEvents: events,
+    calendarAgendaEvents: calendarItems,
     calendarDayView: dayView(eventDayIndex),
     calendarEventsById: eventsById,
     calendarMonthWeeks: monthWeeks(eventDayIndex),
@@ -244,6 +265,10 @@ function pruneViewModelCache<T extends { id: string }, V>(
       cache.delete(id);
     }
   }
+}
+
+function taskHasDueDate(task: TaskViewModel): task is TaskViewModel & { dueDate: string } {
+  return task.dueDate !== null;
 }
 
 function taskBackedNoteViewModel(task: TaskViewModel): NoteViewModel {

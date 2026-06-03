@@ -246,6 +246,33 @@ describe("App notes", () => {
     });
   });
 
+  it("creates notes from each note list column", async () => {
+    const api = seededHcb();
+    installTaskBackedNotes(
+      api,
+      [],
+      [
+        { id: "list-inbox", title: "Inbox", taskCount: 0, activeTaskCount: 0, updatedAt: now },
+        { id: "list-side", title: "Side notes", taskCount: 0, activeTaskCount: 0, updatedAt: now }
+      ]
+    );
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await goToSection("Notes");
+    await user.click((await screen.findAllByRole("button", { name: "Add a note" }))[1]);
+
+    await waitFor(() => {
+      expect(api.tasks.create).toHaveBeenCalledWith({
+        title: "Untitled note",
+        notes: "",
+        listId: "list-side",
+        dueDate: null
+      });
+    });
+  });
+
   it("deletes custom note lists through Google Tasks", async () => {
     const api = seededHcb();
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);

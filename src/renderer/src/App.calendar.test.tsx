@@ -9,6 +9,7 @@ import {
   now,
   runPaletteCommand,
   seededHcb,
+  seededTaskDetail,
   testDataTransfer,
   testSettings,
   todayDate,
@@ -22,6 +23,13 @@ describe("App calendar", () => {
 
     date.setUTCDate(date.getUTCDate() + offset);
     return date.toISOString().slice(0, 10);
+  }
+
+  function hideTaskCalendarItems(api: ReturnType<typeof seededHcb>): void {
+    api.settings = {
+      ...api.settings,
+      get: vi.fn(async () => ok(testSettings({ selectedTaskListIds: ["list-none"] })))
+    };
   }
 
   it("switches calendar agenda, day, week, and month shells", async () => {
@@ -200,6 +208,7 @@ describe("App calendar", () => {
 
   it("separates all-day calendar events and summarizes dense month cells", async () => {
     const api = seededHcb();
+    hideTaskCalendarItems(api);
     api.calendar.listEvents = vi.fn(async () =>
       ok({
         items: [
@@ -283,6 +292,7 @@ describe("App calendar", () => {
 
   it("opens all-day overflow without creating a draft in timeline views", async () => {
     const api = seededHcb();
+    hideTaskCalendarItems(api);
     api.calendar.listEvents = vi.fn(async () =>
       ok({
         items: Array.from({ length: 5 }, (_, index) => ({
@@ -309,6 +319,67 @@ describe("App calendar", () => {
     const overflowDialog = screen.getByRole("dialog", { name: /More all-day items for/ });
     expect(within(overflowDialog).getByRole("button", { name: "All day All-day 5" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 2, name: "New event" })).not.toBeInTheDocument();
+  });
+
+  it("opens and toggles due tasks directly from calendar views", async () => {
+    const api = seededHcb();
+    api.tasks.list = vi.fn(async () =>
+      ok({
+        items: [
+          seededTaskDetail("task-inbox-rules"),
+          seededTaskDetail("task-calendar-fixtures"),
+          seededTaskDetail("task-done", { dueAt: now })
+        ],
+        page: { limit: 100, totalKnown: 3 }
+      })
+    );
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await goToSection("Calendar");
+    const agenda = await screen.findByRole("list", { name: "Calendar agenda" });
+    expect(await within(agenda).findByText("Draft inbox triage rules")).toBeInTheDocument();
+    expect(within(agenda).getByText("Review calendar fixture shape")).toBeInTheDocument();
+    expect(within(agenda).getByText("Report shell-visible timing")).toBeInTheDocument();
+
+    await user.click(within(agenda).getByText("Report shell-visible timing"));
+    let inspector = await screen.findByTestId("inspector-shell");
+    expect(inspector).toHaveAttribute("data-inspector-kind", "task");
+    expect(inspector).toHaveAttribute("data-inspector-id", "task-done");
+    expect(screen.getByText("Agenda view")).toBeInTheDocument();
+    await user.click(within(screen.getByTestId("inspector-actions")).getByRole("button", { name: "Close" }));
+
+    await user.click(within(agenda).getByRole("button", { name: "Mark Draft inbox triage rules complete" }));
+    expect(api.tasks.complete).toHaveBeenCalledWith({ id: "task-inbox-rules" });
+    expect(screen.queryByTestId("inspector-shell")).not.toBeInTheDocument();
+
+    await user.click(within(agenda).getByRole("button", { name: "Reopen Report shell-visible timing" }));
+    expect(api.tasks.reopen).toHaveBeenCalledWith({ id: "task-done" });
+
+    const visibility = screen.getByRole("group", { name: "Sidebar calendar visibility" });
+    await user.click(within(visibility).getByLabelText("Hide Product"));
+
+    await waitFor(() => {
+      expect(within(agenda).queryByText("Planner shell standup")).not.toBeInTheDocument();
+      expect(within(agenda).getByText("Draft inbox triage rules")).toBeInTheDocument();
+    });
+
+    const tabs = screen.getByRole("tablist", { name: "Calendar views" });
+    await user.click(within(tabs).getByRole("tab", { name: "Day" }));
+    const allDayLane = screen.getByRole("group", { name: /All-day events/ });
+    await user.click(within(allDayLane).getByRole("button", { name: "Draft inbox triage rules" }));
+
+    inspector = await screen.findByTestId("inspector-shell");
+    expect(inspector).toHaveAttribute("data-inspector-kind", "task");
+    expect(inspector).toHaveAttribute("data-inspector-id", "task-inbox-rules");
+    expect(screen.getByRole("grid", { name: "Calendar day view" })).toBeInTheDocument();
+    await user.click(within(screen.getByTestId("inspector-actions")).getByRole("button", { name: "Close" }));
+
+    await user.click(within(tabs).getByRole("tab", { name: "Month" }));
+    const monthGrid = screen.getByRole("grid", { name: "Calendar month view" });
+    await user.click(within(monthGrid).getByRole("button", { name: "Mark Review calendar fixture shape complete" }));
+    expect(api.tasks.complete).toHaveBeenCalledWith({ id: "task-calendar-fixtures" });
   });
 
   it("renders multi-day all-day events as one spanning timeline segment", async () => {

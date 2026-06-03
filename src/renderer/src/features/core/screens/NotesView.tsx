@@ -53,6 +53,7 @@ export function NotesView(): JSX.Element {
       />
       <NotesBoard
         columns={noteViewColumns}
+        onCreateNote={(listId) => void createNote(listId)}
         onDeleteNoteList={(listId, title) => void deleteNoteList(listId, title)}
         onDeleteNote={(noteId) => void deleteNote(noteId)}
         onMoveNote={(noteId, listId) => void moveNoteToList(noteId, listId)}

@@ -68,7 +68,7 @@ function noteListFromTaskList(list: TaskListSummary): CoreViewModelSource["noteL
 }
 
 export function useNotesController(source: CoreViewModelSource): {
-  createNote: () => Promise<void>;
+  createNote: (listId?: string) => Promise<void>;
   createNoteList: () => Promise<void>;
   deleteNoteList: (listId: string, title: string) => Promise<void>;
   deleteNote: (noteId: string) => Promise<void>;
@@ -348,12 +348,12 @@ export function useNotesController(source: CoreViewModelSource): {
     openNoteInspector(note, mode);
   }
 
-  async function createNote(): Promise<void> {
+  async function createNote(listId?: string): Promise<void> {
     if (noteInspectorModeRef.current === "edit") {
       await noteInspectorBodyRef.current?.flush();
     }
 
-    const list = noteLists[0];
+    const list = noteLists.find((candidate) => candidate.id === listId) ?? noteLists[0];
     if (!list) {
       return;
     }

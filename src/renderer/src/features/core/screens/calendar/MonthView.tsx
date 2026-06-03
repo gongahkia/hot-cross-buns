@@ -34,12 +34,14 @@ export function MonthView({
   weeks,
   onCreate,
   onOpen,
+  onToggleTask,
   todayKey,
   visibleCalendarIds
 }: {
   weeks: CalendarMonthWeekViewModel[];
   onCreate: (seed?: CalendarCreateSeed) => void;
   onOpen: (event: CalendarEventViewModel) => void;
+  onToggleTask?: (taskId: string) => void;
   todayKey: string;
   visibleCalendarIds: ReadonlySet<string>;
 }): JSX.Element {
@@ -205,6 +207,7 @@ export function MonthView({
                     handleActivationKeyDown(keyEvent, () => onOpen(segment.event));
                   }}
                   onOpen={onOpen}
+                  onToggleTask={onToggleTask}
                   size="compact"
                 />
               </div>
@@ -226,6 +229,7 @@ export function MonthView({
                       handleActivationKeyDown(keyEvent, () => onOpen(event));
                     }}
                     onOpen={onOpen}
+                    onToggleTask={onToggleTask}
                     size="compact"
                   />
                 </div>
@@ -259,6 +263,7 @@ export function MonthView({
           events={activeOverflow.events}
           onClose={() => setActiveOverflow(null)}
           onOpen={onOpen}
+          onToggleTask={onToggleTask}
           title={activeOverflow.title}
         />
       ) : null}

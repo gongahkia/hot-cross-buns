@@ -4,6 +4,10 @@ export function visibleCalendarEvent(
   event: CalendarEventViewModel,
   visibleCalendarIds: ReadonlySet<string>
 ): boolean {
+  if (event.sourceKind === "task") {
+    return true;
+  }
+
   return visibleCalendarIds.has(event.calendarId);
 }
 

@@ -412,11 +412,13 @@ function menuBarAccountSnapshot(
   }
 
   const email = account.email?.trim();
+  const avatarUrl = account.avatarUrl?.trim();
   const displayName = account.displayName?.trim() || email || "Google account";
 
   return {
     displayName,
     ...(email ? { email } : {}),
+    ...(avatarUrl ? { avatarUrl } : {}),
     connectionState: account.connectionState
   };
 }

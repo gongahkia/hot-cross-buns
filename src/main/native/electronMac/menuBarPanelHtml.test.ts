@@ -64,7 +64,7 @@ describe("menu bar panel HTML", () => {
     expect(html).not.toContain("row-icon");
   });
 
-  it("renders the account block without the old avatar offset", () => {
+  it("renders the account block with an avatar slot instead of the old chevron", () => {
     const snapshot: NativeMenuBarSnapshot = {
       panelStyle: "adaptive",
       iconName: "bun",
@@ -81,7 +81,33 @@ describe("menu bar panel HTML", () => {
 
     const html = menuBarPanelHtml(snapshot);
 
-    expect(html).not.toContain("class=\"avatar\"");
+    expect(html).not.toContain("class=\"chevrons\"");
+    expect(html).not.toContain(">v</span>");
+    expect(html).toContain("class=\"account-avatar\"");
     expect(html).toContain("<span class=\"account-name\">Connected</span>");
+  });
+
+  it("renders the Google account profile image when present", () => {
+    const snapshot: NativeMenuBarSnapshot = {
+      panelStyle: "adaptive",
+      iconName: "bun",
+      primaryClickAction: "open-menu",
+      title: "Agenda",
+      syncLabel: "Synced",
+      tooltip: "Tooltip",
+      sections: [],
+      account: {
+        displayName: "Gabriel Ong",
+        email: "angryapplegravy@gmail.com",
+        avatarUrl: "https://lh3.googleusercontent.com/avatar.png",
+        connectionState: "connected"
+      }
+    };
+
+    const html = menuBarPanelHtml(snapshot);
+
+    expect(html).toContain("img-src https: data:");
+    expect(html).toContain("referrerpolicy=\"no-referrer\"");
+    expect(html).toContain("src=\"https://lh3.googleusercontent.com/avatar.png\"");
   });
 });

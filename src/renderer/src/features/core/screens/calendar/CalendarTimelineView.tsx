@@ -41,23 +41,31 @@ function CalendarTimelineEventChip({
   event,
   labelVariant,
   onMoveEvent,
-  onOpen
+  onOpen,
+  onToggleTask
 }: {
   className?: string;
   event: CalendarEventViewModel;
   labelVariant: "range" | "time" | "title";
   onMoveEvent: (eventId: string, startsAt: string, allDay: boolean) => void;
   onOpen: (event: CalendarEventViewModel) => void;
+  onToggleTask?: (taskId: string) => void;
 }): JSX.Element {
+  const draggable = event.sourceKind !== "task";
+
   return (
     <>
       <CalendarEventChip
         className={cx("h-full min-h-0", className)}
-        draggable
+        draggable={draggable}
         event={event}
         labelVariant={labelVariant}
-        onDragStart={(dragEvent) => startCalendarEventDrag(dragEvent, event.id)}
+        onDragStart={draggable ? (dragEvent) => startCalendarEventDrag(dragEvent, event.id) : undefined}
         onKeyDown={(keyEvent) => {
+          if (!draggable) {
+            return;
+          }
+
           if (keyEvent.key !== "ArrowDown" && keyEvent.key !== "ArrowUp") {
             return;
           }
@@ -76,9 +84,10 @@ function CalendarTimelineEventChip({
           );
         }}
         onOpen={onOpen}
+        onToggleTask={onToggleTask}
         size="compact"
       />
-      {!event.allDay ? (
+      {draggable && !event.allDay ? (
         <button
           aria-label={`Resize ${event.title} end`}
           className="sr-only"
@@ -163,6 +172,7 @@ function CalendarTimelineView({
   onMoveEvent,
   onOpen,
   onResizeEvent,
+  onToggleTask,
   timedLabelVariant = "time",
   title,
   visibleCalendarIds
@@ -178,6 +188,7 @@ function CalendarTimelineView({
   onMoveEvent: (eventId: string, startsAt: string, allDay: boolean) => void;
   onOpen: (event: CalendarEventViewModel) => void;
   onResizeEvent: (eventId: string, endsAt: string) => void;
+  onToggleTask?: (taskId: string) => void;
   timedLabelVariant?: "range" | "time";
   title: string;
   visibleCalendarIds: ReadonlySet<string>;
@@ -608,6 +619,7 @@ function CalendarTimelineView({
                       labelVariant="title"
                       onMoveEvent={onMoveEvent}
                       onOpen={onOpen}
+                      onToggleTask={onToggleTask}
                     />
                   </div>
                 ))}
@@ -788,6 +800,7 @@ function CalendarTimelineView({
                         labelVariant={timedLabelVariant}
                         onMoveEvent={onMoveEvent}
                         onOpen={onOpen}
+                        onToggleTask={onToggleTask}
                       />
                     </div>
                   ))}
@@ -825,6 +838,7 @@ function CalendarTimelineView({
           events={activeOverflow.events}
           onClose={() => setActiveOverflow(null)}
           onOpen={onOpen}
+          onToggleTask={onToggleTask}
           title={activeOverflow.title}
         />
       ) : null}
@@ -841,6 +855,7 @@ export function DayView({
   onMoveEvent,
   onOpen,
   onResizeEvent,
+  onToggleTask,
   visibleCalendarIds
 }: {
   availabilityMode: boolean;
@@ -851,6 +866,7 @@ export function DayView({
   onMoveEvent: (eventId: string, startsAt: string, allDay: boolean) => void;
   onOpen: (event: CalendarEventViewModel) => void;
   onResizeEvent: (eventId: string, endsAt: string) => void;
+  onToggleTask?: (taskId: string) => void;
   visibleCalendarIds: ReadonlySet<string>;
 }): JSX.Element {
   return (
@@ -865,6 +881,7 @@ export function DayView({
       onMoveEvent={onMoveEvent}
       onOpen={onOpen}
       onResizeEvent={onResizeEvent}
+      onToggleTask={onToggleTask}
       timedLabelVariant="range"
       title="Day view"
       visibleCalendarIds={visibleCalendarIds}
@@ -883,6 +900,7 @@ export function MultiDayView({
   onMoveEvent,
   onOpen,
   onResizeEvent,
+  onToggleTask,
   visibleCalendarIds
 }: {
   availabilityMode: boolean;
@@ -895,6 +913,7 @@ export function MultiDayView({
   onMoveEvent: (eventId: string, startsAt: string, allDay: boolean) => void;
   onOpen: (event: CalendarEventViewModel) => void;
   onResizeEvent: (eventId: string, endsAt: string) => void;
+  onToggleTask?: (taskId: string) => void;
   visibleCalendarIds: ReadonlySet<string>;
 }): JSX.Element {
   return (
@@ -932,6 +951,7 @@ export function MultiDayView({
       onMoveEvent={onMoveEvent}
       onOpen={onOpen}
       onResizeEvent={onResizeEvent}
+      onToggleTask={onToggleTask}
       title="Multi-Day view"
       visibleCalendarIds={visibleCalendarIds}
     />
@@ -947,6 +967,7 @@ export function WeekView({
   onMoveEvent,
   onOpen,
   onResizeEvent,
+  onToggleTask,
   visibleCalendarIds
 }: {
   availabilityMode: boolean;
@@ -957,6 +978,7 @@ export function WeekView({
   onMoveEvent: (eventId: string, startsAt: string, allDay: boolean) => void;
   onOpen: (event: CalendarEventViewModel) => void;
   onResizeEvent: (eventId: string, endsAt: string) => void;
+  onToggleTask?: (taskId: string) => void;
   visibleCalendarIds: ReadonlySet<string>;
 }): JSX.Element {
   return (
@@ -971,6 +993,7 @@ export function WeekView({
       onMoveEvent={onMoveEvent}
       onOpen={onOpen}
       onResizeEvent={onResizeEvent}
+      onToggleTask={onToggleTask}
       title="Week view"
       visibleCalendarIds={visibleCalendarIds}
     />

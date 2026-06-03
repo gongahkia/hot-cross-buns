@@ -1,5 +1,5 @@
 import { useState, type DragEvent } from "react";
-import { MoreVertical, Pencil, Star, Trash2 } from "lucide-react";
+import { MoreVertical, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import { FloatingMenu } from "../../../components/FloatingMenu";
 import { Badge, IconButton, Panel, cx } from "../../../components/primitives";
 import { EmptyState } from "../../../components/states";
@@ -11,6 +11,7 @@ const noteDragType = "application/x-hcb-note-id";
 
 export function NotesBoard({
   columns,
+  onCreateNote,
   onDeleteNoteList,
   onDeleteNote,
   onMoveNote,
@@ -21,6 +22,7 @@ export function NotesBoard({
   starredNoteIds
 }: {
   columns: NoteViewColumn[];
+  onCreateNote: (listId: string) => void;
   onDeleteNoteList: (listId: string, title: string) => void;
   onDeleteNote: (noteId: string) => void;
   onMoveNote: (noteId: string, listId: string) => void;
@@ -56,6 +58,16 @@ export function NotesBoard({
               role="listitem"
               title={column.title}
             >
+              {column.listId ? (
+                <button
+                  className="flex min-h-10 w-full items-center gap-3 border-b border-border px-4 text-left text-[var(--text-base)] font-semibold text-accent transition-colors duration-fast ease-hcb hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  onClick={() => onCreateNote(column.listId)}
+                  type="button"
+                >
+                  <Plus aria-hidden="true" size={18} />
+                  Add a note
+                </button>
+              ) : null}
               <NoteColumnDropTarget column={column} onMoveNote={onMoveNote}>
                 <VirtualizedList
                   ariaLabel={column.title}

@@ -32,6 +32,7 @@ import {
 } from "./calendarGrid";
 import { useCalendarAvailability } from "./useCalendarAvailability";
 import { useCalendarEventInspector } from "./useCalendarEventInspector";
+import { useTaskInspector } from "../tasks/useTaskInspector";
 import type { CalendarCreateMode, CalendarCreateSeed, CalendarEventDraft } from "./types";
 
 export function CalendarView({
@@ -80,6 +81,7 @@ export function CalendarView({
     resizeCalendarEvent,
     setCalendarActionError
   } = useCalendarEventInspector(source);
+  const taskInspector = useTaskInspector(source);
   const visibleCalendarEvents = useMemo(
     () =>
       source.calendarAgendaEvents.filter((event) =>
@@ -189,6 +191,19 @@ export function CalendarView({
   function resetCalendarAnchor(): void {
     calendarNavigationStartedAt.current = rendererNow();
     setCalendarAnchorDate(calendarCurrentDayKey(source.settings.defaultTimeZone));
+  }
+
+  function openCalendarItem(calendarItem: typeof visibleCalendarEvents[number]): void {
+    if (calendarItem.sourceKind === "task" && calendarItem.taskId) {
+      taskInspector.selectTask(calendarItem.taskId);
+      return;
+    }
+
+    openEdit(calendarItem);
+  }
+
+  function toggleCalendarTask(taskId: string): void {
+    void taskInspector.toggleTask(taskId);
   }
 
   useEffect(() => {
@@ -332,7 +347,8 @@ export function CalendarView({
             <CalendarAgendaView
               events={calendarAgendaEvents}
               label={calendarDateTitleFromIso(calendarAnchorDate)}
-              onOpen={openEdit}
+              onOpen={openCalendarItem}
+              onToggleTask={toggleCalendarTask}
             />
           ) : null}
           {activeViewId === "day" ? (
@@ -343,8 +359,9 @@ export function CalendarView({
               onAddAvailabilitySlot={addAvailabilitySlot}
               onCreate={openCreate}
               onMoveEvent={moveCalendarEvent}
-              onOpen={openEdit}
+              onOpen={openCalendarItem}
               onResizeEvent={resizeCalendarEvent}
+              onToggleTask={toggleCalendarTask}
               visibleCalendarIds={visibleCalendarIds}
             />
           ) : null}
@@ -358,8 +375,9 @@ export function CalendarView({
               onCreate={openCreate}
               onDayCountChange={setMultiDayCount}
               onMoveEvent={moveCalendarEvent}
-              onOpen={openEdit}
+              onOpen={openCalendarItem}
               onResizeEvent={resizeCalendarEvent}
+              onToggleTask={toggleCalendarTask}
               visibleCalendarIds={visibleCalendarIds}
             />
           ) : null}
@@ -371,8 +389,9 @@ export function CalendarView({
               onAddAvailabilitySlot={addAvailabilitySlot}
               onCreate={openCreate}
               onMoveEvent={moveCalendarEvent}
-              onOpen={openEdit}
+              onOpen={openCalendarItem}
               onResizeEvent={resizeCalendarEvent}
+              onToggleTask={toggleCalendarTask}
               visibleCalendarIds={visibleCalendarIds}
             />
           ) : null}
@@ -380,7 +399,8 @@ export function CalendarView({
             <MonthView
               weeks={calendarMonthWeeks}
               onCreate={openCreate}
-              onOpen={openEdit}
+              onOpen={openCalendarItem}
+              onToggleTask={toggleCalendarTask}
               todayKey={calendarCurrentDayKey(source.settings.defaultTimeZone)}
               visibleCalendarIds={visibleCalendarIds}
             />

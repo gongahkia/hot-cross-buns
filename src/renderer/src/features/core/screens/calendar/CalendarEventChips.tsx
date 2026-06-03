@@ -1,4 +1,5 @@
 import type { CSSProperties, DragEvent, KeyboardEvent } from "react";
+import { CheckCircle2, Circle } from "lucide-react";
 import { cx } from "../../../../components/primitives";
 import type { CalendarEventViewModel } from "../../coreViewModels";
 
@@ -154,6 +155,7 @@ export function CalendarEventChip({
   onDragStart,
   onKeyDown,
   onOpen,
+  onToggleTask,
   size = "default"
 }: {
   className?: string;
@@ -163,21 +165,28 @@ export function CalendarEventChip({
   onDragStart?: (dragEvent: DragEvent<HTMLElement>) => void;
   onKeyDown?: (keyEvent: KeyboardEvent<HTMLElement>) => void;
   onOpen?: (event: CalendarEventViewModel) => void;
+  onToggleTask?: (taskId: string) => void;
   size?: CalendarEventChipSize;
 }): JSX.Element {
   const tone = calendarSourceTone(event.calendarId);
   const fillStyle = calendarEventFillStyle(event);
   const accentStyle = fillStyle ?? calendarEventAccentStyle(event.calendarBackgroundColor);
   const label = calendarEventLabel(event, labelVariant);
+  const isTask = event.sourceKind === "task";
+  const isCompletedTask = event.taskStatus === "completed";
+  const TaskIcon = isCompletedTask ? CheckCircle2 : Circle;
+  const taskToggleLabel = isCompletedTask ? `Reopen ${event.title}` : `Mark ${event.title} complete`;
+  const taskId = event.taskId;
 
   return (
-    <button
+    <div
       aria-label={label}
       className={cx(
         "group flex w-full min-w-0 cursor-default items-center gap-1.5 overflow-hidden rounded-hcbSm border border-border bg-surface-0 text-left text-text-secondary shadow-sm transition-colors duration-fast ease-hcb hover:bg-surface-1 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         size === "compact" ? "min-h-0 px-1.5 py-0.5 text-[11px]" : "min-h-6 px-2 py-1 text-[var(--text-xs)]",
         draggable && "cursor-grab active:cursor-grabbing",
         event.allDay && "font-medium",
+        isCompletedTask && "text-text-muted",
         fillStyle && "hover:brightness-95",
         accentStyle ? undefined : tone.border,
         className
@@ -188,13 +197,45 @@ export function CalendarEventChip({
         onOpen?.(event);
       }}
       onDragStart={onDragStart}
-      onKeyDown={onKeyDown}
+      onKeyDown={(keyEvent) => {
+        onKeyDown?.(keyEvent);
+        if (keyEvent.defaultPrevented) {
+          return;
+        }
+
+        if (keyEvent.key === "Enter" || keyEvent.key === " ") {
+          keyEvent.preventDefault();
+          keyEvent.stopPropagation();
+          onOpen?.(event);
+        }
+      }}
       onPointerDown={(pointerEvent) => pointerEvent.stopPropagation()}
+      role="button"
       style={accentStyle}
+      tabIndex={0}
       title={`${label} - ${event.calendar}`}
-      type="button"
     >
-      <span className="min-w-0 flex-1 truncate leading-tight">{label}</span>
+      {isTask && taskId && onToggleTask ? (
+        <button
+          aria-label={taskToggleLabel}
+          className="shrink-0 rounded-full text-current transition-colors duration-fast ease-hcb hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+          onClick={(clickEvent) => {
+            clickEvent.stopPropagation();
+            onToggleTask(taskId);
+          }}
+          onKeyDown={(keyEvent) => keyEvent.stopPropagation()}
+          onPointerDown={(pointerEvent) => pointerEvent.stopPropagation()}
+          title={taskToggleLabel}
+          type="button"
+        >
+          <TaskIcon aria-hidden="true" size={size === "compact" ? 13 : 14} />
+        </button>
+      ) : isTask ? (
+        <TaskIcon aria-hidden="true" className="shrink-0" size={size === "compact" ? 13 : 14} />
+      ) : null}
+      <span className={cx("min-w-0 flex-1 truncate leading-tight", isCompletedTask && "line-through")}>
+        {label}
+      </span>
       {event.mutationState && event.mutationState !== "synced" ? (
         <span
           aria-hidden="true"
@@ -206,7 +247,7 @@ export function CalendarEventChip({
           {event.mutationState === "failed" ? "Failed" : "Queued"}
         </span>
       ) : null}
-    </button>
+    </div>
   );
 }
 
@@ -248,11 +289,13 @@ export function CalendarOverflowPopover({
   events,
   onClose,
   onOpen,
+  onToggleTask,
   title
 }: {
   events: CalendarEventViewModel[];
   onClose: () => void;
   onOpen: (event: CalendarEventViewModel) => void;
+  onToggleTask?: (taskId: string) => void;
   title: string;
 }): JSX.Element {
   return (
@@ -298,6 +341,7 @@ export function CalendarOverflowPopover({
                 onClose();
                 onOpen(selectedEvent);
               }}
+              onToggleTask={onToggleTask}
             />
           ))}
         </div>
@@ -311,12 +355,14 @@ export function CalendarAllDayLane({
   events,
   onCreate,
   onOpen,
+  onToggleTask,
   visibleCount = 4
 }: {
   dayLabel: string;
   events: CalendarEventViewModel[];
   onCreate?: () => void;
   onOpen: (event: CalendarEventViewModel) => void;
+  onToggleTask?: (taskId: string) => void;
   visibleCount?: number;
 }): JSX.Element {
   const visibleEvents = events.slice(0, visibleCount);
@@ -334,7 +380,7 @@ export function CalendarAllDayLane({
       <div className="flex min-w-0 flex-wrap items-center gap-1 px-2 py-1.5">
         {visibleEvents.map((event) => (
           <div className="min-w-0 basis-[180px] grow" key={event.id}>
-            <CalendarEventChip event={event} labelVariant="title" onOpen={onOpen} />
+            <CalendarEventChip event={event} labelVariant="title" onOpen={onOpen} onToggleTask={onToggleTask} />
           </div>
         ))}
         {overflowCount > 0 ? <CalendarOverflowChip count={overflowCount} /> : null}

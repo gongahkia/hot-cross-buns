@@ -63,6 +63,10 @@ export interface TaskFilterViewModel {
 export interface CalendarEventViewModel {
   id: string;
   eventId: string;
+  sourceKind?: "event" | "task";
+  taskId?: string;
+  taskListId?: string;
+  taskStatus?: TaskStatus;
   calendarId: string;
   colorId?: string | null;
   title: string;

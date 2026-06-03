@@ -18,6 +18,7 @@ export type InspectorItemKind =
 export interface InspectorItem {
   kind: InspectorItemKind;
   id: string; // stable id for the underlying record. "new" allowed for create flows
+  ownerId?: string;
   title: string;
   subtitle?: string;
   body: ReactNode;
