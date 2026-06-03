@@ -314,6 +314,19 @@ describe("App tasks", () => {
     expect(screen.getByRole("textbox", { name: "Task title" })).toHaveValue("Draft inbox triage rules v2");
   });
 
+  it("strikes through completed task titles in read-only details", async () => {
+    installHcb(seededHcb());
+    const user = userEvent.setup();
+    render(<App />);
+
+    await goToSection("Tasks");
+    await user.click(await screen.findByRole("button", { name: "Completed (1)" }));
+    await user.click(screen.getByRole("button", { name: "Report shell-visible timing" }));
+
+    const inspector = await screen.findByTestId("inspector-shell");
+    expect(within(inspector).getByRole("heading", { name: "Report shell-visible timing" })).toHaveClass("line-through");
+  });
+
   it("renders existing task notes as markdown in read-only details", async () => {
     const api = seededHcb();
     api.tasks.list = vi.fn(async () =>

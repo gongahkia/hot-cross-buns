@@ -4,7 +4,7 @@ import { CalendarClock, FileText, Flag, List, ListPlus } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useDirtyState, useInspector } from "../../../components/Inspector";
 import { EmojiInput, EmojiTextarea } from "../../../components/EmojiTextField";
-import { Badge, Button, Input } from "../../../components/primitives";
+import { Badge, Button, cx, Input } from "../../../components/primitives";
 import type { useCoreViewModelSource } from "../coreViewModelSource";
 import type { CorePriority, TaskViewModel } from "../coreViewModels";
 import { MarkdownPreview } from "../MarkdownPreview";
@@ -110,7 +110,10 @@ export function TaskInspectorDetails({
         />
         <div className="min-w-0">
           <div className="flex min-w-0 items-start justify-between gap-3">
-            <h3 className="min-w-0 break-words text-[var(--text-2xl)] font-semibold leading-tight text-text-primary">
+            <h3 className={cx(
+              "min-w-0 break-words text-[var(--text-2xl)] font-semibold leading-tight",
+              completed ? "text-text-muted line-through" : "text-text-primary"
+            )}>
               {draft.title || "Untitled task"}
             </h3>
             {task?.mutationState && task.mutationState !== "synced" ? (
