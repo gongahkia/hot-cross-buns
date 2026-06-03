@@ -116,11 +116,6 @@ export function TaskInspectorDetails({
             )}>
               {draft.title || "Untitled task"}
             </h3>
-            {task?.mutationState && task.mutationState !== "synced" ? (
-              <Badge tone={task.mutationState === "failed" ? "danger" : "warning"}>
-                {task.mutationState === "failed" ? "Failed" : "Queued"}
-              </Badge>
-            ) : null}
           </div>
           <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2 text-[var(--text-xs)] text-text-muted">
             <Badge tone={completed ? "success" : "neutral"}>{statusLabel}</Badge>

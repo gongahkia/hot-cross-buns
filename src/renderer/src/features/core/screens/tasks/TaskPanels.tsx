@@ -37,14 +37,12 @@ export function TaskHeader({
   onCreateTask,
   onDeleteSelectedTask,
   onToggleSelectedTask,
-  selectedTask,
-  source
+  selectedTask
 }: {
   onCreateTask: () => void;
   onDeleteSelectedTask: () => void;
   onToggleSelectedTask: () => void;
   selectedTask: TaskViewModel | null;
-  source: CoreViewModelSource;
 }): JSX.Element {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -83,11 +81,6 @@ export function TaskHeader({
           Delete
         </Button>
       </div>
-      <Badge tone={source.syncStatus.pendingMutationCount > 0 ? "warning" : "success"}>
-        {source.syncStatus.pendingMutationCount > 0
-          ? `${source.syncStatus.pendingMutationCount} pending`
-          : "Mutation queue idle"}
-      </Badge>
     </div>
   );
 }

@@ -236,17 +236,6 @@ export function CalendarEventChip({
       <span className={cx("min-w-0 flex-1 truncate leading-tight", isCompletedTask && "line-through")}>
         {label}
       </span>
-      {event.mutationState && event.mutationState !== "synced" ? (
-        <span
-          aria-hidden="true"
-          className={cx(
-            "shrink-0 rounded-hcbSm px-1 text-[10px] font-semibold",
-            event.mutationState === "failed" ? "bg-danger text-bg-tertiary" : "bg-warning text-bg-tertiary"
-          )}
-        >
-          {event.mutationState === "failed" ? "Failed" : "Queued"}
-        </span>
-      ) : null}
     </div>
   );
 }

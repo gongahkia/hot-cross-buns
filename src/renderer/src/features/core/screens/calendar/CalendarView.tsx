@@ -486,7 +486,6 @@ export function CalendarView({
               exportBusyBlockCount={availabilityBusyBlockCount}
               exportPending={availabilityPending}
               exportText={availabilityText}
-              pendingHoldCount={source.syncStatus.pendingMutationCount}
               slots={availabilitySlots}
               snippet={availabilitySnippet}
               startDate={availabilityStartDate}

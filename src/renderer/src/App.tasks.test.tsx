@@ -172,6 +172,42 @@ describe("App tasks", () => {
     expect(screen.getByText("Old completed task")).toBeInTheDocument();
   });
 
+  it("hides task pending mutation state in rows and inspector", async () => {
+    const api = seededHcb();
+    api.tasks.list = vi.fn(async (request = {}) => {
+      if (request.status === "hidden" || request.status === "deleted") {
+        return ok({ items: [], page: { limit: 100, totalKnown: 0 } });
+      }
+
+      return ok({
+        items: [
+          seededTaskDetail("task-inbox-rules", {
+            mutationState: "queued"
+          })
+        ],
+        page: { limit: 100, totalKnown: 1 }
+      });
+    });
+    api.tasks.get = vi.fn(async (request) =>
+      ok(
+        seededTaskDetail(request.id, {
+          mutationState: "queued"
+        })
+      )
+    );
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await goToSection("Tasks");
+    const inboxTasks = await screen.findByRole("list", { name: "Inbox tasks" });
+    expect(within(inboxTasks).queryByText("Queued")).not.toBeInTheDocument();
+
+    await user.click(within(inboxTasks).getByRole("button", { name: /^Draft inbox triage rules/ }));
+    const inspector = await screen.findByTestId("inspector-shell");
+    expect(within(inspector).queryByText("Queued")).not.toBeInTheDocument();
+  });
+
   it("opens task and list action menus for move, delete, sorting, rename, and list creation", async () => {
     const api = seededHcb();
     installHcb(api);

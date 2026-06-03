@@ -12,6 +12,7 @@ export interface AppNotification {
 
 export function getAppNotifications(source: CoreViewModelSource): AppNotification[] {
   const notifications: AppNotification[] = [];
+  const googleConnectionState = source.googleStatus.account?.connectionState;
 
   if (source.dataState === "loading") {
     notifications.push({
@@ -29,11 +30,11 @@ export function getAppNotifications(source: CoreViewModelSource): AppNotificatio
       status: "Error",
       tone: "danger"
     });
-  } else if (source.isOffline) {
+  } else if (source.dataState === "offline") {
     notifications.push({
       id: "cache.offline",
       title: "Offline",
-      description: source.errorMessage ?? "Google sync is not connected.",
+      description: source.errorMessage ?? "The preload bridge is unavailable in this renderer context.",
       status: "Offline",
       tone: "offline"
     });
@@ -63,6 +64,30 @@ export function getAppNotifications(source: CoreViewModelSource): AppNotificatio
     });
   }
 
+  if (
+    source.dataState !== "loading" &&
+    source.dataState !== "offline" &&
+    googleConnectionState !== "connected"
+  ) {
+    notifications.push({
+      id: "google.disconnected",
+      title: "Google account not connected",
+      description: "Showing local planner data. Connect Google to sync changes.",
+      status: "Google",
+      tone: "warning"
+    });
+  }
+
+  if (hasFailedGoogleWrite(source)) {
+    notifications.push({
+      id: "google.write.failed",
+      title: "Some changes need attention",
+      description: "One or more Google updates did not finish. Open Diagnostics to review them.",
+      status: "Action needed",
+      tone: "danger"
+    });
+  }
+
   if (source.settingsMutationError) {
     notifications.push({
       id: "settings.error",
@@ -84,4 +109,17 @@ export function getAppNotifications(source: CoreViewModelSource): AppNotificatio
   }
 
   return notifications;
+}
+
+function hasFailedGoogleWrite(source: CoreViewModelSource): boolean {
+  if ((source.diagnosticsSummary?.pendingMutations.failedCount ?? 0) > 0) {
+    return true;
+  }
+
+  return (
+    source.largeTaskWindow.some((task) => task.mutationState === "failed") ||
+    source.calendarAgendaEvents.some((event) => event.mutationState === "failed") ||
+    Object.values(source.calendarEventsById).some((event) => event.mutationState === "failed") ||
+    source.scheduledTaskBlocks.some((block) => block.mutationState === "failed")
+  );
 }

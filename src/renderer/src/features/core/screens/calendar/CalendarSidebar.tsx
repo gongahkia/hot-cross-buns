@@ -178,7 +178,6 @@ export function ShareAvailabilityPanel({
   onStartDateChange,
   onTitleChange,
   pending,
-  pendingHoldCount,
   slots,
   snippet,
   startDate,
@@ -204,7 +203,6 @@ export function ShareAvailabilityPanel({
   onStartDateChange: (date: string) => void;
   onTitleChange: (title: string) => void;
   pending: boolean;
-  pendingHoldCount: number;
   slots: CalendarTimeBlock[];
   snippet: string;
   startDate: string;
@@ -362,15 +360,6 @@ export function ShareAvailabilityPanel({
           <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-hcbMd border border-border bg-surface-0 p-3 font-mono text-[var(--text-xs)] text-text-secondary">
             {snippet}
           </pre>
-        </div>
-        <div className="border-t border-border pt-3">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="text-[var(--text-sm)] font-semibold text-text-primary">Pending Holds</h3>
-            <Badge tone={pendingHoldCount > 0 ? "warning" : "neutral"}>{pendingHoldCount}</Badge>
-          </div>
-          <p className="mt-2 text-[var(--text-sm)] text-text-muted">
-            {pendingHoldCount > 0 ? "Calendar writes are queued locally." : "No pending holds."}
-          </p>
         </div>
       </div>
     </Panel>

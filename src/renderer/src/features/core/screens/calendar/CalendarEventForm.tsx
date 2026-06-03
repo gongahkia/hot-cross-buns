@@ -285,11 +285,6 @@ export function CalendarEventDetails({
             <h3 className="min-w-0 break-words text-[var(--text-2xl)] font-semibold leading-tight text-text-primary">
               {draft.title || "Untitled event"}
             </h3>
-            {draft.mutationState && draft.mutationState !== "synced" ? (
-              <Badge tone={draft.mutationState === "failed" ? "danger" : "warning"}>
-                {draft.mutationState === "failed" ? "Failed" : "Queued"}
-              </Badge>
-            ) : null}
           </div>
           <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2 text-[var(--text-base)] text-text-secondary">
             <span>{calendarDetailRangeLabel(draft)}</span>
@@ -640,13 +635,6 @@ export function CalendarEventForm({
           <span className="min-w-0 flex-1 truncate text-[var(--text-sm)] font-semibold text-text-primary">
             {selectedCalendar?.title ?? "Calendar"}
           </span>
-          {draft.mutationState && draft.mutationState !== "synced" ? (
-            <Badge tone={draft.mutationState === "failed" ? "danger" : "warning"}>
-              {draft.mutationState === "failed" ? "Failed" : "Queued"}
-            </Badge>
-          ) : (
-            <Badge tone="success">Synced</Badge>
-          )}
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-2 text-[var(--text-xs)] text-text-muted">
           <span className="inline-flex min-w-0 items-center gap-1">

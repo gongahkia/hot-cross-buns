@@ -1,5 +1,5 @@
 import { CheckCircle2, Circle } from "lucide-react";
-import { Badge, cx } from "../../../../components/primitives";
+import { cx } from "../../../../components/primitives";
 import { EmptyState } from "../../../../components/states";
 import { VirtualizedList } from "../../../../components/VirtualizedList";
 import { handleActivationKeyDown } from "../../coreScreenShared";
@@ -81,13 +81,6 @@ function CalendarAgendaEventRow({
           <span className="block truncate text-[var(--text-sm)] text-text-secondary">{whenLabel}</span>
           {description ? <span className="block truncate text-[var(--text-xs)] text-text-muted">{description}</span> : null}
         </span>
-      </span>
-      <span className="flex shrink-0 items-center gap-2">
-        {event.mutationState && event.mutationState !== "synced" ? (
-          <Badge tone={event.mutationState === "failed" ? "danger" : "warning"}>
-            {event.mutationState === "failed" ? "Failed" : "Queued"}
-          </Badge>
-        ) : null}
       </span>
     </div>
   );

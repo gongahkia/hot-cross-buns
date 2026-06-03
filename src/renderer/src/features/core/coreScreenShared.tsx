@@ -521,11 +521,6 @@ export function TaskRow({
                 {dueCue.label}
               </Badge>
             ) : null}
-            {task.mutationState && task.mutationState !== "synced" ? (
-              <Badge tone={task.mutationState === "failed" ? "danger" : "warning"}>
-                {task.mutationState === "failed" ? "Failed" : "Queued"}
-              </Badge>
-            ) : null}
           </div>
           <p className="truncate text-[var(--text-sm)] text-text-muted">{task.detail}</p>
           {scheduleLabel || task.tags?.length ? (
@@ -657,11 +652,6 @@ export function EventRow({
           {event.calendar} - {event.location} - {event.notes}
         </span>
       </span>
-      {event.mutationState && event.mutationState !== "synced" ? (
-        <Badge tone={event.mutationState === "failed" ? "danger" : "warning"}>
-          {event.mutationState === "failed" ? "Failed" : "Queued"}
-        </Badge>
-      ) : null}
       <Badge tone="accent">Event</Badge>
     </>
   );

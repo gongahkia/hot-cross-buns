@@ -678,7 +678,7 @@ describe("App calendar", () => {
     expect(await screen.findByRole("textbox", { name: "Event title" })).toHaveValue("Planner shell standup");
   });
 
-  it("shows event pending mutation badges in rows and inspector", async () => {
+  it("hides event pending mutation state in rows and inspector", async () => {
     const api = seededHcb();
     api.calendar.listEvents = vi.fn(async () =>
       ok({
@@ -703,12 +703,43 @@ describe("App calendar", () => {
 
     await goToSection("Calendar");
     const agenda = await screen.findByRole("list", { name: "Calendar agenda" });
-    expect(within(agenda).getByText("Queued")).toBeInTheDocument();
+    expect(within(agenda).queryByText("Queued")).not.toBeInTheDocument();
 
     await user.click(within(agenda).getByText("Planner shell standup"));
     const inspector = await screen.findByTestId("inspector-shell");
 
-    expect(within(inspector).getByText("Queued")).toBeInTheDocument();
+    expect(within(inspector).queryByText("Queued")).not.toBeInTheDocument();
+  });
+
+  it("flags failed Google writes through notifications instead of calendar rows", async () => {
+    const api = seededHcb();
+    api.calendar.listEvents = vi.fn(async () =>
+      ok({
+        items: [
+          {
+            id: "event-standup",
+            calendarId: "cal-product",
+            title: "Planner shell standup",
+            startsAt: `${todayDate}T09:30:00.000Z`,
+            endsAt: `${todayDate}T09:50:00.000Z`,
+            allDay: false,
+            mutationState: "failed" as const,
+            updatedAt: now
+          }
+        ],
+        page: { limit: 250, totalKnown: 1 }
+      })
+    );
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await goToSection("Calendar");
+    const agenda = await screen.findByRole("list", { name: "Calendar agenda" });
+    expect(within(agenda).queryByText("Failed")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Notifications,/ }));
+    expect(await screen.findByText("Some changes need attention")).toBeInTheDocument();
   });
 
   it("renders Meet and guest details only when present", async () => {

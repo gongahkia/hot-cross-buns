@@ -13,6 +13,7 @@ import {
   runPaletteCommand,
   seededHcb,
   settingsLoadingHcb,
+  signedOutGoogleStatus,
   testDataTransfer,
   todayDate
 } from "./test/appTestHelpers";
@@ -568,6 +569,29 @@ describe("App shell", () => {
 
     expect(await within(dialog).findByText(/Task in Inbox/)).toBeInTheDocument();
     expect(api.search.query).toHaveBeenCalledWith({ query: "triage", limit: 30 });
+  });
+
+  it("flags disconnected Google while cached planner data renders", async () => {
+    const api = seededHcb();
+    api.google.status = vi.fn(async () => ok(signedOutGoogleStatus()));
+    api.sync.status = vi.fn(async () =>
+      ok({
+        state: "idle" as const,
+        pendingMutationCount: 0,
+        lastCompletedAt: now,
+        offline: true,
+        stale: false
+      })
+    );
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(await screen.findByText("Planner shell standup")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Notifications,/ }));
+    expect(await screen.findByText("Google account not connected")).toBeInTheDocument();
+    expect(screen.getByText("Showing local planner data. Connect Google to sync changes.")).toBeInTheDocument();
   });
 
   it("handles an unavailable preload bridge as an offline state", async () => {
