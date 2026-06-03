@@ -32,6 +32,10 @@ describe("App calendar", () => {
     };
   }
 
+  function rangeOverlaps(request: { start: string; end: string }, startsAt: string, endsAt: string): boolean {
+    return request.start < endsAt && request.end > startsAt;
+  }
+
   it("switches calendar agenda, day, week, and month shells", async () => {
     installHcb(seededHcb());
     const user = userEvent.setup();
@@ -204,6 +208,65 @@ describe("App calendar", () => {
     expect(firstLayout).toHaveStyle({ top: "1248px", height: "32px" });
     expect(secondLayout).toHaveAttribute("data-lane-count", "2");
     expect(secondLayout).toHaveAttribute("data-lane-index", "1");
+  });
+
+  it("lazy-loads retained past calendar events when navigating back", async () => {
+    const api = seededHcb();
+    hideTaskCalendarItems(api);
+    const pastDay = addTestUtcDays(todayDate, -14);
+    const pastEvent = {
+      id: "event-past-retro",
+      calendarId: "cal-product",
+      title: "Past planning retro",
+      startsAt: `${pastDay}T10:00:00.000Z`,
+      endsAt: `${pastDay}T10:30:00.000Z`,
+      allDay: false,
+      updatedAt: now
+    };
+    const pastBirthday = {
+      id: "event-past-birthday",
+      calendarId: "cal-product",
+      title: "Past birthday",
+      startsAt: `${pastDay}T00:00:00.000Z`,
+      endsAt: `${addTestUtcDays(pastDay, 1)}T00:00:00.000Z`,
+      allDay: true,
+      updatedAt: now
+    };
+    api.calendar.listEvents = vi.fn(async (request) =>
+      ok({
+        items: [
+          ...(rangeOverlaps(request, `${todayDate}T09:30:00.000Z`, `${todayDate}T09:50:00.000Z`)
+            ? [{
+              id: "event-standup",
+              calendarId: "cal-product",
+              title: "Planner shell standup",
+              startsAt: `${todayDate}T09:30:00.000Z`,
+              endsAt: `${todayDate}T09:50:00.000Z`,
+              allDay: false,
+              updatedAt: now
+            }]
+            : []),
+          ...(rangeOverlaps(request, pastEvent.startsAt, pastEvent.endsAt) ? [pastEvent] : []),
+          ...(rangeOverlaps(request, pastBirthday.startsAt, pastBirthday.endsAt) ? [pastBirthday] : [])
+        ],
+        page: { limit: 500, totalKnown: 3 }
+      })
+    );
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await goToSection("Calendar");
+    const tabs = screen.getByRole("tablist", { name: "Calendar views" });
+    await user.click(within(tabs).getByRole("tab", { name: "Week" }));
+    await user.click(screen.getByRole("button", { name: "Previous week" }));
+    await user.click(screen.getByRole("button", { name: "Previous week" }));
+
+    expect(await screen.findByRole("button", { name: "10:00 Past planning retro" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Past birthday" })).toBeInTheDocument();
+    expect(vi.mocked(api.calendar.listEvents).mock.calls.some(([request]) =>
+      rangeOverlaps(request, pastEvent.startsAt, pastEvent.endsAt)
+    )).toBe(true);
   });
 
   it("separates all-day calendar events and summarizes dense month cells", async () => {
