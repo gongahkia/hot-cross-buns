@@ -30,7 +30,7 @@ function knownTotal(pageTotal: number | undefined, itemCount: number): number {
   return pageTotal ?? itemCount;
 }
 
-async function loadAllPages<Request extends CursorRequest, Response extends PagedResponse<unknown>>(
+export async function loadAllPages<Request extends CursorRequest, Response extends PagedResponse<unknown>>(
   request: Request,
   loadPage: (request: Request) => Promise<Response>
 ): Promise<Response> {
@@ -66,13 +66,15 @@ async function loadAllPages<Request extends CursorRequest, Response extends Page
   } as Response;
 }
 
-export async function loadCoreData(settingsPromise?: Promise<SettingsSnapshot>): Promise<CoreDataSnapshot> {
+export async function loadCoreData(
+  settingsPromise?: Promise<SettingsSnapshot>,
+  calendarRange = visibleCalendarRange()
+): Promise<CoreDataSnapshot> {
   if (!window.hcb) {
     throw new Error("Preload bridge is unavailable.");
   }
 
   const hcb = window.hcb;
-  const range = visibleCalendarRange();
   const settingsLoad =
     settingsPromise ?? hcb.settings.get().then((result) => unwrap(result, "Settings failed"));
   const [
@@ -109,11 +111,11 @@ export async function loadCoreData(settingsPromise?: Promise<SettingsSnapshot>):
       (request) => hcb.calendar.listCalendars(request).then((result) => unwrap(result, "Calendars failed"))
     ),
     loadAllPages<CalendarRangeRequest, CalendarRangeResponse>(
-      { start: range.start, end: range.end, limit: 500 },
+      { start: calendarRange.start, end: calendarRange.end, limit: 500 },
       (request) => hcb.calendar.listEvents(request).then((result) => unwrap(result, "Calendar events failed"))
     ),
     loadAllPages<ScheduledTaskBlockListRequest, ScheduledTaskBlockListResponse>(
-      { start: range.start, end: range.end, limit: 500 },
+      { start: calendarRange.start, end: calendarRange.end, limit: 500 },
       (request) =>
         hcb.calendar
           .listScheduledTaskBlocks(request)

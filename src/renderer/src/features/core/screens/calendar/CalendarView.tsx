@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { CalendarEventDetail } from "@shared/ipc/contracts";
 import { AlertTriangle, X } from "lucide-react";
 import { IconButton, StatusBanner } from "../../../../components/primitives";
 import { rendererNow, reportRendererTimingSince } from "../../../../hooks/useRenderTiming";
+import { stableCalendarEventViewModel } from "../../viewModelSource/calendarViewModels";
 import { useCoreViewModelSource } from "../../coreViewModelSource";
-import type { CalendarViewId } from "../../coreViewModels";
+import type { CalendarDayViewModel, CalendarEventViewModel, CalendarViewId } from "../../coreViewModels";
 import {
   CacheStatePanel,
   SectionChrome,
@@ -19,8 +21,10 @@ import {
   calendarAddUtcDays,
   calendarAddUtcMonths,
   calendarCurrentDayKey,
+  calendarDateFromIsoDate,
   calendarDateTitleFromIso,
   calendarDayViewForDate,
+  calendarDayKey,
   calendarEventsForDay,
   calendarMonthOffset,
   calendarMonthTitle,
@@ -34,6 +38,80 @@ import { useCalendarAvailability } from "./useCalendarAvailability";
 import { useCalendarEventInspector } from "./useCalendarEventInspector";
 import { useTaskInspector } from "../tasks/useTaskInspector";
 import type { CalendarCreateMode, CalendarCreateSeed, CalendarEventDraft } from "./types";
+
+function calendarDayRange(day: string): { start: string; end: string } {
+  return {
+    start: `${day}T00:00:00.000Z`,
+    end: `${calendarAddUtcDays(day, 1)}T00:00:00.000Z`
+  };
+}
+
+function calendarRangeForDays(days: readonly CalendarDayViewModel[]): { start: string; end: string } {
+  const dayKeys = days.map(calendarDayKey).sort();
+  const firstDay = dayKeys[0];
+  const lastDay = dayKeys.at(-1);
+
+  if (!firstDay || !lastDay) {
+    return calendarDayRange(calendarCurrentDayKey());
+  }
+
+  return {
+    start: `${firstDay}T00:00:00.000Z`,
+    end: `${calendarAddUtcDays(lastDay, 1)}T00:00:00.000Z`
+  };
+}
+
+function calendarMonthRange(anchorDay: string): { start: string; end: string } {
+  const anchor = calendarDateFromIsoDate(anchorDay);
+  const first = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), 1));
+  const gridStart = new Date(first);
+  gridStart.setUTCDate(first.getUTCDate() - first.getUTCDay());
+  const gridEnd = new Date(gridStart);
+  gridEnd.setUTCDate(gridStart.getUTCDate() + 42);
+
+  return {
+    start: gridStart.toISOString(),
+    end: gridEnd.toISOString()
+  };
+}
+
+function calendarRangeAllowedByRetention(
+  range: { start: string; end: string },
+  daysBack: number,
+  timeZone: string
+): boolean {
+  if (daysBack <= 0) {
+    return true;
+  }
+
+  const oldestDay = calendarAddUtcDays(calendarCurrentDayKey(timeZone), -daysBack);
+  return range.end > `${oldestDay}T00:00:00.000Z`;
+}
+
+function eventViewModelFromDetail(
+  detail: CalendarEventDetail,
+  source: ReturnType<typeof useCoreViewModelSource>
+): CalendarEventViewModel {
+  const calendar = source.calendarSources.find((candidate) => candidate.id === detail.calendarId);
+
+  return stableCalendarEventViewModel(
+    detail,
+    calendar?.title ?? detail.calendarTitle,
+    calendar?.timeZone ?? null,
+    calendar?.backgroundColor ?? null,
+    calendar?.foregroundColor ?? null,
+    source.settings.calendarEventColorOverrides,
+    source.settings.defaultTimeZone,
+    new Map()
+  );
+}
+
+function findCalendarEventBySearchId(
+  eventsById: Record<string, CalendarEventViewModel>,
+  eventId: string
+): CalendarEventViewModel | undefined {
+  return eventsById[eventId] ?? Object.values(eventsById).find((event) => event.eventId === eventId);
+}
 
 export function CalendarView({
   visibleCalendarIds
@@ -121,6 +199,21 @@ export function CalendarView({
     () => calendarEventsForDay(visibleEventDayIndex, calendarAnchorDate),
     [calendarAnchorDate, visibleEventDayIndex]
   );
+  const calendarVisibleRange = useMemo(() => {
+    if (activeViewId === "month") {
+      return calendarRangeForDays(calendarMonthWeeks.flatMap((week) => week.days));
+    }
+
+    if (activeViewId === "week") {
+      return calendarRangeForDays(calendarWeekDays);
+    }
+
+    if (activeViewId === "multiDay") {
+      return calendarRangeForDays(calendarMultiDayDays);
+    }
+
+    return calendarDayRange(calendarAnchorDate);
+  }, [activeViewId, calendarAnchorDate, calendarMonthWeeks, calendarMultiDayDays, calendarWeekDays]);
   const shareAvailabilityVisible = activeViewId === "day" || activeViewId === "multiDay" || activeViewId === "week";
   const calendarRangeLabel =
     activeViewId === "month"
@@ -164,10 +257,15 @@ export function CalendarView({
     setCalendarAnchorDate((current) => {
       if (activeViewId === "month") {
         const next = calendarAddUtcMonths(current, direction);
+        const nextRange = calendarMonthRange(next);
         const offset = calendarMonthOffset(calendarCurrentDayKey(source.settings.defaultTimeZone), next);
 
         if (
-          offset < -source.settings.monthScrollPastMonths ||
+          !calendarRangeAllowedByRetention(
+            nextRange,
+            source.settings.eventRetentionDaysBack,
+            source.settings.defaultTimeZone
+          ) ||
           offset > source.settings.monthScrollFutureMonths
         ) {
           return current;
@@ -200,6 +298,34 @@ export function CalendarView({
     }
 
     openEdit(calendarItem);
+  }
+
+  async function openCalendarSearchResult(eventId: string): Promise<void> {
+    const loadedEvent = findCalendarEventBySearchId(source.calendarEventsById, eventId);
+
+    if (loadedEvent) {
+      setCalendarAnchorDate(loadedEvent.startsAt.slice(0, 10));
+      openEdit(loadedEvent);
+      return;
+    }
+
+    const result = await window.hcb?.calendar.get({ id: eventId });
+
+    if (!result?.ok) {
+      setCalendarActionError("Calendar event could not be opened from search.");
+      return;
+    }
+
+    const eventDate = result.data.startsAt.slice(0, 10);
+    const loaded = await source.ensureCalendarRange(calendarDayRange(eventDate));
+
+    if (!loaded) {
+      setCalendarActionError("Calendar event context could not be loaded.");
+      return;
+    }
+
+    setCalendarAnchorDate(eventDate);
+    openEdit(eventViewModelFromDetail(result.data, source));
   }
 
   function toggleCalendarTask(taskId: string): void {
@@ -235,12 +361,7 @@ export function CalendarView({
       }
 
       if (detail?.action === "open-event" && detail.eventId) {
-        const calendarEvent = source.calendarEventsById[detail.eventId];
-
-        if (calendarEvent) {
-          setCalendarAnchorDate(calendarEvent.startsAt.slice(0, 10));
-          openEdit(calendarEvent);
-        }
+        void openCalendarSearchResult(detail.eventId);
       }
 
       if (detail?.action === "set-view" && detail.viewId) {
@@ -251,6 +372,40 @@ export function CalendarView({
     window.addEventListener("hcb:calendar-command", handleCalendarCommand);
     return () => window.removeEventListener("hcb:calendar-command", handleCalendarCommand);
   }, [source]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (
+      ((source.dataState === "loading" ||
+        source.dataState === "offline" ||
+        source.dataState === "error") &&
+        !source.hasCachedData) ||
+      !calendarRangeAllowedByRetention(
+        calendarVisibleRange,
+        source.settings.eventRetentionDaysBack,
+        source.settings.defaultTimeZone
+      )
+    ) {
+      return;
+    }
+
+    void source.ensureCalendarRange(calendarVisibleRange).then((loaded) => {
+      if (!loaded && !cancelled) {
+        setCalendarActionError("Calendar range could not be loaded.");
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    calendarVisibleRange.end,
+    calendarVisibleRange.start,
+    source.ensureCalendarRange,
+    source.settings.defaultTimeZone,
+    source.settings.eventRetentionDaysBack
+  ]);
 
   useEffect(() => {
     scheduleRendererFrame(() => {

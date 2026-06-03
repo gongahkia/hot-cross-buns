@@ -1,17 +1,81 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import type { GoogleStatusResponse } from "@shared/ipc/contracts";
+import type {
+  CalendarEventSummary,
+  CalendarRangeRequest,
+  CalendarRangeResponse,
+  GoogleStatusResponse,
+  ScheduledTaskBlockListRequest,
+  ScheduledTaskBlockListResponse,
+  ScheduledTaskBlockSummary
+} from "@shared/ipc/contracts";
 import type { CalendarEventViewModel, TaskViewModel } from "../coreViewModels";
 import { emptySnapshot } from "./defaults";
-import { loadCoreData } from "./loader";
+import { visibleCalendarRange } from "./dateFormat";
+import { loadAllPages, loadCoreData } from "./loader";
 import { unwrap } from "./result";
 import { useSettingsMutations } from "./settingsMutations";
 import { hasSnapshotData } from "./snapshot";
 import { buildCoreViewModelSource } from "./sourceBuilder";
 import { useTaskMutations } from "./taskMutations";
-import type { CoreDataLoadState, CoreViewModelSource } from "./types";
+import type { CalendarRangeLoadRequest, CoreDataLoadState, CoreViewModelSource } from "./types";
 
 const CoreDataContext = createContext<CoreViewModelSource | null>(null);
+
+function normalizedCalendarRange(range: CalendarRangeLoadRequest): CalendarRangeLoadRequest | null {
+  const startMs = Date.parse(range.start);
+  const endMs = Date.parse(range.end);
+
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    return null;
+  }
+
+  return {
+    start: new Date(startMs).toISOString(),
+    end: new Date(endMs).toISOString()
+  };
+}
+
+function calendarRangeLoaded(
+  loadedRanges: readonly CalendarRangeLoadRequest[],
+  range: CalendarRangeLoadRequest
+): boolean {
+  return loadedRanges.some((loadedRange) =>
+    loadedRange.start <= range.start && loadedRange.end >= range.end
+  );
+}
+
+function mergedCalendarRanges(
+  ranges: readonly CalendarRangeLoadRequest[]
+): CalendarRangeLoadRequest[] {
+  const sorted = [...ranges].sort((left, right) => left.start.localeCompare(right.start));
+  const merged: CalendarRangeLoadRequest[] = [];
+
+  for (const range of sorted) {
+    const previous = merged.at(-1);
+
+    if (!previous || range.start > previous.end) {
+      merged.push({ ...range });
+      continue;
+    }
+
+    if (range.end > previous.end) {
+      previous.end = range.end;
+    }
+  }
+
+  return merged;
+}
+
+function mergeById<T extends { id: string }>(current: readonly T[], next: readonly T[]): T[] {
+  const merged = new Map(current.map((item) => [item.id, item]));
+
+  for (const item of next) {
+    merged.set(item.id, item);
+  }
+
+  return [...merged.values()];
+}
 
 export function CoreDataProvider({ children }: { children: ReactNode }): JSX.Element {
   const source = usePreloadCoreSource();
@@ -37,6 +101,8 @@ function usePreloadCoreSource(): CoreViewModelSource {
   });
   const cachedDataReported = useRef(false);
   const googleStatusRequested = useRef(false);
+  const loadedCalendarRanges = useRef<CalendarRangeLoadRequest[]>([]);
+  const pendingCalendarRangeLoads = useRef(new Map<string, Promise<boolean>>());
   const taskViewModelCache = useRef(new Map<string, { signature: string; viewModel: TaskViewModel }>());
   const calendarEventViewModelCache = useRef(
     new Map<string, { signature: string; viewModel: CalendarEventViewModel }>()
@@ -129,8 +195,12 @@ function usePreloadCoreSource(): CoreViewModelSource {
       () => undefined
     );
 
-    void loadCoreData(settingsPromise).then(
+    const initialCalendarRange = visibleCalendarRange();
+
+    void loadCoreData(settingsPromise, initialCalendarRange).then(
       (snapshot) => {
+        loadedCalendarRanges.current = [initialCalendarRange];
+        pendingCalendarRangeLoads.current.clear();
         setLoadState(() => ({
           appearanceReady: true,
           snapshot,
@@ -145,6 +215,69 @@ function usePreloadCoreSource(): CoreViewModelSource {
         }));
       }
     );
+  }, []);
+
+  const ensureCalendarRange = useCallback((range: CalendarRangeLoadRequest): Promise<boolean> => {
+    if (!window.hcb) {
+      return Promise.resolve(false);
+    }
+
+    const normalized = normalizedCalendarRange(range);
+
+    if (!normalized) {
+      return Promise.resolve(false);
+    }
+
+    if (calendarRangeLoaded(loadedCalendarRanges.current, normalized)) {
+      return Promise.resolve(true);
+    }
+
+    const key = `${normalized.start}|${normalized.end}`;
+    const pending = pendingCalendarRangeLoads.current.get(key);
+
+    if (pending) {
+      return pending;
+    }
+
+    const loadPromise = Promise.all([
+      loadAllPages<CalendarRangeRequest, CalendarRangeResponse>(
+        { start: normalized.start, end: normalized.end, limit: 500 },
+        (request) => window.hcb!.calendar
+          .listEvents(request)
+          .then((result) => unwrap(result, "Calendar events failed"))
+      ),
+      loadAllPages<ScheduledTaskBlockListRequest, ScheduledTaskBlockListResponse>(
+        { start: normalized.start, end: normalized.end, limit: 500 },
+        (request) => window.hcb!.calendar
+          .listScheduledTaskBlocks(request)
+          .then((result) => unwrap(result, "Scheduled task blocks failed"))
+      )
+    ])
+      .then(([events, scheduledTaskBlocks]) => {
+        loadedCalendarRanges.current = mergedCalendarRanges([
+          ...loadedCalendarRanges.current,
+          normalized
+        ]);
+        setLoadState((current) => ({
+          ...current,
+          snapshot: {
+            ...current.snapshot,
+            events: mergeById<CalendarEventSummary>(current.snapshot.events, events.items),
+            scheduledTaskBlocks: mergeById<ScheduledTaskBlockSummary>(
+              current.snapshot.scheduledTaskBlocks,
+              scheduledTaskBlocks.items
+            )
+          }
+        }));
+        return true;
+      })
+      .catch(() => false)
+      .finally(() => {
+        pendingCalendarRangeLoads.current.delete(key);
+      });
+
+    pendingCalendarRangeLoads.current.set(key, loadPromise);
+    return loadPromise;
   }, []);
 
   const {
@@ -246,6 +379,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
       refresh: load,
       refreshGoogleStatus,
       setGoogleStatus,
+      ensureCalendarRange,
       taskViewModelCache: taskViewModelCache.current,
       calendarEventViewModelCache: calendarEventViewModelCache.current,
       taskMutation,
@@ -274,6 +408,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
       createTaskList,
       deleteTask,
       deleteTaskList,
+      ensureCalendarRange,
       load,
       loadState,
       moveTask,

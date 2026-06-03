@@ -196,6 +196,7 @@ export function buildCoreViewModelSource(
     hasCachedData: hasSnapshotData(snapshot),
     initialNotes: notes,
     noteLists,
+    ensureCalendarRange: options.ensureCalendarRange,
     isOffline: options.state === "offline" || snapshot.syncStatus.offline === true,
     isStale: options.state === "stale" || snapshot.syncStatus.stale === true,
     largeTaskWindow: tasks,

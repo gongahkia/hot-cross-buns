@@ -55,6 +55,7 @@ export interface CoreViewModelSource {
   hasCachedData: boolean;
   initialNotes: NoteViewModel[];
   noteLists: NoteListSummary[];
+  ensureCalendarRange: (range: CalendarRangeLoadRequest) => Promise<boolean>;
   isOffline: boolean;
   isStale: boolean;
   largeTaskWindow: TaskViewModel[];
@@ -107,6 +108,11 @@ export interface CoreViewModelSource {
     } | null;
     timelineRows: Array<{ kind: "task" | "event" | "scheduledTaskBlock"; itemId: string }>;
   };
+}
+
+export interface CalendarRangeLoadRequest {
+  start: string;
+  end: string;
 }
 
 export type CoreDataState = "loading" | "ready" | "empty" | "error" | "offline" | "stale";
@@ -168,6 +174,7 @@ export interface CoreViewModelSourceOptions {
   refresh: () => void;
   refreshGoogleStatus: () => void;
   setGoogleStatus: (status: GoogleStatusResponse) => void;
+  ensureCalendarRange: (range: CalendarRangeLoadRequest) => Promise<boolean>;
   taskViewModelCache: Map<string, { signature: string; viewModel: TaskViewModel }>;
   calendarEventViewModelCache: Map<string, { signature: string; viewModel: CalendarEventViewModel }>;
   taskMutation: TaskMutationUiState;
