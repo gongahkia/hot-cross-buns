@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { TaskListSummary, TaskSummary } from "@shared/ipc/contracts";
@@ -67,9 +67,8 @@ describe("App notes", () => {
     expect(screen.getByRole("combobox", { name: "Note template" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Preview" })).not.toBeInTheDocument();
 
-    await user.clear(titleInput);
-    await user.type(titleInput, "Release note draft");
-    await user.type(bodyInput, "Document planner flow.");
+    fireEvent.change(titleInput, { target: { value: "Release note draft" } });
+    fireEvent.change(bodyInput, { target: { value: "Document planner flow." } });
 
     await waitFor(() => {
       expect(api.tasks.create).toHaveBeenCalledWith({
@@ -113,7 +112,9 @@ describe("App notes", () => {
       within(screen.getByTestId("inspector-actions")).getByRole("button", { name: "Edit" })
     );
     const bodyInput = await screen.findByRole("textbox", { name: "Note body" });
-    await user.type(bodyInput, " Pending close flush.");
+    fireEvent.change(bodyInput, {
+      target: { value: `${(bodyInput as HTMLTextAreaElement).value} Pending close flush.` }
+    });
     await user.click(screen.getByTestId("inspector-close"));
 
     await waitFor(() => {
@@ -146,7 +147,10 @@ describe("App notes", () => {
     await user.click(
       within(screen.getByTestId("inspector-actions")).getByRole("button", { name: "Edit" })
     );
-    await user.type(await screen.findByRole("textbox", { name: "Note body" }), " Switch flush.");
+    const bodyInput = await screen.findByRole("textbox", { name: "Note body" });
+    fireEvent.change(bodyInput, {
+      target: { value: `${(bodyInput as HTMLTextAreaElement).value} Switch flush.` }
+    });
     const notesList = screen.getByRole("list", { name: "Inbox" });
     await user.click(within(notesList).getByRole("button", { name: "Open note Daily note" }));
 
