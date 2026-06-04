@@ -27,6 +27,10 @@ async function main(): Promise<void> {
     await expectCommand(["doctor"], "HCB doctor:", runtimeFile, token);
     await expectCommand(["today"], "HCB today:", runtimeFile, token);
     await expectCommand(["search", "launch"], "HCB search:", runtimeFile, token);
+    await expectCommand(["list", "task-lists"], "HCB task lists:", runtimeFile, token);
+    await expectCommand(["list", "calendars"], "HCB calendars:", runtimeFile, token);
+    await expectCommand(["list", "note-lists"], "HCB note lists:", runtimeFile, token);
+    await expectCommand(["get", "task", "task-1"], "HCB task", runtimeFile, token);
 
     process.stdout.write("hcb cli smoke passed\n");
   } finally {

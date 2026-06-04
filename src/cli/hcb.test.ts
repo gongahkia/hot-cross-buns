@@ -54,9 +54,39 @@ describe("hcb CLI", () => {
       logLimit: 10,
       mutationLimit: 5
     });
+    expect(parseCommand(["list", "task-lists"])).toMatchObject({
+      command: "list",
+      target: "task-lists"
+    });
+    expect(parseCommand(["list", "calendars"])).toMatchObject({
+      command: "list",
+      target: "calendars"
+    });
+    expect(parseCommand(["list", "note-lists"])).toMatchObject({
+      command: "list",
+      target: "note-lists"
+    });
+    expect(parseCommand(["get", "task", "task-1"])).toMatchObject({
+      command: "get",
+      target: "task",
+      id: "task-1"
+    });
+    expect(parseCommand(["get", "event", "event-1"])).toMatchObject({
+      command: "get",
+      target: "event",
+      id: "event-1"
+    });
+    expect(parseCommand(["get", "note", "note-1"])).toMatchObject({
+      command: "get",
+      target: "note",
+      id: "note-1"
+    });
     expect(() => parseCommand(["search", "launch", "--scope", "invalid"])).toThrow("Scope");
     expect(() => parseCommand(["week", "--start-date", "not-a-date"])).toThrow("Start date");
     expect(() => parseCommand(["status", "--scope", "tasks"])).toThrow("--scope");
+    expect(() => parseCommand(["list", "invalid"])).toThrow("List target");
+    expect(() => parseCommand(["get", "invalid", "id"])).toThrow("Get target");
+    expect(() => parseCommand(["get", "task"])).toThrow("Usage");
   });
 
   it("calls MCP status through the runtime file without exposing the bearer token", async () => {
@@ -415,6 +445,96 @@ describe("hcb CLI", () => {
     }
   });
 
+  it("calls MCP list and get read commands", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "hcb-cli-discovery-"));
+    const runtimeFile = join(directory, "mcp-runtime.json");
+    const calls: Array<{ body: Record<string, unknown> }> = [];
+    const fetch: HcbCliDependencies["fetch"] = async (_url, init) => {
+      const body = JSON.parse(init.body) as Record<string, unknown>;
+      const params = body.params as { name: string };
+      calls.push({ body });
+
+      return {
+        status: 200,
+        json: async () => rpcResponse(responseForDiscoveryTool(params.name)),
+        text: async () => ""
+      };
+    };
+
+    try {
+      writeFileSync(
+        runtimeFile,
+        JSON.stringify({
+          running: true,
+          url: "http://127.0.0.1",
+          port: 4777,
+          pid: process.pid,
+          updatedAt: "2026-06-04T00:00:00.000Z"
+        }),
+        "utf8"
+      );
+
+      const taskListsOut = outputBuffer();
+      const calendarsOut = outputBuffer();
+      const noteListsOut = outputBuffer();
+      const getTaskOut = outputBuffer();
+      const getEventOut = outputBuffer();
+      const getNoteOut = outputBuffer();
+      const deps = {
+        fetch,
+        runtimeFilePaths: [runtimeFile],
+        stderr: outputBuffer(),
+        tokenProvider: async () => "secret-token"
+      };
+
+      expect(await runHcbCli(["list", "task-lists"], { ...deps, stdout: taskListsOut })).toBe(0);
+      expect(await runHcbCli(["list", "calendars"], { ...deps, stdout: calendarsOut })).toBe(0);
+      expect(await runHcbCli(["list", "note-lists"], { ...deps, stdout: noteListsOut })).toBe(0);
+      expect(await runHcbCli(["get", "task", "task-1"], { ...deps, stdout: getTaskOut })).toBe(0);
+      expect(await runHcbCli(["get", "event", "event-1"], { ...deps, stdout: getEventOut })).toBe(0);
+      expect(await runHcbCli(["get", "note", "note-1"], { ...deps, stdout: getNoteOut })).toBe(0);
+
+      expect(taskListsOut.text()).toContain("HCB task lists: 1 item");
+      expect(taskListsOut.text()).toContain("taskList id=list-inbox Inbox");
+      expect(calendarsOut.text()).toContain("HCB calendars: 1 item");
+      expect(calendarsOut.text()).toContain("calendar id=cal-primary Primary selected=true");
+      expect(noteListsOut.text()).toContain("HCB note lists: 1 item");
+      expect(noteListsOut.text()).toContain("noteList id=note-list:default Local notes notes=1");
+      expect(getTaskOut.text()).toContain("HCB task");
+      expect(getTaskOut.text()).toContain("\"id\": \"task-1\"");
+      expect(getEventOut.text()).toContain("HCB event");
+      expect(getEventOut.text()).toContain("\"id\": \"event-1\"");
+      expect(getNoteOut.text()).toContain("HCB note");
+      expect(getNoteOut.text()).toContain("\"id\": \"note-1\"");
+      expect(calls.map((call) => (call.body.params as { name: string }).name)).toEqual([
+        "hcb_list_task_lists",
+        "hcb_list_calendars",
+        "hcb_list_note_lists",
+        "hcb_get_task",
+        "hcb_get_event",
+        "hcb_get_note"
+      ]);
+      expect(calls.slice(0, 3).map((call) => (call.body.params as { arguments: Record<string, unknown> }).arguments)).toEqual([
+        {},
+        {},
+        {}
+      ]);
+      expect(calls.slice(3).map((call) => (call.body.params as { arguments: Record<string, unknown> }).arguments)).toEqual([
+        {
+          id: "task-1"
+        },
+        {
+          id: "event-1"
+        },
+        {
+          id: "note-1"
+        }
+      ]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it("fails fast when the runtime file is stale", async () => {
     const directory = mkdtempSync(join(tmpdir(), "hcb-cli-stale-"));
     const runtimeFile = join(directory, "mcp-runtime.json");
@@ -498,6 +618,98 @@ function rpcResponse(structuredContent: Record<string, unknown>): Record<string,
     id: "id",
     result: {
       structuredContent
+    }
+  };
+}
+
+function responseForDiscoveryTool(name: string): Record<string, unknown> {
+  if (name === "hcb_list_task_lists") {
+    return {
+      applied: false,
+      dryRun: false,
+      requiresConfirmation: false,
+      message: "Read task lists.",
+      items: [
+        {
+          kind: "taskList",
+          id: "list-inbox",
+          title: "Inbox"
+        }
+      ]
+    };
+  }
+
+  if (name === "hcb_list_calendars") {
+    return {
+      applied: false,
+      dryRun: false,
+      requiresConfirmation: false,
+      message: "Read calendars.",
+      items: [
+        {
+          kind: "calendar",
+          id: "cal-primary",
+          summary: "Primary",
+          isSelected: true
+        }
+      ]
+    };
+  }
+
+  if (name === "hcb_list_note_lists") {
+    return {
+      applied: false,
+      dryRun: false,
+      requiresConfirmation: false,
+      message: "Read note lists.",
+      items: [
+        {
+          kind: "noteList",
+          id: "note-list:default",
+          title: "Local notes",
+          noteCount: 1
+        }
+      ]
+    };
+  }
+
+  if (name === "hcb_get_task") {
+    return {
+      applied: false,
+      dryRun: false,
+      requiresConfirmation: false,
+      message: "Read task.",
+      item: {
+        kind: "task",
+        id: "task-1",
+        title: "Plan launch checklist"
+      }
+    };
+  }
+
+  if (name === "hcb_get_event") {
+    return {
+      applied: false,
+      dryRun: false,
+      requiresConfirmation: false,
+      message: "Read event.",
+      item: {
+        kind: "event",
+        id: "event-1",
+        title: "Planning review"
+      }
+    };
+  }
+
+  return {
+    applied: false,
+    dryRun: false,
+    requiresConfirmation: false,
+    message: "Read note.",
+    item: {
+      kind: "note",
+      id: "note-1",
+      title: "Local note"
     }
   };
 }

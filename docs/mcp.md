@@ -48,6 +48,7 @@ Read tools:
 - `hcb_get_event`
 - `hcb_get_note`
 - `hcb_list_task_lists`
+- `hcb_list_note_lists`
 - `hcb_list_calendars`
 
 Write tools:

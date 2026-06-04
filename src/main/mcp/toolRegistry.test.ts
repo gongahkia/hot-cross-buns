@@ -10,6 +10,28 @@ const context: McpToolCallContext = {
   now: new Date("2026-06-04T00:00:00.000Z")
 };
 
+describe("McpToolRegistry read lists", () => {
+  it("returns local note lists", async () => {
+    const response = await new McpToolRegistry(createMcpTestDomainServices()).callTool(
+      "hcb_list_note_lists",
+      {},
+      context
+    );
+
+    expect(response).toMatchObject({
+      message: "Read note lists.",
+      items: [
+        {
+          kind: "noteList",
+          id: "note-list:default",
+          title: "Local notes",
+          noteCount: 1
+        }
+      ]
+    });
+  });
+});
+
 describe("McpToolRegistry doctor", () => {
   it("reports ok when account, sync, queue, MCP, and logs are healthy", async () => {
     const item = await callDoctor({

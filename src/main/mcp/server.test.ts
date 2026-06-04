@@ -142,7 +142,7 @@ describe("local MCP server contract", () => {
     const tools = jsonBody(list).result.tools as Array<{ name: string }>;
 
     expect(tools.map((tool) => tool.name)).toEqual(
-      expect.arrayContaining(["hcb_doctor", "hcb_status", "hcb_log", "hcb_diff", "hcb_show"])
+      expect.arrayContaining(["hcb_doctor", "hcb_status", "hcb_log", "hcb_diff", "hcb_show", "hcb_list_note_lists"])
     );
 
     const doctor = await post(
@@ -224,6 +224,27 @@ describe("local MCP server contract", () => {
         id: "task-1",
         kind: "task"
       }
+    });
+
+    const noteLists = await post(
+      server,
+      rpc("tools/call", {
+        name: "hcb_list_note_lists",
+        arguments: {}
+      }),
+      authHeaders()
+    );
+
+    expect(structuredContent(noteLists)).toMatchObject({
+      message: "Read note lists.",
+      items: [
+        {
+          id: "note-list:default",
+          kind: "noteList",
+          title: "Local notes",
+          noteCount: 1
+        }
+      ]
     });
   });
 
