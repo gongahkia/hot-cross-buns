@@ -56,6 +56,11 @@ describe("local MCP server contract", () => {
     const body = jsonBody(response);
 
     expect(response.status).toBe(200);
+    expect(body.result.capabilities).toMatchObject({
+      tools: { listChanged: false },
+      resources: { listChanged: false },
+      prompts: { listChanged: false }
+    });
     expect(body.result.instructions).toContain("hcb_doctor");
     expect(body.result.instructions).toContain("hcb_status");
   });
@@ -264,6 +269,171 @@ describe("local MCP server contract", () => {
         canRedo: true,
         undoLabel: "Edit task",
         redoLabel: "Edit note"
+      }
+    });
+  });
+
+  it("exposes resources and prompts for agent workflows", async () => {
+    const { server } = fixture("read-only");
+    const resources = await post(server, rpc("resources/list"), authHeaders());
+    const templates = await post(server, rpc("resources/templates/list"), authHeaders());
+    const status = await post(
+      server,
+      rpc("resources/read", {
+        uri: "hcb://status"
+      }),
+      authHeaders()
+    );
+    const task = await post(
+      server,
+      rpc("resources/read", {
+        uri: "hcb://tasks/task-1"
+      }),
+      authHeaders()
+    );
+    const prompts = await post(server, rpc("prompts/list"), authHeaders());
+    const prompt = await post(
+      server,
+      rpc("prompts/get", {
+        name: "debug-sync",
+        arguments: {
+          focus: "queue"
+        }
+      }),
+      authHeaders()
+    );
+
+    expect((jsonBody(resources).result.resources as Array<{ uri: string }>).map((resource) => resource.uri)).toEqual(
+      expect.arrayContaining(["hcb://status", "hcb://doctor", "hcb://pending-mutations"])
+    );
+    expect((jsonBody(templates).result.resourceTemplates as Array<{ uriTemplate: string }>).map((template) => template.uriTemplate)).toEqual(
+      expect.arrayContaining(["hcb://tasks/{id}", "hcb://events/{id}", "hcb://notes/{id}", "hcb://mutations/{id}"])
+    );
+    expect(resourceText(status)).toContain("\"kind\": \"diagnosticsStatus\"");
+    expect(resourceText(task)).toContain("\"id\": \"task-1\"");
+    expect((jsonBody(prompts).result.prompts as Array<{ name: string }>).map((item) => item.name)).toEqual(
+      expect.arrayContaining(["debug-sync", "inspect-pending-mutations", "prepare-support-summary"])
+    );
+    expect(JSON.stringify(jsonBody(prompt).result)).toContain("Debug local HCB2 sync health.");
+    expect(JSON.stringify(jsonBody(prompt).result)).toContain("Focus: queue.");
+  });
+
+  it("exposes sync and pending-mutation controls through MCP tools", async () => {
+    const readOnly = fixture("read-only");
+    const allowWrites = fixture("allow-writes");
+    const list = await post(readOnly.server, rpc("tools/list"), authHeaders());
+    const tools = jsonBody(list).result.tools as Array<{ name: string; annotations?: Record<string, unknown>; outputSchema?: Record<string, unknown> }>;
+
+    expect(tools.map((tool) => tool.name)).toEqual(
+      expect.arrayContaining(["hcb_sync_now", "hcb_pending_mutations", "hcb_retry_mutation", "hcb_cancel_mutation"])
+    );
+    expect(tools.find((tool) => tool.name === "hcb_pending_mutations")).toMatchObject({
+      annotations: {
+        readOnlyHint: true
+      },
+      outputSchema: {
+        type: "object"
+      }
+    });
+
+    const pending = await post(
+      readOnly.server,
+      rpc("tools/call", {
+        name: "hcb_pending_mutations",
+        arguments: {
+          limit: 20
+        }
+      }),
+      authHeaders()
+    );
+
+    expect(structuredContent(pending)).toMatchObject({
+      message: "Read 1 pending mutation.",
+      items: [
+        {
+          id: "mutation-1",
+          kind: "mutation"
+        }
+      ]
+    });
+
+    const syncPreview = await post(
+      allowWrites.server,
+      rpc("tools/call", {
+        name: "hcb_sync_now",
+        arguments: {
+          resources: ["tasks"],
+          full: true,
+          dryRun: true
+        }
+      }),
+      authHeaders()
+    );
+
+    expect(structuredContent(syncPreview)).toMatchObject({
+      dryRun: true,
+      item: {
+        kind: "syncRun",
+        resources: ["tasks"],
+        full: true
+      }
+    });
+
+    const retry = await post(
+      allowWrites.server,
+      rpc("tools/call", {
+        name: "hcb_retry_mutation",
+        arguments: {
+          id: "mutation-1"
+        }
+      }),
+      authHeaders()
+    );
+
+    expect(structuredContent(retry)).toMatchObject({
+      applied: true,
+      item: {
+        kind: "mutationAction",
+        action: "retry",
+        id: "mutation-1",
+        status: "pending"
+      }
+    });
+
+    const cancelDirect = await post(
+      allowWrites.server,
+      rpc("tools/call", {
+        name: "hcb_cancel_mutation",
+        arguments: {
+          id: "mutation-1"
+        }
+      }),
+      authHeaders()
+    );
+
+    expect(jsonBody(cancelDirect).error).toMatchObject({
+      code: -32001
+    });
+
+    const cancelPreview = await post(
+      allowWrites.server,
+      rpc("tools/call", {
+        name: "hcb_cancel_mutation",
+        arguments: {
+          id: "mutation-1",
+          dryRun: true
+        }
+      }),
+      authHeaders()
+    );
+
+    expect(structuredContent(cancelPreview)).toMatchObject({
+      dryRun: true,
+      requiresConfirmation: true,
+      item: {
+        kind: "mutationAction",
+        action: "cancel",
+        id: "mutation-1"
       }
     });
   });
@@ -794,4 +964,10 @@ function jsonBody(response: McpHttpResponse) {
 function structuredContent(response: McpHttpResponse) {
   const body = jsonBody(response);
   return body.result.structuredContent;
+}
+
+function resourceText(response: McpHttpResponse): string {
+  const body = jsonBody(response);
+  const content = body.result.contents[0];
+  return typeof content.text === "string" ? content.text : "";
 }

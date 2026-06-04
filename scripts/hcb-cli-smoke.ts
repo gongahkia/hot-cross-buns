@@ -32,6 +32,12 @@ async function main(): Promise<void> {
     await expectCommand(["list", "note-lists"], "HCB note lists:", runtimeFile, token);
     await expectCommand(["get", "task", "task-1"], "HCB task", runtimeFile, token);
     await expectCommand(["undo-status"], "HCB undo status", runtimeFile, token);
+    await expectCommand(["pending-mutations"], "mutation-1", runtimeFile, token);
+    await expectCommand(["sync-now", "--resources", "tasks"], "HCB sync-now: dry-run", runtimeFile, token);
+    await expectCommand(["retry-mutation", "mutation-1"], "HCB retry-mutation: dry-run", runtimeFile, token);
+    await expectCommand(["cancel-mutation", "mutation-1"], "HCB cancel-mutation: dry-run", runtimeFile, token);
+    await expectMcpMethod(port, token, "resources/read", { uri: "hcb://status" }, "diagnosticsStatus");
+    await expectMcpMethod(port, token, "prompts/get", { name: "debug-sync" }, "Debug local HCB2 sync health.");
     await expectCommand(["create", "task", "--title", "Smoke task"], "HCB create task: dry-run", runtimeFile, token);
     await expectCommand(["create", "event", "--title", "Smoke event", "--start-date", "2026-06-04T09:00:00.000Z"], "HCB create event: dry-run", runtimeFile, token);
     await expectCommand(["create", "task-list", "--title", "Smoke tasks"], "HCB create task-list: dry-run", runtimeFile, token);
@@ -85,6 +91,33 @@ async function expectCommand(
   }
 
   return stdout.text();
+}
+
+async function expectMcpMethod(
+  port: number,
+  token: string,
+  method: string,
+  params: Record<string, unknown>,
+  expectedText: string
+): Promise<void> {
+  const response = await fetch(`http://127.0.0.1:${port}/mcp`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: `smoke-${method}`,
+      method,
+      params
+    })
+  });
+  const text = await response.text();
+
+  if (!response.ok || !text.includes(expectedText)) {
+    throw new Error(`mcp ${method} smoke output was unexpected: ${response.status} ${text}`);
+  }
 }
 
 function confirmationIdFromOutput(output: string): string {

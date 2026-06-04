@@ -194,6 +194,28 @@ describe("hcb CLI", () => {
     expect(parseCommand(["undo-status"])).toMatchObject({
       command: "undo-status"
     });
+    expect(parseCommand(["sync-now", "--resources", "tasks,calendar", "--full"])).toMatchObject({
+      command: "sync-now",
+      target: "sync",
+      resources: ["tasks", "calendar"],
+      full: true
+    });
+    expect(parseCommand(["pending-mutations", "--limit", "50"])).toMatchObject({
+      command: "pending-mutations",
+      limit: 50
+    });
+    expect(parseCommand(["retry-mutation", "mutation-1"])).toMatchObject({
+      command: "retry-mutation",
+      target: "mutation",
+      id: "mutation-1"
+    });
+    expect(parseCommand(["cancel-mutation", "mutation-1", "--apply", "--confirmation-id", "confirm-cancel"])).toMatchObject({
+      command: "cancel-mutation",
+      target: "mutation",
+      id: "mutation-1",
+      apply: true,
+      confirmationId: "confirm-cancel"
+    });
     expect(parseCommand(["undo"])).toMatchObject({
       command: "undo"
     });
@@ -259,6 +281,10 @@ describe("hcb CLI", () => {
     expect(() => parseCommand(["delete", "task"])).toThrow("Usage");
     expect(() => parseCommand(["delete", "task", "task-1", "--title", "Nope"])).toThrow("--title");
     expect(() => parseCommand(["undo-status", "--apply"])).toThrow("--apply");
+    expect(() => parseCommand(["sync-now", "--resources", "notes"])).toThrow("--resources");
+    expect(() => parseCommand(["pending-mutations", "--level", "warn"])).toThrow("--level");
+    expect(() => parseCommand(["retry-mutation"])).toThrow("Usage");
+    expect(() => parseCommand(["cancel-mutation", "mutation-1", "--full"])).toThrow("--full");
     expect(() => parseCommand(["undo", "task-1"])).toThrow("Usage");
     expect(() => parseCommand(["redo", "--title", "Nope"])).toThrow("--title");
     expect(() => parseCommand(["schedule", "task", "task-1", "--calendar-id", "cal-primary"])).toThrow("Missing required --start-date");
@@ -1199,6 +1225,99 @@ describe("hcb CLI", () => {
     }
   });
 
+  it("calls MCP sync and queue commands", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "hcb-cli-sync-queue-"));
+    const runtimeFile = join(directory, "mcp-runtime.json");
+    const calls: Array<{ body: Record<string, unknown>; authorization?: string }> = [];
+    const fetch: HcbCliDependencies["fetch"] = async (_url, init) => {
+      const body = JSON.parse(init.body) as {
+        params: {
+          name: string;
+          arguments: Record<string, unknown>;
+        };
+      };
+      calls.push({
+        body,
+        authorization: init.headers.Authorization
+      });
+
+      return {
+        status: 200,
+        json: async () => rpcResponse(
+          body.params.name === "hcb_pending_mutations"
+            ? responseForPendingMutationsTool()
+            : responseForQueueTool(body.params.name, body.params.arguments)
+        ),
+        text: async () => ""
+      };
+    };
+
+    try {
+      writeFileSync(
+        runtimeFile,
+        JSON.stringify({
+          running: true,
+          url: "http://127.0.0.1",
+          port: 4777,
+          pid: process.pid,
+          updatedAt: "2026-06-04T00:00:00.000Z"
+        }),
+        "utf8"
+      );
+
+      const syncOut = outputBuffer();
+      const pendingOut = outputBuffer();
+      const retryOut = outputBuffer();
+      const cancelOut = outputBuffer();
+      const deps = {
+        fetch,
+        runtimeFilePaths: [runtimeFile],
+        stderr: outputBuffer(),
+        tokenProvider: async () => "secret-token"
+      };
+
+      expect(await runHcbCli(["sync-now", "--resources", "tasks,calendar", "--full"], { ...deps, stdout: syncOut })).toBe(0);
+      expect(await runHcbCli(["pending-mutations", "--limit", "50"], { ...deps, stdout: pendingOut })).toBe(0);
+      expect(await runHcbCli(["retry-mutation", "mutation-1"], { ...deps, stdout: retryOut })).toBe(0);
+      expect(await runHcbCli(["cancel-mutation", "mutation-1", "--apply", "--confirmation-id", "confirm-cancel-mutation"], { ...deps, stdout: cancelOut })).toBe(0);
+
+      expect(syncOut.text()).toContain("HCB sync-now: dry-run");
+      expect(syncOut.text()).toContain("Apply: pnpm hcb -- sync-now --resources 'tasks,calendar' --full --apply --confirmation-id confirm-sync-now");
+      expect(pendingOut.text()).toContain("pending update task/task-1 id=mutation-1");
+      expect(retryOut.text()).toContain("HCB retry-mutation: dry-run");
+      expect(cancelOut.text()).toContain("HCB cancel-mutation: applied");
+      expect(`${syncOut.text()}${pendingOut.text()}${retryOut.text()}${cancelOut.text()}`).not.toContain("secret-token");
+      expect(calls.every((call) => call.authorization === "Bearer secret-token")).toBe(true);
+      expect(calls.map((call) => (call.body.params as { name: string }).name)).toEqual([
+        "hcb_sync_now",
+        "hcb_pending_mutations",
+        "hcb_retry_mutation",
+        "hcb_cancel_mutation"
+      ]);
+      expect(calls.map((call) => (call.body.params as { arguments: Record<string, unknown> }).arguments)).toEqual([
+        {
+          resources: ["tasks", "calendar"],
+          full: true,
+          dryRun: true
+        },
+        {
+          limit: 50
+        },
+        {
+          id: "mutation-1",
+          dryRun: true
+        },
+        {
+          id: "mutation-1",
+          dryRun: false,
+          confirmationId: "confirm-cancel-mutation"
+        }
+      ]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it("calls MCP advanced write commands without echoing OAuth secrets", async () => {
     const directory = mkdtempSync(join(tmpdir(), "hcb-cli-advanced-write-"));
     const runtimeFile = join(directory, "mcp-runtime.json");
@@ -1495,6 +1614,46 @@ function responseForUndoStatusTool(): Record<string, unknown> {
       canRedo: true,
       undoLabel: "Edit task",
       redoLabel: "Edit note"
+    }
+  };
+}
+
+function responseForPendingMutationsTool(): Record<string, unknown> {
+  return {
+    applied: false,
+    dryRun: false,
+    requiresConfirmation: false,
+    message: "Read 1 pending mutation.",
+    items: [
+      {
+        kind: "mutation",
+        id: "mutation-1",
+        resourceType: "task",
+        resourceId: "task-1",
+        operation: "update",
+        status: "pending",
+        attemptCount: 0
+      }
+    ]
+  };
+}
+
+function responseForQueueTool(name: string, args: Record<string, unknown>): Record<string, unknown> {
+  const dryRun = args.dryRun !== false;
+  const action = name.replace(/^hcb_/, "").replaceAll("_", "-");
+
+  return {
+    applied: !dryRun,
+    dryRun,
+    requiresConfirmation: dryRun,
+    ...(dryRun ? { confirmationId: `confirm-${action}` } : {}),
+    message: dryRun ? "Dry-run ready. Pass confirmationId to apply." : `Applied ${action}.`,
+    item: {
+      kind: action === "sync-now" ? "syncRun" : "mutationAction",
+      action,
+      id: String(args.id ?? ""),
+      status: action === "cancel-mutation" ? "cancelled" : "pending",
+      resources: Array.isArray(args.resources) ? args.resources : ["tasks", "calendar"]
     }
   };
 }

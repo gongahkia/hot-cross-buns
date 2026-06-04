@@ -1288,7 +1288,9 @@ function formatUndoStatus(item: JsonObject): string {
 
 function formatWrite(command: ParsedCommand, response: McpToolResponse): string {
   const target = command.target ?? "item";
-  const label = command.target === undefined && (command.command === "undo" || command.command === "redo")
+  const label = command.command === "sync-now" || command.command === "retry-mutation" || command.command === "cancel-mutation"
+    ? command.command
+    : command.target === undefined && (command.command === "undo" || command.command === "redo")
     ? command.command
     : `${command.command} ${target}`;
   const state = response.applied ? "applied" : response.dryRun ? "dry-run" : "preview";

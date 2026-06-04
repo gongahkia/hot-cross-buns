@@ -93,7 +93,15 @@ export class McpPromptRegistry {
     return promptDefinitions.map(({ name, description, arguments: args }) => ({
       name,
       description,
-      ...(args === undefined ? {} : { arguments: args })
+      ...(args === undefined
+        ? {}
+        : {
+            arguments: args.map((arg) => ({
+              name: arg.name,
+              description: arg.description,
+              required: arg.required ?? false
+            }))
+          })
     }));
   }
 

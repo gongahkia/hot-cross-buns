@@ -58,6 +58,27 @@ describe("McpToolRegistry read lists", () => {
       }
     });
   });
+
+  it("returns pending mutations", async () => {
+    const response = await new McpToolRegistry(createMcpTestDomainServices()).callTool(
+      "hcb_pending_mutations",
+      {
+        limit: 10
+      },
+      context
+    );
+
+    expect(response).toMatchObject({
+      message: "Read 1 pending mutation.",
+      items: [
+        {
+          kind: "mutation",
+          id: "mutation-1",
+          status: "pending"
+        }
+      ]
+    });
+  });
 });
 
 describe("McpToolRegistry doctor", () => {
@@ -272,6 +293,96 @@ describe("McpToolRegistry advanced writes", () => {
         taskId: "task-1",
         calendarId: "cal-primary",
         durationMinutes: 45
+      }
+    });
+  });
+
+  it("runs sync and queue actions through the write gate", async () => {
+    const registry = new McpToolRegistry(createMcpTestDomainServices());
+    const sync = await registry.callTool(
+      "hcb_sync_now",
+      {
+        resources: ["tasks"],
+        full: true
+      },
+      allowWritesContext
+    );
+    const retryPreview = await registry.callTool(
+      "hcb_retry_mutation",
+      {
+        id: "mutation-1",
+        dryRun: true
+      },
+      confirmWritesContext
+    );
+
+    expect(sync).toMatchObject({
+      applied: true,
+      item: {
+        kind: "syncRun",
+        resources: ["tasks"],
+        full: true
+      }
+    });
+    expect(retryPreview).toMatchObject({
+      dryRun: true,
+      requiresConfirmation: true,
+      item: {
+        kind: "mutationAction",
+        action: "retry",
+        id: "mutation-1"
+      }
+    });
+    expect(retryPreview.confirmationId).toEqual(expect.any(String));
+
+    const retryApply = await registry.callTool(
+      "hcb_retry_mutation",
+      {
+        id: "mutation-1",
+        confirmationId: retryPreview.confirmationId
+      },
+      confirmWritesContext
+    );
+
+    expect(retryApply).toMatchObject({
+      applied: true,
+      item: {
+        action: "retry",
+        id: "mutation-1",
+        status: "pending"
+      }
+    });
+  });
+
+  it("requires confirmation for cancelling pending mutations", async () => {
+    const registry = new McpToolRegistry(createMcpTestDomainServices());
+
+    await expect(registry.callTool(
+      "hcb_cancel_mutation",
+      {
+        id: "mutation-1"
+      },
+      allowWritesContext
+    )).rejects.toMatchObject({
+      code: "CONFIRMATION_REQUIRED"
+    });
+
+    const preview = await registry.callTool(
+      "hcb_cancel_mutation",
+      {
+        id: "mutation-1",
+        dryRun: true
+      },
+      allowWritesContext
+    );
+
+    expect(preview).toMatchObject({
+      dryRun: true,
+      requiresConfirmation: true,
+      item: {
+        kind: "mutationAction",
+        action: "cancel",
+        id: "mutation-1"
       }
     });
   });
