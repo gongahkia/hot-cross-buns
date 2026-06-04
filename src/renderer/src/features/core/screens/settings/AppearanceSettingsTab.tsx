@@ -1,5 +1,6 @@
 import {
   googleCalendarEventColors,
+  themeCalendarEventColor,
   type GoogleCalendarEventColorId,
   type SettingsSnapshot,
   type SettingsUpdateRequest
@@ -129,11 +130,7 @@ export function AppearanceSettingsTab({
     colorId: GoogleCalendarEventColorId,
     patch: Partial<CalendarEventColorOverride>
   ): void {
-    const fallback = googleCalendarEventColors.find((color) => color.id === colorId);
-    const current = settings.calendarEventColorOverrides[colorId] ?? {
-      background: fallback?.background ?? "#5484ed",
-      foreground: fallback?.foreground ?? "#ffffff"
-    };
+    const current = settings.calendarEventColorOverrides[colorId] ?? calendarEventColorDefault(colorId);
 
     updateSettings({
       calendarEventColorOverrides: {
@@ -150,6 +147,16 @@ export function AppearanceSettingsTab({
     const next = { ...settings.calendarEventColorOverrides };
     delete next[colorId];
     updateSettings({ calendarEventColorOverrides: next });
+  }
+
+  function calendarEventColorDefault(colorId: GoogleCalendarEventColorId): CalendarEventColorOverride {
+    const themeColor = themeCalendarEventColor(activeColorTheme.id, colorId);
+    const googleColor = googleCalendarEventColors.find((color) => color.id === colorId);
+
+    return {
+      background: themeColor?.background ?? googleColor?.background ?? "#5484ed",
+      foreground: themeColor?.foreground ?? googleColor?.foreground ?? "#ffffff"
+    };
   }
 
   return (
@@ -254,7 +261,7 @@ export function AppearanceSettingsTab({
       <SettingsGroup title="Calendar event colors">
         {googleCalendarEventColors.map((color) => {
           const override = settings.calendarEventColorOverrides[color.id];
-          const current = override ?? color;
+          const current = override ?? calendarEventColorDefault(color.id);
 
           return (
             <SettingsControlRow key={color.id} label={color.label}>

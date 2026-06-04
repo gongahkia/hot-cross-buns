@@ -1,10 +1,11 @@
 import {
-  googleCalendarEventColor,
+  resolveCalendarEventDisplayColor,
   type CalendarEventSummary,
   type ScheduledTaskBlockMoveRequest,
   type SettingsSnapshot,
   type ScheduledTaskBlockSummary
 } from "@shared/ipc/contracts";
+import type { AppColorThemeId } from "@shared/ipc/themeCatalog";
 import type {
   CalendarDayViewModel,
   CalendarEventViewModel,
@@ -29,16 +30,18 @@ export function stableCalendarEventViewModel(
   calendarBackgroundColor: string | null | undefined,
   calendarForegroundColor: string | null | undefined,
   calendarEventColorOverrides: SettingsSnapshot["calendarEventColorOverrides"],
+  colorThemeId: AppColorThemeId,
   defaultTimeZone: string,
   cache: Map<string, { signature: string; viewModel: CalendarEventViewModel }>
 ): CalendarEventViewModel {
   const timeZone = event.timeZone?.trim() || calendarTimeZone?.trim() || defaultTimeZone || "UTC";
-  const displayColor = resolvedEventDisplayColor(
-    event.colorId,
-    calendarEventColorOverrides,
+  const displayColor = resolveCalendarEventDisplayColor({
+    colorId: event.colorId,
+    colorThemeId,
+    overrides: calendarEventColorOverrides,
     calendarBackgroundColor,
     calendarForegroundColor
-  );
+  });
   const signature = [
     event.id,
     event.eventId ?? "",
@@ -59,6 +62,7 @@ export function stableCalendarEventViewModel(
     calendarTitle ?? "",
     calendarBackgroundColor ?? "",
     calendarForegroundColor ?? "",
+    colorThemeId,
     displayColor.background ?? "",
     displayColor.foreground ?? ""
   ].join("\u001c");
@@ -234,32 +238,6 @@ function taskCalendarEndIso(dueDate: string): string {
   const end = new Date(`${dueDate}T00:00:00.000Z`);
   end.setUTCDate(end.getUTCDate() + 1);
   return end.toISOString();
-}
-
-function resolvedEventDisplayColor(
-  colorId: string | null | undefined,
-  overrides: SettingsSnapshot["calendarEventColorOverrides"],
-  calendarBackgroundColor: string | null | undefined,
-  calendarForegroundColor: string | null | undefined
-): { background: string | null; foreground: string | null } {
-  const googleColor = googleCalendarEventColor(colorId);
-  const override = googleColor ? overrides[googleColor.id] : undefined;
-
-  if (override) {
-    return override;
-  }
-
-  if (googleColor) {
-    return {
-      background: googleColor.background,
-      foreground: googleColor.foreground
-    };
-  }
-
-  return {
-    background: calendarBackgroundColor ?? null,
-    foreground: calendarForegroundColor ?? null
-  };
 }
 
 export function scheduledTaskBlockViewModel(

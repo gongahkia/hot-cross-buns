@@ -367,10 +367,16 @@ export {
 } from "./contracts/registry";
 
 export {
+  resolveCalendarEventDisplayColor,
   googleCalendarEventColor,
-  googleCalendarEventColors
+  googleCalendarEventColors,
+  themeCalendarEventColor,
+  themeCalendarEventColorMaps
 } from "../googleCalendarColors";
 export type {
+  CalendarEventColorOverrides,
+  CalendarEventColorPair,
   GoogleCalendarEventColor,
-  GoogleCalendarEventColorId
+  GoogleCalendarEventColorId,
+  ThemeCalendarEventColorMap
 } from "../googleCalendarColors";

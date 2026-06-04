@@ -1,4 +1,8 @@
 import type { CalendarEventSummary, NoteListSummary, TaskSummary } from "@shared/ipc/contracts";
+import {
+  resolveAppColorTheme,
+  resolveAppThemeMode
+} from "@shared/ipc/themeCatalog";
 import type { CalendarEventViewModel, NoteViewModel, TaskViewModel } from "../coreViewModels";
 import {
   buildCalendarEventDayIndex,
@@ -59,6 +63,10 @@ export function buildCoreViewModelSource(
   const calendarForegroundColorById = Object.fromEntries(
     snapshot.calendars.map((calendar) => [calendar.id, calendar.foregroundColor ?? null])
   );
+  const activeColorTheme = resolveAppColorTheme(
+    snapshot.settings.colorTheme,
+    resolveAppThemeMode(snapshot.settings.theme, options.systemPrefersDark)
+  );
   const events = snapshot.events.flatMap((event) => {
     const linkedTask = event.linkedTaskId ? taskById[event.linkedTaskId] : undefined;
 
@@ -88,6 +96,7 @@ export function buildCoreViewModelSource(
         calendarBackgroundColorById[event.calendarId] ?? null,
         calendarForegroundColorById[event.calendarId] ?? null,
         snapshot.settings.calendarEventColorOverrides,
+        activeColorTheme.id,
         snapshot.settings.defaultTimeZone,
         options.calendarEventViewModelCache
       )
@@ -204,6 +213,7 @@ export function buildCoreViewModelSource(
   const conflictCount = scheduledTaskBlocks.filter((block) => block.conflictCount > 0).length;
 
   return {
+    activeColorThemeId: activeColorTheme.id,
     appearanceReady: options.appearanceReady,
     calendarAgendaEvents: calendarItems,
     calendarDayView: dayView(eventDayIndex),

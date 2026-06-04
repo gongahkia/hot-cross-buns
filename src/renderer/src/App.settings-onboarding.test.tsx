@@ -113,6 +113,7 @@ describe("App settings and onboarding", () => {
 
     await goToSection("Settings");
     await user.click(screen.getByRole("button", { name: "Appearance" }));
+    expect(screen.getByLabelText("Lavender background")).toHaveValue("#bd93f9");
     await user.selectOptions(screen.getByLabelText("Theme"), "light");
 
     await waitFor(() => {
@@ -122,6 +123,7 @@ describe("App settings and onboarding", () => {
       });
       expect(document.documentElement).toHaveAttribute("data-theme", "light");
       expect(document.documentElement).toHaveAttribute("data-color-theme", "notion");
+      expect(screen.getByLabelText("Lavender background")).toHaveValue("#9b8afb");
     });
 
     await user.selectOptions(screen.getByLabelText("Color theme"), "githubLight");

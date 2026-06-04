@@ -26,6 +26,7 @@ import type {
   TaskSummary,
   TaskUpdateRequest
 } from "@shared/ipc/contracts";
+import type { AppColorThemeId } from "@shared/ipc/themeCatalog";
 import type { ParsedLocalSearchQuery } from "@shared/search/localSearch";
 import type {
   CalendarDayViewModel,
@@ -41,6 +42,7 @@ import type {
 } from "../coreViewModels";
 
 export interface CoreViewModelSource {
+  activeColorThemeId: AppColorThemeId;
   appearanceReady: boolean;
   calendarAgendaEvents: CalendarEventViewModel[];
   calendarDayView: CalendarDayViewModel;
@@ -177,6 +179,7 @@ export interface CalendarEventDayIndex {
 export interface CoreViewModelSourceOptions {
   appearanceReady: boolean;
   state: CoreDataState;
+  systemPrefersDark: boolean;
   errorMessage?: string;
   refresh: () => void;
   refreshGoogleStatus: () => void;

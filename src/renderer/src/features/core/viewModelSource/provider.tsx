@@ -22,6 +22,11 @@ import type { CalendarRangeLoadRequest, CoreDataLoadState, CoreViewModelSource }
 
 const CoreDataContext = createContext<CoreViewModelSource | null>(null);
 
+function systemPrefersDark(): boolean {
+  return typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
 function normalizedCalendarRange(range: CalendarRangeLoadRequest): CalendarRangeLoadRequest | null {
   const startMs = Date.parse(range.start);
   const endMs = Date.parse(range.end);
@@ -99,6 +104,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
     appearanceReady: false,
     state: "loading"
   });
+  const [prefersDark, setPrefersDark] = useState(systemPrefersDark);
   const cachedDataReported = useRef(false);
   const googleStatusRequested = useRef(false);
   const loadedCalendarRanges = useRef<CalendarRangeLoadRequest[]>([]);
@@ -107,6 +113,24 @@ function usePreloadCoreSource(): CoreViewModelSource {
   const calendarEventViewModelCache = useRef(
     new Map<string, { signature: string; viewModel: CalendarEventViewModel }>()
   );
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") {
+      return;
+    }
+
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const listener = (event: MediaQueryListEvent): void => setPrefersDark(event.matches);
+    setPrefersDark(media.matches);
+
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", listener);
+      return () => media.removeEventListener("change", listener);
+    }
+
+    media.addListener(listener);
+    return () => media.removeListener(listener);
+  }, []);
 
   const refreshSyncStatus = useCallback(() => {
     void window.hcb?.sync.status().then((result) => {
@@ -414,6 +438,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
     () => buildCoreViewModelSource(loadState.snapshot, {
       appearanceReady: loadState.appearanceReady,
       state: loadState.state,
+      systemPrefersDark: prefersDark,
       errorMessage: loadState.errorMessage,
       refresh: load,
       refreshGoogleStatus,
@@ -455,6 +480,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
       loadState,
       moveTask,
       moveScheduledTaskBlock,
+      prefersDark,
       refreshGoogleStatus,
       refreshUndoStatus,
       renameTaskList,
