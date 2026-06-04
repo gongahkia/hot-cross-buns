@@ -1,5 +1,6 @@
 import { createAppSqliteConnection, type SqliteConnection } from "../data/sqliteConnection";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
+import { HCB_MCP_RUNTIME_FILE_NAME } from "@shared/mcpRuntime";
 import { appLogger } from "../diagnostics/appLogger";
 import { MacOsKeychainSecretStore, UnsupportedSecretStore, type SecretStore } from "../credentials/secretStore";
 import { runLocalDataMigrations, type MigrationResult } from "../data/migrations";
@@ -166,7 +167,8 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
   const mcpController = new LocalMcpServerController({
     credentialAdapter: new KeychainMcpCredentialAdapter(secretStore),
     toolRegistry: mcpToolRegistry,
-    getSettings: () => settingsRepository.get()
+    getSettings: () => settingsRepository.get(),
+    runtimeFilePath: appPaths ? join(appPaths.configDirectory, HCB_MCP_RUNTIME_FILE_NAME) : undefined
   });
   const nativeShell = new NativeShellService({
     adapter: options.nativeAdapter ?? createNoopNativeAdapter(),

@@ -74,6 +74,11 @@ export function createSqliteDomainServices(
       settingsRepository: options.settingsRepository
     }),
     native: createSqliteNativeDomainService(),
-    mcpTools: createMcpDomainServices(options.plannerRepository)
+    mcpTools: createMcpDomainServices({
+      plannerRepository: options.plannerRepository,
+      settingsRepository: options.settingsRepository,
+      syncRepository: options.syncRepository,
+      syncStatus: () => sync.status()
+    })
   };
 }

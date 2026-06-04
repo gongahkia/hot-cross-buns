@@ -1,12 +1,31 @@
-import type { SearchQueryRequest, TaskPriority, TaskUpdateRequest } from "@shared/ipc/contracts";
-import type { LocalPlannerRepository } from "../data/localRepositories";
+import packageJson from "../../../package.json";
+import type { DiagnosticsLogLevel, SearchQueryRequest, TaskPriority, TaskUpdateRequest } from "@shared/ipc/contracts";
+import { redactDiagnosticText } from "@shared/redaction";
+import type {
+  LocalPlannerRepository,
+  LocalSettingsRepository
+} from "../data/localRepositories";
+import { appLogger } from "../diagnostics/appLogger";
+import type { GoogleSyncRepository } from "../sync/readSyncRepository";
+import type { PendingGoogleMutation } from "../sync/readSyncRepository/types";
 import type {
   DomainJsonObject,
   DomainJsonValue,
+  MaybePromise,
   McpDomainServices
 } from "./domainInterfaces";
+import type { SyncStatusResponse } from "@shared/ipc/contracts";
 
-export function createMcpDomainServices(repository: LocalPlannerRepository): McpDomainServices {
+export interface McpDomainServiceDependencies {
+  plannerRepository: LocalPlannerRepository;
+  settingsRepository: LocalSettingsRepository;
+  syncRepository: GoogleSyncRepository;
+  syncStatus: () => MaybePromise<SyncStatusResponse>;
+}
+
+export function createMcpDomainServices(dependencies: McpDomainServiceDependencies): McpDomainServices {
+  const repository = dependencies.plannerRepository;
+
   return {
     planning: {
       search: ({ query, scope, limit }) =>
@@ -169,7 +188,132 @@ export function createMcpDomainServices(repository: LocalPlannerRepository): Mcp
         }),
       previewDeleteEvent: (id) => jsonObject(repository.getCalendarEvent(id)),
       deleteEvent: (id) => jsonObject(repository.deleteCalendarEvent({ id }))
+    },
+    diagnostics: {
+      status: async () => {
+        const settings = dependencies.settingsRepository.get();
+        const sync = await dependencies.syncStatus();
+        const account = dependencies.syncRepository.latestAccountStatus();
+        const pendingMutations = dependencies.syncRepository.pendingMutationDiagnostics();
+
+        return jsonObject({
+          kind: "diagnosticsStatus",
+          generatedAt: new Date().toISOString(),
+          account: {
+            state: account?.connectionState ?? "signed_out",
+            grantedScopeCount: account?.grantedScopes.length ?? 0,
+            missingScopeCount: account?.missingScopes.length ?? 0,
+            updatedAt: account?.updatedAt ?? null
+          },
+          sync: {
+            ...sync,
+            mode: settings.syncMode
+          },
+          cache: dependencies.syncRepository.cacheDiagnostics(),
+          pendingMutations,
+          mcp: {
+            enabled: settings.mcpEnabled,
+            permissionMode: settings.mcpPermissionMode,
+            configuredPort: settings.mcpPort
+          },
+          build: {
+            appName: packageJson.name,
+            version: packageJson.version,
+            nodeVersion: process.versions.node
+          }
+        });
+      },
+      logs: ({ limit, level }) => {
+        const minimumLevel = diagnosticsLogLevel(level);
+
+        return appLogger
+          .recentEntries(limit ?? 50, minimumLevel)
+          .map((entry) => jsonObject(entry));
+      },
+      diff: ({ limit }) =>
+        dependencies.syncRepository
+          .listActivePendingMutations({ limit: limit ?? 100 })
+          .map((mutation) => jsonObject(pendingMutationView(mutation))),
+      show: async ({ kind, id }) => {
+        if (kind === "diagnostics") {
+          return await thisDiagnosticsStatus(dependencies);
+        }
+
+        if (kind !== "mutation") {
+          throw new Error("Diagnostics show only supports mutation or diagnostics.");
+        }
+
+        if (!id) {
+          throw new Error("Mutation id is required.");
+        }
+
+        const mutation = dependencies.syncRepository.pendingMutationById(id);
+
+        if (!mutation) {
+          throw new Error("Mutation was not found.");
+        }
+
+        return jsonObject(pendingMutationView(mutation));
+      }
     }
+  };
+}
+
+async function thisDiagnosticsStatus(dependencies: McpDomainServiceDependencies): Promise<DomainJsonObject> {
+  const settings = dependencies.settingsRepository.get();
+  const sync = await dependencies.syncStatus();
+  const account = dependencies.syncRepository.latestAccountStatus();
+  const pendingMutations = dependencies.syncRepository.pendingMutationDiagnostics();
+
+  return jsonObject({
+    kind: "diagnosticsStatus",
+    generatedAt: new Date().toISOString(),
+    account: {
+      state: account?.connectionState ?? "signed_out",
+      grantedScopeCount: account?.grantedScopes.length ?? 0,
+      missingScopeCount: account?.missingScopes.length ?? 0,
+      updatedAt: account?.updatedAt ?? null
+    },
+    sync: {
+      ...sync,
+      mode: settings.syncMode
+    },
+    cache: dependencies.syncRepository.cacheDiagnostics(),
+    pendingMutations,
+    mcp: {
+      enabled: settings.mcpEnabled,
+      permissionMode: settings.mcpPermissionMode,
+      configuredPort: settings.mcpPort
+    },
+    build: {
+      appName: packageJson.name,
+      version: packageJson.version,
+      nodeVersion: process.versions.node
+    }
+  });
+}
+
+function diagnosticsLogLevel(value: string | undefined): DiagnosticsLogLevel {
+  return value === "debug" || value === "warn" || value === "error" ? value : "info";
+}
+
+function pendingMutationView(mutation: PendingGoogleMutation) {
+  return {
+    kind: "mutation",
+    id: mutation.id,
+    resourceType: mutation.resourceType,
+    resourceId: mutation.resourceId,
+    operation: mutation.operation,
+    status: mutation.status,
+    attemptCount: mutation.attemptCount,
+    nextRetryAt: mutation.nextRetryAt,
+    lastErrorCode: mutation.lastErrorCode,
+    lastErrorMessage:
+      mutation.lastErrorMessage === null
+        ? null
+        : redactDiagnosticText(mutation.lastErrorMessage),
+    createdAt: mutation.createdAt,
+    updatedAt: mutation.updatedAt
   };
 }
 

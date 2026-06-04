@@ -282,6 +282,96 @@ export function createMcpTestDomainServices(): McpTestDomainServices {
         state.events.delete(id);
         return event;
       }
+    },
+    diagnostics: {
+      status: () => ({
+        kind: "diagnosticsStatus",
+        generatedAt: "2026-05-22T00:00:00.000Z",
+        account: {
+          state: "connected",
+          grantedScopeCount: 2,
+          missingScopeCount: 0
+        },
+        sync: {
+          state: "idle",
+          pendingMutationCount: 1,
+          mode: "manual"
+        },
+        cache: {
+          taskListCount: state.taskLists.length,
+          taskCount: state.tasks.size,
+          calendarCount: state.calendars.length,
+          eventCount: state.events.size,
+          noteCount: state.notes.size
+        },
+        pendingMutations: {
+          totalCount: 1,
+          pendingCount: 1,
+          applyingCount: 0,
+          failedCount: 0,
+          retryableCount: 0,
+          authPausedCount: 0,
+          byResourceType: [{ resourceType: "task", count: 1 }]
+        },
+        mcp: {
+          enabled: true,
+          permissionMode: "read-only",
+          configuredPort: 4777
+        }
+      }),
+      logs: ({ limit = 50 }) =>
+        [
+          {
+            kind: "log",
+            id: "log-1",
+            timestamp: "2026-05-22T00:00:00.000Z",
+            level: "info",
+            category: "mcp",
+            message: "MCP fixture log",
+            formattedLine: "[2026-05-22T00:00:00.000Z] [INFO] [mcp] MCP fixture log"
+          }
+        ].slice(0, Math.max(1, Math.min(100, limit))),
+      diff: () => [
+        {
+          kind: "mutation",
+          id: "mutation-1",
+          resourceType: "task",
+          resourceId: "task-1",
+          operation: "update",
+          status: "pending",
+          attemptCount: 0,
+          nextRetryAt: null,
+          lastErrorCode: null,
+          lastErrorMessage: null,
+          createdAt: "2026-05-22T00:00:00.000Z",
+          updatedAt: "2026-05-22T00:00:00.000Z"
+        }
+      ],
+      show: ({ kind, id }) => {
+        if (kind === "diagnostics") {
+          const diagnostics: JsonObject = {
+            kind: "diagnosticsStatus",
+            generatedAt: "2026-05-22T00:00:00.000Z"
+          };
+
+          return diagnostics;
+        }
+
+        if (kind === "mutation" && id === "mutation-1") {
+          const mutation: JsonObject = {
+            kind: "mutation",
+            id,
+            resourceType: "task",
+            resourceId: "task-1",
+            operation: "update",
+            status: "pending"
+          };
+
+          return mutation;
+        }
+
+        throw new McpToolError("NOT_FOUND", "Diagnostics item was not found.");
+      }
     }
   };
 }

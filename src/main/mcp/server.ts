@@ -312,7 +312,7 @@ export class LocalMcpServer {
             version: "0.0.0"
           },
           instructions:
-            "Hot Cross Buns 2 exposes local tasks, notes, and calendar events. Writes obey the user's MCP permission mode."
+            "Hot Cross Buns 2 exposes local tasks, notes, and calendar events. Start diagnostics with hcb_doctor. Debug reads: hcb_status, hcb_log, hcb_diff, hcb_show. Planning reads: hcb_search, hcb_today, hcb_week. Writes obey the user's MCP permission mode."
         };
       case "tools/list":
         return {

@@ -49,6 +49,17 @@ describe("local MCP server contract", () => {
     expect(audit.events).toEqual([]);
   });
 
+  it("initializes with agent command guidance", async () => {
+    const { server } = fixture("read-only");
+
+    const response = await post(server, rpc("initialize"), authHeaders());
+    const body = jsonBody(response);
+
+    expect(response.status).toBe(200);
+    expect(body.result.instructions).toContain("hcb_doctor");
+    expect(body.result.instructions).toContain("hcb_status");
+  });
+
   it("rejects an oversized request body", async () => {
     const { server } = fixture("read-only");
     const request = rawHttpRequest({
@@ -118,6 +129,97 @@ describe("local MCP server contract", () => {
       applied: false,
       dryRun: false,
       requiresConfirmation: false,
+      item: {
+        id: "task-1",
+        kind: "task"
+      }
+    });
+  });
+
+  it("exposes and executes Git-like read tools", async () => {
+    const { server } = fixture("read-only");
+    const list = await post(server, rpc("tools/list"), authHeaders());
+    const tools = jsonBody(list).result.tools as Array<{ name: string }>;
+
+    expect(tools.map((tool) => tool.name)).toEqual(
+      expect.arrayContaining(["hcb_doctor", "hcb_status", "hcb_log", "hcb_diff", "hcb_show"])
+    );
+
+    const doctor = await post(
+      server,
+      rpc("tools/call", {
+        name: "hcb_doctor",
+        arguments: {}
+      }),
+      authHeaders()
+    );
+
+    expect(structuredContent(doctor)).toMatchObject({
+      message: "Ran HCB doctor.",
+      item: {
+        kind: "doctor",
+        status: "warning",
+        findings: [
+          {
+            level: "warning",
+            title: "Pending local mutations"
+          }
+        ],
+        suggestedCommands: ["pnpm hcb -- diff"]
+      }
+    });
+
+    const status = await post(
+      server,
+      rpc("tools/call", {
+        name: "hcb_status",
+        arguments: {}
+      }),
+      authHeaders()
+    );
+
+    expect(structuredContent(status)).toMatchObject({
+      message: "Read HCB status.",
+      item: {
+        kind: "diagnosticsStatus",
+        sync: {
+          pendingMutationCount: 1
+        }
+      }
+    });
+
+    const diff = await post(
+      server,
+      rpc("tools/call", {
+        name: "hcb_diff",
+        arguments: {}
+      }),
+      authHeaders()
+    );
+
+    expect(structuredContent(diff)).toMatchObject({
+      items: [
+        {
+          id: "mutation-1",
+          kind: "mutation",
+          status: "pending"
+        }
+      ]
+    });
+
+    const shown = await post(
+      server,
+      rpc("tools/call", {
+        name: "hcb_show",
+        arguments: {
+          kind: "task",
+          id: "task-1"
+        }
+      }),
+      authHeaders()
+    );
+
+    expect(structuredContent(shown)).toMatchObject({
       item: {
         id: "task-1",
         kind: "task"

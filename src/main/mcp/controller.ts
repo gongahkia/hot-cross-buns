@@ -1,6 +1,7 @@
 import type { McpStatusResponse, SettingsSnapshot } from "@shared/ipc/contracts";
 import { LocalMcpServer } from "./server";
 import { KeychainMcpCredentialAdapter } from "./keychainCredentials";
+import { removeMcpRuntimeFile, writeMcpRuntimeFile } from "./runtimeFile";
 import type { McpToolRegistry } from "./toolRegistry";
 import type { McpPermissionMode } from "./types";
 
@@ -9,6 +10,7 @@ export interface LocalMcpServerControllerOptions {
   toolRegistry: McpToolRegistry;
   getSettings: () => SettingsSnapshot;
   onPortAssigned?: (port: number) => void;
+  runtimeFilePath?: string;
 }
 
 export class LocalMcpServerController {
@@ -42,8 +44,10 @@ export class LocalMcpServerController {
       this.runningPort = runningPort;
       this.lastError = undefined;
       this.options.onPortAssigned?.(runningPort);
+      this.writeRuntimeFile(runningPort);
     } catch (error) {
       this.runningPort = undefined;
+      this.removeRuntimeFile();
       this.lastError = error instanceof Error ? error.message : "MCP loopback failed to start.";
     }
   }
@@ -51,6 +55,7 @@ export class LocalMcpServerController {
   async stop(): Promise<void> {
     await this.server.stop();
     this.runningPort = undefined;
+    this.removeRuntimeFile();
   }
 
   async resetToken(): Promise<void> {
@@ -86,6 +91,31 @@ export class LocalMcpServerController {
   }
 
   dispose(): void {
+    this.removeRuntimeFile();
     void this.stop();
+  }
+
+  private writeRuntimeFile(port: number): void {
+    if (!this.options.runtimeFilePath) {
+      return;
+    }
+
+    try {
+      writeMcpRuntimeFile(this.options.runtimeFilePath, port);
+    } catch (error) {
+      this.lastError = error instanceof Error ? error.message : "MCP runtime discovery file could not be written.";
+    }
+  }
+
+  private removeRuntimeFile(): void {
+    if (!this.options.runtimeFilePath) {
+      return;
+    }
+
+    try {
+      removeMcpRuntimeFile(this.options.runtimeFilePath);
+    } catch {
+      // best effort; stale files are handled by the CLI pid check
+    }
   }
 }

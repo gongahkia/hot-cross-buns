@@ -246,6 +246,48 @@ export function createMcpDomainServices(state: PlaceholderState): McpDomainServi
         state.sync.pendingMutationCount += 1;
         return calendarJson(event);
       }
+    },
+    diagnostics: {
+      status: () => ({
+        kind: "diagnosticsStatus",
+        generatedAt: new Date().toISOString(),
+        account: {
+          state: "signed_out",
+          grantedScopeCount: 0,
+          missingScopeCount: 2
+        },
+        sync: state.sync,
+        cache: {
+          taskListCount: state.taskLists.length,
+          taskCount: state.tasks.length,
+          calendarCount: state.calendars.length,
+          eventCount: state.calendarEvents.length,
+          noteCount: state.notes.length
+        },
+        pendingMutations: {
+          totalCount: state.sync.pendingMutationCount,
+          pendingCount: state.sync.pendingMutationCount,
+          applyingCount: 0,
+          failedCount: 0,
+          retryableCount: 0,
+          authPausedCount: 0,
+          byResourceType: []
+        },
+        mcp: state.mcp
+      }),
+      logs: () => [],
+      diff: () => [],
+      show: ({ kind }) => {
+        if (kind === "diagnostics") {
+          return {
+            kind: "diagnosticsStatus",
+            generatedAt: new Date().toISOString(),
+            sync: state.sync
+          };
+        }
+
+        throw new Error("Placeholder diagnostics item was not found.");
+      }
     }
   };
 }

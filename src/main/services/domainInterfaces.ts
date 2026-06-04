@@ -128,11 +128,19 @@ export interface CalendarDomainService {
   deleteEvent: (id: string) => MaybePromise<DomainJsonObject>;
 }
 
+export interface DiagnosticsDomainService {
+  status: () => MaybePromise<DomainJsonObject>;
+  logs: (input: { limit?: number; level?: string }) => MaybePromise<DomainJsonObject[]>;
+  diff: (input: { limit?: number }) => MaybePromise<DomainJsonObject[]>;
+  show: (input: { kind: string; id?: string }) => MaybePromise<DomainJsonObject>;
+}
+
 export interface McpDomainServices {
   planning: PlanningReadDomainService;
   tasks: TaskDomainService;
   notes: NoteDomainService;
   calendar: CalendarDomainService;
+  diagnostics: DiagnosticsDomainService;
 }
 
 export interface PlannerViewDomainService {

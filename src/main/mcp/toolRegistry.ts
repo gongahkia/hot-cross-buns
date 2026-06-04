@@ -16,6 +16,11 @@ interface WriteHandler {
 }
 
 const readToolNames = [
+  "hcb_doctor",
+  "hcb_status",
+  "hcb_log",
+  "hcb_diff",
+  "hcb_show",
   "hcb_search",
   "hcb_today",
   "hcb_week",
@@ -52,6 +57,22 @@ export const MCP_WRITE_TOOL_NAMES = new Set<string>(writeToolNames);
 export const MCP_DESTRUCTIVE_TOOL_NAMES = destructiveToolNames;
 
 export const mcpToolDefinitions: readonly McpToolDefinition[] = [
+  readTool("hcb_doctor", "Run read-only HCB diagnostics and return agent-friendly findings.", {
+    logLimit: integerSchema("Maximum recent log entries to inspect."),
+    mutationLimit: integerSchema("Maximum pending mutations to inspect.")
+  }),
+  readTool("hcb_status", "Read Git-like HCB status for account, sync, cache, pending writes, and MCP state.", {}),
+  readTool("hcb_log", "Read recent sanitized HCB logs.", {
+    limit: integerSchema("Maximum log entry count."),
+    level: enumSchema(["debug", "info", "warn", "error"])
+  }),
+  readTool("hcb_diff", "Read pending local-to-Google mutations. This is not a remote content diff.", {
+    limit: integerSchema("Maximum pending mutation count.")
+  }),
+  readTool("hcb_show", "Read one HCB object or diagnostics snapshot.", {
+    kind: enumSchema(["task", "event", "note", "mutation", "diagnostics"]),
+    id: stringSchema("Object id. Required for task, event, note, and mutation.")
+  }, ["kind"]),
   readTool("hcb_search", "Search tasks, notes, events, lists, and calendars.", {
     query: stringSchema("Search or fuzzy query."),
     scope: enumSchema(["all", "tasks", "notes", "events", "lists", "calendars"]),
@@ -204,6 +225,65 @@ export class McpToolRegistry {
     argumentsObject: Record<string, unknown>
   ): Promise<McpToolResponse> {
     switch (name) {
+      case "hcb_doctor": {
+        const logLimit = optionalNumber(argumentsObject, "logLimit") ?? 20;
+        const mutationLimit = optionalNumber(argumentsObject, "mutationLimit") ?? 20;
+        const [status, mutations, logs] = await Promise.all([
+          this.services.diagnostics.status(),
+          this.services.diagnostics.diff({ limit: mutationLimit }),
+          this.services.diagnostics.logs({ limit: logLimit, level: "warn" })
+        ]);
+
+        return success({
+          message: "Ran HCB doctor.",
+          item: doctorItem(status, mutations, logs)
+        });
+      }
+      case "hcb_status":
+        return success({
+          message: "Read HCB status.",
+          item: await this.services.diagnostics.status()
+        });
+      case "hcb_log": {
+        const items = await this.services.diagnostics.logs({
+          limit: optionalNumber(argumentsObject, "limit"),
+          level: optionalString(argumentsObject, "level")
+        });
+
+        return success({ message: `Read ${items.length} log entr${items.length === 1 ? "y" : "ies"}.`, items });
+      }
+      case "hcb_diff": {
+        const items = await this.services.diagnostics.diff({
+          limit: optionalNumber(argumentsObject, "limit")
+        });
+
+        return success({ message: `Read ${items.length} pending mutation${items.length === 1 ? "" : "s"}.`, items });
+      }
+      case "hcb_show": {
+        const kind = requiredString(argumentsObject, "kind");
+        const id = optionalString(argumentsObject, "id");
+
+        if (kind === "task") {
+          return success({ message: "Read task.", item: await this.services.tasks.getTask(requiredShowId(id, kind)) });
+        }
+
+        if (kind === "event") {
+          return success({ message: "Read event.", item: await this.services.calendar.getEvent(requiredShowId(id, kind)) });
+        }
+
+        if (kind === "note") {
+          return success({ message: "Read note.", item: await this.services.notes.getNote(requiredShowId(id, kind)) });
+        }
+
+        if (kind === "mutation" || kind === "diagnostics") {
+          return success({
+            message: `Read ${kind}.`,
+            item: await this.services.diagnostics.show({ kind, id })
+          });
+        }
+
+        throw new McpToolError("INVALID_ARGUMENTS", "Unsupported show kind.");
+      }
       case "hcb_search": {
         const items = await this.services.planning.search({
           query: requiredString(argumentsObject, "query"),
@@ -470,6 +550,129 @@ function enumSchema(values: string[]): JsonObject {
   return { type: "string", enum: values };
 }
 
+function doctorItem(status: JsonObject, mutations: JsonObject[], logs: JsonObject[]): JsonObject {
+  const findings: JsonObject[] = [];
+  const suggestedCommands: string[] = [];
+  const account = objectValue(status.account);
+  const sync = objectValue(status.sync);
+  const pending = objectValue(status.pendingMutations);
+  const mcp = objectValue(status.mcp);
+  const accountState = stringValue(account.state);
+  const syncState = stringValue(sync.state);
+  const failedCount = numberValue(pending.failedCount);
+  const retryableCount = numberValue(pending.retryableCount);
+  const pendingCount = numberValue(pending.totalCount) || numberValue(sync.pendingMutationCount);
+  const failedMutations = mutations.filter((mutation) => stringValue(mutation.status) === "failed");
+  const errorLogs = logs.filter((entry) => stringValue(entry.level) === "error");
+  const warningLogs = logs.filter((entry) => stringValue(entry.level) === "warn");
+
+  if (accountState !== "connected") {
+    findings.push(finding("error", "Google account not connected", `Account state is ${accountState || "unknown"}.`));
+    suggestedCommands.push("pnpm hcb -- status");
+  }
+
+  if (failedCount > 0 || failedMutations.length > 0) {
+    findings.push(finding("error", "Failed pending mutations", `${Math.max(failedCount, failedMutations.length)} pending mutation(s) failed.`));
+    suggestedCommands.push("pnpm hcb -- diff");
+
+    const firstFailed = failedMutations[0];
+    const firstFailedId = firstFailed ? stringValue(firstFailed.id) : "";
+
+    if (firstFailedId) {
+      suggestedCommands.push(`pnpm hcb -- show mutation ${firstFailedId}`);
+    }
+  } else if (pendingCount > 0) {
+    findings.push(finding("warning", "Pending local mutations", `${pendingCount} local mutation(s) are waiting for Google sync.`));
+    suggestedCommands.push("pnpm hcb -- diff");
+  }
+
+  if (retryableCount > 0) {
+    findings.push(finding("warning", "Retryable pending mutations", `${retryableCount} pending mutation(s) can retry later.`));
+    suggestedCommands.push("pnpm hcb -- diff");
+  }
+
+  if (booleanValue(sync.offline)) {
+    findings.push(finding("warning", "Sync offline", "Sync status reports offline mode."));
+    suggestedCommands.push("pnpm hcb -- status");
+  }
+
+  if (booleanValue(sync.stale)) {
+    findings.push(finding("warning", "Cache is stale", "Local cache has stale sync status."));
+    suggestedCommands.push("pnpm hcb -- status");
+  }
+
+  if (syncState && syncState !== "idle") {
+    findings.push(finding("warning", "Sync not idle", `Sync state is ${syncState}.`));
+    suggestedCommands.push("pnpm hcb -- status");
+  }
+
+  const permissionMode = stringValue(mcp.permissionMode);
+
+  if (permissionMode && permissionMode !== "read-only") {
+    findings.push(finding("warning", "MCP write access enabled", `MCP permission mode is ${permissionMode}.`));
+  }
+
+  if (errorLogs.length > 0) {
+    findings.push(finding("error", "Recent error logs", `${errorLogs.length} recent error log(s) found.`));
+    suggestedCommands.push("pnpm hcb -- log --level error");
+  } else if (warningLogs.length > 0) {
+    findings.push(finding("warning", "Recent warning logs", `${warningLogs.length} recent warning log(s) found.`));
+    suggestedCommands.push("pnpm hcb -- log --level warn");
+  }
+
+  if (findings.length === 0) {
+    findings.push(finding("ok", "No issues found", "Account, sync, queue, MCP, and recent logs look healthy."));
+  }
+
+  return {
+    kind: "doctor",
+    status: doctorStatus(findings),
+    generatedAt: new Date().toISOString(),
+    findings,
+    suggestedCommands: uniqueStrings(suggestedCommands)
+  };
+}
+
+function finding(level: "ok" | "warning" | "error", title: string, detail: string): JsonObject {
+  return {
+    level,
+    title,
+    detail
+  };
+}
+
+function doctorStatus(findings: JsonObject[]): "ok" | "warning" | "error" {
+  if (findings.some((finding) => stringValue(finding.level) === "error")) {
+    return "error";
+  }
+
+  if (findings.some((finding) => stringValue(finding.level) === "warning")) {
+    return "warning";
+  }
+
+  return "ok";
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values));
+}
+
+function objectValue(value: JsonValue | undefined): JsonObject {
+  return isPlainObject(value) ? value as JsonObject : {};
+}
+
+function stringValue(value: JsonValue | undefined): string {
+  return typeof value === "string" ? value : "";
+}
+
+function numberValue(value: JsonValue | undefined): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function booleanValue(value: JsonValue | undefined): boolean {
+  return value === true;
+}
+
 function success(input: {
   applied?: boolean;
   dryRun?: boolean;
@@ -517,6 +720,14 @@ function requiredString(args: Record<string, unknown>, key: string): string {
   }
 
   return value;
+}
+
+function requiredShowId(id: string | undefined, kind: string): string {
+  if (!id) {
+    throw new McpToolError("INVALID_ARGUMENTS", `Missing id for '${kind}'.`);
+  }
+
+  return id;
 }
 
 function optionalString(args: Record<string, unknown>, key: string): string | undefined {

@@ -36,11 +36,17 @@ Every write tool accepts `dryRun`. Dry-runs return the planned item payload with
 
 Read tools:
 
+- `hcb_doctor`
+- `hcb_status`
+- `hcb_log`
+- `hcb_diff`
+- `hcb_show`
 - `hcb_search`
 - `hcb_today`
 - `hcb_week`
 - `hcb_get_task`
 - `hcb_get_event`
+- `hcb_get_note`
 - `hcb_list_task_lists`
 - `hcb_list_calendars`
 
