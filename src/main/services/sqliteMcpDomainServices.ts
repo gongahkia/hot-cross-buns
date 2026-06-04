@@ -93,6 +93,21 @@ export function createMcpDomainServices(dependencies: McpDomainServiceDependenci
             title: requiredText(input, "title")
           })
         }),
+      previewRenameTaskList: (id, input) =>
+        jsonObject({
+          ...repository.listTaskLists({ limit: 100 }).items.find((taskList) => taskList.id === id),
+          kind: "taskList",
+          id,
+          title: requiredText(input, "title")
+        }),
+      renameTaskList: (id, input) =>
+        jsonObject({
+          kind: "taskList",
+          ...repository.renameTaskList({
+            id,
+            title: requiredText(input, "title")
+          })
+        }),
       previewCreateTask: (input) =>
         jsonObject({
           kind: "task",
@@ -146,6 +161,21 @@ export function createMcpDomainServices(dependencies: McpDomainServiceDependenci
         jsonObject({
           kind: "noteList",
           ...repository.createNoteList({
+            title: requiredText(input, "title")
+          })
+        }),
+      previewRenameNoteList: (id, input) =>
+        jsonObject({
+          ...repository.listNotes({ limit: 1 }).lists.find((noteList) => noteList.id === id),
+          kind: "noteList",
+          id,
+          title: requiredText(input, "title")
+        }),
+      renameNoteList: (id, input) =>
+        jsonObject({
+          kind: "noteList",
+          ...repository.renameNoteList({
+            id,
             title: requiredText(input, "title")
           })
         }),
