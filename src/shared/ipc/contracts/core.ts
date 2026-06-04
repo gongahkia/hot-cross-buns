@@ -29,6 +29,7 @@ export const hcbDomainSchema = z.enum([
   "sync",
   "google",
   "settings",
+  "undo",
   "mcp",
   "native",
   "diagnostics"

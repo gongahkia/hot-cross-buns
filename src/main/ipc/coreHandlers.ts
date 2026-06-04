@@ -229,6 +229,18 @@ export function createCoreIpcHandlers(services: AppDomainServices): IpcHandlerDe
         services.settings.recoveryAction(request as SettingsRecoveryActionRequest)
     },
     {
+      contract: ipcContracts.undo.status,
+      handle: () => services.undo.status()
+    },
+    {
+      contract: ipcContracts.undo.undo,
+      handle: () => services.undo.undo()
+    },
+    {
+      contract: ipcContracts.undo.redo,
+      handle: () => services.undo.redo()
+    },
+    {
       contract: ipcContracts.mcp.status,
       handle: () => services.mcp.status()
     },

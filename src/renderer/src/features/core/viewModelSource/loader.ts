@@ -91,6 +91,7 @@ export async function loadCoreData(
     settings,
     syncStatus,
     googleStatus,
+    undoStatus,
     native
   ] = await Promise.all([
     loadAllPages<TaskListsRequest, TaskListsResponse>(
@@ -131,6 +132,7 @@ export async function loadCoreData(
     settingsLoad,
     hcb.sync.status().then((result) => unwrap(result, "Sync status failed")),
     hcb.google.status().then((result) => unwrap(result, "Google status failed")),
+    hcb.undo.status().then((result) => unwrap(result, "Undo status failed")),
     hcb.native.capabilities().then((result) => unwrap(result, "Native status failed"))
   ]);
   const scheduleDate = dateOnlyFromLocalDate(new Date());
@@ -157,6 +159,7 @@ export async function loadCoreData(
     settings,
     syncStatus,
     googleStatus,
+    undoStatus,
     native,
     resourceCounts: {
       calendarEvents: calendars.items.every((calendar) => calendar.eventCount !== undefined)

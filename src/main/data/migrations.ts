@@ -347,6 +347,28 @@ CREATE INDEX IF NOT EXISTS idx_local_note_lists_updated
 
       return operations;
     }
+  },
+  {
+    version: 10,
+    name: "undo stack entries",
+    sql: `
+CREATE TABLE IF NOT EXISTS local_undo_entries (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  stack TEXT NOT NULL,
+  action_kind TEXT NOT NULL,
+  label TEXT NOT NULL,
+  resource_kind TEXT NOT NULL,
+  resource_id TEXT NOT NULL,
+  undo_payload_json TEXT NOT NULL,
+  redo_payload_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  applied_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_local_undo_entries_stack
+  ON local_undo_entries(session_id, stack, created_at DESC, id DESC);
+`
   }
 ];
 

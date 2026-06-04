@@ -104,6 +104,11 @@ import {
   syncStatusResponseSchema
 } from "./sync";
 import {
+  undoApplyResponseSchema,
+  undoRequestSchema,
+  undoStackStatusResponseSchema
+} from "./undo";
+import {
   taskCompletionRequestSchema,
   taskCreateRequestSchema,
   taskDeleteRequestSchema,
@@ -303,6 +308,11 @@ export const ipcContracts = {
       settingsRecoveryActionRequestSchema,
       settingsRecoveryActionResponseSchema
     )
+  },
+  undo: {
+    status: defineIpcContract("undo", "status", undoRequestSchema, undoStackStatusResponseSchema),
+    undo: defineIpcContract("undo", "undo", undoRequestSchema, undoApplyResponseSchema),
+    redo: defineIpcContract("undo", "redo", undoRequestSchema, undoApplyResponseSchema)
   },
   mcp: {
     status: defineIpcContract("mcp", "status", mcpStatusRequestSchema, mcpStatusResponseSchema),

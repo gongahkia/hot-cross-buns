@@ -4,7 +4,8 @@ import { runLocalDataMigrations } from "../data/migrations";
 import {
   LocalPerformanceRepository,
   LocalPlannerRepository,
-  LocalSettingsRepository
+  LocalSettingsRepository,
+  LocalUndoRepository
 } from "../data/localRepositories";
 import {
   createTemporarySqliteConnection,
@@ -29,10 +30,12 @@ function createTestServices() {
   const performanceRepository = new LocalPerformanceRepository(temp.connection);
   const plannerRepository = new LocalPlannerRepository(temp.connection, performanceRepository);
   const settingsRepository = new LocalSettingsRepository(temp.connection);
+  const undoRepository = new LocalUndoRepository(temp.connection);
   const syncRepository = new GoogleSyncRepository(temp.connection);
   const domain = createSqliteDomainServices({
     plannerRepository,
     settingsRepository,
+    undoRepository,
     syncRepository
   });
 
@@ -40,9 +43,18 @@ function createTestServices() {
     domain,
     plannerRepository,
     settingsRepository,
+    undoRepository,
     syncRepository,
     performanceRepository
   };
+}
+
+function testConnection() {
+  if (!temp) {
+    throw new Error("Missing test database.");
+  }
+
+  return temp.connection;
 }
 
 function seedGoogleMirrors(syncRepository: GoogleSyncRepository): void {
@@ -255,6 +267,205 @@ describe("SQLite-backed domain services", () => {
 
     expect(migrated.keybindings["pane.create"]).toBeNull();
     expect(migrated.keybindings["web.tab.create"]).toBe("CmdOrCtrl+T");
+  });
+
+  it("undoes and redoes task edits through inverse pending mutations", async () => {
+    const { domain, syncRepository } = createTestServices();
+    seedGoogleMirrors(syncRepository);
+    const id = "acct-1:task:inbox:task-1";
+
+    await domain.planner.updateTask({
+      id,
+      title: "Updated task title"
+    });
+
+    expect(await domain.undo.status()).toMatchObject({
+      canUndo: true,
+      canRedo: false,
+      undoLabel: "Edit task"
+    });
+
+    await domain.undo.undo();
+    expect(await domain.planner.getTask({ id })).toMatchObject({
+      title: "Draft inbox triage rules"
+    });
+    expect(await domain.undo.status()).toMatchObject({
+      canUndo: false,
+      canRedo: true,
+      redoLabel: "Edit task"
+    });
+
+    await domain.undo.redo();
+    expect(await domain.planner.getTask({ id })).toMatchObject({
+      title: "Updated task title"
+    });
+    const taskMutations = temp?.connection.query<{ operation: string }>(
+        `SELECT operation
+         FROM google_pending_mutations
+         WHERE resource_id = ?;`,
+        [id]
+      ) ?? [];
+
+    expect(taskMutations).toHaveLength(3);
+    expect(taskMutations).toEqual([
+      { operation: "task.update" },
+      { operation: "task.update" },
+      { operation: "task.update" }
+    ]);
+  });
+
+  it("blocks undo when the task changed after the undoable write", async () => {
+    const { domain, syncRepository } = createTestServices();
+    seedGoogleMirrors(syncRepository);
+    const id = "acct-1:task:inbox:task-1";
+
+    await domain.planner.updateTask({
+      id,
+      title: "Updated task title"
+    });
+    testConnection().run(
+      "UPDATE google_tasks SET title = ?, updated_at = ? WHERE id = ?;",
+      ["Edited elsewhere", "2026-05-22T00:01:00.000Z", id]
+    );
+
+    try {
+      await domain.undo.undo();
+      throw new Error("Expected undo to conflict.");
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: "CONFLICT",
+        recoverable: true
+      });
+    }
+
+    expect(await domain.planner.getTask({ id })).toMatchObject({
+      title: "Edited elsewhere"
+    });
+    expect(await domain.undo.status()).toMatchObject({
+      canUndo: true,
+      canRedo: false
+    });
+  });
+
+  it("blocks redo when the task changed after undo", async () => {
+    const { domain, syncRepository } = createTestServices();
+    seedGoogleMirrors(syncRepository);
+    const id = "acct-1:task:inbox:task-1";
+
+    await domain.planner.updateTask({
+      id,
+      title: "Updated task title"
+    });
+    await domain.undo.undo();
+    testConnection().run(
+      "UPDATE google_tasks SET title = ?, updated_at = ? WHERE id = ?;",
+      ["Edited elsewhere", "2026-05-22T00:02:00.000Z", id]
+    );
+
+    try {
+      await domain.undo.redo();
+      throw new Error("Expected redo to conflict.");
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: "CONFLICT",
+        recoverable: true
+      });
+    }
+
+    expect(await domain.planner.getTask({ id })).toMatchObject({
+      title: "Edited elsewhere"
+    });
+    expect(await domain.undo.status()).toMatchObject({
+      canUndo: false,
+      canRedo: true
+    });
+  });
+
+  it("cleans stale undo entries without clearing the current session", async () => {
+    const { domain, syncRepository, undoRepository } = createTestServices();
+    seedGoogleMirrors(syncRepository);
+    const payload = JSON.stringify({
+      version: 1,
+      actionKind: "task.update",
+      resourceKind: "task",
+      resourceId: "stale-task",
+      target: null,
+      opposite: null
+    });
+
+    testConnection().run(
+      `INSERT INTO local_undo_entries (
+         id, session_id, stack, action_kind, label, resource_kind, resource_id,
+         undo_payload_json, redo_payload_json, created_at, applied_at
+       ) VALUES (?, ?, 'undo', 'task.update', 'Edit task', 'task', ?, ?, ?, ?, NULL);`,
+      [
+        "stale-old-session",
+        "session:old",
+        "stale-task",
+        payload,
+        payload,
+        "1970-01-01T00:00:00.000Z"
+      ]
+    );
+    testConnection().run(
+      `INSERT INTO local_undo_entries (
+         id, session_id, stack, action_kind, label, resource_kind, resource_id,
+         undo_payload_json, redo_payload_json, created_at, applied_at
+       ) VALUES (?, ?, 'undo', 'task.update', 'Edit task', ?, ?, ?, ?, ?, NULL);`,
+      [
+        "current-session-old",
+        undoRepository.sessionId,
+        "task",
+        "current-task",
+        payload,
+        payload,
+        "1970-01-01T00:00:00.000Z"
+      ]
+    );
+
+    await domain.planner.updateTask({
+      id: "acct-1:task:inbox:task-1",
+      title: "Updated task title"
+    });
+
+    const rows = testConnection().query<{ id: string; sessionId: string }>(
+      `SELECT id, session_id AS sessionId
+       FROM local_undo_entries
+       ORDER BY id ASC;`
+    );
+    expect(rows.some((row) => row.id === "stale-old-session")).toBe(false);
+    expect(rows.some((row) => row.id === "current-session-old")).toBe(true);
+    expect(rows.some((row) => row.sessionId === undoRepository.sessionId)).toBe(true);
+  });
+
+  it("undoes calendar event creation by appending a delete mutation", async () => {
+    const { domain, syncRepository } = createTestServices();
+    seedGoogleMirrors(syncRepository);
+
+    const created = await domain.planner.createCalendarEvent({
+      calendarId: "acct-1:calendar:product",
+      title: "Undoable event",
+      startsAt: "2026-05-22T11:00:00.000Z",
+      endsAt: "2026-05-22T12:00:00.000Z"
+    });
+
+    await domain.undo.undo();
+
+    expect(() => domain.planner.getCalendarEvent({ id: created.id })).toThrow("Calendar event was not found.");
+    const eventMutations = temp?.connection.query<{ operation: string }>(
+        `SELECT operation
+         FROM google_pending_mutations
+         WHERE resource_id = ?;`,
+        [created.id]
+      ) ?? [];
+
+    expect(eventMutations).toHaveLength(2);
+    expect(eventMutations).toEqual(
+      expect.arrayContaining([
+        { operation: "calendar.events.create" },
+        { operation: "calendar.events.delete" }
+      ])
+    );
   });
 
   it("persists v1 settings sections in SQLite", async () => {

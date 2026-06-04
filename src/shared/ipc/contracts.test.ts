@@ -72,6 +72,7 @@ describe("shared IPC contracts", () => {
       "sync",
       "google",
       "settings",
+      "undo",
       "mcp",
       "native",
       "diagnostics"

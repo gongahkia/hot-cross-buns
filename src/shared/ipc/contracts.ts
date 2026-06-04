@@ -164,6 +164,16 @@ export {
 } from "./contracts/sync";
 
 export {
+  undoApplyResponseSchema,
+  undoRequestSchema,
+  undoResourceKindSchema,
+  undoStackStatusResponseSchema,
+  type UndoApplyResponse,
+  type UndoRequest,
+  type UndoStackStatusResponse
+} from "./contracts/undo";
+
+export {
   googleAccountConnectionStatusSchema,
   googleBeginOAuthRequestSchema,
   googleBeginOAuthResponseSchema,

@@ -2,7 +2,8 @@ import type {
   GoogleStatusResponse,
   NativeCapabilitiesResponse,
   SettingsSnapshot,
-  SyncStatusResponse
+  SyncStatusResponse,
+  UndoStackStatusResponse
 } from "@shared/ipc/contracts";
 import {
   defaultHistoryCategoryVisibility,
@@ -21,6 +22,11 @@ export const emptyGoogleStatus: GoogleStatusResponse = {
   oauthClientConfigured: false,
   clientId: null,
   hasClientSecret: false
+};
+
+export const emptyUndoStatus: UndoStackStatusResponse = {
+  canUndo: false,
+  canRedo: false
 };
 
 export const emptySettings: SettingsSnapshot = {
@@ -184,6 +190,7 @@ export const emptySnapshot: CoreDataSnapshot = {
   settings: emptySettings,
   syncStatus: emptySyncStatus,
   googleStatus: emptyGoogleStatus,
+  undoStatus: emptyUndoStatus,
   native: emptyNativeCapabilities,
   resourceCounts: {
     calendarEvents: 0,

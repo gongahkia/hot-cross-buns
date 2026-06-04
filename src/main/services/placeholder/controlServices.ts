@@ -127,6 +127,20 @@ export function createPlaceholderControlServices(
         };
       }
     },
+    undo: {
+      status: () => ({
+        canUndo: false,
+        canRedo: false
+      }),
+      undo: () => ({
+        action: "undo",
+        applied: false
+      }),
+      redo: () => ({
+        action: "redo",
+        applied: false
+      })
+    },
     mcp: {
       status: () => ({ ...state.mcp }),
       setEnabled: (request) => {

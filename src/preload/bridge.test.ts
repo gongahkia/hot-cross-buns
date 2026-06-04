@@ -321,7 +321,8 @@ describe("preload bridge", () => {
       "search",
       "settings",
       "sync",
-      "tasks"
+      "tasks",
+      "undo"
     ]);
     expect(JSON.stringify(Object.keys(api))).not.toMatch(
       /ipcRenderer|invoke|send|process|require/

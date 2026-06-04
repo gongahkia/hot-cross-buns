@@ -8,7 +8,8 @@ import { GooglePendingMutationWorker } from "../sync/mutationWorker";
 import type {
   LocalHistoryRepository,
   LocalPlannerRepository,
-  LocalSettingsRepository
+  LocalSettingsRepository,
+  LocalUndoRepository
 } from "../data/localRepositories";
 import type { GoogleSyncRepository } from "../sync/readSyncRepository";
 import type { AppDomainServices } from "./domainInterfaces";
@@ -21,6 +22,7 @@ import {
 import { createSqliteNativeDomainService } from "./sqliteNativeDomainService";
 import { createSqlitePlannerDomainService } from "./sqlitePlannerDomainService";
 import { createSqliteSettingsDomainService } from "./sqliteSettingsDomainService";
+import { createSqliteUndoDomainService } from "./sqliteUndoDomainService";
 import {
   LocalSyncControlService,
   noopCalendarTransport,
@@ -30,6 +32,7 @@ import {
 export interface SqliteDomainServiceOptions {
   plannerRepository: LocalPlannerRepository;
   settingsRepository: LocalSettingsRepository;
+  undoRepository: LocalUndoRepository;
   syncRepository: GoogleSyncRepository;
   historyRepository?: LocalHistoryRepository;
   syncTasksTransport?: GoogleTasksReadTransport;
@@ -60,7 +63,7 @@ export function createSqliteDomainServices(
   const mcpState = createInitialMcpState(options.settingsRepository);
 
   return {
-    planner: createSqlitePlannerDomainService(options.plannerRepository),
+    planner: createSqlitePlannerDomainService(options.plannerRepository, options.undoRepository),
     sync,
     google: createUnavailableGoogleDomainService(options.syncRepository),
     settings: createSqliteSettingsDomainService({
@@ -69,6 +72,7 @@ export function createSqliteDomainServices(
       sync,
       syncRepository: options.syncRepository
     }),
+    undo: createSqliteUndoDomainService(options.undoRepository),
     mcp: createSqliteMcpControlService({
       mcpState,
       settingsRepository: options.settingsRepository

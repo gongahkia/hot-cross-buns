@@ -392,6 +392,7 @@ export function useNotesController(source: CoreViewModelSource): {
       createNoteIds.current.delete(fallbackId);
       createNoteIds.current.add(result.data.id);
       openNoteInspector(persisted, "edit");
+      source.refreshUndoStatus();
     }
   }
 
@@ -439,6 +440,7 @@ export function useNotesController(source: CoreViewModelSource): {
       createNoteIds.current.delete(fallbackId);
       createNoteIds.current.add(result.data.id);
       openNoteInspector(persisted, "edit");
+      source.refreshUndoStatus();
     }
   }
 
@@ -449,6 +451,7 @@ export function useNotesController(source: CoreViewModelSource): {
     if (result?.ok) {
       setLocalNoteLists((current) => [...current, noteListFromTaskList(result.data)]);
       setSelectedNoteViews((current) => [...current, noteListSelection(result.data.id)]);
+      source.refreshUndoStatus();
     }
   }
 
@@ -471,6 +474,7 @@ export function useNotesController(source: CoreViewModelSource): {
       const next = current.filter((view) => view !== noteListSelection(listId));
       return next.length > 0 ? next : noteLists.filter((list) => list.id !== listId).map((list) => noteListSelection(list.id));
     });
+    source.refreshUndoStatus();
   }
 
   async function renameNoteList(listId: string, currentTitle: string): Promise<void> {
@@ -490,6 +494,7 @@ export function useNotesController(source: CoreViewModelSource): {
       setNotes((current) =>
         current.map((note) => (note.listId === listId ? { ...note, listTitle: displayTitle } : note))
       );
+      source.refreshUndoStatus();
     }
   }
 
@@ -545,6 +550,7 @@ export function useNotesController(source: CoreViewModelSource): {
       setSelectedNoteId(persisted.id);
       createNoteIds.current.delete(noteId);
       createNoteIds.current.add(persisted.id);
+      source.refreshUndoStatus();
       return true;
     }
 
@@ -554,6 +560,10 @@ export function useNotesController(source: CoreViewModelSource): {
       notes: draft.body,
       dueDate: null
     });
+
+    if (result?.ok) {
+      source.refreshUndoStatus();
+    }
 
     return result?.ok ?? false;
   }
@@ -566,7 +576,11 @@ export function useNotesController(source: CoreViewModelSource): {
     }
 
     if (!note.id.startsWith("note-draft-")) {
-      await window.hcb?.tasks.delete({ id: note.id });
+      const result = await window.hcb?.tasks.delete({ id: note.id });
+
+      if (result?.ok) {
+        source.refreshUndoStatus();
+      }
     }
 
     setStarredNoteIds((current) => {

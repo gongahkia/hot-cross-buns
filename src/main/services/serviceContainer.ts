@@ -8,7 +8,8 @@ import {
   LocalHistoryRepository,
   LocalPerformanceRepository,
   LocalPlannerRepository,
-  LocalSettingsRepository
+  LocalSettingsRepository,
+  LocalUndoRepository
 } from "../data/localRepositories";
 import {
   GoogleCalendarHttpAdapter,
@@ -49,6 +50,7 @@ export interface LocalDataService {
   settingsRepository: LocalSettingsRepository;
   syncRepository: GoogleSyncRepository;
   historyRepository: LocalHistoryRepository;
+  undoRepository: LocalUndoRepository;
   performanceRepository: LocalPerformanceRepository;
 }
 
@@ -103,6 +105,7 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
   const migrations = runLocalDataMigrations(connection, { defaultTimeZone });
   const performanceRepository = new LocalPerformanceRepository(connection);
   const historyRepository = new LocalHistoryRepository(connection);
+  const undoRepository = new LocalUndoRepository(connection);
   const plannerRepository = new LocalPlannerRepository(connection, performanceRepository);
   const settingsRepository = new LocalSettingsRepository(connection);
   const syncRepository = new GoogleSyncRepository(connection, { defaultTimeZone });
@@ -136,6 +139,7 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
   const sqliteDomain = createSqliteDomainServices({
     plannerRepository,
     settingsRepository,
+    undoRepository,
     syncRepository,
     historyRepository,
     syncTasksTransport: options.syncTasksTransport ?? runtimeTasksTransport,
@@ -259,6 +263,7 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
       settingsRepository,
       syncRepository,
       historyRepository,
+      undoRepository,
       performanceRepository
     },
     performance: performanceRepository,

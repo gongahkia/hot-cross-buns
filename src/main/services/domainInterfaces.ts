@@ -50,6 +50,8 @@ import type {
   SyncRunNowRequest,
   SyncRunNowResponse,
   SyncStatusResponse,
+  UndoApplyResponse,
+  UndoStackStatusResponse,
   TaskCompletionRequest,
   TaskCreateRequest,
   TaskDeleteRequest,
@@ -239,6 +241,12 @@ export interface SettingsDomainService {
   ) => MaybePromise<SettingsRecoveryActionResponse>;
 }
 
+export interface UndoDomainService {
+  status: () => MaybePromise<UndoStackStatusResponse>;
+  undo: () => MaybePromise<UndoApplyResponse>;
+  redo: () => MaybePromise<UndoApplyResponse>;
+}
+
 export interface McpControlDomainService {
   status: () => MaybePromise<McpStatusResponse>;
   setEnabled: (request: McpSetEnabledRequest) => MaybePromise<McpStatusResponse>;
@@ -255,6 +263,7 @@ export interface AppDomainServices {
   sync: SyncControlDomainService;
   google: GoogleControlDomainService;
   settings: SettingsDomainService;
+  undo: UndoDomainService;
   mcp: McpControlDomainService;
   native: NativeDomainService;
   mcpTools: McpDomainServices;

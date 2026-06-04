@@ -747,6 +747,12 @@ export function seededHcb(): HcbApi {
     google: {
       ...api.google,
       status: vi.fn(async () => ok(connectedGoogleStatus()))
+    },
+    undo: {
+      ...api.undo,
+      status: vi.fn(async () => ok({ canUndo: false, canRedo: false })),
+      undo: vi.fn(async () => ok({ action: "undo" as const, applied: false })),
+      redo: vi.fn(async () => ok({ action: "redo" as const, applied: false }))
     }
   };
 }

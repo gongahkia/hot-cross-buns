@@ -124,6 +124,22 @@ function usePreloadCoreSource(): CoreViewModelSource {
     });
   }, []);
 
+  const refreshUndoStatus = useCallback(() => {
+    void window.hcb?.undo.status().then((result) => {
+      if (!result?.ok) {
+        return;
+      }
+
+      setLoadState((current) => ({
+        ...current,
+        snapshot: {
+          ...current.snapshot,
+          undoStatus: result.data
+        }
+      }));
+    });
+  }, []);
+
   const refreshDiagnosticsSummary = useCallback(() => {
     void window.hcb?.diagnostics.summary().then((result) => {
       if (!result?.ok) {
@@ -298,7 +314,8 @@ function usePreloadCoreSource(): CoreViewModelSource {
     unscheduleTaskBlock
   } = useTaskMutations({
     setLoadState,
-    refreshSyncStatus
+    refreshSyncStatus,
+    refreshUndoStatus
   });
 
   const {
@@ -371,6 +388,28 @@ function usePreloadCoreSource(): CoreViewModelSource {
     void window.hcb?.diagnostics.markCachedDataRendered();
   }, [loadState.state]);
 
+  const runUndo = useCallback(async () => {
+    const result = await window.hcb?.undo.undo();
+
+    if (!result?.ok) {
+      return null;
+    }
+
+    load();
+    return result.data;
+  }, [load]);
+
+  const runRedo = useCallback(async () => {
+    const result = await window.hcb?.undo.redo();
+
+    if (!result?.ok) {
+      return null;
+    }
+
+    load();
+    return result.data;
+  }, [load]);
+
   return useMemo(
     () => buildCoreViewModelSource(loadState.snapshot, {
       appearanceReady: loadState.appearanceReady,
@@ -386,6 +425,9 @@ function usePreloadCoreSource(): CoreViewModelSource {
       settingsMutation,
       updateSettings,
       runRecoveryAction,
+      undo: runUndo,
+      redo: runRedo,
+      refreshUndoStatus,
       clearTaskMutationError,
       retryLastTaskMutation,
       createTask,
@@ -414,9 +456,12 @@ function usePreloadCoreSource(): CoreViewModelSource {
       moveTask,
       moveScheduledTaskBlock,
       refreshGoogleStatus,
+      refreshUndoStatus,
       renameTaskList,
       retryLastTaskMutation,
+      runRedo,
       runRecoveryAction,
+      runUndo,
       reopenTask,
       setGoogleStatus,
       settingsMutation,

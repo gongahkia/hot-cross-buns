@@ -13,6 +13,8 @@ export const hotkeyDefinitions: HotkeyDefinition[] = [
   { id: "commandPalette.open", label: "Command Palette", group: "App" },
   { id: "sync.refresh", label: "Refresh Sync", group: "App" },
   { id: "sync.forceFullResync", label: "Force Full Resync", group: "App" },
+  { id: "undo.perform", label: "Undo", group: "App" },
+  { id: "redo.perform", label: "Redo", group: "App" },
   { id: "navigation.tasks", label: "Go to Tasks", group: "Navigation" },
   { id: "navigation.calendar", label: "Go to Calendar", group: "Navigation" },
   { id: "navigation.notes", label: "Go to Notes", group: "Navigation" },

@@ -18,6 +18,8 @@ export type PlannerActionId =
   | "navigation.settings"
   | "sync.refresh"
   | "sync.forceFullResync"
+  | "undo.perform"
+  | "redo.perform"
   | "mcp.toggle"
   | "diagnostics.copy";
 
@@ -27,6 +29,7 @@ export type PlannerActionCategory =
   | "Task"
   | "Calendar"
   | "Sync"
+  | "Edit"
   | "Agent"
   | "Diagnostics";
 
@@ -48,6 +51,8 @@ export interface PlannerActionContext {
   hasSelectedTask: boolean;
   canWriteTasks: boolean;
   canWriteEvents: boolean;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 export interface PlannerActionAvailability {
@@ -106,6 +111,20 @@ export const plannerActions: PlannerAction[] = [
     category: "Task",
     keywords: ["delete", "remove", "selected", "task"],
     sectionId: "tasks"
+  },
+  {
+    id: "undo.perform",
+    label: "Undo",
+    description: "Undo the last planner write",
+    category: "Edit",
+    keywords: ["undo", "revert"]
+  },
+  {
+    id: "redo.perform",
+    label: "Redo",
+    description: "Redo the last undone planner write",
+    category: "Edit",
+    keywords: ["redo", "restore"]
   },
   {
     id: "navigation.tasks",
@@ -259,6 +278,18 @@ export function plannerActionAvailability(
       enabled: false,
       reason: "Calendar write pending"
     };
+  }
+
+  if (action.id === "undo.perform") {
+    return context.canUndo
+      ? { enabled: true }
+      : { enabled: false, reason: "Nothing to undo" };
+  }
+
+  if (action.id === "redo.perform") {
+    return context.canRedo
+      ? { enabled: true }
+      : { enabled: false, reason: "Nothing to redo" };
   }
 
   return { enabled: true };

@@ -292,6 +292,11 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
           "Settings recovery action failed"
         )
     },
+    undo: {
+      status: () => invokeContract(ipc, ipcContracts.undo.status, {}, "Undo status failed"),
+      undo: () => invokeContract(ipc, ipcContracts.undo.undo, {}, "Undo failed"),
+      redo: () => invokeContract(ipc, ipcContracts.undo.redo, {}, "Redo failed")
+    },
     mcp: {
       status: () => invokeContract(ipc, ipcContracts.mcp.status, {}, "MCP status failed"),
       setEnabled: (request) =>

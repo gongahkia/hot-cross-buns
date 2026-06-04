@@ -16,6 +16,8 @@ import type {
   SettingsSnapshot,
   SettingsUpdateRequest,
   SyncStatusResponse,
+  UndoApplyResponse,
+  UndoStackStatusResponse,
   TaskCreateRequest,
   TaskListCreateRequest,
   TaskListRenameRequest,
@@ -66,6 +68,7 @@ export interface CoreViewModelSource {
   settings: SettingsSnapshot;
   diagnosticsSummary?: DiagnosticsSummaryResponse;
   googleStatus: GoogleStatusResponse;
+  undoStatus: UndoStackStatusResponse;
   native: NativeCapabilitiesResponse;
   settingsMutationError?: string;
   settingsMutationPending: boolean;
@@ -73,6 +76,9 @@ export interface CoreViewModelSource {
   runRecoveryAction: (
     request: SettingsRecoveryActionRequest
   ) => Promise<SettingsRecoveryActionResponse | null>;
+  undo: () => Promise<UndoApplyResponse | null>;
+  redo: () => Promise<UndoApplyResponse | null>;
+  refreshUndoStatus: () => void;
   taskMutationError?: string;
   taskMutationPending: boolean;
   clearTaskMutationError: () => void;
@@ -129,6 +135,7 @@ export interface CoreDataSnapshot {
   settings: SettingsSnapshot;
   syncStatus: SyncStatusResponse;
   googleStatus: GoogleStatusResponse;
+  undoStatus: UndoStackStatusResponse;
   health?: DiagnosticsHealthResponse;
   native: NativeCapabilitiesResponse;
   diagnosticsSummary?: DiagnosticsSummaryResponse;
@@ -183,6 +190,9 @@ export interface CoreViewModelSourceOptions {
   runRecoveryAction: (
     request: SettingsRecoveryActionRequest
   ) => Promise<SettingsRecoveryActionResponse | null>;
+  undo: () => Promise<UndoApplyResponse | null>;
+  redo: () => Promise<UndoApplyResponse | null>;
+  refreshUndoStatus: () => void;
   clearTaskMutationError: () => void;
   retryLastTaskMutation: () => void;
   createTask: (request: TaskCreateRequest) => Promise<boolean>;

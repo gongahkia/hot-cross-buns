@@ -20,11 +20,13 @@ import type { CoreDataLoadState, TaskMutationUiState } from "./types";
 interface UseTaskMutationsOptions {
   setLoadState: Dispatch<SetStateAction<CoreDataLoadState>>;
   refreshSyncStatus: () => void;
+  refreshUndoStatus: () => void;
 }
 
 export function useTaskMutations({
   setLoadState,
-  refreshSyncStatus
+  refreshSyncStatus,
+  refreshUndoStatus
 }: UseTaskMutationsOptions): {
   taskMutation: TaskMutationUiState;
   clearTaskMutationError: () => void;
@@ -104,7 +106,8 @@ export function useTaskMutations({
   const finishTaskMutation = useCallback(() => {
     setTaskMutation({ pending: false });
     refreshSyncStatus();
-  }, [refreshSyncStatus]);
+    refreshUndoStatus();
+  }, [refreshSyncStatus, refreshUndoStatus]);
 
   const createTask = useCallback(
     async (request: TaskCreateRequest): Promise<boolean> => {

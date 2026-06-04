@@ -308,6 +308,16 @@ export function AppShell(): JSX.Element {
         return true;
       }
 
+      if (command.id === "undo.perform") {
+        void source.undo();
+        return true;
+      }
+
+      if (command.id === "redo.perform") {
+        void source.redo();
+        return true;
+      }
+
       if (command.id === "diagnostics.copy") {
         openDiagnosticsPanel();
         return true;
@@ -325,7 +335,15 @@ export function AppShell(): JSX.Element {
       triggerTaskCommand(command.taskCommand as TaskSurfaceCommand["id"]);
       return true;
     },
-    [openDiagnosticsPanel, openQuickAdd, openSettingsPanel, source.refresh, triggerTaskCommand]
+    [
+      openDiagnosticsPanel,
+      openQuickAdd,
+      openSettingsPanel,
+      source.redo,
+      source.refresh,
+      source.undo,
+      triggerTaskCommand
+    ]
   );
 
   const handleQuickAddSubmit = useCallback(
@@ -431,6 +449,16 @@ export function AppShell(): JSX.Element {
             phrase: "FULL RESYNC"
           }
         });
+        return;
+      }
+
+      if (actionId === "undo.perform") {
+        void source.undo();
+        return;
+      }
+
+      if (actionId === "redo.perform") {
+        void source.redo();
         return;
       }
 
@@ -543,7 +571,9 @@ export function AppShell(): JSX.Element {
       toggleDiagnosticsPanel,
       openSettingsPanel,
       source.refresh,
+      source.redo,
       source.runRecoveryAction,
+      source.undo,
       toggleNotificationsPanel,
       toggleSidebar,
       triggerTaskCommand
@@ -625,6 +655,13 @@ export function AppShell(): JSX.Element {
       >) {
         if (!eventMatchesAccelerator(event, accelerator)) {
           continue;
+        }
+
+        if (
+          isEditableShortcutTarget(event.target) &&
+          (actionId === "undo.perform" || actionId === "redo.perform")
+        ) {
+          return;
         }
 
         event.preventDefault();
@@ -797,7 +834,9 @@ export function AppShell(): JSX.Element {
               hasCalendars: source.calendarSources.length > 0,
               hasSelectedTask: false,
               canWriteTasks: !source.taskMutationPending,
-              canWriteEvents: true
+              canWriteEvents: true,
+              canUndo: source.undoStatus.canUndo,
+              canRedo: source.undoStatus.canRedo
             }}
             initialQuery={commandPaletteInitialQuery}
             onCommand={handlePaletteCommand}

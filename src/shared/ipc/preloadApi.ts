@@ -73,6 +73,8 @@ import type {
   SyncRunNowRequest,
   SyncRunNowResponse,
   SyncStatusResponse,
+  UndoApplyResponse,
+  UndoStackStatusResponse,
   TaskCompletionRequest,
   TaskCreateRequest,
   TaskDeleteRequest,
@@ -165,6 +167,11 @@ export interface HcbApi {
     recoveryAction: (
       request: SettingsRecoveryActionRequest
     ) => Promise<HcbResult<SettingsRecoveryActionResponse>>;
+  };
+  undo: {
+    status: () => Promise<HcbResult<UndoStackStatusResponse>>;
+    undo: () => Promise<HcbResult<UndoApplyResponse>>;
+    redo: () => Promise<HcbResult<UndoApplyResponse>>;
   };
   mcp: {
     status: () => Promise<HcbResult<McpStatusResponse>>;

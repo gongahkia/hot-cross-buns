@@ -625,6 +625,11 @@ const hcbApi: HcbApi = {
       })
     )
   },
+  undo: {
+    status: vi.fn(async () => ok({ canUndo: false, canRedo: false })),
+    undo: vi.fn(async () => ok({ action: "undo" as const, applied: false })),
+    redo: vi.fn(async () => ok({ action: "redo" as const, applied: false }))
+  },
   mcp: {
     status: vi.fn(async () =>
       ok({

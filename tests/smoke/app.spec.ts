@@ -178,10 +178,41 @@ test("launches, navigates, opens command palette, and creates core items", async
     await expect(page.getByRole("dialog", { name: "Settings" })).toBeHidden();
 
     await page.getByRole("button", { name: "Tasks" }).click();
-    await page.getByRole("button", { name: /^Create$/ }).click();
-    await page.getByRole("textbox", { name: "Task title" }).fill("Smoke UI task");
+    await page.getByRole("button", { name: /^Seeded smoke task Existing/ }).click();
+    await page.getByTestId("inspector-actions").getByRole("button", { name: "Edit" }).click();
+    await page.getByRole("textbox", { name: "Task title" }).click();
+    await page.keyboard.press("Meta+A");
+    await page.keyboard.type("Smoke UI task");
     await page.getByRole("button", { name: /^Save$/ }).click();
     await expect(page.getByRole("button", { name: /Smoke UI task/ }).first()).toBeVisible();
+
+    await page.keyboard.press("Control+P");
+    await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
+    await page.getByRole("searchbox", { name: "Filter commands" }).fill("undo");
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("button", { name: /Seeded smoke task/ }).first()).toBeVisible();
+
+    await page.keyboard.press("Control+P");
+    await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
+    await page.getByRole("searchbox", { name: "Filter commands" }).fill("redo");
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("button", { name: /Smoke UI task/ }).first()).toBeVisible();
+
+    await page.locator("#planner-title").click();
+    await page.keyboard.press("Meta+Z");
+    await expect(page.getByRole("button", { name: /Seeded smoke task/ }).first()).toBeVisible();
+    await page.keyboard.press("Meta+Shift+Z");
+    await expect(page.getByRole("button", { name: /Smoke UI task/ }).first()).toBeVisible();
+
+    await page.getByRole("button", { name: "Add a task" }).click();
+    const taskTitle = page.getByRole("textbox", { name: "Task title" });
+    await taskTitle.click();
+    await page.keyboard.type("Native text undo");
+    await expect(taskTitle).toHaveValue("Native text undo");
+    await page.keyboard.press("Meta+Z");
+    await expect(taskTitle).toHaveValue("");
+    await expect(page.getByRole("button", { name: /Smoke UI task/ }).first()).toBeVisible();
+    await page.getByRole("button", { name: "Cancel" }).click();
 
     await page.getByRole("button", { name: /^Calendar\b/ }).click();
     await page.getByRole("button", { name: /^New event$/ }).click();
