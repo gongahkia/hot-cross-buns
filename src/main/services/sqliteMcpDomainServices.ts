@@ -10,6 +10,7 @@ import type {
 } from "@shared/ipc/contracts";
 import { redactDiagnosticText } from "@shared/redaction";
 import type {
+  LocalHistoryRepository,
   LocalPlannerRepository,
   LocalSettingsRepository
 } from "../data/localRepositories";
@@ -24,13 +25,16 @@ import type {
   UndoDomainService
 } from "./domainInterfaces";
 import type { SyncStatusResponse } from "@shared/ipc/contracts";
+import type { SyncRunNowRequest } from "@shared/ipc/contracts";
 
 export interface McpDomainServiceDependencies {
   plannerRepository: LocalPlannerRepository;
   settingsRepository: LocalSettingsRepository;
   syncRepository: GoogleSyncRepository;
+  historyRepository?: LocalHistoryRepository;
   undo: UndoDomainService;
   syncStatus: () => MaybePromise<SyncStatusResponse>;
+  syncRunNow: (request: SyncRunNowRequest) => MaybePromise<object>;
 }
 
 export function createMcpDomainServices(dependencies: McpDomainServiceDependencies): McpDomainServices {
@@ -342,6 +346,28 @@ export function createMcpDomainServices(dependencies: McpDomainServiceDependenci
       }),
       undo: async () => undoActionObject(await dependencies.undo.undo()),
       redo: async () => undoActionObject(await dependencies.undo.redo())
+    },
+    syncQueue: {
+      previewRunNow: (input) =>
+        jsonObject({
+          kind: "syncRun",
+          ...syncRunNowRequestFromJson(input),
+          dryRun: true,
+          accepted: true
+        }),
+      runNow: async (input) =>
+        jsonObject({
+          kind: "syncRun",
+          ...(await dependencies.syncRunNow(syncRunNowRequestFromJson(input)))
+        }),
+      pendingMutations: ({ limit }) =>
+        dependencies.syncRepository
+          .listActivePendingMutations({ limit: limit ?? 100 })
+          .map((mutation) => jsonObject(pendingMutationView(mutation))),
+      previewRetryMutation: (id) => mutationActionPreview(dependencies, id, "retry"),
+      retryMutation: (id) => retryMutation(dependencies, id),
+      previewCancelMutation: (id) => mutationActionPreview(dependencies, id, "cancel"),
+      cancelMutation: (id) => cancelMutation(dependencies, id)
     }
   };
 }
@@ -357,6 +383,90 @@ function undoActionObject(value: {
     kind: "undoAction",
     title: value.label ?? value.action,
     ...value
+  });
+}
+
+function syncRunNowRequestFromJson(input: DomainJsonObject): SyncRunNowRequest {
+  const resourceValues = optionalTextArray(input, "resources");
+  const resources = resourceValues
+    ?.filter((resource): resource is "tasks" | "calendar" =>
+      resource === "tasks" || resource === "calendar"
+    );
+
+  return {
+    ...(resources === undefined || resources.length === 0 ? {} : { resources }),
+    full: optionalBoolean(input, "full") ?? false,
+    dryRun: optionalBoolean(input, "dryRun") ?? false
+  };
+}
+
+function mutationActionPreview(
+  dependencies: McpDomainServiceDependencies,
+  id: string,
+  action: "retry" | "cancel"
+): DomainJsonObject {
+  const mutation = dependencies.syncRepository.pendingMutationById(id);
+
+  if (!mutation) {
+    throw new Error("Pending mutation was not found.");
+  }
+
+  return jsonObject({
+    kind: "mutationAction",
+    action,
+    id: mutation.id,
+    resourceType: mutation.resourceType,
+    resourceId: mutation.resourceId,
+    operation: mutation.operation,
+    status: action === "retry" ? "pending" : "cancelled"
+  });
+}
+
+function retryMutation(dependencies: McpDomainServiceDependencies, id: string): DomainJsonObject {
+  const now = new Date().toISOString();
+  const mutation = dependencies.syncRepository.retryPendingMutation(id, now);
+
+  if (!mutation) {
+    throw new Error("Pending mutation could not be retried.");
+  }
+
+  dependencies.historyRepository?.record({
+    kind: "mutation.retry",
+    resourceId: mutation.id,
+    summary: "Retried pending mutation",
+    metadata: { operation: mutation.operation }
+  });
+
+  return jsonObject({
+    kind: "mutationAction",
+    action: "retry",
+    id: mutation.id,
+    status: "pending",
+    updatedAt: mutation.updatedAt
+  });
+}
+
+function cancelMutation(dependencies: McpDomainServiceDependencies, id: string): DomainJsonObject {
+  const now = new Date().toISOString();
+  const mutation = dependencies.syncRepository.cancelPendingMutation(id, now);
+
+  if (!mutation) {
+    throw new Error("Pending mutation could not be cancelled.");
+  }
+
+  dependencies.historyRepository?.record({
+    kind: "mutation.cancel",
+    resourceId: mutation.id,
+    summary: "Cancelled pending mutation",
+    metadata: { operation: mutation.operation }
+  });
+
+  return jsonObject({
+    kind: "mutationAction",
+    action: "cancel",
+    id: mutation.id,
+    status: "cancelled",
+    updatedAt: mutation.updatedAt
   });
 }
 

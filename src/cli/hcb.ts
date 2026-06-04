@@ -45,6 +45,10 @@ interface ParsedCommand {
     | "week"
     | "export-diagnostics"
     | "undo-status"
+    | "sync-now"
+    | "pending-mutations"
+    | "retry-mutation"
+    | "cancel-mutation"
     | "list"
     | "get"
     | "create"
@@ -99,6 +103,8 @@ interface ParsedCommand {
   reminderMinutes?: number[];
   colorId?: string | null;
   timeZone?: string;
+  resources?: string[];
+  full?: boolean;
   recurrenceFrequency?: string;
   recurrenceInterval?: number;
   recurrenceEndsOn?: string | null;
@@ -374,6 +380,18 @@ export function parseCommand(argv: string[]): ParsedCommand {
       continue;
     }
 
+    if (arg === "--resources") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.resources = parseSyncResources(value);
+      continue;
+    }
+
+    if (arg === "--full") {
+      parsed.full = true;
+      continue;
+    }
+
     if (arg === "--color-id") {
       const value = args[index + 1];
       index += 1;
@@ -569,6 +587,28 @@ export function parseCommand(argv: string[]): ParsedCommand {
     }
 
     validateUndoStatusCommand(parsed);
+  } else if (command === "sync-now") {
+    if (positional.length !== 0) {
+      throw new CliError("Usage: pnpm hcb -- sync-now [--resources tasks,calendar] [--full] [--apply --confirmation-id <id>]", 2);
+    }
+
+    parsed.target = "sync";
+    validateSyncNowCommand(parsed);
+  } else if (command === "pending-mutations") {
+    if (positional.length !== 0) {
+      throw new CliError("Usage: pnpm hcb -- pending-mutations [--limit <limit>]", 2);
+    }
+
+    validatePendingMutationsCommand(parsed);
+  } else if (command === "retry-mutation" || command === "cancel-mutation") {
+    parsed.target = "mutation";
+    parsed.id = positional[0];
+
+    if (!parsed.id || positional.length !== 1) {
+      throw new CliError(`Usage: pnpm hcb -- ${command} <id> [--apply --confirmation-id <id>]`, 2);
+    }
+
+    validatePendingMutationActionCommand(parsed);
   } else if (command === "undo" || command === "redo") {
     if (positional.length !== 0) {
       throw new CliError(`Usage: pnpm hcb -- ${command} [--apply --confirmation-id <id>]`, 2);
@@ -631,8 +671,16 @@ export function parseCommand(argv: string[]): ParsedCommand {
     throw new CliError("--log-limit and --mutation-limit are only supported by doctor and export-diagnostics.", 2);
   }
 
+  if (parsed.resources !== undefined && command !== "sync-now") {
+    throw new CliError("--resources is only supported by sync-now.", 2);
+  }
+
+  if (parsed.full === true && command !== "sync-now") {
+    throw new CliError("--full is only supported by sync-now.", 2);
+  }
+
   if (hasWriteOnlyOptions(parsed) && !isWriteCommand(command)) {
-    throw new CliError("Write options are only supported by create, update, rename, complete, reopen, move, delete, undo, redo, schedule, settings, google, and mcp.", 2);
+    throw new CliError("Write options are only supported by sync-now, retry-mutation, cancel-mutation, create, update, rename, complete, reopen, move, delete, undo, redo, schedule, settings, google, and mcp.", 2);
   }
 
   return parsed;
@@ -683,6 +731,16 @@ export async function callCommand(
 
   if (command.command === "week" && command.startDate !== undefined) {
     args.startDate = command.startDate;
+  }
+
+  if (command.command === "sync-now") {
+    if (command.resources !== undefined) {
+      args.resources = command.resources;
+    }
+
+    if (command.full === true) {
+      args.full = true;
+    }
   }
 
   if (isWriteCommand(command.command)) {
@@ -1076,6 +1134,10 @@ export function formatResponse(command: ParsedCommand, response: McpToolResponse
     return formatDiff(response.items ?? []);
   }
 
+  if (command.command === "pending-mutations") {
+    return formatDiff(response.items ?? []);
+  }
+
   if (command.command === "doctor") {
     return formatDoctor(response.item ?? {});
   }
@@ -1353,6 +1415,14 @@ function writeApplyCommand(command: ParsedCommand, response: McpToolResponse): s
     pushFlag(args, "--enabled", command.enabled === undefined ? undefined : String(command.enabled));
   }
 
+  if (command.command === "sync-now") {
+    pushFlag(args, "--resources", command.resources?.join(","));
+
+    if (command.full === true) {
+      args.push("--full");
+    }
+  }
+
   args.push("--apply");
   pushFlag(args, "--confirmation-id", response.confirmationId);
   return shellJoin(args);
@@ -1372,6 +1442,14 @@ function writeCommandPrefix(command: ParsedCommand): string[] {
   }
 
   if (command.command === "undo" || command.command === "redo") {
+    return ["pnpm", "hcb", "--", command.command];
+  }
+
+  if (command.command === "sync-now") {
+    return ["pnpm", "hcb", "--", "sync-now"];
+  }
+
+  if (command.command === "retry-mutation" || command.command === "cancel-mutation") {
     return ["pnpm", "hcb", "--", command.command];
   }
 
@@ -1474,6 +1552,10 @@ function helpText(): string {
     "  week [--start-date <date>] [--json]     show a seven-day agenda",
     "  export-diagnostics [--json]             export redacted diagnostics JSON",
     "  undo-status [--json]                    show undo/redo availability",
+    "  sync-now [options]                      dry-run immediate Google sync",
+    "  pending-mutations [--limit <n>]          show pending mutation queue entries",
+    "  retry-mutation <id>                     dry-run retry a pending mutation",
+    "  cancel-mutation <id>                    dry-run cancel a pending mutation",
     "  list <target> [--json]                  list task-lists, calendars, or note-lists",
     "  get <kind> <id> [--json]                get a task, event, or note",
     "  create <kind> [options]                 dry-run create a task, note, event, or list",
@@ -1502,6 +1584,10 @@ function helpText(): string {
     "  pnpm hcb -- week --start-date 2026-06-04",
     "  pnpm hcb -- export-diagnostics > hcb-diagnostics.json",
     "  pnpm hcb -- undo-status",
+    "  pnpm hcb -- sync-now --resources tasks,calendar",
+    "  pnpm hcb -- pending-mutations --limit 50",
+    "  pnpm hcb -- retry-mutation mutation-id",
+    "  pnpm hcb -- cancel-mutation mutation-id",
     "  pnpm hcb -- list task-lists",
     "  pnpm hcb -- list note-lists",
     "  pnpm hcb -- get task task-id",
@@ -1551,6 +1637,14 @@ function toolName(command: ParsedCommand): string {
       return "hcb_week";
     case "undo-status":
       return "hcb_undo_status";
+    case "sync-now":
+      return "hcb_sync_now";
+    case "pending-mutations":
+      return "hcb_pending_mutations";
+    case "retry-mutation":
+      return "hcb_retry_mutation";
+    case "cancel-mutation":
+      return "hcb_cancel_mutation";
     case "list":
       if (command.target === "task-lists") {
         return "hcb_list_task_lists";
@@ -1690,6 +1784,10 @@ function isCommand(command: string): command is ParsedCommand["command"] {
     command === "week" ||
     command === "export-diagnostics" ||
     command === "undo-status" ||
+    command === "sync-now" ||
+    command === "pending-mutations" ||
+    command === "retry-mutation" ||
+    command === "cancel-mutation" ||
     command === "list" ||
     command === "get" ||
     command === "create" ||
@@ -1877,6 +1975,17 @@ function parseIntegerCsv(value: string | undefined, flag: string, min: number, m
   return parseCsv(value, flag).map((item) => parseInteger(item, flag, min, max));
 }
 
+function parseSyncResources(value: string | undefined): string[] {
+  const resources = parseCsv(value, "--resources");
+  const invalid = resources.find((resource) => resource !== "tasks" && resource !== "calendar");
+
+  if (invalid) {
+    throw new CliError("--resources must use tasks,calendar.", 2);
+  }
+
+  return Array.from(new Set(resources));
+}
+
 function parseRecurrenceFrequency(value: string | undefined): string {
   if (value === "daily" || value === "weekly" || value === "monthly" || value === "yearly") {
     return value;
@@ -2046,6 +2155,8 @@ function hasWriteOnlyOptions(command: ParsedCommand): boolean {
     command.reminderMinutes !== undefined ||
     command.colorId !== undefined ||
     command.timeZone !== undefined ||
+    command.resources !== undefined ||
+    command.full === true ||
     command.recurrenceFrequency !== undefined ||
     command.recurrenceInterval !== undefined ||
     command.recurrenceEndsOn !== undefined ||
@@ -2062,6 +2173,9 @@ function hasWriteOnlyOptions(command: ParsedCommand): boolean {
 function isWriteCommand(command: ParsedCommand["command"]): boolean {
   return (
     command === "create" ||
+    command === "sync-now" ||
+    command === "retry-mutation" ||
+    command === "cancel-mutation" ||
     command === "update" ||
     command === "rename" ||
     command === "complete" ||
@@ -2162,6 +2276,24 @@ function validateDeleteCommand(command: ParsedCommand): void {
 function validateUndoStatusCommand(command: ParsedCommand): void {
   rejectReadOptions(command, "undo-status");
   rejectUnsupportedOptions(command, "undo-status", ["apply", "confirmationId", "title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
+}
+
+function validateSyncNowCommand(command: ParsedCommand): void {
+  rejectReadOptions(command, "sync-now");
+  rejectUnsupportedOptions(command, "sync-now", ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
+}
+
+function validatePendingMutationsCommand(command: ParsedCommand): void {
+  if (command.level !== undefined) {
+    throw new CliError("--level is not supported by pending-mutations.", 2);
+  }
+
+  rejectUnsupportedOptions(command, "pending-mutations", ["apply", "confirmationId", "title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "resources", "full", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
+}
+
+function validatePendingMutationActionCommand(command: ParsedCommand): void {
+  rejectReadOptions(command, command.command);
+  rejectUnsupportedOptions(command, command.command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "resources", "full", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
 }
 
 function validateUndoRedoCommand(command: ParsedCommand): void {

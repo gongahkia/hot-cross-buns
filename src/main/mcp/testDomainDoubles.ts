@@ -9,6 +9,7 @@ interface TestDomainState {
   taskLists: JsonObject[];
   noteLists: JsonObject[];
   calendars: JsonObject[];
+  pendingMutations: JsonObject[];
   nextTaskId: number;
   nextNoteId: number;
   nextEventId: number;
@@ -93,6 +94,22 @@ export function createMcpTestDomainServices(): McpTestDomainServices {
         summary: "Primary",
         isSelected: true,
         accessRole: "owner"
+      }
+    ],
+    pendingMutations: [
+      {
+        kind: "mutation",
+        id: "mutation-1",
+        resourceType: "task",
+        resourceId: "task-1",
+        operation: "update",
+        status: "pending",
+        attemptCount: 0,
+        nextRetryAt: null,
+        lastErrorCode: null,
+        lastErrorMessage: null,
+        createdAt: "2026-05-22T00:00:00.000Z",
+        updatedAt: "2026-05-22T00:00:00.000Z"
       }
     ],
     nextTaskId: 2,
@@ -483,22 +500,7 @@ export function createMcpTestDomainServices(): McpTestDomainServices {
             formattedLine: "[2026-05-22T00:00:00.000Z] [INFO] [mcp] MCP fixture log"
           }
         ].slice(0, Math.max(1, Math.min(100, limit))),
-      diff: () => [
-        {
-          kind: "mutation",
-          id: "mutation-1",
-          resourceType: "task",
-          resourceId: "task-1",
-          operation: "update",
-          status: "pending",
-          attemptCount: 0,
-          nextRetryAt: null,
-          lastErrorCode: null,
-          lastErrorMessage: null,
-          createdAt: "2026-05-22T00:00:00.000Z",
-          updatedAt: "2026-05-22T00:00:00.000Z"
-        }
-      ],
+      diff: () => state.pendingMutations.map(cloneObject),
       show: ({ kind, id }) => {
         if (kind === "diagnostics") {
           const diagnostics: JsonObject = {
@@ -569,8 +571,80 @@ export function createMcpTestDomainServices(): McpTestDomainServices {
           resourceId: "note-1"
         };
       }
+    },
+    syncQueue: {
+      previewRunNow: (input) => ({
+        kind: "syncRun",
+        accepted: true,
+        dryRun: true,
+        resources: syncResources(input),
+        full: input.full === true
+      }),
+      runNow: (input) => ({
+        kind: "syncRun",
+        accepted: true,
+        dryRun: false,
+        resources: syncResources(input),
+        full: input.full === true
+      }),
+      pendingMutations: ({ limit = 100 }) =>
+        state.pendingMutations.slice(0, Math.max(1, Math.min(200, limit))).map(cloneObject),
+      previewRetryMutation: (id) => ({
+        ...cloneMutation(state, id),
+        kind: "mutationAction",
+        action: "retry",
+        status: "pending"
+      }),
+      retryMutation: (id) => {
+        const mutation = cloneMutation(state, id);
+        mutation.status = "pending";
+        mutation.updatedAt = "2026-06-04T00:00:00.000Z";
+        return {
+          kind: "mutationAction",
+          action: "retry",
+          id,
+          status: "pending",
+          updatedAt: mutation.updatedAt
+        };
+      },
+      previewCancelMutation: (id) => ({
+        ...cloneMutation(state, id),
+        kind: "mutationAction",
+        action: "cancel",
+        status: "cancelled"
+      }),
+      cancelMutation: (id) => {
+        const mutation = cloneMutation(state, id);
+        state.pendingMutations = state.pendingMutations.filter((candidate) => candidate.id !== id);
+        return {
+          kind: "mutationAction",
+          action: "cancel",
+          id,
+          status: "cancelled",
+          updatedAt: "2026-06-04T00:00:00.000Z",
+          resourceType: mutation.resourceType,
+          resourceId: mutation.resourceId
+        };
+      }
     }
   };
+}
+
+function syncResources(input: JsonObject): string[] {
+  const resources = Array.isArray(input.resources)
+    ? input.resources.filter((item): item is string => item === "tasks" || item === "calendar")
+    : [];
+  return resources.length === 0 ? ["tasks", "calendar"] : resources;
+}
+
+function cloneMutation(state: TestDomainState, id: string): JsonObject {
+  const mutation = state.pendingMutations.find((candidate) => candidate.id === id);
+
+  if (!mutation) {
+    throw new McpToolError("NOT_FOUND", "Pending mutation was not found.");
+  }
+
+  return cloneObject(mutation);
 }
 
 function cloneExisting(source: Map<string, JsonObject>, id: string, label: string): JsonObject {

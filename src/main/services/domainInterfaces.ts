@@ -158,6 +158,16 @@ export interface McpUndoDomainService {
   redo: () => MaybePromise<DomainJsonObject>;
 }
 
+export interface McpSyncQueueDomainService {
+  previewRunNow: (input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
+  runNow: (input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
+  pendingMutations: (input: { limit?: number }) => MaybePromise<DomainJsonObject[]>;
+  previewRetryMutation: (id: string) => MaybePromise<DomainJsonObject>;
+  retryMutation: (id: string) => MaybePromise<DomainJsonObject>;
+  previewCancelMutation: (id: string) => MaybePromise<DomainJsonObject>;
+  cancelMutation: (id: string) => MaybePromise<DomainJsonObject>;
+}
+
 export interface McpDomainServices {
   planning: PlanningReadDomainService;
   tasks: TaskDomainService;
@@ -165,6 +175,7 @@ export interface McpDomainServices {
   calendar: CalendarDomainService;
   diagnostics: DiagnosticsDomainService;
   undo: McpUndoDomainService;
+  syncQueue: McpSyncQueueDomainService;
 }
 
 export interface McpAdminDomainServices {

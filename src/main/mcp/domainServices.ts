@@ -3,6 +3,7 @@ export type {
   DiagnosticsDomainService,
   McpAdminDomainServices,
   McpDomainServices,
+  McpSyncQueueDomainService,
   NoteDomainService,
   PlanningReadDomainService,
   SearchDomainInput,

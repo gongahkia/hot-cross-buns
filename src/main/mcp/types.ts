@@ -19,6 +19,8 @@ export interface McpToolDefinition {
   name: string;
   description: string;
   inputSchema: JsonObject;
+  outputSchema?: JsonObject;
+  annotations?: JsonObject;
   kind: "read" | "write";
   destructive: boolean;
 }
@@ -27,6 +29,8 @@ export interface PublicMcpToolDefinition {
   name: string;
   description: string;
   inputSchema: JsonObject;
+  outputSchema?: JsonObject;
+  annotations?: JsonObject;
 }
 
 export interface McpToolCallContext {

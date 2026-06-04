@@ -404,8 +404,62 @@ export function createMcpDomainServices(state: PlaceholderState): McpDomainServi
         applied: false,
         title: "redo"
       })
+    },
+    syncQueue: {
+      previewRunNow: (input) => ({
+        kind: "syncRun",
+        accepted: true,
+        dryRun: true,
+        resources: syncResources(input)
+      }),
+      runNow: (input) => ({
+        kind: "syncRun",
+        accepted: true,
+        dryRun: false,
+        resources: syncResources(input)
+      }),
+      pendingMutations: () => [],
+      previewRetryMutation: (id) => ({
+        kind: "mutationAction",
+        action: "retry",
+        id,
+        status: "pending"
+      }),
+      retryMutation: (id) => ({
+        kind: "mutationAction",
+        action: "retry",
+        id,
+        status: "pending",
+        updatedAt: new Date().toISOString()
+      }),
+      previewCancelMutation: (id) => ({
+        kind: "mutationAction",
+        action: "cancel",
+        id,
+        status: "cancelled"
+      }),
+      cancelMutation: (id) => ({
+        kind: "mutationAction",
+        action: "cancel",
+        id,
+        status: "cancelled",
+        updatedAt: new Date().toISOString()
+      })
     }
   };
+}
+
+function syncResources(input: DomainJsonObject): string[] {
+  const value = input.resources;
+
+  if (!Array.isArray(value)) {
+    return ["tasks", "calendar"];
+  }
+
+  const resources = value.filter((item): item is string =>
+    item === "tasks" || item === "calendar"
+  );
+  return resources.length === 0 ? ["tasks", "calendar"] : resources;
 }
 
 function noteListsFromState(state: PlaceholderState): DomainJsonObject[] {

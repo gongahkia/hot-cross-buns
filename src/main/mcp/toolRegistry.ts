@@ -31,10 +31,14 @@ const readToolNames = [
   "hcb_list_task_lists",
   "hcb_list_note_lists",
   "hcb_list_calendars",
-  "hcb_undo_status"
+  "hcb_undo_status",
+  "hcb_pending_mutations"
 ] as const;
 
 const writeToolNames = [
+  "hcb_sync_now",
+  "hcb_retry_mutation",
+  "hcb_cancel_mutation",
   "hcb_create_task",
   "hcb_create_note",
   "hcb_create_event",
@@ -68,6 +72,7 @@ const destructiveToolNames = new Set<string>([
   "hcb_delete_event",
   "hcb_delete_task_list",
   "hcb_delete_note_list",
+  "hcb_cancel_mutation",
   "hcb_undo",
   "hcb_redo"
 ]);
@@ -115,6 +120,25 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
   readTool("hcb_list_note_lists", "List available local HCB note lists.", {}),
   readTool("hcb_list_calendars", "List available Google calendars.", {}),
   readTool("hcb_undo_status", "Read current undo and redo availability.", {}),
+  readTool("hcb_pending_mutations", "List pending local-to-Google mutation queue entries.", {
+    limit: integerSchema("Maximum pending mutation count.")
+  }),
+  writeTool("hcb_sync_now", "Run Google sync now for tasks, calendar, or both.", false, {
+    resources: arraySchema("Optional resources to sync: tasks, calendar."),
+    full: booleanSchema("Whether to force a full read sync."),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }),
+  writeTool("hcb_retry_mutation", "Retry a failed or paused pending mutation.", false, {
+    id: stringSchema("Pending mutation id."),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }, ["id"]),
+  writeTool("hcb_cancel_mutation", "Cancel a pending mutation. Always requires confirmation.", true, {
+    id: stringSchema("Pending mutation id."),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }, ["id"]),
   writeTool("hcb_create_task", "Create a dated task.", false, {
     title: stringSchema("Task title."),
     notes: stringSchema("Optional task notes."),
@@ -301,10 +325,12 @@ export class McpToolRegistry {
   }
 
   listTools(): PublicMcpToolDefinition[] {
-    return mcpToolDefinitions.map(({ name, description, inputSchema }) => ({
+    return mcpToolDefinitions.map(({ name, description, inputSchema, outputSchema, annotations }) => ({
       name,
       description,
-      inputSchema
+      inputSchema,
+      ...(outputSchema === undefined ? {} : { outputSchema }),
+      ...(annotations === undefined ? {} : { annotations })
     }));
   }
 
@@ -450,6 +476,13 @@ export class McpToolRegistry {
           message: "Read undo status.",
           item: await this.services.undo.status()
         });
+      case "hcb_pending_mutations": {
+        const items = await this.services.syncQueue.pendingMutations({
+          limit: optionalNumber(argumentsObject, "limit")
+        });
+
+        return success({ message: `Read ${items.length} pending mutation${items.length === 1 ? "" : "s"}.`, items });
+      }
       default:
         throw new McpToolError("UNKNOWN_TOOL", "Unknown MCP tool.");
     }
@@ -536,6 +569,18 @@ export class McpToolRegistry {
 
   private createWriteHandlers(): Record<string, WriteHandler> {
     return {
+      hcb_sync_now: {
+        preview: (args) => this.services.syncQueue.previewRunNow(domainArguments(args)),
+        apply: (args) => this.services.syncQueue.runNow(domainArguments(args))
+      },
+      hcb_retry_mutation: {
+        preview: (args) => this.services.syncQueue.previewRetryMutation(requiredString(args, "id")),
+        apply: (args) => this.services.syncQueue.retryMutation(requiredString(args, "id"))
+      },
+      hcb_cancel_mutation: {
+        preview: (args) => this.services.syncQueue.previewCancelMutation(requiredString(args, "id")),
+        apply: (args) => this.services.syncQueue.cancelMutation(requiredString(args, "id"))
+      },
       hcb_create_task: {
         preview: (args) => this.services.tasks.previewCreateTask(domainArguments(args)),
         apply: (args) => this.services.tasks.createTask(domainArguments(args))
@@ -772,6 +817,13 @@ function readTool(
     name,
     description,
     inputSchema: schema(properties, required),
+    outputSchema: mcpToolResponseOutputSchema(),
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false
+    },
     kind: "read",
     destructive: false
   };
@@ -788,8 +840,33 @@ function writeTool(
     name,
     description,
     inputSchema: schema(properties, required),
+    outputSchema: mcpToolResponseOutputSchema(),
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: destructive,
+      idempotentHint: false,
+      openWorldHint: true
+    },
     kind: "write",
     destructive
+  };
+}
+
+function mcpToolResponseOutputSchema(): JsonObject {
+  return {
+    type: "object",
+    properties: {
+      applied: { type: "boolean" },
+      dryRun: { type: "boolean" },
+      requiresConfirmation: { type: "boolean" },
+      confirmationId: { type: "string" },
+      message: { type: "string" },
+      item: { type: "object" },
+      items: { type: "array" },
+      deepLink: { type: "string" }
+    },
+    required: ["applied", "dryRun", "requiresConfirmation", "message"],
+    additionalProperties: true
   };
 }
 

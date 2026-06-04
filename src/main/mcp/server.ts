@@ -18,6 +18,8 @@ import {
   type McpRateLimitConfiguration
 } from "./rateLimiter";
 import { McpToolRegistry } from "./toolRegistry";
+import { McpPromptRegistry } from "./promptRegistry";
+import { McpResourceRegistry } from "./resourceRegistry";
 import type {
   JsonObject,
   JsonValue,
@@ -65,12 +67,16 @@ export class LocalMcpServer {
   private readonly rateLimiter: McpRateLimiter;
   private readonly metrics: McpMetricsRecorder;
   private readonly now: () => Date;
+  private readonly prompts: McpPromptRegistry;
+  private readonly resources: McpResourceRegistry;
   private server: Server | undefined;
 
   constructor(private readonly options: LocalMcpServerOptions) {
     this.rateLimiter = new McpRateLimiter(options.rateLimit ?? defaultMcpRateLimit);
     this.metrics = options.metrics ?? createMcpMetrics();
     this.now = options.now ?? (() => new Date());
+    this.prompts = new McpPromptRegistry();
+    this.resources = new McpResourceRegistry(options.toolRegistry);
   }
 
   getMetricsSnapshot() {
@@ -305,6 +311,12 @@ export class LocalMcpServer {
           capabilities: {
             tools: {
               listChanged: false
+            },
+            resources: {
+              listChanged: false
+            },
+            prompts: {
+              listChanged: false
             }
           },
           serverInfo: {
@@ -312,12 +324,38 @@ export class LocalMcpServer {
             version: "0.0.0"
           },
           instructions:
-            "Hot Cross Buns 2 exposes local tasks, notes, and calendar events. Start diagnostics with hcb_doctor. Debug reads: hcb_status, hcb_log, hcb_diff, hcb_show. Planning reads: hcb_search, hcb_today, hcb_week. Writes obey the user's MCP permission mode."
+            "Hot Cross Buns 2 exposes local tasks, notes, calendar events, diagnostics, resources, prompts, and CLI-like tools. Start diagnostics with hcb_doctor or hcb://doctor. Debug reads: hcb_status, hcb_log, hcb_diff, hcb_pending_mutations, and hcb_show. Planning reads: hcb_search, hcb_today, hcb_week. Queue controls: hcb_sync_now, hcb_retry_mutation, hcb_cancel_mutation. Writes obey the user's MCP permission mode."
         };
       case "tools/list":
         return {
           tools: this.options.toolRegistry.listTools() as unknown as JsonValue
         };
+      case "resources/list":
+        return {
+          resources: this.resources.listResources() as unknown as JsonValue
+        };
+      case "resources/templates/list":
+        return {
+          resourceTemplates: this.resources.listResourceTemplates() as unknown as JsonValue
+        };
+      case "resources/read": {
+        const uri = stringParam(request.params, "uri");
+        return await this.resources.readResource(uri, {
+          permissionMode: "read-only",
+          credentialRevision: context.credentialRevision,
+          clientKey: context.clientKey,
+          now: this.now()
+        });
+      }
+      case "prompts/list":
+        return {
+          prompts: this.prompts.listPrompts() as unknown as JsonValue
+        };
+      case "prompts/get": {
+        const name = stringParam(request.params, "name");
+        const argumentsObject = objectParam(request.params, "arguments", {});
+        return this.prompts.getPrompt(name, argumentsObject as JsonObject);
+      }
       case "tools/call": {
         const name = stringParam(request.params, "name");
         const argumentsObject = objectParam(request.params, "arguments", {});

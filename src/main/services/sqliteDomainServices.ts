@@ -83,8 +83,10 @@ export function createSqliteDomainServices(
       plannerRepository: options.plannerRepository,
       settingsRepository: options.settingsRepository,
       syncRepository: options.syncRepository,
+      historyRepository: options.historyRepository,
       undo,
-      syncStatus: () => sync.status()
+      syncStatus: () => sync.status(),
+      syncRunNow: (request) => sync.runNow(request)
     })
   };
 }
