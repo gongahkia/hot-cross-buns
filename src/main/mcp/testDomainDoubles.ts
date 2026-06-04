@@ -152,6 +152,20 @@ export function createMcpTestDomainServices(): McpTestDomainServices {
         state.taskLists.push(taskList);
         return cloneObject(taskList);
       },
+      previewRenameTaskList: (id, input) => ({
+        ...cloneList(state.taskLists, id, "Task list"),
+        title: requiredText(input, "title")
+      }),
+      renameTaskList: (id, input) => {
+        const taskList = cloneList(state.taskLists, id, "Task list");
+        const updated = {
+          ...taskList,
+          title: requiredText(input, "title")
+        };
+        const index = state.taskLists.findIndex((candidate) => candidate.id === id);
+        state.taskLists[index] = updated;
+        return cloneObject(updated);
+      },
       previewCreateTask: (input) =>
         compactObject({
           kind: "task",
@@ -247,6 +261,20 @@ export function createMcpTestDomainServices(): McpTestDomainServices {
         });
         state.noteLists.push(noteList);
         return cloneObject(noteList);
+      },
+      previewRenameNoteList: (id, input) => ({
+        ...cloneList(state.noteLists, id, "Note list"),
+        title: requiredText(input, "title")
+      }),
+      renameNoteList: (id, input) => {
+        const noteList = cloneList(state.noteLists, id, "Note list");
+        const updated = {
+          ...noteList,
+          title: requiredText(input, "title")
+        };
+        const index = state.noteLists.findIndex((candidate) => candidate.id === id);
+        state.noteLists[index] = updated;
+        return cloneObject(updated);
       },
       previewCreateNote: (input) =>
         compactObject({
@@ -430,6 +458,16 @@ export function createMcpTestDomainServices(): McpTestDomainServices {
 
 function cloneExisting(source: Map<string, JsonObject>, id: string, label: string): JsonObject {
   const item = source.get(id);
+
+  if (!item) {
+    throw new McpToolError("NOT_FOUND", `${label} was not found.`);
+  }
+
+  return cloneObject(item);
+}
+
+function cloneList(source: JsonObject[], id: string, label: string): JsonObject {
+  const item = source.find((candidate) => candidate.id === id);
 
   if (!item) {
     throw new McpToolError("NOT_FOUND", `${label} was not found.`);

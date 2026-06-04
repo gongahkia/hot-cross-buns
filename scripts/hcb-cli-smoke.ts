@@ -38,6 +38,13 @@ async function main(): Promise<void> {
     const notePreview = await expectCommand(["create", "note", "--title", "Smoke note", "--body", "Smoke body"], "HCB create note: dry-run", runtimeFile, token);
     const confirmationId = confirmationIdFromOutput(notePreview);
     await expectCommand(["create", "note", "--title", "Smoke note", "--body", "Smoke body", "--apply", "--confirmation-id", confirmationId], "HCB create note: applied", runtimeFile, token);
+    await expectCommand(["update", "task", "task-1", "--title", "Smoke task update"], "HCB update task: dry-run", runtimeFile, token);
+    await expectCommand(["rename", "task-list", "list-inbox", "--title", "Smoke inbox"], "HCB rename task-list: dry-run", runtimeFile, token);
+    await expectCommand(["complete", "task", "task-1"], "HCB complete task: dry-run", runtimeFile, token);
+    await expectCommand(["move", "task", "task-1", "--task-list-id", "list-inbox"], "HCB move task: dry-run", runtimeFile, token);
+    const updatePreview = await expectCommand(["update", "note", "note-1", "--title", "Smoke updated note"], "HCB update note: dry-run", runtimeFile, token);
+    const updateConfirmationId = confirmationIdFromOutput(updatePreview);
+    await expectCommand(["update", "note", "note-1", "--title", "Smoke updated note", "--apply", "--confirmation-id", updateConfirmationId], "HCB update note: applied", runtimeFile, token);
 
     process.stdout.write("hcb cli smoke passed\n");
   } finally {

@@ -47,6 +47,11 @@ interface ParsedCommand {
     | "list"
     | "get"
     | "create"
+    | "update"
+    | "rename"
+    | "complete"
+    | "reopen"
+    | "move"
     | "help";
   json: boolean;
   limit?: number;
@@ -316,6 +321,42 @@ export function parseCommand(argv: string[]): ParsedCommand {
     }
 
     validateCreateCommand(parsed);
+  } else if (command === "update") {
+    parsed.target = parseUpdateTarget(positional[0]);
+    parsed.id = positional[1];
+
+    if (!parsed.id || positional.length !== 2) {
+      throw new CliError("Usage: pnpm hcb -- update <task|note|event> <id> [options]", 2);
+    }
+
+    validateUpdateCommand(parsed);
+  } else if (command === "rename") {
+    parsed.target = parseRenameTarget(positional[0]);
+    parsed.id = positional[1];
+
+    if (!parsed.id || positional.length !== 2) {
+      throw new CliError("Usage: pnpm hcb -- rename <task-list|note-list> <id> --title <title>", 2);
+    }
+
+    validateRenameCommand(parsed);
+  } else if (command === "complete" || command === "reopen") {
+    parsed.target = parseTaskStateTarget(positional[0], command);
+    parsed.id = positional[1];
+
+    if (!parsed.id || positional.length !== 2) {
+      throw new CliError(`Usage: pnpm hcb -- ${command} task <id>`, 2);
+    }
+
+    validateTaskStateCommand(parsed);
+  } else if (command === "move") {
+    parsed.target = parseTaskStateTarget(positional[0], command);
+    parsed.id = positional[1];
+
+    if (!parsed.id || positional.length !== 2) {
+      throw new CliError("Usage: pnpm hcb -- move task <id> --task-list-id <id>", 2);
+    }
+
+    validateMoveCommand(parsed);
   } else if (positional.length > 0) {
     throw new CliError(`Unexpected argument '${positional[0]}'.`, 2);
   }
@@ -324,16 +365,16 @@ export function parseCommand(argv: string[]): ParsedCommand {
     throw new CliError(`--scope is only supported by search.`, 2);
   }
 
-  if (parsed.startDate !== undefined && command !== "week" && command !== "create") {
-    throw new CliError(`--start-date is only supported by week and create event.`, 2);
+  if (parsed.startDate !== undefined && command !== "week" && command !== "create" && command !== "update") {
+    throw new CliError(`--start-date is only supported by week, create event, and update event.`, 2);
   }
 
   if ((parsed.logLimit !== undefined || parsed.mutationLimit !== undefined) && command !== "doctor" && command !== "export-diagnostics") {
     throw new CliError("--log-limit and --mutation-limit are only supported by doctor and export-diagnostics.", 2);
   }
 
-  if (hasCreateOnlyOptions(parsed) && command !== "create") {
-    throw new CliError("Create options are only supported by create.", 2);
+  if (hasWriteOnlyOptions(parsed) && !isWriteCommand(command)) {
+    throw new CliError("Write options are only supported by create, update, rename, complete, reopen, and move.", 2);
   }
 
   return parsed;
@@ -382,21 +423,25 @@ export async function callCommand(
     args.scope = command.scope;
   }
 
-  if (command.startDate !== undefined) {
+  if (command.command === "week" && command.startDate !== undefined) {
     args.startDate = command.startDate;
   }
 
-  if (command.command === "create") {
+  if (isWriteCommand(command.command)) {
     args.dryRun = command.apply !== true;
 
     if (command.confirmationId !== undefined) {
       args.confirmationId = command.confirmationId;
     }
+  }
 
+  if (command.command === "create" || command.command === "rename") {
     if (command.title !== undefined) {
       args.title = command.title;
     }
+  }
 
+  if (command.command === "create") {
     if (command.notes !== undefined) {
       args.notes = command.notes;
     }
@@ -411,6 +456,10 @@ export async function callCommand(
 
     if (command.body !== undefined) {
       args.body = command.body;
+    }
+
+    if (command.startDate !== undefined) {
+      args.startDate = command.startDate;
     }
 
     if (command.details !== undefined) {
@@ -432,6 +481,14 @@ export async function callCommand(
     if (command.allDay === true) {
       args.isAllDay = true;
     }
+  }
+
+  if (command.command === "update") {
+    args.patch = updatePatch(command);
+  }
+
+  if (command.command === "move" && command.taskListId !== undefined) {
+    args.taskListId = command.taskListId;
   }
 
   return callMcpTool(tool, args, dependencies);
@@ -636,8 +693,8 @@ export function formatResponse(command: ParsedCommand, response: McpToolResponse
   }
 
   if (command.json) {
-    if (command.command === "create") {
-      return `${JSON.stringify(createJsonOutput(command, response), null, 2)}\n`;
+    if (isWriteCommand(command.command)) {
+      return `${JSON.stringify(writeJsonOutput(command, response), null, 2)}\n`;
     }
 
     return `${JSON.stringify(response, null, 2)}\n`;
@@ -679,8 +736,8 @@ export function formatResponse(command: ParsedCommand, response: McpToolResponse
     return formatDetail(command.target ?? "item", response.item ?? {});
   }
 
-  if (command.command === "create") {
-    return formatCreate(command, response);
+  if (isWriteCommand(command.command)) {
+    return formatWrite(command, response);
   }
 
   return `${JSON.stringify(response.item ?? response, null, 2)}\n`;
@@ -791,11 +848,11 @@ function formatDetail(target: string, item: JsonObject): string {
   return `HCB ${target}\n${JSON.stringify(item, null, 2)}\n`;
 }
 
-function formatCreate(command: ParsedCommand, response: McpToolResponse): string {
+function formatWrite(command: ParsedCommand, response: McpToolResponse): string {
   const target = command.target ?? "item";
   const state = response.applied ? "applied" : response.dryRun ? "dry-run" : "preview";
   const lines = [
-    `HCB create ${target}: ${state}`,
+    `HCB ${command.command} ${target}: ${state}`,
     response.message,
     `Requires confirmation: ${response.requiresConfirmation}`
   ];
@@ -808,7 +865,7 @@ function formatCreate(command: ParsedCommand, response: McpToolResponse): string
     lines.push(`Item: ${formatCompactItem(response.item)}`);
   }
 
-  const applyCommand = createApplyCommand(command, response);
+  const applyCommand = writeApplyCommand(command, response);
 
   if (applyCommand) {
     lines.push(`Apply: ${applyCommand}`);
@@ -817,8 +874,8 @@ function formatCreate(command: ParsedCommand, response: McpToolResponse): string
   return `${lines.join("\n")}\n`;
 }
 
-function createJsonOutput(command: ParsedCommand, response: McpToolResponse): Record<string, unknown> {
-  const applyCommand = createApplyCommand(command, response);
+function writeJsonOutput(command: ParsedCommand, response: McpToolResponse): Record<string, unknown> {
+  const applyCommand = writeApplyCommand(command, response);
 
   return {
     tool: toolName(command),
@@ -828,25 +885,32 @@ function createJsonOutput(command: ParsedCommand, response: McpToolResponse): Re
   };
 }
 
-function createApplyCommand(command: ParsedCommand, response: McpToolResponse): string | undefined {
-  if (command.command !== "create" || !response.dryRun || command.apply === true) {
+function writeApplyCommand(command: ParsedCommand, response: McpToolResponse): string | undefined {
+  if (!isWriteCommand(command.command) || !response.dryRun || command.apply === true) {
     return undefined;
   }
 
-  const args = ["pnpm", "hcb", "--", "create", command.target ?? "item"];
-  pushFlag(args, "--title", command.title);
+  const args = ["pnpm", "hcb", "--", command.command, command.target ?? "item"];
 
-  if (command.target === "task") {
+  if (command.id !== undefined) {
+    args.push(command.id);
+  }
+
+  if (command.command === "create" || command.command === "rename" || command.command === "update") {
+    pushFlag(args, "--title", command.title);
+  }
+
+  if ((command.command === "create" || command.command === "update") && command.target === "task") {
     pushFlag(args, "--notes", command.notes);
     pushFlag(args, "--due-date", command.dueDate);
     pushFlag(args, "--task-list-id", command.taskListId);
   }
 
-  if (command.target === "note") {
+  if ((command.command === "create" || command.command === "update") && command.target === "note") {
     pushFlag(args, "--body", command.body);
   }
 
-  if (command.target === "event") {
+  if ((command.command === "create" || command.command === "update") && command.target === "event") {
     pushFlag(args, "--start-date", command.startDate);
     pushFlag(args, "--end-date", command.endDate);
     pushFlag(args, "--details", command.details);
@@ -856,6 +920,10 @@ function createApplyCommand(command: ParsedCommand, response: McpToolResponse): 
     if (command.allDay === true) {
       args.push("--all-day");
     }
+  }
+
+  if (command.command === "move") {
+    pushFlag(args, "--task-list-id", command.taskListId);
   }
 
   args.push("--apply");
@@ -947,6 +1015,11 @@ function helpText(): string {
     "  list <target> [--json]                  list task-lists, calendars, or note-lists",
     "  get <kind> <id> [--json]                get a task, event, or note",
     "  create <kind> [options]                 dry-run create a task, note, event, or list",
+    "  update <kind> <id> [options]            dry-run update a task, note, or event",
+    "  rename <kind> <id> --title <title>      dry-run rename a task-list or note-list",
+    "  complete task <id>                      dry-run complete a task",
+    "  reopen task <id>                        dry-run reopen a task",
+    "  move task <id> --task-list-id <id>      dry-run move a task",
     "  log [-n <limit>] [--level <level>]      show sanitized recent logs",
     "  diff [--limit <limit>] [--json]         show pending local-to-Google mutations",
     "  show <kind> [id] [--json]               show task, event, note, mutation, or diagnostics",
@@ -964,6 +1037,10 @@ function helpText(): string {
     "  pnpm hcb -- create note --title 'Draft' --body 'Body'",
     "  pnpm hcb -- create task-list --title 'Errands'",
     "  pnpm hcb -- create note --title 'Draft' --body 'Body' --apply --confirmation-id confirm-id",
+    "  pnpm hcb -- update task task-id --title 'Next title'",
+    "  pnpm hcb -- rename task-list list-id --title 'Errands'",
+    "  pnpm hcb -- complete task task-id",
+    "  pnpm hcb -- move task task-id --task-list-id list-id",
     "  pnpm hcb -- status",
     "  pnpm hcb -- log -n 20 --level warn",
     "  pnpm hcb -- diff --json",
@@ -1039,6 +1116,36 @@ function toolName(command: ParsedCommand): string {
       }
 
       throw new CliError("Unknown create target.", 2);
+    case "update":
+      if (command.target === "task") {
+        return "hcb_update_task";
+      }
+
+      if (command.target === "note") {
+        return "hcb_update_note";
+      }
+
+      if (command.target === "event") {
+        return "hcb_update_event";
+      }
+
+      throw new CliError("Unknown update target.", 2);
+    case "rename":
+      if (command.target === "task-list") {
+        return "hcb_rename_task_list";
+      }
+
+      if (command.target === "note-list") {
+        return "hcb_rename_note_list";
+      }
+
+      throw new CliError("Unknown rename target.", 2);
+    case "complete":
+      return "hcb_complete_task";
+    case "reopen":
+      return "hcb_reopen_task";
+    case "move":
+      return "hcb_move_task";
     default:
       throw new CliError("Help does not call MCP.");
   }
@@ -1057,7 +1164,12 @@ function isCommand(command: string): command is ParsedCommand["command"] {
     command === "export-diagnostics" ||
     command === "list" ||
     command === "get" ||
-    command === "create"
+    command === "create" ||
+    command === "update" ||
+    command === "rename" ||
+    command === "complete" ||
+    command === "reopen" ||
+    command === "move"
   );
 }
 
@@ -1183,6 +1295,30 @@ function parseCreateTarget(value: string | undefined): string {
   throw new CliError("Create target must be one of: task, note, event, task-list, note-list.", 2);
 }
 
+function parseUpdateTarget(value: string | undefined): string {
+  if (value === "task" || value === "note" || value === "event") {
+    return value;
+  }
+
+  throw new CliError("Update target must be one of: task, note, event.", 2);
+}
+
+function parseRenameTarget(value: string | undefined): string {
+  if (value === "task-list" || value === "note-list") {
+    return value;
+  }
+
+  throw new CliError("Rename target must be one of: task-list, note-list.", 2);
+}
+
+function parseTaskStateTarget(value: string | undefined, command: string): string {
+  if (value === "task") {
+    return value;
+  }
+
+  throw new CliError(`${command} target must be task.`, 2);
+}
+
 function optionValue(value: string | undefined, flag: string): string {
   if (!value || value.startsWith("--")) {
     throw new CliError(`Missing value for ${flag}.`, 2);
@@ -1191,7 +1327,7 @@ function optionValue(value: string | undefined, flag: string): string {
   return value;
 }
 
-function hasCreateOnlyOptions(command: ParsedCommand): boolean {
+function hasWriteOnlyOptions(command: ParsedCommand): boolean {
   return (
     command.apply === true ||
     command.confirmationId !== undefined ||
@@ -1205,6 +1341,17 @@ function hasCreateOnlyOptions(command: ParsedCommand): boolean {
     command.location !== undefined ||
     command.calendarId !== undefined ||
     command.allDay === true
+  );
+}
+
+function isWriteCommand(command: ParsedCommand["command"]): boolean {
+  return (
+    command === "create" ||
+    command === "update" ||
+    command === "rename" ||
+    command === "complete" ||
+    command === "reopen" ||
+    command === "move"
   );
 }
 
@@ -1241,6 +1388,74 @@ function validateCreateCommand(command: ParsedCommand): void {
   }
 }
 
+function validateUpdateCommand(command: ParsedCommand): void {
+  rejectReadOptions(command, "update");
+
+  if (command.target === "task") {
+    rejectCreateOptions(command, ["body", "details", "startDate", "endDate", "location", "calendarId", "allDay"]);
+    requireAnyUpdateField(command, ["title", "notes", "dueDate", "taskListId"], "task");
+    command.title = optionalCreateText(command.title, "--title", "task");
+    return;
+  }
+
+  if (command.target === "note") {
+    rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "details", "startDate", "endDate", "location", "calendarId", "allDay"]);
+    requireAnyUpdateField(command, ["title", "body"], "note");
+    command.title = optionalCreateText(command.title, "--title", "note");
+    return;
+  }
+
+  if (command.target === "event") {
+    rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "body"]);
+    requireAnyUpdateField(command, ["title", "details", "startDate", "endDate", "location", "calendarId", "allDay"], "event");
+    command.title = optionalCreateText(command.title, "--title", "event");
+    validateUpdateEventDates(command);
+  }
+}
+
+function validateRenameCommand(command: ParsedCommand): void {
+  rejectReadOptions(command, "rename");
+  command.title = requiredCreateText(command.title, "--title", command.target ?? "item");
+  rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay"]);
+}
+
+function validateTaskStateCommand(command: ParsedCommand): void {
+  rejectReadOptions(command, command.command);
+  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay"]);
+}
+
+function validateMoveCommand(command: ParsedCommand): void {
+  rejectReadOptions(command, "move");
+  command.taskListId = requiredCreateText(command.taskListId, "--task-list-id", "move task");
+  rejectCreateOptions(command, ["title", "notes", "dueDate", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay"]);
+}
+
+function rejectReadOptions(command: ParsedCommand, name: string): void {
+  if (command.limit !== undefined) {
+    throw new CliError(`--limit is not supported by ${name}.`, 2);
+  }
+
+  if (command.level !== undefined) {
+    throw new CliError(`--level is not supported by ${name}.`, 2);
+  }
+}
+
+function requireAnyUpdateField(command: ParsedCommand, keys: Array<keyof ParsedCommand>, target: string): void {
+  if (keys.some((key) => command[key] !== undefined && command[key] !== false)) {
+    return;
+  }
+
+  throw new CliError(`At least one update field is required for update ${target}.`, 2);
+}
+
+function optionalCreateText(value: string | undefined, flag: string, target: string): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return requiredCreateText(value, flag, target);
+}
+
 function validateCreateEventDates(command: ParsedCommand): void {
   if (command.allDay === true) {
     if (!isDateOnly(command.startDate)) {
@@ -1257,8 +1472,74 @@ function validateCreateEventDates(command: ParsedCommand): void {
   }
 }
 
+function validateUpdateEventDates(command: ParsedCommand): void {
+  if (command.allDay === true) {
+    if (command.startDate !== undefined && !isDateOnly(command.startDate)) {
+      throw new CliError("--all-day requires --start-date as YYYY-MM-DD when supplied.", 2);
+    }
+
+    if (command.endDate !== undefined && !isDateOnly(command.endDate)) {
+      throw new CliError("--all-day requires --end-date as YYYY-MM-DD when supplied.", 2);
+    }
+  }
+
+  if (command.startDate !== undefined && command.endDate !== undefined && Date.parse(command.endDate) < Date.parse(command.startDate)) {
+    throw new CliError("--end-date must not be before --start-date.", 2);
+  }
+}
+
 function isDateOnly(value: string | undefined): boolean {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function updatePatch(command: ParsedCommand): JsonObject {
+  const patch: JsonObject = {};
+
+  if (command.title !== undefined) {
+    patch.title = command.title;
+  }
+
+  if (command.notes !== undefined) {
+    patch.notes = command.notes;
+  }
+
+  if (command.dueDate !== undefined) {
+    patch.dueDate = command.dueDate;
+  }
+
+  if (command.taskListId !== undefined) {
+    patch.taskListId = command.taskListId;
+  }
+
+  if (command.body !== undefined) {
+    patch.body = command.body;
+  }
+
+  if (command.details !== undefined) {
+    patch.details = command.details;
+  }
+
+  if (command.startDate !== undefined) {
+    patch.startDate = command.startDate;
+  }
+
+  if (command.endDate !== undefined) {
+    patch.endDate = command.endDate;
+  }
+
+  if (command.location !== undefined) {
+    patch.location = command.location;
+  }
+
+  if (command.calendarId !== undefined) {
+    patch.calendarId = command.calendarId;
+  }
+
+  if (command.allDay === true) {
+    patch.isAllDay = true;
+  }
+
+  return patch;
 }
 
 function requiredCreateText(value: string | undefined, flag: string, target: string): string {

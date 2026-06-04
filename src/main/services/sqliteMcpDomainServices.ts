@@ -95,7 +95,7 @@ export function createMcpDomainServices(dependencies: McpDomainServiceDependenci
         }),
       previewRenameTaskList: (id, input) =>
         jsonObject({
-          ...repository.listTaskLists({ limit: 100 }).items.find((taskList) => taskList.id === id),
+          ...taskListById(repository, id),
           kind: "taskList",
           id,
           title: requiredText(input, "title")
@@ -166,7 +166,7 @@ export function createMcpDomainServices(dependencies: McpDomainServiceDependenci
         }),
       previewRenameNoteList: (id, input) =>
         jsonObject({
-          ...repository.listNotes({ limit: 1 }).lists.find((noteList) => noteList.id === id),
+          ...noteListById(repository, id),
           kind: "noteList",
           id,
           title: requiredText(input, "title")
@@ -493,6 +493,26 @@ function taskUpdateFromPatch(id: string, patch: DomainJsonObject): TaskUpdateReq
       ? {}
       : { priority: priorityFromInput(optionalText(patch, "priority")) })
   };
+}
+
+function taskListById(repository: LocalPlannerRepository, id: string): object {
+  const taskList = repository.listTaskLists({ limit: 1_000 }).items.find((candidate) => candidate.id === id);
+
+  if (!taskList) {
+    throw new Error("Task list was not found.");
+  }
+
+  return taskList;
+}
+
+function noteListById(repository: LocalPlannerRepository, id: string): object {
+  const noteList = repository.listNotes({ limit: 1 }).lists.find((candidate) => candidate.id === id);
+
+  if (!noteList) {
+    throw new Error("Note list was not found.");
+  }
+
+  return noteList;
 }
 
 function requiredText(input: DomainJsonObject, key: string): string {

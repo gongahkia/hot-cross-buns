@@ -80,6 +80,25 @@ export function createMcpDomainServices(state: PlaceholderState): McpDomainServi
         state.sync.pendingMutationCount += 1;
         return taskList;
       },
+      previewRenameTaskList: (id, input) => ({
+        ...taskListById(state, id),
+        title: requiredText(input, "title")
+      }),
+      renameTaskList: (id, input) => {
+        const taskList = state.taskLists.find((candidate) => candidate.id === id);
+
+        if (!taskList) {
+          throw new Error("Task list was not found.");
+        }
+
+        taskList.title = requiredText(input, "title");
+        state.sync.pendingMutationCount += 1;
+        return {
+          kind: "taskList",
+          id: taskList.id,
+          title: taskList.title
+        };
+      },
       previewCreateTask: (input) => compactJsonObject({
         kind: "task",
         title: requiredText(input, "title"),
@@ -167,6 +186,15 @@ export function createMcpDomainServices(state: PlaceholderState): McpDomainServi
         id: `note-list:${state.notes.length + 1}`,
         title: requiredText(input, "title"),
         noteCount: 0,
+        updatedAt: new Date().toISOString()
+      }),
+      previewRenameNoteList: (id, input) => ({
+        ...noteListById(state, id),
+        title: requiredText(input, "title")
+      }),
+      renameNoteList: (id, input) => ({
+        ...noteListById(state, id),
+        title: requiredText(input, "title"),
         updatedAt: new Date().toISOString()
       }),
       previewCreateNote: (input) => compactJsonObject({
@@ -360,4 +388,28 @@ function noteListsFromState(state: PlaceholderState): DomainJsonObject[] {
   }
 
   return [...lists.values()];
+}
+
+function taskListById(state: PlaceholderState, id: string): DomainJsonObject {
+  const taskList = state.taskLists.find((candidate) => candidate.id === id);
+
+  if (!taskList) {
+    throw new Error("Task list was not found.");
+  }
+
+  return {
+    kind: "taskList",
+    id: taskList.id,
+    title: taskList.title
+  };
+}
+
+function noteListById(state: PlaceholderState, id: string): DomainJsonObject {
+  const noteList = noteListsFromState(state).find((candidate) => candidate.id === id);
+
+  if (!noteList) {
+    throw new Error("Note list was not found.");
+  }
+
+  return noteList;
 }

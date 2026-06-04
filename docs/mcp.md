@@ -58,6 +58,8 @@ Write tools:
 - `hcb_create_event`
 - `hcb_create_task_list`
 - `hcb_create_note_list`
+- `hcb_rename_task_list`
+- `hcb_rename_note_list`
 - `hcb_update_task`
 - `hcb_update_event`
 - `hcb_complete_task`

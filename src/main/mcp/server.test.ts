@@ -320,7 +320,12 @@ describe("local MCP server contract", () => {
     const tools = jsonBody(list).result.tools as Array<{ name: string }>;
 
     expect(tools.map((tool) => tool.name)).toEqual(
-      expect.arrayContaining(["hcb_create_task_list", "hcb_create_note_list"])
+      expect.arrayContaining([
+        "hcb_create_task_list",
+        "hcb_create_note_list",
+        "hcb_rename_task_list",
+        "hcb_rename_note_list"
+      ])
     );
 
     const denied = await post(
@@ -400,6 +405,91 @@ describe("local MCP server contract", () => {
       item: {
         kind: "noteList",
         title: "Project notes"
+      }
+    });
+
+    const renameDenied = await post(
+      readOnly.server,
+      rpc("tools/call", {
+        name: "hcb_rename_task_list",
+        arguments: {
+          id: "list-inbox",
+          title: "Inbox v2",
+          dryRun: true
+        }
+      }),
+      authHeaders()
+    );
+
+    expect(jsonBody(renameDenied).error).toMatchObject({
+      message: "MCP is in read-only mode."
+    });
+
+    const renameDryRun = await post(
+      confirmWrites.server,
+      rpc("tools/call", {
+        name: "hcb_rename_task_list",
+        arguments: {
+          id: "list-inbox",
+          title: "Inbox v2",
+          dryRun: true
+        }
+      }),
+      authHeaders()
+    );
+    const renamePreview = structuredContent(renameDryRun);
+
+    expect(renamePreview).toMatchObject({
+      dryRun: true,
+      requiresConfirmation: true,
+      item: {
+        kind: "taskList",
+        id: "list-inbox",
+        title: "Inbox v2"
+      }
+    });
+    expect(renamePreview.confirmationId).toEqual(expect.any(String));
+
+    const renameApply = await post(
+      confirmWrites.server,
+      rpc("tools/call", {
+        name: "hcb_rename_task_list",
+        arguments: {
+          id: "list-inbox",
+          title: "Inbox v2",
+          confirmationId: renamePreview.confirmationId
+        }
+      }),
+      authHeaders()
+    );
+
+    expect(structuredContent(renameApply)).toMatchObject({
+      applied: true,
+      item: {
+        kind: "taskList",
+        id: "list-inbox",
+        title: "Inbox v2"
+      }
+    });
+
+    const renameDirect = await post(
+      allowWrites.server,
+      rpc("tools/call", {
+        name: "hcb_rename_note_list",
+        arguments: {
+          id: "note-list:default",
+          title: "Notes v2"
+        }
+      }),
+      authHeaders()
+    );
+
+    expect(structuredContent(renameDirect)).toMatchObject({
+      applied: true,
+      item: {
+        kind: "noteList",
+        id: "note-list:default",
+        title: "Notes v2"
       }
     });
   });

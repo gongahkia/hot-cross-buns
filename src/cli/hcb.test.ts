@@ -125,6 +125,55 @@ describe("hcb CLI", () => {
       target: "note-list",
       title: "Project notes"
     });
+    expect(parseCommand(["update", "task", "task-1", "--title", "Plan v2", "--notes", "New notes", "--due-date", "2026-06-05", "--task-list-id", "list-inbox"])).toMatchObject({
+      command: "update",
+      target: "task",
+      id: "task-1",
+      title: "Plan v2",
+      notes: "New notes",
+      dueDate: "2026-06-05",
+      taskListId: "list-inbox"
+    });
+    expect(parseCommand(["update", "note", "note-1", "--title", "Scratch v2", "--body", "Body v2"])).toMatchObject({
+      command: "update",
+      target: "note",
+      id: "note-1",
+      title: "Scratch v2",
+      body: "Body v2"
+    });
+    expect(parseCommand(["update", "event", "event-1", "--title", "Review v2", "--start-date", "2026-06-04T09:00:00.000Z", "--end-date", "2026-06-04T10:00:00.000Z", "--details", "Agenda", "--location", "Office", "--calendar-id", "cal-primary"])).toMatchObject({
+      command: "update",
+      target: "event",
+      id: "event-1",
+      title: "Review v2",
+      startDate: "2026-06-04T09:00:00.000Z",
+      endDate: "2026-06-04T10:00:00.000Z",
+      details: "Agenda",
+      location: "Office",
+      calendarId: "cal-primary"
+    });
+    expect(parseCommand(["rename", "task-list", "list-inbox", "--title", "Inbox v2"])).toMatchObject({
+      command: "rename",
+      target: "task-list",
+      id: "list-inbox",
+      title: "Inbox v2"
+    });
+    expect(parseCommand(["complete", "task", "task-1"])).toMatchObject({
+      command: "complete",
+      target: "task",
+      id: "task-1"
+    });
+    expect(parseCommand(["reopen", "task", "task-1"])).toMatchObject({
+      command: "reopen",
+      target: "task",
+      id: "task-1"
+    });
+    expect(parseCommand(["move", "task", "task-1", "--task-list-id", "list-next"])).toMatchObject({
+      command: "move",
+      target: "task",
+      id: "task-1",
+      taskListId: "list-next"
+    });
     expect(() => parseCommand(["search", "launch", "--scope", "invalid"])).toThrow("Scope");
     expect(() => parseCommand(["week", "--start-date", "not-a-date"])).toThrow("Start date");
     expect(() => parseCommand(["status", "--scope", "tasks"])).toThrow("--scope");
@@ -139,6 +188,14 @@ describe("hcb CLI", () => {
     expect(() => parseCommand(["create", "note", "--title", "Scratch", "--task-list-id", "list-inbox"])).toThrow("--task-list-id");
     expect(() => parseCommand(["create", "task-list", "--title", "Errands", "--body", "Nope"])).toThrow("--body");
     expect(() => parseCommand(["create", "invalid", "--title", "Scratch"])).toThrow("Create target");
+    expect(() => parseCommand(["update", "task", "task-1"])).toThrow("At least one update field");
+    expect(() => parseCommand(["update", "note", "note-1", "--task-list-id", "list-inbox"])).toThrow("--task-list-id");
+    expect(() => parseCommand(["update", "event", "event-1", "--start-date", "2026-06-04T10:00:00.000Z", "--end-date", "2026-06-04T09:00:00.000Z"])).toThrow("--end-date");
+    expect(() => parseCommand(["update", "event", "event-1", "--start-date", "2026-06-04T09:00:00.000Z", "--all-day"])).toThrow("--all-day");
+    expect(() => parseCommand(["rename", "note-list", "note-list:default"])).toThrow("Missing required --title");
+    expect(() => parseCommand(["complete", "task", "task-1", "--title", "Nope"])).toThrow("--title");
+    expect(() => parseCommand(["move", "task", "task-1"])).toThrow("Missing required --task-list-id");
+    expect(() => parseCommand(["move", "note", "note-1", "--task-list-id", "list-inbox"])).toThrow("move target");
   });
 
   it("calls MCP status through the runtime file without exposing the bearer token", async () => {
@@ -717,6 +774,155 @@ describe("hcb CLI", () => {
     }
   });
 
+  it("calls MCP update, rename, and task state commands with dry-run defaults", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "hcb-cli-update-"));
+    const runtimeFile = join(directory, "mcp-runtime.json");
+    const calls: Array<{ body: Record<string, unknown>; authorization?: string }> = [];
+    const fetch: HcbCliDependencies["fetch"] = async (_url, init) => {
+      const body = JSON.parse(init.body) as {
+        params: {
+          name: string;
+          arguments: Record<string, unknown>;
+        };
+      };
+      calls.push({
+        body,
+        authorization: init.headers.Authorization
+      });
+
+      return {
+        status: 200,
+        json: async () => rpcResponse(responseForWriteTool(body.params.name, body.params.arguments)),
+        text: async () => ""
+      };
+    };
+
+    try {
+      writeFileSync(
+        runtimeFile,
+        JSON.stringify({
+          running: true,
+          url: "http://127.0.0.1",
+          port: 4777,
+          pid: process.pid,
+          updatedAt: "2026-06-04T00:00:00.000Z"
+        }),
+        "utf8"
+      );
+
+      const taskOut = outputBuffer();
+      const noteJsonOut = outputBuffer();
+      const eventOut = outputBuffer();
+      const renameTaskListOut = outputBuffer();
+      const renameNoteListOut = outputBuffer();
+      const completeOut = outputBuffer();
+      const reopenOut = outputBuffer();
+      const moveOut = outputBuffer();
+      const deps = {
+        fetch,
+        runtimeFilePaths: [runtimeFile],
+        stderr: outputBuffer(),
+        tokenProvider: async () => "secret-token"
+      };
+
+      expect(await runHcbCli(["update", "task", "task-1", "--title", "Plan v2", "--notes", "New notes", "--due-date", "2026-06-05", "--task-list-id", "list-inbox"], { ...deps, stdout: taskOut })).toBe(0);
+      expect(await runHcbCli(["update", "note", "note-1", "--title", "Scratch v2", "--body", "Body v2", "--json"], { ...deps, stdout: noteJsonOut })).toBe(0);
+      expect(await runHcbCli(["update", "event", "event-1", "--title", "Review v2", "--start-date", "2026-06-04T09:00:00.000Z", "--end-date", "2026-06-04T10:00:00.000Z", "--details", "Agenda", "--location", "Office", "--calendar-id", "cal-primary"], { ...deps, stdout: eventOut })).toBe(0);
+      expect(await runHcbCli(["rename", "task-list", "list-inbox", "--title", "Inbox v2"], { ...deps, stdout: renameTaskListOut })).toBe(0);
+      expect(await runHcbCli(["rename", "note-list", "note-list:default", "--title", "Notes v2", "--apply", "--confirmation-id", "confirm-rename-note-list"], { ...deps, stdout: renameNoteListOut })).toBe(0);
+      expect(await runHcbCli(["complete", "task", "task-1"], { ...deps, stdout: completeOut })).toBe(0);
+      expect(await runHcbCli(["reopen", "task", "task-1"], { ...deps, stdout: reopenOut })).toBe(0);
+      expect(await runHcbCli(["move", "task", "task-1", "--task-list-id", "list-next"], { ...deps, stdout: moveOut })).toBe(0);
+      const noteJson = JSON.parse(noteJsonOut.text()) as Record<string, unknown>;
+
+      expect(taskOut.text()).toContain("HCB update task: dry-run");
+      expect(taskOut.text()).toContain("Apply: pnpm hcb -- update task task-1 --title 'Plan v2' --notes 'New notes' --due-date 2026-06-05 --task-list-id list-inbox --apply --confirmation-id confirm-update-task");
+      expect(noteJson).toMatchObject({
+        tool: "hcb_update_note",
+        target: "note",
+        dryRun: true,
+        confirmationId: "confirm-update-note",
+        applyCommand: "pnpm hcb -- update note note-1 --title 'Scratch v2' --body 'Body v2' --apply --confirmation-id confirm-update-note"
+      });
+      expect(eventOut.text()).toContain("HCB update event: dry-run");
+      expect(renameTaskListOut.text()).toContain("HCB rename task-list: dry-run");
+      expect(renameNoteListOut.text()).toContain("HCB rename note-list: applied");
+      expect(completeOut.text()).toContain("HCB complete task: dry-run");
+      expect(reopenOut.text()).toContain("HCB reopen task: dry-run");
+      expect(moveOut.text()).toContain("HCB move task: dry-run");
+      expect(`${taskOut.text()}${noteJsonOut.text()}${eventOut.text()}${renameTaskListOut.text()}${renameNoteListOut.text()}${completeOut.text()}${reopenOut.text()}${moveOut.text()}`).not.toContain("secret-token");
+      expect(calls.every((call) => call.authorization === "Bearer secret-token")).toBe(true);
+      expect(calls.map((call) => (call.body.params as { name: string }).name)).toEqual([
+        "hcb_update_task",
+        "hcb_update_note",
+        "hcb_update_event",
+        "hcb_rename_task_list",
+        "hcb_rename_note_list",
+        "hcb_complete_task",
+        "hcb_reopen_task",
+        "hcb_move_task"
+      ]);
+      expect(calls.map((call) => (call.body.params as { arguments: Record<string, unknown> }).arguments)).toEqual([
+        {
+          id: "task-1",
+          dryRun: true,
+          patch: {
+            title: "Plan v2",
+            notes: "New notes",
+            dueDate: "2026-06-05",
+            taskListId: "list-inbox"
+          }
+        },
+        {
+          id: "note-1",
+          dryRun: true,
+          patch: {
+            title: "Scratch v2",
+            body: "Body v2"
+          }
+        },
+        {
+          id: "event-1",
+          dryRun: true,
+          patch: {
+            title: "Review v2",
+            details: "Agenda",
+            startDate: "2026-06-04T09:00:00.000Z",
+            endDate: "2026-06-04T10:00:00.000Z",
+            location: "Office",
+            calendarId: "cal-primary"
+          }
+        },
+        {
+          id: "list-inbox",
+          dryRun: true,
+          title: "Inbox v2"
+        },
+        {
+          id: "note-list:default",
+          dryRun: false,
+          confirmationId: "confirm-rename-note-list",
+          title: "Notes v2"
+        },
+        {
+          id: "task-1",
+          dryRun: true
+        },
+        {
+          id: "task-1",
+          dryRun: true
+        },
+        {
+          id: "task-1",
+          dryRun: true,
+          taskListId: "list-next"
+        }
+      ]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it("fails fast when the runtime file is stale", async () => {
     const directory = mkdtempSync(join(tmpdir(), "hcb-cli-stale-"));
     const runtimeFile = join(directory, "mcp-runtime.json");
@@ -820,6 +1026,32 @@ function responseForCreateTool(name: string, args: Record<string, unknown>): Rec
       kind,
       id,
       title: String(args.title)
+    }
+  };
+}
+
+function responseForWriteTool(name: string, args: Record<string, unknown>): Record<string, unknown> {
+  const dryRun = args.dryRun !== false;
+  const action = name.replace(/^hcb_/, "").replaceAll("_", "-");
+  const target = action
+    .replace(/^update-/, "")
+    .replace(/^rename-/, "")
+    .replace(/^complete-/, "")
+    .replace(/^reopen-/, "")
+    .replace(/^move-/, "");
+  const kind = target === "task-list" ? "taskList" : target === "note-list" ? "noteList" : target;
+  const patch = typeof args.patch === "object" && args.patch !== null ? args.patch as Record<string, unknown> : {};
+
+  return {
+    applied: !dryRun,
+    dryRun,
+    requiresConfirmation: dryRun,
+    ...(dryRun ? { confirmationId: `confirm-${action}` } : {}),
+    message: dryRun ? "Dry-run ready. Pass confirmationId to apply." : `Applied ${action}.`,
+    item: {
+      kind,
+      id: String(args.id),
+      title: String(args.title ?? patch.title ?? `${target} title`)
     }
   };
 }

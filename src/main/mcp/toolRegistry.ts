@@ -38,6 +38,8 @@ const writeToolNames = [
   "hcb_create_event",
   "hcb_create_task_list",
   "hcb_create_note_list",
+  "hcb_rename_task_list",
+  "hcb_rename_note_list",
   "hcb_update_task",
   "hcb_update_note",
   "hcb_update_event",
@@ -134,6 +136,18 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
   }, ["title"]),
+  writeTool("hcb_rename_task_list", "Rename a Google Tasks list.", false, {
+    id: stringSchema("Task list id."),
+    title: stringSchema("New task list title."),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }, ["id", "title"]),
+  writeTool("hcb_rename_note_list", "Rename a local HCB note list.", false, {
+    id: stringSchema("Note list id."),
+    title: stringSchema("New note list title."),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }, ["id", "title"]),
   writeTool("hcb_update_task", "Update task fields.", false, {
     id: stringSchema("Task id."),
     patch: objectSchema("Fields: title, notes, dueDate, taskListId."),
@@ -450,6 +464,24 @@ export class McpToolRegistry {
       hcb_create_note_list: {
         preview: (args) => this.services.notes.previewCreateNoteList(domainArguments(args)),
         apply: (args) => this.services.notes.createNoteList(domainArguments(args))
+      },
+      hcb_rename_task_list: {
+        preview: (args) =>
+          this.services.tasks.previewRenameTaskList(
+            requiredString(args, "id"),
+            domainArguments(args)
+          ),
+        apply: (args) =>
+          this.services.tasks.renameTaskList(requiredString(args, "id"), domainArguments(args))
+      },
+      hcb_rename_note_list: {
+        preview: (args) =>
+          this.services.notes.previewRenameNoteList(
+            requiredString(args, "id"),
+            domainArguments(args)
+          ),
+        apply: (args) =>
+          this.services.notes.renameNoteList(requiredString(args, "id"), domainArguments(args))
       },
       hcb_update_task: {
         preview: (args) =>

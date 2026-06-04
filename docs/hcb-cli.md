@@ -30,6 +30,14 @@ The CLI discovers the runtime file written by the app and loads the bearer token
 - `pnpm hcb -- create event --title "Review" --start-date 2026-06-04T09:00:00.000Z`: dry-run an event create.
 - `pnpm hcb -- create task-list --title "Errands"`: dry-run a task list create.
 - `pnpm hcb -- create note-list --title "Project notes"`: dry-run a note list create.
+- `pnpm hcb -- update task <id> --title "Plan v2"`: dry-run a task update.
+- `pnpm hcb -- update note <id> --body "Body v2"`: dry-run a note update.
+- `pnpm hcb -- update event <id> --start-date 2026-06-04T09:00:00.000Z`: dry-run an event update.
+- `pnpm hcb -- rename task-list <id> --title "Errands v2"`: dry-run a task list rename.
+- `pnpm hcb -- rename note-list <id> --title "Project notes v2"`: dry-run a note list rename.
+- `pnpm hcb -- complete task <id>`: dry-run completing a task.
+- `pnpm hcb -- reopen task <id>`: dry-run reopening a task.
+- `pnpm hcb -- move task <id> --task-list-id <id>`: dry-run moving a task.
 - `pnpm hcb -- log -n 20 --level warn`: show sanitized recent logs.
 - `pnpm hcb -- diff --limit 20`: show pending local-to-Google mutations.
 - `pnpm hcb -- show task <id>`: show one task.
@@ -42,11 +50,11 @@ All commands accept `--json` for structured output. `doctor` and `export-diagnos
 
 ## Create Workflow
 
-1. Run `pnpm hcb -- create <task|note|event|task-list|note-list> --title <title> ...` without `--apply`.
+1. Run `pnpm hcb -- create|update|rename|complete|reopen|move ...` without `--apply`.
 2. Inspect the preview and `Apply:` command.
-3. In `confirm-writes` mode, rerun the same create command with `--apply --confirmation-id <id>`.
-4. In `allow-writes` mode, rerun the same create command with `--apply`.
-5. In `read-only` mode, create commands are rejected.
+3. In `confirm-writes` mode, rerun the shown command with `--apply --confirmation-id <id>`.
+4. In `allow-writes` mode, rerun the shown command with `--apply`.
+5. In `read-only` mode, write commands are rejected.
 
 ## Agent Workflow
 
