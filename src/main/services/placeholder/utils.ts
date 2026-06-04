@@ -87,6 +87,11 @@ export function optionalText(input: DomainJsonObject, key: string): string | und
   return trimmed.length === 0 ? undefined : trimmed;
 }
 
+export function optionalNumber(input: DomainJsonObject, key: string): number | undefined {
+  const value = input[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
 export function taskPatch(patch: DomainJsonObject): Partial<TaskRecord> {
   return {
     ...(optionalText(patch, "title") === undefined ? {} : { title: optionalText(patch, "title") }),

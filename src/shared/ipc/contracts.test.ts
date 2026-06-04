@@ -120,6 +120,7 @@ describe("shared IPC contracts", () => {
         endsAt: "2026-05-22T10:00:00.000Z",
         guestEmails: ["ADA@example.com"],
         reminderMinutes: [10],
+        timeZone: "Asia/Singapore",
         recurrence: {
           frequency: "weekly",
           interval: 2,
@@ -132,6 +133,7 @@ describe("shared IPC contracts", () => {
       title: "Design review",
       colorId: "9",
       guestEmails: ["ada@example.com"],
+      timeZone: "Asia/Singapore",
       allDay: false,
       recurrence: {
         frequency: "weekly",
@@ -165,12 +167,14 @@ describe("shared IPC contracts", () => {
       calendarEventUpdateRequestSchema.parse({
         id: "event-1",
         colorId: null,
-        recurrence: null
+        recurrence: null,
+        timeZone: "Asia/Singapore"
       })
     ).toEqual({
       id: "event-1",
       colorId: null,
-      recurrence: null
+      recurrence: null,
+      timeZone: "Asia/Singapore"
     });
   });
 

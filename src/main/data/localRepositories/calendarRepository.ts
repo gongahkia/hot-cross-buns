@@ -162,6 +162,7 @@ export class CalendarLocalRepository extends TaskLocalRepository {
       const now = new Date().toISOString();
       const googleId = `local-${randomUUID()}`;
       const id = `${calendar.accountId}:event:${calendar.googleId}:${googleId}`;
+      const timeZone = request.timeZone ?? calendar.timeZone ?? systemTimeZone();
       const normalized = normalizeCalendarWrite({
         title: request.title,
         calendarId: calendar.id,
@@ -182,7 +183,7 @@ export class CalendarLocalRepository extends TaskLocalRepository {
           id,
           accountId: calendar.accountId,
           googleId,
-          timeZone: calendar.timeZone ?? systemTimeZone(),
+          timeZone,
           now,
           ...normalized,
           calendarId: calendar.id
@@ -231,6 +232,7 @@ export class CalendarLocalRepository extends TaskLocalRepository {
 
       const targetCalendar = this.requireCalendar(request.calendarId ?? existing.calendarId);
       const now = new Date().toISOString();
+      const timeZone = request.timeZone ?? existing.timeZone ?? targetCalendar.timeZone ?? systemTimeZone();
       const normalized = normalizeCalendarWrite({
         title: request.title ?? existing.title,
         calendarId: targetCalendar.id,
@@ -252,7 +254,7 @@ export class CalendarLocalRepository extends TaskLocalRepository {
       this.connection.executeTransaction([
         eventUpdateOperation({
           id: existing.eventId,
-          timeZone: existing.timeZone ?? targetCalendar.timeZone ?? systemTimeZone(),
+          timeZone,
           now,
           ...normalized,
           calendarId: targetCalendar.id

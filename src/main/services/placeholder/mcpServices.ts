@@ -13,6 +13,7 @@ import type {
 import {
   compactJsonObject,
   eventPatch,
+  optionalNumber,
   optionalText,
   preview,
   requiredById,
@@ -99,6 +100,14 @@ export function createMcpDomainServices(state: PlaceholderState): McpDomainServi
           title: taskList.title
         };
       },
+      previewDeleteTaskList: (id) => taskListById(state, id),
+      deleteTaskList: (id) => {
+        const taskList = taskListById(state, id);
+        const index = state.taskLists.findIndex((candidate) => candidate.id === id);
+        state.taskLists.splice(index, 1);
+        state.sync.pendingMutationCount += 1;
+        return taskList;
+      },
       previewCreateTask: (input) => compactJsonObject({
         kind: "task",
         title: requiredText(input, "title"),
@@ -149,11 +158,13 @@ export function createMcpDomainServices(state: PlaceholderState): McpDomainServi
         state.sync.pendingMutationCount += 1;
         return taskJson(task);
       },
-      previewMoveTask: (id, taskListId) => ({ ...taskJson(requiredById(state.tasks, id, "Task")), targetTaskListId: taskListId }),
-      moveTask: (id, taskListId) => {
+      previewMoveTask: (id, input) => ({ ...taskJson(requiredById(state.tasks, id, "Task")), move: input }),
+      moveTask: (id, input) => {
         const task = requiredById(state.tasks, id, "Task");
+        const taskListId = optionalText(input, "taskListId") ?? optionalText(input, "listId") ?? task.listId;
         const taskList = state.taskLists.find((candidate) => candidate.id === taskListId);
         task.listId = taskListId;
+        task.parentId = input.parentId === null ? null : optionalText(input, "parentId") ?? task.parentId;
         task.listTitle = taskList?.title ?? task.listTitle;
         task.updatedAt = new Date().toISOString();
         state.sync.pendingMutationCount += 1;
@@ -197,6 +208,17 @@ export function createMcpDomainServices(state: PlaceholderState): McpDomainServi
         title: requiredText(input, "title"),
         updatedAt: new Date().toISOString()
       }),
+      previewDeleteNoteList: (id) => noteListById(state, id),
+      deleteNoteList: (id) => {
+        const noteList = noteListById(state, id);
+        for (const note of state.notes) {
+          if (note.listId === id) {
+            note.listId = "note-list:default";
+            note.listTitle = "Local notes";
+          }
+        }
+        return noteList;
+      },
       previewCreateNote: (input) => compactJsonObject({
         kind: "note",
         title: requiredText(input, "title"),
@@ -305,7 +327,22 @@ export function createMcpDomainServices(state: PlaceholderState): McpDomainServi
         const [event] = state.calendarEvents.splice(index, 1);
         state.sync.pendingMutationCount += 1;
         return calendarJson(event);
-      }
+      },
+      previewScheduleTaskBlock: (input) => compactJsonObject({
+        kind: "scheduledTaskBlock",
+        taskId: requiredText(input, "taskId"),
+        calendarId: requiredText(input, "calendarId"),
+        startsAt: requiredText(input, "startDate"),
+        durationMinutes: optionalNumber(input, "durationMinutes") ?? 30
+      }),
+      scheduleTaskBlock: (input) => compactJsonObject({
+        kind: "scheduledTaskBlock",
+        id: "scheduled-task-block-placeholder",
+        taskId: requiredText(input, "taskId"),
+        calendarId: requiredText(input, "calendarId"),
+        startsAt: requiredText(input, "startDate"),
+        durationMinutes: optionalNumber(input, "durationMinutes") ?? 30
+      })
     },
     diagnostics: {
       status: () => ({

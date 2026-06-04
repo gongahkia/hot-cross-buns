@@ -174,6 +174,44 @@ describe("hcb CLI", () => {
       id: "task-1",
       taskListId: "list-next"
     });
+    expect(parseCommand(["move", "task", "task-1", "--parent-id", "parent-1", "--previous-sibling-id", "null"])).toMatchObject({
+      command: "move",
+      target: "task",
+      id: "task-1",
+      parentId: "parent-1",
+      previousSiblingId: null
+    });
+    expect(parseCommand(["schedule", "task", "task-1", "--calendar-id", "cal-primary", "--start-date", "2026-06-04T09:00:00.000Z", "--duration-minutes", "45"])).toMatchObject({
+      command: "schedule",
+      target: "task",
+      id: "task-1",
+      calendarId: "cal-primary",
+      startDate: "2026-06-04T09:00:00.000Z",
+      durationMinutes: 45
+    });
+    expect(parseCommand(["settings", "update", "--patch-json", "{\"mcpEnabled\":true}"])).toMatchObject({
+      command: "settings",
+      action: "update",
+      patchJson: {
+        mcpEnabled: true
+      }
+    });
+    expect(parseCommand(["google", "save-oauth-client", "--client-id", "client-id-12345", "--client-secret", "secret"])).toMatchObject({
+      command: "google",
+      action: "save-oauth-client",
+      clientId: "client-id-12345",
+      clientSecret: "secret"
+    });
+    expect(parseCommand(["google", "begin-oauth", "--apply"])).toMatchObject({
+      command: "google",
+      action: "begin-oauth",
+      apply: true
+    });
+    expect(parseCommand(["mcp", "set-enabled", "true"])).toMatchObject({
+      command: "mcp",
+      action: "set-enabled",
+      enabled: true
+    });
     expect(() => parseCommand(["search", "launch", "--scope", "invalid"])).toThrow("Scope");
     expect(() => parseCommand(["week", "--start-date", "not-a-date"])).toThrow("Start date");
     expect(() => parseCommand(["status", "--scope", "tasks"])).toThrow("--scope");
@@ -194,8 +232,12 @@ describe("hcb CLI", () => {
     expect(() => parseCommand(["update", "event", "event-1", "--start-date", "2026-06-04T09:00:00.000Z", "--all-day"])).toThrow("--all-day");
     expect(() => parseCommand(["rename", "note-list", "note-list:default"])).toThrow("Missing required --title");
     expect(() => parseCommand(["complete", "task", "task-1", "--title", "Nope"])).toThrow("--title");
-    expect(() => parseCommand(["move", "task", "task-1"])).toThrow("Missing required --task-list-id");
+    expect(() => parseCommand(["move", "task", "task-1"])).toThrow("At least one update field");
     expect(() => parseCommand(["move", "note", "note-1", "--task-list-id", "list-inbox"])).toThrow("move target");
+    expect(() => parseCommand(["schedule", "task", "task-1", "--calendar-id", "cal-primary"])).toThrow("Missing required --start-date");
+    expect(() => parseCommand(["settings", "update", "--patch-json", "[]"])).toThrow("--patch-json");
+    expect(() => parseCommand(["google", "save-oauth-client"])).toThrow("--client-id");
+    expect(() => parseCommand(["mcp", "set-enabled"])).toThrow("enabled");
   });
 
   it("calls MCP status through the runtime file without exposing the bearer token", async () => {
@@ -916,6 +958,156 @@ describe("hcb CLI", () => {
           id: "task-1",
           dryRun: true,
           taskListId: "list-next"
+        }
+      ]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("calls MCP advanced write commands without echoing OAuth secrets", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "hcb-cli-advanced-write-"));
+    const runtimeFile = join(directory, "mcp-runtime.json");
+    const calls: Array<{ body: Record<string, unknown>; authorization?: string }> = [];
+    const fetch: HcbCliDependencies["fetch"] = async (_url, init) => {
+      const body = JSON.parse(init.body) as {
+        params: {
+          name: string;
+          arguments: Record<string, unknown>;
+        };
+      };
+      calls.push({
+        body,
+        authorization: init.headers.Authorization
+      });
+
+      return {
+        status: 200,
+        json: async () => rpcResponse(responseForWriteTool(body.params.name, body.params.arguments)),
+        text: async () => ""
+      };
+    };
+
+    try {
+      writeFileSync(
+        runtimeFile,
+        JSON.stringify({
+          running: true,
+          url: "http://127.0.0.1",
+          port: 4777,
+          pid: process.pid,
+          updatedAt: "2026-06-04T00:00:00.000Z"
+        }),
+        "utf8"
+      );
+
+      const taskOut = outputBuffer();
+      const eventOut = outputBuffer();
+      const noteOut = outputBuffer();
+      const moveOut = outputBuffer();
+      const scheduleOut = outputBuffer();
+      const settingsOut = outputBuffer();
+      const googleOut = outputBuffer();
+      const beginOut = outputBuffer();
+      const mcpOut = outputBuffer();
+      const deps = {
+        fetch,
+        runtimeFilePaths: [runtimeFile],
+        stderr: outputBuffer(),
+        tokenProvider: async () => "secret-token"
+      };
+
+      expect(await runHcbCli(["create", "task", "--title", "Plan launch", "--priority", "high", "--planned-start", "2026-06-04T09:00:00.000Z", "--planned-end", "2026-06-04T10:00:00.000Z", "--duration-minutes", "60", "--locked-schedule", "--snooze-until", "2026-06-05T00:00:00.000Z", "--tags", "launch,ops", "--parent-id", "parent-1", "--previous-sibling-id", "null"], { ...deps, stdout: taskOut })).toBe(0);
+      expect(await runHcbCli(["update", "event", "event-1", "--guest-emails", "ada@example.com,grace@example.com", "--reminder-minutes", "10,30", "--color-id", "9", "--time-zone", "Asia/Singapore", "--recurrence-frequency", "weekly", "--recurrence-interval", "2", "--recurrence-by-day", "MO,WE"], { ...deps, stdout: eventOut })).toBe(0);
+      expect(await runHcbCli(["update", "note", "note-1", "--note-list-id", "note-list:project"], { ...deps, stdout: noteOut })).toBe(0);
+      expect(await runHcbCli(["move", "task", "task-1", "--parent-id", "parent-1", "--previous-sibling-id", "null"], { ...deps, stdout: moveOut })).toBe(0);
+      expect(await runHcbCli(["schedule", "task", "task-1", "--calendar-id", "cal-primary", "--start-date", "2026-06-04T09:00:00.000Z", "--duration-minutes", "45"], { ...deps, stdout: scheduleOut })).toBe(0);
+      expect(await runHcbCli(["settings", "update", "--patch-json", "{\"mcpEnabled\":true}"], { ...deps, stdout: settingsOut })).toBe(0);
+      expect(await runHcbCli(["google", "save-oauth-client", "--client-id", "client-id-12345", "--client-secret", "super-secret"], { ...deps, stdout: googleOut })).toBe(0);
+      expect(await runHcbCli(["google", "begin-oauth", "--apply"], { ...deps, stdout: beginOut })).toBe(0);
+      expect(await runHcbCli(["mcp", "set-enabled", "true"], { ...deps, stdout: mcpOut })).toBe(0);
+
+      expect(taskOut.text()).toContain("--priority high");
+      expect(scheduleOut.text()).toContain("HCB schedule task: dry-run");
+      expect(googleOut.text()).not.toContain("super-secret");
+      expect(googleOut.text()).not.toContain("Apply:");
+      expect(calls.map((call) => (call.body.params as { name: string }).name)).toEqual([
+        "hcb_create_task",
+        "hcb_update_event",
+        "hcb_update_note",
+        "hcb_move_task",
+        "hcb_schedule_task_block",
+        "hcb_settings_update",
+        "hcb_google_save_oauth_client",
+        "hcb_google_begin_oauth",
+        "hcb_mcp_set_enabled"
+      ]);
+      expect(calls.map((call) => (call.body.params as { arguments: Record<string, unknown> }).arguments)).toEqual([
+        {
+          title: "Plan launch",
+          parentId: "parent-1",
+          previousSiblingId: null,
+          priority: "high",
+          plannedStart: "2026-06-04T09:00:00.000Z",
+          plannedEnd: "2026-06-04T10:00:00.000Z",
+          durationMinutes: 60,
+          lockedSchedule: true,
+          snoozeUntil: "2026-06-05T00:00:00.000Z",
+          tags: ["launch", "ops"],
+          dryRun: true
+        },
+        {
+          id: "event-1",
+          dryRun: true,
+          patch: {
+            guestEmails: ["ada@example.com", "grace@example.com"],
+            reminderMinutes: [10, 30],
+            colorId: "9",
+            timeZone: "Asia/Singapore",
+            recurrence: {
+              frequency: "weekly",
+              interval: 2,
+              byDay: ["MO", "WE"]
+            }
+          }
+        },
+        {
+          id: "note-1",
+          dryRun: true,
+          patch: {
+            noteListId: "note-list:project"
+          }
+        },
+        {
+          id: "task-1",
+          dryRun: true,
+          parentId: "parent-1",
+          previousSiblingId: null
+        },
+        {
+          dryRun: true,
+          taskId: "task-1",
+          calendarId: "cal-primary",
+          startDate: "2026-06-04T09:00:00.000Z",
+          durationMinutes: 45
+        },
+        {
+          dryRun: true,
+          patch: {
+            mcpEnabled: true
+          }
+        },
+        {
+          dryRun: true,
+          clientId: "client-id-12345",
+          clientSecret: "super-secret"
+        },
+        {
+          dryRun: false
+        },
+        {
+          dryRun: true,
+          enabled: true
         }
       ]);
     } finally {

@@ -166,6 +166,13 @@ export function createMcpTestDomainServices(): McpTestDomainServices {
         state.taskLists[index] = updated;
         return cloneObject(updated);
       },
+      previewDeleteTaskList: (id) => cloneList(state.taskLists, id, "Task list"),
+      deleteTaskList: (id) => {
+        const taskList = cloneList(state.taskLists, id, "Task list");
+        const index = state.taskLists.findIndex((candidate) => candidate.id === id);
+        state.taskLists.splice(index, 1);
+        return cloneObject(taskList);
+      },
       previewCreateTask: (input) =>
         compactObject({
           kind: "task",
@@ -173,6 +180,15 @@ export function createMcpTestDomainServices(): McpTestDomainServices {
           notes: optionalText(input, "notes"),
           dueDate: optionalText(input, "dueDate"),
           taskListId: optionalText(input, "taskListId") ?? "list-inbox",
+          parentId: nullableText(input, "parentId"),
+          previousSiblingId: nullableText(input, "previousSiblingId"),
+          priority: optionalText(input, "priority"),
+          plannedStart: nullableText(input, "plannedStart"),
+          plannedEnd: nullableText(input, "plannedEnd"),
+          durationMinutes: optionalNumber(input, "durationMinutes"),
+          lockedSchedule: optionalBoolean(input, "lockedSchedule"),
+          snoozeUntil: nullableText(input, "snoozeUntil"),
+          tags: arrayValue(input, "tags"),
           deepLink: "hotcrossbuns://task/preview"
         }),
       createTask: (input) => {
@@ -187,6 +203,15 @@ export function createMcpTestDomainServices(): McpTestDomainServices {
           isCompleted: false,
           dueDate: optionalText(input, "dueDate"),
           taskListId: optionalText(input, "taskListId") ?? "list-inbox",
+          parentId: nullableText(input, "parentId"),
+          previousSiblingId: nullableText(input, "previousSiblingId"),
+          priority: optionalText(input, "priority"),
+          plannedStart: nullableText(input, "plannedStart"),
+          plannedEnd: nullableText(input, "plannedEnd"),
+          durationMinutes: optionalNumber(input, "durationMinutes"),
+          lockedSchedule: optionalBoolean(input, "lockedSchedule"),
+          snoozeUntil: nullableText(input, "snoozeUntil"),
+          tags: arrayValue(input, "tags"),
           deepLink: `hotcrossbuns://task/${id}`
         });
         state.tasks.set(id, task);
@@ -222,13 +247,18 @@ export function createMcpTestDomainServices(): McpTestDomainServices {
         state.tasks.set(id, updated);
         return cloneObject(updated);
       },
-      previewMoveTask: (id, taskListId) => ({
+      previewMoveTask: (id, input) => ({
         ...cloneExisting(state.tasks, id, "Task"),
-        targetTaskListId: taskListId
+        move: cloneObject(input)
       }),
-      moveTask: (id, taskListId) => {
+      moveTask: (id, input) => {
         const task = cloneExisting(state.tasks, id, "Task");
-        const updated = { ...task, taskListId };
+        const updated = compactObject({
+          ...task,
+          taskListId: optionalText(input, "taskListId") ?? optionalText(input, "listId") ?? optionalText(task, "taskListId"),
+          parentId: input.parentId === undefined ? task.parentId : input.parentId,
+          previousSiblingId: input.previousSiblingId === undefined ? task.previousSiblingId : input.previousSiblingId
+        });
         state.tasks.set(id, updated);
         return cloneObject(updated);
       },
@@ -276,11 +306,19 @@ export function createMcpTestDomainServices(): McpTestDomainServices {
         state.noteLists[index] = updated;
         return cloneObject(updated);
       },
+      previewDeleteNoteList: (id) => cloneList(state.noteLists, id, "Note list"),
+      deleteNoteList: (id) => {
+        const noteList = cloneList(state.noteLists, id, "Note list");
+        const index = state.noteLists.findIndex((candidate) => candidate.id === id);
+        state.noteLists.splice(index, 1);
+        return cloneObject(noteList);
+      },
       previewCreateNote: (input) =>
         compactObject({
           kind: "note",
           title: requiredText(input, "title"),
           body: optionalText(input, "body") ?? optionalText(input, "notes"),
+          listId: optionalText(input, "noteListId") ?? optionalText(input, "listId"),
           deepLink: "hotcrossbuns://note/preview"
         }),
       createNote: (input) => {
@@ -291,6 +329,7 @@ export function createMcpTestDomainServices(): McpTestDomainServices {
           id,
           title: requiredText(input, "title"),
           body: optionalText(input, "body") ?? optionalText(input, "notes"),
+          listId: optionalText(input, "noteListId") ?? optionalText(input, "listId"),
           linkedTaskId: optionalText(input, "linkedTaskId"),
           linkedEventId: optionalText(input, "linkedEventId"),
           deepLink: `hotcrossbuns://note/${id}`
@@ -326,6 +365,10 @@ export function createMcpTestDomainServices(): McpTestDomainServices {
           startDate: requiredText(input, "startDate"),
           endDate: optionalText(input, "endDate"),
           calendarId: optionalText(input, "calendarId") ?? "cal-primary",
+          guestEmails: arrayValue(input, "guestEmails"),
+          reminderMinutes: arrayValue(input, "reminderMinutes"),
+          colorId: nullableText(input, "colorId"),
+          recurrence: objectValue(input, "recurrence"),
           deepLink: "hotcrossbuns://event/preview"
         }),
       createEvent: (input) => {
@@ -341,6 +384,10 @@ export function createMcpTestDomainServices(): McpTestDomainServices {
           isAllDay: input.isAllDay === true,
           calendarId: optionalText(input, "calendarId") ?? "cal-primary",
           location: optionalText(input, "location"),
+          guestEmails: arrayValue(input, "guestEmails"),
+          reminderMinutes: arrayValue(input, "reminderMinutes"),
+          colorId: nullableText(input, "colorId"),
+          recurrence: objectValue(input, "recurrence"),
           deepLink: `hotcrossbuns://event/${id}`
         });
         state.events.set(id, event);
@@ -361,7 +408,24 @@ export function createMcpTestDomainServices(): McpTestDomainServices {
         const event = cloneExisting(state.events, id, "Event");
         state.events.delete(id);
         return event;
-      }
+      },
+      previewScheduleTaskBlock: (input) =>
+        compactObject({
+          kind: "scheduledTaskBlock",
+          taskId: requiredText(input, "taskId"),
+          calendarId: requiredText(input, "calendarId"),
+          startsAt: requiredText(input, "startDate"),
+          durationMinutes: optionalNumber(input, "durationMinutes") ?? 30
+        }),
+      scheduleTaskBlock: (input) =>
+        compactObject({
+          kind: "scheduledTaskBlock",
+          id: "scheduled-task-block-1",
+          taskId: requiredText(input, "taskId"),
+          calendarId: requiredText(input, "calendarId"),
+          startsAt: requiredText(input, "startDate"),
+          durationMinutes: optionalNumber(input, "durationMinutes") ?? 30
+        })
     },
     diagnostics: {
       status: () => ({
@@ -511,6 +575,38 @@ function optionalText(input: JsonObject, key: string): string | undefined {
 
   const trimmed = value.trim();
   return trimmed.length === 0 ? undefined : trimmed;
+}
+
+function nullableText(input: JsonObject, key: string): string | null | undefined {
+  const value = input[key];
+
+  if (value === null) {
+    return null;
+  }
+
+  return optionalText(input, key);
+}
+
+function optionalNumber(input: JsonObject, key: string): number | undefined {
+  const value = input[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function optionalBoolean(input: JsonObject, key: string): boolean | undefined {
+  const value = input[key];
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function arrayValue(input: JsonObject, key: string): JsonValue[] | undefined {
+  const value = input[key];
+  return Array.isArray(value) ? value : undefined;
+}
+
+function objectValue(input: JsonObject, key: string): JsonObject | undefined {
+  const value = input[key];
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? cloneObject(value as JsonObject)
+    : undefined;
 }
 
 function redactedPatch(patch: JsonObject): JsonObject {

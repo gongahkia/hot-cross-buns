@@ -166,7 +166,8 @@ const calendarEventWriteFieldsSchema = z
     guestEmails: z.array(guestEmailSchema).max(50).default([]),
     reminderMinutes: z.array(reminderMinutesSchema).max(10).default([]),
     colorId: z.string().trim().min(1).max(32).nullable().optional(),
-    recurrence: calendarEventRecurrenceSchema.nullable().optional()
+    recurrence: calendarEventRecurrenceSchema.nullable().optional(),
+    timeZone: z.string().trim().min(1).max(120).optional()
   })
   .strict()
   .superRefine((request, context) => {
@@ -206,7 +207,8 @@ export const calendarEventUpdateRequestSchema = z
     guestEmails: z.array(guestEmailSchema).max(50).optional(),
     reminderMinutes: z.array(reminderMinutesSchema).max(10).optional(),
     colorId: z.string().trim().min(1).max(32).nullable().optional(),
-    recurrence: calendarEventRecurrenceSchema.nullable().optional()
+    recurrence: calendarEventRecurrenceSchema.nullable().optional(),
+    timeZone: z.string().trim().min(1).max(120).optional()
   })
   .strict()
   .refine(
@@ -221,7 +223,8 @@ export const calendarEventUpdateRequestSchema = z
       request.guestEmails !== undefined ||
       request.reminderMinutes !== undefined ||
       request.colorId !== undefined ||
-      request.recurrence !== undefined,
+      request.recurrence !== undefined ||
+      request.timeZone !== undefined,
     {
       message: "At least one event field must be supplied"
     }

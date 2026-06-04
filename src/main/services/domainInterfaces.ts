@@ -97,6 +97,8 @@ export interface TaskDomainService {
   createTaskList: (input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
   previewRenameTaskList: (id: string, input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
   renameTaskList: (id: string, input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
+  previewDeleteTaskList: (id: string) => MaybePromise<DomainJsonObject>;
+  deleteTaskList: (id: string) => MaybePromise<DomainJsonObject>;
   previewCreateTask: (input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
   createTask: (input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
   previewUpdateTask: (id: string, patch: DomainJsonObject) => MaybePromise<DomainJsonObject>;
@@ -105,8 +107,8 @@ export interface TaskDomainService {
   completeTask: (id: string) => MaybePromise<DomainJsonObject>;
   previewReopenTask: (id: string) => MaybePromise<DomainJsonObject>;
   reopenTask: (id: string) => MaybePromise<DomainJsonObject>;
-  previewMoveTask: (id: string, taskListId: string) => MaybePromise<DomainJsonObject>;
-  moveTask: (id: string, taskListId: string) => MaybePromise<DomainJsonObject>;
+  previewMoveTask: (id: string, input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
+  moveTask: (id: string, input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
   previewDeleteTask: (id: string) => MaybePromise<DomainJsonObject>;
   deleteTask: (id: string) => MaybePromise<DomainJsonObject>;
 }
@@ -118,6 +120,8 @@ export interface NoteDomainService {
   createNoteList: (input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
   previewRenameNoteList: (id: string, input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
   renameNoteList: (id: string, input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
+  previewDeleteNoteList: (id: string) => MaybePromise<DomainJsonObject>;
+  deleteNoteList: (id: string) => MaybePromise<DomainJsonObject>;
   previewCreateNote: (input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
   createNote: (input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
   previewUpdateNote: (id: string, patch: DomainJsonObject) => MaybePromise<DomainJsonObject>;
@@ -135,6 +139,8 @@ export interface CalendarDomainService {
   updateEvent: (id: string, patch: DomainJsonObject) => MaybePromise<DomainJsonObject>;
   previewDeleteEvent: (id: string) => MaybePromise<DomainJsonObject>;
   deleteEvent: (id: string) => MaybePromise<DomainJsonObject>;
+  previewScheduleTaskBlock: (input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
+  scheduleTaskBlock: (input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
 }
 
 export interface DiagnosticsDomainService {
@@ -150,6 +156,12 @@ export interface McpDomainServices {
   notes: NoteDomainService;
   calendar: CalendarDomainService;
   diagnostics: DiagnosticsDomainService;
+}
+
+export interface McpAdminDomainServices {
+  settings: Pick<SettingsDomainService, "get" | "update">;
+  google: Pick<GoogleControlDomainService, "status" | "saveOAuthClient" | "beginOAuth">;
+  mcp: Pick<McpControlDomainService, "status" | "setEnabled">;
 }
 
 export interface PlannerViewDomainService {

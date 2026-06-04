@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { McpAdminDomainServices } from "./domainServices";
 import { createMcpTestDomainServices } from "./testDomainDoubles";
 import { McpToolRegistry } from "./toolRegistry";
 import type { JsonObject, McpToolCallContext } from "./types";
@@ -8,6 +9,14 @@ const context: McpToolCallContext = {
   credentialRevision: "test-revision",
   clientKey: "test-client",
   now: new Date("2026-06-04T00:00:00.000Z")
+};
+const allowWritesContext: McpToolCallContext = {
+  ...context,
+  permissionMode: "allow-writes"
+};
+const confirmWritesContext: McpToolCallContext = {
+  ...context,
+  permissionMode: "confirm-writes"
 };
 
 describe("McpToolRegistry read lists", () => {
@@ -221,6 +230,104 @@ describe("McpToolRegistry doctor", () => {
         level: "warn"
       }
     ]);
+  });
+});
+
+describe("McpToolRegistry advanced writes", () => {
+  it("schedules task blocks through the write gate", async () => {
+    const response = await new McpToolRegistry(createMcpTestDomainServices()).callTool(
+      "hcb_schedule_task_block",
+      {
+        taskId: "task-1",
+        calendarId: "cal-primary",
+        startDate: "2026-06-04T09:00:00.000Z",
+        durationMinutes: 45
+      },
+      allowWritesContext
+    );
+
+    expect(response).toMatchObject({
+      applied: true,
+      item: {
+        kind: "scheduledTaskBlock",
+        taskId: "task-1",
+        calendarId: "cal-primary",
+        durationMinutes: 45
+      }
+    });
+  });
+
+  it("runs admin writes and redacts OAuth secrets from preview output", async () => {
+    const settingsPatches: unknown[] = [];
+    const savedClients: unknown[] = [];
+    const enabledValues: boolean[] = [];
+    const registry = new McpToolRegistry(createMcpTestDomainServices());
+    const admin: McpAdminDomainServices = {
+      settings: {
+        get: () => ({}) as never,
+        update: (patch) => {
+          settingsPatches.push(patch);
+          return { mcpEnabled: true } as never;
+        }
+      },
+      google: {
+        status: () => ({}) as never,
+        saveOAuthClient: (request) => {
+          savedClients.push(request);
+          return {
+            oauthClientConfigured: true,
+            clientId: request.clientId,
+            hasClientSecret: request.clientSecret !== undefined
+          } as never;
+        },
+        beginOAuth: () => ({
+          accepted: true,
+          openedExternalBrowser: true,
+          expiresAt: "2026-06-04T01:00:00.000Z",
+          scopes: [],
+          redirectUri: "http://127.0.0.1:4777/oauth",
+          message: "OAuth started."
+        })
+      },
+      mcp: {
+        status: () => ({}) as never,
+        setEnabled: (request) => {
+          enabledValues.push(request.enabled);
+          return { enabled: request.enabled } as never;
+        }
+      }
+    };
+    registry.setAdminServices(admin);
+
+    const preview = await registry.callTool(
+      "hcb_google_save_oauth_client",
+      {
+        clientId: "client-id-12345",
+        clientSecret: "super-secret",
+        dryRun: true
+      },
+      confirmWritesContext
+    );
+    const settings = await registry.callTool("hcb_settings_update", { patch: { mcpEnabled: true } }, allowWritesContext);
+    const google = await registry.callTool("hcb_google_save_oauth_client", { clientId: "client-id-12345" }, allowWritesContext);
+    const oauth = await registry.callTool("hcb_google_begin_oauth", {}, allowWritesContext);
+    const mcp = await registry.callTool("hcb_mcp_set_enabled", { enabled: true }, allowWritesContext);
+
+    expect(JSON.stringify(preview)).not.toContain("super-secret");
+    expect(preview).toMatchObject({
+      dryRun: true,
+      item: {
+        kind: "googleOAuthClient",
+        hasClientSecret: true
+      }
+    });
+    expect(settingsPatches).toEqual([{ mcpEnabled: true }]);
+    expect(savedClients).toEqual([{ clientId: "client-id-12345" }]);
+    expect(enabledValues).toEqual([true]);
+    expect(settings.applied).toBe(true);
+    expect(google.item).toMatchObject({ kind: "googleStatus", hasClientSecret: false });
+    expect(oauth.item).toMatchObject({ openedExternalBrowser: true });
+    expect(mcp.item).toMatchObject({ kind: "mcpStatus", enabled: true });
   });
 });
 

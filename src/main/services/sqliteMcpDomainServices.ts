@@ -1,5 +1,13 @@
 import packageJson from "../../../package.json";
-import type { DiagnosticsLogLevel, SearchQueryRequest, TaskPriority, TaskUpdateRequest } from "@shared/ipc/contracts";
+import type {
+  CalendarEventRecurrence,
+  DiagnosticsLogLevel,
+  SearchQueryRequest,
+  TaskCreateRequest,
+  TaskMoveRequest,
+  TaskPriority,
+  TaskUpdateRequest
+} from "@shared/ipc/contracts";
 import { redactDiagnosticText } from "@shared/redaction";
 import type {
   LocalPlannerRepository,
@@ -108,28 +116,22 @@ export function createMcpDomainServices(dependencies: McpDomainServiceDependenci
             title: requiredText(input, "title")
           })
         }),
+      previewDeleteTaskList: (id) => jsonObject(taskListById(repository, id)),
+      deleteTaskList: (id) =>
+        jsonObject({
+          kind: "taskList",
+          ...repository.deleteTaskList({ id })
+        }),
       previewCreateTask: (input) =>
         jsonObject({
           kind: "task",
-          title: requiredText(input, "title"),
-          notes: optionalText(input, "notes") ?? "",
-          dueDate: dateOnlyFromInput(optionalText(input, "dueDate")),
-          taskListId: optionalText(input, "taskListId") ?? firstTaskListId(repository),
-          parentId: optionalText(input, "parentId") ?? null,
-          priority: priorityFromInput(optionalText(input, "priority")),
+          ...taskCreateFromJson(repository, input),
           deepLink: "hotcrossbuns://task/preview"
         }),
       createTask: (input) =>
         jsonObject({
           kind: "task",
-          ...repository.createTask({
-            title: requiredText(input, "title"),
-            notes: optionalText(input, "notes") ?? "",
-            dueDate: dateOnlyFromInput(optionalText(input, "dueDate")),
-            listId: optionalText(input, "taskListId") ?? firstTaskListId(repository),
-            parentId: optionalText(input, "parentId") ?? null,
-            priority: priorityFromInput(optionalText(input, "priority"))
-          })
+          ...repository.createTask(taskCreateFromJson(repository, input))
         }),
       previewUpdateTask: (id, patch) => jsonObject({ ...repository.getTask(id), patch }),
       updateTask: (id, patch) =>
@@ -141,10 +143,10 @@ export function createMcpDomainServices(dependencies: McpDomainServiceDependenci
       completeTask: (id) => jsonObject({ kind: "task", ...repository.completeTask({ id }) }),
       previewReopenTask: (id) => jsonObject({ ...repository.getTask(id), targetStatus: "active" }),
       reopenTask: (id) => jsonObject({ kind: "task", ...repository.reopenTask({ id }) }),
-      previewMoveTask: (id, taskListId) =>
-        jsonObject({ ...repository.getTask(id), targetTaskListId: taskListId }),
-      moveTask: (id, taskListId) =>
-        jsonObject({ kind: "task", ...repository.moveTask({ id, listId: taskListId }) }),
+      previewMoveTask: (id, input) =>
+        jsonObject({ ...repository.getTask(id), move: taskMoveFromJson(id, input) }),
+      moveTask: (id, input) =>
+        jsonObject({ kind: "task", ...repository.moveTask(taskMoveFromJson(id, input)) }),
       previewDeleteTask: (id) => jsonObject(repository.getTask(id)),
       deleteTask: (id) => jsonObject({ kind: "task", ...repository.deleteTask({ id }) })
     },
@@ -179,17 +181,27 @@ export function createMcpDomainServices(dependencies: McpDomainServiceDependenci
             title: requiredText(input, "title")
           })
         }),
+      previewDeleteNoteList: (id) => jsonObject(noteListById(repository, id)),
+      deleteNoteList: (id) =>
+        jsonObject({
+          kind: "noteList",
+          ...repository.deleteNoteList({ id })
+        }),
       previewCreateNote: (input) =>
         jsonObject({
           kind: "note",
           title: requiredText(input, "title"),
           body: optionalText(input, "body") ?? "",
+          listId: optionalText(input, "noteListId") ?? optionalText(input, "listId") ?? null,
           deepLink: "hotcrossbuns://note/preview"
         }),
       createNote: (input) =>
         jsonObject({
           kind: "note",
           ...repository.createNote({
+            ...(optionalText(input, "noteListId") === undefined && optionalText(input, "listId") === undefined
+              ? {}
+              : { listId: optionalText(input, "noteListId") ?? optionalText(input, "listId") }),
             title: requiredText(input, "title"),
             body: optionalText(input, "body") ?? ""
           })
@@ -209,7 +221,10 @@ export function createMcpDomainServices(dependencies: McpDomainServiceDependenci
               : { title: optionalText(patch, "title") }),
             ...(optionalText(patch, "body") === undefined
               ? {}
-              : { body: optionalText(patch, "body") })
+              : { body: optionalText(patch, "body") }),
+            ...(optionalText(patch, "noteListId") === undefined && optionalText(patch, "listId") === undefined
+              ? {}
+              : { listId: optionalText(patch, "noteListId") ?? optionalText(patch, "listId") })
           })
         }),
       previewDeleteNote: (id) => jsonObject(repository.getNote(id)),
@@ -243,7 +258,13 @@ export function createMcpDomainServices(dependencies: McpDomainServiceDependenci
           })
         }),
       previewDeleteEvent: (id) => jsonObject(repository.getCalendarEvent(id)),
-      deleteEvent: (id) => jsonObject(repository.deleteCalendarEvent({ id }))
+      deleteEvent: (id) => jsonObject(repository.deleteCalendarEvent({ id })),
+      previewScheduleTaskBlock: (input) => previewScheduleTaskBlock(repository, input),
+      scheduleTaskBlock: (input) =>
+        jsonObject({
+          kind: "scheduledTaskBlock",
+          ...repository.scheduleTaskBlock(scheduledTaskBlockFromJson(input))
+        })
     },
     diagnostics: {
       status: async () => {
@@ -405,7 +426,12 @@ function calendarEventRequestFromJson(
     location: optionalText(input, "location") ?? "",
     notes: optionalText(input, "notes") ?? optionalText(input, "details") ?? "",
     guestEmails: optionalTextArray(input, "guestEmails") ?? optionalTextArray(input, "attendeeEmails") ?? [],
-    reminderMinutes: optionalNumberArray(input, "reminderMinutes") ?? []
+    reminderMinutes: optionalNumberArray(input, "reminderMinutes") ?? [],
+    ...(optionalNullableText(input, "colorId") === undefined
+      ? {}
+      : { colorId: optionalNullableText(input, "colorId") }),
+    ...(optionalText(input, "timeZone") === undefined ? {} : { timeZone: optionalText(input, "timeZone") }),
+    ...(optionalRecurrence(input) === undefined ? {} : { recurrence: optionalRecurrence(input) })
   };
 }
 
@@ -424,7 +450,12 @@ function calendarEventPatchFromJson(patch: DomainJsonObject) {
     ...(optionalText(patch, "details") === undefined ? {} : { notes: optionalText(patch, "details") }),
     ...(optionalTextArray(patch, "guestEmails") === undefined ? {} : { guestEmails: optionalTextArray(patch, "guestEmails") }),
     ...(optionalTextArray(patch, "attendeeEmails") === undefined ? {} : { guestEmails: optionalTextArray(patch, "attendeeEmails") }),
-    ...(optionalNumberArray(patch, "reminderMinutes") === undefined ? {} : { reminderMinutes: optionalNumberArray(patch, "reminderMinutes") })
+    ...(optionalNumberArray(patch, "reminderMinutes") === undefined ? {} : { reminderMinutes: optionalNumberArray(patch, "reminderMinutes") }),
+    ...(optionalNullableText(patch, "colorId") === undefined
+      ? {}
+      : { colorId: optionalNullableText(patch, "colorId") }),
+    ...(optionalText(patch, "timeZone") === undefined ? {} : { timeZone: optionalText(patch, "timeZone") }),
+    ...(optionalRecurrence(patch) === undefined ? {} : { recurrence: optionalRecurrence(patch) })
   };
 }
 
@@ -470,8 +501,49 @@ function dateOnlyFromInput(value: string | undefined): string | null {
   return new Date(parsed).toISOString().slice(0, 10);
 }
 
+function dateOnlyFromNullableInput(value: string | null | undefined): string | null {
+  if (value === null) {
+    return null;
+  }
+
+  return dateOnlyFromInput(value);
+}
+
 function priorityFromInput(value: string | undefined): TaskPriority {
   return value === "low" || value === "medium" || value === "high" ? value : "none";
+}
+
+function taskCreateFromJson(
+  repository: LocalPlannerRepository,
+  input: DomainJsonObject
+): TaskCreateRequest {
+  return {
+    title: requiredText(input, "title"),
+    notes: optionalText(input, "notes") ?? "",
+    dueDate: dateOnlyFromNullableInput(optionalNullableText(input, "dueDate")),
+    listId: optionalText(input, "taskListId") ?? optionalText(input, "listId") ?? firstTaskListId(repository),
+    parentId: optionalNullableText(input, "parentId") ?? null,
+    ...(optionalNullableText(input, "previousSiblingId") === undefined
+      ? {}
+      : { previousSiblingId: optionalNullableText(input, "previousSiblingId") }),
+    priority: priorityFromInput(optionalText(input, "priority")),
+    ...(optionalNullableText(input, "plannedStart") === undefined
+      ? {}
+      : { plannedStart: optionalNullableText(input, "plannedStart") }),
+    ...(optionalNullableText(input, "plannedEnd") === undefined
+      ? {}
+      : { plannedEnd: optionalNullableText(input, "plannedEnd") }),
+    ...(optionalNullableNumber(input, "durationMinutes") === undefined
+      ? {}
+      : { durationMinutes: optionalNullableNumber(input, "durationMinutes") }),
+    ...(optionalBoolean(input, "lockedSchedule") === undefined
+      ? {}
+      : { lockedSchedule: optionalBoolean(input, "lockedSchedule") }),
+    ...(optionalNullableText(input, "snoozeUntil") === undefined
+      ? {}
+      : { snoozeUntil: optionalNullableText(input, "snoozeUntil") }),
+    ...(optionalTextArray(input, "tags") === undefined ? {} : { tags: optionalTextArray(input, "tags") })
+  };
 }
 
 function taskUpdateFromPatch(id: string, patch: DomainJsonObject): TaskUpdateRequest {
@@ -479,20 +551,98 @@ function taskUpdateFromPatch(id: string, patch: DomainJsonObject): TaskUpdateReq
     id,
     ...(optionalText(patch, "title") === undefined ? {} : { title: optionalText(patch, "title") }),
     ...(optionalText(patch, "notes") === undefined ? {} : { notes: optionalText(patch, "notes") }),
-    ...(optionalText(patch, "dueDate") === undefined
+    ...(optionalNullableText(patch, "dueDate") === undefined
       ? {}
-      : { dueDate: dateOnlyFromInput(optionalText(patch, "dueDate")) }),
+      : { dueDate: dateOnlyFromNullableInput(optionalNullableText(patch, "dueDate")) }),
     ...(optionalText(patch, "taskListId") === undefined
       ? {}
       : { listId: optionalText(patch, "taskListId") }),
     ...(optionalText(patch, "listId") === undefined ? {} : { listId: optionalText(patch, "listId") }),
-    ...(optionalText(patch, "parentId") === undefined
+    ...(optionalNullableText(patch, "parentId") === undefined
       ? {}
-      : { parentId: optionalText(patch, "parentId") }),
+      : { parentId: optionalNullableText(patch, "parentId") }),
+    ...(optionalNullableText(patch, "previousSiblingId") === undefined
+      ? {}
+      : { previousSiblingId: optionalNullableText(patch, "previousSiblingId") }),
     ...(optionalText(patch, "priority") === undefined
       ? {}
-      : { priority: priorityFromInput(optionalText(patch, "priority")) })
+      : { priority: priorityFromInput(optionalText(patch, "priority")) }),
+    ...(optionalNullableText(patch, "plannedStart") === undefined
+      ? {}
+      : { plannedStart: optionalNullableText(patch, "plannedStart") }),
+    ...(optionalNullableText(patch, "plannedEnd") === undefined
+      ? {}
+      : { plannedEnd: optionalNullableText(patch, "plannedEnd") }),
+    ...(optionalNullableNumber(patch, "durationMinutes") === undefined
+      ? {}
+      : { durationMinutes: optionalNullableNumber(patch, "durationMinutes") }),
+    ...(optionalBoolean(patch, "lockedSchedule") === undefined
+      ? {}
+      : { lockedSchedule: optionalBoolean(patch, "lockedSchedule") }),
+    ...(optionalNullableText(patch, "snoozeUntil") === undefined
+      ? {}
+      : { snoozeUntil: optionalNullableText(patch, "snoozeUntil") }),
+    ...(optionalTextArray(patch, "tags") === undefined ? {} : { tags: optionalTextArray(patch, "tags") })
   };
+}
+
+function taskMoveFromJson(id: string, input: DomainJsonObject): TaskMoveRequest {
+  const request: TaskMoveRequest = {
+    id,
+    ...(optionalText(input, "taskListId") === undefined && optionalText(input, "listId") === undefined
+      ? {}
+      : { listId: optionalText(input, "taskListId") ?? optionalText(input, "listId") }),
+    ...(optionalNullableText(input, "parentId") === undefined
+      ? {}
+      : { parentId: optionalNullableText(input, "parentId") }),
+    ...(optionalNullableText(input, "previousSiblingId") === undefined
+      ? {}
+      : { previousSiblingId: optionalNullableText(input, "previousSiblingId") })
+  };
+
+  if (
+    request.listId === undefined &&
+    request.parentId === undefined &&
+    request.previousSiblingId === undefined
+  ) {
+    throw new Error("At least one task move field must be supplied.");
+  }
+
+  return request;
+}
+
+function scheduledTaskBlockFromJson(input: DomainJsonObject) {
+  return {
+    taskId: requiredText(input, "taskId"),
+    calendarId: requiredText(input, "calendarId"),
+    startsAt: optionalText(input, "startsAt") ?? requiredText(input, "startDate"),
+    durationMinutes: optionalNumber(input, "durationMinutes") ?? 30
+  };
+}
+
+function previewScheduleTaskBlock(
+  repository: LocalPlannerRepository,
+  input: DomainJsonObject
+): DomainJsonObject {
+  const request = scheduledTaskBlockFromJson(input);
+  const task = repository.getTask(request.taskId);
+  const calendar = repository.listCalendars({ limit: 100 }).items.find((item) => item.id === request.calendarId);
+  const startsAtMs = Date.parse(request.startsAt);
+
+  if (!calendar) {
+    throw new Error("Calendar was not found.");
+  }
+
+  return jsonObject({
+    kind: "scheduledTaskBlock",
+    taskId: request.taskId,
+    calendarId: request.calendarId,
+    title: task.title,
+    startsAt: request.startsAt,
+    endsAt: new Date(startsAtMs + request.durationMinutes * 60_000).toISOString(),
+    durationMinutes: request.durationMinutes,
+    calendarTitle: calendar.title ?? calendar.id
+  });
 }
 
 function taskListById(repository: LocalPlannerRepository, id: string): object {
@@ -525,6 +675,21 @@ function requiredText(input: DomainJsonObject, key: string): string {
   return value;
 }
 
+function optionalNullableText(input: DomainJsonObject, key: string): string | null | undefined {
+  const value = input[key];
+
+  if (value === null) {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? undefined : trimmed === "null" ? null : trimmed;
+}
+
 function optionalText(input: DomainJsonObject, key: string): string | undefined {
   const value = input[key];
 
@@ -534,6 +699,22 @@ function optionalText(input: DomainJsonObject, key: string): string | undefined 
 
   const trimmed = value.trim();
   return trimmed.length === 0 ? undefined : trimmed;
+}
+
+function optionalNumber(input: DomainJsonObject, key: string): number | undefined {
+  const value = input[key];
+
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function optionalNullableNumber(input: DomainJsonObject, key: string): number | null | undefined {
+  const value = input[key];
+
+  if (value === null) {
+    return null;
+  }
+
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function optionalBoolean(input: DomainJsonObject, key: string): boolean | undefined {
@@ -571,6 +752,54 @@ function optionalNumberArray(input: DomainJsonObject, key: string): number[] | u
   }
 
   return undefined;
+}
+
+function optionalRecurrence(input: DomainJsonObject): CalendarEventRecurrence | null | undefined {
+  const value = input.recurrence;
+
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return null;
+  }
+
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("recurrence must be an object or null.");
+  }
+
+  const object = value as DomainJsonObject;
+  const frequency = optionalText(object, "frequency");
+  const interval = optionalNumber(object, "interval") ?? 1;
+
+  if (
+    frequency !== "daily" &&
+    frequency !== "weekly" &&
+    frequency !== "monthly" &&
+    frequency !== "yearly"
+  ) {
+    throw new Error("recurrence.frequency must be daily, weekly, monthly, or yearly.");
+  }
+
+  return {
+    frequency,
+    interval,
+    ...(optionalNullableText(object, "endsOn") === undefined
+      ? {}
+      : { endsOn: optionalNullableText(object, "endsOn") }),
+    ...(optionalNullableNumber(object, "count") === undefined
+      ? {}
+      : { count: optionalNullableNumber(object, "count") }),
+    ...(optionalTextArray(object, "byDay") === undefined ? {} : { byDay: byDayArray(object) })
+  };
+}
+
+function byDayArray(input: DomainJsonObject): CalendarEventRecurrence["byDay"] {
+  return (optionalTextArray(input, "byDay") ?? []).filter(
+    (day): day is NonNullable<CalendarEventRecurrence["byDay"]>[number] =>
+      day === "SU" || day === "MO" || day === "TU" || day === "WE" || day === "TH" || day === "FR" || day === "SA"
+  );
 }
 
 function jsonObject(value: object): DomainJsonObject {

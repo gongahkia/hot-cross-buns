@@ -52,19 +52,35 @@ interface ParsedCommand {
     | "complete"
     | "reopen"
     | "move"
+    | "delete"
+    | "schedule"
+    | "settings"
+    | "google"
+    | "mcp"
     | "help";
   json: boolean;
   limit?: number;
   level?: string;
   kind?: string;
+  action?: string;
   id?: string;
   target?: string;
   apply?: boolean;
   confirmationId?: string;
   title?: string;
   notes?: string;
-  dueDate?: string;
+  dueDate?: string | null;
   taskListId?: string;
+  parentId?: string | null;
+  previousSiblingId?: string | null;
+  priority?: string;
+  plannedStart?: string | null;
+  plannedEnd?: string | null;
+  durationMinutes?: number | null;
+  lockedSchedule?: boolean;
+  snoozeUntil?: string | null;
+  tags?: string[];
+  noteListId?: string;
   body?: string;
   details?: string;
   logLimit?: number;
@@ -76,6 +92,20 @@ interface ParsedCommand {
   location?: string;
   calendarId?: string;
   allDay?: boolean;
+  guestEmails?: string[];
+  reminderMinutes?: number[];
+  colorId?: string | null;
+  timeZone?: string;
+  recurrenceFrequency?: string;
+  recurrenceInterval?: number;
+  recurrenceEndsOn?: string | null;
+  recurrenceCount?: number | null;
+  recurrenceByDay?: string[];
+  clearRecurrence?: boolean;
+  patchJson?: JsonObject;
+  clientId?: string;
+  clientSecret?: string;
+  enabled?: boolean;
 }
 
 interface RuntimeTarget {
@@ -231,6 +261,74 @@ export function parseCommand(argv: string[]): ParsedCommand {
       continue;
     }
 
+    if (arg === "--parent-id") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.parentId = parseNullableId(value, "--parent-id");
+      continue;
+    }
+
+    if (arg === "--previous-sibling-id") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.previousSiblingId = parseNullableId(value, "--previous-sibling-id");
+      continue;
+    }
+
+    if (arg === "--priority") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.priority = parsePriority(value);
+      continue;
+    }
+
+    if (arg === "--planned-start") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.plannedStart = parseNullableDateTime(value, "--planned-start");
+      continue;
+    }
+
+    if (arg === "--planned-end") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.plannedEnd = parseNullableDateTime(value, "--planned-end");
+      continue;
+    }
+
+    if (arg === "--duration-minutes") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.durationMinutes = parseNullableInteger(value, "--duration-minutes", 0, 24 * 60);
+      continue;
+    }
+
+    if (arg === "--locked-schedule") {
+      parsed.lockedSchedule = true;
+      continue;
+    }
+
+    if (arg === "--snooze-until") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.snoozeUntil = parseNullableDateTime(value, "--snooze-until");
+      continue;
+    }
+
+    if (arg === "--tags") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.tags = parseCsv(value, "--tags");
+      continue;
+    }
+
+    if (arg === "--note-list-id") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.noteListId = optionValue(value, "--note-list-id");
+      continue;
+    }
+
     if (arg === "--body") {
       const value = args[index + 1];
       index += 1;
@@ -256,6 +354,102 @@ export function parseCommand(argv: string[]): ParsedCommand {
       const value = args[index + 1];
       index += 1;
       parsed.calendarId = optionValue(value, "--calendar-id");
+      continue;
+    }
+
+    if (arg === "--guest-emails") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.guestEmails = parseCsv(value, "--guest-emails");
+      continue;
+    }
+
+    if (arg === "--reminder-minutes") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.reminderMinutes = parseIntegerCsv(value, "--reminder-minutes", 0, 28 * 24 * 60);
+      continue;
+    }
+
+    if (arg === "--color-id") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.colorId = parseNullableId(value, "--color-id");
+      continue;
+    }
+
+    if (arg === "--time-zone") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.timeZone = optionValue(value, "--time-zone");
+      continue;
+    }
+
+    if (arg === "--recurrence-frequency") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.recurrenceFrequency = parseRecurrenceFrequency(value);
+      continue;
+    }
+
+    if (arg === "--recurrence-interval") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.recurrenceInterval = parseInteger(value, "--recurrence-interval", 1, 366);
+      continue;
+    }
+
+    if (arg === "--recurrence-ends-on") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.recurrenceEndsOn = parseNullableDateOnly(value, "--recurrence-ends-on");
+      continue;
+    }
+
+    if (arg === "--recurrence-count") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.recurrenceCount = parseNullableInteger(value, "--recurrence-count", 1, 366);
+      continue;
+    }
+
+    if (arg === "--recurrence-by-day") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.recurrenceByDay = parseByDayCsv(value);
+      continue;
+    }
+
+    if (arg === "--clear-recurrence") {
+      parsed.clearRecurrence = true;
+      continue;
+    }
+
+    if (arg === "--patch-json") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.patchJson = parsePatchJson(value);
+      continue;
+    }
+
+    if (arg === "--client-id") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.clientId = optionValue(value, "--client-id");
+      continue;
+    }
+
+    if (arg === "--client-secret") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.clientSecret = optionValue(value, "--client-secret");
+      continue;
+    }
+
+    if (arg === "--enabled") {
+      const value = args[index + 1];
+      index += 1;
+      parsed.enabled = parseBooleanOption(value, "--enabled");
       continue;
     }
 
@@ -353,10 +547,59 @@ export function parseCommand(argv: string[]): ParsedCommand {
     parsed.id = positional[1];
 
     if (!parsed.id || positional.length !== 2) {
-      throw new CliError("Usage: pnpm hcb -- move task <id> --task-list-id <id>", 2);
+      throw new CliError("Usage: pnpm hcb -- move task <id> [--task-list-id <id>] [--parent-id <id|null>] [--previous-sibling-id <id|null>]", 2);
     }
 
     validateMoveCommand(parsed);
+  } else if (command === "delete") {
+    parsed.target = parseDeleteTarget(positional[0]);
+    parsed.id = positional[1];
+
+    if (!parsed.id || positional.length !== 2) {
+      throw new CliError("Usage: pnpm hcb -- delete <task|note|event|task-list|note-list> <id>", 2);
+    }
+
+    validateDeleteCommand(parsed);
+  } else if (command === "schedule") {
+    parsed.target = parseTaskStateTarget(positional[0], command);
+    parsed.id = positional[1];
+
+    if (!parsed.id || positional.length !== 2) {
+      throw new CliError("Usage: pnpm hcb -- schedule task <id> --calendar-id <id> --start-date <iso> [--duration-minutes <n>]", 2);
+    }
+
+    validateScheduleCommand(parsed);
+  } else if (command === "settings") {
+    parsed.action = parseSettingsAction(positional[0]);
+    parsed.target = "settings";
+
+    if (positional.length !== 1) {
+      throw new CliError("Usage: pnpm hcb -- settings update --patch-json '<json>' [--apply]", 2);
+    }
+
+    validateSettingsCommand(parsed);
+  } else if (command === "google") {
+    parsed.action = parseGoogleAction(positional[0]);
+    parsed.target = parsed.action;
+
+    if (positional.length !== 1) {
+      throw new CliError("Usage: pnpm hcb -- google <save-oauth-client|begin-oauth> [options]", 2);
+    }
+
+    validateGoogleCommand(parsed);
+  } else if (command === "mcp") {
+    parsed.action = parseMcpAction(positional[0]);
+    parsed.target = "mcp";
+
+    if (positional.length !== 1 && positional.length !== 2) {
+      throw new CliError("Usage: pnpm hcb -- mcp set-enabled <true|false> [--apply]", 2);
+    }
+
+    if (positional[1] !== undefined) {
+      parsed.enabled = parseBooleanOption(positional[1], "set-enabled");
+    }
+
+    validateMcpCommand(parsed);
   } else if (positional.length > 0) {
     throw new CliError(`Unexpected argument '${positional[0]}'.`, 2);
   }
@@ -365,8 +608,8 @@ export function parseCommand(argv: string[]): ParsedCommand {
     throw new CliError(`--scope is only supported by search.`, 2);
   }
 
-  if (parsed.startDate !== undefined && command !== "week" && command !== "create" && command !== "update") {
-    throw new CliError(`--start-date is only supported by week, create event, and update event.`, 2);
+  if (parsed.startDate !== undefined && command !== "week" && command !== "create" && command !== "update" && command !== "schedule") {
+    throw new CliError(`--start-date is only supported by week, create event, update event, and schedule task.`, 2);
   }
 
   if ((parsed.logLimit !== undefined || parsed.mutationLimit !== undefined) && command !== "doctor" && command !== "export-diagnostics") {
@@ -374,7 +617,7 @@ export function parseCommand(argv: string[]): ParsedCommand {
   }
 
   if (hasWriteOnlyOptions(parsed) && !isWriteCommand(command)) {
-    throw new CliError("Write options are only supported by create, update, rename, complete, reopen, and move.", 2);
+    throw new CliError("Write options are only supported by create, update, rename, complete, reopen, move, schedule, settings, google, and mcp.", 2);
   }
 
   return parsed;
@@ -403,7 +646,7 @@ export async function callCommand(
     args.kind = command.kind;
   }
 
-  if (command.id !== undefined) {
+  if (command.id !== undefined && command.command !== "schedule") {
     args.id = command.id;
   }
 
@@ -454,6 +697,46 @@ export async function callCommand(
       args.taskListId = command.taskListId;
     }
 
+    if (command.parentId !== undefined) {
+      args.parentId = command.parentId;
+    }
+
+    if (command.previousSiblingId !== undefined) {
+      args.previousSiblingId = command.previousSiblingId;
+    }
+
+    if (command.priority !== undefined) {
+      args.priority = command.priority;
+    }
+
+    if (command.plannedStart !== undefined) {
+      args.plannedStart = command.plannedStart;
+    }
+
+    if (command.plannedEnd !== undefined) {
+      args.plannedEnd = command.plannedEnd;
+    }
+
+    if (command.durationMinutes !== undefined) {
+      args.durationMinutes = command.durationMinutes;
+    }
+
+    if (command.lockedSchedule === true) {
+      args.lockedSchedule = true;
+    }
+
+    if (command.snoozeUntil !== undefined) {
+      args.snoozeUntil = command.snoozeUntil;
+    }
+
+    if (command.tags !== undefined) {
+      args.tags = command.tags;
+    }
+
+    if (command.noteListId !== undefined) {
+      args.noteListId = command.noteListId;
+    }
+
     if (command.body !== undefined) {
       args.body = command.body;
     }
@@ -481,14 +764,80 @@ export async function callCommand(
     if (command.allDay === true) {
       args.isAllDay = true;
     }
+
+    if (command.guestEmails !== undefined) {
+      args.guestEmails = command.guestEmails;
+    }
+
+    if (command.reminderMinutes !== undefined) {
+      args.reminderMinutes = command.reminderMinutes;
+    }
+
+    if (command.colorId !== undefined) {
+      args.colorId = command.colorId;
+    }
+
+    if (command.timeZone !== undefined) {
+      args.timeZone = command.timeZone;
+    }
+
+    const recurrence = recurrenceInput(command);
+
+    if (recurrence !== undefined) {
+      args.recurrence = recurrence;
+    }
   }
 
   if (command.command === "update") {
     args.patch = updatePatch(command);
   }
 
-  if (command.command === "move" && command.taskListId !== undefined) {
-    args.taskListId = command.taskListId;
+  if (command.command === "move") {
+    if (command.taskListId !== undefined) {
+      args.taskListId = command.taskListId;
+    }
+
+    if (command.parentId !== undefined) {
+      args.parentId = command.parentId;
+    }
+
+    if (command.previousSiblingId !== undefined) {
+      args.previousSiblingId = command.previousSiblingId;
+    }
+  }
+
+  if (command.command === "schedule") {
+    args.taskId = command.id ?? "";
+
+    if (command.calendarId !== undefined) {
+      args.calendarId = command.calendarId;
+    }
+
+    if (command.startDate !== undefined) {
+      args.startDate = command.startDate;
+    }
+
+    if (command.durationMinutes !== undefined && command.durationMinutes !== null) {
+      args.durationMinutes = command.durationMinutes;
+    }
+  }
+
+  if (command.command === "settings") {
+    args.patch = command.patchJson ?? {};
+  }
+
+  if (command.command === "google") {
+    if (command.clientId !== undefined) {
+      args.clientId = command.clientId;
+    }
+
+    if (command.clientSecret !== undefined) {
+      args.clientSecret = command.clientSecret;
+    }
+  }
+
+  if (command.command === "mcp" && command.enabled !== undefined) {
+    args.enabled = command.enabled;
   }
 
   return callMcpTool(tool, args, dependencies);
@@ -890,7 +1239,11 @@ function writeApplyCommand(command: ParsedCommand, response: McpToolResponse): s
     return undefined;
   }
 
-  const args = ["pnpm", "hcb", "--", command.command, command.target ?? "item"];
+  if (command.command === "google" && command.action === "save-oauth-client" && command.clientSecret !== undefined) {
+    return undefined;
+  }
+
+  const args = writeCommandPrefix(command);
 
   if (command.id !== undefined) {
     args.push(command.id);
@@ -902,12 +1255,22 @@ function writeApplyCommand(command: ParsedCommand, response: McpToolResponse): s
 
   if ((command.command === "create" || command.command === "update") && command.target === "task") {
     pushFlag(args, "--notes", command.notes);
-    pushFlag(args, "--due-date", command.dueDate);
+    pushFlagValue(args, "--due-date", command.dueDate);
     pushFlag(args, "--task-list-id", command.taskListId);
+    pushFlagValue(args, "--parent-id", command.parentId);
+    pushFlagValue(args, "--previous-sibling-id", command.previousSiblingId);
+    pushFlag(args, "--priority", command.priority);
+    pushFlagValue(args, "--planned-start", command.plannedStart);
+    pushFlagValue(args, "--planned-end", command.plannedEnd);
+    pushFlagValue(args, "--duration-minutes", command.durationMinutes);
+    pushBooleanFlag(args, "--locked-schedule", command.lockedSchedule);
+    pushFlagValue(args, "--snooze-until", command.snoozeUntil);
+    pushFlag(args, "--tags", command.tags?.join(","));
   }
 
   if ((command.command === "create" || command.command === "update") && command.target === "note") {
     pushFlag(args, "--body", command.body);
+    pushFlag(args, "--note-list-id", command.noteListId);
   }
 
   if ((command.command === "create" || command.command === "update") && command.target === "event") {
@@ -916,19 +1279,69 @@ function writeApplyCommand(command: ParsedCommand, response: McpToolResponse): s
     pushFlag(args, "--details", command.details);
     pushFlag(args, "--location", command.location);
     pushFlag(args, "--calendar-id", command.calendarId);
+    pushFlag(args, "--guest-emails", command.guestEmails?.join(","));
+    pushFlag(args, "--reminder-minutes", command.reminderMinutes?.join(","));
+    pushFlagValue(args, "--color-id", command.colorId);
+    pushFlag(args, "--time-zone", command.timeZone);
+    pushFlag(args, "--recurrence-frequency", command.recurrenceFrequency);
+    pushFlagValue(args, "--recurrence-interval", command.recurrenceInterval);
+    pushFlagValue(args, "--recurrence-ends-on", command.recurrenceEndsOn);
+    pushFlagValue(args, "--recurrence-count", command.recurrenceCount);
+    pushFlag(args, "--recurrence-by-day", command.recurrenceByDay?.join(","));
 
     if (command.allDay === true) {
       args.push("--all-day");
+    }
+
+    if (command.clearRecurrence === true) {
+      args.push("--clear-recurrence");
     }
   }
 
   if (command.command === "move") {
     pushFlag(args, "--task-list-id", command.taskListId);
+    pushFlagValue(args, "--parent-id", command.parentId);
+    pushFlagValue(args, "--previous-sibling-id", command.previousSiblingId);
+  }
+
+  if (command.command === "schedule") {
+    pushFlag(args, "--calendar-id", command.calendarId);
+    pushFlag(args, "--start-date", command.startDate);
+    pushFlagValue(args, "--duration-minutes", command.durationMinutes);
+  }
+
+  if (command.command === "settings") {
+    pushFlag(args, "--patch-json", command.patchJson === undefined ? undefined : JSON.stringify(command.patchJson));
+  }
+
+  if (command.command === "google") {
+    pushFlag(args, "--client-id", command.clientId);
+    pushFlag(args, "--client-secret", command.clientSecret);
+  }
+
+  if (command.command === "mcp") {
+    pushFlag(args, "--enabled", command.enabled === undefined ? undefined : String(command.enabled));
   }
 
   args.push("--apply");
   pushFlag(args, "--confirmation-id", response.confirmationId);
   return shellJoin(args);
+}
+
+function writeCommandPrefix(command: ParsedCommand): string[] {
+  if (command.command === "settings") {
+    return ["pnpm", "hcb", "--", "settings", command.action ?? "update"];
+  }
+
+  if (command.command === "google") {
+    return ["pnpm", "hcb", "--", "google", command.action ?? "begin-oauth"];
+  }
+
+  if (command.command === "mcp") {
+    return ["pnpm", "hcb", "--", "mcp", command.action ?? "set-enabled"];
+  }
+
+  return ["pnpm", "hcb", "--", command.command, command.target ?? "item"];
 }
 
 function pushFlag(args: string[], flag: string, value: string | undefined): void {
@@ -937,6 +1350,20 @@ function pushFlag(args: string[], flag: string, value: string | undefined): void
   }
 
   args.push(flag, value);
+}
+
+function pushFlagValue(args: string[], flag: string, value: string | number | null | undefined): void {
+  if (value === undefined) {
+    return;
+  }
+
+  args.push(flag, value === null ? "null" : String(value));
+}
+
+function pushBooleanFlag(args: string[], flag: string, value: boolean | undefined): void {
+  if (value === true) {
+    args.push(flag);
+  }
 }
 
 function shellJoin(args: string[]): string {
@@ -1019,7 +1446,13 @@ function helpText(): string {
     "  rename <kind> <id> --title <title>      dry-run rename a task-list or note-list",
     "  complete task <id>                      dry-run complete a task",
     "  reopen task <id>                        dry-run reopen a task",
-    "  move task <id> --task-list-id <id>      dry-run move a task",
+    "  move task <id> [options]                dry-run move a task",
+    "  delete <kind> <id>                      dry-run delete a task, note, event, or list",
+    "  schedule task <id> [options]            dry-run create a calendar block for a task",
+    "  settings update --patch-json <json>     dry-run update settings",
+    "  google save-oauth-client [options]      dry-run save Google OAuth client config",
+    "  google begin-oauth                      dry-run start Google OAuth",
+    "  mcp set-enabled <true|false>            dry-run enable or disable MCP",
     "  log [-n <limit>] [--level <level>]      show sanitized recent logs",
     "  diff [--limit <limit>] [--json]         show pending local-to-Google mutations",
     "  show <kind> [id] [--json]               show task, event, note, mutation, or diagnostics",
@@ -1038,9 +1471,18 @@ function helpText(): string {
     "  pnpm hcb -- create task-list --title 'Errands'",
     "  pnpm hcb -- create note --title 'Draft' --body 'Body' --apply --confirmation-id confirm-id",
     "  pnpm hcb -- update task task-id --title 'Next title'",
+    "  pnpm hcb -- update task task-id --priority high --tags launch,ops",
+    "  pnpm hcb -- update event event-id --recurrence-frequency weekly --recurrence-by-day MO,WE",
     "  pnpm hcb -- rename task-list list-id --title 'Errands'",
     "  pnpm hcb -- complete task task-id",
     "  pnpm hcb -- move task task-id --task-list-id list-id",
+    "  pnpm hcb -- move task task-id --parent-id parent-id --previous-sibling-id null",
+    "  pnpm hcb -- delete task task-id",
+    "  pnpm hcb -- delete task-list list-id",
+    "  pnpm hcb -- schedule task task-id --calendar-id cal-id --start-date 2026-06-04T09:00:00.000Z",
+    "  pnpm hcb -- settings update --patch-json '{\"mcpEnabled\":true}'",
+    "  pnpm hcb -- google begin-oauth --apply",
+    "  pnpm hcb -- mcp set-enabled true",
     "  pnpm hcb -- status",
     "  pnpm hcb -- log -n 20 --level warn",
     "  pnpm hcb -- diff --json",
@@ -1146,6 +1588,44 @@ function toolName(command: ParsedCommand): string {
       return "hcb_reopen_task";
     case "move":
       return "hcb_move_task";
+    case "delete":
+      if (command.target === "task") {
+        return "hcb_delete_task";
+      }
+
+      if (command.target === "note") {
+        return "hcb_delete_note";
+      }
+
+      if (command.target === "event") {
+        return "hcb_delete_event";
+      }
+
+      if (command.target === "task-list") {
+        return "hcb_delete_task_list";
+      }
+
+      if (command.target === "note-list") {
+        return "hcb_delete_note_list";
+      }
+
+      throw new CliError("Unknown delete target.", 2);
+    case "schedule":
+      return "hcb_schedule_task_block";
+    case "settings":
+      return "hcb_settings_update";
+    case "google":
+      if (command.action === "save-oauth-client") {
+        return "hcb_google_save_oauth_client";
+      }
+
+      if (command.action === "begin-oauth") {
+        return "hcb_google_begin_oauth";
+      }
+
+      throw new CliError("Unknown google action.", 2);
+    case "mcp":
+      return "hcb_mcp_set_enabled";
     default:
       throw new CliError("Help does not call MCP.");
   }
@@ -1169,7 +1649,12 @@ function isCommand(command: string): command is ParsedCommand["command"] {
     command === "rename" ||
     command === "complete" ||
     command === "reopen" ||
-    command === "move"
+    command === "move" ||
+    command === "delete" ||
+    command === "schedule" ||
+    command === "settings" ||
+    command === "google" ||
+    command === "mcp"
   );
 }
 
@@ -1263,12 +1748,131 @@ function parseEndDate(value: string | undefined): string {
   return value;
 }
 
-function parseDueDate(value: string | undefined): string {
+function parseDueDate(value: string | undefined): string | null {
+  if (value === "null") {
+    return null;
+  }
+
   if (!value || Number.isNaN(Date.parse(value))) {
     throw new CliError("Due date must be an ISO-8601 date or date-time.", 2);
   }
 
   return value;
+}
+
+function parseNullableDateTime(value: string | undefined, flag: string): string | null {
+  if (value === "null") {
+    return null;
+  }
+
+  if (!value || Number.isNaN(Date.parse(value))) {
+    throw new CliError(`${flag} must be an ISO-8601 date-time or null.`, 2);
+  }
+
+  return value;
+}
+
+function parseNullableDateOnly(value: string | undefined, flag: string): string | null {
+  if (value === "null") {
+    return null;
+  }
+
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new CliError(`${flag} must be YYYY-MM-DD or null.`, 2);
+  }
+
+  return value;
+}
+
+function parsePriority(value: string | undefined): string {
+  if (value === "none" || value === "low" || value === "medium" || value === "high") {
+    return value;
+  }
+
+  throw new CliError("Priority must be one of: none, low, medium, high.", 2);
+}
+
+function parseInteger(value: string | undefined, flag: string, min: number, max: number): number {
+  const number = Number(value);
+
+  if (!Number.isInteger(number) || number < min || number > max) {
+    throw new CliError(`${flag} must be an integer from ${min} to ${max}.`, 2);
+  }
+
+  return number;
+}
+
+function parseNullableInteger(value: string | undefined, flag: string, min: number, max: number): number | null {
+  if (value === "null") {
+    return null;
+  }
+
+  return parseInteger(value, flag, min, max);
+}
+
+function parseCsv(value: string | undefined, flag: string): string[] {
+  const items = optionValue(value, flag)
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+
+  if (items.length === 0) {
+    throw new CliError(`${flag} must contain at least one value.`, 2);
+  }
+
+  return items;
+}
+
+function parseIntegerCsv(value: string | undefined, flag: string, min: number, max: number): number[] {
+  return parseCsv(value, flag).map((item) => parseInteger(item, flag, min, max));
+}
+
+function parseRecurrenceFrequency(value: string | undefined): string {
+  if (value === "daily" || value === "weekly" || value === "monthly" || value === "yearly") {
+    return value;
+  }
+
+  throw new CliError("Recurrence frequency must be one of: daily, weekly, monthly, yearly.", 2);
+}
+
+function parseByDayCsv(value: string | undefined): string[] {
+  const days = parseCsv(value, "--recurrence-by-day");
+  const invalid = days.find((day) => !["SU", "MO", "TU", "WE", "TH", "FR", "SA"].includes(day));
+
+  if (invalid) {
+    throw new CliError("--recurrence-by-day must use SU,MO,TU,WE,TH,FR,SA.", 2);
+  }
+
+  return days;
+}
+
+function parsePatchJson(value: string | undefined): JsonObject {
+  const text = optionValue(value, "--patch-json");
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new CliError("--patch-json must be a JSON object.", 2);
+  }
+
+  if (!asObject(parsed)) {
+    throw new CliError("--patch-json must be a JSON object.", 2);
+  }
+
+  return parsed as JsonObject;
+}
+
+function parseBooleanOption(value: string | undefined, flag: string): boolean {
+  if (value === "true") {
+    return true;
+  }
+
+  if (value === "false") {
+    return false;
+  }
+
+  throw new CliError(`${flag} must be true or false.`, 2);
 }
 
 function parseListTarget(value: string | undefined): string {
@@ -1311,12 +1915,44 @@ function parseRenameTarget(value: string | undefined): string {
   throw new CliError("Rename target must be one of: task-list, note-list.", 2);
 }
 
+function parseDeleteTarget(value: string | undefined): string {
+  if (value === "task" || value === "note" || value === "event" || value === "task-list" || value === "note-list") {
+    return value;
+  }
+
+  throw new CliError("Delete target must be one of: task, note, event, task-list, note-list.", 2);
+}
+
 function parseTaskStateTarget(value: string | undefined, command: string): string {
   if (value === "task") {
     return value;
   }
 
   throw new CliError(`${command} target must be task.`, 2);
+}
+
+function parseSettingsAction(value: string | undefined): string {
+  if (value === "update") {
+    return value;
+  }
+
+  throw new CliError("Settings action must be update.", 2);
+}
+
+function parseGoogleAction(value: string | undefined): string {
+  if (value === "save-oauth-client" || value === "begin-oauth") {
+    return value;
+  }
+
+  throw new CliError("Google action must be one of: save-oauth-client, begin-oauth.", 2);
+}
+
+function parseMcpAction(value: string | undefined): string {
+  if (value === "set-enabled") {
+    return value;
+  }
+
+  throw new CliError("MCP action must be set-enabled.", 2);
 }
 
 function optionValue(value: string | undefined, flag: string): string {
@@ -1327,6 +1963,11 @@ function optionValue(value: string | undefined, flag: string): string {
   return value;
 }
 
+function parseNullableId(value: string | undefined, flag: string): string | null {
+  const text = optionValue(value, flag).trim();
+  return text === "null" ? null : text;
+}
+
 function hasWriteOnlyOptions(command: ParsedCommand): boolean {
   return (
     command.apply === true ||
@@ -1335,12 +1976,36 @@ function hasWriteOnlyOptions(command: ParsedCommand): boolean {
     command.notes !== undefined ||
     command.dueDate !== undefined ||
     command.taskListId !== undefined ||
+    command.parentId !== undefined ||
+    command.previousSiblingId !== undefined ||
+    command.priority !== undefined ||
+    command.plannedStart !== undefined ||
+    command.plannedEnd !== undefined ||
+    command.durationMinutes !== undefined ||
+    command.lockedSchedule === true ||
+    command.snoozeUntil !== undefined ||
+    command.tags !== undefined ||
+    command.noteListId !== undefined ||
     command.body !== undefined ||
     command.details !== undefined ||
     command.endDate !== undefined ||
     command.location !== undefined ||
     command.calendarId !== undefined ||
-    command.allDay === true
+    command.allDay === true ||
+    command.guestEmails !== undefined ||
+    command.reminderMinutes !== undefined ||
+    command.colorId !== undefined ||
+    command.timeZone !== undefined ||
+    command.recurrenceFrequency !== undefined ||
+    command.recurrenceInterval !== undefined ||
+    command.recurrenceEndsOn !== undefined ||
+    command.recurrenceCount !== undefined ||
+    command.recurrenceByDay !== undefined ||
+    command.clearRecurrence === true ||
+    command.patchJson !== undefined ||
+    command.clientId !== undefined ||
+    command.clientSecret !== undefined ||
+    command.enabled !== undefined
   );
 }
 
@@ -1351,7 +2016,12 @@ function isWriteCommand(command: ParsedCommand["command"]): boolean {
     command === "rename" ||
     command === "complete" ||
     command === "reopen" ||
-    command === "move"
+    command === "move" ||
+    command === "delete" ||
+    command === "schedule" ||
+    command === "settings" ||
+    command === "google" ||
+    command === "mcp"
   );
 }
 
@@ -1367,24 +2037,25 @@ function validateCreateCommand(command: ParsedCommand): void {
   command.title = requiredCreateText(command.title, "--title", command.target ?? "item");
 
   if (command.target === "task") {
-    rejectCreateOptions(command, ["body", "details", "startDate", "endDate", "location", "calendarId", "allDay"]);
+    rejectCreateOptions(command, ["body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "noteListId", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
     return;
   }
 
   if (command.target === "note") {
-    rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "details", "startDate", "endDate", "location", "calendarId", "allDay"]);
+    rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
     return;
   }
 
   if (command.target === "event") {
-    rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "body"]);
+    rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "patchJson", "clientId", "clientSecret", "enabled"]);
     command.startDate = requiredCreateText(command.startDate, "--start-date", "event");
+    validateRecurrenceCommand(command);
     validateCreateEventDates(command);
     return;
   }
 
   if (command.target === "task-list" || command.target === "note-list") {
-    rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay"]);
+    rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
   }
 }
 
@@ -1392,23 +2063,24 @@ function validateUpdateCommand(command: ParsedCommand): void {
   rejectReadOptions(command, "update");
 
   if (command.target === "task") {
-    rejectCreateOptions(command, ["body", "details", "startDate", "endDate", "location", "calendarId", "allDay"]);
-    requireAnyUpdateField(command, ["title", "notes", "dueDate", "taskListId"], "task");
+    rejectCreateOptions(command, ["body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "noteListId", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
+    requireAnyUpdateField(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags"], "task");
     command.title = optionalCreateText(command.title, "--title", "task");
     return;
   }
 
   if (command.target === "note") {
-    rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "details", "startDate", "endDate", "location", "calendarId", "allDay"]);
-    requireAnyUpdateField(command, ["title", "body"], "note");
+    rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
+    requireAnyUpdateField(command, ["title", "body", "noteListId"], "note");
     command.title = optionalCreateText(command.title, "--title", "note");
     return;
   }
 
   if (command.target === "event") {
-    rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "body"]);
-    requireAnyUpdateField(command, ["title", "details", "startDate", "endDate", "location", "calendarId", "allDay"], "event");
+    rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "patchJson", "clientId", "clientSecret", "enabled"]);
+    requireAnyUpdateField(command, ["title", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence"], "event");
     command.title = optionalCreateText(command.title, "--title", "event");
+    validateRecurrenceCommand(command);
     validateUpdateEventDates(command);
   }
 }
@@ -1416,18 +2088,81 @@ function validateUpdateCommand(command: ParsedCommand): void {
 function validateRenameCommand(command: ParsedCommand): void {
   rejectReadOptions(command, "rename");
   command.title = requiredCreateText(command.title, "--title", command.target ?? "item");
-  rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay"]);
+  rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
 }
 
 function validateTaskStateCommand(command: ParsedCommand): void {
   rejectReadOptions(command, command.command);
-  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay"]);
+  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
 }
 
 function validateMoveCommand(command: ParsedCommand): void {
   rejectReadOptions(command, "move");
-  command.taskListId = requiredCreateText(command.taskListId, "--task-list-id", "move task");
-  rejectCreateOptions(command, ["title", "notes", "dueDate", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay"]);
+  requireAnyUpdateField(command, ["taskListId", "parentId", "previousSiblingId"], "move task");
+  rejectCreateOptions(command, ["title", "notes", "dueDate", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
+}
+
+function validateDeleteCommand(command: ParsedCommand): void {
+  rejectReadOptions(command, "delete");
+  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
+}
+
+function validateScheduleCommand(command: ParsedCommand): void {
+  rejectReadOptions(command, "schedule");
+  command.calendarId = requiredCreateText(command.calendarId, "--calendar-id", "schedule task");
+  command.startDate = requiredCreateText(command.startDate, "--start-date", "schedule task");
+  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "endDate", "location", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
+}
+
+function validateSettingsCommand(command: ParsedCommand): void {
+  rejectReadOptions(command, "settings");
+
+  if (command.patchJson === undefined) {
+    throw new CliError("Missing required --patch-json for settings update.", 2);
+  }
+
+  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "clientId", "clientSecret", "enabled"]);
+}
+
+function validateGoogleCommand(command: ParsedCommand): void {
+  rejectReadOptions(command, "google");
+
+  if (command.action === "save-oauth-client" && command.clientId === undefined) {
+    throw new CliError("Missing required --client-id for google save-oauth-client.", 2);
+  }
+
+  if (command.action === "begin-oauth") {
+    rejectCreateOptions(command, ["clientId", "clientSecret"]);
+  }
+
+  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "enabled"]);
+}
+
+function validateMcpCommand(command: ParsedCommand): void {
+  rejectReadOptions(command, "mcp");
+
+  if (command.enabled === undefined) {
+    throw new CliError("Missing required enabled value for mcp set-enabled.", 2);
+  }
+
+  rejectCreateOptions(command, ["title", "notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret"]);
+}
+
+function validateRecurrenceCommand(command: ParsedCommand): void {
+  const hasRecurrence =
+    command.recurrenceFrequency !== undefined ||
+    command.recurrenceInterval !== undefined ||
+    command.recurrenceEndsOn !== undefined ||
+    command.recurrenceCount !== undefined ||
+    command.recurrenceByDay !== undefined;
+
+  if (command.clearRecurrence === true && hasRecurrence) {
+    throw new CliError("--clear-recurrence cannot be combined with recurrence fields.", 2);
+  }
+
+  if (hasRecurrence && command.recurrenceFrequency === undefined) {
+    throw new CliError("--recurrence-frequency is required when recurrence fields are supplied.", 2);
+  }
 }
 
 function rejectReadOptions(command: ParsedCommand, name: string): void {
@@ -1511,8 +2246,48 @@ function updatePatch(command: ParsedCommand): JsonObject {
     patch.taskListId = command.taskListId;
   }
 
+  if (command.parentId !== undefined) {
+    patch.parentId = command.parentId;
+  }
+
+  if (command.previousSiblingId !== undefined) {
+    patch.previousSiblingId = command.previousSiblingId;
+  }
+
+  if (command.priority !== undefined) {
+    patch.priority = command.priority;
+  }
+
+  if (command.plannedStart !== undefined) {
+    patch.plannedStart = command.plannedStart;
+  }
+
+  if (command.plannedEnd !== undefined) {
+    patch.plannedEnd = command.plannedEnd;
+  }
+
+  if (command.durationMinutes !== undefined) {
+    patch.durationMinutes = command.durationMinutes;
+  }
+
+  if (command.lockedSchedule === true) {
+    patch.lockedSchedule = true;
+  }
+
+  if (command.snoozeUntil !== undefined) {
+    patch.snoozeUntil = command.snoozeUntil;
+  }
+
+  if (command.tags !== undefined) {
+    patch.tags = command.tags;
+  }
+
   if (command.body !== undefined) {
     patch.body = command.body;
+  }
+
+  if (command.noteListId !== undefined) {
+    patch.noteListId = command.noteListId;
   }
 
   if (command.details !== undefined) {
@@ -1539,7 +2314,47 @@ function updatePatch(command: ParsedCommand): JsonObject {
     patch.isAllDay = true;
   }
 
+  if (command.guestEmails !== undefined) {
+    patch.guestEmails = command.guestEmails;
+  }
+
+  if (command.reminderMinutes !== undefined) {
+    patch.reminderMinutes = command.reminderMinutes;
+  }
+
+  if (command.colorId !== undefined) {
+    patch.colorId = command.colorId;
+  }
+
+  if (command.timeZone !== undefined) {
+    patch.timeZone = command.timeZone;
+  }
+
+  const recurrence = recurrenceInput(command);
+
+  if (recurrence !== undefined) {
+    patch.recurrence = recurrence;
+  }
+
   return patch;
+}
+
+function recurrenceInput(command: ParsedCommand): JsonObject | null | undefined {
+  if (command.clearRecurrence === true) {
+    return null;
+  }
+
+  if (command.recurrenceFrequency === undefined) {
+    return undefined;
+  }
+
+  return {
+    frequency: command.recurrenceFrequency,
+    interval: command.recurrenceInterval ?? 1,
+    ...(command.recurrenceEndsOn === undefined ? {} : { endsOn: command.recurrenceEndsOn }),
+    ...(command.recurrenceCount === undefined ? {} : { count: command.recurrenceCount }),
+    ...(command.recurrenceByDay === undefined ? {} : { byDay: command.recurrenceByDay })
+  };
 }
 
 function requiredCreateText(value: string | undefined, flag: string, target: string): string {
@@ -1576,6 +2391,48 @@ function flagForKey(key: keyof ParsedCommand): string {
       return "--calendar-id";
     case "allDay":
       return "--all-day";
+    case "parentId":
+      return "--parent-id";
+    case "previousSiblingId":
+      return "--previous-sibling-id";
+    case "plannedStart":
+      return "--planned-start";
+    case "plannedEnd":
+      return "--planned-end";
+    case "durationMinutes":
+      return "--duration-minutes";
+    case "lockedSchedule":
+      return "--locked-schedule";
+    case "snoozeUntil":
+      return "--snooze-until";
+    case "noteListId":
+      return "--note-list-id";
+    case "guestEmails":
+      return "--guest-emails";
+    case "reminderMinutes":
+      return "--reminder-minutes";
+    case "colorId":
+      return "--color-id";
+    case "timeZone":
+      return "--time-zone";
+    case "recurrenceFrequency":
+      return "--recurrence-frequency";
+    case "recurrenceInterval":
+      return "--recurrence-interval";
+    case "recurrenceEndsOn":
+      return "--recurrence-ends-on";
+    case "recurrenceCount":
+      return "--recurrence-count";
+    case "recurrenceByDay":
+      return "--recurrence-by-day";
+    case "clearRecurrence":
+      return "--clear-recurrence";
+    case "patchJson":
+      return "--patch-json";
+    case "clientId":
+      return "--client-id";
+    case "clientSecret":
+      return "--client-secret";
     default:
       return `--${String(key)}`;
   }

@@ -228,6 +228,11 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
     },
     native: nativeShell
   };
+  mcpToolRegistry.setAdminServices({
+    settings: domain.settings,
+    google: domain.google,
+    mcp: domain.mcp
+  });
   syncScheduler = new SyncScheduler({
     getSettings: () => settingsRepository.get(),
     runNow: (request) => Promise.resolve(sqliteDomain.sync.runNow(request))

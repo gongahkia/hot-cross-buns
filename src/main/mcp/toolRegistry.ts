@@ -1,5 +1,5 @@
 import { McpConfirmationStore } from "./confirmationStore";
-import type { McpDomainServices } from "./domainServices";
+import type { McpAdminDomainServices, McpDomainServices } from "./domainServices";
 import { McpToolError } from "./errors";
 import type {
   JsonObject,
@@ -46,15 +46,24 @@ const writeToolNames = [
   "hcb_complete_task",
   "hcb_reopen_task",
   "hcb_move_task",
+  "hcb_schedule_task_block",
+  "hcb_settings_update",
+  "hcb_google_save_oauth_client",
+  "hcb_google_begin_oauth",
+  "hcb_mcp_set_enabled",
   "hcb_delete_task",
   "hcb_delete_note",
-  "hcb_delete_event"
+  "hcb_delete_event",
+  "hcb_delete_task_list",
+  "hcb_delete_note_list"
 ] as const;
 
 const destructiveToolNames = new Set<string>([
   "hcb_delete_task",
   "hcb_delete_note",
-  "hcb_delete_event"
+  "hcb_delete_event",
+  "hcb_delete_task_list",
+  "hcb_delete_note_list"
 ]);
 
 export const MCP_READ_TOOL_NAMES = new Set<string>(readToolNames);
@@ -104,6 +113,15 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
     notes: stringSchema("Optional task notes."),
     dueDate: stringSchema("Optional ISO-8601 due date."),
     taskListId: stringSchema("Optional task list id."),
+    parentId: stringSchema("Optional parent task id."),
+    previousSiblingId: stringSchema("Optional previous sibling task id."),
+    priority: enumSchema(["none", "low", "medium", "high"]),
+    plannedStart: stringSchema("Optional ISO-8601 planned start date-time."),
+    plannedEnd: stringSchema("Optional ISO-8601 planned end date-time."),
+    durationMinutes: integerSchema("Optional task duration in minutes."),
+    lockedSchedule: booleanSchema("Whether schedule placement is locked."),
+    snoozeUntil: stringSchema("Optional ISO-8601 snooze-until date-time."),
+    tags: arraySchema("Optional task tags."),
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
   }, ["title"]),
@@ -123,6 +141,11 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
     isAllDay: booleanSchema("Whether this is an all-day event."),
     location: stringSchema("Optional location."),
     calendarId: stringSchema("Optional calendar id."),
+    guestEmails: arraySchema("Optional guest email list."),
+    reminderMinutes: arraySchema("Optional reminder minute offsets."),
+    colorId: stringSchema("Optional Google Calendar color id."),
+    recurrence: objectSchema("Optional recurrence object."),
+    timeZone: stringSchema("Optional IANA time zone."),
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
   }, ["title", "startDate"]),
@@ -150,19 +173,19 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
   }, ["id", "title"]),
   writeTool("hcb_update_task", "Update task fields.", false, {
     id: stringSchema("Task id."),
-    patch: objectSchema("Fields: title, notes, dueDate, taskListId."),
+    patch: objectSchema("Fields: title, notes, dueDate, taskListId, parentId, previousSiblingId, priority, plannedStart, plannedEnd, durationMinutes, lockedSchedule, snoozeUntil, tags."),
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
   }, ["id", "patch"]),
   writeTool("hcb_update_note", "Update local note fields.", false, {
     id: stringSchema("Note id."),
-    patch: objectSchema("Fields: title, body, linkedTaskId, linkedEventId."),
+    patch: objectSchema("Fields: title, body, noteListId."),
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
   }, ["id", "patch"]),
   writeTool("hcb_update_event", "Update event fields.", false, {
     id: stringSchema("Event id."),
-    patch: objectSchema("Fields: title, details, startDate, endDate, isAllDay, location, calendarId."),
+    patch: objectSchema("Fields: title, details, startDate, endDate, isAllDay, location, calendarId, guestEmails, reminderMinutes, colorId, recurrence, timeZone."),
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
   }, ["id", "patch"]),
@@ -176,12 +199,42 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
   }, ["id"]),
-  writeTool("hcb_move_task", "Move a task to another list.", false, {
+  writeTool("hcb_move_task", "Move a task to another list, parent, or sibling position.", false, {
     id: stringSchema("Task id."),
     taskListId: stringSchema("Destination task list id."),
+    parentId: stringSchema("Destination parent task id, or null to clear."),
+    previousSiblingId: stringSchema("Previous sibling task id, or null to move first."),
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
-  }, ["id", "taskListId"]),
+  }, ["id"]),
+  writeTool("hcb_schedule_task_block", "Create a calendar block for a task.", false, {
+    taskId: stringSchema("Task id."),
+    calendarId: stringSchema("Destination calendar id."),
+    startDate: stringSchema("ISO-8601 start date-time."),
+    durationMinutes: integerSchema("Block duration in minutes."),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }, ["taskId", "calendarId", "startDate"]),
+  writeTool("hcb_settings_update", "Update HCB settings with a validated JSON patch.", false, {
+    patch: objectSchema("Settings patch."),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }, ["patch"]),
+  writeTool("hcb_google_save_oauth_client", "Save Google OAuth client configuration.", false, {
+    clientId: stringSchema("Google OAuth client id."),
+    clientSecret: stringSchema("Optional Google OAuth client secret."),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }, ["clientId"]),
+  writeTool("hcb_google_begin_oauth", "Begin Google OAuth by opening the external browser.", false, {
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }),
+  writeTool("hcb_mcp_set_enabled", "Enable or disable the local MCP server.", false, {
+    enabled: booleanSchema("Whether MCP should be enabled."),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }, ["enabled"]),
   writeTool("hcb_delete_task", "Delete a task. Always requires confirmation.", true, {
     id: stringSchema("Task id."),
     dryRun: booleanSchema("Preview without applying."),
@@ -196,22 +249,40 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
     id: stringSchema("Event id."),
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }, ["id"]),
+  writeTool("hcb_delete_task_list", "Delete a task list. Always requires confirmation.", true, {
+    id: stringSchema("Task list id."),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }, ["id"]),
+  writeTool("hcb_delete_note_list", "Delete a note list. Always requires confirmation.", true, {
+    id: stringSchema("Note list id."),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
   }, ["id"])
 ];
 
 export class McpToolRegistry {
   private readonly definitions = new Map<string, McpToolDefinition>();
   private readonly writeHandlers: Record<string, WriteHandler>;
+  private adminServices?: McpAdminDomainServices;
 
   constructor(
     private readonly services: McpDomainServices,
-    private readonly confirmations = new McpConfirmationStore()
+    private readonly confirmations = new McpConfirmationStore(),
+    adminServices?: McpAdminDomainServices
   ) {
+    this.adminServices = adminServices;
+
     for (const definition of mcpToolDefinitions) {
       this.definitions.set(definition.name, definition);
     }
 
     this.writeHandlers = this.createWriteHandlers();
+  }
+
+  setAdminServices(services: McpAdminDomainServices): void {
+    this.adminServices = services;
   }
 
   listTools(): PublicMcpToolDefinition[] {
@@ -525,13 +596,68 @@ export class McpToolRegistry {
         preview: (args) =>
           this.services.tasks.previewMoveTask(
             requiredString(args, "id"),
-            requiredString(args, "taskListId")
+            domainArguments(args)
           ),
         apply: (args) =>
           this.services.tasks.moveTask(
             requiredString(args, "id"),
-            requiredString(args, "taskListId")
+            domainArguments(args)
           )
+      },
+      hcb_schedule_task_block: {
+        preview: (args) => this.services.calendar.previewScheduleTaskBlock(domainArguments(args)),
+        apply: (args) => this.services.calendar.scheduleTaskBlock(domainArguments(args))
+      },
+      hcb_settings_update: {
+        preview: (args) => {
+          const patch = requiredObject(args, "patch");
+          return {
+            kind: "settingsPatch",
+            patchKeys: Object.keys(patch).sort()
+          };
+        },
+        apply: async (args) => ({
+          kind: "settings",
+          ...(await this.requireAdminServices().settings.update(requiredObject(args, "patch")))
+        })
+      },
+      hcb_google_save_oauth_client: {
+        preview: (args) => ({
+          kind: "googleOAuthClient",
+          clientId: requiredString(args, "clientId"),
+          hasClientSecret: optionalString(args, "clientSecret") !== undefined
+        }),
+        apply: async (args) => ({
+          kind: "googleStatus",
+          ...(await this.requireAdminServices().google.saveOAuthClient({
+            clientId: requiredString(args, "clientId"),
+            ...(optionalString(args, "clientSecret") === undefined
+              ? {}
+              : { clientSecret: optionalString(args, "clientSecret") })
+          }))
+        })
+      },
+      hcb_google_begin_oauth: {
+        preview: () => ({
+          kind: "googleOAuthStart",
+          opensExternalBrowser: true
+        }),
+        apply: async () => ({
+          kind: "googleOAuthStart",
+          ...(await this.requireAdminServices().google.beginOAuth())
+        })
+      },
+      hcb_mcp_set_enabled: {
+        preview: (args) => ({
+          kind: "mcpSettings",
+          enabled: requiredBoolean(args, "enabled")
+        }),
+        apply: async (args) => ({
+          kind: "mcpStatus",
+          ...(await this.requireAdminServices().mcp.setEnabled({
+            enabled: requiredBoolean(args, "enabled")
+          }))
+        })
       },
       hcb_delete_task: {
         preview: (args) => this.services.tasks.previewDeleteTask(requiredString(args, "id")),
@@ -544,8 +670,24 @@ export class McpToolRegistry {
       hcb_delete_event: {
         preview: (args) => this.services.calendar.previewDeleteEvent(requiredString(args, "id")),
         apply: (args) => this.services.calendar.deleteEvent(requiredString(args, "id"))
+      },
+      hcb_delete_task_list: {
+        preview: (args) => this.services.tasks.previewDeleteTaskList(requiredString(args, "id")),
+        apply: (args) => this.services.tasks.deleteTaskList(requiredString(args, "id"))
+      },
+      hcb_delete_note_list: {
+        preview: (args) => this.services.notes.previewDeleteNoteList(requiredString(args, "id")),
+        apply: (args) => this.services.notes.deleteNoteList(requiredString(args, "id"))
       }
     };
+  }
+
+  private requireAdminServices(): McpAdminDomainServices {
+    if (!this.adminServices) {
+      throw new McpToolError("INVALID_ARGUMENTS", "MCP admin services are unavailable.");
+    }
+
+    return this.adminServices;
   }
 }
 
@@ -603,6 +745,10 @@ function booleanSchema(description: string): JsonObject {
 
 function objectSchema(description: string): JsonObject {
   return { type: "object", description };
+}
+
+function arraySchema(description: string): JsonObject {
+  return { type: "array", description };
 }
 
 function enumSchema(values: string[]): JsonObject {
@@ -813,6 +959,16 @@ function optionalNumber(args: Record<string, unknown>, key: string): number | un
 function optionalBoolean(args: Record<string, unknown>, key: string): boolean | undefined {
   const value = args[key];
   return typeof value === "boolean" ? value : undefined;
+}
+
+function requiredBoolean(args: Record<string, unknown>, key: string): boolean {
+  const value = optionalBoolean(args, key);
+
+  if (value === undefined) {
+    throw new McpToolError("INVALID_ARGUMENTS", `Missing required boolean argument '${key}'.`);
+  }
+
+  return value;
 }
 
 function requiredObject(args: Record<string, unknown>, key: string): JsonObject {
