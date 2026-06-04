@@ -1,5 +1,5 @@
 import type { NoteDetail } from "@shared/ipc/contracts";
-import type { McpDomainServices } from "../domainInterfaces";
+import type { DomainJsonObject, McpDomainServices } from "../domainInterfaces";
 import {
   calendarJson,
   noteJson,
@@ -137,6 +137,7 @@ export function createMcpDomainServices(state: PlaceholderState): McpDomainServi
     },
     notes: {
       getNote: (id) => noteJson(requiredById(state.notes, id, "Note")),
+      listNoteLists: () => noteListsFromState(state),
       previewCreateNote: (input) => compactJsonObject({
         kind: "note",
         title: requiredText(input, "title"),
@@ -290,4 +291,42 @@ export function createMcpDomainServices(state: PlaceholderState): McpDomainServi
       }
     }
   };
+}
+
+function noteListsFromState(state: PlaceholderState): DomainJsonObject[] {
+  const lists = new Map<string, DomainJsonObject>();
+
+  for (const note of state.notes) {
+    const existing = lists.get(note.listId);
+
+    if (existing) {
+      const count = typeof existing.noteCount === "number" ? existing.noteCount : 0;
+      const updatedAt = typeof existing.updatedAt === "string" && existing.updatedAt > note.updatedAt
+        ? existing.updatedAt
+        : note.updatedAt;
+      existing.noteCount = count + 1;
+      existing.updatedAt = updatedAt;
+      continue;
+    }
+
+    lists.set(note.listId, compactJsonObject({
+      kind: "noteList",
+      id: note.listId,
+      title: note.listTitle,
+      noteCount: 1,
+      updatedAt: note.updatedAt
+    }));
+  }
+
+  if (!lists.has("note-list:default")) {
+    lists.set("note-list:default", compactJsonObject({
+      kind: "noteList",
+      id: "note-list:default",
+      title: "Local notes",
+      noteCount: 0,
+      updatedAt: ""
+    }));
+  }
+
+  return [...lists.values()];
 }

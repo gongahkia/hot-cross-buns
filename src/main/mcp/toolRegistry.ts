@@ -28,6 +28,7 @@ const readToolNames = [
   "hcb_get_event",
   "hcb_get_note",
   "hcb_list_task_lists",
+  "hcb_list_note_lists",
   "hcb_list_calendars"
 ] as const;
 
@@ -92,6 +93,7 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
     id: stringSchema("Note id.")
   }, ["id"]),
   readTool("hcb_list_task_lists", "List available Google Tasks lists.", {}),
+  readTool("hcb_list_note_lists", "List available local HCB note lists.", {}),
   readTool("hcb_list_calendars", "List available Google calendars.", {}),
   writeTool("hcb_create_task", "Create a dated task.", false, {
     title: stringSchema("Task title."),
@@ -320,6 +322,11 @@ export class McpToolRegistry {
         return success({
           message: "Read task lists.",
           items: await this.services.tasks.listTaskLists()
+        });
+      case "hcb_list_note_lists":
+        return success({
+          message: "Read note lists.",
+          items: await this.services.notes.listNoteLists()
         });
       case "hcb_list_calendars":
         return success({

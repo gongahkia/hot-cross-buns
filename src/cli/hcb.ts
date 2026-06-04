@@ -44,12 +44,15 @@ interface ParsedCommand {
     | "today"
     | "week"
     | "export-diagnostics"
+    | "list"
+    | "get"
     | "help";
   json: boolean;
   limit?: number;
   level?: string;
   kind?: string;
   id?: string;
+  target?: string;
   logLimit?: number;
   mutationLimit?: number;
   query?: string;
@@ -199,6 +202,19 @@ export function parseCommand(argv: string[]): ParsedCommand {
     if (!parsed.query) {
       throw new CliError("Usage: pnpm hcb -- search <query> [--scope <scope>] [--limit <limit>]", 2);
     }
+  } else if (command === "list") {
+    parsed.target = parseListTarget(positional[0]);
+
+    if (positional.length !== 1) {
+      throw new CliError("Usage: pnpm hcb -- list <task-lists|calendars|note-lists>", 2);
+    }
+  } else if (command === "get") {
+    parsed.target = parseGetTarget(positional[0]);
+    parsed.id = positional[1];
+
+    if (!parsed.id || positional.length !== 2) {
+      throw new CliError("Usage: pnpm hcb -- get <task|event|note> <id>", 2);
+    }
   } else if (positional.length > 0) {
     throw new CliError(`Unexpected argument '${positional[0]}'.`, 2);
   }
@@ -226,7 +242,7 @@ export async function callCommand(
     return callDiagnosticsExport(command, dependencies);
   }
 
-  const tool = toolName(command.command);
+  const tool = toolName(command);
   const args: JsonObject = {};
 
   if (command.limit !== undefined) {
@@ -498,6 +514,14 @@ export function formatResponse(command: ParsedCommand, response: McpToolResponse
     return formatAgenda("HCB week", response.item ?? {});
   }
 
+  if (command.command === "list") {
+    return formatList(command.target ?? "items", response.items ?? []);
+  }
+
+  if (command.command === "get") {
+    return formatDetail(command.target ?? "item", response.item ?? {});
+  }
+
   return `${JSON.stringify(response.item ?? response, null, 2)}\n`;
 }
 
@@ -586,6 +610,26 @@ function formatSearch(items: JsonObject[]): string {
   return `${lines.join("\n")}\n`;
 }
 
+function formatList(target: string, items: JsonObject[]): string {
+  const title = listTitle(target);
+
+  if (items.length === 0) {
+    return `${title}: 0 items\n`;
+  }
+
+  const lines = [`${title}: ${items.length} item${items.length === 1 ? "" : "s"}`];
+
+  for (const item of items) {
+    lines.push(`  ${formatCompactItem(item)}`);
+  }
+
+  return `${lines.join("\n")}\n`;
+}
+
+function formatDetail(target: string, item: JsonObject): string {
+  return `HCB ${target}\n${JSON.stringify(item, null, 2)}\n`;
+}
+
 function formatAgenda(title: string, item: JsonObject): string {
   const range = [optionalText(item.date), optionalText(item.startDate), optionalText(item.endDate)]
     .filter(Boolean)
@@ -623,7 +667,11 @@ function formatCompactItem(item: JsonObject): string {
     optionalText(item.kind) ?? "item",
     optionalText(item.id) ? `id=${optionalText(item.id)}` : "",
     optionalText(item.title) ?? optionalText(item.summary) ?? optionalText(item.name) ?? optionalText(item.message) ?? "Untitled",
+    numberText(item.noteCount) ? `notes=${numberText(item.noteCount)}` : "",
+    numberText(item.taskCount) ? `tasks=${numberText(item.taskCount)}` : "",
     optionalText(item.status) ? `status=${optionalText(item.status)}` : "",
+    booleanText(item.selected) ? `selected=${booleanText(item.selected)}` : "",
+    booleanText(item.isSelected) ? `selected=${booleanText(item.isSelected)}` : "",
     optionalText(item.dueDate) ? `due=${optionalText(item.dueDate)}` : "",
     optionalText(item.startDate) ? `start=${optionalText(item.startDate)}` : "",
     optionalText(item.endDate) ? `end=${optionalText(item.endDate)}` : "",
@@ -643,6 +691,8 @@ function helpText(): string {
     "  today [--json]                          show today's agenda",
     "  week [--start-date <date>] [--json]     show a seven-day agenda",
     "  export-diagnostics [--json]             export redacted diagnostics JSON",
+    "  list <target> [--json]                  list task-lists, calendars, or note-lists",
+    "  get <kind> <id> [--json]                get a task, event, or note",
     "  log [-n <limit>] [--level <level>]      show sanitized recent logs",
     "  diff [--limit <limit>] [--json]         show pending local-to-Google mutations",
     "  show <kind> [id] [--json]               show task, event, note, mutation, or diagnostics",
@@ -654,6 +704,9 @@ function helpText(): string {
     "  pnpm hcb -- today",
     "  pnpm hcb -- week --start-date 2026-06-04",
     "  pnpm hcb -- export-diagnostics > hcb-diagnostics.json",
+    "  pnpm hcb -- list task-lists",
+    "  pnpm hcb -- list note-lists",
+    "  pnpm hcb -- get task task-id",
     "  pnpm hcb -- status",
     "  pnpm hcb -- log -n 20 --level warn",
     "  pnpm hcb -- diff --json",
@@ -661,8 +714,8 @@ function helpText(): string {
   ].join("\n") + "\n";
 }
 
-function toolName(command: ParsedCommand["command"]): string {
-  switch (command) {
+function toolName(command: ParsedCommand): string {
+  switch (command.command) {
     case "status":
       return "hcb_status";
     case "log":
@@ -679,6 +732,34 @@ function toolName(command: ParsedCommand["command"]): string {
       return "hcb_today";
     case "week":
       return "hcb_week";
+    case "list":
+      if (command.target === "task-lists") {
+        return "hcb_list_task_lists";
+      }
+
+      if (command.target === "calendars") {
+        return "hcb_list_calendars";
+      }
+
+      if (command.target === "note-lists") {
+        return "hcb_list_note_lists";
+      }
+
+      throw new CliError("Unknown list target.", 2);
+    case "get":
+      if (command.target === "task") {
+        return "hcb_get_task";
+      }
+
+      if (command.target === "event") {
+        return "hcb_get_event";
+      }
+
+      if (command.target === "note") {
+        return "hcb_get_note";
+      }
+
+      throw new CliError("Unknown get target.", 2);
     default:
       throw new CliError("Help does not call MCP.");
   }
@@ -694,7 +775,9 @@ function isCommand(command: string): command is ParsedCommand["command"] {
     command === "search" ||
     command === "today" ||
     command === "week" ||
-    command === "export-diagnostics"
+    command === "export-diagnostics" ||
+    command === "list" ||
+    command === "get"
   );
 }
 
@@ -780,6 +863,38 @@ function parseStartDate(value: string | undefined): string {
   return value;
 }
 
+function parseListTarget(value: string | undefined): string {
+  if (value === "task-lists" || value === "calendars" || value === "note-lists") {
+    return value;
+  }
+
+  throw new CliError("List target must be one of: task-lists, calendars, note-lists.", 2);
+}
+
+function parseGetTarget(value: string | undefined): string {
+  if (value === "task" || value === "event" || value === "note") {
+    return value;
+  }
+
+  throw new CliError("Get target must be one of: task, event, note.", 2);
+}
+
+function listTitle(target: string): string {
+  if (target === "task-lists") {
+    return "HCB task lists";
+  }
+
+  if (target === "calendars") {
+    return "HCB calendars";
+  }
+
+  if (target === "note-lists") {
+    return "HCB note lists";
+  }
+
+  return "HCB items";
+}
+
 function tokenProvider(dependencies: HcbCliDependencies): () => Promise<string> {
   return dependencies.tokenProvider ?? (() =>
     new KeychainMcpCredentialAdapter(new MacOsKeychainSecretStore()).loadBearerToken());
@@ -828,6 +943,14 @@ function optionalText(value: unknown): string | undefined {
 
   const output = String(value).trim();
   return output.length === 0 ? undefined : output;
+}
+
+function numberText(value: unknown): string | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? String(value) : undefined;
+}
+
+function booleanText(value: unknown): string | undefined {
+  return typeof value === "boolean" ? String(value) : undefined;
 }
 
 function text(value: unknown): string {

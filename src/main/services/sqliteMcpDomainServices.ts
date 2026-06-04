@@ -123,6 +123,7 @@ export function createMcpDomainServices(dependencies: McpDomainServiceDependenci
     },
     notes: {
       getNote: (id) => jsonObject(repository.getNote(id)),
+      listNoteLists: () => repository.listNotes({ limit: 1 }).lists.map(jsonObject),
       previewCreateNote: (input) =>
         jsonObject({
           kind: "note",

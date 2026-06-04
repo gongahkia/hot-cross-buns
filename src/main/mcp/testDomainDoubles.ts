@@ -7,6 +7,7 @@ interface TestDomainState {
   notes: Map<string, JsonObject>;
   events: Map<string, JsonObject>;
   taskLists: JsonObject[];
+  noteLists: JsonObject[];
   calendars: JsonObject[];
   nextTaskId: number;
   nextNoteId: number;
@@ -73,6 +74,15 @@ export function createMcpTestDomainServices(): McpTestDomainServices {
         title: "Inbox"
       }
     ],
+    noteLists: [
+      {
+        kind: "noteList",
+        id: "note-list:default",
+        title: "Local notes",
+        noteCount: 1,
+        updatedAt: "2026-05-22T00:00:00.000Z"
+      }
+    ],
     calendars: [
       {
         kind: "calendar",
@@ -97,6 +107,7 @@ export function createMcpTestDomainServices(): McpTestDomainServices {
           ...state.notes.values(),
           ...state.events.values(),
           ...state.taskLists,
+          ...state.noteLists,
           ...state.calendars
         ];
 
@@ -196,6 +207,7 @@ export function createMcpTestDomainServices(): McpTestDomainServices {
     },
     notes: {
       getNote: (id) => cloneExisting(state.notes, id, "Note"),
+      listNoteLists: () => state.noteLists.map(cloneObject),
       previewCreateNote: (input) =>
         compactObject({
           kind: "note",

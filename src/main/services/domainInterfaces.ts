@@ -109,6 +109,7 @@ export interface TaskDomainService {
 
 export interface NoteDomainService {
   getNote: (id: string) => MaybePromise<DomainJsonObject>;
+  listNoteLists: () => MaybePromise<DomainJsonObject[]>;
   previewCreateNote: (input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
   createNote: (input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
   previewUpdateNote: (id: string, patch: DomainJsonObject) => MaybePromise<DomainJsonObject>;
