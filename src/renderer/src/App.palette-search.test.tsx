@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ok } from "@shared/ipc/result";
@@ -192,7 +192,9 @@ describe("Command palette search", () => {
     const dialog = await screen.findByRole("dialog", { name: "Command palette" });
     const query = "source:tasks status:open due:today priority:high list:Inbox notes:yes triage";
 
-    await user.type(within(dialog).getByRole("searchbox", { name: "Filter commands" }), query);
+    fireEvent.change(within(dialog).getByRole("searchbox", { name: "Filter commands" }), {
+      target: { value: query }
+    });
 
     expect(await within(dialog).findByRole("option", { name: /Draft inbox triage rules/ })).toBeInTheDocument();
     await waitFor(() => {
@@ -212,7 +214,9 @@ describe("Command palette search", () => {
     await user.keyboard("{Meta>}p{/Meta}");
     const dialog = await screen.findByRole("dialog", { name: "Command palette" });
 
-    await user.type(within(dialog).getByRole("searchbox", { name: "Filter commands" }), "status:blocked triage");
+    fireEvent.change(within(dialog).getByRole("searchbox", { name: "Filter commands" }), {
+      target: { value: "status:blocked triage" }
+    });
 
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("Unsupported task status");
     await new Promise((resolve) => window.setTimeout(resolve, 80));
