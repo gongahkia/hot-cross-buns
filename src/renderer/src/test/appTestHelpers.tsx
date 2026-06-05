@@ -634,7 +634,7 @@ export function seededHcb(): HcbApi {
           listId: request.listId ?? "note-list:default",
           listTitle: "Notes",
           title: request.title,
-          preview: request.body ?? "Empty local note",
+          preview: request.body ?? "Empty note",
           body: request.body ?? "",
           updatedAt: now
         })

@@ -120,11 +120,11 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
   readTool("hcb_get_event", "Read one event by id.", {
     id: stringSchema("Event id.")
   }, ["id"]),
-  readTool("hcb_get_note", "Read one local note by id.", {
+  readTool("hcb_get_note", "Read one HCB note by id.", {
     id: stringSchema("Note id.")
   }, ["id"]),
   readTool("hcb_list_task_lists", "List available Google Tasks lists.", {}),
-  readTool("hcb_list_note_lists", "List available local HCB note lists.", {}),
+  readTool("hcb_list_note_lists", "List task-backed HCB note lists.", {}),
   readTool("hcb_list_calendars", "List available Google calendars.", {}),
   readTool("hcb_undo_status", "Read current undo and redo availability.", {}),
   readTool("hcb_pending_mutations", "List pending local-to-Google mutation queue entries.", {
@@ -163,7 +163,7 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
   }, ["title"]),
-  writeTool("hcb_create_note", "Create a local note.", false, {
+  writeTool("hcb_create_note", "Create an HCB note.", false, {
     title: stringSchema("Note title."),
     body: stringSchema("Optional note body."),
     linkedTaskId: stringSchema("Optional linked task id."),
@@ -192,7 +192,7 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
   }, ["title"]),
-  writeTool("hcb_create_note_list", "Create a local HCB note list.", false, {
+  writeTool("hcb_create_note_list", "Create a task-backed HCB note list.", false, {
     title: stringSchema("Note list title."),
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
@@ -203,7 +203,7 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
   }, ["id", "title"]),
-  writeTool("hcb_rename_note_list", "Rename a local HCB note list.", false, {
+  writeTool("hcb_rename_note_list", "Rename a task-backed HCB note list.", false, {
     id: stringSchema("Note list id."),
     title: stringSchema("New note list title."),
     dryRun: booleanSchema("Preview without applying."),
@@ -215,7 +215,7 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
   }, ["id", "patch"]),
-  writeTool("hcb_update_note", "Update local note fields.", false, {
+  writeTool("hcb_update_note", "Update HCB note fields.", false, {
     id: stringSchema("Note id."),
     patch: objectSchema("Fields: title, body, noteListId."),
     dryRun: booleanSchema("Preview without applying."),
@@ -309,7 +309,7 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
   }, ["id"]),
-  writeTool("hcb_delete_note", "Delete a local note. Always requires confirmation.", true, {
+  writeTool("hcb_delete_note", "Delete an HCB note. Always requires confirmation.", true, {
     id: stringSchema("Note id."),
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
@@ -840,13 +840,17 @@ export class McpToolRegistry {
           payload: targetPayload
         },
         sourceAction,
-        willRemoveSource: sourceAction === "replace"
+        willRemoveSource: sourceAction === "replace" && !isTaskBackedNoteReplace(sourceKind, targetKind),
+        willUpdateSource: sourceAction === "replace" && isTaskBackedNoteReplace(sourceKind, targetKind)
       };
     }
 
-    const target = await this.createConvertTarget(targetKind, targetPayload);
+    const replaceInPlace = sourceAction === "replace" && isTaskBackedNoteReplace(sourceKind, targetKind);
+    const target = replaceInPlace
+      ? await this.updateTaskBackedNoteConversion(sourceKind, targetKind, sourceId, targetPayload)
+      : await this.createConvertTarget(targetKind, targetPayload);
     const removedSource =
-      sourceAction === "replace"
+      sourceAction === "replace" && !replaceInPlace
         ? await this.removeConvertSource(sourceKind, sourceId)
         : null;
 
@@ -887,6 +891,19 @@ export class McpToolRegistry {
     }
 
     return this.services.calendar.createEvent(payload);
+  }
+
+  private updateTaskBackedNoteConversion(
+    sourceKind: ConvertItemKind,
+    targetKind: ConvertItemKind,
+    sourceId: string,
+    payload: JsonObject
+  ): Promise<JsonObject> | JsonObject {
+    if (sourceKind === "task" && targetKind === "note") {
+      return this.services.notes.updateNote(sourceId, payload);
+    }
+
+    throw new McpToolError("INVALID_ARGUMENTS", "Only task-to-note conversions can update in place.");
   }
 
   private removeConvertSource(kind: ConvertItemKind, id: string): Promise<JsonObject> | JsonObject {
@@ -950,6 +967,10 @@ function requiredSourceAction(args: Record<string, unknown>): ConvertSourceActio
   throw new McpToolError("INVALID_ARGUMENTS", "sourceAction must be keep or replace.");
 }
 
+function isTaskBackedNoteReplace(sourceKind: ConvertItemKind, targetKind: ConvertItemKind): boolean {
+  return sourceKind === "task" && targetKind === "note";
+}
+
 function convertTargetPayload(
   sourceKind: ConvertItemKind,
   source: JsonObject,
@@ -975,7 +996,7 @@ function convertTaskPayload(
   const sourceEventDate = sourceKind === "event"
     ? optionalJsonString(source, "startsAt") ?? optionalJsonString(source, "startDate")
     : undefined;
-  const dueDate = optionalString(args, "dueDate") ?? sourceEventDate;
+  const dueDate = optionalString(args, "dueDate") ?? sourceEventDate ?? (sourceKind === "note" ? todayDate() : undefined);
 
   return {
     title: optionalString(args, "title") ?? optionalJsonString(source, "title") ?? "Untitled task",
@@ -994,6 +1015,10 @@ function convertTaskPayload(
       ? {}
       : { taskListId: optionalString(args, "taskListId") })
   };
+}
+
+function todayDate(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function convertNotePayload(

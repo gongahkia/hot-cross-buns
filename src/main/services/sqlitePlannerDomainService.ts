@@ -286,35 +286,35 @@ export function createSqlitePlannerDomainService(
     createNoteList: (request) => {
       const created = repository.createNoteList(request);
       recordUndo({
-        actionKind: "note_list.create",
+        actionKind: "task_list.create",
         label: "Create note list",
-        resourceKind: "noteList",
+        resourceKind: "taskList",
         resourceId: created.id,
         before: null,
-        after: undoRepository?.noteListSnapshot(created.id)
+        after: undoRepository?.taskListSnapshot(created.id)
       });
       return created;
     },
     renameNoteList: (request) => {
-      const before = undoRepository?.noteListSnapshot(request.id) ?? null;
+      const before = undoRepository?.taskListSnapshot(request.id) ?? null;
       const renamed = repository.renameNoteList(request);
       recordUndo({
-        actionKind: "note_list.rename",
+        actionKind: "task_list.rename",
         label: "Rename note list",
-        resourceKind: "noteList",
+        resourceKind: "taskList",
         resourceId: request.id,
         before,
-        after: undoRepository?.noteListSnapshot(request.id)
+        after: undoRepository?.taskListSnapshot(request.id)
       });
       return renamed;
     },
     deleteNoteList: (request) => {
-      const before = undoRepository?.noteListSnapshot(request.id) ?? null;
+      const before = undoRepository?.taskListSnapshot(request.id) ?? null;
       const deleted = repository.deleteNoteList(request);
       recordUndo({
-        actionKind: "note_list.delete",
+        actionKind: "task_list.delete",
         label: "Delete note list",
-        resourceKind: "noteList",
+        resourceKind: "taskList",
         resourceId: request.id,
         before,
         after: null
@@ -327,33 +327,33 @@ export function createSqlitePlannerDomainService(
       recordUndo({
         actionKind: "note.create",
         label: "Create note",
-        resourceKind: "note",
+        resourceKind: "task",
         resourceId: created.id,
         before: null,
-        after: undoRepository?.noteSnapshot(created.id)
+        after: undoRepository?.taskSnapshot(created.id)
       });
       return created;
     },
     updateNote: (request) => {
-      const before = undoRepository?.noteSnapshot(request.id) ?? null;
+      const before = undoRepository?.taskSnapshot(request.id) ?? null;
       const updated = repository.updateNote(request);
       recordUndo({
         actionKind: "note.update",
         label: "Edit note",
-        resourceKind: "note",
+        resourceKind: "task",
         resourceId: request.id,
         before,
-        after: undoRepository?.noteSnapshot(request.id)
+        after: undoRepository?.taskSnapshot(request.id)
       });
       return updated;
     },
     deleteNote: (request) => {
-      const before = undoRepository?.noteSnapshot(request.id) ?? null;
+      const before = undoRepository?.taskSnapshot(request.id) ?? null;
       const deleted = repository.deleteNote(request);
       recordUndo({
         actionKind: "note.delete",
         label: "Delete note",
-        resourceKind: "note",
+        resourceKind: "task",
         resourceId: request.id,
         before,
         after: null

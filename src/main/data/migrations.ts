@@ -29,25 +29,6 @@ const MIGRATIONS: readonly Migration[] = [
     version: 1,
     name: "local app tables",
     sql: `
-CREATE TABLE IF NOT EXISTS local_notes (
-  id TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
-  body TEXT NOT NULL,
-  linked_task_id TEXT,
-  linked_event_id TEXT,
-  linked_list_id TEXT,
-  linked_calendar_id TEXT,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  deleted_at TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_local_notes_updated
-  ON local_notes(deleted_at, updated_at DESC);
-
-CREATE INDEX IF NOT EXISTS idx_local_notes_title
-  ON local_notes(deleted_at, title);
-
 CREATE TABLE IF NOT EXISTS local_settings (
   scope TEXT NOT NULL,
   key TEXT NOT NULL,
@@ -71,83 +52,19 @@ CREATE INDEX IF NOT EXISTS idx_local_performance_timings_recent
   },
   {
     version: 2,
-    name: "local notes fts index",
+    name: "local search index state",
     sql: `
-CREATE VIRTUAL TABLE IF NOT EXISTS local_notes_fts
-  USING fts5(title, body, content='local_notes', content_rowid='rowid');
-
 CREATE TABLE IF NOT EXISTS local_search_index_state (
   name TEXT PRIMARY KEY,
   version INTEGER NOT NULL,
   updated_at TEXT NOT NULL
 );
-
-CREATE TRIGGER IF NOT EXISTS local_notes_fts_ai
-AFTER INSERT ON local_notes
-BEGIN
-  INSERT INTO local_notes_fts(rowid, title, body)
-  VALUES (new.rowid, new.title, new.body);
-END;
-
-CREATE TRIGGER IF NOT EXISTS local_notes_fts_ad
-AFTER DELETE ON local_notes
-BEGIN
-  INSERT INTO local_notes_fts(local_notes_fts, rowid, title, body)
-  VALUES ('delete', old.rowid, old.title, old.body);
-END;
-
-CREATE TRIGGER IF NOT EXISTS local_notes_fts_au
-AFTER UPDATE ON local_notes
-BEGIN
-  INSERT INTO local_notes_fts(local_notes_fts, rowid, title, body)
-  VALUES ('delete', old.rowid, old.title, old.body);
-  INSERT INTO local_notes_fts(rowid, title, body)
-  VALUES (new.rowid, new.title, new.body);
-END;
-
-INSERT INTO local_notes_fts(local_notes_fts) VALUES ('rebuild');
 `
   },
   {
     version: 3,
-    name: "local note links and properties",
-    sql: `
-CREATE TABLE IF NOT EXISTS local_note_links (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  source_note_id TEXT NOT NULL,
-  target_kind TEXT NOT NULL,
-  target_id TEXT,
-  link_text TEXT NOT NULL,
-  is_broken INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL,
-  FOREIGN KEY (source_note_id) REFERENCES local_notes(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_local_note_links_source
-  ON local_note_links(source_note_id);
-
-CREATE INDEX IF NOT EXISTS idx_local_note_links_target
-  ON local_note_links(target_kind, target_id);
-
-CREATE INDEX IF NOT EXISTS idx_local_note_links_broken
-  ON local_note_links(is_broken, source_note_id);
-
-CREATE TABLE IF NOT EXISTS local_note_properties (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  note_id TEXT NOT NULL,
-  property_key TEXT NOT NULL,
-  property_value TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  FOREIGN KEY (note_id) REFERENCES local_notes(id) ON DELETE CASCADE,
-  UNIQUE(note_id, property_key)
-);
-
-CREATE INDEX IF NOT EXISTS idx_local_note_properties_kv
-  ON local_note_properties(property_key, property_value);
-
-CREATE INDEX IF NOT EXISTS idx_local_note_properties_note
-  ON local_note_properties(note_id);
-`
+    name: "deprecated local note links noop",
+    operations: () => []
   },
   {
     version: 4,
@@ -291,62 +208,8 @@ CREATE INDEX IF NOT EXISTS idx_local_history_entries_recent
   },
   {
     version: 9,
-    name: "local note lists",
-    operations: (connection) => {
-      const now = new Date().toISOString();
-      const operations: SqliteWriteOperation[] = [
-        {
-          kind: "exec",
-          sql: `
-CREATE TABLE IF NOT EXISTS local_note_lists (
-  id TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  deleted_at TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_local_note_lists_updated
-  ON local_note_lists(deleted_at, updated_at DESC);
-`
-        },
-        {
-          kind: "run",
-          sql: `INSERT INTO local_note_lists (id, title, created_at, updated_at)
-                VALUES ('note-list:default', 'Local notes', ?, ?)
-                ON CONFLICT(id) DO NOTHING;`,
-          params: [now, now]
-        }
-      ];
-
-      if (tableExists(connection, "local_notes")) {
-        const columns = new Set(
-          connection
-            .query<{ name: string }>("PRAGMA table_info(local_notes);")
-            .map((row) => row.name)
-        );
-
-        if (!columns.has("list_id")) {
-          operations.push({
-            kind: "run",
-            sql: "ALTER TABLE local_notes ADD COLUMN list_id TEXT;"
-          });
-        }
-
-        operations.push(
-          {
-            kind: "run",
-            sql: "UPDATE local_notes SET list_id = 'note-list:default' WHERE list_id IS NULL OR TRIM(list_id) = '';"
-          },
-          {
-            kind: "run",
-            sql: "CREATE INDEX IF NOT EXISTS idx_local_notes_list ON local_notes(list_id, deleted_at, updated_at DESC);"
-          }
-        );
-      }
-
-      return operations;
-    }
+    name: "deprecated local note lists noop",
+    operations: () => []
   },
   {
     version: 10,
@@ -424,6 +287,29 @@ CREATE INDEX IF NOT EXISTS idx_local_undo_entries_stack
             }
           ];
     }
+  },
+  {
+    version: 13,
+    name: "drop deprecated local notes",
+    sql: `
+DROP TRIGGER IF EXISTS local_notes_fts_ai;
+DROP TRIGGER IF EXISTS local_notes_fts_ad;
+DROP TRIGGER IF EXISTS local_notes_fts_au;
+DROP TABLE IF EXISTS local_notes_fts;
+DROP TABLE IF EXISTS local_note_links;
+DROP TABLE IF EXISTS local_note_properties;
+DROP TABLE IF EXISTS local_note_lists;
+DROP TABLE IF EXISTS local_notes;
+DROP INDEX IF EXISTS idx_local_notes_updated;
+DROP INDEX IF EXISTS idx_local_notes_title;
+DROP INDEX IF EXISTS idx_local_notes_list;
+DROP INDEX IF EXISTS idx_local_note_lists_updated;
+DROP INDEX IF EXISTS idx_local_note_links_source;
+DROP INDEX IF EXISTS idx_local_note_links_target;
+DROP INDEX IF EXISTS idx_local_note_links_broken;
+DROP INDEX IF EXISTS idx_local_note_properties_kv;
+DROP INDEX IF EXISTS idx_local_note_properties_note;
+`
   }
 ];
 

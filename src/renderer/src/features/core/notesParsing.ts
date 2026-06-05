@@ -14,7 +14,7 @@ export interface PlannerLinkReference {
 export function buildNotePreview(body: string): string {
   const trimmed = body.trim();
   if (!trimmed) {
-    return "Empty local note";
+    return "Empty note";
   }
 
   return trimmed.length > 92 ? `${trimmed.slice(0, 89)}...` : trimmed;

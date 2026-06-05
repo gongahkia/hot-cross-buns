@@ -160,13 +160,7 @@ describe("SQLite-backed domain services", () => {
     });
     expect(await domain.planner.listNotes({ limit: 10 })).toEqual({
       items: [],
-      lists: [
-        expect.objectContaining({
-          id: "note-list:default",
-          noteCount: 0,
-          title: "Local notes"
-        })
-      ],
+      lists: [],
       page: {
         limit: 10,
         totalKnown: 0
@@ -531,7 +525,8 @@ describe("SQLite-backed domain services", () => {
   });
 
   it("resets onboarding without deleting planner data", async () => {
-    const { domain } = createTestServices();
+    const { domain, syncRepository } = createTestServices();
+    seedGoogleMirrors(syncRepository);
 
     await domain.settings.update({
       setupCompletedAt: "2026-05-22T00:00:00.000Z"
@@ -553,7 +548,7 @@ describe("SQLite-backed domain services", () => {
     });
   });
 
-  it("deletes note lists by moving notes back to the default list", async () => {
+  it("deletes note lists by deleting the backing task list", async () => {
     const { domain } = createTestServices();
     const list = await domain.planner.createNoteList({ title: "Side notes" });
     const note = await domain.planner.createNote({
@@ -562,18 +557,11 @@ describe("SQLite-backed domain services", () => {
       body: "Move me."
     });
 
-    expect(() => domain.planner.deleteNoteList({ id: "note-list:default" })).toThrow(
-      "Default note list cannot be deleted."
-    );
     const deleted = await domain.planner.deleteNoteList({ id: list.id });
-    const moved = await domain.planner.getNote({ id: note.id });
     const lists = await domain.planner.listNotes({ limit: 10 });
 
-    expect(deleted).toMatchObject({ id: list.id, queued: false });
-    expect(moved).toMatchObject({
-      listId: "note-list:default",
-      listTitle: "Local notes"
-    });
+    expect(deleted).toMatchObject({ id: list.id, queued: true });
+    expect(() => domain.planner.getNote({ id: note.id })).toThrow("Note was not found.");
     expect(lists.lists.some((candidate) => candidate.id === list.id)).toBe(false);
   });
 
@@ -604,7 +592,8 @@ describe("SQLite-backed domain services", () => {
   });
 
   it("uses the same local note service through MCP and planner search", async () => {
-    const { domain } = createTestServices();
+    const { domain, syncRepository } = createTestServices();
+    seedGoogleMirrors(syncRepository);
 
     const created = await domain.mcpTools.notes.createNote({
       title: "MCP shared note",
@@ -927,11 +916,17 @@ describe("SQLite-backed domain services", () => {
     );
     const noteFtsPlan = planDetails(
       `EXPLAIN QUERY PLAN
-       SELECT notes.id
-       FROM local_notes_fts
-       INNER JOIN local_notes notes ON notes.rowid = local_notes_fts.rowid
-       WHERE local_notes_fts MATCH ?
-         AND notes.deleted_at IS NULL
+       SELECT tasks.id
+       FROM google_tasks_fts
+       INNER JOIN google_tasks tasks ON tasks.rowid = google_tasks_fts.rowid
+       INNER JOIN google_task_lists lists ON lists.id = tasks.task_list_id
+       WHERE google_tasks_fts MATCH ?
+         AND tasks.deleted_at IS NULL
+         AND tasks.is_hidden = 0
+         AND tasks.status != 'completed'
+         AND tasks.parent_task_id IS NULL
+         AND tasks.due_at IS NULL
+         AND lists.deleted_at IS NULL
        LIMIT ?;`,
       ["search*", 10]
     );

@@ -149,29 +149,6 @@ interface ScheduledTaskBlockSnapshot extends Record<string, JsonValue> {
   event: CalendarEventSnapshot | null;
 }
 
-interface NoteSnapshot extends Record<string, JsonValue> {
-  id: string;
-  title: string;
-  body: string;
-  linkedTaskId: string | null;
-  linkedEventId: string | null;
-  linkedListId: string | null;
-  linkedCalendarId: string | null;
-  listId: string | null;
-  createdAt: string;
-  updatedAt: string;
-  deletedAt: string | null;
-}
-
-interface NoteListSnapshot extends Record<string, JsonValue> {
-  id: string;
-  title: string;
-  createdAt: string;
-  updatedAt: string;
-  deletedAt: string | null;
-  notes: NoteSnapshot[];
-}
-
 export interface UndoChangeInput {
   actionKind: string;
   label: string;
@@ -458,57 +435,6 @@ export class LocalUndoRepository {
     } as ScheduledTaskBlockSnapshot;
   }
 
-  noteSnapshot(id: string): NoteSnapshot | null {
-    return this.connection.get<NoteSnapshot>(
-      `SELECT
-         id,
-         title,
-         body,
-         linked_task_id AS linkedTaskId,
-         linked_event_id AS linkedEventId,
-         linked_list_id AS linkedListId,
-         linked_calendar_id AS linkedCalendarId,
-         list_id AS listId,
-         created_at AS createdAt,
-         updated_at AS updatedAt,
-         deleted_at AS deletedAt
-       FROM local_notes
-       WHERE id = ?
-       LIMIT 1;`,
-      [id]
-    ) ?? null;
-  }
-
-  noteListSnapshot(id: string): NoteListSnapshot | null {
-    const list = this.connection.get<Record<string, unknown>>(
-      `SELECT
-         id,
-         title,
-         created_at AS createdAt,
-         updated_at AS updatedAt,
-         deleted_at AS deletedAt
-       FROM local_note_lists
-       WHERE id = ?
-       LIMIT 1;`,
-      [id]
-    );
-
-    if (!list) {
-      return null;
-    }
-
-    return {
-      ...(list as Omit<NoteListSnapshot, "notes">),
-      notes: this.connection.query<{ id: string }>(
-        "SELECT id FROM local_notes WHERE list_id = ? ORDER BY updated_at DESC, id ASC;",
-        [id]
-      ).flatMap((row) => {
-        const note = this.noteSnapshot(row.id);
-        return note === null ? [] : [note];
-      })
-    } as NoteListSnapshot;
-  }
-
   private applyTop(stack: UndoStack): UndoApplyResponse {
     const entry = this.topEntry(stack);
 
@@ -573,18 +499,6 @@ export class LocalUndoRepository {
           snapshotOrNull<ScheduledTaskBlockSnapshot>(payload.opposite),
           now
         );
-      case "note":
-        return noteOperations(
-          snapshotOrNull<NoteSnapshot>(payload.target),
-          snapshotOrNull<NoteSnapshot>(payload.opposite),
-          now
-        );
-      case "noteList":
-        return noteListOperations(
-          snapshotOrNull<NoteListSnapshot>(payload.target),
-          snapshotOrNull<NoteListSnapshot>(payload.opposite),
-          now
-        );
       default:
         return [];
     }
@@ -624,10 +538,6 @@ export class LocalUndoRepository {
         return this.calendarEventSnapshot(payload.resourceId);
       case "scheduledTaskBlock":
         return this.scheduledTaskBlockSnapshot(payload.resourceId);
-      case "note":
-        return this.noteSnapshot(payload.resourceId);
-      case "noteList":
-        return this.noteListSnapshot(payload.resourceId);
       default:
         return null;
     }
@@ -767,24 +677,6 @@ function conflictFingerprint(
         "status"
       ]);
       output.event = conflictFingerprint("calendarEvent", "calendar.events.update", snapshot.event ?? null);
-      return output;
-    }
-    case "note":
-      return pickJson(snapshot, [
-        "id",
-        "title",
-        "body",
-        "linkedTaskId",
-        "linkedEventId",
-        "linkedListId",
-        "linkedCalendarId",
-        "listId"
-      ]);
-    case "noteList": {
-      const output = pickJson(snapshot, ["id", "title"]);
-      if (actionKind !== "note_list.rename") {
-        output.notes = arrayFingerprints(snapshot.notes, "note", "note.update");
-      }
       return output;
     }
     default:
@@ -1437,92 +1329,6 @@ function calendarMutationPayload(event: CalendarEventSnapshot): JsonValue {
     recurrence: null,
     recurrenceRule: event.recurrenceRule
   };
-}
-
-function noteOperations(
-  target: NoteSnapshot | null,
-  opposite: NoteSnapshot | null,
-  now: string
-): SqliteWriteOperation[] {
-  if (!target) {
-    return opposite
-      ? [{
-          kind: "run",
-          sql: "UPDATE local_notes SET deleted_at = ?, updated_at = ? WHERE id = ?;",
-          params: [now, now, opposite.id]
-        }]
-      : [];
-  }
-
-  return [
-    {
-      kind: "run",
-      sql: `INSERT INTO local_notes (
-        id, title, body, linked_task_id, linked_event_id, linked_list_id,
-        linked_calendar_id, list_id, created_at, updated_at, deleted_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        title = excluded.title,
-        body = excluded.body,
-        linked_task_id = excluded.linked_task_id,
-        linked_event_id = excluded.linked_event_id,
-        linked_list_id = excluded.linked_list_id,
-        linked_calendar_id = excluded.linked_calendar_id,
-        list_id = excluded.list_id,
-        updated_at = excluded.updated_at,
-        deleted_at = excluded.deleted_at;`,
-      params: [
-        target.id,
-        target.title,
-        target.body,
-        target.linkedTaskId,
-        target.linkedEventId,
-        target.linkedListId,
-        target.linkedCalendarId,
-        target.listId,
-        target.createdAt,
-        now,
-        target.deletedAt
-      ]
-    }
-  ];
-}
-
-function noteListOperations(
-  target: NoteListSnapshot | null,
-  opposite: NoteListSnapshot | null,
-  now: string
-): SqliteWriteOperation[] {
-  if (!target) {
-    return opposite
-      ? [
-          {
-            kind: "run",
-            sql: "UPDATE local_note_lists SET deleted_at = ?, updated_at = ? WHERE id = ?;",
-            params: [now, now, opposite.id]
-          },
-          {
-            kind: "run",
-            sql: "UPDATE local_notes SET deleted_at = ?, updated_at = ? WHERE list_id = ?;",
-            params: [now, now, opposite.id]
-          }
-        ]
-      : [];
-  }
-
-  return [
-    {
-      kind: "run",
-      sql: `INSERT INTO local_note_lists (id, title, created_at, updated_at, deleted_at)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-              title = excluded.title,
-              updated_at = excluded.updated_at,
-              deleted_at = excluded.deleted_at;`,
-      params: [target.id, target.title, target.createdAt, now, target.deletedAt]
-    },
-    ...target.notes.flatMap((note) => noteOperations(note, null, now))
-  ];
 }
 
 function pendingMutationOperation(input: {

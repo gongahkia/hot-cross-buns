@@ -110,20 +110,3 @@ export interface ScheduledTaskBlockRow extends Record<string, unknown> {
   pendingMutationStatus?: "pending" | "applying" | "failed" | null;
   updatedAt: string;
 }
-
-export interface NoteRow extends Record<string, unknown> {
-  id: string;
-  listId: string;
-  listTitle: string;
-  title: string;
-  body: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface NoteListRow extends Record<string, unknown> {
-  id: string;
-  title: string;
-  updatedAt: string;
-  noteCount: number;
-}

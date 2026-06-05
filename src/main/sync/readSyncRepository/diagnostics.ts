@@ -128,7 +128,15 @@ export function cacheDiagnostics(connection: SqliteConnection): GoogleCacheDiagn
     ),
     noteCount: countRows(
       connection,
-      "SELECT COUNT(*) AS count FROM local_notes WHERE deleted_at IS NULL;"
+      `SELECT COUNT(*) AS count
+       FROM google_tasks tasks
+       INNER JOIN google_task_lists lists ON lists.id = tasks.task_list_id
+       WHERE tasks.deleted_at IS NULL
+         AND tasks.is_hidden = 0
+         AND tasks.status != 'completed'
+         AND tasks.parent_task_id IS NULL
+         AND tasks.due_at IS NULL
+         AND lists.deleted_at IS NULL;`
     ),
     performanceSampleCount: countRows(
       connection,

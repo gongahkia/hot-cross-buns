@@ -13,7 +13,6 @@ import { runLocalDataMigrations } from "../src/main/data/migrations";
 import { createAppSqliteConnection, type SqliteConnection } from "../src/main/data/sqliteConnection";
 import {
   calendarLocalId,
-  eventLocalId,
   GoogleSyncRepository,
   taskListLocalId,
   taskLocalId
@@ -27,8 +26,7 @@ import type { HcbResult } from "../src/shared/ipc/result";
 import { redactSensitiveText } from "../src/shared/redaction";
 import {
   generatePerfFixtureSet,
-  summarizeAllPerfFixtureSets,
-  type PerfFixtureSet
+  summarizeAllPerfFixtureSets
 } from "./perf/fixtures";
 import {
   writePerformanceReport,
@@ -194,24 +192,29 @@ function seedMediumFixtureDatabase(userDataDir: string): SeedResult {
     }
 
     connection.executeTransaction(
-      mediumFixture.notes.map((note) => ({
+      mediumFixture.notes.map((note, index) => ({
         kind: "run",
-        sql: `INSERT INTO local_notes (
-          id, title, body, linked_task_id, linked_event_id, created_at, updated_at, deleted_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+        sql: `INSERT INTO google_tasks (
+          id, account_id, task_list_id, google_id, parent_task_id, title, notes,
+          status, due_at, due_time_zone, completed_at, position, sort_order,
+          is_hidden, local_priority, local_tags_json, created_at, updated_at, deleted_at
+        ) VALUES (?, ?, ?, ?, NULL, ?, ?, 'needsAction', NULL, NULL, NULL, NULL, ?, 0, 'none', '[]', ?, ?, NULL)
         ON CONFLICT(id) DO UPDATE SET
+          task_list_id = excluded.task_list_id,
+          google_id = excluded.google_id,
           title = excluded.title,
-          body = excluded.body,
-          linked_task_id = excluded.linked_task_id,
-          linked_event_id = excluded.linked_event_id,
+          notes = excluded.notes,
+          sort_order = excluded.sort_order,
           updated_at = excluded.updated_at,
           deleted_at = NULL;`,
         params: [
           note.id,
+          accountId,
+          taskListLocalId(accountId, mediumFixture.taskLists[0].id),
+          note.id,
           note.title,
           note.body,
-          linkedTaskId(mediumFixture, note.linkedResourceType, note.linkedResourceId),
-          linkedEventId(mediumFixture, note.linkedResourceType, note.linkedResourceId),
+          index + 100_000,
           note.updatedAt,
           note.updatedAt
         ]
@@ -267,32 +270,6 @@ function seedMediumFixtureDatabase(userDataDir: string): SeedResult {
   } finally {
     connection.close();
   }
-}
-
-function linkedTaskId(
-  fixture: PerfFixtureSet,
-  type: "task" | "event" | null,
-  resourceId: string | null
-): string | null {
-  if (type !== "task" || resourceId === null) {
-    return null;
-  }
-
-  const task = fixture.tasks.find((candidate) => candidate.id === resourceId);
-  return task === undefined ? null : taskLocalId(accountId, task.taskListId, task.id);
-}
-
-function linkedEventId(
-  fixture: PerfFixtureSet,
-  type: "task" | "event" | null,
-  resourceId: string | null
-): string | null {
-  if (type !== "event" || resourceId === null) {
-    return null;
-  }
-
-  const event = fixture.eventInstances.find((candidate) => candidate.id === resourceId);
-  return event === undefined ? null : eventLocalId(accountId, event.calendarId, event.id);
 }
 
 function collectSqliteBaseline(userDataDir: string): SqliteBaselineResult {
@@ -450,10 +427,16 @@ function collectQueryPlans(connection: SqliteConnection): PerfQueryPlanReport[] 
     queryPlan(connection, {
       name: "note.recent",
       category: "note",
-      sql: `SELECT id, title, body, updated_at
-            FROM local_notes
-            WHERE deleted_at IS NULL
-            ORDER BY updated_at DESC, id ASC
+      sql: `SELECT tasks.id, tasks.title, tasks.notes, tasks.updated_at
+            FROM google_tasks tasks
+            INNER JOIN google_task_lists lists ON lists.id = tasks.task_list_id
+            WHERE tasks.deleted_at IS NULL
+              AND tasks.is_hidden = 0
+              AND tasks.status != 'completed'
+              AND tasks.parent_task_id IS NULL
+              AND tasks.due_at IS NULL
+              AND lists.deleted_at IS NULL
+            ORDER BY tasks.updated_at DESC, tasks.id ASC
             LIMIT ? OFFSET ?`,
       params: [50, 0]
     }),
@@ -490,12 +473,18 @@ function collectQueryPlans(connection: SqliteConnection): PerfQueryPlanReport[] 
     queryPlan(connection, {
       name: "search.notes-fts",
       category: "search",
-      sql: `SELECT notes.id, notes.title, notes.body, notes.updated_at
-            FROM local_notes_fts
-            INNER JOIN local_notes notes ON notes.rowid = local_notes_fts.rowid
-            WHERE local_notes_fts MATCH ?
-              AND notes.deleted_at IS NULL
-            ORDER BY notes.updated_at DESC, notes.id ASC
+      sql: `SELECT tasks.id, tasks.title, tasks.notes, tasks.updated_at
+            FROM google_tasks_fts
+            INNER JOIN google_tasks tasks ON tasks.rowid = google_tasks_fts.rowid
+            INNER JOIN google_task_lists lists ON lists.id = tasks.task_list_id
+            WHERE google_tasks_fts MATCH ?
+              AND tasks.deleted_at IS NULL
+              AND tasks.is_hidden = 0
+              AND tasks.status != 'completed'
+              AND tasks.parent_task_id IS NULL
+              AND tasks.due_at IS NULL
+              AND lists.deleted_at IS NULL
+            ORDER BY tasks.updated_at DESC, tasks.id ASC
             LIMIT ?`,
       params: [ftsQuery, 30]
     }),

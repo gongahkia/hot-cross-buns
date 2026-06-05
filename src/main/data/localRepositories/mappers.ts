@@ -11,7 +11,7 @@ import type {
   TaskListSummary,
   TaskSummary
 } from "@shared/ipc/contracts";
-import type { CalendarEventRow, CalendarListRow, NoteListRow, NoteRow, ScheduledTaskBlockRow, TaskListRow, TaskRow } from "./types";
+import type { CalendarEventRow, CalendarListRow, ScheduledTaskBlockRow, TaskListRow, TaskRow } from "./types";
 import { parseNumberArray, parseStringArray } from "./shared";
 
 const textLimits = {
@@ -210,7 +210,14 @@ export function availabilityLine(event: CalendarEventSummary): string {
   return `- ${label}: ${event.title}`;
 }
 
-export function noteSummary(row: NoteRow): NoteSummary {
+export function noteSummary(row: {
+  id: string;
+  listId: string;
+  listTitle: string;
+  title: string;
+  body: string;
+  updatedAt: string;
+}): NoteSummary {
   return {
     id: row.id,
     listId: row.listId,
@@ -221,14 +228,26 @@ export function noteSummary(row: NoteRow): NoteSummary {
   };
 }
 
-export function noteDetail(row: NoteRow): NoteDetail {
+export function noteDetail(row: {
+  id: string;
+  listId: string;
+  listTitle: string;
+  title: string;
+  body: string;
+  updatedAt: string;
+}): NoteDetail {
   return {
     ...noteSummary(row),
     body: row.body
   };
 }
 
-export function noteListSummary(row: NoteListRow): NoteListSummary {
+export function noteListSummary(row: {
+  id: string;
+  title: string;
+  updatedAt: string;
+  noteCount: number;
+}): NoteListSummary {
   return {
     id: row.id,
     title: row.title,
@@ -241,7 +260,7 @@ export function preview(body: string): string {
   const trimmed = body.trim();
 
   if (!trimmed) {
-    return "Empty local note";
+    return "Empty note";
   }
 
   return trimmed.length > 120 ? `${trimmed.slice(0, 117)}...` : trimmed;

@@ -93,34 +93,20 @@ describe("SQLite connection foundation", () => {
     }
   });
 
-  it("runs migrations and FTS queries on the primary SQLite adapter", () => {
+  it("runs migrations on the primary SQLite adapter without deprecated note tables", () => {
     const temporary = createTemporarySqliteConnection("hcb2-sqlite-migration-test-");
 
     try {
       const result = runLocalDataMigrations(temporary.connection);
-
-      temporary.connection.run(
-        `INSERT INTO local_notes (id, title, body, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?);`,
-        [
-          "note-1",
-          "SQLite native adapter",
-          "FTS should query migrated note content.",
-          "2026-05-22T00:00:00.000Z",
-          "2026-05-22T00:00:00.000Z"
-        ]
+      const localNoteTables = temporary.connection.query<{ name: string }>(
+        `SELECT name
+         FROM sqlite_master
+         WHERE name IN ('local_notes', 'local_notes_fts', 'local_note_links', 'local_note_properties', 'local_note_lists')
+         ORDER BY name;`
       );
 
-      const rows = temporary.connection.query<{ title: string }>(
-        `SELECT notes.title
-         FROM local_notes_fts
-         INNER JOIN local_notes notes ON notes.rowid = local_notes_fts.rowid
-         WHERE local_notes_fts MATCH ?;`,
-        ["native"]
-      );
-
-      expect(result.appliedVersions).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
-      expect(rows).toEqual([{ title: "SQLite native adapter" }]);
+      expect(result.appliedVersions).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+      expect(localNoteTables).toEqual([]);
     } finally {
       temporary.cleanup();
     }
@@ -149,7 +135,7 @@ describe("SQLite connection foundation", () => {
         ["event-1"]
       );
 
-      expect(result.appliedVersions).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+      expect(result.appliedVersions).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
       expect(row?.localTimeZone).toBe("Asia/Singapore");
       expect(row?.hcbKind).toBeNull();
     } finally {

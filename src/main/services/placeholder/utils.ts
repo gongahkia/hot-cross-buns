@@ -138,7 +138,7 @@ export function preview(body: string): string {
   const trimmed = body.trim();
 
   if (!trimmed) {
-    return "Empty local note";
+    return "Empty note";
   }
 
   return trimmed.length > 120 ? `${trimmed.slice(0, 117)}...` : trimmed;

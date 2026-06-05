@@ -55,6 +55,7 @@ export function taskSearchPredicates(parsed: ParsedLocalSearchQuery): {
   }
 
   addDatePredicate(predicates, params, "tasks.due_at", parsed.filters.due);
+  predicates.push("NOT (tasks.due_at IS NULL AND tasks.parent_task_id IS NULL AND tasks.status != 'completed')");
 
   return { predicates, params };
 }
@@ -92,14 +93,21 @@ export function noteSearchPredicates(parsed: ParsedLocalSearchQuery): {
   predicates: string[];
   params: Array<string | number | boolean | null>;
 } {
-  const predicates = ["notes.deleted_at IS NULL"];
+  const predicates = [
+    "tasks.deleted_at IS NULL",
+    "tasks.is_hidden = 0",
+    "tasks.status != 'completed'",
+    "tasks.parent_task_id IS NULL",
+    "tasks.due_at IS NULL",
+    "lists.deleted_at IS NULL"
+  ];
   const params: Array<string | number | boolean | null> = [];
 
   if (parsed.filters.hasBody !== undefined) {
     predicates.push(
       parsed.filters.hasBody
-        ? "TRIM(notes.body) != ''"
-        : "TRIM(notes.body) = ''"
+        ? "TRIM(COALESCE(tasks.notes, '')) != ''"
+        : "TRIM(COALESCE(tasks.notes, '')) = ''"
     );
   }
 
