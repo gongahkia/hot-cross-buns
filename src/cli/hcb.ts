@@ -701,6 +701,10 @@ export function parseCommand(argv: string[]): ParsedCommand {
     throw new CliError("--scope is only supported by complete/reopen event.", 2);
   }
 
+  if ((parsed.to !== undefined || parsed.sourceAction !== undefined) && command !== "convert") {
+    throw new CliError("--to and --source-action are only supported by convert.", 2);
+  }
+
   if (parsed.startDate !== undefined && command !== "week" && command !== "create" && command !== "update" && command !== "schedule" && command !== "convert") {
     throw new CliError(`--start-date is only supported by week, create event, update event, schedule task, and convert.`, 2);
   }
@@ -747,7 +751,7 @@ export async function callCommand(
     args.kind = command.kind;
   }
 
-  if (command.id !== undefined && command.command !== "schedule") {
+  if (command.id !== undefined && command.command !== "schedule" && command.command !== "convert") {
     args.id = command.id;
   }
 
@@ -2230,6 +2234,22 @@ function parseUpdateTarget(value: string | undefined): string {
   throw new CliError("Update target must be one of: task, note, event.", 2);
 }
 
+function parsePrimitiveTarget(value: string | undefined, label: string): string {
+  if (value === "task" || value === "note" || value === "event") {
+    return value;
+  }
+
+  throw new CliError(`${label} must be one of: task, note, event.`, 2);
+}
+
+function parseSourceAction(value: string | undefined): string {
+  if (value === "keep" || value === "replace") {
+    return value;
+  }
+
+  throw new CliError("--source-action must be keep or replace.", 2);
+}
+
 function parseRenameTarget(value: string | undefined): string {
   if (value === "task-list" || value === "note-list") {
     return value;
@@ -2295,6 +2315,8 @@ function hasWriteOnlyOptions(command: ParsedCommand): boolean {
   return (
     command.apply === true ||
     command.confirmationId !== undefined ||
+    command.to !== undefined ||
+    command.sourceAction !== undefined ||
     command.title !== undefined ||
     command.notes !== undefined ||
     command.dueDate !== undefined ||
@@ -2415,6 +2437,29 @@ function validateUpdateCommand(command: ParsedCommand): void {
     validateRecurrenceCommand(command);
     validateUpdateEventDates(command);
   }
+}
+
+function validateConvertCommand(command: ParsedCommand): void {
+  rejectReadOptions(command, "convert");
+
+  if (!command.to) {
+    throw new CliError("Missing required --to for convert.", 2);
+  }
+
+  if (!command.sourceAction) {
+    throw new CliError("Missing required --source-action for convert.", 2);
+  }
+
+  if (command.target === command.to) {
+    throw new CliError("Convert source and target must differ.", 2);
+  }
+
+  if (command.endDate !== undefined && command.startDate !== undefined && Date.parse(command.endDate) <= Date.parse(command.startDate)) {
+    throw new CliError("--end-date must be after --start-date.", 2);
+  }
+
+  rejectUnsupportedOptions(command, "convert", ["parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
+  command.title = optionalCreateText(command.title, "--title", "convert");
 }
 
 function validateRenameCommand(command: ParsedCommand): void {

@@ -289,7 +289,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
 
     setSelectedTaskId(null);
     conversionCleanupRef.current = cleanup ?? null;
-    openTaskInspector("mode" in draftSeed ? draftSeed : newTaskDraft(source, draftSeed), "edit");
+    openTaskInspector(isTaskDraft(draftSeed) ? draftSeed : newTaskDraft(source, draftSeed), "edit");
   }
 
   function selectTask(taskId: string): void {
@@ -527,4 +527,8 @@ function taskEventDraft(sourceDraft: TaskDraft): Partial<CalendarEventDraft> {
     startsAt,
     title: sourceDraft.title
   };
+}
+
+function isTaskDraft(candidate: Partial<Omit<TaskDraft, "mode">> | TaskDraft): candidate is TaskDraft {
+  return "mode" in candidate && (candidate.mode === "create" || candidate.mode === "edit");
 }

@@ -975,6 +975,7 @@ function convertTaskPayload(source: JsonObject, args: Record<string, unknown>): 
       optionalString(args, "body") ??
       optionalString(args, "details") ??
       optionalJsonString(source, "notes") ??
+      optionalJsonString(source, "details") ??
       optionalJsonString(source, "body") ??
       "",
     ...(optionalString(args, "dueDate") === undefined
@@ -1038,7 +1039,7 @@ function convertNoteBody(sourceKind: ConvertItemKind, source: JsonObject): strin
   if (sourceKind === "event") {
     return [
       optionalJsonString(source, "notes") ?? "",
-      `Event: ${optionalJsonString(source, "startsAt") ?? ""} - ${optionalJsonString(source, "endsAt") ?? ""}`,
+      `Event: ${optionalJsonString(source, "startsAt") ?? optionalJsonString(source, "startDate") ?? ""} - ${optionalJsonString(source, "endsAt") ?? optionalJsonString(source, "endDate") ?? ""}`,
       optionalJsonString(source, "location") ? `Location: ${optionalJsonString(source, "location")}` : ""
     ].filter(Boolean).join("\n\n");
   }
@@ -1058,7 +1059,7 @@ function eventStartDate(
   }
 
   if (sourceKind === "event") {
-    return optionalJsonString(source, "startsAt") ?? missingEventDateMessage(sourceKind);
+    return optionalJsonString(source, "startsAt") ?? optionalJsonString(source, "startDate") ?? missingEventDateMessage(sourceKind);
   }
 
   const plannedStart = optionalJsonString(source, "plannedStart");
@@ -1066,7 +1067,7 @@ function eventStartDate(
     return plannedStart;
   }
 
-  const dueAt = optionalJsonString(source, "dueAt");
+  const dueAt = optionalJsonString(source, "dueAt") ?? optionalJsonString(source, "dueDate");
   if (dueAt) {
     return dueAt;
   }
@@ -1081,7 +1082,7 @@ function eventEndDate(
   allDay: boolean
 ): string {
   if (sourceKind === "event") {
-    return optionalJsonString(source, "endsAt") ?? startDate;
+    return optionalJsonString(source, "endsAt") ?? optionalJsonString(source, "endDate") ?? startDate;
   }
 
   const plannedEnd = optionalJsonString(source, "plannedEnd");
@@ -1108,7 +1109,7 @@ function eventAllDay(
   }
 
   if (sourceKind === "event") {
-    return source.allDay === true;
+    return source.allDay === true || source.isAllDay === true;
   }
 
   return optionalJsonString(source, "plannedStart") === undefined;
