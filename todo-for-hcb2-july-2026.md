@@ -41,6 +41,17 @@ This is the single July 2026 planning todo. Items with current static evidence o
 
 ## 2. Core planner feature gaps
 
+### Accounts and sync scope
+
+- Promote the account mirror to first-class multi-account:
+  - list and manage all connected Google accounts, not only the latest account status
+  - keep OAuth tokens, sync checkpoints, mutation queues, task lists, calendars, tasks, and events isolated per account
+  - add account badges and per-account filters for task lists, calendars, search, Today, and diagnostics
+  - support a merged Today view across Personal + Work while preserving source account identity
+  - make create/update flows choose an explicit target account/calendar/list when ambiguity exists
+  - verify disconnected/reauth-required accounts do not block healthy accounts
+  - add migration tests for existing single-account caches and replay tests for per-account pending mutations
+
 ### Tasks and organisation
 
 - Verify/finish Kanban parity beyond the current Google-list board if original `KanbanGrouping` behavior is not covered.
@@ -51,6 +62,14 @@ This is the single July 2026 planning todo. Items with current static evidence o
   - tag CRUD
   - `@tag` extraction
   - tag filters and saved views
+- Add rule-based auto-tagging and color assignment:
+  - regex/prefix/contains rules over title and body/details
+  - examples like title starts with `CODING:` -> tag `coding` and color red
+  - apply on create and update for tasks, events, and notes
+  - rule priority/order and conflict handling
+  - preview/test-rule UI before enabling
+  - optional strip/keep matched prefixes
+  - "why was this tagged?" inspector/audit detail
 - Add hierarchical Areas:
   - area schema
   - area sort order
@@ -76,6 +95,12 @@ This is the single July 2026 planning todo. Items with current static evidence o
   - `{{prompt:Label}}`
   - `{{clipboard}}`
   - task/event creation from templates
+- Upgrade NL quick-add with chrono-style date parsing and RRULE inference:
+  - parse phrases like `every other Tue 9am`, `next Fri 2-4pm`, and `weekly until Jul 30`
+  - convert recurring phrases into the existing `CalendarEventRecurrence` shape
+  - preserve matched-token chips and remove parsed text from final title/summary
+  - keep deterministic fallbacks for ambiguous dates/times
+  - add parser tests for time zones, ranges, recurring weekdays, intervals, end dates, and count limits
 
 ### Calendar
 
@@ -85,12 +110,22 @@ This is the single July 2026 planning todo. Items with current static evidence o
   - keyboard navigation
 - Verify/finish drag-to-create on calendar grids.
 - Add month/week day-agenda popover from cell/day click.
+- Add smart-reschedule:
+  - suggest new slots for overdue, conflicted, or unscheduled tasks
+  - respect priority, duration, locked schedules, working hours, visible calendars, and existing events
+  - dry-run preview before applying changes
+  - batch apply with undo and mutation coalescing
+  - explain why each slot was chosen
 - Finish recurring-event edit scope:
   - this event
   - this and future
   - all events
   - safe Google mutation semantics
-- Finish RRULE editor depth if current UI does not cover all supported recurrence fields.
+- Finish visual RRULE editor depth if current UI does not cover all supported recurrence fields:
+  - frequency, interval, weekdays, month rules, end date, count, and never-ending rules
+  - readable summary and raw RRULE preview
+  - validation for unsupported Google/RFC combinations
+  - round-trip tests against current recurrence sync code
 - Add attendee management depth beyond raw guest emails:
   - RSVP/status display
   - invitations
@@ -149,6 +184,29 @@ This is the single July 2026 planning todo. Items with current static evidence o
   - relative dates
   - saved queries
   - validation and explain output
+- Add local semantic search layered on existing search:
+  - evaluate `sqlite-vec` vs SQLite `Vec1` for packaging stability
+  - use a worker-backed embedding path, starting with `Xenova/all-MiniLM-L6-v2` / `@huggingface/transformers` if packaging is acceptable
+  - store 384-dimensional embeddings with entity kind/id, source text hash, model id, and generated-at metadata
+  - store embeddings for tasks, events, notes, lists, and calendars locally
+  - background embedding/index refresh after edits and sync
+  - hybrid ranking with current FTS/DSL results
+  - local/private model and no remote embedding calls by default
+  - model download/cache controls, rebuild controls, and disabled-state UI when the model or vector extension is unavailable
+  - diagnostics for stale/missing embeddings
+- Add opt-in local LLM provider hook:
+  - support user-configured Ollama and llama.cpp/OpenAI-compatible local endpoints
+  - default disabled; prefer `127.0.0.1` / `localhost` endpoints unless the user explicitly opts into a remote URL
+  - summarize long notes, suggest task breakdowns, draft event agendas, and explain plans through existing MCP read/write tools
+  - route writes through dry-run previews and confirmation IDs; no silent task/event/note mutations
+  - redact tokens/secrets, enforce context budgets, timeouts, cancellation, rate limits, and audit logs
+  - show model/provider health, last error, and privacy status in Settings/Diagnostics
+- Add in-app conversational planning sidebar:
+  - act as an MCP client to HCB's local tools/resources/prompts and a user-configured model
+  - answer planning questions like "what should I do next?" using Today/search/calendar/task context
+  - surface proposed writes through the Pending agent action tray
+  - keep chat history local, exportable, clearable, and excluded from remote services by default
+  - include prompt-injection guardrails for note/event/task content used as context
 - Add pinned filters in sidebar and menu-bar popover with count badges.
 - Split quick switcher and quick-add mental model if current command palette remains one surface:
   - `Cmd+O` for go/open
@@ -189,13 +247,15 @@ This is the single July 2026 planning todo. Items with current static evidence o
 ### Sandboxed extensions
 
 - Add user extension directory: `<userData>/extensions/<id>/{manifest.json,main.js}`.
-- Run extensions in an isolated context with no Node/Electron/fs/net/child_process access.
+- Run extension views as sandboxed renderer iframes or equivalent isolated web contents with no Node/Electron/fs/net/child_process access.
 - Expose only a versioned, capability-gated bridge.
 - Initial host API:
   - `registerCommand`
   - `onEvent`
   - `contributeView`
   - `getSetting` for whitelisted keys
+- Make plugin UI communicate only through a reduced preload/host bridge with schema validation, rate limits, and explicit capability grants.
+- Block remote code loading by default; require local packaged extension files and a strict extension CSP.
 - Add manifest capabilities and first-load user consent.
 - Add per-extension enable/disable, logs, requested capabilities, and safe mode.
 - Add sandbox escape tests, bridge contract tests, capability tests, and safe-mode tests.
@@ -206,6 +266,10 @@ This is the single July 2026 planning todo. Items with current static evidence o
 - Verify/finish portable `.hcbexport` / `.hcb2export` workflow:
   - manifest
   - state
+  - deterministic, stable-key JSON export for tasks, events, notes, lists, calendars, settings, links, and sync metadata
+  - sorted arrays and canonical object ordering so repeated exports can be git-diffed
+  - one-file-per-entity or domain-sharded layout suitable for `git init` audit trails
+  - omit or isolate volatile fields so unchanged planner state does not churn diffs
   - bundled attachments
   - SHA-256 verification
   - dry-run import diff
@@ -218,17 +282,28 @@ This is the single July 2026 planning todo. Items with current static evidence o
   - download/copy actions
   - portable metadata
 - Add local-pointer repair UI for broken attachment paths.
-- Add ICS calendar import into cached calendar writes.
+- Add ICS calendar import and watched ICS subscriptions:
+  - import local `.ics` files into cached calendar writes or a read-only local calendar source
+  - subscribe to user-configured `https://` / `webcal://` ICS URLs with refresh intervals and ETag/Last-Modified caching where available
+  - parse RFC 5545 `VEVENT`, `RRULE`, `RDATE`, `EXDATE`, time zones, all-day events, cancellations, and updates
+  - keep subscribed calendars read-only unless explicitly copied into HCB/Google
+  - show refresh status, parse errors, stale feeds, and last successful sync in Settings/Diagnostics
+  - avoid sending subscribed ICS data to Google unless the user explicitly imports/copies it
 - Add local export/report flows that are still missing after current print support.
 
 ## 7. Security, native Mac integration, and release polish
 
-- Verify/finish local cache encryption:
-  - AES-256-GCM or approved equivalent
-  - PBKDF2/Argon2 passphrase derivation if passphrase-based
-  - session unlock sheet
-  - key material outside SQLite
-  - migration/backup safety
+- Verify/finish local cache encryption as an opt-in, data-safety-gated feature:
+  - keep unencrypted SQLite as the default until encrypted-cache migration is proven by tests and manual recovery drills
+  - evaluate `better-sqlite3-multiple-ciphers` against current Electron/Node/macOS packaging, maintenance, license, prebuild, and deprecation risk
+  - prefer a SQLCipher-compatible cipher mode only if compatibility and long-term support are acceptable
+  - store a random database key in macOS Keychain through the existing secret-store layer; keep key material outside SQLite and out of renderer IPC
+  - do not encrypt a plaintext database in place; create a backup, checkpoint WAL, copy/export into a new encrypted database, verify, then atomically swap
+  - run `PRAGMA integrity_check`, schema checks, row-count/hash checks, and app-level read smoke checks before deleting or archiving the plaintext original
+  - retain rollback copies until the encrypted DB has opened successfully across restart and sync replay
+  - support explicit decrypt/export recovery while the user still has Keychain access
+  - document key-loss behavior clearly: encrypted cache is unrecoverable without the stored key, but Google source data can be re-synced after reconnect
+  - do not ship the settings toggle until migration, downgrade, backup restore, corrupt-key, missing-Keychain, and interrupted-write tests pass
 - Add sync mode selector:
   - manual
   - balanced
@@ -241,10 +316,32 @@ This is the single July 2026 planning todo. Items with current static evidence o
   - recoverable network errors
   - manual download prompt
   - no silent insecure update
-- Add Spotlight indexing where Electron/macOS permits it.
-- Add macOS Share target or documented share-target alternative for quick task capture.
-- Add App Intents/App Shortcuts only if a native helper is approved; otherwise document as non-goal.
+- Add native discovery helper for Spotlight, Raycast, and Alfred.
+  - tiny Swift/ObjC helper packaged with the Electron app
+  - index sanitized task/event/note/list titles into private on-device CoreSpotlight
+  - route Spotlight results back through `hcb://task/...`, `hcb://event/...`, `hcb://note/...`, and `hcb://today`
+  - keep bodies out of Spotlight by default; expose body indexing only behind an explicit privacy setting
+  - add reindex/repair controls and diagnostics
+  - add Raycast support via extension or script commands for search, today, quick capture, and open result
+  - add Alfred workflow support with script filters/actions for search, today, quick capture, and open result
+  - route Raycast/Alfred actions through `hcb://`, the CLI, or authenticated loopback MCP without exposing bearer tokens
+- Add App Intents / Shortcuts helper.
+  - expose App Shortcuts for Open Today, Quick Capture, What's Next, create task, create event, open task/event/note, and run saved search
+  - route helper actions back into Electron through deep links, the CLI, MCP tools, or a hardened local IPC bridge
+  - keep helper permissions narrow and avoid direct Google OAuth token access
+- Add macOS Share Extension for quick capture.
+  - accept selected text and URLs from host apps
+  - create task or note drafts
+  - prefer App Group drop file / queue if HCB is not running
+  - optionally call authenticated loopback MCP only when server is enabled and reachable
+  - sanitize shared input and surface failures without leaking source app data
 - Verify dock badge behavior end to end if only settings exist.
+- Add rich notification actions.
+  - actions: Snooze 10m, Complete, Open
+  - wire Snooze to `local_snooze_until`
+  - wire Complete through existing task/event complete handlers and pending mutation queue
+  - keep destructive actions confirmable where needed
+  - support background handling when the window is closed
 - Finish notification UX:
   - permission primer separate from onboarding if still absent
   - configurable lead times
@@ -253,6 +350,16 @@ This is the single July 2026 planning todo. Items with current static evidence o
   - 64-notification cap behavior
   - reschedule diagnostics
 - Add renderer History / Sync Issues window if diagnostics history is insufficient.
+- Expand agent-native MCP, CLI, and local automation surface:
+  - add `hcb_brief` read tool/resource returning one structured today summary with blocking tasks, overdue items, conflicts, suggested reorder, sync risk, and next events
+  - populate `promptRegistry.ts` with curated parameterized prompts for day planning, inbox triage, week review, standup-note summaries, reschedule planning, duplicate review, and support/debug
+  - add an in-app floating Pending agent action tray for queued `confirmationId`s, with approve/reject/expiry states and sanitized dry-run summaries
+  - add `hcb tail` CLI for live sync/log/mutation state, polling first and SSE only if the MCP transport grows stream support
+  - add `hcb plan` CLI that reads piped markdown, parses tasks/events/notes through shared NL parsing, previews candidates by default, and applies only with `--apply`
+  - add opt-in loopback webhooks for local POSTs on planner events such as task created/completed, event starting, mutation failed, and sync completed
+  - restrict webhook URLs to `127.0.0.1` / `localhost`, sign payloads with a local secret, rate-limit delivery, retry safely, and omit private bodies by default
+  - keep all agent/CLI/webhook output redacted and context-budgeted
+  - add tests for resource discovery, prompt discovery, prompt args, `hcb_brief` schema stability, confirmation tray approvals, `hcb tail`, `hcb plan`, and webhook validation/delivery
 - Audit MCP tool catalogue parity with original:
   - exact tool names
   - aliases such as `hcb_today`, `hcb_week`, `hcb_search`, `hcb_create_task`
@@ -285,9 +392,15 @@ This is the single July 2026 planning todo. Items with current static evidence o
   - reducers/stores
   - IPC contracts
   - search/filter DSL
+  - semantic embeddings/vector search
+  - local LLM provider adapters
+  - MCP conversational sidebar action approvals
   - keybindings
   - import/export verification
+  - deterministic portable export diff stability
+  - ICS import/subscription parsing and refresh
   - encryption
+  - multi-account sync and mutation isolation
   - notification scheduling
   - calendar recurrence
   - extension sandboxing
@@ -296,9 +409,22 @@ This is the single July 2026 planning todo. Items with current static evidence o
   - Kanban/areas/tags
   - calendar views
   - advanced search/pinned filters
+  - semantic search
+  - local LLM summaries/plans
+  - conversational planning sidebar
   - settings/customisation
   - import/export/attachments
+  - git-friendly `.hcb2export` output
+  - ICS imports/subscriptions
+  - multi-account merged Today and per-account filters
   - update checker
+  - Spotlight/Raycast/Alfred discovery
+  - App Intents/Shortcuts
+  - Share Extension
+  - rich notification actions
+  - pending agent action tray
+  - `hcb tail` and `hcb plan`
+  - loopback webhook delivery
   - share/intent flows where locally testable
 - Each completed slice must report:
   - implemented items
