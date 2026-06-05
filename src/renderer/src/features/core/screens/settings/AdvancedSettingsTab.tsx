@@ -203,7 +203,7 @@ export function AdvancedSettingsTab({
         <SettingsSwitch
           checked={settings.showCompletedInCalendarViews}
           icon={CalendarDays}
-          label="Show completed tasks and dismissed events in calendar views"
+          label="Show completed tasks and events in calendar views"
           onChange={(checked) => updateSettings({ showCompletedInCalendarViews: checked })}
         />
         <SettingsControlRow

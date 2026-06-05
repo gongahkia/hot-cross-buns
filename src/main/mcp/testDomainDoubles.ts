@@ -428,6 +428,38 @@ export function createMcpTestDomainServices(): McpTestDomainServices {
         state.events.set(id, updated);
         return cloneObject(updated);
       },
+      previewCompleteEvent: (id, input) =>
+        compactObject({
+          ...cloneExisting(state.events, id, "Event"),
+          scope: optionalText(input, "scope") ?? "occurrence",
+          targetStatus: "completed"
+        }),
+      completeEvent: (id, input) => {
+        const event = cloneExisting(state.events, id, "Event");
+        const updated = compactObject({
+          ...event,
+          completedAt: "2026-05-22T00:00:00.000Z",
+          completionScopeApplied: optionalText(input, "scope") ?? "occurrence"
+        });
+        state.events.set(id, updated);
+        return cloneObject(updated);
+      },
+      previewReopenEvent: (id, input) =>
+        compactObject({
+          ...cloneExisting(state.events, id, "Event"),
+          scope: optionalText(input, "scope") ?? "occurrence",
+          targetStatus: "open"
+        }),
+      reopenEvent: (id, input) => {
+        const event = cloneExisting(state.events, id, "Event");
+        const updated = compactObject({
+          ...event,
+          completedAt: null,
+          completionScopeApplied: optionalText(input, "scope") ?? "occurrence"
+        });
+        state.events.set(id, updated);
+        return cloneObject(updated);
+      },
       previewDeleteEvent: (id) => cloneExisting(state.events, id, "Event"),
       deleteEvent: (id) => {
         const event = cloneExisting(state.events, id, "Event");

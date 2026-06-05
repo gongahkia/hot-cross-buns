@@ -157,20 +157,6 @@ const hcbApi: HcbApi = {
         revision: now
       })
     ),
-    complete: vi.fn(async (request) =>
-      ok(testCalendarEvent({
-        id: request.id,
-        completedAt: now,
-        completionScopeApplied: request.scope ?? "occurrence"
-      }))
-    ),
-    reopen: vi.fn(async (request) =>
-      ok(testCalendarEvent({
-        id: request.id,
-        completedAt: null,
-        completionScopeApplied: request.scope ?? "occurrence"
-      }))
-    ),
     createTaskList: vi.fn(async (request) =>
       ok({
         id: "task-list-created",
@@ -253,6 +239,20 @@ const hcbApi: HcbApi = {
         queued: false,
         revision: now
       })
+    ),
+    complete: vi.fn(async (request) =>
+      ok(testCalendarEvent({
+        id: request.id,
+        completedAt: now,
+        completionScopeApplied: request.scope ?? "occurrence"
+      }))
+    ),
+    reopen: vi.fn(async (request) =>
+      ok(testCalendarEvent({
+        id: request.id,
+        completedAt: null,
+        completionScopeApplied: request.scope ?? "occurrence"
+      }))
     ),
     listScheduledTaskBlocks: vi.fn(async (request) =>
       ok({
