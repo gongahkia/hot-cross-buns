@@ -1,5 +1,6 @@
 import packageJson from "../../../package.json";
 import type {
+  CalendarEventCompletionScope,
   CalendarEventRecurrence,
   DiagnosticsLogLevel,
   SearchQueryRequest,
@@ -261,6 +262,34 @@ export function createMcpDomainServices(dependencies: McpDomainServiceDependenci
           ...repository.updateCalendarEvent({
             id,
             ...calendarEventPatchFromJson(patch)
+          })
+        }),
+      previewCompleteEvent: (id, input) =>
+        jsonObject({
+          ...repository.getCalendarEvent(id),
+          targetStatus: "completed",
+          scope: eventCompletionScopeFromJson(input)
+        }),
+      completeEvent: (id, input) =>
+        jsonObject({
+          kind: "event",
+          ...repository.completeCalendarEvent({
+            id,
+            scope: eventCompletionScopeFromJson(input)
+          })
+        }),
+      previewReopenEvent: (id, input) =>
+        jsonObject({
+          ...repository.getCalendarEvent(id),
+          targetStatus: "open",
+          scope: eventCompletionScopeFromJson(input)
+        }),
+      reopenEvent: (id, input) =>
+        jsonObject({
+          kind: "event",
+          ...repository.reopenCalendarEvent({
+            id,
+            scope: eventCompletionScopeFromJson(input)
           })
         }),
       previewDeleteEvent: (id) => jsonObject(repository.getCalendarEvent(id)),
@@ -591,6 +620,16 @@ function calendarEventPatchFromJson(patch: DomainJsonObject) {
     ...(optionalText(patch, "timeZone") === undefined ? {} : { timeZone: optionalText(patch, "timeZone") }),
     ...(optionalRecurrence(patch) === undefined ? {} : { recurrence: optionalRecurrence(patch) })
   };
+}
+
+function eventCompletionScopeFromJson(input: DomainJsonObject): CalendarEventCompletionScope {
+  const scope = optionalText(input, "scope");
+
+  if (scope === "seriesFuture" || scope === "seriesAll" || scope === "occurrence") {
+    return scope;
+  }
+
+  return "occurrence";
 }
 
 function defaultCalendarId(repository: LocalPlannerRepository): string {

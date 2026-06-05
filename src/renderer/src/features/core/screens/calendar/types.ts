@@ -11,6 +11,7 @@ export interface CalendarEventDraft {
   mode: "create" | "edit";
   id?: string;
   mutationState?: CalendarEventViewModel["mutationState"];
+  completedAt?: string | null;
   title: string;
   calendarId: string;
   colorId: string;

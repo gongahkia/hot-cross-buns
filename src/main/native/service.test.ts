@@ -49,6 +49,7 @@ function defaultSettings(overrides: Partial<SettingsSnapshot> = {}): SettingsSna
     toolbarActionOrder: ["commandPalette", "notifications", "diagnostics", "splitPane", "refresh", "settings"],
     hiddenCalendarViewModes: [],
     showCompletedInCalendarViews: true,
+    eventCompletionDefaultScope: "occurrence",
     calendarTimelineDensity: "compact",
     monthScrollPastMonths: 0,
     monthScrollFutureMonths: 1,

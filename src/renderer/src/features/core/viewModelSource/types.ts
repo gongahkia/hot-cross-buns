@@ -1,5 +1,6 @@
 import type {
   CalendarEventSummary,
+  CalendarEventCompletionScope,
   CalendarListSummary,
   CalendarScheduleSuggestResponse,
   DiagnosticsHealthResponse,
@@ -89,6 +90,8 @@ export interface CoreViewModelSource {
   updateTask: (request: TaskUpdateRequest) => Promise<boolean>;
   completeTask: (taskId: string) => Promise<boolean>;
   reopenTask: (taskId: string) => Promise<boolean>;
+  completeEvent: (eventId: string, scope?: CalendarEventCompletionScope) => Promise<boolean>;
+  reopenEvent: (eventId: string, scope?: CalendarEventCompletionScope) => Promise<boolean>;
   moveTask: (request: TaskMoveRequest) => Promise<boolean>;
   deleteTask: (taskId: string) => Promise<boolean>;
   createTaskList: (request: TaskListCreateRequest) => Promise<boolean>;
@@ -202,6 +205,8 @@ export interface CoreViewModelSourceOptions {
   updateTask: (request: TaskUpdateRequest) => Promise<boolean>;
   completeTask: (taskId: string) => Promise<boolean>;
   reopenTask: (taskId: string) => Promise<boolean>;
+  completeEvent: (eventId: string, scope?: CalendarEventCompletionScope) => Promise<boolean>;
+  reopenEvent: (eventId: string, scope?: CalendarEventCompletionScope) => Promise<boolean>;
   moveTask: (request: TaskMoveRequest) => Promise<boolean>;
   deleteTask: (taskId: string) => Promise<boolean>;
   createTaskList: (request: TaskListCreateRequest) => Promise<boolean>;

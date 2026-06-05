@@ -51,6 +51,8 @@ const writeToolNames = [
   "hcb_update_event",
   "hcb_complete_task",
   "hcb_reopen_task",
+  "hcb_complete_event",
+  "hcb_reopen_event",
   "hcb_move_task",
   "hcb_schedule_task_block",
   "hcb_settings_update",
@@ -227,6 +229,18 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
   }, ["id"]),
   writeTool("hcb_reopen_task", "Reopen a completed task.", false, {
     id: stringSchema("Task id."),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }, ["id"]),
+  writeTool("hcb_complete_event", "Mark an event complete in local HCB state.", false, {
+    id: stringSchema("Event id."),
+    scope: enumSchema(["occurrence", "seriesFuture", "seriesAll"]),
+    dryRun: booleanSchema("Preview without applying."),
+    confirmationId: stringSchema("Confirmation id returned by a dry-run.")
+  }, ["id"]),
+  writeTool("hcb_reopen_event", "Reopen a locally completed event.", false, {
+    id: stringSchema("Event id."),
+    scope: enumSchema(["occurrence", "seriesFuture", "seriesAll"]),
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
   }, ["id"]),
@@ -656,6 +670,18 @@ export class McpToolRegistry {
       hcb_reopen_task: {
         preview: (args) => this.services.tasks.previewReopenTask(requiredString(args, "id")),
         apply: (args) => this.services.tasks.reopenTask(requiredString(args, "id"))
+      },
+      hcb_complete_event: {
+        preview: (args) =>
+          this.services.calendar.previewCompleteEvent(requiredString(args, "id"), domainArguments(args)),
+        apply: (args) =>
+          this.services.calendar.completeEvent(requiredString(args, "id"), domainArguments(args))
+      },
+      hcb_reopen_event: {
+        preview: (args) =>
+          this.services.calendar.previewReopenEvent(requiredString(args, "id"), domainArguments(args)),
+        apply: (args) =>
+          this.services.calendar.reopenEvent(requiredString(args, "id"), domainArguments(args))
       },
       hcb_move_task: {
         preview: (args) =>

@@ -94,6 +94,7 @@ interface CalendarEventInstanceSnapshot extends Record<string, JsonValue> {
   endAt: string;
   isAllDay: number;
   status: string;
+  completedAt: string | null;
   updatedAt: string;
   deletedAt: string | null;
 }
@@ -414,6 +415,7 @@ export class LocalUndoRepository {
            end_at AS endAt,
            is_all_day AS isAllDay,
            status,
+           completed_at AS completedAt,
            updated_at AS updatedAt,
            deleted_at AS deletedAt
          FROM google_calendar_event_instances
@@ -1363,8 +1365,9 @@ function upsertCalendarEventInstanceOperation(
     kind: "run",
     sql: `INSERT INTO google_calendar_event_instances (
       id, account_id, calendar_id, event_id, google_event_id, recurring_event_id,
-      original_start_at, start_at, end_at, is_all_day, status, updated_at, deleted_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      original_start_at, start_at, end_at, is_all_day, status, completed_at,
+      updated_at, deleted_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       account_id = excluded.account_id,
       calendar_id = excluded.calendar_id,
@@ -1376,6 +1379,7 @@ function upsertCalendarEventInstanceOperation(
       end_at = excluded.end_at,
       is_all_day = excluded.is_all_day,
       status = excluded.status,
+      completed_at = excluded.completed_at,
       updated_at = excluded.updated_at,
       deleted_at = excluded.deleted_at;`,
     params: [
@@ -1390,6 +1394,7 @@ function upsertCalendarEventInstanceOperation(
       instance.endAt,
       instance.isAllDay,
       instance.status,
+      instance.completedAt,
       now,
       instance.deletedAt
     ]

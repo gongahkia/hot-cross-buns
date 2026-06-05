@@ -117,6 +117,8 @@ export const calendarEventSummarySchema = z
     reminderMinutes: z.array(reminderMinutesSchema).max(10).optional(),
     conference: calendarConferenceSchema.nullable().optional(),
     mutationState: z.enum(["synced", "queued", "failed"]).optional(),
+    completedAt: isoDateTimeSchema.nullable().optional(),
+    completionScopeApplied: z.enum(["occurrence", "seriesFuture", "seriesAll"]).optional(),
     timeZone: z.string().min(1).max(120).nullable().optional(),
     recurrenceRule: z.string().min(1).max(1_000).nullable().optional(),
     recurringEventId: z.string().min(1).max(256).nullable().optional(),
@@ -153,6 +155,25 @@ export const calendarEventDetailSchema = calendarEventSummarySchema
   .strict();
 
 export type CalendarEventDetail = z.infer<typeof calendarEventDetailSchema>;
+
+export const calendarEventCompletionScopeSchema = z.enum([
+  "occurrence",
+  "seriesFuture",
+  "seriesAll"
+]);
+
+export type CalendarEventCompletionScope = z.infer<typeof calendarEventCompletionScopeSchema>;
+
+export const calendarEventCompletionRequestSchema = z
+  .object({
+    id: idSchema,
+    scope: calendarEventCompletionScopeSchema.optional()
+  })
+  .strict();
+
+export type CalendarEventCompletionRequest = z.input<
+  typeof calendarEventCompletionRequestSchema
+>;
 
 const calendarEventWriteFieldsSchema = z
   .object({

@@ -58,6 +58,7 @@ export function stableCalendarEventViewModel(
     (event.reminderMinutes ?? []).join("\u001f"),
     event.conference ? JSON.stringify(event.conference) : "",
     event.mutationState ?? "",
+    event.completedAt ?? "",
     event.recurrenceRule ?? "",
     calendarTitle ?? "",
     calendarBackgroundColor ?? "",
@@ -84,6 +85,7 @@ export function stableCalendarEventViewModel(
     calendarForegroundColor: calendarForegroundColor ?? null,
     displayBackgroundColor: displayColor.background,
     displayForegroundColor: displayColor.foreground,
+    completedAt: event.completedAt ?? null,
     timeLabel: event.allDay ? "All day" : timeLabel(event.startsAt, timeZone),
     rangeLabel: event.allDay
       ? allDayRangeLabel(event.startsAt, event.endsAt)
@@ -159,6 +161,7 @@ export function stableTaskCalendarEventViewModel(
     reminderMinutes: [],
     conference: null,
     mutationState: task.mutationState,
+    completedAt: null,
     recurrenceRule: null
   };
 
@@ -227,6 +230,7 @@ export function stableProjectedTaskCalendarEventViewModel(
     reminderMinutes: [],
     conference: null,
     mutationState: task.mutationState,
+    completedAt: null,
     recurrenceRule: null
   };
 

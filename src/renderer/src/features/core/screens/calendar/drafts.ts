@@ -55,6 +55,7 @@ export function newCalendarDraft(
   return {
     mode: "create",
     mutationState: undefined,
+    completedAt: null,
     title: "",
     calendarId: defaultCalendarId(source),
     colorId: "",
@@ -83,6 +84,7 @@ export function editCalendarDraft(event: CalendarEventViewModel): CalendarEventD
     mode: "edit",
     id: event.id,
     mutationState: event.mutationState,
+    completedAt: event.completedAt ?? null,
     title: event.title,
     calendarId: event.calendarId,
     colorId: event.colorId ?? "",

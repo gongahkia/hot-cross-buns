@@ -26,6 +26,12 @@ export const navigationTabSchema = z.enum(navigationTabIds);
 export const toolbarActionSchema = z.enum(toolbarActionIds);
 export const calendarViewModeSchema = z.enum(["agenda", "day", "multiDay", "week", "month"]);
 export const calendarTimelineDensitySchema = z.enum(["compact", "comfortable", "spacious"]);
+export const eventCompletionDefaultScopeSchema = z.enum([
+  "occurrence",
+  "seriesFuture",
+  "seriesAll",
+  "ask"
+]);
 export const trayClickActionSchema = z.enum([
   "open-menu",
   "toggle-window",
@@ -223,6 +229,7 @@ export const settingsSnapshotSchema = z
     toolbarActionOrder: z.array(toolbarActionSchema).max(defaultToolbarActionOrder.length),
     hiddenCalendarViewModes: z.array(calendarViewModeSchema).max(4),
     showCompletedInCalendarViews: z.boolean(),
+    eventCompletionDefaultScope: eventCompletionDefaultScopeSchema,
     calendarTimelineDensity: calendarTimelineDensitySchema,
     monthScrollPastMonths: z.number().int().min(0).max(24),
     monthScrollFutureMonths: z.number().int().min(0).max(24),
@@ -299,6 +306,7 @@ export const settingsUpdateRequestSchema = z
     toolbarActionOrder: z.array(toolbarActionSchema).max(defaultToolbarActionOrder.length).optional(),
     hiddenCalendarViewModes: z.array(calendarViewModeSchema).max(4).optional(),
     showCompletedInCalendarViews: z.boolean().optional(),
+    eventCompletionDefaultScope: eventCompletionDefaultScopeSchema.optional(),
     calendarTimelineDensity: calendarTimelineDensitySchema.optional(),
     monthScrollPastMonths: z.number().int().min(0).max(24).optional(),
     monthScrollFutureMonths: z.number().int().min(0).max(24).optional(),

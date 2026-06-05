@@ -207,6 +207,10 @@ export function definedSettingsPatch(request: SettingsUpdateRequest): Partial<Se
     patch.showCompletedInCalendarViews = request.showCompletedInCalendarViews;
   }
 
+  if (request.eventCompletionDefaultScope !== undefined) {
+    patch.eventCompletionDefaultScope = request.eventCompletionDefaultScope;
+  }
+
   if (request.calendarTimelineDensity !== undefined) {
     patch.calendarTimelineDensity = request.calendarTimelineDensity;
   }

@@ -151,6 +151,7 @@ export function calendarEventSummary(row: CalendarEventRow): CalendarEventSummar
     endsAt: row.endsAt,
     allDay: row.allDay === 1,
     updatedAt: row.updatedAt,
+    completedAt: row.completedAt ?? null,
     location: truncateText(row.location ?? "", textLimits.eventLocation),
     notes: truncateText(row.notes ?? "", textLimits.eventNotes),
     guestEmails: parseStringArray(row.guestEmailsJson).slice(0, 50),

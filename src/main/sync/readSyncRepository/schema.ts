@@ -4,6 +4,7 @@ export function ensureGoogleSyncSchema(connection: SqliteConnection, defaultTime
   connection.exec(GOOGLE_SYNC_SCHEMA);
   ensureTaskColumns(connection);
   ensureEventColumns(connection, defaultTimeZone);
+  ensureEventInstanceColumns(connection);
   ensureSearchIndexes(connection);
 }
 
@@ -55,6 +56,23 @@ function ensureEventColumns(connection: SqliteConnection, defaultTimeZone: strin
      SET local_time_zone = COALESCE(NULLIF(start_time_zone, ''), NULLIF(end_time_zone, ''), ?)
      WHERE local_time_zone IS NULL OR TRIM(local_time_zone) = '';`,
     [defaultTimeZone]
+  );
+}
+
+function ensureEventInstanceColumns(connection: SqliteConnection): void {
+  const existingColumns = new Set(
+    connection
+      .query<{ name: string }>("PRAGMA table_info(google_calendar_event_instances);")
+      .map((row) => row.name)
+  );
+
+  if (!existingColumns.has("completed_at")) {
+    connection.exec("ALTER TABLE google_calendar_event_instances ADD COLUMN completed_at TEXT;");
+  }
+
+  connection.exec(
+    `CREATE INDEX IF NOT EXISTS idx_google_calendar_event_instances_completion
+       ON google_calendar_event_instances(event_id, completed_at, start_at, id);`
   );
 }
 
@@ -361,6 +379,7 @@ CREATE TABLE IF NOT EXISTS google_calendar_event_instances (
   end_at TEXT NOT NULL,
   is_all_day INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL,
+  completed_at TEXT,
   updated_at TEXT NOT NULL,
   deleted_at TEXT,
   UNIQUE(account_id, calendar_id, event_id, start_at)
@@ -371,6 +390,9 @@ CREATE INDEX IF NOT EXISTS idx_google_calendar_event_instances_visible_range
 
 CREATE INDEX IF NOT EXISTS idx_google_calendar_event_instances_event
   ON google_calendar_event_instances(event_id, deleted_at);
+
+CREATE INDEX IF NOT EXISTS idx_google_calendar_event_instances_completion
+  ON google_calendar_event_instances(event_id, completed_at, start_at, id);
 
 CREATE TABLE IF NOT EXISTS local_scheduled_task_blocks (
   id TEXT PRIMARY KEY,

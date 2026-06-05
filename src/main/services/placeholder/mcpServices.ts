@@ -316,6 +316,34 @@ export function createMcpDomainServices(state: PlaceholderState): McpDomainServi
         state.sync.pendingMutationCount += 1;
         return calendarJson(event);
       },
+      previewCompleteEvent: (id, input) => ({
+        ...calendarJson(requiredById(state.calendarEvents, id, "Event")),
+        targetStatus: "completed",
+        scope: optionalText(input, "scope") ?? "occurrence"
+      }),
+      completeEvent: (id, input) => {
+        const event = requiredById(state.calendarEvents, id, "Event");
+        event.completedAt = new Date().toISOString();
+        event.updatedAt = event.completedAt;
+        return {
+          ...calendarJson(event),
+          completionScopeApplied: optionalText(input, "scope") ?? "occurrence"
+        };
+      },
+      previewReopenEvent: (id, input) => ({
+        ...calendarJson(requiredById(state.calendarEvents, id, "Event")),
+        targetStatus: "open",
+        scope: optionalText(input, "scope") ?? "occurrence"
+      }),
+      reopenEvent: (id, input) => {
+        const event = requiredById(state.calendarEvents, id, "Event");
+        event.completedAt = null;
+        event.updatedAt = new Date().toISOString();
+        return {
+          ...calendarJson(event),
+          completionScopeApplied: optionalText(input, "scope") ?? "occurrence"
+        };
+      },
       previewDeleteEvent: (id) => calendarJson(requiredById(state.calendarEvents, id, "Event")),
       deleteEvent: (id) => {
         const index = state.calendarEvents.findIndex((candidate) => candidate.id === id);

@@ -94,6 +94,7 @@ interface ParsedCommand {
   mutationLimit?: number;
   query?: string;
   scope?: string;
+  eventCompletionScope?: string;
   startDate?: string;
   endDate?: string;
   location?: string;
@@ -224,7 +225,11 @@ export function parseCommand(argv: string[]): ParsedCommand {
     if (arg === "--scope") {
       const value = args[index + 1];
       index += 1;
-      parsed.scope = parseScope(value);
+      if (command === "complete" || command === "reopen") {
+        parsed.eventCompletionScope = parseEventCompletionScope(value);
+      } else {
+        parsed.scope = parseScope(value);
+      }
       continue;
     }
 
@@ -559,7 +564,7 @@ export function parseCommand(argv: string[]): ParsedCommand {
     parsed.id = positional[1];
 
     if (!parsed.id || positional.length !== 2) {
-      throw new CliError(`Usage: pnpm hcb -- ${command} task <id>`, 2);
+      throw new CliError(`Usage: pnpm hcb -- ${command} <task|event> <id>`, 2);
     }
 
     validateTaskStateCommand(parsed);
@@ -663,6 +668,13 @@ export function parseCommand(argv: string[]): ParsedCommand {
     throw new CliError(`--scope is only supported by search.`, 2);
   }
 
+  if (
+    parsed.eventCompletionScope !== undefined &&
+    (command !== "complete" && command !== "reopen" || parsed.target !== "event")
+  ) {
+    throw new CliError("--scope is only supported by complete/reopen event.", 2);
+  }
+
   if (parsed.startDate !== undefined && command !== "week" && command !== "create" && command !== "update" && command !== "schedule") {
     throw new CliError(`--start-date is only supported by week, create event, update event, and schedule task.`, 2);
   }
@@ -727,6 +739,10 @@ export async function callCommand(
 
   if (command.scope !== undefined) {
     args.scope = command.scope;
+  }
+
+  if (command.eventCompletionScope !== undefined) {
+    args.scope = command.eventCompletionScope;
   }
 
   if (command.command === "week" && command.startDate !== undefined) {
@@ -1398,6 +1414,10 @@ function writeApplyCommand(command: ParsedCommand, response: McpToolResponse): s
     pushFlagValue(args, "--previous-sibling-id", command.previousSiblingId);
   }
 
+  if ((command.command === "complete" || command.command === "reopen") && command.target === "event") {
+    pushFlag(args, "--scope", cliEventCompletionScope(command.eventCompletionScope));
+  }
+
   if (command.command === "schedule") {
     pushFlag(args, "--calendar-id", command.calendarId);
     pushFlag(args, "--start-date", command.startDate);
@@ -1563,8 +1583,8 @@ function helpText(): string {
     "  create <kind> [options]                 dry-run create a task, note, event, or list",
     "  update <kind> <id> [options]            dry-run update a task, note, or event",
     "  rename <kind> <id> --title <title>      dry-run rename a task-list or note-list",
-    "  complete task <id>                      dry-run complete a task",
-    "  reopen task <id>                        dry-run reopen a task",
+    "  complete <task|event> <id> [--scope s]  dry-run complete a task or event",
+    "  reopen <task|event> <id> [--scope s]    dry-run reopen a task or event",
     "  move task <id> [options]                dry-run move a task",
     "  delete <kind> <id>                      dry-run delete a task, note, event, or list",
     "  undo                                    dry-run undo latest planner write",
@@ -1601,6 +1621,7 @@ function helpText(): string {
     "  pnpm hcb -- update event event-id --recurrence-frequency weekly --recurrence-by-day MO,WE",
     "  pnpm hcb -- rename task-list list-id --title 'Errands'",
     "  pnpm hcb -- complete task task-id",
+    "  pnpm hcb -- complete event event-id --scope occurrence",
     "  pnpm hcb -- move task task-id --task-list-id list-id",
     "  pnpm hcb -- move task task-id --parent-id parent-id --previous-sibling-id null",
     "  pnpm hcb -- delete task task-id",
@@ -1722,8 +1743,16 @@ function toolName(command: ParsedCommand): string {
 
       throw new CliError("Unknown rename target.", 2);
     case "complete":
+      if (command.target === "event") {
+        return "hcb_complete_event";
+      }
+
       return "hcb_complete_task";
     case "reopen":
+      if (command.target === "event") {
+        return "hcb_reopen_event";
+      }
+
       return "hcb_reopen_task";
     case "move":
       return "hcb_move_task";
@@ -1880,6 +1909,34 @@ function parseScope(value: string | undefined): string {
   }
 
   throw new CliError("Scope must be one of: all, tasks, notes, events, lists, calendars.", 2);
+}
+
+function parseEventCompletionScope(value: string | undefined): string {
+  if (value === "occurrence") {
+    return "occurrence";
+  }
+
+  if (value === "series-future" || value === "seriesFuture") {
+    return "seriesFuture";
+  }
+
+  if (value === "series-all" || value === "seriesAll") {
+    return "seriesAll";
+  }
+
+  throw new CliError("Event completion scope must be one of: occurrence, series-future, series-all.", 2);
+}
+
+function cliEventCompletionScope(value: string | undefined): string | undefined {
+  if (value === "seriesFuture") {
+    return "series-future";
+  }
+
+  if (value === "seriesAll") {
+    return "series-all";
+  }
+
+  return value;
 }
 
 function parseStartDate(value: string | undefined): string {
@@ -2085,11 +2142,11 @@ function parseDeleteTarget(value: string | undefined): string {
 }
 
 function parseTaskStateTarget(value: string | undefined, command: string): string {
-  if (value === "task") {
+  if (value === "task" || value === "event") {
     return value;
   }
 
-  throw new CliError(`${command} target must be task.`, 2);
+  throw new CliError(`${command} target must be task or event.`, 2);
 }
 
 function parseSettingsAction(value: string | undefined): string {
@@ -2165,6 +2222,7 @@ function hasWriteOnlyOptions(command: ParsedCommand): boolean {
     command.recurrenceCount !== undefined ||
     command.recurrenceByDay !== undefined ||
     command.clearRecurrence === true ||
+    command.eventCompletionScope !== undefined ||
     command.patchJson !== undefined ||
     command.clientId !== undefined ||
     command.clientSecret !== undefined ||

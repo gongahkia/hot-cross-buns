@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import type {
   AvailabilityExportRequest,
   AvailabilityExportResponse,
+  CalendarEventCompletionRequest,
+  CalendarEventCompletionScope,
   CalendarEventCreateRequest,
   CalendarEventDeleteRequest,
   CalendarEventDetail,
@@ -103,6 +105,7 @@ export class CalendarLocalRepository extends TaskLocalRepository {
            instances.start_at AS startsAt,
            instances.end_at AS endsAt,
            instances.is_all_day AS allDay,
+           instances.completed_at AS completedAt,
            instances.updated_at AS updatedAt,
            events.location AS location,
            events.description AS notes,
@@ -293,6 +296,14 @@ export class CalendarLocalRepository extends TaskLocalRepository {
     });
   }
 
+  completeCalendarEvent(request: CalendarEventCompletionRequest): CalendarEventDetail {
+    return this.setCalendarEventCompletion(request, true);
+  }
+
+  reopenCalendarEvent(request: CalendarEventCompletionRequest): CalendarEventDetail {
+    return this.setCalendarEventCompletion(request, false);
+  }
+
   deleteCalendarEvent(request: CalendarEventDeleteRequest): { id: string; queued: boolean; revision: string } {
     return this.measureSqlite("calendar.delete", () => {
       const existing = this.findCalendarEventRow(request.id);
@@ -340,6 +351,49 @@ export class CalendarLocalRepository extends TaskLocalRepository {
     });
   }
 
+  private setCalendarEventCompletion(
+    request: CalendarEventCompletionRequest,
+    completed: boolean
+  ): CalendarEventDetail {
+    return this.measureSqlite(completed ? "calendar.complete" : "calendar.reopen", () => {
+      const existing = this.findCalendarEventRow(request.id);
+
+      if (!existing) {
+        throw notFound("Calendar event was not found.");
+      }
+
+      const now = new Date().toISOString();
+      const scope = request.scope ?? "occurrence";
+      const predicate = calendarEventCompletionPredicate(scope);
+      const params =
+        scope === "seriesFuture"
+          ? [completed ? now : null, now, existing.eventId, existing.startsAt]
+          : scope === "seriesAll"
+            ? [completed ? now : null, now, existing.eventId]
+            : [completed ? now : null, now, existing.id];
+
+      this.connection.run(
+        `UPDATE google_calendar_event_instances
+         SET completed_at = ?, updated_at = ?
+         WHERE ${predicate}
+           AND deleted_at IS NULL
+           AND status != 'cancelled';`,
+        params
+      );
+      this.recordHistory({
+        kind: completed ? "event.complete" : "event.reopen",
+        resourceId: existing.eventId,
+        summary: completed ? "Completed calendar event" : "Reopened calendar event",
+        metadata: { queued: false, calendarId: existing.calendarId, scope }
+      });
+
+      return {
+        ...this.getCalendarEvent(existing.id),
+        completionScopeApplied: scope
+      };
+    });
+  }
+
   exportAvailability(request: AvailabilityExportRequest): AvailabilityExportResponse {
     return this.measureSqlite("calendar.exportAvailability", () => {
       const generatedAt = new Date().toISOString();
@@ -349,7 +403,8 @@ export class CalendarLocalRepository extends TaskLocalRepository {
         ...(request.calendarIds === undefined ? {} : { calendarIds: request.calendarIds }),
         limit: 500
       }).items;
-      const busyLines = events.map((event) => availabilityLine(event));
+      const busyEvents = events.filter((event) => event.completedAt === null || event.completedAt === undefined);
+      const busyLines = busyEvents.map((event) => availabilityLine(event));
 
       return {
         format: "text",
@@ -359,7 +414,7 @@ export class CalendarLocalRepository extends TaskLocalRepository {
           ...busyLines
         ].join("\n"),
         generatedAt,
-        busyBlockCount: events.length
+        busyBlockCount: busyEvents.length
       };
     });
   }
@@ -376,6 +431,7 @@ export class CalendarLocalRepository extends TaskLocalRepository {
            COALESCE(instances.start_at, events.start_at) AS startsAt,
            COALESCE(instances.end_at, events.end_at) AS endsAt,
            COALESCE(instances.is_all_day, events.is_all_day) AS allDay,
+           instances.completed_at AS completedAt,
            COALESCE(instances.updated_at, events.updated_at) AS updatedAt,
            events.location AS location,
            events.description AS notes,
@@ -478,4 +534,16 @@ export class CalendarLocalRepository extends TaskLocalRepository {
 
     return row;
   }
+}
+
+function calendarEventCompletionPredicate(scope: CalendarEventCompletionScope): string {
+  if (scope === "seriesFuture") {
+    return "event_id = ? AND start_at >= ?";
+  }
+
+  if (scope === "seriesAll") {
+    return "event_id = ?";
+  }
+
+  return "id = ?";
 }

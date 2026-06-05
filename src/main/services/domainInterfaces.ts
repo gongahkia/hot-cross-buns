@@ -5,6 +5,7 @@ import type {
   CalendarRangeResponse,
   CalendarScheduleSuggestRequest,
   CalendarScheduleSuggestResponse,
+  CalendarEventCompletionRequest,
   CalendarEventCreateRequest,
   CalendarEventDeleteRequest,
   CalendarEventDetail,
@@ -139,6 +140,10 @@ export interface CalendarDomainService {
   createEvent: (input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
   previewUpdateEvent: (id: string, patch: DomainJsonObject) => MaybePromise<DomainJsonObject>;
   updateEvent: (id: string, patch: DomainJsonObject) => MaybePromise<DomainJsonObject>;
+  previewCompleteEvent: (id: string, input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
+  completeEvent: (id: string, input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
+  previewReopenEvent: (id: string, input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
+  reopenEvent: (id: string, input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
   previewDeleteEvent: (id: string) => MaybePromise<DomainJsonObject>;
   deleteEvent: (id: string) => MaybePromise<DomainJsonObject>;
   previewScheduleTaskBlock: (input: DomainJsonObject) => MaybePromise<DomainJsonObject>;
@@ -202,6 +207,8 @@ export interface PlannerViewDomainService {
   getCalendarEvent: (request: EntityByIdRequest) => MaybePromise<CalendarEventDetail>;
   createCalendarEvent: (request: CalendarEventCreateRequest) => MaybePromise<CalendarEventDetail>;
   updateCalendarEvent: (request: CalendarEventUpdateRequest) => MaybePromise<CalendarEventDetail>;
+  completeCalendarEvent: (request: CalendarEventCompletionRequest) => MaybePromise<CalendarEventDetail>;
+  reopenCalendarEvent: (request: CalendarEventCompletionRequest) => MaybePromise<CalendarEventDetail>;
   deleteCalendarEvent: (request: CalendarEventDeleteRequest) => MaybePromise<{
     id: string;
     queued: boolean;

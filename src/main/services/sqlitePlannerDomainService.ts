@@ -173,6 +173,34 @@ export function createSqlitePlannerDomainService(
       });
       return updated;
     },
+    completeCalendarEvent: (request) => {
+      const beforeDetail = repository.getCalendarEvent(request.id);
+      const before = undoRepository?.calendarEventSnapshot(beforeDetail.eventId) ?? null;
+      const completed = repository.completeCalendarEvent(request);
+      recordUndo({
+        actionKind: "calendar.events.complete",
+        label: "Complete event",
+        resourceKind: "calendarEvent",
+        resourceId: completed.eventId,
+        before,
+        after: undoRepository?.calendarEventSnapshot(completed.eventId)
+      });
+      return completed;
+    },
+    reopenCalendarEvent: (request) => {
+      const beforeDetail = repository.getCalendarEvent(request.id);
+      const before = undoRepository?.calendarEventSnapshot(beforeDetail.eventId) ?? null;
+      const reopened = repository.reopenCalendarEvent(request);
+      recordUndo({
+        actionKind: "calendar.events.reopen",
+        label: "Reopen event",
+        resourceKind: "calendarEvent",
+        resourceId: reopened.eventId,
+        before,
+        after: undoRepository?.calendarEventSnapshot(reopened.eventId)
+      });
+      return reopened;
+    },
     deleteCalendarEvent: (request) => {
       const before = undoRepository?.calendarEventSnapshot(request.id) ?? null;
       const deleted = repository.deleteCalendarEvent(request);
@@ -240,7 +268,7 @@ export function createSqlitePlannerDomainService(
 
       return buildDaySchedule({
         date: request.date,
-        events,
+        events: events.filter((event) => event.completedAt === null || event.completedAt === undefined),
         tasks,
         capacityMinutes: request.capacityMinutes ?? 480,
         workingHours: {

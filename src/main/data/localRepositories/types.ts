@@ -72,6 +72,7 @@ export interface CalendarEventRow extends Record<string, unknown> {
   startsAt: string;
   endsAt: string;
   allDay: number;
+  completedAt: string | null;
   updatedAt: string;
   location: string | null;
   notes: string | null;

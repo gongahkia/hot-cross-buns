@@ -28,6 +28,7 @@ const DEFAULT_SETTINGS: SettingsSnapshot = {
   toolbarActionOrder: defaultToolbarActionOrder,
   hiddenCalendarViewModes: [],
   showCompletedInCalendarViews: true,
+  eventCompletionDefaultScope: "occurrence",
   calendarTimelineDensity: "compact",
   monthScrollPastMonths: 0,
   monthScrollFutureMonths: 1,
@@ -150,6 +151,13 @@ export class LocalSettingsRepository {
         "calendar",
         "showCompletedInViews",
         DEFAULT_SETTINGS.showCompletedInCalendarViews
+      ),
+      eventCompletionDefaultScope: normalizeEventCompletionDefaultScope(
+        this.readSetting(
+          "calendar",
+          "eventCompletionDefaultScope",
+          DEFAULT_SETTINGS.eventCompletionDefaultScope
+        )
       ),
       calendarTimelineDensity: this.readSetting(
         "calendar",
@@ -441,6 +449,15 @@ export class LocalSettingsRepository {
 
     if (request.showCompletedInCalendarViews !== undefined) {
       this.writeSetting("calendar", "showCompletedInViews", request.showCompletedInCalendarViews, now);
+    }
+
+    if (request.eventCompletionDefaultScope !== undefined) {
+      this.writeSetting(
+        "calendar",
+        "eventCompletionDefaultScope",
+        request.eventCompletionDefaultScope,
+        now
+      );
     }
 
     if (request.calendarTimelineDensity !== undefined) {
@@ -890,6 +907,21 @@ function normalizeTrayClickAction(value: unknown): SettingsSnapshot["trayClickAc
   }
 
   return "open-menu";
+}
+
+function normalizeEventCompletionDefaultScope(
+  value: unknown
+): SettingsSnapshot["eventCompletionDefaultScope"] {
+  if (
+    value === "occurrence" ||
+    value === "seriesFuture" ||
+    value === "seriesAll" ||
+    value === "ask"
+  ) {
+    return value;
+  }
+
+  return "occurrence";
 }
 
 function normalizeMenuBarIconName(value: unknown): SettingsSnapshot["menuBarIconName"] {

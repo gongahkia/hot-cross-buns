@@ -5,6 +5,7 @@ import type {
   CalendarRangeResponse,
   CalendarScheduleSuggestRequest,
   CalendarScheduleSuggestResponse,
+  CalendarEventCompletionRequest,
   CalendarEventCreateRequest,
   CalendarEventDeleteRequest,
   CalendarEventDetail,
@@ -113,6 +114,8 @@ export interface HcbApi {
     get: (request: EntityByIdRequest) => Promise<HcbResult<CalendarEventDetail>>;
     create: (request: CalendarEventCreateRequest) => Promise<HcbResult<CalendarEventDetail>>;
     update: (request: CalendarEventUpdateRequest) => Promise<HcbResult<CalendarEventDetail>>;
+    complete: (request: CalendarEventCompletionRequest) => Promise<HcbResult<CalendarEventDetail>>;
+    reopen: (request: CalendarEventCompletionRequest) => Promise<HcbResult<CalendarEventDetail>>;
     delete: (request: CalendarEventDeleteRequest) => Promise<HcbResult<MutationAck>>;
     listScheduledTaskBlocks: (
       request: ScheduledTaskBlockListRequest

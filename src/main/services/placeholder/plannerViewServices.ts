@@ -264,6 +264,34 @@ export function createPlaceholderPlannerViewService(
       state.sync.pendingMutationCount += 1;
       return calendarDetail(event);
     },
+    completeCalendarEvent: (request) => {
+      const event = state.calendarEvents.find((candidate) => candidate.id === request.id);
+
+      if (!event) {
+        throw new Error("Calendar event was not found.");
+      }
+
+      event.completedAt = new Date().toISOString();
+      event.updatedAt = event.completedAt;
+      return {
+        ...calendarDetail(event),
+        completionScopeApplied: request.scope ?? "occurrence"
+      };
+    },
+    reopenCalendarEvent: (request) => {
+      const event = state.calendarEvents.find((candidate) => candidate.id === request.id);
+
+      if (!event) {
+        throw new Error("Calendar event was not found.");
+      }
+
+      event.completedAt = null;
+      event.updatedAt = new Date().toISOString();
+      return {
+        ...calendarDetail(event),
+        completionScopeApplied: request.scope ?? "occurrence"
+      };
+    },
     deleteCalendarEvent: ({ id }) => {
       const index = state.calendarEvents.findIndex((candidate) => candidate.id === id);
 
@@ -414,7 +442,7 @@ export function createPlaceholderPlannerViewService(
       const start = `${request.date}T00:00:00.000Z`;
       const end = new Date(Date.parse(start) + 24 * 60 * 60 * 1000).toISOString();
       const events = state.calendarEvents.filter(
-        (event) => event.startsAt < end && event.endsAt > start
+        (event) => event.startsAt < end && event.endsAt > start && event.completedAt == null
       );
 
       return buildDaySchedule({
@@ -439,7 +467,8 @@ export function createPlaceholderPlannerViewService(
           (calendarIds.size === 0 || calendarIds.has(event.calendarId))
         );
       });
-      const busyLines = events.map(
+      const busyEvents = events.filter((event) => event.completedAt == null);
+      const busyLines = busyEvents.map(
         (event) => `- ${event.startsAt} to ${event.endsAt}: ${event.title}`
       );
 
@@ -451,7 +480,7 @@ export function createPlaceholderPlannerViewService(
           ...busyLines
         ].join("\n"),
         generatedAt: new Date().toISOString(),
-        busyBlockCount: events.length
+        busyBlockCount: busyEvents.length
       };
     },
     listCalendars: (request) =>

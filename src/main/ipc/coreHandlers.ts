@@ -1,6 +1,7 @@
 import {
   ipcContracts,
   type AvailabilityExportRequest,
+  type CalendarEventCompletionRequest,
   type CalendarListRequest,
   type CalendarEventCreateRequest,
   type CalendarEventDeleteRequest,
@@ -111,6 +112,14 @@ export function createCoreIpcHandlers(services: AppDomainServices): IpcHandlerDe
     {
       contract: ipcContracts.calendar.update,
       handle: (request) => services.planner.updateCalendarEvent(request as CalendarEventUpdateRequest)
+    },
+    {
+      contract: ipcContracts.calendar.complete,
+      handle: (request) => services.planner.completeCalendarEvent(request as CalendarEventCompletionRequest)
+    },
+    {
+      contract: ipcContracts.calendar.reopen,
+      handle: (request) => services.planner.reopenCalendarEvent(request as CalendarEventCompletionRequest)
     },
     {
       contract: ipcContracts.calendar.delete,

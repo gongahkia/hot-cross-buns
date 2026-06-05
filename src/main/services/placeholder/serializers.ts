@@ -46,6 +46,7 @@ export function calendarSummary(event: CalendarRecord): CalendarEventSummary {
     endsAt: event.endsAt,
     allDay: event.allDay,
     updatedAt: event.updatedAt,
+    completedAt: event.completedAt ?? null,
     location: event.location ?? "",
     notes: event.notes ?? "",
     guestEmails: event.guestEmails ?? [],

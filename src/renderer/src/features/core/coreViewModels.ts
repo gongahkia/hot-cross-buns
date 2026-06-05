@@ -75,6 +75,7 @@ export interface CalendarEventViewModel {
   calendarForegroundColor?: string | null;
   displayBackgroundColor?: string | null;
   displayForegroundColor?: string | null;
+  completedAt?: string | null;
   timeLabel: string;
   rangeLabel: string;
   startsAt: string;

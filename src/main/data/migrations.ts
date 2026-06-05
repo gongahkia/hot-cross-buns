@@ -369,6 +369,37 @@ CREATE TABLE IF NOT EXISTS local_undo_entries (
 CREATE INDEX IF NOT EXISTS idx_local_undo_entries_stack
   ON local_undo_entries(session_id, stack, created_at DESC, id DESC);
 `
+  },
+  {
+    version: 11,
+    name: "calendar event instance completion",
+    operations: (connection) => {
+      if (!tableExists(connection, "google_calendar_event_instances")) {
+        return [];
+      }
+
+      const columns = new Set(
+        connection
+          .query<{ name: string }>("PRAGMA table_info(google_calendar_event_instances);")
+          .map((row) => row.name)
+      );
+      const operations: SqliteWriteOperation[] = [];
+
+      if (!columns.has("completed_at")) {
+        operations.push({
+          kind: "run",
+          sql: "ALTER TABLE google_calendar_event_instances ADD COLUMN completed_at TEXT;"
+        });
+      }
+
+      operations.push({
+        kind: "run",
+        sql: `CREATE INDEX IF NOT EXISTS idx_google_calendar_event_instances_completion
+              ON google_calendar_event_instances(event_id, completed_at, start_at, id);`
+      });
+
+      return operations;
+    }
   }
 ];
 

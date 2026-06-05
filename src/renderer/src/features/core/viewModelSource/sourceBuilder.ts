@@ -259,6 +259,8 @@ export function buildCoreViewModelSource(
     updateTask: options.updateTask,
     completeTask: options.completeTask,
     reopenTask: options.reopenTask,
+    completeEvent: options.completeEvent,
+    reopenEvent: options.reopenEvent,
     moveTask: options.moveTask,
     deleteTask: options.deleteTask,
     createTaskList: options.createTaskList,

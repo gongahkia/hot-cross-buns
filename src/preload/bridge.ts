@@ -166,6 +166,20 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
           request,
           "Calendar event update request failed"
         ),
+      complete: (request) =>
+        invokeContract(
+          ipc,
+          ipcContracts.calendar.complete,
+          request,
+          "Calendar event complete request failed"
+        ),
+      reopen: (request) =>
+        invokeContract(
+          ipc,
+          ipcContracts.calendar.reopen,
+          request,
+          "Calendar event reopen request failed"
+        ),
       delete: (request) =>
         invokeContract(
           ipc,

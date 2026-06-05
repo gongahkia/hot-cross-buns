@@ -271,9 +271,10 @@ export function CalendarEventDetails({
   const location = draft.location.trim();
   const notes = draft.notes.trim();
   const showReminder = reminderLabel !== null && reminderLabel !== "None";
+  const completed = draft.completedAt !== null && draft.completedAt !== undefined;
 
   return (
-    <div className="grid gap-5 py-1">
+    <div className={cx("grid gap-5 py-1", completed && "text-text-muted")}>
       <div className="grid grid-cols-[24px_minmax(0,1fr)] gap-4">
         <CalendarSourceSwatch
           calendarId={draft.calendarId}
@@ -282,11 +283,17 @@ export function CalendarEventDetails({
         />
         <div className="min-w-0">
           <div className="flex min-w-0 items-start justify-between gap-3">
-            <h3 className="min-w-0 break-words text-[var(--text-2xl)] font-semibold leading-tight text-text-primary">
+            <h3 className={cx(
+              "min-w-0 break-words text-[var(--text-2xl)] font-semibold leading-tight text-text-primary",
+              completed && "text-text-muted line-through"
+            )}>
               {draft.title || "Untitled event"}
             </h3>
           </div>
-          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2 text-[var(--text-base)] text-text-secondary">
+          <div className={cx(
+            "mt-2 flex min-w-0 flex-wrap items-center gap-2 text-[var(--text-base)] text-text-secondary",
+            completed && "line-through"
+          )}>
             <span>{calendarDetailRangeLabel(draft)}</span>
             {eventDurationVisible(draft) ? <Badge tone="neutral">{calendarDraftDurationLabel(draft)}</Badge> : null}
             {selectedCalendar?.title ? <Badge tone="neutral">{selectedCalendar.title}</Badge> : null}

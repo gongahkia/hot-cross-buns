@@ -8,6 +8,7 @@ import {
 import {
   calendarEventCreateRequestSchema,
   calendarEventDeleteRequestSchema,
+  calendarEventCompletionRequestSchema,
   calendarEventDetailSchema,
   calendarEventUpdateRequestSchema,
   calendarListRequestSchema,
@@ -189,6 +190,18 @@ export const ipcContracts = {
       "calendar",
       "update",
       calendarEventUpdateRequestSchema,
+      calendarEventDetailSchema
+    ),
+    complete: defineIpcContract(
+      "calendar",
+      "complete",
+      calendarEventCompletionRequestSchema,
+      calendarEventDetailSchema
+    ),
+    reopen: defineIpcContract(
+      "calendar",
+      "reopen",
+      calendarEventCompletionRequestSchema,
       calendarEventDetailSchema
     ),
     delete: defineIpcContract(

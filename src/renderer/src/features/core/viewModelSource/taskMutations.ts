@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type {
+  CalendarEventCompletionScope,
   CalendarEventSummary,
   ScheduledTaskBlockCreateRequest,
   ScheduledTaskBlockMoveRequest,
@@ -35,6 +36,8 @@ export function useTaskMutations({
   updateTask: (request: TaskUpdateRequest) => Promise<boolean>;
   completeTask: (taskId: string) => Promise<boolean>;
   reopenTask: (taskId: string) => Promise<boolean>;
+  completeEvent: (eventId: string, scope?: CalendarEventCompletionScope) => Promise<boolean>;
+  reopenEvent: (eventId: string, scope?: CalendarEventCompletionScope) => Promise<boolean>;
   moveTask: (request: TaskMoveRequest) => Promise<boolean>;
   deleteTask: (taskId: string) => Promise<boolean>;
   createTaskList: (request: TaskListCreateRequest) => Promise<boolean>;
@@ -70,6 +73,19 @@ export function useTaskMutations({
     [setLoadState]
   );
 
+  const setEventsSnapshot = useCallback(
+    (updater: (events: CalendarEventSummary[]) => CalendarEventSummary[]) => {
+      setLoadState((current) => ({
+        ...current,
+        snapshot: {
+          ...current.snapshot,
+          events: updater(current.snapshot.events)
+        }
+      }));
+    },
+    [setLoadState]
+  );
+
   const setTaskListsSnapshot = useCallback(
     (updater: (taskLists: TaskListSummary[]) => TaskListSummary[]) => {
       setLoadState((current) => ({
@@ -83,8 +99,12 @@ export function useTaskMutations({
     [setLoadState]
   );
 
-  const beginTaskMutation = useCallback(() => {
+  const beginTaskMutation = useCallback((incrementPendingMutationCount = true) => {
     setTaskMutation({ pending: true });
+    if (!incrementPendingMutationCount) {
+      return;
+    }
+
     setLoadState((current) => ({
       ...current,
       snapshot: {
