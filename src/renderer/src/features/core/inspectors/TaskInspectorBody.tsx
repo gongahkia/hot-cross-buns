@@ -235,18 +235,18 @@ export function TaskInspectorBody({
   }
 
   return (
-    <div className="grid gap-3" onKeyDown={handleKeyDown}>
+    <div className="grid min-w-0 gap-3" onKeyDown={handleKeyDown}>
       <EmojiInput
         aria-label="Task title"
         onValueChange={(title) => patchDraft({ title })}
         placeholder="Task title"
         value={dirty.value.title}
       />
-      <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+      <label className="grid min-w-0 gap-1 text-[var(--text-sm)] text-text-secondary">
         <span>List</span>
         <select
           aria-label="Task list"
-          className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="h-8 min-w-0 w-full rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           disabled={source.taskLists.length === 0}
           onChange={(event) => patchDraft({ listId: event.target.value })}
           value={dirty.value.listId}
@@ -259,18 +259,18 @@ export function TaskInspectorBody({
           ))}
         </select>
       </label>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
         <Input
           aria-label="Task due date"
           onChange={(event) => patchDraft({ dueDate: event.target.value })}
           type="date"
           value={dirty.value.dueDate}
         />
-        <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+        <label className="grid min-w-0 gap-1 text-[var(--text-sm)] text-text-secondary">
           <span>Priority</span>
           <select
             aria-label="Task priority"
-            className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="h-8 min-w-0 w-full rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             onChange={(event) => patchDraft({ priority: event.target.value as CorePriority })}
             value={dirty.value.priority}
           >
@@ -281,11 +281,11 @@ export function TaskInspectorBody({
           </select>
         </label>
       </div>
-      <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+      <label className="grid min-w-0 gap-1 text-[var(--text-sm)] text-text-secondary">
         <span>Parent</span>
         <select
           aria-label="Parent task"
-          className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="h-8 min-w-0 w-full rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           onChange={(event) => patchDraft({ parentId: event.target.value })}
           value={dirty.value.parentId}
         >

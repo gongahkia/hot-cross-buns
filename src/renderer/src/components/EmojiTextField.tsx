@@ -209,7 +209,7 @@ export const EmojiInput = forwardRef<HTMLInputElement, Omit<InputHTMLAttributes<
     const field = useEmojiField(String(value), onValueChange, onKeyDown as ((event: KeyboardEvent<EmojiElement>) => void) | undefined);
 
     return (
-      <div className="relative">
+      <div className="relative min-w-0">
         <input
           className={cx(
             "h-8 w-full rounded-hcbMd border border-border bg-surface-0 px-3 text-[var(--text-base)] text-text-primary placeholder:text-text-muted transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
@@ -237,7 +237,7 @@ export const EmojiTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHTMLAt
     const field = useEmojiField(String(value), onValueChange, onKeyDown as ((event: KeyboardEvent<EmojiElement>) => void) | undefined);
 
     return (
-      <div className="relative">
+      <div className="relative min-w-0">
         <textarea
           className={cx(
             "w-full resize-none rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary placeholder:text-text-muted transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",

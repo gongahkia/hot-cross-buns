@@ -91,7 +91,7 @@ export function InspectorShell(): JSX.Element | null {
           </header>
         ) : null}
 
-        <div className="flex-1 overflow-y-auto px-4 py-3" data-testid="inspector-body">
+        <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-3" data-testid="inspector-body">
           {current.body}
         </div>
 
