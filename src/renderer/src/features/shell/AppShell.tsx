@@ -5,6 +5,7 @@ import type { QuickAddSubmitPayload } from "../../components/QuickAddDialog";
 import { cx } from "../../components/primitives";
 import { primaryPlannerSections, type SectionId } from "../../data/mockPlanner";
 import { getAppNotifications } from "../core/appNotifications";
+import type { ConvertCommandDetail } from "../core/conversionEvents";
 import { DiagnosticsOverlay } from "../core/DiagnosticsOverlay";
 import type { TaskSurfaceCommand } from "../core/CoreScreens";
 import { useCoreViewModelSource } from "../core/coreViewModelSource";
@@ -405,6 +406,58 @@ export function AppShell(): JSX.Element {
     },
     [navigateToSection]
   );
+
+  useEffect(() => {
+    function handleConvertCommand(event: Event): void {
+      const detail = (event as CustomEvent<ConvertCommandDetail>).detail;
+
+      if (!detail) {
+        return;
+      }
+
+      if (detail.target === "task") {
+        navigateToSection("tasks");
+        window.setTimeout(() => {
+          window.dispatchEvent(new CustomEvent("hcb:task-command", {
+            detail: {
+              action: "convert-to-task",
+              cleanup: detail.cleanup,
+              draft: detail.taskDraft ?? {}
+            }
+          }));
+        }, 0);
+        return;
+      }
+
+      if (detail.target === "note") {
+        navigateToSection("notes");
+        window.setTimeout(() => {
+          window.dispatchEvent(new CustomEvent("hcb:note-command", {
+            detail: {
+              action: "convert-to-note",
+              cleanup: detail.cleanup,
+              draft: detail.noteDraft
+            }
+          }));
+        }, 0);
+        return;
+      }
+
+      navigateToSection("calendar");
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("hcb:calendar-command", {
+          detail: {
+            action: "convert-to-event",
+            cleanup: detail.cleanup,
+            draft: detail.eventDraft
+          }
+        }));
+      }, 0);
+    }
+
+    window.addEventListener("hcb:convert-command", handleConvertCommand);
+    return () => window.removeEventListener("hcb:convert-command", handleConvertCommand);
+  }, [navigateToSection]);
 
   const runHotkeyAction = useCallback(
     (actionId: keyof SettingsSnapshot["keybindings"]): void => {

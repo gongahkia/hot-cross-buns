@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { Copy, Pencil, Save, Trash2, X } from "lucide-react";
+import { ArrowRightLeft, Copy, Pencil, Save, Trash2, X } from "lucide-react";
 import { useInspector } from "../../../../components/Inspector";
 import { Button } from "../../../../components/primitives";
 import { rendererNow, reportRendererTimingSince } from "../../../../hooks/useRenderTiming";
 import type { useCoreViewModelSource } from "../../coreViewModelSource";
 import { playCompletionSound } from "../../completionSounds";
+import {
+  conversionCleanup,
+  dispatchConvertCommand,
+  type ConvertSourceCleanup
+} from "../../conversionEvents";
 import { copiedTitle } from "../../copyLabels";
 import type { TaskViewModel } from "../../coreViewModels";
 import {
@@ -14,6 +19,7 @@ import {
   taskDraftsEqual,
   type TaskDraft
 } from "../../inspectors/TaskInspectorBody";
+import type { CalendarEventDraft } from "../calendar/types";
 import {
   canSaveTaskDraft,
   defaultTaskListId,
@@ -32,7 +38,10 @@ export interface TaskInspectorController {
   addSubtaskForTask: (task: TaskViewModel | null) => void;
   deleteTask: (taskId: string) => Promise<void>;
   duplicateTask: (taskId: string) => void;
-  openNewTask: (seed?: string | Partial<Omit<TaskDraft, "mode">>) => void;
+  openNewTask: (
+    seed?: string | Partial<Omit<TaskDraft, "mode">> | TaskDraft,
+    cleanup?: ConvertSourceCleanup
+  ) => void;
   selectedTaskId: string | null;
   selectTask: (taskId: string) => void;
   toggleTask: (taskId: string) => Promise<void>;
@@ -54,6 +63,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
   const taskInspectorDirtyRef = useRef(false);
   const taskInspectorInstanceRef = useRef(0);
   const taskInspectorModeRef = useRef<"view" | "edit">("edit");
+  const conversionCleanupRef = useRef<ConvertSourceCleanup | null>(null);
   const setDraft = useCallback<Dispatch<SetStateAction<TaskDraft>>>((next) => {
     setDraftState((current) => {
       const resolved =
@@ -175,6 +185,14 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
               <Copy aria-hidden="true" size={14} />
               Duplicate
             </Button>
+            <Button onClick={() => convertTaskDraft(nextDraft, "event")} size="sm" variant="secondary">
+              <ArrowRightLeft aria-hidden="true" size={14} />
+              Convert to event
+            </Button>
+            <Button onClick={() => convertTaskDraft(nextDraft, "note")} size="sm" variant="secondary">
+              <ArrowRightLeft aria-hidden="true" size={14} />
+              Convert to note
+            </Button>
           </div>
           <Button onClick={() => void cancelTaskInspector()} size="sm" variant="ghost">
             <X aria-hidden="true" size={14} />
@@ -202,6 +220,18 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
             <Copy aria-hidden="true" size={14} />
             Duplicate
           </Button>
+        ) : null}
+        {nextDraft.mode === "edit" ? (
+          <>
+            <Button onClick={() => convertTaskDraft(nextDraft, "event")} size="sm" variant="secondary">
+              <ArrowRightLeft aria-hidden="true" size={14} />
+              Convert to event
+            </Button>
+            <Button onClick={() => convertTaskDraft(nextDraft, "note")} size="sm" variant="secondary">
+              <ArrowRightLeft aria-hidden="true" size={14} />
+              Convert to note
+            </Button>
+          </>
         ) : null}
         <Button onClick={() => void cancelTaskInspector()} size="sm" variant="ghost">
           <X aria-hidden="true" size={14} />
@@ -247,7 +277,10 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     });
   }
 
-  function openNewTask(seed?: string | Partial<Omit<TaskDraft, "mode">>): void {
+  function openNewTask(
+    seed?: string | Partial<Omit<TaskDraft, "mode">> | TaskDraft,
+    cleanup?: ConvertSourceCleanup
+  ): void {
     if (!canReplaceTaskInspector()) {
       return;
     }
@@ -255,7 +288,8 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     const draftSeed = typeof seed === "string" ? { listId: seed } : seed ?? {};
 
     setSelectedTaskId(null);
-    openTaskInspector(newTaskDraft(source, draftSeed), "edit");
+    conversionCleanupRef.current = cleanup ?? null;
+    openTaskInspector("mode" in draftSeed ? draftSeed : newTaskDraft(source, draftSeed), "edit");
   }
 
   function selectTask(taskId: string): void {
@@ -265,6 +299,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
 
     const task = source.getTaskById(taskId);
     setSelectedTaskId(taskId);
+    conversionCleanupRef.current = null;
     openTaskInspector(editTaskDraft(task), "view");
   }
 
@@ -274,6 +309,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     }
 
     const task = source.getTaskById(taskId);
+    conversionCleanupRef.current = null;
     openDuplicateTaskDraft(duplicateTaskDraft(task));
   }
 
@@ -288,7 +324,57 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
 
   function openDuplicateTaskDraft(nextDraft: TaskDraft): void {
     setSelectedTaskId(null);
+    conversionCleanupRef.current = null;
     openTaskInspector(newTaskDraft(source, nextDraft), "edit");
+  }
+
+  function convertTaskDraft(sourceDraft: TaskDraft, target: "event" | "note"): void {
+    if (!sourceDraft.id) {
+      return;
+    }
+
+    if (target === "event") {
+      const cleanup = conversionCleanup("task", sourceDraft.id, target);
+      dispatchConvertCommand({
+        cleanup,
+        target,
+        eventDraft: taskEventDraft(sourceDraft)
+      });
+      return;
+    }
+
+    const replace = window.confirm(
+      "Remove the original task fields after saving the converted note? Cancel keeps the original task."
+    );
+
+    dispatchConvertCommand({
+      target,
+      noteDraft: {
+        body: sourceDraft.notes,
+        id: replace ? sourceDraft.id : undefined,
+        listId: sourceDraft.listId,
+        replaceSource: replace,
+        title: sourceDraft.title
+      }
+    });
+  }
+
+  async function cleanupConvertedSource(): Promise<string | null> {
+    const cleanup = conversionCleanupRef.current;
+
+    if (!cleanup) {
+      return null;
+    }
+
+    conversionCleanupRef.current = null;
+
+    if (cleanup.kind === "event") {
+      const result = await window.hcb?.calendar.delete({ id: cleanup.id });
+      return result?.ok ? null : result?.error.message ?? "Original event was not removed.";
+    }
+
+    const result = await window.hcb?.tasks.delete({ id: cleanup.id });
+    return result?.ok ? null : result?.error.message ?? "Original task was not removed.";
   }
 
   async function saveTask(): Promise<void> {
@@ -303,6 +389,11 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
       : await source.createTask(taskCreatePayload(currentDraft));
 
     if (saved) {
+      const cleanupError = await cleanupConvertedSource();
+      if (cleanupError) {
+        window.alert(`Converted item was saved, but ${cleanupError}`);
+      }
+      source.refresh();
       const nextDraft = newTaskDraft(source, { listId: currentDraft.listId });
       taskDraftBaselineRef.current = nextDraft;
       taskDraftRef.current = nextDraft;
@@ -359,6 +450,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     taskDraftBaselineRef.current = nextDraft;
     taskDraftRef.current = nextDraft;
     taskInspectorDirtyRef.current = false;
+    conversionCleanupRef.current = null;
     setTaskInspectorMode("edit");
     setSelectedTaskId(null);
     setDraft(nextDraft);
@@ -392,5 +484,44 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     selectedTaskId,
     selectTask,
     toggleTask
+  };
+}
+
+function taskEventDraft(sourceDraft: TaskDraft): Partial<CalendarEventDraft> {
+  if (sourceDraft.plannedStart) {
+    const startMs = Date.parse(sourceDraft.plannedStart);
+    const fallbackEnd = Number.isFinite(startMs)
+      ? new Date(startMs + 60 * 60 * 1000).toISOString()
+      : new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    return {
+      allDay: false,
+      endsAt: sourceDraft.plannedEnd ?? fallbackEnd,
+      notes: sourceDraft.notes,
+      startsAt: sourceDraft.plannedStart,
+      title: sourceDraft.title
+    };
+  }
+
+  if (sourceDraft.dueDate) {
+    return {
+      allDay: true,
+      endsAt: `${sourceDraft.dueDate}T00:00:00.000Z`,
+      notes: sourceDraft.notes,
+      startsAt: `${sourceDraft.dueDate}T00:00:00.000Z`,
+      title: sourceDraft.title
+    };
+  }
+
+  const start = new Date();
+  start.setUTCMinutes(0, 0, 0);
+  const startsAt = start.toISOString();
+  const endsAt = new Date(start.getTime() + 60 * 60 * 1000).toISOString();
+
+  return {
+    allDay: false,
+    endsAt,
+    notes: sourceDraft.notes,
+    startsAt,
+    title: sourceDraft.title
   };
 }

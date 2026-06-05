@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type { CalendarEventUpdateRequest } from "@shared/ipc/contracts";
-import { Copy, Pencil, Save, Trash2, X } from "lucide-react";
+import { ArrowRightLeft, Copy, Pencil, Save, Trash2, X } from "lucide-react";
 import { useInspector } from "../../../../components/Inspector";
 import { Button } from "../../../../components/primitives";
+import {
+  conversionCleanup,
+  dispatchConvertCommand,
+  type ConvertSourceCleanup
+} from "../../conversionEvents";
 import { copiedTitle } from "../../copyLabels";
 import type { CoreViewModelSource } from "../../coreViewModelSource";
 import type { CalendarEventViewModel } from "../../coreViewModels";
@@ -24,6 +29,7 @@ import {
 import type { CalendarCreateMode, CalendarCreateSeed, CalendarEventDraft } from "./types";
 
 interface CalendarCreateOptions {
+  cleanup?: ConvertSourceCleanup;
   createMode?: CalendarCreateMode;
   draft?: Partial<CalendarEventDraft>;
   taskListId?: string;
@@ -56,6 +62,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   const calendarInspectorModeRef = useRef<"view" | "edit">("edit");
   const createModeRef = useRef<CalendarCreateMode>("event");
   const createTaskListIdRef = useRef(createTaskListId);
+  const conversionCleanupRef = useRef<ConvertSourceCleanup | null>(null);
   const setDraft = useCallback<Dispatch<SetStateAction<CalendarEventDraft | null>>>((next) => {
     setDraftState((current) => {
       const resolved =
@@ -235,6 +242,18 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
               <Copy aria-hidden="true" size={14} />
               Duplicate
             </Button>
+            {nextDraft.hcbKind !== "birthday" ? (
+              <>
+                <Button onClick={() => convertEventDraft(nextDraft, "task")} size="sm" variant="secondary">
+                  <ArrowRightLeft aria-hidden="true" size={14} />
+                  Convert to task
+                </Button>
+                <Button onClick={() => convertEventDraft(nextDraft, "note")} size="sm" variant="secondary">
+                  <ArrowRightLeft aria-hidden="true" size={14} />
+                  Convert to note
+                </Button>
+              </>
+            ) : null}
           </div>
           <Button onClick={() => void cancelEventInspector()} size="sm" variant="ghost">
             <X aria-hidden="true" size={14} />
@@ -257,6 +276,18 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
             <Copy aria-hidden="true" size={14} />
             Duplicate
           </Button>
+        ) : null}
+        {nextDraft.mode === "edit" && nextDraft.hcbKind !== "birthday" ? (
+          <>
+            <Button onClick={() => convertEventDraft(nextDraft, "task")} size="sm" variant="secondary">
+              <ArrowRightLeft aria-hidden="true" size={14} />
+              Convert to task
+            </Button>
+            <Button onClick={() => convertEventDraft(nextDraft, "note")} size="sm" variant="secondary">
+              <ArrowRightLeft aria-hidden="true" size={14} />
+              Convert to note
+            </Button>
+          </>
         ) : null}
         <Button onClick={() => void cancelEventInspector()} size="sm" variant="ghost">
           <X aria-hidden="true" size={14} />
@@ -322,6 +353,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
 
     setCreateModeValue(nextMode);
     setCreateTaskListId(options.taskListId ?? defaultTaskListId(source));
+    conversionCleanupRef.current = options.cleanup ?? null;
     openEventInspector(nextDraft, "edit");
   }
 
@@ -331,6 +363,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     }
 
     setCreateMode("event");
+    conversionCleanupRef.current = null;
     openEventInspector(editCalendarDraft(event), "view");
   }
 
@@ -349,7 +382,46 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
 
     setCreateModeValue(nextMode);
     setCreateTaskListId(defaultTaskListId(source));
+    conversionCleanupRef.current = null;
     openEventInspector(nextDraft, "edit");
+  }
+
+  function convertEventDraft(sourceDraft: CalendarEventDraft, target: "task" | "note"): void {
+    if (!sourceDraft.id || sourceDraft.hcbKind === "birthday") {
+      return;
+    }
+
+    const cleanup = conversionCleanup("event", sourceDraft.id, target);
+
+    if (target === "task") {
+      dispatchConvertCommand({
+        cleanup,
+        target,
+        taskDraft: {
+          title: sourceDraft.title,
+          notes: sourceDraft.notes,
+          dueDate: dateInputValue(sourceDraft.startsAt),
+          listId: defaultTaskListId(source),
+          priority: "none",
+          plannedStart: sourceDraft.allDay ? null : sourceDraft.startsAt,
+          plannedEnd: sourceDraft.allDay ? null : sourceDraft.endsAt,
+          durationMinutes: null,
+          lockedSchedule: false,
+          tags: []
+        }
+      });
+      return;
+    }
+
+    dispatchConvertCommand({
+      cleanup,
+      target,
+      noteDraft: {
+        title: sourceDraft.title,
+        body: eventNoteBody(sourceDraft),
+        listId: defaultTaskListId(source)
+      }
+    });
   }
 
   function isBirthdayLikeDraft(candidate: CalendarEventDraft): boolean {
@@ -376,10 +448,29 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     source.refresh();
   }
 
+  async function cleanupConvertedSource(): Promise<string | null> {
+    const cleanup = conversionCleanupRef.current;
+
+    if (!cleanup) {
+      return null;
+    }
+
+    conversionCleanupRef.current = null;
+
+    if (cleanup.kind === "event") {
+      const result = await window.hcb?.calendar.delete({ id: cleanup.id });
+      return result?.ok ? null : result?.error.message ?? "Original event was not removed.";
+    }
+
+    const result = await window.hcb?.tasks.delete({ id: cleanup.id });
+    return result?.ok ? null : result?.error.message ?? "Original task was not removed.";
+  }
+
   function discardEventInspectorState(): void {
     calendarDraftBaselineRef.current = null;
     calendarDraftRef.current = null;
     calendarInspectorDirtyRef.current = false;
+    conversionCleanupRef.current = null;
     setCalendarInspectorMode("edit");
     setDraft(null);
     setCreateMode("event");
@@ -472,7 +563,12 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
       return;
     }
 
+    const cleanupError = await cleanupConvertedSource();
     await closeEventInspectorAfterMutation();
+
+    if (cleanupError) {
+      setCalendarActionError(`Converted item was saved, but ${cleanupError}`);
+    }
   }
 
   async function deleteDraft(): Promise<void> {
@@ -552,4 +648,12 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     resizeCalendarEvent,
     setCalendarActionError
   };
+}
+
+function eventNoteBody(sourceDraft: CalendarEventDraft): string {
+  return [
+    sourceDraft.notes.trim(),
+    `Event: ${sourceDraft.allDay ? dateInputValue(sourceDraft.startsAt) : `${sourceDraft.startsAt} - ${sourceDraft.endsAt}`}`,
+    sourceDraft.location.trim() ? `Location: ${sourceDraft.location.trim()}` : ""
+  ].filter(Boolean).join("\n\n");
 }

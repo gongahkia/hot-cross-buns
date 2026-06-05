@@ -5,6 +5,7 @@ import { IconButton, StatusBanner } from "../../../../components/primitives";
 import { rendererNow, reportRendererTimingSince } from "../../../../hooks/useRenderTiming";
 import { stableCalendarEventViewModel } from "../../viewModelSource/calendarViewModels";
 import { useCoreViewModelSource } from "../../coreViewModelSource";
+import type { ConvertSourceCleanup } from "../../conversionEvents";
 import type { CalendarDayViewModel, CalendarEventViewModel, CalendarViewId } from "../../coreViewModels";
 import {
   CacheStatePanel,
@@ -355,6 +356,7 @@ export function CalendarView({
       const detail = (event as CustomEvent<{
         action: string;
         createMode?: CalendarCreateMode;
+        cleanup?: ConvertSourceCleanup;
         draft?: Partial<CalendarEventDraft>;
         eventId?: string;
         seed?: CalendarCreateSeed;
@@ -368,6 +370,14 @@ export function CalendarView({
       if (detail?.action === "quick-add") {
         openCreate(undefined, {
           createMode: detail.createMode,
+          draft: detail.draft
+        });
+      }
+
+      if (detail?.action === "convert-to-event") {
+        openCreate(undefined, {
+          cleanup: detail.cleanup,
+          createMode: "event",
           draft: detail.draft
         });
       }
