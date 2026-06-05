@@ -6,6 +6,7 @@ import { Button } from "../../../../components/primitives";
 import { rendererNow, reportRendererTimingSince } from "../../../../hooks/useRenderTiming";
 import type { useCoreViewModelSource } from "../../coreViewModelSource";
 import { playCompletionSound } from "../../completionSounds";
+import { copiedTitle } from "../../copyLabels";
 import type { TaskViewModel } from "../../coreViewModels";
 import {
   TaskInspectorDetails,
@@ -280,7 +281,8 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     openDuplicateTaskDraft({
       ...sourceDraft,
       id: undefined,
-      mode: "create"
+      mode: "create",
+      title: copiedTitle(sourceDraft.title, "Untitled task")
     });
   }
 

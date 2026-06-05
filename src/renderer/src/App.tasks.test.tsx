@@ -334,7 +334,7 @@ describe("App tasks", () => {
     await user.click(within(screen.getByTestId("inspector-actions")).getByRole("button", { name: "Duplicate" }));
 
     expect(await screen.findByRole("heading", { level: 2, name: "New task" })).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Task title" })).toHaveValue("Draft inbox triage rules");
+    expect(screen.getByRole("textbox", { name: "Task title" })).toHaveValue("Draft inbox triage rules (copy)");
     expect(screen.getByLabelText("Task priority")).toHaveValue("high");
 
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -342,7 +342,7 @@ describe("App tasks", () => {
     await waitFor(() => {
       expect(api.tasks.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          title: "Draft inbox triage rules",
+          title: "Draft inbox triage rules (copy)",
           notes: "Define keyboard-first review states before sync writes exist.",
           listId: "list-inbox",
           parentId: null,

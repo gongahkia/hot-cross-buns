@@ -4,6 +4,7 @@ import type { CalendarEventUpdateRequest } from "@shared/ipc/contracts";
 import { Copy, Pencil, Save, Trash2, X } from "lucide-react";
 import { useInspector } from "../../../../components/Inspector";
 import { Button } from "../../../../components/primitives";
+import { copiedTitle } from "../../copyLabels";
 import type { CoreViewModelSource } from "../../coreViewModelSource";
 import type { CalendarEventViewModel } from "../../coreViewModels";
 import {
@@ -349,7 +350,8 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
       guests: "",
       id: undefined,
       mode: "create",
-      mutationState: undefined
+      mutationState: undefined,
+      title: copiedTitle(sourceDraft.title, "Untitled event")
     }, nextMode);
 
     setCreateModeValue(nextMode);

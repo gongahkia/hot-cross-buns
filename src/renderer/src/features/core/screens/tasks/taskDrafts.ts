@@ -2,6 +2,7 @@ import type { TaskCreateRequest, TaskUpdateRequest } from "@shared/ipc/contracts
 import type { useCoreViewModelSource } from "../../coreViewModelSource";
 import type { TaskViewModel } from "../../coreViewModels";
 import type { TaskDraft } from "../../inspectors/TaskInspectorBody";
+import { copiedTitle } from "../../copyLabels";
 
 type CoreViewModelSource = ReturnType<typeof useCoreViewModelSource>;
 
@@ -52,7 +53,7 @@ export function editTaskDraft(task: TaskViewModel): TaskDraft {
 export function duplicateTaskDraft(task: TaskViewModel): TaskDraft {
   return {
     mode: "create",
-    title: task.title,
+    title: copiedTitle(task.title, "Untitled task"),
     notes: task.detail,
     dueDate: task.dueDate ?? "",
     listId: task.listId,

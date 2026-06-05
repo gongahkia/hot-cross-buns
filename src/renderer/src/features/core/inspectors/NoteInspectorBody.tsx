@@ -8,7 +8,7 @@ import {
   useState
 } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
-import { Link2, Pencil, RotateCcw, Search } from "lucide-react";
+import { AlertTriangle, Link2, Pencil, RotateCcw, Search } from "lucide-react";
 import type { NoteLinkSuggestResponse } from "@shared/ipc/contracts";
 import { useDirtyState, useInspector } from "../../../components/Inspector";
 import { EmojiInput, EmojiTextarea } from "../../../components/EmojiTextField";
@@ -43,6 +43,7 @@ type LinkSuggestion = NoteLinkSuggestResponse["items"][number];
 
 interface NoteInspectorBodyProps {
   createMode?: boolean;
+  error?: string;
   note: NoteViewModel;
   notes: NoteViewModel[];
   onDraftChange: (noteId: string, draft: NoteDraftValue) => void;
@@ -174,7 +175,7 @@ function linkButtonClass(tone: "accent" | "warning" | "neutral"): string {
 
 export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspectorBodyProps>(
   function NoteInspectorBody(
-    { createMode = false, note, notes, onDraftChange, onOpenNote, onPersist, templates = [] },
+    { createMode = false, error, note, notes, onDraftChange, onOpenNote, onPersist, templates = [] },
     ref
   ): JSX.Element {
     const dirty = useDirtyState<NoteDraftValue>({ title: note.title, body: note.body });
@@ -494,6 +495,16 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
                 ))}
               </select>
             </label>
+          ) : null}
+
+          {error ? (
+            <div
+              className="flex items-start gap-2 rounded-hcbMd border border-danger/40 bg-danger/10 px-3 py-2 text-[var(--text-sm)] text-danger"
+              role="alert"
+            >
+              <AlertTriangle aria-hidden="true" className="mt-0.5 shrink-0" size={15} />
+              <span>{error}</span>
+            </div>
           ) : null}
 
           <div className="flex items-center justify-between gap-2">

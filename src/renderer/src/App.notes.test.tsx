@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { TaskListSummary, TaskSummary } from "@shared/ipc/contracts";
-import { ok } from "@shared/ipc/result";
+import { err, ok } from "@shared/ipc/result";
 import App from "./App";
 import {
   goToSection,
@@ -138,7 +138,7 @@ describe("App notes", () => {
     await user.click(await screen.findByText("Startup data flow"));
     await user.click(within(screen.getByTestId("inspector-actions")).getByRole("button", { name: "Duplicate" }));
 
-    expect(await screen.findByRole("textbox", { name: "Note title" })).toHaveValue("Startup data flow");
+    expect(await screen.findByRole("textbox", { name: "Note title" })).toHaveValue("Startup data flow (copy)");
     expect(screen.getByRole("textbox", { name: "Note body" })).toHaveValue(
       "Renderer paints from SQLite before fresh sync completes."
     );
@@ -148,12 +148,34 @@ describe("App notes", () => {
 
     await waitFor(() => {
       expect(api.tasks.create).toHaveBeenCalledWith({
-        title: "Startup data flow",
+        title: "Startup data flow (copy)",
         notes: "Renderer paints from SQLite before fresh sync completes.",
         listId: "list-inbox",
         dueDate: null
       });
     });
+  });
+
+  it("keeps duplicate note drafts open and shows save errors", async () => {
+    const api = seededHcb();
+    api.tasks.create = vi.fn(async () =>
+      err({
+        code: "SERVICE_UNAVAILABLE",
+        message: "Task queue is unavailable.",
+        recoverable: true
+      })
+    );
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await goToSection("Notes");
+    await user.click(await screen.findByText("Startup data flow"));
+    await user.click(within(screen.getByTestId("inspector-actions")).getByRole("button", { name: "Duplicate" }));
+    await user.click(within(screen.getByTestId("inspector-actions")).getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Task queue is unavailable.");
+    expect(screen.getByRole("textbox", { name: "Note title" })).toHaveValue("Startup data flow (copy)");
   });
 
   it("flushes pending note edits before switching the selected note row", async () => {

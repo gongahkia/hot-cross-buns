@@ -4,6 +4,7 @@ import { Copy, Pencil, Save, Trash2, X } from "lucide-react";
 import type { TaskListSummary, TaskSummary } from "@shared/ipc/contracts";
 import { useInspector } from "../../../components/Inspector";
 import { Button } from "../../../components/primitives";
+import { copiedTitle } from "../copyLabels";
 import type { CoreViewModelSource } from "../coreViewModelSource";
 import type { NoteViewModel } from "../coreViewModels";
 import { dateInputValue, scheduleRendererFrame } from "../coreScreenShared";
@@ -100,6 +101,7 @@ export function useNotesController(source: CoreViewModelSource): {
     initialNoteViews(source.noteLists)
   );
   const [noteInspectorMode, setNoteInspectorModeState] = useState<"view" | "edit">("edit");
+  const [noteActionError, setNoteActionError] = useState<string | undefined>();
   const [starredNoteIds, setStarredNoteIds] = useState<Set<string>>(
     () => new Set(readLocalStorageStringArray(starredNotesStorageKey))
   );
@@ -244,6 +246,7 @@ export function useNotesController(source: CoreViewModelSource): {
     currentInspector?.kind,
     noteTemplateOptions,
     notes,
+    noteActionError,
     noteInspectorMode,
     selectedNote,
     updateInspector
@@ -271,6 +274,7 @@ export function useNotesController(source: CoreViewModelSource): {
         onPersist={persistNoteDraft}
         templates={noteTemplateOptions}
         createMode={createNoteIds.current.has(note.id)}
+        error={currentInspector?.id === note.id ? noteActionError : undefined}
         ref={noteInspectorBodyRef}
       />
     );
@@ -341,6 +345,7 @@ export function useNotesController(source: CoreViewModelSource): {
     note: NoteViewModel,
     mode: "view" | "edit" = note.id.startsWith("note-draft-") ? "edit" : "view"
   ): void {
+    setNoteActionError(undefined);
     setNoteInspectorMode(mode);
     openInspector({
       actions: noteInspectorActions(note, mode),
@@ -510,7 +515,7 @@ export function useNotesController(source: CoreViewModelSource): {
         : null;
 
     openLocalNoteDraft({
-      title: liveDraft?.title ?? note.title,
+      title: copiedTitle(liveDraft?.title ?? note.title, "Untitled note"),
       body: liveDraft?.body ?? note.body,
       listId: note.listId,
       listTitle: note.listTitle
@@ -528,6 +533,7 @@ export function useNotesController(source: CoreViewModelSource): {
       title: note.title,
       body: note.body
     };
+    setNoteActionError(undefined);
     const result = await window.hcb?.tasks.create({
       title: draft.title || "Untitled note",
       notes: draft.body,
@@ -536,6 +542,7 @@ export function useNotesController(source: CoreViewModelSource): {
     });
 
     if (!result?.ok) {
+      setNoteActionError(result?.error.message ?? "Note duplicate was not saved.");
       return;
     }
 
@@ -605,6 +612,9 @@ export function useNotesController(source: CoreViewModelSource): {
 
   function updateNoteDraft(noteId: string, draft: NoteDraftValue): void {
     const startedAt = rendererNow();
+    if (currentInspector?.kind === "note" && currentInspector.id === noteId) {
+      setNoteActionError(undefined);
+    }
     setNotes((current) =>
       current.map((note) => {
         if (note.id !== noteId) {

@@ -789,7 +789,7 @@ describe("App calendar", () => {
     await user.click(within(screen.getByTestId("inspector-actions")).getByRole("button", { name: "Duplicate" }));
 
     expect(await screen.findByRole("heading", { level: 2, name: "New event" })).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Event title" })).toHaveValue("Duplicate source sync");
+    expect(screen.getByRole("textbox", { name: "Event title" })).toHaveValue("Duplicate source sync (copy)");
     expect(screen.getByRole("textbox", { name: "Event guests" })).toHaveValue("");
 
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -797,7 +797,7 @@ describe("App calendar", () => {
     await waitFor(() => {
       expect(api.calendar.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          title: "Duplicate source sync",
+          title: "Duplicate source sync (copy)",
           calendarId: "cal-product",
           colorId: "9",
           location: "Room 4",
@@ -846,14 +846,14 @@ describe("App calendar", () => {
     await user.click(within(screen.getByTestId("inspector-actions")).getByRole("button", { name: "Duplicate" }));
 
     expect(await screen.findByRole("heading", { level: 2, name: "New birthday" })).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Birthday title" })).toHaveValue("Alex");
+    expect(screen.getByRole("textbox", { name: "Birthday title" })).toHaveValue("Alex (copy)");
 
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       expect(api.calendar.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          title: "Alex",
+          title: "Alex (copy)",
           allDay: true,
           recurrence: {
             frequency: "yearly",
