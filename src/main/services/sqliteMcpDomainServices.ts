@@ -575,6 +575,7 @@ function calendarEventRequestFromJson(
     notes: optionalText(input, "notes") ?? optionalText(input, "details") ?? "",
     guestEmails: optionalTextArray(input, "guestEmails") ?? optionalTextArray(input, "attendeeEmails") ?? [],
     reminderMinutes: optionalNumberArray(input, "reminderMinutes") ?? [],
+    ...(optionalTextArray(input, "tags") === undefined ? {} : { tags: optionalTextArray(input, "tags") }),
     ...(optionalNullableText(input, "colorId") === undefined
       ? {}
       : { colorId: optionalNullableText(input, "colorId") }),
@@ -599,6 +600,7 @@ function calendarEventPatchFromJson(patch: DomainJsonObject) {
     ...(optionalTextArray(patch, "guestEmails") === undefined ? {} : { guestEmails: optionalTextArray(patch, "guestEmails") }),
     ...(optionalTextArray(patch, "attendeeEmails") === undefined ? {} : { guestEmails: optionalTextArray(patch, "attendeeEmails") }),
     ...(optionalNumberArray(patch, "reminderMinutes") === undefined ? {} : { reminderMinutes: optionalNumberArray(patch, "reminderMinutes") }),
+    ...(optionalTextArray(patch, "tags") === undefined ? {} : { tags: optionalTextArray(patch, "tags") }),
     ...(optionalNullableText(patch, "colorId") === undefined
       ? {}
       : { colorId: optionalNullableText(patch, "colorId") }),
@@ -742,6 +744,188 @@ function taskUpdateFromPatch(id: string, patch: DomainJsonObject): TaskUpdateReq
       : { snoozeUntil: optionalNullableText(patch, "snoozeUntil") }),
     ...(optionalTextArray(patch, "tags") === undefined ? {} : { tags: optionalTextArray(patch, "tags") })
   };
+}
+
+function noteCreateFromJson(input: DomainJsonObject): NoteCreateRequest {
+  return {
+    ...(optionalText(input, "noteListId") === undefined && optionalText(input, "listId") === undefined
+      ? {}
+      : { listId: optionalText(input, "noteListId") ?? optionalText(input, "listId") }),
+    title: requiredText(input, "title"),
+    body: optionalText(input, "body") ?? "",
+    ...(optionalTextArray(input, "tags") === undefined ? {} : { tags: optionalTextArray(input, "tags") })
+  };
+}
+
+function noteUpdateFromPatch(id: string, patch: DomainJsonObject): NoteUpdateRequest {
+  return {
+    id,
+    ...(optionalText(patch, "title") === undefined
+      ? {}
+      : { title: optionalText(patch, "title") }),
+    ...(optionalText(patch, "body") === undefined
+      ? {}
+      : { body: optionalText(patch, "body") }),
+    ...(optionalText(patch, "noteListId") === undefined && optionalText(patch, "listId") === undefined
+      ? {}
+      : { listId: optionalText(patch, "noteListId") ?? optionalText(patch, "listId") }),
+    ...(optionalTextArray(patch, "tags") === undefined ? {} : { tags: optionalTextArray(patch, "tags") })
+  };
+}
+
+function autoTaggedMcpTaskCreate(
+  repository: LocalPlannerRepository,
+  settingsRepository: LocalSettingsRepository,
+  input: DomainJsonObject
+): TaskCreateRequest {
+  const request = taskCreateFromJson(repository, input);
+  const applied = applyAutoTagRules(settingsRepository.get().autoTagRules, {
+    kind: "task",
+    title: request.title,
+    body: request.notes ?? "",
+    explicitTags: request.tags,
+    existingTags: []
+  });
+
+  return { ...request, title: applied.title, notes: applied.body, tags: applied.tags };
+}
+
+function autoTaggedMcpTaskUpdate(
+  repository: LocalPlannerRepository,
+  settingsRepository: LocalSettingsRepository,
+  id: string,
+  patch: DomainJsonObject
+): TaskUpdateRequest {
+  const request = taskUpdateFromPatch(id, patch);
+  const existing = repository.getTask(id);
+  const title = request.title ?? existing.title;
+  const body = request.notes ?? existing.notes ?? "";
+  const applied = applyAutoTagRules(settingsRepository.get().autoTagRules, {
+    kind: "task",
+    title,
+    body,
+    explicitTags: request.tags ?? [],
+    existingTags: request.tags === undefined ? existing.tags ?? [] : []
+  });
+  const tagged: TaskUpdateRequest = { ...request, tags: applied.tags };
+
+  if (request.title !== undefined || applied.title !== existing.title) {
+    tagged.title = applied.title;
+  }
+
+  if (request.notes !== undefined || applied.body !== (existing.notes ?? "")) {
+    tagged.notes = applied.body;
+  }
+
+  return tagged;
+}
+
+function autoTaggedMcpNoteCreate(
+  settingsRepository: LocalSettingsRepository,
+  input: DomainJsonObject
+): NoteCreateRequest {
+  const request = noteCreateFromJson(input);
+  const applied = applyAutoTagRules(settingsRepository.get().autoTagRules, {
+    kind: "note",
+    title: request.title,
+    body: request.body ?? "",
+    explicitTags: request.tags,
+    existingTags: []
+  });
+
+  return { ...request, title: applied.title, body: applied.body, tags: applied.tags };
+}
+
+function autoTaggedMcpNoteUpdate(
+  repository: LocalPlannerRepository,
+  settingsRepository: LocalSettingsRepository,
+  id: string,
+  patch: DomainJsonObject
+): NoteUpdateRequest {
+  const request = noteUpdateFromPatch(id, patch);
+  const existing = repository.getNote(id);
+  const title = request.title ?? existing.title;
+  const body = request.body ?? existing.body ?? "";
+  const applied = applyAutoTagRules(settingsRepository.get().autoTagRules, {
+    kind: "note",
+    title,
+    body,
+    explicitTags: request.tags ?? [],
+    existingTags: request.tags === undefined ? existing.tags ?? [] : []
+  });
+  const tagged: NoteUpdateRequest = { ...request, tags: applied.tags };
+
+  if (request.title !== undefined || applied.title !== existing.title) {
+    tagged.title = applied.title;
+  }
+
+  if (request.body !== undefined || applied.body !== (existing.body ?? "")) {
+    tagged.body = applied.body;
+  }
+
+  return tagged;
+}
+
+function autoTaggedMcpEventCreate(
+  repository: LocalPlannerRepository,
+  settingsRepository: LocalSettingsRepository,
+  input: DomainJsonObject
+): CalendarEventCreateRequest {
+  const request = calendarEventRequestFromJson(repository, input);
+  const applied = applyAutoTagRules(settingsRepository.get().autoTagRules, {
+    kind: "event",
+    title: request.title,
+    body: request.notes ?? "",
+    explicitTags: request.tags,
+    existingTags: [],
+    requestedEventColorId: request.colorId,
+    hcbKind: request.hcbKind ?? null
+  });
+
+  return {
+    ...request,
+    title: applied.title,
+    notes: applied.body,
+    tags: applied.tags,
+    ...(applied.eventColorId === undefined ? {} : { colorId: applied.eventColorId })
+  };
+}
+
+function autoTaggedMcpEventUpdate(
+  repository: LocalPlannerRepository,
+  settingsRepository: LocalSettingsRepository,
+  id: string,
+  patch: DomainJsonObject
+): CalendarEventUpdateRequest {
+  const request = { id, ...calendarEventPatchFromJson(patch) };
+  const existing = repository.getCalendarEvent(id);
+  const title = request.title ?? existing.title;
+  const body = request.notes ?? existing.notes ?? "";
+  const applied = applyAutoTagRules(settingsRepository.get().autoTagRules, {
+    kind: "event",
+    title,
+    body,
+    explicitTags: request.tags ?? [],
+    existingTags: request.tags === undefined ? existing.tags ?? [] : [],
+    existingEventColorId: existing.colorId ?? null,
+    requestedEventColorId: request.colorId,
+    hcbKind: request.hcbKind ?? existing.hcbKind ?? null
+  });
+  const tagged: CalendarEventUpdateRequest = { ...request, tags: applied.tags };
+
+  if (request.title !== undefined || applied.title !== existing.title) {
+    tagged.title = applied.title;
+  }
+
+  if (request.notes !== undefined || applied.body !== (existing.notes ?? "")) {
+    tagged.notes = applied.body;
+  }
+
+  if (applied.eventColorId !== undefined) {
+    tagged.colorId = applied.eventColorId;
+  }
+
+  return tagged;
 }
 
 function taskMoveFromJson(id: string, input: DomainJsonObject): TaskMoveRequest {

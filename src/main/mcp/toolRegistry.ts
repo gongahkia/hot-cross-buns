@@ -166,6 +166,7 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
   writeTool("hcb_create_note", "Create an HCB note.", false, {
     title: stringSchema("Note title."),
     body: stringSchema("Optional note body."),
+    tags: arraySchema("Optional note tags."),
     linkedTaskId: stringSchema("Optional linked task id."),
     linkedEventId: stringSchema("Optional linked event id."),
     dryRun: booleanSchema("Preview without applying."),
@@ -181,6 +182,7 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
     calendarId: stringSchema("Optional calendar id."),
     guestEmails: arraySchema("Optional guest email list."),
     reminderMinutes: arraySchema("Optional reminder minute offsets."),
+    tags: arraySchema("Optional local HCB event tags."),
     colorId: stringSchema("Optional Google Calendar color id."),
     recurrence: objectSchema("Optional recurrence object."),
     timeZone: stringSchema("Optional IANA time zone."),
@@ -217,13 +219,13 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
   }, ["id", "patch"]),
   writeTool("hcb_update_note", "Update HCB note fields.", false, {
     id: stringSchema("Note id."),
-    patch: objectSchema("Fields: title, body, noteListId."),
+    patch: objectSchema("Fields: title, body, noteListId, tags."),
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
   }, ["id", "patch"]),
   writeTool("hcb_update_event", "Update event fields.", false, {
     id: stringSchema("Event id."),
-    patch: objectSchema("Fields: title, details, startDate, endDate, isAllDay, location, calendarId, guestEmails, reminderMinutes, colorId, recurrence, timeZone."),
+    patch: objectSchema("Fields: title, details, startDate, endDate, isAllDay, location, calendarId, guestEmails, reminderMinutes, tags, colorId, recurrence, timeZone."),
     dryRun: booleanSchema("Preview without applying."),
     confirmationId: stringSchema("Confirmation id returned by a dry-run.")
   }, ["id", "patch"]),

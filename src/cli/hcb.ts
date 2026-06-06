@@ -1462,6 +1462,7 @@ function writeApplyCommand(command: ParsedCommand, response: McpToolResponse): s
   if ((command.command === "create" || command.command === "update") && command.target === "note") {
     pushFlag(args, "--body", command.body);
     pushFlag(args, "--note-list-id", command.noteListId);
+    pushFlag(args, "--tags", command.tags?.join(","));
   }
 
   if ((command.command === "create" || command.command === "update") && command.target === "event") {
@@ -1472,6 +1473,7 @@ function writeApplyCommand(command: ParsedCommand, response: McpToolResponse): s
     pushFlag(args, "--calendar-id", command.calendarId);
     pushFlag(args, "--guest-emails", command.guestEmails?.join(","));
     pushFlag(args, "--reminder-minutes", command.reminderMinutes?.join(","));
+    pushFlag(args, "--tags", command.tags?.join(","));
     pushFlagValue(args, "--color-id", command.colorId);
     pushFlag(args, "--time-zone", command.timeZone);
     pushFlag(args, "--recurrence-frequency", command.recurrenceFrequency);
@@ -1718,12 +1720,12 @@ function helpText(): string {
     "  pnpm hcb -- list task-lists",
     "  pnpm hcb -- list note-lists",
     "  pnpm hcb -- get task task-id",
-    "  pnpm hcb -- create note --title 'Draft' --body 'Body'",
+    "  pnpm hcb -- create note --title 'Draft' --body 'Body' --tags reference",
     "  pnpm hcb -- create task-list --title 'Errands'",
     "  pnpm hcb -- create note --title 'Draft' --body 'Body' --apply --confirmation-id confirm-id",
     "  pnpm hcb -- update task task-id --title 'Next title'",
     "  pnpm hcb -- update task task-id --priority high --tags launch,ops",
-    "  pnpm hcb -- update event event-id --recurrence-frequency weekly --recurrence-by-day MO,WE",
+    "  pnpm hcb -- update event event-id --tags focus --recurrence-frequency weekly --recurrence-by-day MO,WE",
     "  pnpm hcb -- convert event event-id --to task --source-action keep",
     "  pnpm hcb -- rename task-list list-id --title 'Errands'",
     "  pnpm hcb -- complete task task-id",
@@ -2396,12 +2398,12 @@ function validateCreateCommand(command: ParsedCommand): void {
   }
 
   if (command.target === "note") {
-    rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
+    rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
     return;
   }
 
   if (command.target === "event") {
-    rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "patchJson", "clientId", "clientSecret", "enabled"]);
+    rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "lockedSchedule", "snoozeUntil", "noteListId", "body", "patchJson", "clientId", "clientSecret", "enabled"]);
     command.startDate = requiredCreateText(command.startDate, "--start-date", "event");
     validateRecurrenceCommand(command);
     validateCreateEventDates(command);
@@ -2424,15 +2426,15 @@ function validateUpdateCommand(command: ParsedCommand): void {
   }
 
   if (command.target === "note") {
-    rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "tags", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
-    requireAnyUpdateField(command, ["title", "body", "noteListId"], "note");
+    rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule", "snoozeUntil", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence", "patchJson", "clientId", "clientSecret", "enabled"]);
+    requireAnyUpdateField(command, ["title", "body", "noteListId", "tags"], "note");
     command.title = optionalCreateText(command.title, "--title", "note");
     return;
   }
 
   if (command.target === "event") {
-    rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "lockedSchedule", "snoozeUntil", "tags", "noteListId", "body", "patchJson", "clientId", "clientSecret", "enabled"]);
-    requireAnyUpdateField(command, ["title", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence"], "event");
+    rejectCreateOptions(command, ["notes", "dueDate", "taskListId", "parentId", "previousSiblingId", "priority", "plannedStart", "plannedEnd", "lockedSchedule", "snoozeUntil", "noteListId", "body", "patchJson", "clientId", "clientSecret", "enabled"]);
+    requireAnyUpdateField(command, ["title", "details", "startDate", "endDate", "location", "calendarId", "allDay", "guestEmails", "reminderMinutes", "tags", "colorId", "timeZone", "recurrenceFrequency", "recurrenceInterval", "recurrenceEndsOn", "recurrenceCount", "recurrenceByDay", "clearRecurrence"], "event");
     command.title = optionalCreateText(command.title, "--title", "event");
     validateRecurrenceCommand(command);
     validateUpdateEventDates(command);
