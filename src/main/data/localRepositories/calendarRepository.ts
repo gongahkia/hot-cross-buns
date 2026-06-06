@@ -36,6 +36,7 @@ import {
   systemTimeZone
 } from "./shared";
 import { TaskLocalRepository } from "./taskRepository";
+import type { SqliteWriteOperation } from "../sqliteConnection";
 import type { CalendarEventRow, CalendarListRow, CalendarRow } from "./types";
 
 export class CalendarLocalRepository extends TaskLocalRepository {
@@ -260,8 +261,21 @@ export class CalendarLocalRepository extends TaskLocalRepository {
       const localTagsJson =
         request.tags === undefined ? existing.tagsJson ?? "[]" : JSON.stringify(request.tags);
       const mutationId = `mutation:event:${randomUUID()}`;
+      const googleBackedPatch =
+        request.title !== undefined ||
+        request.calendarId !== undefined ||
+        request.startsAt !== undefined ||
+        request.endsAt !== undefined ||
+        request.allDay !== undefined ||
+        request.location !== undefined ||
+        request.notes !== undefined ||
+        request.guestEmails !== undefined ||
+        request.reminderMinutes !== undefined ||
+        request.colorId !== undefined ||
+        request.recurrence !== undefined ||
+        request.hcbKind !== undefined;
 
-      this.connection.executeTransaction([
+      const operations: SqliteWriteOperation[] = [
         eventUpdateOperation({
           id: existing.eventId,
           hcbKind: request.hcbKind ?? null,
@@ -284,21 +298,26 @@ export class CalendarLocalRepository extends TaskLocalRepository {
           recurrenceRule: normalized.recurrenceRule,
           status: "confirmed",
           updatedAt: now
-        }),
-        mutationInsertOperation({
+        })
+      ];
+
+      if (googleBackedPatch) {
+        operations.push(mutationInsertOperation({
           id: mutationId,
           accountId: targetCalendar.accountId,
           resourceId: existing.eventId,
           operation: "calendar.events.update",
           payload: mutationPayload(normalized, request.hcbKind ?? existing.hcbKind ?? null),
           now
-        })
-      ]);
+        }));
+      }
+
+      this.connection.executeTransaction(operations);
       this.recordHistory({
         kind: "event.edit",
         resourceId: existing.eventId,
         summary: "Edited calendar event",
-        metadata: { queued: true, calendarId: targetCalendar.id }
+        metadata: { queued: googleBackedPatch, calendarId: targetCalendar.id }
       });
 
       return this.getCalendarEvent(existing.eventId);

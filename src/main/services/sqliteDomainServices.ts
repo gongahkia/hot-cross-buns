@@ -64,7 +64,11 @@ export function createSqliteDomainServices(
   const undo = createSqliteUndoDomainService(options.undoRepository);
 
   return {
-    planner: createSqlitePlannerDomainService(options.plannerRepository, options.undoRepository),
+    planner: createSqlitePlannerDomainService(
+      options.plannerRepository,
+      options.undoRepository,
+      options.settingsRepository
+    ),
     sync,
     google: createUnavailableGoogleDomainService(options.syncRepository),
     settings: createSqliteSettingsDomainService({

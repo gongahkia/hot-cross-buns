@@ -1,8 +1,12 @@
 import packageJson from "../../../package.json";
 import type {
+  CalendarEventCreateRequest,
   CalendarEventCompletionScope,
   CalendarEventRecurrence,
+  CalendarEventUpdateRequest,
   DiagnosticsLogLevel,
+  NoteCreateRequest,
+  NoteUpdateRequest,
   SearchQueryRequest,
   TaskCreateRequest,
   TaskMoveRequest,
@@ -27,6 +31,7 @@ import type {
 } from "./domainInterfaces";
 import type { SyncStatusResponse } from "@shared/ipc/contracts";
 import type { SyncRunNowRequest } from "@shared/ipc/contracts";
+import { applyAutoTagRules } from "./autoTags";
 
 export interface McpDomainServiceDependencies {
   plannerRepository: LocalPlannerRepository;
@@ -40,6 +45,7 @@ export interface McpDomainServiceDependencies {
 
 export function createMcpDomainServices(dependencies: McpDomainServiceDependencies): McpDomainServices {
   const repository = dependencies.plannerRepository;
+  const settingsRepository = dependencies.settingsRepository;
 
   return {
     planning: {
@@ -132,19 +138,20 @@ export function createMcpDomainServices(dependencies: McpDomainServiceDependenci
       previewCreateTask: (input) =>
         jsonObject({
           kind: "task",
-          ...taskCreateFromJson(repository, input),
+          ...autoTaggedMcpTaskCreate(repository, settingsRepository, input),
           deepLink: "hotcrossbuns://task/preview"
         }),
       createTask: (input) =>
         jsonObject({
           kind: "task",
-          ...repository.createTask(taskCreateFromJson(repository, input))
+          ...repository.createTask(autoTaggedMcpTaskCreate(repository, settingsRepository, input))
         }),
-      previewUpdateTask: (id, patch) => jsonObject({ ...repository.getTask(id), patch }),
+      previewUpdateTask: (id, patch) =>
+        jsonObject({ ...repository.getTask(id), patch: autoTaggedMcpTaskUpdate(repository, settingsRepository, id, patch) }),
       updateTask: (id, patch) =>
         jsonObject({
           kind: "task",
-          ...repository.updateTask(taskUpdateFromPatch(id, patch))
+          ...repository.updateTask(autoTaggedMcpTaskUpdate(repository, settingsRepository, id, patch))
         }),
       previewCompleteTask: (id) => jsonObject({ ...repository.getTask(id), targetStatus: "completed" }),
       completeTask: (id) => jsonObject({ kind: "task", ...repository.completeTask({ id }) }),
@@ -197,42 +204,23 @@ export function createMcpDomainServices(dependencies: McpDomainServiceDependenci
       previewCreateNote: (input) =>
         jsonObject({
           kind: "note",
-          title: requiredText(input, "title"),
-          body: optionalText(input, "body") ?? "",
-          listId: optionalText(input, "noteListId") ?? optionalText(input, "listId") ?? null,
+          ...autoTaggedMcpNoteCreate(settingsRepository, input),
           deepLink: "hotcrossbuns://note/preview"
         }),
       createNote: (input) =>
         jsonObject({
           kind: "note",
-          ...repository.createNote({
-            ...(optionalText(input, "noteListId") === undefined && optionalText(input, "listId") === undefined
-              ? {}
-              : { listId: optionalText(input, "noteListId") ?? optionalText(input, "listId") }),
-            title: requiredText(input, "title"),
-            body: optionalText(input, "body") ?? ""
-          })
+          ...repository.createNote(autoTaggedMcpNoteCreate(settingsRepository, input))
         }),
       previewUpdateNote: (id, patch) =>
         jsonObject({
           ...repository.getNote(id),
-          patch
+          patch: autoTaggedMcpNoteUpdate(repository, settingsRepository, id, patch)
         }),
       updateNote: (id, patch) =>
         jsonObject({
           kind: "note",
-          ...repository.updateNote({
-            id,
-            ...(optionalText(patch, "title") === undefined
-              ? {}
-              : { title: optionalText(patch, "title") }),
-            ...(optionalText(patch, "body") === undefined
-              ? {}
-              : { body: optionalText(patch, "body") }),
-            ...(optionalText(patch, "noteListId") === undefined && optionalText(patch, "listId") === undefined
-              ? {}
-              : { listId: optionalText(patch, "noteListId") ?? optionalText(patch, "listId") })
-          })
+          ...repository.updateNote(autoTaggedMcpNoteUpdate(repository, settingsRepository, id, patch))
         }),
       previewDeleteNote: (id) => jsonObject(repository.getNote(id)),
       deleteNote: (id) => jsonObject(repository.deleteNote({ id }))
@@ -243,26 +231,23 @@ export function createMcpDomainServices(dependencies: McpDomainServiceDependenci
       previewCreateEvent: (input) =>
         jsonObject({
           kind: "event",
-          ...calendarEventRequestFromJson(repository, input),
+          ...autoTaggedMcpEventCreate(repository, settingsRepository, input),
           deepLink: "hotcrossbuns://event/preview"
         }),
       createEvent: (input) =>
         jsonObject({
           kind: "event",
-          ...repository.createCalendarEvent(calendarEventRequestFromJson(repository, input))
+          ...repository.createCalendarEvent(autoTaggedMcpEventCreate(repository, settingsRepository, input))
         }),
       previewUpdateEvent: (id, patch) =>
         jsonObject({
           ...repository.getCalendarEvent(id),
-          patch
+          patch: autoTaggedMcpEventUpdate(repository, settingsRepository, id, patch)
         }),
       updateEvent: (id, patch) =>
         jsonObject({
           kind: "event",
-          ...repository.updateCalendarEvent({
-            id,
-            ...calendarEventPatchFromJson(patch)
-          })
+          ...repository.updateCalendarEvent(autoTaggedMcpEventUpdate(repository, settingsRepository, id, patch))
         }),
       previewCompleteEvent: (id, input) =>
         jsonObject({

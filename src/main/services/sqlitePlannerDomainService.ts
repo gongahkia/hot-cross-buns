@@ -1,12 +1,25 @@
 import type { JsonValue } from "@shared/domain/localData";
-import type { LocalPlannerRepository } from "../data/localRepositories";
-import type { LocalUndoRepository } from "../data/localRepositories";
+import type {
+  CalendarEventCreateRequest,
+  CalendarEventUpdateRequest,
+  NoteCreateRequest,
+  NoteUpdateRequest,
+  TaskCreateRequest,
+  TaskUpdateRequest
+} from "@shared/ipc/contracts";
+import type {
+  LocalPlannerRepository,
+  LocalSettingsRepository,
+  LocalUndoRepository
+} from "../data/localRepositories";
+import { applyAutoTagRules } from "./autoTags";
 import type { PlannerViewDomainService } from "./domainInterfaces";
 import { buildDaySchedule } from "./schedulingSuggestionService";
 
 export function createSqlitePlannerDomainService(
   repository: LocalPlannerRepository,
-  undoRepository?: LocalUndoRepository
+  undoRepository?: LocalUndoRepository,
+  settingsRepository?: LocalSettingsRepository
 ): PlannerViewDomainService {
   function recordUndo(input: {
     actionKind: string;
@@ -31,7 +44,7 @@ export function createSqlitePlannerDomainService(
     listTasks: (request) => repository.listTasks(request),
     getTask: (request) => repository.getTask(request.id),
     createTask: (request) => {
-      const created = repository.createTask(request);
+      const created = repository.createTask(autoTaggedTaskCreate(settingsRepository, request));
       recordUndo({
         actionKind: "task.create",
         label: "Create task",
@@ -44,7 +57,7 @@ export function createSqlitePlannerDomainService(
     },
     updateTask: (request) => {
       const before = undoRepository?.taskSnapshot(request.id) ?? null;
-      const updated = repository.updateTask(request);
+      const updated = repository.updateTask(autoTaggedTaskUpdate(repository, settingsRepository, request));
       recordUndo({
         actionKind: "task.update",
         label: "Edit task",
@@ -149,7 +162,7 @@ export function createSqlitePlannerDomainService(
     listCalendarEvents: (request) => repository.listCalendarEvents(request),
     getCalendarEvent: (request) => repository.getCalendarEvent(request.id),
     createCalendarEvent: (request) => {
-      const created = repository.createCalendarEvent(request);
+      const created = repository.createCalendarEvent(autoTaggedEventCreate(settingsRepository, request));
       recordUndo({
         actionKind: "calendar.events.create",
         label: "Create event",
@@ -162,7 +175,7 @@ export function createSqlitePlannerDomainService(
     },
     updateCalendarEvent: (request) => {
       const before = undoRepository?.calendarEventSnapshot(request.id) ?? null;
-      const updated = repository.updateCalendarEvent(request);
+      const updated = repository.updateCalendarEvent(autoTaggedEventUpdate(repository, settingsRepository, request));
       recordUndo({
         actionKind: "calendar.events.update",
         label: "Edit event",
@@ -323,7 +336,7 @@ export function createSqlitePlannerDomainService(
     },
     getNote: (request) => repository.getNote(request.id),
     createNote: (request) => {
-      const created = repository.createNote(request);
+      const created = repository.createNote(autoTaggedNoteCreate(settingsRepository, request));
       recordUndo({
         actionKind: "note.create",
         label: "Create note",
@@ -336,7 +349,7 @@ export function createSqlitePlannerDomainService(
     },
     updateNote: (request) => {
       const before = undoRepository?.taskSnapshot(request.id) ?? null;
-      const updated = repository.updateNote(request);
+      const updated = repository.updateNote(autoTaggedNoteUpdate(repository, settingsRepository, request));
       recordUndo({
         actionKind: "note.update",
         label: "Edit note",
@@ -368,4 +381,152 @@ export function createSqlitePlannerDomainService(
 
 function jsonValue(value: unknown): JsonValue {
   return value === undefined ? null : value as JsonValue;
+}
+
+function autoTagRules(settingsRepository?: LocalSettingsRepository) {
+  return settingsRepository?.get().autoTagRules ?? [];
+}
+
+function autoTaggedTaskCreate(
+  settingsRepository: LocalSettingsRepository | undefined,
+  request: TaskCreateRequest
+): TaskCreateRequest {
+  const applied = applyAutoTagRules(autoTagRules(settingsRepository), {
+    kind: "task",
+    title: request.title,
+    body: request.notes ?? "",
+    explicitTags: request.tags,
+    existingTags: []
+  });
+
+  return { ...request, title: applied.title, notes: applied.body, tags: applied.tags };
+}
+
+function autoTaggedTaskUpdate(
+  repository: LocalPlannerRepository,
+  settingsRepository: LocalSettingsRepository | undefined,
+  request: TaskUpdateRequest
+): TaskUpdateRequest {
+  const existing = repository.getTask(request.id);
+  const title = request.title ?? existing.title;
+  const body = request.notes ?? existing.notes ?? "";
+  const applied = applyAutoTagRules(autoTagRules(settingsRepository), {
+    kind: "task",
+    title,
+    body,
+    explicitTags: request.tags ?? [],
+    existingTags: request.tags === undefined ? existing.tags ?? [] : []
+  });
+  const tagged: TaskUpdateRequest = { ...request, tags: applied.tags };
+
+  if (request.title !== undefined || applied.title !== existing.title) {
+    tagged.title = applied.title;
+  }
+
+  if (request.notes !== undefined || applied.body !== (existing.notes ?? "")) {
+    tagged.notes = applied.body;
+  }
+
+  return tagged;
+}
+
+function autoTaggedNoteCreate(
+  settingsRepository: LocalSettingsRepository | undefined,
+  request: NoteCreateRequest
+): NoteCreateRequest {
+  const applied = applyAutoTagRules(autoTagRules(settingsRepository), {
+    kind: "note",
+    title: request.title,
+    body: request.body ?? "",
+    explicitTags: request.tags,
+    existingTags: []
+  });
+
+  return { ...request, title: applied.title, body: applied.body, tags: applied.tags };
+}
+
+function autoTaggedNoteUpdate(
+  repository: LocalPlannerRepository,
+  settingsRepository: LocalSettingsRepository | undefined,
+  request: NoteUpdateRequest
+): NoteUpdateRequest {
+  const existing = repository.getNote(request.id);
+  const title = request.title ?? existing.title;
+  const body = request.body ?? existing.body ?? "";
+  const applied = applyAutoTagRules(autoTagRules(settingsRepository), {
+    kind: "note",
+    title,
+    body,
+    explicitTags: request.tags ?? [],
+    existingTags: request.tags === undefined ? existing.tags ?? [] : []
+  });
+  const tagged: NoteUpdateRequest = { ...request, tags: applied.tags };
+
+  if (request.title !== undefined || applied.title !== existing.title) {
+    tagged.title = applied.title;
+  }
+
+  if (request.body !== undefined || applied.body !== (existing.body ?? "")) {
+    tagged.body = applied.body;
+  }
+
+  return tagged;
+}
+
+function autoTaggedEventCreate(
+  settingsRepository: LocalSettingsRepository | undefined,
+  request: CalendarEventCreateRequest
+): CalendarEventCreateRequest {
+  const applied = applyAutoTagRules(autoTagRules(settingsRepository), {
+    kind: "event",
+    title: request.title,
+    body: request.notes ?? "",
+    explicitTags: request.tags,
+    existingTags: [],
+    requestedEventColorId: request.colorId,
+    hcbKind: request.hcbKind ?? null
+  });
+
+  return {
+    ...request,
+    title: applied.title,
+    notes: applied.body,
+    tags: applied.tags,
+    ...(applied.eventColorId === undefined ? {} : { colorId: applied.eventColorId })
+  };
+}
+
+function autoTaggedEventUpdate(
+  repository: LocalPlannerRepository,
+  settingsRepository: LocalSettingsRepository | undefined,
+  request: CalendarEventUpdateRequest
+): CalendarEventUpdateRequest {
+  const existing = repository.getCalendarEvent(request.id);
+  const title = request.title ?? existing.title;
+  const body = request.notes ?? existing.notes ?? "";
+  const applied = applyAutoTagRules(autoTagRules(settingsRepository), {
+    kind: "event",
+    title,
+    body,
+    explicitTags: request.tags ?? [],
+    existingTags: request.tags === undefined ? existing.tags ?? [] : [],
+    existingEventColorId: existing.colorId ?? null,
+    requestedEventColorId: request.colorId,
+    hcbKind: request.hcbKind ?? existing.hcbKind ?? null
+  });
+  const tagged: CalendarEventUpdateRequest = { ...request, tags: applied.tags };
+
+  if (request.title !== undefined || applied.title !== existing.title) {
+    tagged.title = applied.title;
+  }
+
+  if (request.notes !== undefined || applied.body !== (existing.notes ?? "")) {
+    tagged.notes = applied.body;
+  }
+
+  if (applied.eventColorId !== undefined) {
+    tagged.colorId = applied.eventColorId;
+  }
+
+  return tagged;
 }
