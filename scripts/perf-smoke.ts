@@ -20,6 +20,8 @@ import {
 import type {
   DiagnosticsHealthResponse,
   DiagnosticsIpcMetricsResponse,
+  DiagnosticsPerformanceResponse,
+  LocalPerformanceTiming,
   StartupTimingSnapshot
 } from "../src/shared/ipc/contracts";
 import type { HcbResult } from "../src/shared/ipc/result";
@@ -313,6 +315,14 @@ function collectSqliteBaseline(userDataDir: string): SqliteBaselineResult {
         limit: 100
       })
     );
+    measure(measurements, `sqlite.tasks.calendar-bootstrap.${fixtureSize}`, () =>
+      plannerRepository.listCalendarBootstrapTasks({
+        start: perfFixture.baseTime,
+        end: "2026-02-10T00:00:00.000Z",
+        listIds: perfFixture.taskLists.map((list) => taskListLocalId(accountId, list.id)),
+        limit: 100
+      })
+    );
     measure(measurements, `sqlite.events.visible-range.${fixtureSize}`, () =>
       plannerRepository.listCalendarEvents({
         calendarIds: [calendarLocalId(accountId, perfFixture.calendars[0].id)],
@@ -428,6 +438,28 @@ function collectQueryPlans(connection: SqliteConnection): PerfQueryPlanReport[] 
             ORDER BY sort_order ASC, id ASC
             LIMIT ?`,
       params: [parentTaskId, 50]
+    }),
+    queryPlan(connection, {
+      name: "task.calendar-bootstrap",
+      category: "task",
+      sql: `SELECT tasks.id, tasks.title, tasks.due_at
+            FROM google_tasks tasks
+            INNER JOIN google_task_lists lists ON lists.id = tasks.task_list_id
+            WHERE lists.deleted_at IS NULL
+              AND tasks.deleted_at IS NULL
+              AND tasks.is_hidden = 0
+              AND tasks.parent_task_id IS NULL
+              AND tasks.due_at IS NOT NULL
+              AND tasks.task_list_id IN (?)
+              AND tasks.due_at >= ?
+              AND tasks.due_at < ?
+            ORDER BY
+              tasks.due_at ASC,
+              tasks.sort_order ASC,
+              tasks.updated_at DESC,
+              tasks.id ASC
+            LIMIT ? OFFSET ?`,
+      params: [taskListId, perfFixture.baseTime, "2026-02-10T00:00:00.000Z", 100, 0]
     }),
     queryPlan(connection, {
       name: "event.visible-range",
@@ -585,6 +617,7 @@ async function collectLaunchTiming(
   launch: PerfLaunchCapture;
   measurements: PerfMeasurement[];
   ipcRoutes: PerfIpcRouteReport[];
+  performanceTimings: LocalPerformanceTiming[];
 }> {
   const mainOutputPath = resolve(rootDir, "out", "main", "index.js");
   const skippedLaunch: PerfLaunchCapture = {
@@ -597,7 +630,8 @@ async function collectLaunchTiming(
     return {
       launch: skippedLaunch,
       measurements: launchSkippedMeasurements(name, skippedLaunch.reason),
-      ipcRoutes: []
+      ipcRoutes: [],
+      performanceTimings: []
     };
   }
 
@@ -647,7 +681,8 @@ async function collectLaunchTiming(
           name,
           "Diagnostics health did not return startup timings."
         ),
-        ipcRoutes: []
+        ipcRoutes: [],
+        performanceTimings: []
       };
     }
 
@@ -660,6 +695,10 @@ async function collectLaunchTiming(
       const result = await window.hcb?.diagnostics.ipcMetrics();
       return result?.ok ? result.data : null;
     })()`)) as DiagnosticsIpcMetricsResponse | null;
+    const performanceResponse = (await page.evaluate(`(async () => {
+      const result = await window.hcb?.diagnostics.performance({ limit: 100 });
+      return result?.ok ? result.data : null;
+    })()`)) as DiagnosticsPerformanceResponse | null;
 
     const launch: PerfLaunchCapture = {
       name,
@@ -681,7 +720,8 @@ async function collectLaunchTiming(
         ...rendererMeasurements,
         ...rendererFlowMeasurements
       ],
-      ipcRoutes: ipcRouteReports(ipcMetrics)
+      ipcRoutes: ipcRouteReports(ipcMetrics),
+      performanceTimings: performanceResponse?.timings ?? []
     };
   } catch (error) {
     const reason = sanitizeError(error);
@@ -693,7 +733,8 @@ async function collectLaunchTiming(
         reason
       },
       measurements: launchSkippedMeasurements(name, reason),
-      ipcRoutes: []
+      ipcRoutes: [],
+      performanceTimings: []
     };
   } finally {
     await electronApp?.close();
@@ -767,27 +808,38 @@ async function collectRendererMeasurements(
       }
     }
 
-    async function measureBootstrap() {
+    function utcDayRange(date) {
+      const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+      const end = new Date(start.getTime());
+      end.setUTCDate(end.getUTCDate() + 1);
+      return {
+        start: start.toISOString(),
+        end: end.toISOString()
+      };
+    }
+
+    async function measureBootstrap(name, calendarRange) {
       const startedAt = performance.now();
 
       try {
         const result = await window.hcb.bootstrap.get({
+          mode: "light",
           calendarRange: {
-            start: "2026-01-05T00:00:00.000Z",
-            end: "2026-02-10T00:00:00.000Z",
+            start: calendarRange.start,
+            end: calendarRange.end,
             limit: 500
           }
         });
         const payloadBytes = new Blob([JSON.stringify(result)]).size;
         return {
-          name: evaluatedLaunchName + ".ipc.bootstrap-roundtrip",
+          name: evaluatedLaunchName + "." + name,
           status: "collected",
           valueMs: Math.max(0, Math.round((performance.now() - startedAt) * 100) / 100),
           reason: "payloadBytes=" + payloadBytes
         };
       } catch (error) {
         return {
-          name: evaluatedLaunchName + ".ipc.bootstrap-roundtrip",
+          name: evaluatedLaunchName + "." + name,
           status: "skipped",
           reason: error instanceof Error ? error.message.slice(0, 160) : "Bootstrap measurement failed."
         };
@@ -805,7 +857,11 @@ async function collectRendererMeasurements(
     }
 
     return [
-      await measureBootstrap(),
+      await measureBootstrap("ipc.bootstrap-light-startup-roundtrip", utcDayRange(new Date())),
+      await measureBootstrap("ipc.bootstrap-light-wide-roundtrip", {
+        start: "2026-01-05T00:00:00.000Z",
+        end: "2026-02-10T00:00:00.000Z"
+      }),
       await measureIpc("ipc.health-roundtrip", async () => window.hcb.diagnostics.health()),
       await measureIpc("ipc.tasks-list-roundtrip", async () =>
         window.hcb.tasks.list({ status: "active", limit: 100 })
@@ -1107,6 +1163,9 @@ async function main(): Promise<void> {
       ],
       queryPlans: sqlite.queryPlans,
       ipcRoutes: mergeIpcRoutes([...cold.ipcRoutes, ...warm.ipcRoutes]),
+      performanceTimings: warm.performanceTimings.length > 0
+        ? warm.performanceTimings
+        : cold.performanceTimings,
       futureHooks: [
         "Add native global-hotkey quick capture latency once the OS shortcut flow is implemented.",
         "Add large-fixture Electron launch coverage once seeded startup time is stable enough for local developer machines.",

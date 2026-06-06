@@ -48,6 +48,7 @@ const bootstrapNoteListResponseSchema = pagedListResponseSchema(
 
 export const bootstrapGetRequestSchema = z
   .object({
+    mode: z.enum(["full", "light"]).default("full"),
     calendarRange: calendarRangeRequestSchema
   })
   .strict();

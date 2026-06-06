@@ -12,8 +12,10 @@ import {
   type CalendarScheduleSuggestRequest,
   type EntityByIdRequest,
   type GoogleDisconnectRequest,
+  type GoogleStatusResponse,
   type GoogleSaveOAuthClientRequest,
   type McpSetEnabledRequest,
+  type NativeCapabilitiesResponse,
   type NoteBrokenLinksRequest,
   type NoteCreateRequest,
   type NoteDeleteRequest,
@@ -39,9 +41,14 @@ import {
   type TaskListRenameRequest,
   type TaskListsRequest,
   type TaskListRequest,
+  type TaskListResponse,
+  type TaskSummary,
+  type NoteListResponse,
   type TaskMoveRequest,
   type TaskUpdateRequest,
-  type LocalPerformanceTiming
+  type LocalPerformanceTiming,
+  type SyncStatusResponse,
+  type UndoStackStatusResponse
 } from "@shared/ipc/contracts";
 import { appLogger } from "../diagnostics/appLogger";
 import type { AppDomainServices } from "../services/domainInterfaces";
@@ -347,63 +354,141 @@ async function bootstrapSnapshot(
   performanceTimings?: PerformanceTimingRecorder
 ) {
   const startedAt = performance.now();
+  const mode = request.mode ?? "full";
+  const timingName = mode === "light" ? "startup.bootstrap.light" : "startup.bootstrap.get";
 
   try {
-    const [
-      taskLists,
-      tasks,
-      hiddenTasks,
-      deletedTasks,
-      calendars,
-      events,
-      scheduledTaskBlocks,
-      notes,
-      settings,
-      syncStatus,
-      googleStatus,
-      undoStatus,
-      native
-    ] = await Promise.all([
-      loadAllBootstrapPages({ limit: 100 }, (pageRequest) =>
-        services.planner.listTaskLists(pageRequest)
-      ),
-      loadAllBootstrapPages({ status: "all", limit: 100 }, (pageRequest) =>
-        services.planner.listTasks(pageRequest)
-      ),
-      loadAllBootstrapPages({ status: "hidden", limit: 100 }, (pageRequest) =>
-        services.planner.listTasks(pageRequest)
-      ),
-      loadAllBootstrapPages({ status: "deleted", limit: 100 }, (pageRequest) =>
-        services.planner.listTasks(pageRequest)
-      ),
-      loadAllBootstrapPages({ limit: 100 }, (pageRequest) =>
-        services.planner.listCalendars(pageRequest)
-      ),
-      loadAllBootstrapPages(
-        {
+    const commonTimings: Record<string, number> = {};
+    const timedCommon = <T>(name: string, read: () => Promise<T> | T): Promise<T> | T => {
+      const phaseStartedAt = performance.now();
+
+      try {
+        return read();
+      } finally {
+        commonTimings[`${name}DurationMs`] = Math.round((performance.now() - phaseStartedAt) * 100) / 100;
+      }
+    };
+    const fullTaskPages = mode === "full"
+      ? Promise.all([
+          loadAllBootstrapPages({ status: "all", limit: 100 }, (pageRequest) =>
+            services.planner.listTasks(pageRequest)
+          ),
+          loadAllBootstrapPages({ status: "hidden", limit: 100 }, (pageRequest) =>
+            services.planner.listTasks(pageRequest)
+          ),
+          loadAllBootstrapPages({ status: "deleted", limit: 100 }, (pageRequest) =>
+            services.planner.listTasks(pageRequest)
+          )
+        ])
+      : null;
+    const commonStartedAt = performance.now();
+    let taskLists: Awaited<ReturnType<AppDomainServices["planner"]["listTaskLists"]>>;
+    let calendars: Awaited<ReturnType<AppDomainServices["planner"]["listCalendars"]>>;
+    let events: Awaited<ReturnType<AppDomainServices["planner"]["listCalendarEvents"]>>;
+    let scheduledTaskBlocks: Awaited<ReturnType<AppDomainServices["planner"]["listScheduledTaskBlocks"]>>;
+    let notesPage: NoteListResponse;
+    let settings: Awaited<ReturnType<AppDomainServices["settings"]["get"]>>;
+    let syncStatus: SyncStatusResponse;
+    let googleStatus: GoogleStatusResponse;
+    let undoStatus: UndoStackStatusResponse;
+    let native: NativeCapabilitiesResponse;
+
+    if (mode === "light") {
+      const taskListsValue = timedCommon("taskLists", () =>
+        services.planner.listTaskLists({ limit: 100 })
+      );
+      taskLists = isPromiseLike(taskListsValue) ? await taskListsValue : taskListsValue;
+      const calendarsValue = timedCommon("calendars", () =>
+        services.planner.listCalendars({ limit: 100 })
+      );
+      calendars = isPromiseLike(calendarsValue) ? await calendarsValue : calendarsValue;
+      const eventsValue = timedCommon("events", () =>
+        services.planner.listCalendarEvents({
           start: request.calendarRange.start,
           end: request.calendarRange.end,
           limit: request.calendarRange.limit ?? 500
-        },
-        (pageRequest) => services.planner.listCalendarEvents(pageRequest)
-      ),
-      loadAllBootstrapPages(
-        {
+        })
+      );
+      events = isPromiseLike(eventsValue) ? await eventsValue : eventsValue;
+      const scheduledTaskBlocksValue = timedCommon("scheduledTaskBlocks", () =>
+        services.planner.listScheduledTaskBlocks({
           start: request.calendarRange.start,
           end: request.calendarRange.end,
           limit: 500
-        },
-        (pageRequest) => services.planner.listScheduledTaskBlocks(pageRequest)
-      ),
-      loadAllBootstrapPages({ limit: 50 }, (pageRequest) =>
-        services.planner.listNotes(pageRequest)
-      ),
-      services.settings.get(),
-      services.sync.status(),
-      services.google.status(),
-      services.undo.status(),
-      services.native.capabilities()
-    ]);
+        })
+      );
+      scheduledTaskBlocks = isPromiseLike(scheduledTaskBlocksValue)
+        ? await scheduledTaskBlocksValue
+        : scheduledTaskBlocksValue;
+      notesPage = timedCommon("notes", () => emptyNotesResponse()) as NoteListResponse;
+      const settingsValue = timedCommon("settings", () => services.settings.get());
+      settings = isPromiseLike(settingsValue) ? await settingsValue : settingsValue;
+      syncStatus = timedCommon("syncStatus", () => deferredSyncStatus()) as SyncStatusResponse;
+      googleStatus = timedCommon("googleStatus", () => deferredGoogleStatus()) as GoogleStatusResponse;
+      undoStatus = timedCommon("undoStatus", () => deferredUndoStatus()) as UndoStackStatusResponse;
+      native = timedCommon("native", () => deferredNativeCapabilities()) as NativeCapabilitiesResponse;
+    } else {
+      [
+        taskLists,
+        calendars,
+        events,
+        scheduledTaskBlocks,
+        notesPage,
+        settings,
+        syncStatus,
+        googleStatus,
+        undoStatus,
+        native
+      ] = await Promise.all([
+        loadAllBootstrapPages({ limit: 100 }, (pageRequest) =>
+          services.planner.listTaskLists(pageRequest)
+        ),
+        loadAllBootstrapPages({ limit: 100 }, (pageRequest) =>
+          services.planner.listCalendars(pageRequest)
+        ),
+        loadAllBootstrapPages(
+          {
+            start: request.calendarRange.start,
+            end: request.calendarRange.end,
+            limit: request.calendarRange.limit ?? 500
+          },
+          (pageRequest) => services.planner.listCalendarEvents(pageRequest)
+        ),
+        loadAllBootstrapPages(
+          {
+            start: request.calendarRange.start,
+            end: request.calendarRange.end,
+            limit: 500
+          },
+          (pageRequest) => services.planner.listScheduledTaskBlocks(pageRequest)
+        ),
+        loadAllBootstrapPages({ limit: 50 }, (pageRequest) =>
+          services.planner.listNotes(pageRequest)
+        ),
+        services.settings.get(),
+        services.sync.status(),
+        services.google.status(),
+        services.undo.status(),
+        services.native.capabilities()
+      ]);
+    }
+    const commonDurationMs = performance.now() - commonStartedAt;
+    const taskStartedAt = performance.now();
+    const [tasks, hiddenTasks, deletedTasks] = fullTaskPages
+      ? await fullTaskPages
+      : [
+          await loadLightBootstrapTasks(
+            services,
+            request,
+            taskListIdsForBootstrap(settings.selectedTaskListIds, taskLists.items),
+            linkedTaskIds(events.items)
+          ),
+          emptyTaskResponse(),
+          emptyTaskResponse()
+        ];
+    const taskDurationMs = performance.now() - taskStartedAt;
+    const notes = mode === "light" ? emptyNotesFromPage(notesPage) : notesPage;
+    const snapshotStartedAt = performance.now();
 
     const snapshot = {
       taskLists,
@@ -431,17 +516,39 @@ async function bootstrapSnapshot(
             knownTotal(deletedTasks.page.totalKnown, deletedTasks.items.length)
       }
     };
+    const snapshotDurationMs = performance.now() - snapshotStartedAt;
+    const payloadStartedAt = performance.now();
+    const snapshotPayloadBytes = payloadBytes(snapshot);
+    const payloadDurationMs = performance.now() - payloadStartedAt;
+
+    if (mode === "light") {
+      recordPerformanceTiming(performanceTimings, {
+        kind: "startup",
+        name: "startup.bootstrap.light.phase",
+        durationMs: performance.now() - startedAt,
+        metadata: {
+          commonDurationMs: Math.round(commonDurationMs * 100) / 100,
+          taskDurationMs: Math.round(taskDurationMs * 100) / 100,
+          snapshotDurationMs: Math.round(snapshotDurationMs * 100) / 100,
+          payloadDurationMs: Math.round(payloadDurationMs * 100) / 100,
+          ...commonTimings
+        }
+      });
+    }
 
     recordPerformanceTiming(performanceTimings, {
       kind: "startup",
-      name: "startup.bootstrap.get",
+      name: timingName,
       durationMs: performance.now() - startedAt,
       metadata: {
         outcome: "used",
+        mode,
         tasks: snapshot.resourceCounts.tasks,
+        loadedTasks: tasks.items.length + hiddenTasks.items.length + deletedTasks.items.length,
         calendarEvents: snapshot.resourceCounts.calendarEvents,
         notes: snapshot.resourceCounts.notes,
-        payloadBytes: payloadBytes(snapshot)
+        loadedNotes: notes.items.length,
+        payloadBytes: snapshotPayloadBytes
       }
     });
 
@@ -449,15 +556,199 @@ async function bootstrapSnapshot(
   } catch (thrown) {
     recordPerformanceTiming(performanceTimings, {
       kind: "startup",
-      name: "startup.bootstrap.get",
+      name: timingName,
       durationMs: performance.now() - startedAt,
       metadata: {
-        outcome: "failed"
+        outcome: "failed",
+        mode
       }
     });
 
     throw thrown;
   }
+}
+
+async function loadLightBootstrapTasks(
+  services: AppDomainServices,
+  request: BootstrapGetRequest,
+  listIds: string[],
+  linkedTaskIds: string[]
+): Promise<TaskListResponse> {
+  if (services.planner.listCalendarBootstrapTasks) {
+    return loadAllBootstrapPages(
+      {
+        start: request.calendarRange.start,
+        end: request.calendarRange.end,
+        listIds,
+        taskIds: linkedTaskIds,
+        limit: 100
+      },
+      (pageRequest) => services.planner.listCalendarBootstrapTasks!(pageRequest)
+    );
+  }
+
+  const fullPage = await loadAllBootstrapPages({ status: "all", limit: 100 }, (pageRequest) =>
+    services.planner.listTasks(pageRequest)
+  );
+  const linkedIds = new Set(linkedTaskIds);
+  const selectedListIds = new Set(listIds);
+  const items = fullPage.items.filter((task) =>
+    linkedIds.has(task.id) ||
+    (
+      selectedListIds.has(task.listId) &&
+      rootTaskDueInRange(task, request.calendarRange.start, request.calendarRange.end)
+    )
+  );
+
+  return {
+    ...fullPage,
+    items,
+    page: {
+      limit: fullPage.page.limit,
+      totalKnown: items.length
+    }
+  };
+}
+
+function taskListIdsForBootstrap(
+  selectedTaskListIds: readonly string[],
+  taskLists: readonly { id: string }[]
+): string[] {
+  return selectedTaskListIds.length > 0
+    ? [...selectedTaskListIds]
+    : taskLists.map((taskList) => taskList.id);
+}
+
+function rootTaskDueInRange(task: TaskSummary, start: string, end: string): boolean {
+  return Boolean(
+    task.parentId == null &&
+    task.dueAt &&
+    task.dueAt >= start &&
+    task.dueAt < end
+  );
+}
+
+function linkedTaskIds(events: { linkedTaskId?: string }[]): string[] {
+  return [...new Set(events.flatMap((event) => event.linkedTaskId ? [event.linkedTaskId] : []))];
+}
+
+function emptyTaskResponse(): TaskListResponse {
+  return {
+    items: [],
+    page: {
+      limit: 1,
+      totalKnown: 0
+    }
+  };
+}
+
+function emptyNotesResponse(): NoteListResponse {
+  return {
+    items: [],
+    lists: [],
+    page: {
+      limit: 1,
+      totalKnown: 0
+    }
+  };
+}
+
+function emptyNotesFromPage(notes: NoteListResponse): NoteListResponse {
+  const { nextCursor: _nextCursor, ...page } = notes.page;
+
+  return {
+    ...notes,
+    items: [],
+    page
+  };
+}
+
+function deferredSyncStatus(): SyncStatusResponse {
+  return {
+    state: "idle",
+    pendingMutationCount: 0,
+    offline: true,
+    stale: true
+  };
+}
+
+function deferredGoogleStatus(): GoogleStatusResponse {
+  return {
+    oauthClientConfigured: false,
+    clientId: null,
+    hasClientSecret: false
+  };
+}
+
+function deferredUndoStatus(): UndoStackStatusResponse {
+  return {
+    canUndo: false,
+    canRedo: false
+  };
+}
+
+function deferredNativeCapabilities(): NativeCapabilitiesResponse {
+  return {
+    platform: "unknown",
+    notifications: false,
+    globalShortcuts: false,
+    tray: false,
+    deepLinks: false,
+    trayStatus: {
+      state: "unsupported",
+      message: "Native shell status is deferred until after first render."
+    },
+    notificationsStatus: {
+      permission: "unsupported",
+      scheduledCount: 0,
+      state: "unsupported",
+      message: "Notification status is deferred until after first render."
+    },
+    deepLinkStatus: {
+      scheme: "hotcrossbuns",
+      registered: false,
+      state: "unsupported",
+      message: "Deep link status is deferred until after first render."
+    },
+    updaterStatus: {
+      state: "unsupported",
+      message: "Updater status is deferred until after first render."
+    },
+    mcpStatus: {
+      state: "disabled",
+      message: "MCP status is deferred until after first render."
+    },
+    capabilityReport: {
+      platform: "unknown",
+      adapterId: "deferred",
+      packageFormat: "development",
+      flags: {
+        supportsAppPaths: false,
+        supportsTray: false,
+        supportsAppMenu: false,
+        supportsGlobalShortcut: false,
+        supportsNotifications: false,
+        supportsNotificationPermissionQuery: false,
+        supportsProtocolRegistration: false,
+        supportsProtocolRegistrationCheck: false,
+        supportsAutostart: false,
+        supportsInPlaceAutoUpdate: false,
+        supportsInstallerMetadata: false,
+        supportsExternalUrlOpen: false,
+        supportsDiagnosticsCollection: false,
+        supportsCredentialStorage: false,
+        supportsOAuthLoopback: false,
+        supportsMcpLoopback: false,
+        requiresSignedBuildForNotifications: false
+      },
+      paths: [],
+      capabilities: [],
+      diagnostics: []
+    },
+    deferredStartup: {
+      state: "pending"
+    }
+  };
 }
 
 function knownTotal(pageTotal: number | undefined, itemCount: number): number {
@@ -609,4 +900,8 @@ function payloadBytes(value: unknown): number {
   } catch {
     return 0;
   }
+}
+
+function isPromiseLike<T>(value: T | Promise<T>): value is Promise<T> {
+  return typeof (value as { then?: unknown }).then === "function";
 }

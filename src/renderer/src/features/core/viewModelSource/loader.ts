@@ -6,18 +6,21 @@ import type {
   CalendarRangeResponse,
   NoteListRequest,
   NoteListResponse,
+  NoteListSummary,
+  NoteSummary,
   ScheduledTaskBlockListRequest,
   ScheduledTaskBlockListResponse,
   SettingsSnapshot,
   TaskListRequest,
   TaskListResponse,
+  TaskSummary,
   TaskListsRequest,
   TaskListsResponse
 } from "@shared/ipc/contracts";
 import { visibleCalendarRange } from "./dateFormat";
 import { unwrap } from "./result";
 import { uniqueTasks } from "./taskViewModels";
-import type { CoreDataSnapshot } from "./types";
+import type { CoreDataSnapshot, CoreResourceCounts } from "./types";
 
 type CursorRequest = { cursor?: string };
 type PagedResponse<Item> = {
@@ -85,6 +88,7 @@ export async function loadCoreData(
     : "missing";
   const bootstrap = bootstrapGet
     ? await bootstrapGet({
+        mode: "light",
         calendarRange: {
           start: calendarRange.start,
           end: calendarRange.end,
@@ -206,6 +210,127 @@ export async function loadCoreData(
   });
 
   return snapshot;
+}
+
+export interface CoreDataHydrationSnapshot {
+  tasks?: TaskSummary[];
+  notes?: NoteSummary[];
+  noteLists?: NoteListSummary[];
+  resourceCounts: Partial<CoreResourceCounts>;
+}
+
+export async function hydrateCoreData(): Promise<CoreDataHydrationSnapshot> {
+  if (!window.hcb) {
+    throw new Error("Preload bridge is unavailable.");
+  }
+
+  const [tasks, notes] = await Promise.allSettled([
+    loadTaskHydration(),
+    loadNoteHydration()
+  ]);
+
+  if (tasks.status === "rejected" && notes.status === "rejected") {
+    throw tasks.reason instanceof Error ? tasks.reason : new Error("Background hydration failed.");
+  }
+
+  return {
+    ...(tasks.status === "fulfilled" ? { tasks: tasks.value.items } : {}),
+    ...(notes.status === "fulfilled"
+      ? { notes: notes.value.items, noteLists: notes.value.lists }
+      : {}),
+    resourceCounts: {
+      ...(tasks.status === "fulfilled" ? { tasks: tasks.value.totalKnown } : {}),
+      ...(notes.status === "fulfilled" ? { notes: notes.value.totalKnown } : {})
+    }
+  };
+}
+
+async function loadTaskHydration(): Promise<{ items: TaskSummary[]; totalKnown: number }> {
+  const startedAt = performance.now();
+
+  try {
+    const [tasks, hiddenTasks, deletedTasks] = await Promise.all([
+      loadAllPages<TaskListRequest, TaskListResponse>(
+        { status: "all", limit: 100 },
+        (request) => window.hcb!.tasks.list(request).then((result) => unwrap(result, "Tasks failed"))
+      ),
+      loadAllPages<TaskListRequest, TaskListResponse>(
+        { status: "hidden", limit: 100 },
+        (request) => window.hcb!.tasks.list(request).then((result) => unwrap(result, "Hidden tasks failed"))
+      ),
+      loadAllPages<TaskListRequest, TaskListResponse>(
+        { status: "deleted", limit: 100 },
+        (request) => window.hcb!.tasks.list(request).then((result) => unwrap(result, "Deleted tasks failed"))
+      )
+    ]);
+    const items = uniqueTasks([...tasks.items, ...hiddenTasks.items, ...deletedTasks.items]);
+    const totalKnown =
+      knownTotal(tasks.page.totalKnown, tasks.items.length) +
+      knownTotal(hiddenTasks.page.totalKnown, hiddenTasks.items.length) +
+      knownTotal(deletedTasks.page.totalKnown, deletedTasks.items.length);
+
+    recordRendererTiming({
+      kind: "startup",
+      name: "startup.hydration.tasks",
+      durationMs: performance.now() - startedAt,
+      metadata: {
+        outcome: "success",
+        loadedTasks: items.length,
+        tasks: totalKnown
+      }
+    });
+
+    return { items, totalKnown };
+  } catch (error) {
+    recordRendererTiming({
+      kind: "startup",
+      name: "startup.hydration.tasks",
+      durationMs: performance.now() - startedAt,
+      metadata: {
+        outcome: "failed"
+      }
+    });
+    throw error;
+  }
+}
+
+async function loadNoteHydration(): Promise<{
+  items: NoteSummary[];
+  lists: NoteListSummary[];
+  totalKnown: number;
+}> {
+  const startedAt = performance.now();
+
+  try {
+    const notes = await loadAllPages<NoteListRequest, NoteListResponse>(
+      { limit: 50 },
+      (request) => window.hcb!.notes.list(request).then((result) => unwrap(result, "Notes failed"))
+    );
+    const totalKnown = knownTotal(notes.page.totalKnown, notes.items.length);
+
+    recordRendererTiming({
+      kind: "startup",
+      name: "startup.hydration.notes",
+      durationMs: performance.now() - startedAt,
+      metadata: {
+        outcome: "success",
+        loadedNotes: notes.items.length,
+        notes: totalKnown
+      }
+    });
+
+    return { items: notes.items, lists: notes.lists, totalKnown };
+  } catch (error) {
+    recordRendererTiming({
+      kind: "startup",
+      name: "startup.hydration.notes",
+      durationMs: performance.now() - startedAt,
+      metadata: {
+        outcome: "failed"
+      }
+    });
+    throw error;
+  }
 }
 
 function snapshotFromBootstrap(bootstrap: BootstrapGetResponse): CoreDataSnapshot {

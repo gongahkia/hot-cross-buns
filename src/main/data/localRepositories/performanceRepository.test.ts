@@ -43,4 +43,37 @@ describe("local performance repository", () => {
       temporary.cleanup();
     }
   });
+
+  it("keeps SQLite query timings visible without synchronous persistence", () => {
+    const temporary = createTemporarySqliteConnection("hcb2-performance-repository-");
+
+    try {
+      runLocalDataMigrations(temporary.connection);
+      const repository = new LocalPerformanceRepository(temporary.connection);
+
+      repository.record({
+        kind: "sqlite_query",
+        name: "tasks.list",
+        durationMs: 42.424,
+        createdAt: "2026-06-06T00:00:00.000Z"
+      });
+
+      expect(repository.listRecent(1)).toEqual([
+        expect.objectContaining({
+          kind: "sqlite_query",
+          name: "tasks.list",
+          durationMs: 42.42
+        })
+      ]);
+      expect(repository.listSlowSqliteQueries(1)).toEqual([
+        {
+          name: "tasks.list",
+          durationMs: 42.42,
+          createdAt: "2026-06-06T00:00:00.000Z"
+        }
+      ]);
+    } finally {
+      temporary.cleanup();
+    }
+  });
 });

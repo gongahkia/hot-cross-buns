@@ -64,6 +64,14 @@ export interface IpcDispatcherOptions {
   metrics?: IpcMetricsRecorder;
   logger?: IpcDiagnosticsLogger;
   now?: () => number;
+  performanceTimings?: {
+    record?: (timing: {
+      kind: "ipc";
+      name: string;
+      durationMs: number;
+      metadata?: Record<string, string | number | boolean | null>;
+    }) => void;
+  };
 }
 
 interface MutableRouteMetric {
@@ -282,8 +290,25 @@ export function createIpcDispatcher(
     }
 
     try {
+      const handleStartedAt = now();
       const data = await definition.handle(request.data, { route });
+      const handleDurationMs = durationSince(handleStartedAt, now);
+      const responseStartedAt = now();
       const response = definition.contract.responseSchema.safeParse(data);
+      const responseValidationDurationMs = durationSince(responseStartedAt, now);
+
+      if (handleDurationMs >= 250 || responseValidationDurationMs >= 250) {
+        options.performanceTimings?.record?.({
+          kind: "ipc",
+          name: "ipc.route.phase",
+          durationMs: handleDurationMs + responseValidationDurationMs,
+          metadata: {
+            route,
+            handleDurationMs,
+            responseValidationDurationMs
+          }
+        });
+      }
 
       if (!response.success) {
         return finish(

@@ -24,6 +24,7 @@ export function registerHcbIpc(
     ],
     {
       metrics,
+      performanceTimings: services.performance,
       logger: {
         debug: (event) => {
           if (event.outcome === "success") {

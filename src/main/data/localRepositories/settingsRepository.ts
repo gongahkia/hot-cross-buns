@@ -96,10 +96,21 @@ const DEFAULT_SETTINGS: SettingsSnapshot = {
 };
 
 export class LocalSettingsRepository {
+  private settingsReadCache: Map<string, string> | null = null;
+  private cachedSnapshot: SettingsSnapshot | null = null;
+
   constructor(private readonly connection: SqliteConnection) {}
 
   get(): SettingsSnapshot {
-    return {
+    if (this.cachedSnapshot) {
+      return this.cachedSnapshot;
+    }
+
+    const previousCache = this.settingsReadCache;
+    this.settingsReadCache = this.readSettingsMap();
+
+    try {
+      const snapshot: SettingsSnapshot = {
       theme: this.readSetting("appearance", "theme", DEFAULT_SETTINGS.theme),
       colorTheme: this.readSetting("appearance", "colorTheme", DEFAULT_SETTINGS.colorTheme),
       appLanguage: this.readSetting("app", "language", DEFAULT_SETTINGS.appLanguage),
@@ -377,7 +388,13 @@ export class LocalSettingsRepository {
         "savedViews",
         DEFAULT_SETTINGS.savedTaskViews
       )
-    };
+      };
+
+      this.cachedSnapshot = snapshot;
+      return snapshot;
+    } finally {
+      this.settingsReadCache = previousCache;
+    }
   }
 
   update(request: SettingsUpdateRequest): SettingsSnapshot {
@@ -779,6 +796,11 @@ export class LocalSettingsRepository {
   }
 
   private readSetting<T>(scope: string, key: string, fallback: T): T {
+    const cached = this.settingsReadCache?.get(settingsCacheKey(scope, key));
+    if (cached !== undefined) {
+      return parseSettingValue(cached, fallback);
+    }
+
     const row = this.connection.get<{ valueJson: string }>(
       `SELECT value_json AS valueJson
        FROM local_settings
@@ -791,14 +813,20 @@ export class LocalSettingsRepository {
       return fallback;
     }
 
-    try {
-      return JSON.parse(row.valueJson) as T;
-    } catch {
-      return fallback;
-    }
+    return parseSettingValue(row.valueJson, fallback);
+  }
+
+  private readSettingsMap(): Map<string, string> {
+    const rows = this.connection.query<{ scope: string; key: string; valueJson: string }>(
+      `SELECT scope, key, value_json AS valueJson
+       FROM local_settings;`
+    );
+
+    return new Map(rows.map((row) => [settingsCacheKey(row.scope, row.key), row.valueJson]));
   }
 
   private writeSetting(scope: string, key: string, value: unknown, now: string): void {
+    this.cachedSnapshot = null;
     this.connection.run(
       `INSERT INTO local_settings (scope, key, value_json, updated_at)
        VALUES (?, ?, ?, ?)
@@ -842,6 +870,18 @@ export class LocalSettingsRepository {
     );
 
     return rows.map((row) => row.id);
+  }
+}
+
+function settingsCacheKey(scope: string, key: string): string {
+  return `${scope}\0${key}`;
+}
+
+function parseSettingValue<T>(valueJson: string, fallback: T): T {
+  try {
+    return JSON.parse(valueJson) as T;
+  } catch {
+    return fallback;
   }
 }
 

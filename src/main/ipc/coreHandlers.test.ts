@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   HCB_IPC_VERSION,
   type HcbDomain
@@ -49,6 +49,52 @@ describe("core IPC handlers", () => {
         overloadMinutes: expect.any(Number)
       }
     });
+  });
+
+  it("serves light bootstrap without full note payloads", async () => {
+    const timings: Array<{ name: string; metadata?: Record<string, unknown> }> = [];
+    const services = createPlaceholderDomainServices();
+    const originalListNotes = services.planner.listNotes.bind(services.planner);
+    const listNotes = vi.fn(originalListNotes);
+    services.planner.listNotes = listNotes;
+    const dispatch = createIpcDispatcher(
+      createCoreIpcHandlers(services, {
+        record: (timing) => timings.push(timing)
+      })
+    );
+
+    const result = await dispatch(
+      {},
+      envelope("bootstrap", "get", {
+        mode: "light",
+        calendarRange: {
+          start: "2026-05-22T00:00:00.000Z",
+          end: "2026-05-23T00:00:00.000Z",
+          limit: 100
+        }
+      })
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        notes: {
+          items: []
+        }
+      }
+    });
+    expect(listNotes).not.toHaveBeenCalled();
+    expect(timings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "startup.bootstrap.light",
+          metadata: expect.objectContaining({
+            mode: "light",
+            loadedNotes: 0
+          })
+        })
+      ])
+    );
   });
 
   it("keeps sync and MCP controls sanitized and non-blocking", async () => {

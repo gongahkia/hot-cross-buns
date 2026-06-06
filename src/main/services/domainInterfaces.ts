@@ -192,6 +192,14 @@ export interface McpAdminDomainServices {
 export interface PlannerViewDomainService {
   listTaskLists: (request: TaskListsRequest) => MaybePromise<TaskListsResponse>;
   listTasks: (request: TaskListRequest) => MaybePromise<TaskListResponse>;
+  listCalendarBootstrapTasks?: (request: {
+    start: string;
+    end: string;
+    listIds?: string[];
+    taskIds?: string[];
+    cursor?: string;
+    limit?: number;
+  }) => MaybePromise<TaskListResponse>;
   getTask: (request: EntityByIdRequest) => MaybePromise<TaskDetail>;
   createTask: (request: TaskCreateRequest) => MaybePromise<TaskDetail>;
   updateTask: (request: TaskUpdateRequest) => MaybePromise<TaskDetail>;

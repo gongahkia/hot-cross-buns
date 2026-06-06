@@ -40,6 +40,7 @@ describe("App shell", () => {
 
   it("reports the shell visible after settings load while other reads continue", async () => {
     const api = loadingHcb();
+    (api as { bootstrap?: unknown }).bootstrap = undefined;
 
     installHcb(api);
     render(<App />);

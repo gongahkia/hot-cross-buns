@@ -149,6 +149,98 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
     });
   }
 
+  listCalendarBootstrapTasks(request: {
+    start: string;
+    end: string;
+    listIds?: string[];
+    taskIds?: string[];
+    cursor?: string;
+    limit?: number;
+  }): TaskListResponse {
+    return this.measureSqlite("tasks.listCalendarBootstrap", () => {
+      const { limit, offset } = pageBounds(request.cursor, request.limit, 100, 100);
+      const listIds = [...new Set(request.listIds ?? [])].filter((id) => id.length > 0);
+      const taskIds = [...new Set(request.taskIds ?? [])].filter((id) => id.length > 0);
+      const params: Array<string | number | boolean | null> = [];
+      const visibilityPredicates = [
+        "lists.deleted_at IS NULL",
+        "tasks.deleted_at IS NULL",
+        "tasks.is_hidden = 0"
+      ];
+      const duePredicates = [
+        "tasks.parent_task_id IS NULL",
+        "tasks.due_at IS NOT NULL"
+      ];
+      if (listIds.length > 0) {
+        duePredicates.push(`tasks.task_list_id IN (${listIds.map(() => "?").join(", ")})`);
+        params.push(...listIds);
+      }
+      duePredicates.push("tasks.due_at >= ?", "tasks.due_at < ?");
+      params.push(request.start, request.end);
+      const calendarPredicates = [`(${duePredicates.join(" AND ")})`];
+
+      if (taskIds.length > 0) {
+        calendarPredicates.push(`tasks.id IN (${taskIds.map(() => "?").join(", ")})`);
+        params.push(...taskIds);
+      }
+
+      const where = `${visibilityPredicates.join(" AND ")} AND (${calendarPredicates.join(" OR ")})`;
+      const rows = this.connection.query<TaskRow>(
+        `SELECT
+           tasks.id AS id,
+           tasks.account_id AS accountId,
+           tasks.google_id AS googleId,
+           tasks.task_list_id AS listId,
+           lists.google_id AS listGoogleId,
+           lists.title AS listTitle,
+           tasks.title AS title,
+           tasks.status AS status,
+           tasks.notes AS notes,
+           tasks.due_at AS dueAt,
+           tasks.parent_task_id AS parentId,
+           tasks.deleted_at AS deletedAt,
+           tasks.is_hidden AS isHidden,
+           COALESCE(tasks.local_priority, 'none') AS priority,
+           tasks.sort_order AS sortOrder,
+           tasks.etag AS etag,
+           pending.status AS pendingMutationStatus,
+           tasks.updated_at AS updatedAt,
+           tasks.local_planned_start AS plannedStart,
+           tasks.local_planned_end AS plannedEnd,
+           tasks.local_duration_minutes AS durationMinutes,
+           tasks.local_locked_schedule AS lockedSchedule,
+           tasks.local_snooze_until AS snoozeUntil,
+           tasks.local_tags_json AS tagsJson
+         FROM google_tasks tasks
+         INNER JOIN google_task_lists lists ON lists.id = tasks.task_list_id
+         LEFT JOIN (
+           SELECT resource_id, MAX(status) AS status
+           FROM google_pending_mutations
+           WHERE status IN ('pending', 'applying', 'failed')
+           GROUP BY resource_id
+         ) pending ON pending.resource_id = tasks.id
+         WHERE ${where}
+         ORDER BY
+           tasks.due_at ASC,
+           tasks.sort_order ASC,
+           tasks.updated_at DESC,
+           tasks.id ASC
+         LIMIT ? OFFSET ?;`,
+        [...params, limit, offset]
+      );
+      const totalKnown = countRows(
+        this.connection,
+        `SELECT COUNT(*) AS count
+         FROM google_tasks tasks
+         INNER JOIN google_task_lists lists ON lists.id = tasks.task_list_id
+         WHERE ${where};`,
+        params
+      );
+
+      return pageFromRows(rows.map(taskSummary), limit, offset, totalKnown);
+    });
+  }
+
   getTask(id: string): TaskDetail {
     return this.measureSqlite("tasks.get", () => {
       const row = this.connection.get<TaskRow>(

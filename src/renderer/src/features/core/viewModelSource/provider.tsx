@@ -5,20 +5,28 @@ import type {
   CalendarRangeRequest,
   CalendarRangeResponse,
   GoogleStatusResponse,
+  NoteListSummary,
+  NoteSummary,
   ScheduledTaskBlockListRequest,
   ScheduledTaskBlockListResponse,
-  ScheduledTaskBlockSummary
+  ScheduledTaskBlockSummary,
+  TaskSummary
 } from "@shared/ipc/contracts";
 import type { CalendarEventViewModel, TaskViewModel } from "../coreViewModels";
 import { emptySnapshot } from "./defaults";
 import { dateOnlyFromLocalDate, visibleCalendarRange } from "./dateFormat";
-import { loadAllPages, loadCoreData } from "./loader";
+import { hydrateCoreData, loadAllPages, loadCoreData, type CoreDataHydrationSnapshot } from "./loader";
 import { unwrap } from "./result";
 import { useSettingsMutations } from "./settingsMutations";
 import { hasSnapshotData } from "./snapshot";
 import { buildCoreViewModelSource } from "./sourceBuilder";
 import { useTaskMutations } from "./taskMutations";
-import type { CalendarRangeLoadRequest, CoreDataLoadState, CoreViewModelSource } from "./types";
+import type {
+  CalendarRangeLoadRequest,
+  CoreDataLoadState,
+  CoreDataSnapshot,
+  CoreViewModelSource
+} from "./types";
 
 const CoreDataContext = createContext<CoreViewModelSource | null>(null);
 
@@ -82,6 +90,52 @@ function mergeById<T extends { id: string }>(current: readonly T[], next: readon
   return [...merged.values()];
 }
 
+function mergeHydratedSnapshot(
+  current: CoreDataSnapshot,
+  hydration: CoreDataHydrationSnapshot
+): CoreDataSnapshot {
+  return {
+    ...current,
+    tasks: hydration.tasks ? mergeHydratedTasks(current.tasks, hydration.tasks) : current.tasks,
+    notes: hydration.notes ? mergeById<NoteSummary>(current.notes, hydration.notes) : current.notes,
+    noteLists: hydration.noteLists
+      ? mergeById<NoteListSummary>(current.noteLists, hydration.noteLists)
+      : current.noteLists,
+    resourceCounts: {
+      ...current.resourceCounts,
+      ...hydration.resourceCounts
+    }
+  };
+}
+
+function mergeHydratedTasks(
+  current: readonly TaskSummary[],
+  hydration: readonly TaskSummary[]
+): TaskSummary[] {
+  const merged = new Map(hydration.map((task) => [task.id, task]));
+
+  for (const task of current) {
+    const hydrated = merged.get(task.id);
+
+    if (!hydrated || shouldKeepCurrentTask(task, hydrated)) {
+      merged.set(task.id, task);
+    }
+  }
+
+  return [...merged.values()];
+}
+
+function shouldKeepCurrentTask(current: TaskSummary, hydrated: TaskSummary): boolean {
+  if (current.mutationState === "queued" || current.mutationState === "failed") {
+    return true;
+  }
+
+  const currentMs = Date.parse(current.updatedAt);
+  const hydratedMs = Date.parse(hydrated.updatedAt);
+
+  return Number.isFinite(currentMs) && Number.isFinite(hydratedMs) && currentMs > hydratedMs;
+}
+
 export function CoreDataProvider({ children }: { children: ReactNode }): JSX.Element {
   const source = usePreloadCoreSource();
 
@@ -107,7 +161,9 @@ function usePreloadCoreSource(): CoreViewModelSource {
   const [prefersDark, setPrefersDark] = useState(systemPrefersDark);
   const cachedDataReported = useRef(false);
   const googleStatusRequested = useRef(false);
+  const runtimeStatusRequested = useRef(false);
   const scheduleSuggestionRequested = useRef(false);
+  const backgroundHydrationRequested = useRef(false);
   const loadedCalendarRanges = useRef<CalendarRangeLoadRequest[]>([]);
   const pendingCalendarRangeLoads = useRef(new Map<string, Promise<boolean>>());
   const taskViewModelCache = useRef(new Map<string, { signature: string; viewModel: TaskViewModel }>());
@@ -160,6 +216,22 @@ function usePreloadCoreSource(): CoreViewModelSource {
         snapshot: {
           ...current.snapshot,
           undoStatus: result.data
+        }
+      }));
+    });
+  }, []);
+
+  const refreshNativeStatus = useCallback(() => {
+    void window.hcb?.native.capabilities().then((result) => {
+      if (!result?.ok) {
+        return;
+      }
+
+      setLoadState((current) => ({
+        ...current,
+        snapshot: {
+          ...current.snapshot,
+          native: result.data
         }
       }));
     });
@@ -218,12 +290,17 @@ function usePreloadCoreSource(): CoreViewModelSource {
       errorMessage: undefined
     }));
     scheduleSuggestionRequested.current = false;
+    backgroundHydrationRequested.current = false;
+    runtimeStatusRequested.current = false;
+    googleStatusRequested.current = false;
 
-    const settingsPromise = window.hcb.settings
-      .get()
-      .then((result) => unwrap(result, "Settings failed"));
+    const bootstrapGet = (window.hcb as { bootstrap?: { get?: typeof window.hcb.bootstrap.get } })
+      .bootstrap?.get;
+    const settingsPromise = bootstrapGet
+      ? undefined
+      : window.hcb.settings.get().then((result) => unwrap(result, "Settings failed"));
 
-    void settingsPromise.then(
+    void settingsPromise?.then(
       (settings) => {
         setLoadState((current) => ({
           ...current,
@@ -363,6 +440,58 @@ function usePreloadCoreSource(): CoreViewModelSource {
 
   useEffect(() => {
     if (
+      backgroundHydrationRequested.current ||
+      !window.hcb ||
+      (loadState.state !== "ready" && loadState.state !== "empty")
+    ) {
+      return;
+    }
+
+    backgroundHydrationRequested.current = true;
+    const timeout = window.setTimeout(() => {
+      const startedAt = performance.now();
+
+      recordRendererTiming({
+        kind: "startup",
+        name: "startup.hydration.deferred-start",
+        durationMs: 0
+      });
+
+      void hydrateCoreData().then(
+        (hydration) => {
+          setLoadState((current) => ({
+            ...current,
+            snapshot: mergeHydratedSnapshot(current.snapshot, hydration)
+          }));
+          recordRendererTiming({
+            kind: "startup",
+            name: "startup.hydration.merge",
+            durationMs: performance.now() - startedAt,
+            metadata: {
+              outcome: "success",
+              tasks: hydration.tasks?.length ?? null,
+              notes: hydration.notes?.length ?? null
+            }
+          });
+        },
+        () => {
+          recordRendererTiming({
+            kind: "startup",
+            name: "startup.hydration.merge",
+            durationMs: performance.now() - startedAt,
+            metadata: {
+              outcome: "failed"
+            }
+          });
+        }
+      );
+    }, 1_000);
+
+    return () => window.clearTimeout(timeout);
+  }, [loadState.state]);
+
+  useEffect(() => {
+    if (
       loadState.snapshot.diagnosticsSummary ||
       (loadState.state !== "ready" && loadState.state !== "empty")
     ) {
@@ -387,10 +516,28 @@ function usePreloadCoreSource(): CoreViewModelSource {
     googleStatusRequested.current = true;
     const timeout = window.setTimeout(() => {
       refreshGoogleStatus();
-    }, 1_000);
+    }, 250);
 
     return () => window.clearTimeout(timeout);
   }, [loadState.state, refreshGoogleStatus]);
+
+  useEffect(() => {
+    if (
+      runtimeStatusRequested.current ||
+      (loadState.state !== "ready" && loadState.state !== "empty")
+    ) {
+      return;
+    }
+
+    runtimeStatusRequested.current = true;
+    const timeout = window.setTimeout(() => {
+      refreshSyncStatus();
+      refreshUndoStatus();
+      refreshNativeStatus();
+    }, 250);
+
+    return () => window.clearTimeout(timeout);
+  }, [loadState.state, refreshNativeStatus, refreshSyncStatus, refreshUndoStatus]);
 
   useEffect(() => {
     if (

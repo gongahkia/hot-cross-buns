@@ -263,6 +263,34 @@ describe("SQLite-backed domain services", () => {
     expect(migrated.keybindings["web.tab.create"]).toBe("CmdOrCtrl+T");
   });
 
+  it("loads only calendar-visible tasks for light bootstrap", async () => {
+    const { domain, syncRepository } = createTestServices();
+    seedGoogleMirrors(syncRepository);
+    await domain.planner.createTask({
+      title: "Future dated task",
+      listId: "acct-1:task-list:inbox",
+      dueDate: "2026-06-22"
+    });
+    await domain.planner.createNote({
+      title: "Undated note",
+      body: "Should hydrate after first paint."
+    });
+
+    const tasks = await domain.planner.listCalendarBootstrapTasks?.({
+      start: "2026-05-22T00:00:00.000Z",
+      end: "2026-05-23T00:00:00.000Z",
+      listIds: ["acct-1:task-list:inbox"],
+      limit: 10
+    });
+
+    expect(tasks?.items).toEqual([
+      expect.objectContaining({
+        id: "acct-1:task:inbox:task-1",
+        title: "Draft inbox triage rules"
+      })
+    ]);
+  });
+
   it("undoes and redoes task edits through inverse pending mutations", async () => {
     const { domain, syncRepository } = createTestServices();
     seedGoogleMirrors(syncRepository);

@@ -13,7 +13,7 @@ Use this only with a disposable Google account or a clearly marked test calendar
 
 - Launch HCB2.
 - Confirm cached data renders before any long sync dialog blocks interaction.
-- Open Diagnostics and confirm recent performance timings include `startup.bootstrap.get`.
+- Open Diagnostics and confirm recent performance timings include `startup.bootstrap.light`.
 - If bootstrap failed, confirm a `startup.bootstrap.fallback-fanout` timing explains the fallback reason.
 - Confirm deferred timing appears for `startup.schedule-suggest.deferred`.
 

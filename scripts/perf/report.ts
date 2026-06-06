@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { StartupTimingSnapshot } from "../../src/shared/ipc/contracts";
+import type { LocalPerformanceTiming, StartupTimingSnapshot } from "../../src/shared/ipc/contracts";
 import { redactLogValue } from "../../src/shared/redaction";
 import type { PerfFixtureSummary } from "./fixtures";
 
@@ -69,6 +69,7 @@ export interface PerfReport {
   measurements: PerfMeasurement[];
   queryPlans?: PerfQueryPlanReport[];
   ipcRoutes?: PerfIpcRouteReport[];
+  performanceTimings?: LocalPerformanceTiming[];
   futureHooks: string[];
   notes: string[];
 }
@@ -181,6 +182,19 @@ function ipcRouteRows(ipcRoutes: PerfIpcRouteReport[] | undefined): string[] {
   );
 }
 
+function performanceTimingRows(timings: LocalPerformanceTiming[] | undefined): string[] {
+  if (timings === undefined || timings.length === 0) {
+    return ["| None |  |  | No performance timings captured. |"];
+  }
+
+  return timings.slice(0, 25).map((timing) => {
+    const metadata = timing.metadata === undefined
+      ? ""
+      : JSON.stringify(timing.metadata).replace(/\|/g, "\\|");
+    return `| ${timing.kind} | ${timing.name} | ${timing.durationMs}ms | ${metadata} |`;
+  });
+}
+
 export function renderPerformanceMarkdown(report: PerfReport): string {
   const sanitizedReport = sanitizePerformanceReport(report);
 
@@ -230,6 +244,12 @@ export function renderPerformanceMarkdown(report: PerfReport): string {
     "| Route | Calls | Average | Last |",
     "|---|---:|---:|---:|",
     ...ipcRouteRows(sanitizedReport.ipcRoutes),
+    "",
+    "## Performance Timings",
+    "",
+    "| Kind | Name | Duration | Metadata |",
+    "|---|---|---:|---|",
+    ...performanceTimingRows(sanitizedReport.performanceTimings),
     "",
     "## Future Hooks",
     "",

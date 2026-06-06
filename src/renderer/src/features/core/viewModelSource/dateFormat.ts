@@ -2,9 +2,7 @@ import type { SyncStatusResponse } from "@shared/ipc/contracts";
 
 export function visibleCalendarRange(): { start: string; end: string } {
   const start = startOfUtcDay(new Date());
-  start.setUTCDate(start.getUTCDate() - 7);
-  const end = new Date(start);
-  end.setUTCDate(start.getUTCDate() + 45);
+  const end = addUtcDays(start, 1);
 
   return {
     start: start.toISOString(),

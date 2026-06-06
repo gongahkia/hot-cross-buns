@@ -24,6 +24,7 @@ let revealFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 let deferredRuntimeStarted = false;
 let quittingAfterSync = false;
 let startupSyncInProgress = false;
+let startupSyncStarted = false;
 let syncStatusWindow: BrowserWindow | null = null;
 const macAppDisplayName = "Hot Cross Buns 2";
 
@@ -99,7 +100,7 @@ function revealMainWindow(window: BrowserWindow | null = mainWindow, focus = fal
 
 function handleRendererShellVisible(): void {
   revealMainWindow(mainWindow);
-  startDeferredRuntimeOnce();
+  runStartupSyncInBackground(mainWindow);
 }
 
 function dispatchNativeAction(action: NativeAction): void {
@@ -114,10 +115,6 @@ function dispatchNativeAction(action: NativeAction): void {
 }
 
 function showMainWindow(): void {
-  if (startupSyncInProgress) {
-    return;
-  }
-
   if (!mainWindow) {
     mainWindow = createMainWindow();
   }
@@ -187,6 +184,19 @@ async function runFullSyncWithStatusWindow(reason: "quit" | "startup", parent: B
       statusWindow.close();
     }
   }
+}
+
+function runStartupSyncInBackground(parent: BrowserWindow | null = mainWindow): void {
+  if (startupSyncStarted || !services) {
+    return;
+  }
+
+  startupSyncStarted = true;
+  startupSyncInProgress = true;
+  void runFullSyncWithStatusWindow("startup", parent).finally(() => {
+    startupSyncInProgress = false;
+    startDeferredRuntimeOnce();
+  });
 }
 
 function hideMainWindow(): void {
@@ -267,7 +277,6 @@ function createMainWindow(): BrowserWindow {
 
     revealMainWindow(window);
     services?.nativeShell.startDeferredStartup();
-    startDeferredRuntimeOnce();
   }, rendererReadyFallbackMs);
 
   if (rendererUrl) {
@@ -300,12 +309,6 @@ app.whenReady().then(async () => {
   registerHcbIpc(services, {
     onShellVisible: handleRendererShellVisible
   });
-  startupSyncInProgress = true;
-  try {
-    await runFullSyncWithStatusWindow("startup", null);
-  } finally {
-    startupSyncInProgress = false;
-  }
   mainWindow = createMainWindow();
 
   for (const url of pendingDeepLinks.splice(0)) {

@@ -89,9 +89,21 @@ describe("shared IPC contracts", () => {
         }
       })
     ).toMatchObject({
+      mode: "full",
       calendarRange: {
         limit: 100
       }
+    });
+    expect(
+      ipcContracts.bootstrap.get.requestSchema.parse({
+        mode: "light",
+        calendarRange: {
+          start: "2026-05-22T00:00:00.000Z",
+          end: "2026-05-23T00:00:00.000Z"
+        }
+      })
+    ).toMatchObject({
+      mode: "light"
     });
     expect(
       ipcContracts.sync.runNow.requestSchema.parse({

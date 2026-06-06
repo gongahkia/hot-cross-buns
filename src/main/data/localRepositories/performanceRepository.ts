@@ -3,6 +3,9 @@ import { redactMetadata } from "@shared/redaction";
 import type { SqliteConnection } from "../sqliteConnection";
 
 export class LocalPerformanceRepository {
+  private readonly memoryTimings: LocalPerformanceTiming[] = [];
+  private nextMemoryId = 1;
+
   constructor(private readonly connection: SqliteConnection) {}
 
   record(timing: {
@@ -12,6 +15,11 @@ export class LocalPerformanceRepository {
     metadata?: Record<string, string | number | boolean | null>;
     createdAt?: string;
   }): void {
+    if (timing.kind === "sqlite_query") {
+      this.recordMemory(timing);
+      return;
+    }
+
     try {
       this.connection.run(
         `INSERT INTO local_performance_timings
@@ -32,7 +40,7 @@ export class LocalPerformanceRepository {
 
   listRecent(limit = 50): LocalPerformanceTiming[] {
     const safeLimit = Math.max(1, Math.min(100, limit));
-    return this.connection.query<{
+    const persisted = this.connection.query<{
       id: number;
       kind: LocalPerformanceTiming["kind"];
       name: string;
@@ -57,12 +65,19 @@ export class LocalPerformanceRepository {
         createdAt: row.createdAt
       };
     });
+
+    return [...this.memoryTimings, ...persisted]
+      .sort((left, right) =>
+        right.createdAt.localeCompare(left.createdAt) ||
+        ((right.id ?? 0) - (left.id ?? 0))
+      )
+      .slice(0, safeLimit);
   }
 
   listSlowSqliteQueries(limit = 10): Array<{ name: string; durationMs: number; createdAt: string }> {
     const safeLimit = Math.max(1, Math.min(10, limit));
 
-    return this.connection.query<{ name: string; durationMs: number; createdAt: string }>(
+    const persisted = this.connection.query<{ name: string; durationMs: number; createdAt: string }>(
       `SELECT name, duration_ms AS durationMs, created_at AS createdAt
        FROM local_performance_timings
        WHERE kind = 'sqlite_query'
@@ -70,6 +85,43 @@ export class LocalPerformanceRepository {
        LIMIT ?;`,
       [safeLimit]
     );
+
+    return [
+      ...this.memoryTimings
+        .filter((timing) => timing.kind === "sqlite_query")
+        .map((timing) => ({
+          name: timing.name,
+          durationMs: timing.durationMs,
+          createdAt: timing.createdAt
+        })),
+      ...persisted
+    ]
+      .sort((left, right) =>
+        right.durationMs - left.durationMs ||
+        right.createdAt.localeCompare(left.createdAt)
+      )
+      .slice(0, safeLimit);
+  }
+
+  private recordMemory(timing: {
+    kind: LocalPerformanceTiming["kind"];
+    name: string;
+    durationMs: number;
+    metadata?: Record<string, string | number | boolean | null>;
+    createdAt?: string;
+  }): void {
+    this.memoryTimings.unshift({
+      id: this.nextMemoryId++,
+      kind: timing.kind,
+      name: timing.name,
+      durationMs: Math.max(0, Math.round(timing.durationMs * 100) / 100),
+      ...(timing.metadata === undefined ? {} : { metadata: redactMetadata(timing.metadata) }),
+      createdAt: timing.createdAt ?? new Date().toISOString()
+    });
+
+    if (this.memoryTimings.length > 500) {
+      this.memoryTimings.length = 500;
+    }
   }
 }
 
