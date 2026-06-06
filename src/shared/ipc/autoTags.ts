@@ -130,7 +130,7 @@ function evaluateAutoTagRules(
     const result = {
       title: input.title,
       body: input.body,
-      tags: normalizeTags(input.explicitTags ?? input.existingTags ?? []),
+      tags: normalizeTags([...(input.existingTags ?? []), ...(input.explicitTags ?? [])]),
       eventColorId: input.requestedEventColorId
     };
 

@@ -32,7 +32,7 @@ import {
   Tag,
   Upload
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Button, Input } from "../../../../components/primitives";
 import { EmptyState } from "../../../../components/states";
 import { parseTagText } from "../../TagInput";
@@ -108,6 +108,7 @@ export function AdvancedSettingsTab({
   const [autoTagPreviewExistingColorId, setAutoTagPreviewExistingColorId] = useState("");
   const [autoTagPreviewRequestedColorId, setAutoTagPreviewRequestedColorId] = useState("");
   const [autoTagPreviewLocalKind, setAutoTagPreviewLocalKind] = useState<AutoTagPreviewLocalKind>("normal");
+  const autoTagAutoDisableRequestRef = useRef<string | null>(null);
   const autoTagPreviewExistingTagValues = useMemo(
     () => parseTagText(autoTagPreviewExistingTags),
     [autoTagPreviewExistingTags]
@@ -148,6 +149,21 @@ export function AdvancedSettingsTab({
   const autoTagWarnings = autoTagRuleIssues.filter((issue) => issue.severity === "warning");
 
   useEffect(() => {
+    const invalidEnabledRuleKey = settings.autoTagRules
+      .filter((rule) => rule.enabled && autoTagRuleHasError(rule))
+      .map((rule) => rule.id)
+      .join(",");
+
+    if (!invalidEnabledRuleKey) {
+      autoTagAutoDisableRequestRef.current = null;
+      return;
+    }
+
+    if (autoTagAutoDisableRequestRef.current === invalidEnabledRuleKey) {
+      return;
+    }
+
+    autoTagAutoDisableRequestRef.current = invalidEnabledRuleKey;
     const nextRules = autoDisableInvalidAutoTagRules(settings.autoTagRules, new Date().toISOString());
 
     if (nextRules !== settings.autoTagRules) {

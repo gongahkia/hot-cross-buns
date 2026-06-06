@@ -152,6 +152,77 @@ describe("auto tags", () => {
     ]);
   });
 
+  it("previews requested and existing event color state", () => {
+    expect(previewAutoTagRules([rule({ eventColorId: "5" })], {
+      kind: "event",
+      title: "CODING: Review",
+      body: "",
+      requestedEventColorId: "3",
+      existingEventColorId: null
+    })).toEqual(expect.objectContaining({
+      eventColorId: "3",
+      traces: [
+        expect.objectContaining({
+          eventColorStatus: "skipped-explicit"
+        })
+      ]
+    }));
+
+    expect(previewAutoTagRules([rule({ eventColorId: "5", overrideExistingEventColor: true })], {
+      kind: "event",
+      title: "CODING: Review",
+      body: "",
+      requestedEventColorId: "3",
+      existingEventColorId: "2"
+    })).toEqual(expect.objectContaining({
+      eventColorId: "5",
+      traces: [
+        expect.objectContaining({
+          eventColorStatus: "applied"
+        })
+      ]
+    }));
+  });
+
+  it("previews birthday input by skipping rules", () => {
+    expect(previewAutoTagRules([rule({ eventColorId: "5" })], {
+      kind: "event",
+      title: "CODING: Birthday",
+      body: "",
+      existingTags: ["family"],
+      explicitTags: ["Family", "manual"],
+      hcbKind: "birthday",
+      requestedEventColorId: "3"
+    })).toEqual(expect.objectContaining({
+      title: "CODING: Birthday",
+      tags: ["family", "manual"],
+      eventColorId: "3",
+      traces: [],
+      matchedRuleCount: 0
+    }));
+  });
+
+  it("applies reordered rules differently when stripping changes later matches", () => {
+    const coding = rule({ id: "rule-coding", pattern: "CODING", tags: ["coding"], stripMatchedPrefix: true });
+    const research = rule({ id: "rule-research", pattern: "Research", tags: ["research"] });
+    const input = {
+      kind: "task" as const,
+      title: "CODING: Research github alternatives",
+      body: ""
+    };
+
+    expect(previewAutoTagRules([coding, research], input)).toEqual(expect.objectContaining({
+      title: "Research github alternatives",
+      tags: ["coding", "research"],
+      matchedRuleCount: 2
+    }));
+    expect(previewAutoTagRules([research, coding], input)).toEqual(expect.objectContaining({
+      title: "Research github alternatives",
+      tags: ["coding"],
+      matchedRuleCount: 1
+    }));
+  });
+
   it("skips birthdays", () => {
     expect(applyAutoTagRules([rule({ eventColorId: "5" })], {
       kind: "event",

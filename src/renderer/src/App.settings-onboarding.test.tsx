@@ -254,18 +254,46 @@ describe("App settings and onboarding", () => {
     const dialog = await screen.findByRole("dialog", { name: "Settings" });
     await user.click(within(dialog).getByRole("button", { name: "Advanced" }));
 
+    expect(within(dialog).getByTitle("1 issue")).toBeInTheDocument();
     expect(await within(dialog).findByText("1 auto-tag rule error need review.")).toBeInTheDocument();
     expect(within(dialog).getByText(/Invalid regex:/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(settings.autoTagRules.find((rule) => rule.id === "rule-invalid")?.enabled).toBe(false);
+    });
+    expect(within(dialog).getByRole("checkbox", { name: "Auto tag enabled Invalid" })).not.toBeChecked();
 
     fireEvent.change(within(dialog).getByRole("textbox", { name: "Auto tag preview title" }), {
       target: { value: "CODING: Look into github alternatives" }
+    });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Auto tag preview existing tags" }), {
+      target: { value: "coding, ops" }
+    });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Auto tag preview explicit tags" }), {
+      target: { value: "manual, ops" }
     });
 
     expect(within(dialog).getByText("2 matched")).toBeInTheDocument();
     expect(within(dialog).getByText("multiple rules")).toBeInTheDocument();
     expect(within(dialog).getByText("Title: Look into github alternatives")).toBeInTheDocument();
-    expect(within(dialog).getByText("Tags: coding, github")).toBeInTheDocument();
+    expect(within(dialog).getByText("Tags: coding, ops, manual, github")).toBeInTheDocument();
     expect(within(dialog).getByText("preview invalid")).toBeInTheDocument();
+
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: "Auto tag preview target" }), "event");
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: "Auto tag event color Coding" }), "5");
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: "Auto tag preview requested event color" }), "3");
+    await waitFor(() => expect(within(dialog).getByText("color kept")).toBeInTheDocument());
+    expect(within(dialog).getByText("color 3")).toBeInTheDocument();
+
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: "Auto tag preview local kind" }), "birthday");
+    expect(within(dialog).getByText("Rules skipped for birthday preview.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Title: CODING: Look into github alternatives")).toBeInTheDocument();
+    expect(within(dialog).getByText("Tags: coding, ops, manual")).toBeInTheDocument();
+
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: "Auto tag preview local kind" }), "normal");
+    await user.click(within(dialog).getByRole("button", { name: "Move auto tag rule Github up" }));
+    await waitFor(() => {
+      expect(settings.autoTagRules.map((rule) => rule.id)).toEqual(["rule-github", "rule-coding", "rule-invalid"]);
+    });
   });
 
   it("shows onboarding for a fresh database and completes setup through settings IPC", async () => {
