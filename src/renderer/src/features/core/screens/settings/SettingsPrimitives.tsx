@@ -125,7 +125,7 @@ export function SettingsTabButton({
       {alertCount > 0 ? (
         <span
           aria-hidden="true"
-          className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold leading-none text-bg-primary"
+          className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold leading-none text-bg-tertiary"
           title={`${alertCount} ${alertCount === 1 ? "issue" : "issues"}`}
         >
           {alertCount}

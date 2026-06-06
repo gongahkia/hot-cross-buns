@@ -770,7 +770,9 @@ export function AdvancedSettingsTab({
               </p>
             ) : null}
             <ol className="grid gap-1">
-              {autoTagPreview.traces.length === 0 ? (
+              {autoTagPreviewLocalKind === "birthday" ? (
+                <li>Rules skipped for birthday preview.</li>
+              ) : autoTagPreview.traces.length === 0 ? (
                 <li>No rules configured.</li>
               ) : autoTagPreview.traces.map((trace) => (
                 <li className="flex min-w-0 flex-wrap items-center gap-2" key={trace.ruleId}>
@@ -829,6 +831,28 @@ export function AdvancedSettingsTab({
                 ) : null}
                 {patternIssue ? <Badge tone="danger">invalid regex</Badge> : null}
                 {outputIssue ? <Badge tone="warning">no output</Badge> : null}
+                <div className="ml-auto flex gap-1">
+                  <Button
+                    aria-label={`Move auto tag rule ${rule.name} up`}
+                    disabled={index === 0}
+                    onClick={() => moveAutoTagRule(index, index - 1)}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    <ArrowUp aria-hidden="true" size={14} />
+                    Up
+                  </Button>
+                  <Button
+                    aria-label={`Move auto tag rule ${rule.name} down`}
+                    disabled={index === settings.autoTagRules.length - 1}
+                    onClick={() => moveAutoTagRule(index, index + 1)}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    <ArrowDown aria-hidden="true" size={14} />
+                    Down
+                  </Button>
+                </div>
               </div>
               <div className="grid gap-2 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_auto]">
                 <Input
@@ -850,9 +874,7 @@ export function AdvancedSettingsTab({
                 </div>
                 <Button
                   onClick={() =>
-                    updateSettings({
-                      autoTagRules: settings.autoTagRules.filter((candidate) => candidate.id !== rule.id)
-                    })
+                    saveAutoTagRules(settings.autoTagRules.filter((candidate) => candidate.id !== rule.id))
                   }
                   variant="ghost"
                 >
@@ -916,7 +938,8 @@ export function AdvancedSettingsTab({
               <div className="flex flex-wrap gap-4 text-[var(--text-sm)] text-text-secondary">
                 <label className="inline-flex min-h-8 items-center gap-2">
                   <input
-                    checked={rule.enabled}
+                    aria-label={`Auto tag enabled ${rule.name}`}
+                    checked={rule.enabled && !autoTagRuleHasError(rule)}
                     className="accent-[var(--color-accent)]"
                     onChange={(event) => updateAutoTagRule(rule.id, { enabled: event.target.checked })}
                     type="checkbox"
