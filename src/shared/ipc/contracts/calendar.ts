@@ -234,6 +234,7 @@ export const calendarEventUpdateRequestSchema = z
     notes: z.string().max(20_000).optional(),
     guestEmails: z.array(guestEmailSchema).max(50).optional(),
     reminderMinutes: z.array(reminderMinutesSchema).max(10).optional(),
+    tags: z.array(z.string().min(1).max(120)).max(64).optional(),
     colorId: z.string().trim().min(1).max(32).nullable().optional(),
     recurrence: calendarEventRecurrenceSchema.nullable().optional(),
     hcbKind: calendarEventHcbKindSchema.optional(),
@@ -251,6 +252,7 @@ export const calendarEventUpdateRequestSchema = z
       request.notes !== undefined ||
       request.guestEmails !== undefined ||
       request.reminderMinutes !== undefined ||
+      request.tags !== undefined ||
       request.colorId !== undefined ||
       request.recurrence !== undefined ||
       request.hcbKind !== undefined ||

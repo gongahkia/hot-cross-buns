@@ -84,6 +84,7 @@ export interface CalendarEventRow extends Record<string, unknown> {
   timeZone: string | null;
   recurrenceRule: string | null;
   colorId: string | null;
+  tagsJson?: string | null;
   recurringEventId: string | null;
   originalStartAt: string | null;
 }

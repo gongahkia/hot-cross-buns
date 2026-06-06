@@ -26,7 +26,7 @@ import {
   type ParsedLocalSearchQuery
 } from "@shared/search/localSearch";
 import { googleTaskIdFromCalendarDescription } from "./googleTaskProjection";
-import { noteDetail, noteListSummary, noteSummary, preview } from "./mappers";
+import { noteDetail, noteListSummary, noteSummary, parseTagsJson, preview } from "./mappers";
 import { extractPlannerLinks, type PlannerLinkReference } from "./noteLinks";
 import { ScheduledTaskBlockLocalRepository } from "./scheduledTaskBlockRepository";
 import {
@@ -44,6 +44,7 @@ interface TaskBackedNoteRow extends Record<string, unknown> {
   listTitle: string;
   title: string;
   body: string;
+  tagsJson?: string | null;
   updatedAt: string;
 }
 
@@ -160,6 +161,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
         domain: SearchDomain;
         title: string;
         snippet: string | null;
+        tagsJson: string | null;
         accountId: string | null;
         description: string | null;
         updatedAt: string;
@@ -226,6 +228,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
            'tasks' AS domain,
            tasks.title AS title,
            COALESCE(tasks.notes, lists.title) AS snippet,
+           tasks.local_tags_json AS tagsJson,
            NULL AS accountId,
            NULL AS description,
            tasks.updated_at AS updatedAt
@@ -244,6 +247,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
            'calendar' AS domain,
            events.summary AS title,
            COALESCE(events.description, events.location, calendars.summary) AS snippet,
+           events.local_tags_json AS tagsJson,
            events.account_id AS accountId,
            events.description AS description,
            events.updated_at AS updatedAt
@@ -261,6 +265,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
            'notes' AS domain,
            tasks.title AS title,
            COALESCE(tasks.notes, '') AS snippet,
+           tasks.local_tags_json AS tagsJson,
            NULL AS accountId,
            NULL AS description,
            tasks.updated_at AS updatedAt
@@ -284,6 +289,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
         domain: row.domain,
         title: row.title,
         snippet: row.domain === "notes" ? preview(row.snippet ?? "") : row.snippet ?? undefined,
+        tags: parseTagsJson(row.tagsJson),
         updatedAt: row.updatedAt
       }));
   }
@@ -310,6 +316,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
     id: string;
     title: string;
     snippet: string | null;
+    tagsJson: string | null;
     accountId: string;
     description: string | null;
     updatedAt: string;
@@ -321,6 +328,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
         domain: "calendar" as const,
         title: row.title,
         snippet: row.snippet ?? undefined,
+        tags: parseTagsJson(row.tagsJson),
         updatedAt: row.updatedAt
       }));
   }
@@ -339,12 +347,14 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
           id: string;
           title: string;
           snippet: string | null;
+          tagsJson: string | null;
           updatedAt: string;
         }>(
           `SELECT
              tasks.id AS id,
              tasks.title AS title,
              COALESCE(tasks.notes, lists.title) AS snippet,
+             tasks.local_tags_json AS tagsJson,
              tasks.updated_at AS updatedAt
            FROM google_tasks tasks
            INNER JOIN google_task_lists lists ON lists.id = tasks.task_list_id
@@ -362,6 +372,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
           domain: "tasks" as const,
           title: row.title,
           snippet: row.snippet ?? undefined,
+          tags: parseTagsJson(row.tagsJson),
           updatedAt: row.updatedAt
         }));
     }
@@ -371,6 +382,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
         id: string;
         title: string;
         snippet: string | null;
+        tagsJson: string | null;
         updatedAt: string;
       }>(
         `WITH matches AS (
@@ -396,6 +408,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
            tasks.id AS id,
            tasks.title AS title,
            COALESCE(tasks.notes, lists.title) AS snippet,
+           tasks.local_tags_json AS tagsJson,
            tasks.updated_at AS updatedAt
          FROM ranked
          INNER JOIN google_tasks tasks ON tasks.rowid = ranked.taskRowid
@@ -410,6 +423,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
         domain: "tasks" as const,
         title: row.title,
         snippet: row.snippet ?? undefined,
+        tags: parseTagsJson(row.tagsJson),
         updatedAt: row.updatedAt
       }));
   }
@@ -428,6 +442,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
           id: string;
           title: string;
           snippet: string | null;
+          tagsJson: string | null;
           accountId: string;
           description: string | null;
           updatedAt: string;
@@ -436,6 +451,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
              events.id AS id,
              events.summary AS title,
              COALESCE(events.description, events.location, calendars.summary) AS snippet,
+             events.local_tags_json AS tagsJson,
              events.account_id AS accountId,
              events.description AS description,
              events.updated_at AS updatedAt
@@ -455,6 +471,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
         id: string;
         title: string;
         snippet: string | null;
+        tagsJson: string | null;
         accountId: string;
         description: string | null;
         updatedAt: string;
@@ -482,6 +499,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
            events.id AS id,
            events.summary AS title,
            COALESCE(events.description, events.location, calendars.summary) AS snippet,
+           events.local_tags_json AS tagsJson,
            events.account_id AS accountId,
            events.description AS description,
            events.updated_at AS updatedAt
@@ -511,11 +529,13 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
           id: string;
           title: string;
           body: string;
+          tagsJson: string | null;
           updatedAt: string;
         }>(
           `SELECT tasks.id AS id,
                   tasks.title AS title,
                   COALESCE(tasks.notes, '') AS body,
+                  tasks.local_tags_json AS tagsJson,
                   tasks.updated_at AS updatedAt
            FROM google_tasks tasks
            INNER JOIN google_task_lists lists ON lists.id = tasks.task_list_id
@@ -529,6 +549,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
           domain: "notes" as const,
           title: row.title,
           snippet: preview(row.body),
+          tags: parseTagsJson(row.tagsJson),
           updatedAt: row.updatedAt
         }));
     }
@@ -538,11 +559,13 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
         id: string;
         title: string;
         body: string;
+        tagsJson: string | null;
         updatedAt: string;
       }>(
         `SELECT tasks.id AS id,
                 tasks.title AS title,
                 COALESCE(tasks.notes, '') AS body,
+                tasks.local_tags_json AS tagsJson,
                 tasks.updated_at AS updatedAt
          FROM google_tasks_fts
          INNER JOIN google_tasks tasks ON tasks.rowid = google_tasks_fts.rowid
@@ -558,6 +581,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
         domain: "notes" as const,
         title: row.title,
         snippet: preview(row.body),
+        tags: parseTagsJson(row.tagsJson),
         updatedAt: row.updatedAt
       }));
   }
@@ -571,6 +595,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
                 lists.title AS listTitle,
                 tasks.title AS title,
                 COALESCE(tasks.notes, '') AS body,
+                tasks.local_tags_json AS tagsJson,
                 tasks.updated_at AS updatedAt
          FROM google_tasks tasks
          INNER JOIN google_task_lists lists ON lists.id = tasks.task_list_id
@@ -628,7 +653,8 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
         listId: this.noteListIdOrDefault(request.listId),
         dueDate: null,
         parentId: null,
-        priority: "none"
+        priority: "none",
+        tags: request.tags ?? []
       });
 
       return this.getNote(created.id);
@@ -648,6 +674,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
         ...(request.title === undefined ? {} : { title: request.title }),
         ...(request.body === undefined ? {} : { notes: request.body }),
         ...(request.listId === undefined ? {} : { listId: this.noteListIdOrDefault(request.listId) }),
+        ...(request.tags === undefined ? {} : { tags: request.tags }),
         dueDate: null,
         parentId: null
       });
@@ -760,6 +787,7 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
               lists.title AS listTitle,
               tasks.title AS title,
               COALESCE(tasks.notes, '') AS body,
+              tasks.local_tags_json AS tagsJson,
               tasks.updated_at AS updatedAt
        FROM google_tasks tasks
        INNER JOIN google_task_lists lists ON lists.id = tasks.task_list_id

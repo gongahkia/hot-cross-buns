@@ -164,6 +164,7 @@ export function calendarEventSummary(row: CalendarEventRow): CalendarEventSummar
     timeZone: truncateNullableText(row.timeZone, textLimits.timeZone),
     recurrenceRule: truncateNullableText(row.recurrenceRule, textLimits.recurrenceRule),
     colorId: truncateNullableText(row.colorId, textLimits.calendarColor),
+    tags: parseTagsJson(row.tagsJson),
     recurringEventId: row.recurringEventId,
     originalStartAt: row.originalStartAt
   };
@@ -216,6 +217,7 @@ export function noteSummary(row: {
   listTitle: string;
   title: string;
   body: string;
+  tagsJson?: string | null;
   updatedAt: string;
 }): NoteSummary {
   return {
@@ -224,6 +226,7 @@ export function noteSummary(row: {
     listTitle: row.listTitle,
     title: row.title,
     preview: preview(row.body),
+    tags: parseTagsJson(row.tagsJson),
     updatedAt: row.updatedAt
   };
 }
@@ -234,6 +237,7 @@ export function noteDetail(row: {
   listTitle: string;
   title: string;
   body: string;
+  tagsJson?: string | null;
   updatedAt: string;
 }): NoteDetail {
   return {

@@ -117,6 +117,7 @@ export class CalendarLocalRepository extends TaskLocalRepository {
            events.local_time_zone AS timeZone,
            events.recurrence_rule AS recurrenceRule,
            events.color_id AS colorId,
+           events.local_tags_json AS tagsJson,
            instances.recurring_event_id AS recurringEventId,
            instances.original_start_at AS originalStartAt
          FROM google_calendar_event_instances instances
@@ -180,6 +181,7 @@ export class CalendarLocalRepository extends TaskLocalRepository {
         colorId: request.colorId ?? null,
         recurrenceRule: recurrenceRuleFromRequest(request.recurrence ?? null)
       });
+      const localTagsJson = JSON.stringify(request.tags ?? []);
       const mutationId = `mutation:event:${randomUUID()}`;
 
       this.connection.executeTransaction([
@@ -188,6 +190,7 @@ export class CalendarLocalRepository extends TaskLocalRepository {
           accountId: calendar.accountId,
           googleId,
           hcbKind: request.hcbKind ?? null,
+          localTagsJson,
           timeZone,
           now,
           ...normalized,
@@ -254,12 +257,15 @@ export class CalendarLocalRepository extends TaskLocalRepository {
             ? existing.recurrenceRule
             : recurrenceRuleFromRequest(request.recurrence)
       });
+      const localTagsJson =
+        request.tags === undefined ? existing.tagsJson ?? "[]" : JSON.stringify(request.tags);
       const mutationId = `mutation:event:${randomUUID()}`;
 
       this.connection.executeTransaction([
         eventUpdateOperation({
           id: existing.eventId,
           hcbKind: request.hcbKind ?? null,
+          localTagsJson,
           timeZone,
           now,
           ...normalized,
@@ -446,6 +452,7 @@ export class CalendarLocalRepository extends TaskLocalRepository {
            events.local_time_zone AS timeZone,
            events.recurrence_rule AS recurrenceRule,
            events.color_id AS colorId,
+           events.local_tags_json AS tagsJson,
            COALESCE(instances.recurring_event_id, events.recurring_event_id) AS recurringEventId,
            instances.original_start_at AS originalStartAt
          FROM google_calendar_events events

@@ -51,6 +51,7 @@ function ensureEventColumns(connection: SqliteConnection, defaultTimeZone: strin
   addColumn("recurrence_rule", "recurrence_rule TEXT");
   addColumn("local_time_zone", "local_time_zone TEXT");
   addColumn("hcb_kind", "hcb_kind TEXT");
+  addColumn("local_tags_json", "local_tags_json TEXT NOT NULL DEFAULT '[]'");
 
   connection.run(
     `UPDATE google_calendar_events
@@ -322,6 +323,7 @@ CREATE TABLE IF NOT EXISTS google_calendar_events (
   visibility TEXT,
   local_time_zone TEXT,
   hcb_kind TEXT,
+  local_tags_json TEXT NOT NULL DEFAULT '[]',
   attendee_emails_json TEXT NOT NULL DEFAULT '[]',
   reminder_minutes_json TEXT NOT NULL DEFAULT '[]',
   conference_json TEXT,

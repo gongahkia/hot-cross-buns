@@ -310,6 +310,30 @@ DROP INDEX IF EXISTS idx_local_note_links_broken;
 DROP INDEX IF EXISTS idx_local_note_properties_kv;
 DROP INDEX IF EXISTS idx_local_note_properties_note;
 `
+  },
+  {
+    version: 14,
+    name: "calendar event local tags",
+    operations: (connection) => {
+      if (!tableExists(connection, "google_calendar_events")) {
+        return [];
+      }
+
+      const columns = new Set(
+        connection
+          .query<{ name: string }>("PRAGMA table_info(google_calendar_events);")
+          .map((row) => row.name)
+      );
+
+      return columns.has("local_tags_json")
+        ? []
+        : [
+            {
+              kind: "run",
+              sql: "ALTER TABLE google_calendar_events ADD COLUMN local_tags_json TEXT NOT NULL DEFAULT '[]';"
+            }
+          ];
+    }
   }
 ];
 
