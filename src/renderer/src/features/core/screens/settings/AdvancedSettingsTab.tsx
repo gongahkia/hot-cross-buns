@@ -2,6 +2,11 @@ import {
   defaultHistoryCategoryVisibility,
   googleCalendarEventColors
 } from "@shared/ipc/contracts";
+import {
+  previewAutoTagRules,
+  validateAutoTagRule
+} from "@shared/ipc/autoTags";
+import type { AutoTagTargetKind } from "@shared/ipc/autoTags";
 import type {
   AutoTagRule,
   CalendarListSummary,
@@ -25,6 +30,7 @@ import {
   Tag,
   Upload
 } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Badge, Button, Input } from "../../../../components/primitives";
 import { EmptyState } from "../../../../components/states";
 import { parseTagText } from "../../TagInput";
@@ -59,7 +65,7 @@ const historyCategoryLabels: Record<keyof SettingsSnapshot["historyCategoryVisib
   other: "Other"
 };
 
-const autoTagTargetKinds: Array<AutoTagRule["targetKinds"][number]> = ["task", "event", "note"];
+const autoTagTargetKinds: AutoTagTargetKind[] = ["task", "event", "note"];
 
 export function AdvancedSettingsTab({
   beginRecoveryAction,
@@ -73,6 +79,23 @@ export function AdvancedSettingsTab({
   const selectedTaskLists = new Set(settings.selectedTaskListIds);
   const selectedCalendars = new Set(settings.selectedCalendarIds);
   const noteTemplates = settings.noteTemplates ?? [];
+  const [autoTagPreviewKind, setAutoTagPreviewKind] = useState<AutoTagTargetKind>("task");
+  const [autoTagPreviewTitle, setAutoTagPreviewTitle] = useState("CODING: Ship planner polish");
+  const [autoTagPreviewBody, setAutoTagPreviewBody] = useState("");
+  const autoTagPreview = useMemo(
+    () =>
+      previewAutoTagRules(settings.autoTagRules, {
+        kind: autoTagPreviewKind,
+        title: autoTagPreviewTitle,
+        body: autoTagPreviewBody,
+        explicitTags: [],
+        existingTags: []
+      }),
+    [autoTagPreviewBody, autoTagPreviewKind, autoTagPreviewTitle, settings.autoTagRules]
+  );
+  const autoTagErrors = autoTagPreview.issues.filter((issue) => issue.severity === "error");
+  const autoTagWarnings = autoTagPreview.issues.filter((issue) => issue.severity === "warning");
+  const autoTagMatchedTraces = autoTagPreview.traces.filter((trace) => trace.status === "matched");
 
   function updatePerTabFilter(
     tab: keyof SettingsSnapshot["perTabListFilters"],
@@ -220,7 +243,7 @@ export function AdvancedSettingsTab({
     });
   }
 
-  function toggleAutoTagTarget(rule: AutoTagRule, kind: AutoTagRule["targetKinds"][number], checked: boolean): void {
+  function toggleAutoTagTarget(rule: AutoTagRule, kind: AutoTagTargetKind, checked: boolean): void {
     const targetKinds = checked
       ? [...new Set([...rule.targetKinds, kind])]
       : rule.targetKinds.filter((candidate) => candidate !== kind);
@@ -542,125 +565,259 @@ export function AdvancedSettingsTab({
             New Rule
           </Button>
         </SettingsControlRow>
+        {autoTagErrors.length > 0 || autoTagWarnings.length > 0 ? (
+          <div className="grid gap-1 border-b border-border px-3 py-2 text-[var(--text-sm)]">
+            {autoTagErrors.length > 0 ? (
+              <p className="font-medium text-danger" role="alert">
+                {autoTagErrors.length} auto-tag rule {autoTagErrors.length === 1 ? "error" : "errors"} need review.
+              </p>
+            ) : null}
+            {autoTagWarnings.length > 0 ? (
+              <p className="text-warning">
+                {autoTagWarnings.length} auto-tag rule {autoTagWarnings.length === 1 ? "warning" : "warnings"}.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+        <div className="grid gap-3 border-b border-border px-3 py-3">
+          <div>
+            <div className="text-[var(--text-base)] font-medium text-text-primary">Rule preview</div>
+            <p className="mt-0.5 text-[var(--text-sm)] text-text-muted">
+              Test title/body text against enabled rules in order before saving new CRUD items.
+            </p>
+          </div>
+          <div className="grid gap-2 lg:grid-cols-[10rem_minmax(0,1fr)]">
+            <select
+              aria-label="Auto tag preview target"
+              className={settingsSelectClass}
+              onChange={(event) => setAutoTagPreviewKind(event.target.value as AutoTagTargetKind)}
+              value={autoTagPreviewKind}
+            >
+              {autoTagTargetKinds.map((kind) => (
+                <option key={kind} value={kind}>
+                  {kind}
+                </option>
+              ))}
+            </select>
+            <Input
+              aria-label="Auto tag preview title"
+              onChange={(event) => setAutoTagPreviewTitle(event.currentTarget.value)}
+              value={autoTagPreviewTitle}
+            />
+          </div>
+          <textarea
+            aria-label="Auto tag preview body"
+            className="min-h-16 rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            onChange={(event) => setAutoTagPreviewBody(event.currentTarget.value)}
+            placeholder="Body preview"
+            value={autoTagPreviewBody}
+          />
+          <div className="grid gap-2 rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-sm)] text-text-secondary">
+            <div className="flex flex-wrap gap-2">
+              <Badge tone={autoTagPreview.matchedRuleCount > 0 ? "success" : "neutral"}>
+                {autoTagPreview.matchedRuleCount} matched
+              </Badge>
+              <Badge tone={autoTagPreview.hasConflicts ? "warning" : "neutral"}>
+                {autoTagPreview.hasConflicts ? "multiple rules" : "single pass"}
+              </Badge>
+              {autoTagPreview.eventColorId ? <Badge tone="info">color {autoTagPreview.eventColorId}</Badge> : null}
+            </div>
+            <div className="truncate text-text-primary">Title: {autoTagPreview.title || "Untitled"}</div>
+            <div>Tags: {autoTagPreview.tags.length > 0 ? autoTagPreview.tags.join(", ") : "none"}</div>
+            {autoTagPreview.hasConflicts ? (
+              <p className="text-warning" role="status">
+                Multiple rules match this preview. Later rules apply after earlier rules.
+              </p>
+            ) : null}
+            <ol className="grid gap-1">
+              {autoTagPreview.traces.length === 0 ? (
+                <li>No rules configured.</li>
+              ) : autoTagPreview.traces.map((trace) => (
+                <li className="flex min-w-0 flex-wrap items-center gap-2" key={trace.ruleId}>
+                  <Badge>#{trace.order}</Badge>
+                  <span className="min-w-0 max-w-48 truncate font-medium text-text-primary">{trace.ruleName}</span>
+                  <Badge
+                    tone={
+                      trace.status === "matched"
+                        ? "success"
+                        : trace.status === "invalid"
+                          ? "danger"
+                          : trace.status === "no-output"
+                            ? "warning"
+                            : "neutral"
+                    }
+                  >
+                    {trace.status.replace("-", " ")}
+                  </Badge>
+                  {trace.matchedField ? <Badge>{trace.matchedField}</Badge> : null}
+                  {trace.tagsAdded.length > 0 ? <span>+{trace.tagsAdded.join(", ")}</span> : null}
+                  {trace.strippedField ? <Badge tone="info">strip {trace.strippedField}</Badge> : null}
+                  {trace.eventColorStatus === "applied" ? <Badge tone="info">color applied</Badge> : null}
+                  {trace.eventColorStatus === "skipped-explicit" ? <Badge tone="warning">color kept</Badge> : null}
+                  {trace.eventColorStatus === "skipped-existing" ? <Badge tone="warning">existing color kept</Badge> : null}
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
         {settings.autoTagRules.length === 0 ? (
           <EmptyState description="No auto tag rules yet." title="No auto tags" />
-        ) : settings.autoTagRules.map((rule) => (
-          <div className="grid gap-2 border-b border-border px-3 py-3 last:border-b-0" key={rule.id}>
-            <div className="grid gap-2 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_auto]">
+        ) : settings.autoTagRules.map((rule, index) => {
+          const ruleIssues = validateAutoTagRule(rule);
+          const patternIssue = ruleIssues.find((issue) => issue.field === "pattern");
+          const outputIssue = ruleIssues.find((issue) => issue.field === "output");
+          const trace = autoTagPreview.traces.find((candidate) => candidate.ruleId === rule.id);
+
+          return (
+            <div className="grid gap-2 border-b border-border px-3 py-3 last:border-b-0" key={rule.id}>
+              <div className="flex flex-wrap items-center gap-2 text-[var(--text-sm)] text-text-secondary">
+                <Badge>Rule #{index + 1}</Badge>
+                {trace ? (
+                  <Badge
+                    tone={
+                      trace.status === "matched"
+                        ? "success"
+                        : trace.status === "invalid"
+                          ? "danger"
+                          : trace.status === "no-output"
+                            ? "warning"
+                            : "neutral"
+                    }
+                  >
+                    preview {trace.status.replace("-", " ")}
+                  </Badge>
+                ) : null}
+                {patternIssue ? <Badge tone="danger">invalid regex</Badge> : null}
+                {outputIssue ? <Badge tone="warning">no output</Badge> : null}
+              </div>
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_auto]">
+                <Input
+                  aria-label={`Auto tag rule name ${rule.name}`}
+                  onChange={(event) => updateAutoTagRule(rule.id, { name: event.currentTarget.value || "Auto tag" })}
+                  value={rule.name}
+                />
+                <div className="grid gap-1">
+                  <Input
+                    aria-label={`Auto tag pattern ${rule.name}`}
+                    onChange={(event) => updateAutoTagRule(rule.id, { pattern: event.currentTarget.value || "TODO" })}
+                    value={rule.pattern}
+                  />
+                  {patternIssue ? (
+                    <p className="text-[var(--text-sm)] text-danger" role="alert">
+                      {patternIssue.message}
+                    </p>
+                  ) : null}
+                </div>
+                <Button
+                  onClick={() =>
+                    updateSettings({
+                      autoTagRules: settings.autoTagRules.filter((candidate) => candidate.id !== rule.id)
+                    })
+                  }
+                  variant="ghost"
+                >
+                  Remove
+                </Button>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <select
+                  aria-label={`Auto tag match field ${rule.name}`}
+                  className={settingsSelectClass}
+                  onChange={(event) =>
+                    updateAutoTagRule(rule.id, { matchField: event.target.value as AutoTagRule["matchField"] })
+                  }
+                  value={rule.matchField}
+                >
+                  <option value="title">Title</option>
+                  <option value="body">Body</option>
+                  <option value="anyText">Title or body</option>
+                </select>
+                <select
+                  aria-label={`Auto tag match type ${rule.name}`}
+                  className={settingsSelectClass}
+                  onChange={(event) =>
+                    updateAutoTagRule(rule.id, { matchType: event.target.value as AutoTagRule["matchType"] })
+                  }
+                  value={rule.matchType}
+                >
+                  <option value="prefix">Prefix</option>
+                  <option value="contains">Contains</option>
+                  <option value="regex">Regex</option>
+                </select>
+                <select
+                  aria-label={`Auto tag event color ${rule.name}`}
+                  className={settingsSelectClass}
+                  onChange={(event) =>
+                    updateAutoTagRule(rule.id, {
+                      eventColorId: event.target.value === "" ? null : event.target.value as AutoTagRule["eventColorId"]
+                    })
+                  }
+                  value={rule.eventColorId ?? ""}
+                >
+                  <option value="">No event color</option>
+                  {googleCalendarEventColors.map((color) => (
+                    <option key={color.id} value={color.id}>
+                      {color.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <Input
-                aria-label={`Auto tag rule name ${rule.name}`}
-                onChange={(event) => updateAutoTagRule(rule.id, { name: event.currentTarget.value || "Auto tag" })}
-                value={rule.name}
+                aria-label={`Auto tag output tags ${rule.name}`}
+                label="Tags"
+                onChange={(event) => updateAutoTagRule(rule.id, { tags: parseTagText(event.currentTarget.value) })}
+                value={rule.tags.join(", ")}
               />
-              <Input
-                aria-label={`Auto tag pattern ${rule.name}`}
-                onChange={(event) => updateAutoTagRule(rule.id, { pattern: event.currentTarget.value || "TODO" })}
-                value={rule.pattern}
-              />
-              <Button
-                onClick={() =>
-                  updateSettings({
-                    autoTagRules: settings.autoTagRules.filter((candidate) => candidate.id !== rule.id)
-                  })
-                }
-                variant="ghost"
-              >
-                Remove
-              </Button>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-3">
-              <select
-                aria-label={`Auto tag match field ${rule.name}`}
-                className={settingsSelectClass}
-                onChange={(event) =>
-                  updateAutoTagRule(rule.id, { matchField: event.target.value as AutoTagRule["matchField"] })
-                }
-                value={rule.matchField}
-              >
-                <option value="title">Title</option>
-                <option value="body">Body</option>
-                <option value="anyText">Title or body</option>
-              </select>
-              <select
-                aria-label={`Auto tag match type ${rule.name}`}
-                className={settingsSelectClass}
-                onChange={(event) =>
-                  updateAutoTagRule(rule.id, { matchType: event.target.value as AutoTagRule["matchType"] })
-                }
-                value={rule.matchType}
-              >
-                <option value="prefix">Prefix</option>
-                <option value="contains">Contains</option>
-                <option value="regex">Regex</option>
-              </select>
-              <select
-                aria-label={`Auto tag event color ${rule.name}`}
-                className={settingsSelectClass}
-                onChange={(event) =>
-                  updateAutoTagRule(rule.id, {
-                    eventColorId: event.target.value === "" ? null : event.target.value as AutoTagRule["eventColorId"]
-                  })
-                }
-                value={rule.eventColorId ?? ""}
-              >
-                <option value="">No event color</option>
-                {googleCalendarEventColors.map((color) => (
-                  <option key={color.id} value={color.id}>
-                    {color.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <Input
-              aria-label={`Auto tag output tags ${rule.name}`}
-              label="Tags"
-              onChange={(event) => updateAutoTagRule(rule.id, { tags: parseTagText(event.currentTarget.value) })}
-              value={rule.tags.join(", ")}
-            />
-            <div className="flex flex-wrap gap-4 text-[var(--text-sm)] text-text-secondary">
-              <label className="inline-flex min-h-8 items-center gap-2">
-                <input
-                  checked={rule.enabled}
-                  className="accent-[var(--color-accent)]"
-                  onChange={(event) => updateAutoTagRule(rule.id, { enabled: event.target.checked })}
-                  type="checkbox"
-                />
-                Enabled
-              </label>
-              <label className="inline-flex min-h-8 items-center gap-2">
-                <input
-                  checked={rule.stripMatchedPrefix}
-                  className="accent-[var(--color-accent)]"
-                  onChange={(event) => updateAutoTagRule(rule.id, { stripMatchedPrefix: event.target.checked })}
-                  type="checkbox"
-                />
-                Strip prefix
-              </label>
-              <label className="inline-flex min-h-8 items-center gap-2">
-                <input
-                  checked={rule.overrideExistingEventColor}
-                  className="accent-[var(--color-accent)]"
-                  onChange={(event) => updateAutoTagRule(rule.id, { overrideExistingEventColor: event.target.checked })}
-                  type="checkbox"
-                />
-                Override event color
-              </label>
-            </div>
-            <div className="flex flex-wrap gap-4 text-[var(--text-sm)] text-text-secondary">
-              {autoTagTargetKinds.map((kind) => (
-                <label className="inline-flex min-h-8 items-center gap-2" key={kind}>
+              {outputIssue ? (
+                <p className="text-[var(--text-sm)] text-warning">
+                  {outputIssue.message}
+                </p>
+              ) : null}
+              <div className="flex flex-wrap gap-4 text-[var(--text-sm)] text-text-secondary">
+                <label className="inline-flex min-h-8 items-center gap-2">
                   <input
-                    checked={rule.targetKinds.includes(kind)}
+                    checked={rule.enabled}
                     className="accent-[var(--color-accent)]"
-                    onChange={(event) => toggleAutoTagTarget(rule, kind, event.target.checked)}
+                    onChange={(event) => updateAutoTagRule(rule.id, { enabled: event.target.checked })}
                     type="checkbox"
                   />
-                  {kind}
+                  Enabled
                 </label>
-              ))}
+                <label className="inline-flex min-h-8 items-center gap-2">
+                  <input
+                    checked={rule.stripMatchedPrefix}
+                    className="accent-[var(--color-accent)]"
+                    onChange={(event) => updateAutoTagRule(rule.id, { stripMatchedPrefix: event.target.checked })}
+                    type="checkbox"
+                  />
+                  Strip prefix
+                </label>
+                <label className="inline-flex min-h-8 items-center gap-2">
+                  <input
+                    checked={rule.overrideExistingEventColor}
+                    className="accent-[var(--color-accent)]"
+                    onChange={(event) => updateAutoTagRule(rule.id, { overrideExistingEventColor: event.target.checked })}
+                    type="checkbox"
+                  />
+                  Override event color
+                </label>
+              </div>
+              <div className="flex flex-wrap gap-4 text-[var(--text-sm)] text-text-secondary">
+                {autoTagTargetKinds.map((kind) => (
+                  <label className="inline-flex min-h-8 items-center gap-2" key={kind}>
+                    <input
+                      checked={rule.targetKinds.includes(kind)}
+                      className="accent-[var(--color-accent)]"
+                      onChange={(event) => toggleAutoTagTarget(rule, kind, event.target.checked)}
+                      type="checkbox"
+                    />
+                    {kind}
+                  </label>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </SettingsGroup>
 
       <SettingsGroup title="Task templates">

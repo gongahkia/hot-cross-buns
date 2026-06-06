@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import type { AutoTagRule } from "@shared/ipc/contracts";
 import { ok } from "@shared/ipc/result";
 import App from "./App";
 import {
@@ -13,6 +14,25 @@ import {
   signedOutGoogleStatus,
   testSettings
 } from "./test/appTestHelpers";
+
+function autoTagRule(patch: Partial<AutoTagRule> = {}): AutoTagRule {
+  return {
+    id: "rule-coding",
+    name: "Coding",
+    enabled: true,
+    targetKinds: ["task", "event", "note"],
+    matchField: "title",
+    matchType: "prefix",
+    pattern: "CODING",
+    tags: ["coding"],
+    stripMatchedPrefix: true,
+    eventColorId: null,
+    overrideExistingEventColor: false,
+    createdAt: now,
+    updatedAt: now,
+    ...patch
+  };
+}
 
 describe("App settings and onboarding", () => {
   it("renders required settings sections and section controls", async () => {
@@ -196,6 +216,56 @@ describe("App settings and onboarding", () => {
       expect(api.settings.update).toHaveBeenCalledWith({ mcpEnabled: true });
       expect(api.settings.update).toHaveBeenCalledWith({ mcpPermissionMode: "allow-writes" });
     });
+  });
+
+  it("shows auto-tag regex validation, preview output, and rule conflicts", async () => {
+    const api = seededHcb();
+    let settings = testSettings({
+      autoTagRules: [
+        autoTagRule(),
+        autoTagRule({
+          id: "rule-github",
+          name: "Github",
+          matchType: "contains",
+          pattern: "github",
+          tags: ["github"],
+          stripMatchedPrefix: false
+        }),
+        autoTagRule({
+          id: "rule-invalid",
+          name: "Invalid",
+          matchType: "regex",
+          pattern: "[",
+          tags: ["bad"],
+          stripMatchedPrefix: false
+        })
+      ]
+    });
+    api.settings.get = vi.fn(async () => ok(settings));
+    api.settings.update = vi.fn(async (request) => {
+      settings = testSettings({ ...settings, ...request });
+      return ok(settings);
+    });
+    installHcb(api);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await goToSection("Settings");
+    const dialog = await screen.findByRole("dialog", { name: "Settings" });
+    await user.click(within(dialog).getByRole("button", { name: "Advanced" }));
+
+    expect(await within(dialog).findByText("1 auto-tag rule error need review.")).toBeInTheDocument();
+    expect(within(dialog).getByText(/Invalid regex:/)).toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Auto tag preview title" }), {
+      target: { value: "CODING: Look into github alternatives" }
+    });
+
+    expect(within(dialog).getByText("2 matched")).toBeInTheDocument();
+    expect(within(dialog).getByText("multiple rules")).toBeInTheDocument();
+    expect(within(dialog).getByText("Title: Look into github alternatives")).toBeInTheDocument();
+    expect(within(dialog).getByText("Tags: coding, github")).toBeInTheDocument();
+    expect(within(dialog).getByText("preview invalid")).toBeInTheDocument();
   });
 
   it("shows onboarding for a fresh database and completes setup through settings IPC", async () => {
