@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { sanitizeMenuBarIconSvg } from "./menuBarIcons";
+import {
+  calendarCheckMenuBarIconBody,
+  calendarMenuBarIconBody,
+  menuBarIconDataUrl,
+  menuBarIconSvg,
+  sanitizeMenuBarIconSvg
+} from "./menuBarIcons";
 
 describe("menu bar icon SVG sanitizer", () => {
   it("accepts Lucide SVG and returns safe body markup", () => {
@@ -19,5 +25,11 @@ describe("menu bar icon SVG sanitizer", () => {
 
   it("rejects external references", () => {
     expect(sanitizeMenuBarIconSvg('<svg><use href="https://example.com/icon.svg#x"/></svg>')).toBeNull();
+  });
+
+  it("wraps icon bodies with the tray SVG shell", () => {
+    expect(menuBarIconSvg(calendarMenuBarIconBody)).toContain('viewBox="0 0 24 24"');
+    expect(menuBarIconSvg(calendarCheckMenuBarIconBody)).toContain('<path d="m9 16 2 2 4-4"/>');
+    expect(decodeURIComponent(menuBarIconDataUrl(calendarMenuBarIconBody))).toContain(calendarMenuBarIconBody);
   });
 });

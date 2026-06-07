@@ -1,5 +1,5 @@
 import type { SettingsSnapshot, SettingsUpdateRequest } from "@shared/ipc/contracts";
-import { sanitizeMenuBarIconSvg } from "@shared/menuBarIcons";
+import { menuBarIconSvg, sanitizeMenuBarIconSvg } from "@shared/menuBarIcons";
 import { useState } from "react";
 import { Bell, Download, ExternalLink, Play, Volume2 } from "lucide-react";
 import { Badge, Button, cx } from "../../../../components/primitives";
@@ -43,6 +43,7 @@ export function AlertsSettingsTab({
   const [customIconName, setCustomIconName] = useState("");
   const [customIconSvg, setCustomIconSvg] = useState("");
   const [customIconError, setCustomIconError] = useState<string | null>(null);
+  const customIconPreviewSvg = sanitizeMenuBarIconSvg(customIconSvg);
 
   async function enableNotifications(checked: boolean): Promise<void> {
     if (checked) {
@@ -245,22 +246,42 @@ export function AlertsSettingsTab({
             <p className="text-[var(--text-sm)] text-text-secondary">
               Pick a Lucide icon, copy its SVG, paste it here, and give it a HCB2 name.
             </p>
-            <label className="grid gap-1 text-[var(--text-sm)] font-medium text-text-secondary">
-              Name
-              <input
-                className={cx(settingsSelectClass, "w-full")}
-                onChange={(event) => setCustomIconName(event.target.value)}
-                value={customIconName}
-              />
-            </label>
-            <label className="grid gap-1 text-[var(--text-sm)] font-medium text-text-secondary">
-              SVG
-              <textarea
-                className="min-h-32 rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary"
-                onChange={(event) => setCustomIconSvg(event.target.value)}
-                value={customIconSvg}
-              />
-            </label>
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_8rem]">
+              <div className="grid gap-3">
+                <label className="grid gap-1 text-[var(--text-sm)] font-medium text-text-secondary">
+                  Name
+                  <input
+                    className={cx(settingsSelectClass, "w-full")}
+                    onChange={(event) => setCustomIconName(event.target.value)}
+                    value={customIconName}
+                  />
+                </label>
+                <label className="grid gap-1 text-[var(--text-sm)] font-medium text-text-secondary">
+                  SVG
+                  <textarea
+                    className="min-h-32 rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary"
+                    onChange={(event) => setCustomIconSvg(event.target.value)}
+                    value={customIconSvg}
+                  />
+                </label>
+              </div>
+              <div className="grid content-start gap-2">
+                <div className="grid aspect-square w-32 place-items-center rounded-hcbMd border border-border bg-surface-1 text-text-primary">
+                  {customIconPreviewSvg ? (
+                    <span
+                      aria-label="Menu bar icon preview"
+                      className="block h-8 w-8"
+                      dangerouslySetInnerHTML={{
+                        __html: menuBarIconSvg(customIconPreviewSvg)
+                      }}
+                      role="img"
+                    />
+                  ) : (
+                    <span className="text-[var(--text-xs)] text-text-secondary">Preview</span>
+                  )}
+                </div>
+              </div>
+            </div>
             {customIconError ? <p className="text-[var(--text-sm)] text-danger">{customIconError}</p> : null}
             <div className="flex justify-end gap-2">
               <Button onClick={() => setCustomIconOpen(false)} variant="ghost">

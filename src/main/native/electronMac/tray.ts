@@ -12,17 +12,15 @@ import type {
   NativeOperationResult,
   NativeTrayActions
 } from "../types";
+import {
+  calendarCheckMenuBarIconBody,
+  calendarMenuBarIconBody,
+  menuBarIconDataUrl
+} from "@shared/menuBarIcons";
 import { MenuBarPanelController } from "./menuBarPanelController";
 import { unsupported } from "./operationResults";
 
-const fallbackTrayIconBase64 =
-  "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAOUlEQVR4nGNgGArgP7macGGyDSHZufgMwGkgPqcT5SKKDCBFM1UMoV0gUmQAPu+QBKiSEklyLtkAAHbWV6m7KwjdAAAAAElFTkSuQmCC";
-
 type TrayIconDefinition = { body: string } | "none";
-
-const calendarIconBody =
-  '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>';
-const calendarCheckIconBody = `${calendarIconBody}<path d="m9 16 2 2 4-4"/>`;
 
 export class MacTrayController {
   private tray: Tray | undefined;
@@ -129,7 +127,9 @@ function trayIconDefinition(snapshot: NativeMenuBarSnapshot): TrayIconDefinition
     return { body: customIcon.svg };
   }
 
-  return { body: snapshot.calendarDone ? calendarCheckIconBody : calendarIconBody };
+  return {
+    body: snapshot.calendarDone ? calendarCheckMenuBarIconBody : calendarMenuBarIconBody
+  };
 }
 
 function trayIconImage(iconDefinition: TrayIconDefinition): NativeImage {
@@ -137,21 +137,9 @@ function trayIconImage(iconDefinition: TrayIconDefinition): NativeImage {
     return nativeImage.createEmpty();
   }
 
-  const image = nativeImage.createFromDataURL(templateIconDataUrl(iconDefinition.body));
+  const image = nativeImage.createFromDataURL(menuBarIconDataUrl(iconDefinition.body));
 
-  return image.isEmpty()
-    ? nativeImage.createFromDataURL(`data:image/png;base64,${fallbackTrayIconBase64}`)
-    : image;
-}
-
-function templateIconDataUrl(body: string): string {
-  const svg = [
-    '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">',
-    body,
-    "</svg>"
-  ].join("");
-
-  return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+  return image.isEmpty() ? nativeImage.createEmpty() : image;
 }
 
 function menuBarPanelMenu(actions: NativeTrayActions, snapshot: NativeMenuBarSnapshot): Menu {
