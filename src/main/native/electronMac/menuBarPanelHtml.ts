@@ -48,6 +48,10 @@ export function menuBarPanelHtml(snapshot: NativeMenuBarSnapshot): string {
         width: 100vw;
         height: 100vh;
         padding-top: 9px;
+        overflow: hidden;
+        border: 1px solid var(--panel-border);
+        border-radius: 13px;
+        background: var(--panel);
       }
       .popover::before {
         content: "";
@@ -61,18 +65,19 @@ export function menuBarPanelHtml(snapshot: NativeMenuBarSnapshot): string {
         border-top: 1px solid var(--panel-border);
         border-top-left-radius: 3px;
         background: var(--panel);
+        z-index: 1;
       }
       .panel {
         position: relative;
         width: 100%;
-        height: calc(100vh - 9px);
+        height: 100%;
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        border: 1px solid var(--panel-border);
-        border-radius: 13px;
-        background: var(--panel);
-        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
       }
       .panel-header {
         display: flex;

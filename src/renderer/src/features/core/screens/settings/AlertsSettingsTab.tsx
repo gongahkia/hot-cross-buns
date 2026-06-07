@@ -160,15 +160,25 @@ export function AlertsSettingsTab({
             value={settings.menuBarPanelStyle}
           />
         </SettingsControlRow>
-        <SettingsControlRow description="Calendar is the only built-in icon." label="Menu bar icon">
+        <SettingsControlRow description="Calendar is the default icon." label="Menu bar icon">
           <div className="grid justify-items-end gap-2">
             <select
               aria-label="Calendar menu bar icon"
               className={settingsSelectClass}
-              onChange={() => updateSettings({ menuBarCalendarIconId: "calendar", menuBarIconName: "calendar" })}
-              value="calendar"
+              onChange={(event) =>
+                updateSettings({
+                  menuBarCalendarIconId: event.target.value,
+                  menuBarIconName: "calendar"
+                })
+              }
+              value={selectedMenuBarIconId(settings)}
             >
               <option value="calendar">Calendar</option>
+              {settings.customMenuBarIcons.map((icon) => (
+                <option key={icon.id} value={icon.id}>
+                  {icon.name}
+                </option>
+              ))}
             </select>
             <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
               <Badge>{selectedMenuBarIconName(settings)}</Badge>
@@ -273,6 +283,16 @@ function selectedMenuBarIconName(settings: SettingsSnapshot): string {
   }
 
   return settings.customMenuBarIcons.find((icon) => icon.id === settings.menuBarCalendarIconId)?.name ?? "Calendar";
+}
+
+function selectedMenuBarIconId(settings: SettingsSnapshot): string {
+  if (settings.menuBarCalendarIconId === "calendar") {
+    return "calendar";
+  }
+
+  return settings.customMenuBarIcons.some((icon) => icon.id === settings.menuBarCalendarIconId)
+    ? settings.menuBarCalendarIconId
+    : "calendar";
 }
 
 function SoundPicker({
