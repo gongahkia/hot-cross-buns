@@ -40,9 +40,10 @@ export function AlertsSettingsTab({
 }: AlertsSettingsTabProps): JSX.Element {
   const [customIconOpen, setCustomIconOpen] = useState(false);
   const [customIconName, setCustomIconName] = useState("");
-  const [customIconSvg, setCustomIconSvg] = useState("");
+  const [customIconDataBase64, setCustomIconDataBase64] = useState("");
+  const [customIconPreviewUrl, setCustomIconPreviewUrl] = useState("");
+  const [customIconFileName, setCustomIconFileName] = useState("");
   const [customIconError, setCustomIconError] = useState<string | null>(null);
-  const customIconPreviewSvg = sanitizeMenuBarIconSvg(customIconSvg);
 
   async function enableNotifications(checked: boolean): Promise<void> {
     if (checked) {
@@ -52,23 +53,49 @@ export function AlertsSettingsTab({
     updateSettings({ notificationsEnabled: checked });
   }
 
-  function saveCustomIcon(): void {
+  async function saveCustomIcon(): Promise<void> {
     const name = customIconName.trim();
-    const svg = sanitizeMenuBarIconSvg(customIconSvg);
-    if (!name || !svg) {
-      setCustomIconError("Enter a name and a safe Lucide SVG.");
+    if (!name || !customIconDataBase64) {
+      setCustomIconError("Enter a name and choose a PNG.");
       return;
     }
 
-    const now = new Date().toISOString();
-    const id = `custom:${crypto.randomUUID()}`;
+    const imported = await window.hcb?.native.importMenuBarIcon({
+      name,
+      dataBase64: customIconDataBase64
+    });
+    if (!imported?.ok) {
+      setCustomIconError(imported?.error.message ?? "Could not import menu bar icon.");
+      return;
+    }
+
     updateSettings({
-      customMenuBarIcons: [...settings.customMenuBarIcons, { id, name, svg, createdAt: now, updatedAt: now }],
-      menuBarCalendarIconId: id
+      customMenuBarIcons: [...settings.customMenuBarIcons, imported.data],
+      menuBarCalendarIconId: imported.data.id
     });
     setCustomIconOpen(false);
     setCustomIconName("");
-    setCustomIconSvg("");
+    setCustomIconDataBase64("");
+    setCustomIconPreviewUrl("");
+    setCustomIconFileName("");
+    setCustomIconError(null);
+  }
+
+  async function selectCustomIconFile(file: File | null): Promise<void> {
+    if (!file) {
+      return;
+    }
+
+    if (file.type !== "image/png" && !file.name.toLowerCase().endsWith(".png")) {
+      setCustomIconError("Choose a PNG file.");
+      return;
+    }
+
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const dataBase64 = bytesToBase64(bytes);
+    setCustomIconDataBase64(dataBase64);
+    setCustomIconPreviewUrl(`data:image/png;base64,${dataBase64}`);
+    setCustomIconFileName(file.name);
     setCustomIconError(null);
   }
 
@@ -165,12 +192,17 @@ export function AlertsSettingsTab({
             <select
               aria-label="Calendar menu bar icon"
               className={settingsSelectClass}
-              onChange={(event) =>
+              onChange={(event) => {
+                if (event.target.value === "custom") {
+                  setCustomIconOpen(true);
+                  return;
+                }
+
                 updateSettings({
                   menuBarCalendarIconId: event.target.value,
                   menuBarIconName: "calendar"
-                })
-              }
+                });
+              }}
               value={selectedMenuBarIconId(settings)}
             >
               <option value="calendar">Calendar</option>
@@ -179,13 +211,8 @@ export function AlertsSettingsTab({
                   {icon.name}
                 </option>
               ))}
+              <option value="custom">Custom +</option>
             </select>
-            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-              <Badge>{selectedMenuBarIconName(settings)}</Badge>
-              <Button onClick={() => setCustomIconOpen(true)} variant="secondary">
-                Select custom...
-              </Button>
-            </div>
           </div>
         </SettingsControlRow>
         <SettingsControlRow label="Calendar done icon">
