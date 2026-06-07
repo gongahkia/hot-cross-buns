@@ -47,7 +47,7 @@ function defaultSettings(overrides: Partial<SettingsSnapshot> = {}): SettingsSna
     showTrayIcon: true,
     trayClickAction: "open-menu",
     menuBarPanelStyle: "adaptive",
-    menuBarIconName: "bun",
+    menuBarIconName: "calendar",
     showMenuBarBadge: true,
     showDockBadge: true,
     notificationsEnabled: true,

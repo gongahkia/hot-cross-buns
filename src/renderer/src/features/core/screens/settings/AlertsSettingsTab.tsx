@@ -1,6 +1,6 @@
 import type { SettingsSnapshot, SettingsUpdateRequest } from "@shared/ipc/contracts";
-import { Bell, Download, Play, Volume2 } from "lucide-react";
-import { Badge, Button } from "../../../../components/primitives";
+import { Bell, Download, ExternalLink, Play, Volume2 } from "lucide-react";
+import { Badge, Button, cx } from "../../../../components/primitives";
 import { playCompletionSound } from "../../completionSounds";
 import {
   SegmentedControl,
@@ -31,20 +31,6 @@ const soundOptions: Array<{ label: string; value: SettingsSnapshot["taskCompleti
   { label: "Coin", value: "coin" },
   { label: "Rise", value: "rise" },
   { label: "Pulse", value: "pulse" }
-];
-
-const menuBarIconOptions: Array<{ label: string; value: SettingsSnapshot["menuBarIconName"] }> = [
-  { label: "Calendar", value: "calendar" },
-  { label: "Bun", value: "bun" },
-  { label: "Checklist", value: "checklist" },
-  { label: "Target", value: "target" },
-  { label: "Bell", value: "bell" },
-  { label: "Clock", value: "clock" },
-  { label: "Star", value: "star" },
-  { label: "Bolt", value: "bolt" },
-  { label: "Spark", value: "spark" },
-  { label: "Circle", value: "circle" },
-  { label: "Diamond", value: "diamond" }
 ];
 
 export function AlertsSettingsTab({
@@ -147,21 +133,24 @@ export function AlertsSettingsTab({
             value={settings.menuBarPanelStyle}
           />
         </SettingsControlRow>
-        <SettingsControlRow label="Menu bar icon">
-          <select
-            aria-label="Menu bar icon"
-            className={settingsSelectClass}
-            onChange={(event) =>
-              updateSettings({ menuBarIconName: event.target.value as SettingsSnapshot["menuBarIconName"] })
-            }
-            value={settings.menuBarIconName}
-          >
-            {menuBarIconOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+        <SettingsControlRow
+          description="Calendar is the only built-in icon; pick new Lucide names externally."
+          label="Menu bar icon"
+        >
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+            <Badge>{settings.menuBarIconName}</Badge>
+            <a
+              className={cx(
+                "inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-hcbMd border border-border bg-surface-0 px-3 text-[var(--text-base)] font-medium text-text-primary transition-colors duration-fast ease-hcb hover:bg-surface-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              )}
+              href="https://lucide.dev/icons/"
+              rel="noreferrer"
+              target="_blank"
+            >
+              <ExternalLink aria-hidden="true" size={14} />
+              Browse Lucide
+            </a>
+          </div>
         </SettingsControlRow>
         <SettingsSwitch
           checked={settings.showMenuBarBadge}

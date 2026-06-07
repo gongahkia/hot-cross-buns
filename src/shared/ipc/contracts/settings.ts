@@ -65,17 +65,7 @@ export const completionSoundIds = [
   "pulse"
 ] as const;
 export const menuBarIconNames = [
-  "calendar",
-  "bun",
-  "checklist",
-  "target",
-  "bell",
-  "clock",
-  "star",
-  "bolt",
-  "spark",
-  "circle",
-  "diamond"
+  "calendar"
 ] as const;
 export const completionSoundIdSchema = z.enum(completionSoundIds);
 export const menuBarIconNameSchema = z.enum(menuBarIconNames);

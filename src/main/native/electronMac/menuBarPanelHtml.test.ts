@@ -6,7 +6,7 @@ describe("menu bar panel HTML", () => {
   it("escapes snapshot text before rendering the panel", () => {
     const snapshot: NativeMenuBarSnapshot = {
       panelStyle: "adaptive",
-      iconName: "bun",
+      iconName: "calendar",
       primaryClickAction: "open-menu",
       title: "<script>&\"'",
       syncLabel: "Sync <ok>",
@@ -39,7 +39,7 @@ describe("menu bar panel HTML", () => {
   it("renders agenda rows without leading icons", () => {
     const snapshot: NativeMenuBarSnapshot = {
       panelStyle: "adaptive",
-      iconName: "bun",
+      iconName: "calendar",
       primaryClickAction: "open-menu",
       title: "Agenda",
       syncLabel: "Synced",
@@ -67,7 +67,7 @@ describe("menu bar panel HTML", () => {
   it("renders the account block with an avatar slot instead of the old chevron", () => {
     const snapshot: NativeMenuBarSnapshot = {
       panelStyle: "adaptive",
-      iconName: "bun",
+      iconName: "calendar",
       primaryClickAction: "open-menu",
       title: "Agenda",
       syncLabel: "Synced",
@@ -90,7 +90,7 @@ describe("menu bar panel HTML", () => {
   it("renders the Google account profile image when present", () => {
     const snapshot: NativeMenuBarSnapshot = {
       panelStyle: "adaptive",
-      iconName: "bun",
+      iconName: "calendar",
       primaryClickAction: "open-menu",
       title: "Agenda",
       syncLabel: "Synced",

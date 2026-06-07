@@ -48,7 +48,7 @@ const DEFAULT_SETTINGS: SettingsSnapshot = {
   showTrayIcon: true,
   trayClickAction: "open-menu",
   menuBarPanelStyle: "adaptive",
-  menuBarIconName: "bun",
+  menuBarIconName: "calendar",
   showMenuBarBadge: true,
   showDockBadge: true,
   notificationsEnabled: false,
@@ -971,21 +971,9 @@ function normalizeEventCompletionDefaultScope(
 }
 
 function normalizeMenuBarIconName(value: unknown): SettingsSnapshot["menuBarIconName"] {
-  if (
-    value === "calendar" ||
-    value === "bun" ||
-    value === "checklist" ||
-    value === "target" ||
-    value === "bell" ||
-    value === "clock" ||
-    value === "star" ||
-    value === "bolt" ||
-    value === "spark" ||
-    value === "circle" ||
-    value === "diamond"
-  ) {
+  if (value === "calendar") {
     return value;
   }
 
-  return "bun";
+  return "calendar";
 }

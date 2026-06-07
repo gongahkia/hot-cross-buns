@@ -208,7 +208,7 @@ export function createPlaceholderState(): PlaceholderState {
       showTrayIcon: true,
       trayClickAction: "open-menu",
       menuBarPanelStyle: "adaptive",
-      menuBarIconName: "bun",
+      menuBarIconName: "calendar",
       showMenuBarBadge: true,
       showDockBadge: true,
       notificationsEnabled: false,

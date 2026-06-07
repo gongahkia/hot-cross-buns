@@ -483,7 +483,7 @@ describe("shared IPC contracts", () => {
         showTrayIcon: true,
         trayClickAction: "open-menu",
         menuBarPanelStyle: "adaptive",
-        menuBarIconName: "bun",
+        menuBarIconName: "calendar",
         showMenuBarBadge: true,
         showDockBadge: true,
         notificationsEnabled: false,
@@ -547,7 +547,8 @@ describe("shared IPC contracts", () => {
         }
       }).success
     ).toBe(false);
-    expect(settingsUpdateRequestSchema.safeParse({ menuBarIconName: "bolt" }).success).toBe(true);
+    expect(settingsUpdateRequestSchema.safeParse({ menuBarIconName: "calendar" }).success).toBe(true);
+    expect(settingsUpdateRequestSchema.safeParse({ menuBarIconName: "bolt" }).success).toBe(false);
     expect(settingsUpdateRequestSchema.safeParse({ calendarTimelineDensity: "comfortable" }).success).toBe(true);
     expect(settingsUpdateRequestSchema.safeParse({ calendarTimelineDensity: "huge" }).success).toBe(false);
     expect(settingsUpdateRequestSchema.safeParse({ taskCompletionSoundId: "coin" }).success).toBe(true);

@@ -69,7 +69,7 @@ function defaultSettings(overrides: Partial<SettingsSnapshot> = {}): SettingsSna
     showTrayIcon: true,
     trayClickAction: "open-menu",
     menuBarPanelStyle: "adaptive",
-    menuBarIconName: "bun",
+    menuBarIconName: "calendar",
     showMenuBarBadge: true,
     showDockBadge: true,
     notificationsEnabled: true,
@@ -464,7 +464,7 @@ describe("native shell service", () => {
 
   it("builds a calendar-style menu bar snapshot with month and selected day data", async () => {
     const { adapter, service } = createService({
-      settings: defaultSettings({ menuBarPanelStyle: "calendar", menuBarIconName: "bolt" }),
+      settings: defaultSettings({ menuBarPanelStyle: "calendar", menuBarIconName: "calendar" }),
       tasks: [
         {
           id: "task-today",
@@ -497,7 +497,7 @@ describe("native shell service", () => {
 
     expect(snapshot).toMatchObject({
       panelStyle: "calendar",
-      iconName: "bolt",
+      iconName: "calendar",
       title: "Calendar",
       syncLabel: "Local",
       calendar: {

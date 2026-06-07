@@ -148,7 +148,7 @@ export function testSettings(overrides: Partial<SettingsSnapshot> = {}): Setting
     showTrayIcon: true,
     trayClickAction: "open-menu",
     menuBarPanelStyle: "adaptive",
-    menuBarIconName: "bun",
+    menuBarIconName: "calendar",
     showMenuBarBadge: true,
     showDockBadge: true,
     notificationsEnabled: false,

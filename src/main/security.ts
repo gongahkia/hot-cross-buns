@@ -42,6 +42,7 @@ export const DEVELOPMENT_CONTENT_SECURITY_POLICY = [
 const APPROVED_EXTERNAL_HTTPS_HOSTS = new Set([
   "accounts.google.com",
   "developers.google.com",
+  "lucide.dev",
   "support.google.com",
   "www.googleapis.com"
 ]);
