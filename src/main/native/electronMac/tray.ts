@@ -6,6 +6,9 @@ import {
   type MenuItemConstructorOptions,
   type NativeImage
 } from "electron";
+import { createHash } from "node:crypto";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type {
   NativeMenuBarItem,
   NativeMenuBarSnapshot,
@@ -138,12 +141,29 @@ function trayIconImage(iconDefinition: TrayIconDefinition): NativeImage {
   }
 
   const image = nativeImage.createFromDataURL(templateIconDataUrl(iconDefinition.body));
+  if (!image.isEmpty()) {
+    return image;
+  }
 
-  return image.isEmpty() ? nativeImage.createEmpty() : image;
+  const pathImage = nativeImage.createFromPath(templateIconPath(iconDefinition.body));
+  return pathImage.isEmpty() ? nativeImage.createEmpty() : pathImage;
 }
 
 function templateIconDataUrl(body: string): string {
-  return `data:image/svg+xml;base64,${Buffer.from(menuBarIconSvg(body, "#000")).toString("base64")}`;
+  return `data:image/svg+xml;base64,${Buffer.from(templateIconSvg(body)).toString("base64")}`;
+}
+
+function templateIconPath(body: string): string {
+  const svg = templateIconSvg(body);
+  const directory = join(app.getPath("userData"), "menu-bar-icons");
+  const filePath = join(directory, `${createHash("sha1").update(svg).digest("hex")}.svg`);
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(filePath, svg);
+  return filePath;
+}
+
+function templateIconSvg(body: string): string {
+  return menuBarIconSvg(body, "#000");
 }
 
 function menuBarPanelMenu(actions: NativeTrayActions, snapshot: NativeMenuBarSnapshot): Menu {
