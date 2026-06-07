@@ -58,6 +58,8 @@ export interface CoreViewModelSource {
   getScheduledTaskBlockById: (blockId: string) => ScheduledTaskBlockViewModel | null;
   getTaskFilterViewModel: (filterId: TaskFilterId) => TaskFilterViewModel;
   hasCachedData: boolean;
+  hydrationErrorMessage?: string;
+  hydrationState: CoreHydrationState;
   initialNotes: NoteViewModel[];
   noteLists: NoteListSummary[];
   ensureCalendarRange: (range: CalendarRangeLoadRequest) => Promise<boolean>;
@@ -153,11 +155,15 @@ export interface CoreResourceCounts {
   tasks: number | null;
 }
 
+export type CoreHydrationState = "idle" | "loading" | "success" | "failed";
+
 export interface CoreDataLoadState {
   snapshot: CoreDataSnapshot;
   state: CoreDataState;
   appearanceReady: boolean;
   errorMessage?: string;
+  hydrationErrorMessage?: string;
+  hydrationState: CoreHydrationState;
 }
 
 export interface SearchHookState {
@@ -184,6 +190,8 @@ export interface CoreViewModelSourceOptions {
   state: CoreDataState;
   systemPrefersDark: boolean;
   errorMessage?: string;
+  hydrationErrorMessage?: string;
+  hydrationState: CoreHydrationState;
   refresh: () => void;
   refreshGoogleStatus: () => void;
   setGoogleStatus: (status: GoogleStatusResponse) => void;

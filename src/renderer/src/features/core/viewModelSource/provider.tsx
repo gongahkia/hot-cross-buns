@@ -15,6 +15,7 @@ import type {
 import type { CalendarEventViewModel, TaskViewModel } from "../coreViewModels";
 import { emptySnapshot } from "./defaults";
 import { dateOnlyFromLocalDate, visibleCalendarRange } from "./dateFormat";
+import { safeHydrationErrorMessage } from "./hydrationError";
 import { hydrateCoreData, loadAllPages, loadCoreData, type CoreDataHydrationSnapshot } from "./loader";
 import { unwrap } from "./result";
 import { useSettingsMutations } from "./settingsMutations";
@@ -156,7 +157,8 @@ function usePreloadCoreSource(): CoreViewModelSource {
   const [loadState, setLoadState] = useState<CoreDataLoadState>({
     snapshot: emptySnapshot,
     appearanceReady: false,
-    state: "loading"
+    state: "loading",
+    hydrationState: "idle"
   });
   const [prefersDark, setPrefersDark] = useState(systemPrefersDark);
   const cachedDataReported = useRef(false);
@@ -279,7 +281,8 @@ function usePreloadCoreSource(): CoreViewModelSource {
         snapshot: emptySnapshot,
         appearanceReady: true,
         state: "offline",
-        errorMessage: "Preload bridge is unavailable."
+        errorMessage: "Preload bridge is unavailable.",
+        hydrationState: "idle"
       });
       return;
     }
@@ -287,7 +290,9 @@ function usePreloadCoreSource(): CoreViewModelSource {
     setLoadState((current) => ({
       ...current,
       state: hasSnapshotData(current.snapshot) ? "stale" : "loading",
-      errorMessage: undefined
+      errorMessage: undefined,
+      hydrationErrorMessage: undefined,
+      hydrationState: "idle"
     }));
     scheduleSuggestionRequested.current = false;
     backgroundHydrationRequested.current = false;
@@ -323,14 +328,16 @@ function usePreloadCoreSource(): CoreViewModelSource {
         setLoadState(() => ({
           appearanceReady: true,
           snapshot,
-          state: hasSnapshotData(snapshot) ? "ready" : "empty"
+          state: hasSnapshotData(snapshot) ? "ready" : "empty",
+          hydrationState: "idle"
         }));
       },
       (error: unknown) => {
         setLoadState((current) => ({
           ...current,
           state: hasSnapshotData(current.snapshot) ? "stale" : "error",
-          errorMessage: error instanceof Error ? error.message : "Planner data read failed."
+          errorMessage: error instanceof Error ? error.message : "Planner data read failed.",
+          hydrationState: "idle"
         }));
       }
     );
@@ -451,6 +458,11 @@ function usePreloadCoreSource(): CoreViewModelSource {
     const timeout = window.setTimeout(() => {
       const startedAt = performance.now();
 
+      setLoadState((current) => ({
+        ...current,
+        hydrationErrorMessage: undefined,
+        hydrationState: "loading"
+      }));
       recordRendererTiming({
         kind: "startup",
         name: "startup.hydration.deferred-start",
@@ -459,8 +471,11 @@ function usePreloadCoreSource(): CoreViewModelSource {
 
       void hydrateCoreData().then(
         (hydration) => {
+          const failed = hydration.failedResources.length > 0;
           setLoadState((current) => ({
             ...current,
+            hydrationErrorMessage: failed ? hydration.errorMessage : undefined,
+            hydrationState: failed ? "failed" : "success",
             snapshot: mergeHydratedSnapshot(current.snapshot, hydration)
           }));
           recordRendererTiming({
@@ -468,27 +483,40 @@ function usePreloadCoreSource(): CoreViewModelSource {
             name: "startup.hydration.merge",
             durationMs: performance.now() - startedAt,
             metadata: {
-              outcome: "success",
+              outcome: failed ? "failed" : "success",
+              errorMessage: failed ? hydration.errorMessage ?? "Background hydration failed." : null,
+              failedResources: failed ? hydration.failedResources.join(",") : null,
               tasks: hydration.tasks?.length ?? null,
               notes: hydration.notes?.length ?? null
             }
           });
+          if (failed) {
+            refreshDiagnosticsSummary();
+          }
         },
-        () => {
+        (error) => {
+          const errorMessage = safeHydrationErrorMessage(error);
+          setLoadState((current) => ({
+            ...current,
+            hydrationErrorMessage: errorMessage,
+            hydrationState: "failed"
+          }));
           recordRendererTiming({
             kind: "startup",
             name: "startup.hydration.merge",
             durationMs: performance.now() - startedAt,
             metadata: {
+              errorMessage,
               outcome: "failed"
             }
           });
+          refreshDiagnosticsSummary();
         }
       );
     }, 1_000);
 
     return () => window.clearTimeout(timeout);
-  }, [loadState.state]);
+  }, [loadState.state, refreshDiagnosticsSummary]);
 
   useEffect(() => {
     if (
@@ -663,6 +691,8 @@ function usePreloadCoreSource(): CoreViewModelSource {
       state: loadState.state,
       systemPrefersDark: prefersDark,
       errorMessage: loadState.errorMessage,
+      hydrationErrorMessage: loadState.hydrationErrorMessage,
+      hydrationState: loadState.hydrationState,
       refresh: load,
       refreshGoogleStatus,
       setGoogleStatus,

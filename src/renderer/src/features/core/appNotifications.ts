@@ -88,6 +88,16 @@ export function getAppNotifications(source: CoreViewModelSource): AppNotificatio
     });
   }
 
+  if (source.hydrationState === "failed") {
+    notifications.push({
+      id: "cache.hydration.failed",
+      title: "Some counts could not refresh",
+      description: "Tasks and notes are still usable, but some sidebar counts could not be updated. Use Reload to retry.",
+      status: "Counts",
+      tone: "warning"
+    });
+  }
+
   if (source.settingsMutationError) {
     notifications.push({
       id: "settings.error",

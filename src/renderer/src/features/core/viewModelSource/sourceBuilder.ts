@@ -240,6 +240,8 @@ export function buildCoreViewModelSource(
     getTaskFilterViewModel: (filterId) =>
       taskFilterViewModels.find((filter) => filter.id === filterId) ?? taskFilterViewModels[0],
     hasCachedData: hasSnapshotData(snapshot),
+    hydrationErrorMessage: options.hydrationErrorMessage,
+    hydrationState: options.hydrationState,
     initialNotes: notes,
     noteLists,
     ensureCalendarRange: options.ensureCalendarRange,

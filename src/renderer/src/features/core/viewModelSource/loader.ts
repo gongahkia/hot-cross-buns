@@ -18,6 +18,7 @@ import type {
   TaskListsResponse
 } from "@shared/ipc/contracts";
 import { visibleCalendarRange } from "./dateFormat";
+import { sanitizeHydrationErrorMessage } from "./hydrationError";
 import { unwrap } from "./result";
 import { uniqueTasks } from "./taskViewModels";
 import type { CoreDataSnapshot, CoreResourceCounts } from "./types";
@@ -213,6 +214,8 @@ export async function loadCoreData(
 }
 
 export interface CoreDataHydrationSnapshot {
+  errorMessage?: string;
+  failedResources: Array<"tasks" | "notes">;
   tasks?: TaskSummary[];
   notes?: NoteSummary[];
   noteLists?: NoteListSummary[];
@@ -229,11 +232,21 @@ export async function hydrateCoreData(): Promise<CoreDataHydrationSnapshot> {
     loadNoteHydration()
   ]);
 
-  if (tasks.status === "rejected" && notes.status === "rejected") {
-    throw tasks.reason instanceof Error ? tasks.reason : new Error("Background hydration failed.");
+  const failedResources: Array<"tasks" | "notes"> = [];
+
+  if (tasks.status === "rejected") {
+    failedResources.push("tasks");
+  }
+
+  if (notes.status === "rejected") {
+    failedResources.push("notes");
   }
 
   return {
+    ...(failedResources.length > 0
+      ? { errorMessage: hydrationErrorMessage(tasks, notes) }
+      : {}),
+    failedResources,
     ...(tasks.status === "fulfilled" ? { tasks: tasks.value.items } : {}),
     ...(notes.status === "fulfilled"
       ? { notes: notes.value.items, noteLists: notes.value.lists }
@@ -243,6 +256,18 @@ export async function hydrateCoreData(): Promise<CoreDataHydrationSnapshot> {
       ...(notes.status === "fulfilled" ? { notes: notes.value.totalKnown } : {})
     }
   };
+}
+
+function hydrationErrorMessage(
+  tasks: PromiseSettledResult<unknown>,
+  notes: PromiseSettledResult<unknown>
+): string {
+  const reasons = [tasks, notes]
+    .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+    .map((result) => result.reason)
+    .map((reason) => reason instanceof Error ? reason.message : "Background hydration failed.");
+
+  return sanitizeHydrationErrorMessage(reasons.join(" | ") || "Background hydration failed.");
 }
 
 async function loadTaskHydration(): Promise<{ items: TaskSummary[]; totalKnown: number }> {

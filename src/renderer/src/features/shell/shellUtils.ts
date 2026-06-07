@@ -35,7 +35,7 @@ export function isEditableShortcutTarget(target: EventTarget | null): boolean {
 export function sectionMetric(source: CoreViewModelSource, sectionId: SectionId): string {
   if (sectionId === "tasks") {
     if (source.resourceCounts.tasks === null) {
-      return "...";
+      return deferredCountMetric(source);
     }
 
     return String(
@@ -48,12 +48,12 @@ export function sectionMetric(source: CoreViewModelSource, sectionId: SectionId)
   }
 
   if (sectionId === "calendar") {
-    return formatCount(source.resourceCounts.calendarEvents);
+    return deferredCountMetric(source, source.resourceCounts.calendarEvents);
   }
 
   if (sectionId === "notes") {
     if (source.resourceCounts.notes === null) {
-      return "...";
+      return deferredCountMetric(source);
     }
 
     const loadedNoteCount = source.noteLists.reduce((count, list) => count + list.noteCount, 0);
@@ -67,6 +67,10 @@ export function sectionMetric(source: CoreViewModelSource, sectionId: SectionId)
   return source.todayViewModel.metrics[0]?.value ?? "0";
 }
 
-function formatCount(count: number | null): string {
-  return count === null ? "..." : String(count);
+function deferredCountMetric(source: CoreViewModelSource, count: number | null = null): string {
+  if (count !== null) {
+    return String(count);
+  }
+
+  return source.hydrationState === "failed" ? "!" : "...";
 }

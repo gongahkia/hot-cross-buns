@@ -495,6 +495,103 @@ describe("App shell", () => {
     );
   });
 
+  it("flags failed deferred hydration and retries counts on reload", async () => {
+    const user = userEvent.setup();
+    const api = seededHcb();
+    const bootstrapResult = await api.bootstrap.get({
+      mode: "light",
+      calendarRange: {
+        start: `${todayDate}T00:00:00.000Z`,
+        end: `${todayDate}T23:59:59.999Z`,
+        limit: 500
+      }
+    });
+
+    if (!bootstrapResult.ok) {
+      throw new Error("Expected seeded bootstrap fixture.");
+    }
+
+    const listTasks = api.tasks.list;
+    const listNotes = api.notes.list;
+    let failHydration = true;
+
+    api.bootstrap.get = vi.fn(async () =>
+      ok({
+        ...bootstrapResult.data,
+        tasks: { items: [], page: { limit: 1, totalKnown: 0 } },
+        hiddenTasks: { items: [], page: { limit: 1, totalKnown: 0 } },
+        deletedTasks: { items: [], page: { limit: 1, totalKnown: 0 } },
+        notes: { items: [], lists: [], page: { limit: 1, totalKnown: 0 } },
+        resourceCounts: {
+          ...bootstrapResult.data.resourceCounts,
+          tasks: 0,
+          notes: 0
+        }
+      })
+    );
+    api.tasks.list = vi.fn(async (request) => {
+      if (failHydration) {
+        throw new Error("access_token=fake-access-token /Users/tester");
+      }
+
+      return listTasks(request);
+    });
+    api.notes.list = vi.fn(async (request) => {
+      if (failHydration) {
+        throw new Error("notes unavailable");
+      }
+
+      return listNotes(request);
+    });
+
+    installHcb(api);
+    render(<App />);
+
+    await screen.findByRole("heading", { level: 1, name: "Calendar" });
+    const navigation = primaryNavigation();
+    const tasksButton = within(navigation).getByRole("button", { name: "Tasks" });
+    const notesButton = within(navigation).getByRole("button", { name: "Notes" });
+
+    expect(within(tasksButton).getByText("...")).toBeInTheDocument();
+    expect(within(notesButton).getByText("...")).toBeInTheDocument();
+
+    await waitFor(
+      () => {
+        expect(within(tasksButton).getByText("!")).toBeInTheDocument();
+        expect(within(notesButton).getByText("!")).toBeInTheDocument();
+      },
+      { timeout: 2500 }
+    );
+    await waitFor(() => {
+      expect(api.diagnostics.recordTiming).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "startup.hydration.merge",
+          metadata: expect.objectContaining({
+            errorMessage: expect.not.stringContaining("fake-access-token"),
+            outcome: "failed"
+          })
+        })
+      );
+    });
+
+    await user.click(screen.getByRole("button", { name: /Notifications,/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Notifications" });
+    expect(within(dialog).getByText("Some counts could not refresh")).toBeInTheDocument();
+    expect(within(dialog).getByText("Tasks and notes are still usable, but some sidebar counts could not be updated. Use Reload to retry.")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Close notifications" }));
+
+    failHydration = false;
+    await user.click(screen.getByRole("button", { name: "Reload" }));
+
+    await waitFor(
+      () => {
+        expect(within(tasksButton).getByText("2")).toBeInTheDocument();
+        expect(within(notesButton).getByText("1")).toBeInTheDocument();
+      },
+      { timeout: 3000 }
+    );
+  });
+
   it("opens notifications as a toolbar overlay instead of a primary navigation section", async () => {
     const user = userEvent.setup();
     installHcb(seededHcb());
