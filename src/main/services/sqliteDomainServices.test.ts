@@ -303,6 +303,41 @@ describe("SQLite-backed domain services", () => {
       expect.objectContaining({ title: "History note", taskListTitle: "Inbox" }),
       expect.objectContaining({ title: "History note", taskListTitle: "Inbox" })
     ]);
+    expect(historyRows().filter((row) => row.kind === "task.create" || row.kind === "task.edit" || row.kind === "task.delete")).toEqual([]);
+  });
+
+  it("records note deletes for each note in a deleted note list", async () => {
+    const { domain, syncRepository } = createTestServices();
+    seedGoogleMirrors(syncRepository);
+
+    const list = await domain.planner.createNoteList({ title: "Archive notes" });
+    const first = await domain.planner.createNote({
+      listId: list.id,
+      title: "First archived note",
+      body: "One"
+    });
+    const second = await domain.planner.createNote({
+      listId: list.id,
+      title: "Second archived note",
+      body: "Two"
+    });
+
+    await domain.planner.deleteNoteList({ id: list.id });
+
+    const deletedNoteRows = historyRows().filter((row) => row.kind === "note.delete");
+    expect(deletedNoteRows.map((row) => row.resourceId)).toEqual([first.id, second.id]);
+    expect(deletedNoteRows.map((row) => row.summary)).toEqual([
+      'Deleted note "First archived note"',
+      'Deleted note "Second archived note"'
+    ]);
+    expect(historyRows()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "task_list.delete",
+          resourceId: list.id
+        })
+      ])
+    );
   });
 
   it("migrates the old Cmd+T pane shortcut to web tabs", async () => {
@@ -392,21 +427,49 @@ describe("SQLite-backed domain services", () => {
     ]);
     const undoHistory = historyRows().filter((row) => row.kind === "undo.apply" || row.kind === "redo.apply");
     expect(undoHistory.map((row) => row.kind)).toEqual(["undo.apply", "redo.apply"]);
-    expect(undoHistory.map((row) => row.summary)).toEqual(["Undo: Edit task", "Redo: Edit task"]);
+    expect(undoHistory.map((row) => row.summary)).toEqual(["Undo task: Edit task", "Redo task: Edit task"]);
     expect(undoHistory.map((row) => historyMetadata(row))).toEqual([
       expect.objectContaining({
         actionKind: "task.update",
+        resourceDomain: "task",
         resourceKind: "task",
         resourceId: id,
         title: "Draft inbox triage rules"
       }),
       expect.objectContaining({
         actionKind: "task.update",
+        resourceDomain: "task",
         resourceKind: "task",
         resourceId: id,
         title: "Updated task title"
       })
     ]);
+  });
+
+  it("describes undo history for task-backed notes as notes", async () => {
+    const { domain, syncRepository } = createTestServices();
+    seedGoogleMirrors(syncRepository);
+    const note = await domain.planner.createNote({
+      title: "Undoable note",
+      body: "Before"
+    });
+
+    await domain.undo.undo();
+
+    const undoHistory = historyRows().filter((row) => row.kind === "undo.apply");
+    expect(undoHistory).toHaveLength(1);
+    expect(undoHistory[0]).toMatchObject({
+      resourceId: note.id,
+      summary: "Undo note: Create note"
+    });
+    expect(historyMetadata(undoHistory[0])).toEqual(
+      expect.objectContaining({
+        actionKind: "note.create",
+        resourceDomain: "note",
+        resourceKind: "task",
+        title: "Undoable note"
+      })
+    );
   });
 
   it("blocks undo when the task changed after the undoable write", async () => {

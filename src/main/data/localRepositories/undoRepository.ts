@@ -572,14 +572,17 @@ export class LocalUndoRepository {
 
   private recordApplyHistory(stack: UndoStack, entry: UndoEntryRow, payload: UndoPayload): void {
     const title = titleFromUndoPayload(payload);
+    const resourceDomain = historyResourceDomain(payload);
+    const action = stack === "undo" ? "Undo" : "Redo";
 
     this.history.record({
       kind: `${stack}.apply`,
       resourceId: entry.resourceId,
-      summary: `${stack === "undo" ? "Undo" : "Redo"}: ${entry.label}`,
+      summary: `${action} ${resourceDomain}: ${entry.label}`,
       metadata: {
         actionKind: entry.actionKind,
         resourceKind: entry.resourceKind,
+        resourceDomain,
         resourceId: entry.resourceId,
         label: entry.label,
         ...(title === undefined ? {} : { title })
@@ -766,6 +769,26 @@ function pickJson(
 
 function titleFromUndoPayload(payload: UndoPayload): string | undefined {
   return titleFromSnapshot(payload.target) ?? titleFromSnapshot(payload.opposite);
+}
+
+function historyResourceDomain(payload: UndoPayload): "task" | "note" | "taskList" | "calendarEvent" | "scheduledTaskBlock" {
+  if (payload.resourceKind === "task" && (isUndoNoteSnapshot(payload.target) || isUndoNoteSnapshot(payload.opposite))) {
+    return "note";
+  }
+
+  return payload.resourceKind;
+}
+
+function isUndoNoteSnapshot(value: JsonValue): boolean {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  return value.deletedAt === null &&
+    value.isHidden !== 1 &&
+    value.status !== "completed" &&
+    value.parentTaskId === null &&
+    value.dueAt === null;
 }
 
 function titleFromSnapshot(value: JsonValue): string | undefined {

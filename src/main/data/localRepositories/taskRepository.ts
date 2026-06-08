@@ -363,15 +363,16 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
           now
         })
       ]);
-      this.recordHistory({
-        kind: "task.create",
-        resourceId: id,
-        summary: "Created task",
-        metadata: { queued: true, taskListId: list.id }
-      });
       const created = this.requireTaskForMutation(id);
       if (isHistoryNoteTask(created)) {
         this.recordNoteHistory("note.create", created, "Created note");
+      } else {
+        this.recordHistory({
+          kind: "task.create",
+          resourceId: id,
+          summary: "Created task",
+          metadata: { queued: true, taskListId: list.id }
+        });
       }
 
       return this.getTask(id);
@@ -508,13 +509,15 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
       }
 
       this.connection.executeTransaction(operations);
-      this.recordHistory({
-        kind: "task.edit",
-        resourceId: request.id,
-        summary: "Edited task",
-        metadata: { queued: googleBackedPatch, taskListId: targetList.id }
-      });
-      this.recordNoteUpdateHistory(existing, this.requireTaskForMutation(request.id));
+      const updated = this.requireTaskForMutation(request.id);
+      if (!this.recordNoteUpdateHistory(existing, updated)) {
+        this.recordHistory({
+          kind: "task.edit",
+          resourceId: request.id,
+          summary: "Edited task",
+          metadata: { queued: googleBackedPatch, taskListId: targetList.id }
+        });
+      }
 
       return this.getTask(request.id);
     });
@@ -568,14 +571,15 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
           now
         })
       ]);
-      this.recordHistory({
-        kind: "task.delete",
-        resourceId: request.id,
-        summary: "Deleted task",
-        metadata: { queued: true, taskListId: existing.listId }
-      });
       if (isHistoryNoteTask(existing)) {
         this.recordNoteHistory("note.delete", existing, "Deleted note");
+      } else {
+        this.recordHistory({
+          kind: "task.delete",
+          resourceId: request.id,
+          summary: "Deleted task",
+          metadata: { queued: true, taskListId: existing.listId }
+        });
       }
 
       return { id: request.id, queued: true, revision: now };
@@ -664,6 +668,7 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
   deleteTaskList(request: TaskListDeleteRequest): { id: string; queued: boolean; revision: string } {
     return this.measureSqlite("tasks.deleteTaskList", () => {
       const existing = this.requireTaskListForMutation(request.id);
+      const noteRows = this.noteHistoryRowsForList(request.id);
       const now = new Date().toISOString();
 
       this.connection.executeTransaction([
@@ -701,6 +706,9 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
         summary: "Deleted task list",
         metadata: { queued: true }
       });
+      for (const note of noteRows) {
+        this.recordNoteHistory("note.delete", note, "Deleted note");
+      }
 
       return { id: request.id, queued: true, revision: now };
     });
@@ -749,23 +757,26 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
     });
   }
 
-  private recordNoteUpdateHistory(before: TaskRow, after: TaskRow): void {
+  private recordNoteUpdateHistory(before: TaskRow, after: TaskRow): boolean {
     const wasNote = isHistoryNoteTask(before);
     const isNote = isHistoryNoteTask(after);
 
     if (!wasNote && isNote) {
       this.recordNoteHistory("note.create", after, "Created note");
-      return;
+      return true;
     }
 
     if (wasNote && !isNote) {
       this.recordNoteHistory("note.delete", before, "Deleted note");
-      return;
+      return true;
     }
 
     if (wasNote && isNote && noteFieldsChanged(before, after)) {
       this.recordNoteHistory("note.edit", after, "Edited note");
+      return true;
     }
+
+    return wasNote || isNote;
   }
 
   private recordNoteHistory(kind: "note.create" | "note.edit" | "note.delete", row: TaskRow, summary: string): void {
@@ -780,6 +791,42 @@ export class TaskLocalRepository extends PlannerRepositoryBase {
         taskListTitle: row.listTitle
       }
     });
+  }
+
+  private noteHistoryRowsForList(listId: string): TaskRow[] {
+    return this.connection.query<TaskRow>(
+      `SELECT
+         tasks.id AS id,
+         tasks.account_id AS accountId,
+         tasks.google_id AS googleId,
+         tasks.task_list_id AS listId,
+         lists.google_id AS listGoogleId,
+         lists.title AS listTitle,
+         tasks.title AS title,
+         tasks.status AS status,
+         tasks.notes AS notes,
+         tasks.due_at AS dueAt,
+         tasks.parent_task_id AS parentId,
+         tasks.deleted_at AS deletedAt,
+         tasks.is_hidden AS isHidden,
+         COALESCE(tasks.local_priority, 'none') AS priority,
+         tasks.sort_order AS sortOrder,
+         tasks.etag AS etag,
+         tasks.updated_at AS updatedAt,
+         tasks.local_planned_start AS plannedStart,
+         tasks.local_planned_end AS plannedEnd,
+         tasks.local_duration_minutes AS durationMinutes,
+         tasks.local_locked_schedule AS lockedSchedule,
+         tasks.local_snooze_until AS snoozeUntil,
+         tasks.local_tags_json AS tagsJson
+       FROM google_tasks tasks
+       INNER JOIN google_task_lists lists ON lists.id = tasks.task_list_id
+       WHERE tasks.task_list_id = ?
+         AND tasks.deleted_at IS NULL
+         AND lists.deleted_at IS NULL
+       ORDER BY tasks.sort_order ASC, tasks.id ASC;`,
+      [listId]
+    ).filter(isHistoryNoteTask);
   }
 
   protected requireTaskForMutation(id: string): TaskRow {

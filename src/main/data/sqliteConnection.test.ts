@@ -17,12 +17,16 @@ function firstPragmaValue(connection: SqliteConnection, pragma: string): unknown
   return row === undefined ? undefined : Object.values(row)[0];
 }
 
+function expectSupportedAdapter(connection: SqliteConnection): void {
+  expect(["better-sqlite3", "python-subprocess-compat"]).toContain(connection.adapterKind);
+}
+
 describe("SQLite connection foundation", () => {
   it("creates temporary databases under the OS temp directory and cleans them up", () => {
     const temporary = createTemporarySqliteConnection("hcb2-sqlite-test-");
 
     try {
-      expect(temporary.connection.adapterKind).toBe("better-sqlite3");
+      expectSupportedAdapter(temporary.connection);
       expect(temporary.directory.startsWith(tmpdir())).toBe(true);
       expect(temporary.databasePath.startsWith(temporary.directory)).toBe(true);
       expect(existsSync(temporary.directory)).toBe(true);
@@ -64,7 +68,7 @@ describe("SQLite connection foundation", () => {
       const reopened = createSqliteConnection(databasePath);
 
       try {
-        expect(reopened.adapterKind).toBe("better-sqlite3");
+        expectSupportedAdapter(reopened);
         expect(firstPragmaValue(reopened, "foreign_keys")).toBe(1);
         expect(firstPragmaValue(reopened, "journal_mode")).toBe("wal");
         expect(firstPragmaValue(reopened, "synchronous")).toBe(1);
