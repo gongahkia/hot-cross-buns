@@ -21,7 +21,9 @@ export type PlannerActionId =
   | "undo.perform"
   | "redo.perform"
   | "mcp.toggle"
-  | "diagnostics.copy";
+  | "diagnostics.copy"
+  | "diagnostics.history"
+  | "diagnostics.sync";
 
 export type PlannerActionCategory =
   | "Create"

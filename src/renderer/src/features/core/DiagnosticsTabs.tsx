@@ -174,27 +174,37 @@ export function SyncTab({
         trailing={<Badge tone={pendingMutations.length > 0 ? "warning" : "neutral"}>{pendingMutations.length}</Badge>}
       >
         {pendingMutations.length === 0 ? (
-          <p className="px-3 py-4 text-[var(--text-sm)] text-text-muted">No pending Google writes.</p>
+          <p className="px-3 py-4 text-[var(--text-sm)] text-text-muted">No pending Google writes or sync issues.</p>
         ) : (
           <div className="grid">
-            {pendingMutations.map((mutation) => (
-              <div className="flex min-h-11 items-start gap-3 border-b border-border px-3 py-2 last:border-b-0" key={mutation.id}>
-                <Badge tone={mutation.status === "failed" ? "danger" : mutation.status === "applying" ? "info" : "neutral"}>
-                  {mutation.status}
-                </Badge>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[var(--text-sm)] font-semibold">{operationLabel(mutation.operation)}</div>
-                  <div className="truncate font-mono text-[var(--text-xs)] text-text-muted">
-                    {mutation.resourceType} · {formatDateTime(mutation.createdAt)} · {mutation.attemptCount} attempts
-                  </div>
-                  {mutation.lastErrorMessage ? (
-                    <div className="text-[var(--text-xs)] text-danger">{mutation.lastErrorMessage}</div>
-                  ) : null}
+            {groups.map((group) => (
+              <div className="grid" key={group.id}>
+                <div className="border-b border-border bg-bg-secondary px-3 py-1.5 text-[var(--text-xs)] font-semibold uppercase text-text-muted">
+                  {group.title}
                 </div>
-                {mutation.status === "failed" ? (
-                  <IconButton icon={RefreshCw} label="Retry pending mutation" onClick={() => void retryMutation(mutation.id)} variant="ghost" />
-                ) : null}
-                <IconButton icon={X} label="Cancel pending mutation" onClick={() => void cancelMutation(mutation.id)} variant="ghost" />
+                {group.mutations.map((mutation) => (
+                  <div className="grid gap-2 border-b border-border px-3 py-2 last:border-b-0" key={mutation.id}>
+                    <div className="flex min-w-0 items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate font-mono text-[var(--text-sm)] text-text-primary">
+                          {operationLabel(mutation.operation)} · {selectionText(mutation.resourceType, mutation.resourceId)}
+                        </div>
+                        <div className="truncate font-mono text-[var(--text-xs)] text-text-muted">
+                          {formatDateTime(mutation.createdAt)} · {mutation.attemptCount} attempts
+                        </div>
+                        {mutation.lastErrorMessage ? (
+                          <div className="text-[var(--text-xs)] text-danger">{mutation.lastErrorMessage}</div>
+                        ) : null}
+                      </div>
+                      <Badge tone={mutation.status === "failed" ? "danger" : "warning"}>{mutation.status}</Badge>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <IconButton icon={RefreshCw} label="Retry pending mutation" onClick={() => void retryMutation(mutation.id)} variant="ghost" />
+                      <IconButton icon={ClipboardCopy} label="Copy pending mutation" onClick={() => void navigator.clipboard?.writeText(JSON.stringify(mutation, null, 2))} variant="ghost" />
+                      <IconButton icon={X} label="Cancel pending mutation" onClick={() => void cancelMutation(mutation.id)} variant="ghost" />
+                    </div>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
