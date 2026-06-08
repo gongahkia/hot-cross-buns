@@ -198,7 +198,8 @@ const calendarEventWriteFieldsSchema = z
     colorId: z.string().trim().min(1).max(32).nullable().optional(),
     recurrence: calendarEventRecurrenceSchema.nullable().optional(),
     hcbKind: calendarEventHcbKindSchema.optional(),
-    timeZone: z.string().trim().min(1).max(120).optional()
+    timeZone: z.string().trim().min(1).max(120).optional(),
+    scope: calendarEventCompletionScopeSchema.optional()
   })
   .strict()
   .superRefine((request, context) => {
@@ -241,7 +242,8 @@ export const calendarEventUpdateRequestSchema = z
     colorId: z.string().trim().min(1).max(32).nullable().optional(),
     recurrence: calendarEventRecurrenceSchema.nullable().optional(),
     hcbKind: calendarEventHcbKindSchema.optional(),
-    timeZone: z.string().trim().min(1).max(120).optional()
+    timeZone: z.string().trim().min(1).max(120).optional(),
+    scope: calendarEventCompletionScopeSchema.optional()
   })
   .strict()
   .refine(
@@ -267,7 +269,12 @@ export const calendarEventUpdateRequestSchema = z
 
 export type CalendarEventUpdateRequest = z.input<typeof calendarEventUpdateRequestSchema>;
 
-export const calendarEventDeleteRequestSchema = entityByIdRequestSchema;
+export const calendarEventDeleteRequestSchema = z
+  .object({
+    id: idSchema,
+    scope: calendarEventCompletionScopeSchema.optional()
+  })
+  .strict();
 export type CalendarEventDeleteRequest = z.input<typeof calendarEventDeleteRequestSchema>;
 
 export const scheduledTaskBlockStatusSchema = z.enum(["scheduled", "orphaned"]);

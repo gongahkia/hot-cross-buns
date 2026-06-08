@@ -564,6 +564,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
         ? await window.hcb?.calendar.create(writePayload)
         : await window.hcb?.calendar.update({
             id: currentDraft.id ?? "",
+            scope: "seriesAll",
             ...writePayload
           } satisfies CalendarEventUpdateRequest);
 
@@ -587,7 +588,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
       return;
     }
 
-    const result = await window.hcb?.calendar.delete({ id: currentDraft.id });
+    const result = await window.hcb?.calendar.delete({ id: currentDraft.id, scope: "seriesAll" });
 
     if (!result?.ok) {
       setFormError(result?.error.message ?? "Calendar event delete failed.");
@@ -630,6 +631,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
 
     void updateCalendarEventTime({
       id: event.id,
+      scope: "seriesAll",
       startsAt,
       endsAt,
       allDay
@@ -645,6 +647,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
 
     void updateCalendarEventTime({
       id: event.id,
+      scope: "seriesAll",
       endsAt
     });
   }

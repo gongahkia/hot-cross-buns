@@ -34,7 +34,8 @@ import {
   pageFromRows,
   parseNumberArray,
   parseStringArray,
-  systemTimeZone
+  systemTimeZone,
+  validationFailure
 } from "./shared";
 import { TaskLocalRepository } from "./taskRepository";
 import type { SqliteWriteOperation } from "../sqliteConnection";
@@ -248,6 +249,7 @@ export class CalendarLocalRepository extends TaskLocalRepository {
         throw notFound("Calendar event was not found.");
       }
 
+      validateRecurringWriteScope(existing, request.scope ?? "seriesAll");
       const targetCalendar = this.requireCalendar(request.calendarId ?? existing.calendarId);
       const now = new Date().toISOString();
       const timeZone = request.timeZone ?? existing.timeZone ?? targetCalendar.timeZone ?? systemTimeZone();
@@ -358,6 +360,7 @@ export class CalendarLocalRepository extends TaskLocalRepository {
         throw notFound("Calendar event was not found.");
       }
 
+      validateRecurringWriteScope(existing, request.scope ?? "seriesAll");
       const now = new Date().toISOString();
       const mutationId = `mutation:event:${randomUUID()}`;
 
@@ -583,6 +586,19 @@ export class CalendarLocalRepository extends TaskLocalRepository {
     }
 
     return row;
+  }
+}
+
+function validateRecurringWriteScope(
+  event: CalendarEventRow,
+  scope: CalendarEventCompletionScope
+): void {
+  if (scope === "seriesAll") {
+    return;
+  }
+
+  if (event.recurrenceRule || event.recurringEventId || event.originalStartAt || event.id !== event.eventId) {
+    throw validationFailure("Recurring event occurrence/future edits are not supported yet. Choose the whole series.");
   }
 }
 

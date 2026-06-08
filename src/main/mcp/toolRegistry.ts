@@ -28,6 +28,9 @@ const readToolNames = [
   "hcb_search",
   "hcb_today",
   "hcb_week",
+  "hcb_brief",
+  "hcb_plan",
+  "hcb_tail",
   "hcb_get_task",
   "hcb_get_event",
   "hcb_get_note",
@@ -113,6 +116,16 @@ export const mcpToolDefinitions: readonly McpToolDefinition[] = [
   readTool("hcb_today", "Read today's due tasks, notes, and scheduled events.", {}),
   readTool("hcb_week", "Read the agenda for a seven-day window.", {
     startDate: stringSchema("Optional ISO-8601 date or date-time. Defaults to today.")
+  }),
+  readTool("hcb_brief", "Read a compact planner brief for agents: status, today counts, and pending action signals.", {
+    mutationLimit: integerSchema("Maximum pending mutations to include.")
+  }),
+  readTool("hcb_plan", "Read an agent planning summary for today plus a seven-day window.", {
+    startDate: stringSchema("Optional ISO-8601 date or date-time. Defaults to today.")
+  }),
+  readTool("hcb_tail", "Read recent sanitized HCB logs as an agent tail.", {
+    limit: integerSchema("Maximum log entry count."),
+    level: enumSchema(["debug", "info", "warn", "error"])
   }),
   readTool("hcb_get_task", "Read one task by id.", {
     id: stringSchema("Task id.")
@@ -481,6 +494,40 @@ export class McpToolRegistry {
             startDate: optionalString(argumentsObject, "startDate")
           })
         });
+      case "hcb_brief": {
+        const mutationLimit = optionalNumber(argumentsObject, "mutationLimit") ?? 10;
+        const [status, today, mutations] = await Promise.all([
+          this.services.diagnostics.status(),
+          this.services.planning.today(),
+          this.services.syncQueue.pendingMutations({ limit: mutationLimit })
+        ]);
+
+        return success({
+          message: "Read HCB brief.",
+          item: plannerBrief(status, today, mutations)
+        });
+      }
+      case "hcb_plan": {
+        const startDate = optionalString(argumentsObject, "startDate");
+        const [status, today, week] = await Promise.all([
+          this.services.diagnostics.status(),
+          this.services.planning.today(),
+          this.services.planning.week({ startDate })
+        ]);
+
+        return success({
+          message: "Read HCB plan.",
+          item: plannerPlan(status, today, week)
+        });
+      }
+      case "hcb_tail": {
+        const items = await this.services.diagnostics.logs({
+          limit: optionalNumber(argumentsObject, "limit") ?? 50,
+          level: optionalString(argumentsObject, "level")
+        });
+
+        return success({ message: `Read ${items.length} log entr${items.length === 1 ? "y" : "ies"}.`, items });
+      }
       case "hcb_get_task":
         return success({
           message: "Read task.",
