@@ -771,7 +771,7 @@ function titleFromUndoPayload(payload: UndoPayload): string | undefined {
   return titleFromSnapshot(payload.target) ?? titleFromSnapshot(payload.opposite);
 }
 
-function historyResourceDomain(payload: UndoPayload): "task" | "note" | "taskList" | "calendarEvent" | "scheduledTaskBlock" {
+function historyResourceDomain(payload: UndoPayload): "task" | "note" | "taskList" | "noteList" | "calendarEvent" | "scheduledTaskBlock" {
   if (payload.resourceKind === "task" && (isUndoNoteSnapshot(payload.target) || isUndoNoteSnapshot(payload.opposite))) {
     return "note";
   }
