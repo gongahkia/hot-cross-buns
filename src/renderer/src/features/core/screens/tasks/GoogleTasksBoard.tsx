@@ -1,6 +1,7 @@
 import { useMemo, useState, type DragEvent, type ReactNode } from "react";
 import {
   CalendarClock,
+  Clock,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -127,6 +128,18 @@ function taskPreview(task: TaskViewModel): string {
   }
 
   return text;
+}
+
+function isFutureSnoozed(task: TaskViewModel): boolean {
+  return Boolean(task.snoozeUntil && Date.parse(task.snoozeUntil) > Date.now());
+}
+
+function snoozeBadgeLabel(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Snoozed" : `Snoozed ${date.toLocaleString([], {
+    dateStyle: "medium",
+    timeStyle: "short"
+  })}`;
 }
 
 export function GoogleTasksBoard({
@@ -714,12 +727,14 @@ function GoogleTaskRow({
   const scheduleLabel = taskScheduleLabel(task, scheduledBlock);
   const preview = taskPreview(task);
   const completed = task.status === "completed";
+  const futureSnoozed = isFutureSnoozed(task);
 
   return (
     <div
       className={cx(
         "group relative grid grid-cols-[32px_minmax(0,1fr)_auto] gap-2 px-4 py-2 transition-colors duration-fast ease-hcb",
-        selected ? "bg-surface-0" : "hover:bg-surface-0"
+        selected ? "bg-surface-0" : "hover:bg-surface-0",
+        futureSnoozed && "opacity-65"
       )}
       draggable
       onContextMenu={(event) => {
@@ -749,7 +764,7 @@ function GoogleTaskRow({
             completed ? "text-text-muted line-through" : "text-text-secondary"
           )}>{preview}</p>
         ) : null}
-        {scheduleLabel || task.dueDate ? (
+        {scheduleLabel || task.dueDate || task.snoozeUntil ? (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {task.dueDate ? (
               <Badge className="gap-1">
@@ -761,6 +776,12 @@ function GoogleTaskRow({
               <Badge className="gap-1" tone={taskScheduleTone(scheduledBlock)}>
                 <Target aria-hidden="true" size={12} />
                 {scheduleLabel}
+              </Badge>
+            ) : null}
+            {task.snoozeUntil ? (
+              <Badge className="gap-1" tone={futureSnoozed ? "warning" : "neutral"}>
+                <Clock aria-hidden="true" size={12} />
+                {snoozeBadgeLabel(task.snoozeUntil)}
               </Badge>
             ) : null}
           </div>

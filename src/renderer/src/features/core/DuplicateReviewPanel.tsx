@@ -57,7 +57,7 @@ export function DuplicateReviewPanel({ onOpenTask, source }: DuplicateReviewPane
 
     const result = item.kind === "event"
       ? await window.hcb?.calendar.delete({ id: item.id })
-      : await window.hcb?.tasks.delete({ id: item.id });
+      : await window.hcb?.notes.delete({ id: item.id });
 
     if (!result?.ok) {
       window.alert(result?.error.message ?? "Delete failed.");

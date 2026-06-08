@@ -1,12 +1,13 @@
 import { useEffect } from "react";
 import type { Dispatch, KeyboardEvent, ReactNode, SetStateAction } from "react";
-import { CalendarClock, FileText, Flag, List, ListPlus, Tag } from "lucide-react";
+import { CalendarClock, Clock, FileText, Flag, List, ListPlus, Tag } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useDirtyState, useInspector } from "../../../components/Inspector";
 import { EmojiInput, EmojiTextarea } from "../../../components/EmojiTextField";
 import { Badge, Button, cx, Input } from "../../../components/primitives";
 import type { useCoreViewModelSource } from "../coreViewModelSource";
 import type { CorePriority, TaskViewModel } from "../coreViewModels";
+import { AutoTagAudit } from "../AutoTagAudit";
 import { MarkdownPreview } from "../MarkdownPreview";
 import { TagBadges, TagInput } from "../TagInput";
 
@@ -94,6 +95,58 @@ function taskAccentClass(priority: CorePriority, completed: boolean): string {
   return "bg-text-muted";
 }
 
+function localDateTimeInputValue(value: string | null | undefined): string {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function localDateTimeInputToIso(value: string): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function snoozePresetIso(preset: "laterToday" | "tomorrow" | "nextWeek"): string {
+  const date = new Date();
+
+  if (preset === "laterToday") {
+    date.setHours(date.getHours() + 4, 0, 0, 0);
+  } else if (preset === "tomorrow") {
+    date.setDate(date.getDate() + 1);
+    date.setHours(9, 0, 0, 0);
+  } else {
+    date.setDate(date.getDate() + 7);
+    date.setHours(9, 0, 0, 0);
+  }
+
+  return date.toISOString();
+}
+
+function snoozeLabel(value: string | null | undefined): string {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString([], {
+    dateStyle: "medium",
+    timeStyle: "short"
+  });
+}
+
 export function TaskInspectorDetails({
   draft,
   parentOptions,
@@ -139,6 +192,7 @@ export function TaskInspectorDetails({
               </Badge>
             ) : null}
             {draft.dueDate ? <Badge tone="neutral">{draft.dueDate}</Badge> : null}
+            {draft.snoozeUntil ? <Badge tone="warning">Snoozed {snoozeLabel(draft.snoozeUntil)}</Badge> : null}
           </div>
         </div>
       </div>
@@ -167,6 +221,12 @@ export function TaskInspectorDetails({
         </TaskDetailLine>
       ) : null}
 
+      {draft.snoozeUntil ? (
+        <TaskDetailLine icon={Clock} label="Snooze until">
+          {snoozeLabel(draft.snoozeUntil)}
+        </TaskDetailLine>
+      ) : null}
+
       {draft.tags?.length ? (
         <TaskDetailLine icon={Tag}>
           <TagBadges tags={draft.tags} />
@@ -176,6 +236,16 @@ export function TaskInspectorDetails({
       <TaskDetailLine icon={List}>
         {listTitle}
       </TaskDetailLine>
+
+      <AutoTagAudit
+        input={{
+          kind: "task",
+          title: draft.title,
+          body: notes,
+          existingTags: draft.tags ?? []
+        }}
+        rules={source.settings.autoTagRules}
+      />
 
       {draft.parentId ? (
         <TaskDetailLine icon={ListPlus}>
@@ -299,6 +369,31 @@ export function TaskInspectorBody({
             <option value="high">High</option>
           </select>
         </label>
+      </div>
+      <div className="grid gap-2 rounded-hcbMd border border-border bg-bg-tertiary p-3">
+        <label className="grid min-w-0 gap-1 text-[var(--text-sm)] text-text-secondary">
+          <span>Snooze until</span>
+          <Input
+            aria-label="Snooze until"
+            onChange={(event) => patchDraft({ snoozeUntil: localDateTimeInputToIso(event.target.value) })}
+            type="datetime-local"
+            value={localDateTimeInputValue(dirty.value.snoozeUntil)}
+          />
+        </label>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => patchDraft({ snoozeUntil: snoozePresetIso("laterToday") })} size="sm" variant="secondary">
+            Later today
+          </Button>
+          <Button onClick={() => patchDraft({ snoozeUntil: snoozePresetIso("tomorrow") })} size="sm" variant="secondary">
+            Tomorrow
+          </Button>
+          <Button onClick={() => patchDraft({ snoozeUntil: snoozePresetIso("nextWeek") })} size="sm" variant="secondary">
+            Next week
+          </Button>
+          <Button disabled={!dirty.value.snoozeUntil} onClick={() => patchDraft({ snoozeUntil: null })} size="sm" variant="ghost">
+            Clear snooze
+          </Button>
+        </div>
       </div>
       <label className="grid min-w-0 gap-1 text-[var(--text-sm)] text-text-secondary">
         <span>Parent</span>
