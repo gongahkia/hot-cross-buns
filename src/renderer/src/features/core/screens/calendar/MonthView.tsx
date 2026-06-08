@@ -130,7 +130,7 @@ export function MonthView({
   function updateDayPointerDrag(pointerEvent: MonthPointerEvent): string | null {
     const drag = dragRangeRef.current;
 
-    if (!drag || (pointerEvent.buttons === 0 && pointerEvent.type !== "pointerup")) {
+    if (!drag) {
       return null;
     }
 
@@ -271,7 +271,10 @@ export function MonthView({
                       onCreate({ startsAt: `${dayKey}T00:00:00.000Z`, allDay: true })
                     )
                   }
+                  onPointerEnter={updateDayPointerDrag}
                   onPointerDown={(event) => handleDayPointerDown(event, dayKey)}
+                  onPointerMove={updateDayPointerDrag}
+                  onPointerUp={handleDayPointerUp}
                   ref={(node) => {
                     if (isCurrentDay) {
                       todayCellRef.current = node;

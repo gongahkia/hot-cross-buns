@@ -655,7 +655,6 @@ describe("App calendar", () => {
     await user.click(within(tabs).getByRole("tab", { name: "Month" }));
 
     const monthGrid = screen.getByRole("grid", { name: "Calendar month view" });
-    const monthRowGroup = within(monthGrid).getByRole("rowgroup");
     const rows = Array.from(monthGrid.querySelectorAll<HTMLElement>("[data-calendar-month-week-row]"));
     const cells = within(monthGrid).getAllByRole("gridcell");
 
@@ -678,8 +677,8 @@ describe("App calendar", () => {
     });
 
     fireEvent.pointerDown(cells[1], { button: 0, buttons: 1, clientX: 150, clientY: 40, pointerId: 1 });
-    fireEvent.pointerMove(monthRowGroup, { buttons: 1, clientX: 350, clientY: 40, pointerId: 1 });
-    fireEvent.pointerUp(monthRowGroup, { button: 0, buttons: 0, clientX: 350, clientY: 40, pointerId: 1 });
+    fireEvent.pointerEnter(cells[3], { buttons: 1, clientX: 350, clientY: 40, pointerId: 1 });
+    fireEvent.pointerUp(cells[3], { button: 0, buttons: 0, clientX: 350, clientY: 40, pointerId: 1 });
 
     expect(await screen.findByRole("heading", { level: 2, name: "New event" })).toBeInTheDocument();
     const startsInput = screen.getByLabelText("Event starts") as HTMLInputElement;
