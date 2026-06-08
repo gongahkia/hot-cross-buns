@@ -69,6 +69,7 @@ describe("shared IPC contracts", () => {
       "tasks",
       "calendar",
       "notes",
+      "tags",
       "search",
       "sync",
       "google",
