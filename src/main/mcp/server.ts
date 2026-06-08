@@ -324,7 +324,7 @@ export class LocalMcpServer {
             version: "0.0.0"
           },
           instructions:
-            "Hot Cross Buns 2 exposes local tasks, notes, calendar events, diagnostics, resources, prompts, and CLI-like tools. Start diagnostics with hcb_doctor or hcb://doctor. Debug reads: hcb_status, hcb_log, hcb_diff, hcb_pending_mutations, and hcb_show. Planning reads: hcb_search, hcb_today, hcb_week. Queue controls: hcb_sync_now, hcb_retry_mutation, hcb_cancel_mutation. Writes obey the user's MCP permission mode."
+            "Hot Cross Buns 2 exposes local tasks, notes, calendar events, diagnostics, resources, prompts, and CLI-like tools. Start diagnostics with hcb_doctor or hcb://doctor. Debug reads: hcb_status, hcb_log, hcb_tail, hcb_diff, hcb_pending_mutations, and hcb_show. Planning reads: hcb_search, hcb_today, hcb_week, hcb_brief, and hcb_plan. Queue controls: hcb_sync_now, hcb_retry_mutation, hcb_cancel_mutation. Writes obey the user's MCP permission mode."
         };
       case "tools/list":
         return {

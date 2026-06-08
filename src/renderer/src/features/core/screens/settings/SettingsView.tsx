@@ -4,7 +4,7 @@ import type {
   SettingsSnapshot,
   SettingsUpdateRequest
 } from "@shared/ipc/contracts";
-import { validateAutoTagRule } from "@shared/ipc/autoTags";
+import { previewAutoTagRules, validateAutoTagRule, type AutoTagTargetKind } from "@shared/ipc/autoTags";
 import {
   appColorThemes,
   defaultAppColorTheme,
@@ -220,6 +220,47 @@ export function SettingsView({
     (theme) => theme.isDark === (effectiveThemeMode === "dark")
   );
   const activeColorTheme = resolveAppColorTheme(settings.colorTheme, effectiveThemeMode);
+  const autoTagBulkCounts = useMemo(() => ({
+    task: source.largeTaskWindow.filter((task) => {
+      const preview = previewAutoTagRules(settings.autoTagRules, {
+        kind: "task",
+        title: task.title,
+        body: task.detail,
+        existingTags: task.tags ?? []
+      });
+      return previewDiffers(preview.title, task.title) ||
+        previewDiffers(preview.body, task.detail) ||
+        !sameStringSet(preview.tags, task.tags ?? []);
+    }).length,
+    event: source.calendarAgendaEvents.filter((event) => {
+      if (event.sourceKind === "task" || event.hcbKind === "birthday") {
+        return false;
+      }
+
+      const preview = previewAutoTagRules(settings.autoTagRules, {
+        kind: "event",
+        title: event.title,
+        body: event.notes,
+        existingTags: event.tags ?? [],
+        existingEventColorId: event.colorId ?? null
+      });
+      return previewDiffers(preview.title, event.title) ||
+        previewDiffers(preview.body, event.notes) ||
+        !sameStringSet(preview.tags, event.tags ?? []) ||
+        (preview.eventColorId ?? event.colorId ?? null) !== (event.colorId ?? null);
+    }).length,
+    note: source.initialNotes.filter((note) => {
+      const preview = previewAutoTagRules(settings.autoTagRules, {
+        kind: "note",
+        title: note.title,
+        body: note.body,
+        existingTags: note.tags ?? []
+      });
+      return previewDiffers(preview.title, note.title) ||
+        previewDiffers(preview.body, note.body) ||
+        !sameStringSet(preview.tags, note.tags ?? []);
+    }).length
+  }), [settings.autoTagRules, source.calendarAgendaEvents, source.initialNotes, source.largeTaskWindow]);
   const [googleClientId, setGoogleClientId] = useState(googleStatus.clientId ?? "");
   const [googleClientSecret, setGoogleClientSecret] = useState("");
   const [systemFontFamilies, setSystemFontFamilies] = useState<string[]>([]);
@@ -295,6 +336,92 @@ export function SettingsView({
   function updateSettings(request: SettingsUpdateRequest): void {
     setRecoveryMessage(null);
     void source.updateSettings(request);
+  }
+
+  async function reapplyAutoTags(kind: AutoTagTargetKind): Promise<void> {
+    let applied = 0;
+    let failed = 0;
+
+    if (kind === "task") {
+      for (const task of source.largeTaskWindow) {
+        const preview = previewAutoTagRules(settings.autoTagRules, {
+          kind,
+          title: task.title,
+          body: task.detail,
+          existingTags: task.tags ?? []
+        });
+
+        if (
+          previewDiffers(preview.title, task.title) ||
+          previewDiffers(preview.body, task.detail) ||
+          !sameStringSet(preview.tags, task.tags ?? [])
+        ) {
+          if (await source.updateTask({ id: task.id, title: preview.title, notes: preview.body, tags: preview.tags })) {
+            applied += 1;
+          } else {
+            failed += 1;
+          }
+        }
+      }
+    } else if (kind === "event") {
+      for (const event of source.calendarAgendaEvents) {
+        if (event.sourceKind === "task" || event.hcbKind === "birthday") {
+          continue;
+        }
+
+        const preview = previewAutoTagRules(settings.autoTagRules, {
+          kind,
+          title: event.title,
+          body: event.notes,
+          existingTags: event.tags ?? [],
+          existingEventColorId: event.colorId ?? null
+        });
+
+        if (
+          previewDiffers(preview.title, event.title) ||
+          previewDiffers(preview.body, event.notes) ||
+          !sameStringSet(preview.tags, event.tags ?? []) ||
+          (preview.eventColorId ?? event.colorId ?? null) !== (event.colorId ?? null)
+        ) {
+          const result = await window.hcb?.calendar.update({
+            id: event.id,
+            title: preview.title,
+            notes: preview.body,
+            tags: preview.tags,
+            colorId: preview.eventColorId ?? event.colorId ?? null,
+            scope: "seriesAll"
+          });
+          result?.ok ? applied += 1 : failed += 1;
+        }
+      }
+    } else {
+      for (const note of source.initialNotes) {
+        const preview = previewAutoTagRules(settings.autoTagRules, {
+          kind,
+          title: note.title,
+          body: note.body,
+          existingTags: note.tags ?? []
+        });
+
+        if (
+          previewDiffers(preview.title, note.title) ||
+          previewDiffers(preview.body, note.body) ||
+          !sameStringSet(preview.tags, note.tags ?? [])
+        ) {
+          const result = await window.hcb?.notes.update({
+            id: note.id,
+            title: preview.title,
+            body: preview.body,
+            tags: preview.tags
+          });
+          result?.ok ? applied += 1 : failed += 1;
+        }
+      }
+    }
+
+    source.refreshUndoStatus();
+    source.refresh();
+    setRecoveryMessage(`Auto-tag reapply ${kind}: ${applied} updated, ${failed} failed.`);
   }
 
   function updateBaseTheme(theme: SettingsSnapshot["theme"]): void {
@@ -623,11 +750,13 @@ export function SettingsView({
 
         {selectedSettingsTab === "advanced" ? (
           <AdvancedSettingsTab
+            autoTagBulkCounts={autoTagBulkCounts}
             beginRecoveryAction={beginRecoveryAction}
             calendarSources={source.calendarSources}
             createTag={source.createTag}
             deleteTag={source.deleteTag}
             mergeTags={source.mergeTags}
+            onReapplyAutoTags={(kind) => void reapplyAutoTags(kind)}
             settings={settings}
             tags={source.tags}
             taskLists={source.taskLists}
@@ -649,4 +778,16 @@ export function SettingsView({
       </SettingsSearchProvider>
     </div>
   );
+}
+
+function previewDiffers(left: string, right: string): boolean {
+  return left.trim() !== right.trim();
+}
+
+function sameStringSet(left: readonly string[], right: readonly string[]): boolean {
+  const normalizedLeft = [...new Set(left.map((value) => value.trim()).filter(Boolean))].sort();
+  const normalizedRight = [...new Set(right.map((value) => value.trim()).filter(Boolean))].sort();
+
+  return normalizedLeft.length === normalizedRight.length &&
+    normalizedLeft.every((value, index) => value === normalizedRight[index]);
 }

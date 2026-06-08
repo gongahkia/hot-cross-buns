@@ -16,6 +16,31 @@ interface McpPromptDefinition {
 
 const promptDefinitions: readonly McpPromptDefinition[] = [
   {
+    name: "agent-brief",
+    description: "Produce a concise HCB planner brief for the user.",
+    text: () => [
+      "Brief the user on local HCB2 planner state.",
+      "Read hcb://brief, hcb://status, and hcb://tail?level=warn&limit=25.",
+      "Keep it concise: account/sync state, today counts, pending action risk, and next suggested read."
+    ].join("\n")
+  },
+  {
+    name: "agent-plan",
+    description: "Draft a safe local plan from HCB planner data.",
+    arguments: [optionalArgument("startDate", "Optional ISO date for the plan window.")],
+    text: (args) => {
+      const startDate = stringArg(args, "startDate");
+      const resource = startDate ? `hcb://plan/${encodeURIComponent(startDate)}` : "hcb://plan";
+
+      return [
+        "Draft an HCB2 planner plan from local cache.",
+        `Read ${resource}, hcb://brief, and hcb://pending-mutations?limit=50.`,
+        "Separate read-only observations from proposed writes.",
+        "Do not apply writes without explicit user approval."
+      ].join("\n");
+    }
+  },
+  {
     name: "debug-sync",
     description: "Inspect HCB sync/account/queue health and propose next commands.",
     arguments: [optionalArgument("focus", "Optional sync focus, e.g. tasks, calendar, auth, queue.")],

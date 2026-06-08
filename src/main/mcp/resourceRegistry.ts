@@ -23,6 +23,9 @@ const staticResources: readonly McpResourceDefinition[] = [
   resource("hcb://doctor", "doctor", "Read-only diagnostic findings and suggested next commands."),
   resource("hcb://today", "today", "Today's tasks, notes, and events."),
   resource("hcb://week", "week", "Seven-day agenda from today."),
+  resource("hcb://brief", "brief", "Compact planner brief for agents."),
+  resource("hcb://plan", "plan", "Agent planning summary for today and a seven-day window."),
+  resource("hcb://tail", "tail", "Recent sanitized HCB logs."),
   resource("hcb://diff", "diff", "Pending local-to-Google mutations."),
   resource("hcb://logs", "logs", "Recent sanitized HCB logs."),
   resource("hcb://pending-mutations", "pending-mutations", "Pending mutation queue entries.")
@@ -30,6 +33,7 @@ const staticResources: readonly McpResourceDefinition[] = [
 
 const resourceTemplates: readonly McpResourceTemplateDefinition[] = [
   template("hcb://week/{startDate}", "week-by-start-date", "Seven-day agenda from an ISO date."),
+  template("hcb://plan/{startDate}", "plan-by-start-date", "Agent planning summary from an ISO date."),
   template("hcb://tasks/{id}", "task-by-id", "Task detail by id."),
   template("hcb://events/{id}", "event-by-id", "Calendar event detail by id."),
   template("hcb://notes/{id}", "note-by-id", "Note detail by id."),
@@ -74,6 +78,12 @@ export class McpResourceRegistry {
         return resourcePayload("today", await this.tools.callTool("hcb_today", {}, context));
       case "week":
         return resourcePayload("week", await this.tools.callTool("hcb_week", weekArgs(parsed), context));
+      case "brief":
+        return resourcePayload("brief", await this.tools.callTool("hcb_brief", limitArgs(parsed), context));
+      case "plan":
+        return resourcePayload("plan", await this.tools.callTool("hcb_plan", weekArgs(parsed), context));
+      case "tail":
+        return resourcePayload("tail", await this.tools.callTool("hcb_tail", logArgs(parsed), context));
       case "diff":
         return resourcePayload("diff", await this.tools.callTool("hcb_diff", limitArgs(parsed), context));
       case "logs":

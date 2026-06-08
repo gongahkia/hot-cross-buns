@@ -996,6 +996,79 @@ function undoPreview(action: "undo" | "redo", status: JsonObject): JsonObject {
   };
 }
 
+function plannerBrief(
+  status: JsonObject,
+  today: JsonObject,
+  mutations: JsonObject[]
+): JsonObject {
+  const tasks = jsonArray(today, "tasks");
+  const events = jsonArray(today, "events");
+  const notes = jsonArray(today, "notes");
+
+  return {
+    kind: "plannerBrief",
+    generatedAt: new Date().toISOString(),
+    account: jsonObjectValue(status, "account"),
+    sync: jsonObjectValue(status, "sync"),
+    cache: jsonObjectValue(status, "cache"),
+    today: {
+      date: stringValue(today.date),
+      taskCount: tasks.length,
+      eventCount: events.length,
+      noteCount: notes.length,
+      tasks: tasks.slice(0, 8),
+      events: events.slice(0, 8),
+      notes: notes.slice(0, 5)
+    },
+    pendingActions: {
+      count: mutations.length,
+      items: mutations.slice(0, 8)
+    },
+    suggestedReads: ["hcb://today", "hcb://week", "hcb://pending-mutations?limit=50"]
+  };
+}
+
+function plannerPlan(status: JsonObject, today: JsonObject, week: JsonObject): JsonObject {
+  const todayTasks = jsonArray(today, "tasks");
+  const todayEvents = jsonArray(today, "events");
+  const weekTasks = jsonArray(week, "tasks");
+  const weekEvents = jsonArray(week, "events");
+
+  return {
+    kind: "plannerPlan",
+    generatedAt: new Date().toISOString(),
+    startDate: stringValue(week.startDate),
+    sync: jsonObjectValue(status, "sync"),
+    workload: {
+      todayTaskCount: todayTasks.length,
+      todayEventCount: todayEvents.length,
+      weekTaskCount: weekTasks.length,
+      weekEventCount: weekEvents.length
+    },
+    focus: {
+      dueOrActiveTasks: todayTasks.slice(0, 10),
+      nextEvents: todayEvents.slice(0, 10)
+    },
+    week: {
+      tasks: weekTasks.slice(0, 30),
+      events: weekEvents.slice(0, 30)
+    },
+    proposedActions: [
+      {
+        kind: "review",
+        title: "Review unscheduled active tasks",
+        command: "hcb_search",
+        arguments: { query: "source:tasks status:active -has:due", limit: 20 }
+      },
+      {
+        kind: "read",
+        title: "Inspect pending writes before changing plan",
+        resource: "hcb://pending-mutations?limit=50"
+      }
+    ]
+  };
+}
+
 function requiredItemKind(args: Record<string, unknown>, key: string): ConvertItemKind {
   const value = requiredString(args, key);
 
@@ -1434,6 +1507,16 @@ function objectValue(value: JsonValue | undefined): JsonObject {
 
 function stringValue(value: JsonValue | undefined): string {
   return typeof value === "string" ? value : "";
+}
+
+function jsonObjectValue(input: JsonObject, key: string): JsonObject {
+  const value = input[key];
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {};
+}
+
+function jsonArray(input: JsonObject, key: string): JsonValue[] {
+  const value = input[key];
+  return Array.isArray(value) ? value : [];
 }
 
 function numberValue(value: JsonValue | undefined): number {

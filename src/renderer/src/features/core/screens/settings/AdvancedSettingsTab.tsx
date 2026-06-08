@@ -53,6 +53,7 @@ import {
 } from "./SettingsPrimitives";
 
 interface AdvancedSettingsTabProps {
+  autoTagBulkCounts: Record<AutoTagTargetKind, number>;
   beginRecoveryAction: (action: SettingsRecoveryActionRequest["action"]) => void;
   calendarSources: CalendarListSummary[];
   settings: SettingsSnapshot;
@@ -62,6 +63,7 @@ interface AdvancedSettingsTabProps {
   updateTag: (request: TagUpdateRequest) => Promise<TagMutationResponse | null>;
   deleteTag: (request: TagDeleteRequest) => Promise<TagMutationResponse | null>;
   mergeTags: (request: TagMergeRequest) => Promise<TagMutationResponse | null>;
+  onReapplyAutoTags: (kind: AutoTagTargetKind) => void;
   updateSelectedCalendar: (calendarId: string, selected: boolean) => void;
   updateSelectedTaskList: (taskListId: string, selected: boolean) => void;
   updateSettings: (request: SettingsUpdateRequest) => void;
@@ -103,11 +105,13 @@ function autoDisableInvalidAutoTagRules(rules: AutoTagRule[], now: string): Auto
 }
 
 export function AdvancedSettingsTab({
+  autoTagBulkCounts,
   beginRecoveryAction,
   calendarSources,
   createTag,
   deleteTag,
   mergeTags,
+  onReapplyAutoTags,
   settings,
   tags,
   taskLists,
@@ -906,6 +910,25 @@ export function AdvancedSettingsTab({
             <FilePlus2 aria-hidden="true" size={14} />
             New Rule
           </Button>
+        </SettingsControlRow>
+        <SettingsControlRow
+          description="Reapply enabled rules to currently loaded planner data."
+          icon={RotateCcw}
+          label="Bulk reapply"
+        >
+          <div className="flex flex-wrap gap-2">
+            {autoTagTargetKinds.map((kind) => (
+              <Button
+                disabled={autoTagBulkCounts[kind] === 0 || autoTagErrors.length > 0}
+                key={kind}
+                onClick={() => onReapplyAutoTags(kind)}
+                size="sm"
+                variant="secondary"
+              >
+                {kind} <Badge>{autoTagBulkCounts[kind]}</Badge>
+              </Button>
+            ))}
+          </div>
         </SettingsControlRow>
         {autoTagErrors.length > 0 || autoTagWarnings.length > 0 ? (
           <div className="grid gap-1 border-b border-border px-3 py-2 text-[var(--text-sm)]">

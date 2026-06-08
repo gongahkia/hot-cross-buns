@@ -43,6 +43,9 @@ interface ParsedCommand {
     | "search"
     | "today"
     | "week"
+    | "brief"
+    | "plan"
+    | "tail"
     | "export-diagnostics"
     | "undo-status"
     | "sync-now"
@@ -612,6 +615,10 @@ export function parseCommand(argv: string[]): ParsedCommand {
     }
 
     validateDeleteCommand(parsed);
+  } else if (command === "brief" || command === "plan" || command === "tail") {
+    if (positional.length !== 0) {
+      throw new CliError(`Usage: pnpm hcb -- ${command} [options]`, 2);
+    }
   } else if (command === "undo-status") {
     if (positional.length !== 0) {
       throw new CliError("Usage: pnpm hcb -- undo-status", 2);
@@ -705,12 +712,16 @@ export function parseCommand(argv: string[]): ParsedCommand {
     throw new CliError("--to and --source-action are only supported by convert.", 2);
   }
 
-  if (parsed.startDate !== undefined && command !== "week" && command !== "create" && command !== "update" && command !== "schedule" && command !== "convert") {
-    throw new CliError(`--start-date is only supported by week, create event, update event, schedule task, and convert.`, 2);
+  if (parsed.startDate !== undefined && command !== "week" && command !== "plan" && command !== "create" && command !== "update" && command !== "schedule" && command !== "convert") {
+    throw new CliError(`--start-date is only supported by week, plan, create event, update event, schedule task, and convert.`, 2);
   }
 
-  if ((parsed.logLimit !== undefined || parsed.mutationLimit !== undefined) && command !== "doctor" && command !== "export-diagnostics") {
-    throw new CliError("--log-limit and --mutation-limit are only supported by doctor and export-diagnostics.", 2);
+  if (parsed.logLimit !== undefined && command !== "doctor" && command !== "export-diagnostics") {
+    throw new CliError("--log-limit is only supported by doctor and export-diagnostics.", 2);
+  }
+
+  if (parsed.mutationLimit !== undefined && command !== "doctor" && command !== "brief" && command !== "export-diagnostics") {
+    throw new CliError("--mutation-limit is only supported by doctor, brief, and export-diagnostics.", 2);
   }
 
   if (parsed.resources !== undefined && command !== "sync-now") {
@@ -775,7 +786,7 @@ export async function callCommand(
     args.scope = command.eventCompletionScope;
   }
 
-  if (command.command === "week" && command.startDate !== undefined) {
+  if ((command.command === "week" || command.command === "plan") && command.startDate !== undefined) {
     args.startDate = command.startDate;
   }
 
@@ -1251,6 +1262,18 @@ export function formatResponse(command: ParsedCommand, response: McpToolResponse
     return formatAgenda("HCB week", response.item ?? {});
   }
 
+  if (command.command === "brief") {
+    return formatDetail("brief", response.item ?? {});
+  }
+
+  if (command.command === "plan") {
+    return formatDetail("plan", response.item ?? {});
+  }
+
+  if (command.command === "tail") {
+    return formatLogs(response.items ?? []);
+  }
+
   if (command.command === "undo-status") {
     return formatUndoStatus(response.item ?? {});
   }
@@ -1678,6 +1701,9 @@ function helpText(): string {
     "  search <query> [--scope <scope>]        search tasks, notes, events, lists, calendars",
     "  today [--json]                          show today's agenda",
     "  week [--start-date <date>] [--json]     show a seven-day agenda",
+    "  brief [--json]                          show compact agent planner brief",
+    "  plan [--start-date <date>] [--json]     show agent planner summary",
+    "  tail [-n <limit>] [--level <level>]     tail sanitized recent logs",
     "  export-diagnostics [--json]             export redacted diagnostics JSON",
     "  undo-status [--json]                    show undo/redo availability",
     "  sync-now [options]                      dry-run immediate Google sync",
@@ -1711,6 +1737,9 @@ function helpText(): string {
     "  pnpm hcb -- search launch --scope tasks",
     "  pnpm hcb -- today",
     "  pnpm hcb -- week --start-date 2026-06-04",
+    "  pnpm hcb -- brief",
+    "  pnpm hcb -- plan --start-date 2026-06-04",
+    "  pnpm hcb -- tail -n 50 --level warn",
     "  pnpm hcb -- export-diagnostics > hcb-diagnostics.json",
     "  pnpm hcb -- undo-status",
     "  pnpm hcb -- sync-now --resources tasks,calendar",
@@ -1766,6 +1795,12 @@ function toolName(command: ParsedCommand): string {
       return "hcb_today";
     case "week":
       return "hcb_week";
+    case "brief":
+      return "hcb_brief";
+    case "plan":
+      return "hcb_plan";
+    case "tail":
+      return "hcb_tail";
     case "undo-status":
       return "hcb_undo_status";
     case "sync-now":
@@ -1923,6 +1958,9 @@ function isCommand(command: string): command is ParsedCommand["command"] {
     command === "search" ||
     command === "today" ||
     command === "week" ||
+    command === "brief" ||
+    command === "plan" ||
+    command === "tail" ||
     command === "export-diagnostics" ||
     command === "undo-status" ||
     command === "sync-now" ||
