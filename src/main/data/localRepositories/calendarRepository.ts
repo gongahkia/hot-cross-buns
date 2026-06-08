@@ -25,6 +25,7 @@ import {
 } from "./calendarWrites";
 import { googleTaskIdFromCalendarDescription } from "./googleTaskProjection";
 import { availabilityLine, calendarEventDetail, calendarEventSummary, calendarListSummary } from "./mappers";
+import { normalizeLocalTagNames } from "./plannerBase";
 import {
   countRows,
   googleEventIdFromLocalEventId,
@@ -183,7 +184,8 @@ export class CalendarLocalRepository extends TaskLocalRepository {
         colorId: request.colorId ?? null,
         recurrenceRule: recurrenceRuleFromRequest(request.recurrence ?? null)
       });
-      const localTagsJson = JSON.stringify(request.tags ?? []);
+      const tags = normalizeLocalTagNames(request.tags ?? []);
+      const localTagsJson = JSON.stringify(tags);
       const mutationId = `mutation:event:${randomUUID()}`;
 
       this.connection.executeTransaction([
@@ -197,6 +199,12 @@ export class CalendarLocalRepository extends TaskLocalRepository {
           now,
           ...normalized,
           calendarId: calendar.id
+        }),
+        ...this.tagSyncOperations({
+          entityKind: "event",
+          entityId: id,
+          tags,
+          now
         }),
         instanceDeleteOperation(id, now),
         ...eventInstanceInsertOperations({
@@ -259,8 +267,11 @@ export class CalendarLocalRepository extends TaskLocalRepository {
             ? existing.recurrenceRule
             : recurrenceRuleFromRequest(request.recurrence)
       });
-      const localTagsJson =
-        request.tags === undefined ? existing.tagsJson ?? "[]" : JSON.stringify(request.tags);
+      const tags =
+        request.tags === undefined
+          ? normalizeLocalTagNames(parseStringArray(existing.tagsJson ?? null))
+          : normalizeLocalTagNames(request.tags);
+      const localTagsJson = JSON.stringify(tags);
       const mutationId = `mutation:event:${randomUUID()}`;
       const googleBackedPatch =
         request.title !== undefined ||
@@ -285,6 +296,12 @@ export class CalendarLocalRepository extends TaskLocalRepository {
           now,
           ...normalized,
           calendarId: targetCalendar.id
+        }),
+        ...this.tagSyncOperations({
+          entityKind: "event",
+          entityId: existing.eventId,
+          tags,
+          now
         }),
         instanceDeleteOperation(existing.eventId, now),
         ...eventInstanceInsertOperations({
@@ -352,6 +369,7 @@ export class CalendarLocalRepository extends TaskLocalRepository {
                 WHERE id = ? AND deleted_at IS NULL;`,
           params: [now, now, existing.eventId]
         },
+        ...this.tagDeleteEntityOperations("event", existing.eventId),
         instanceDeleteOperation(existing.eventId, now),
         mutationInsertOperation({
           id: mutationId,

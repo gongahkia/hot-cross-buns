@@ -51,6 +51,14 @@ import type {
   SyncRunNowRequest,
   SyncRunNowResponse,
   SyncStatusResponse,
+  TagBulkApplyRequest,
+  TagCreateRequest,
+  TagDeleteRequest,
+  TagListRequest,
+  TagListResponse,
+  TagMergeRequest,
+  TagMutationResponse,
+  TagUpdateRequest,
   UndoApplyResponse,
   UndoStackStatusResponse,
   TaskCompletionRequest,
@@ -251,6 +259,12 @@ export interface PlannerViewDomainService {
   suggestNoteLinks: (request: NoteLinkSuggestRequest) => MaybePromise<NoteLinkSuggestResponse>;
   listBrokenNoteLinks: (request: NoteBrokenLinksRequest) => MaybePromise<NoteBrokenLinksResponse>;
   search: (request: SearchQueryRequest) => MaybePromise<SearchQueryResponse>;
+  listTags: (request: TagListRequest) => MaybePromise<TagListResponse>;
+  createTag: (request: TagCreateRequest) => MaybePromise<TagMutationResponse>;
+  updateTag: (request: TagUpdateRequest) => MaybePromise<TagMutationResponse>;
+  deleteTag: (request: TagDeleteRequest) => MaybePromise<TagMutationResponse>;
+  mergeTags: (request: TagMergeRequest) => MaybePromise<TagMutationResponse>;
+  bulkApplyTags: (request: TagBulkApplyRequest) => MaybePromise<TagMutationResponse>;
 }
 
 export interface SyncControlDomainService {

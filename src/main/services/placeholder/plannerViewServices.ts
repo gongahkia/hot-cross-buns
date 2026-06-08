@@ -73,6 +73,79 @@ export function createPlaceholderPlannerViewService(
 
       return pageItems(filtered, request.cursor, request.limit, DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT);
     },
+    listTags: (request) => {
+      const counts = new Map<string, { taskCount: number; eventCount: number; noteCount: number }>();
+      for (const task of state.tasks) {
+        for (const tag of task.tags ?? []) {
+          const entry = counts.get(tag) ?? { taskCount: 0, eventCount: 0, noteCount: 0 };
+          entry.taskCount += 1;
+          counts.set(tag, entry);
+        }
+      }
+      for (const event of state.calendarEvents) {
+        for (const tag of event.tags ?? []) {
+          const entry = counts.get(tag) ?? { taskCount: 0, eventCount: 0, noteCount: 0 };
+          entry.eventCount += 1;
+          counts.set(tag, entry);
+        }
+      }
+      for (const note of state.notes) {
+        for (const tag of note.tags ?? []) {
+          const entry = counts.get(tag) ?? { taskCount: 0, eventCount: 0, noteCount: 0 };
+          entry.noteCount += 1;
+          counts.set(tag, entry);
+        }
+      }
+      const query = request.query?.trim().toLocaleLowerCase() ?? "";
+      const items = [...counts.entries()]
+        .filter(([name]) => !query || name.toLocaleLowerCase().includes(query))
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([name, countsByKind]) => ({
+          id: `tag:${name.toLocaleLowerCase()}`,
+          name,
+          color: null,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+          ...countsByKind,
+          totalCount: countsByKind.taskCount + countsByKind.eventCount + countsByKind.noteCount
+        }));
+      return pageItems(items, request.cursor, request.limit, DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT);
+    },
+    createTag: (request) => ({
+      id: `tag:${request.name.trim().toLocaleLowerCase()}`,
+      queued: false,
+      revision: nowIso,
+      tag: {
+        id: `tag:${request.name.trim().toLocaleLowerCase()}`,
+        name: request.name.trim(),
+        color: request.color ?? null,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        taskCount: 0,
+        eventCount: 0,
+        noteCount: 0,
+        totalCount: 0
+      }
+    }),
+    updateTag: (request) => ({
+      id: request.id,
+      queued: false,
+      revision: nowIso,
+      tag: {
+        id: request.id,
+        name: request.name ?? request.id.replace(/^tag:/, ""),
+        color: request.color ?? null,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        taskCount: 0,
+        eventCount: 0,
+        noteCount: 0,
+        totalCount: 0
+      }
+    }),
+    deleteTag: (request) => ({ id: request.id, queued: false, revision: nowIso }),
+    mergeTags: (request) => ({ id: request.targetId, queued: false, revision: nowIso }),
+    bulkApplyTags: (request) => ({ id: request.tagIds[0] ?? "tags", queued: false, revision: nowIso }),
     getTask: ({ id }) => {
       const task = state.tasks.find((candidate) => candidate.id === id);
 

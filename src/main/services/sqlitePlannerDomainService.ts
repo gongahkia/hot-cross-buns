@@ -42,6 +42,12 @@ export function createSqlitePlannerDomainService(
   return {
     listTaskLists: (request) => repository.listTaskLists(request),
     listTasks: (request) => repository.listTasks(request),
+    listTags: (request) => repository.listTags(request),
+    createTag: (request) => repository.createTag(request),
+    updateTag: (request) => repository.updateTag(request),
+    deleteTag: (request) => repository.deleteTag(request),
+    mergeTags: (request) => repository.mergeTags(request),
+    bulkApplyTags: (request) => repository.bulkApplyTags(request),
     listCalendarBootstrapTasks: (request) => repository.listCalendarBootstrapTasks(request),
     getTask: (request) => repository.getTask(request.id),
     createTask: (request) => {
