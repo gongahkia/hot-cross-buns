@@ -91,7 +91,7 @@ export class GoogleRuntimeService {
 
 function accountForIpc(
   account: GoogleAccountConnectionStatusDto
-): GoogleStatusResponse["account"] {
+): NonNullable<GoogleStatusResponse["account"]> {
   return {
     ...account,
     grantedScopes: [...account.grantedScopes],

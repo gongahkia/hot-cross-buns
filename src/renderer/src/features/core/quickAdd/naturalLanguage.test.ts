@@ -74,6 +74,29 @@ describe("quick add natural language parsing", () => {
     });
   });
 
+  it("parses alternate weekday recurrence", () => {
+    const parsed = parseQuickAddEvent("Sprint review every other Tue at 9am", now);
+
+    expect(parsed.summary).toBe("Sprint review");
+    expect(parsed.startDate?.getHours()).toBe(9);
+    expect(parsed.recurrence).toMatchObject({
+      frequency: "weekly",
+      interval: 2,
+      byDay: ["TU"]
+    });
+  });
+
+  it("parses simple cadence with an until date", () => {
+    const parsed = parseQuickAddEvent("Office hours weekly until Jul 30", now);
+
+    expect(parsed.summary).toBe("Office hours");
+    expect(parsed.recurrence).toMatchObject({
+      frequency: "weekly",
+      interval: 1,
+      endsOn: "2026-07-30"
+    });
+  });
+
   it("strips matched routing tags", () => {
     expect(stripHashToken("Lunch #Product", "Product")).toBe("Lunch");
   });

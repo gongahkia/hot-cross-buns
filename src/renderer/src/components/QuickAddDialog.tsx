@@ -33,6 +33,7 @@ export type QuickAddSubmitPayload =
       allDay: boolean;
       calendarId: string;
       endsAt: string;
+      guestEmails: string[];
       location: string;
       notes: string;
       recurrence: CalendarEventRecurrence | null;
@@ -97,6 +98,7 @@ function templatePromptLabels(template: TaskTemplate | EventTemplate | null): st
 
   for (const field of templateTextFields(template)) {
     let match: RegExpExecArray | null;
+    pattern.lastIndex = 0;
 
     while ((match = pattern.exec(field)) !== null) {
       const label = (match[1] ?? "").trim();
@@ -398,6 +400,7 @@ export function QuickAddDialog({
       startsAt: allDay ? `${toDateInput(start)}T00:00:00.000Z` : toUtcWallClockIso(start),
       endsAt: allDay ? `${toDateInput(end)}T00:00:00.000Z` : toUtcWallClockIso(end),
       allDay,
+      guestEmails: activeEventTemplate?.attendeeEmails ?? [],
       location: mode === "birthday" ? "" : parsedEvent.location ?? templateEventLocation,
       notes: templateNotes,
       recurrence: mode === "birthday" ? null : parsedEvent.recurrence
@@ -489,6 +492,62 @@ export function QuickAddDialog({
             value={input}
           />
 
+          {mode === "task" && source.settings.taskTemplates.length > 0 ? (
+            <select
+              aria-label="Task template"
+              className="h-8 min-w-44 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              onChange={(event) => setSelectedTaskTemplateId(event.target.value)}
+              value={selectedTaskTemplateId}
+            >
+              <option value="">No template</option>
+              {source.settings.taskTemplates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
+
+          {mode === "event" && source.settings.eventTemplates.length > 0 ? (
+            <select
+              aria-label="Event template"
+              className="h-8 min-w-44 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              onChange={(event) => setSelectedEventTemplateId(event.target.value)}
+              value={selectedEventTemplateId}
+            >
+              <option value="">No template</option>
+              {source.settings.eventTemplates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
+
+          {activeTemplatePrompts.length > 0 || activeTemplateUsesClipboard || templateError ? (
+            <div className="grid gap-2 rounded-hcbMd border border-border bg-bg-secondary p-2">
+              {activeTemplatePrompts.map((label) => (
+                <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary" key={label}>
+                  <span>{label}</span>
+                  <input
+                    className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    onChange={(event) => setTemplatePrompt(label, event.currentTarget.value)}
+                    value={templatePromptValues[label] ?? ""}
+                  />
+                </label>
+              ))}
+              {activeTemplateUsesClipboard ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button onClick={() => void loadTemplateClipboard()} size="sm" variant="secondary">
+                    Load clipboard
+                  </Button>
+                  {templateClipboardText ? <Badge tone="success">Clipboard loaded</Badge> : null}
+                </div>
+              ) : null}
+              {templateError ? <div className="text-[var(--text-sm)] text-warning">{templateError}</div> : null}
+            </div>
+          ) : null}
+
           <div className="flex min-h-8 flex-wrap items-center gap-2">
             {title ? (
               <Badge tone="neutral">{title}</Badge>
@@ -496,10 +555,10 @@ export function QuickAddDialog({
             <Badge tone="accent">{destinationLabel}</Badge>
             {mode === "event" || mode === "birthday" ? (
               <Badge tone="info">
-                {eventTimeLabel(parsedEvent.startDate, parsedEvent.endDate, mode === "birthday" || parsedEvent.isAllDay)}
+                {eventTimeLabel(parsedEvent.startDate ?? templateEventStart, parsedEvent.endDate ?? templateEventEnd, mode === "birthday" || parsedEvent.isAllDay)}
               </Badge>
-            ) : parsedTask.dueDate ? (
-              <Badge tone="info">{parsedTask.dueDate}</Badge>
+            ) : parsedTask.dueDate || templateTaskDueDate ? (
+              <Badge tone="info">{parsedTask.dueDate ?? templateTaskDueDate}</Badge>
             ) : null}
             {previewTokens.map((token, index) => (
               <Badge key={`${token.kind}-${index}`} tone={token.kind === "location" ? "success" : "neutral"}>

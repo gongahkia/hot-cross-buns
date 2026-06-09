@@ -462,6 +462,7 @@ export function signedOutGoogleStatus(overrides: Partial<GoogleStatusResponse> =
     oauthClientConfigured: false,
     clientId: null,
     hasClientSecret: false,
+    accounts: [],
     ...overrides
   };
 }

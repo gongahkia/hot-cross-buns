@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type DragEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type DragEvent, type MouseEvent, type ReactNode } from "react";
 import {
   CalendarClock,
   Clock,
@@ -894,8 +894,15 @@ function GoogleTaskRow({
     .map((subtask) => source.getTaskById(subtask.id))
     .filter((subtask) => subtask.parentId === task.id);
 
+  function openContextMenu(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    setMenuPoint({ x: event.clientX, y: event.clientY });
+    setMenuOpen(true);
+  }
+
   return (
-    <div role="listitem">
+    <div onContextMenu={openContextMenu} role="listitem">
       <div
         className={cx(
           "group relative grid grid-cols-[24px_32px_minmax(0,1fr)_auto] gap-2 px-4 py-2 transition-colors duration-fast ease-hcb",
@@ -903,11 +910,7 @@ function GoogleTaskRow({
           futureSnoozed && "opacity-65"
         )}
         draggable
-        onContextMenu={(event) => {
-          event.preventDefault();
-          setMenuPoint({ x: event.clientX, y: event.clientY });
-          setMenuOpen(true);
-        }}
+        onContextMenu={openContextMenu}
         onDragStart={(event) => {
           event.dataTransfer.effectAllowed = "move";
           event.dataTransfer.setData(taskDragType, task.id);
@@ -1060,6 +1063,7 @@ function TaskChildRow({
       draggable
       onContextMenu={(event) => {
         event.preventDefault();
+        event.stopPropagation();
         setMenuPoint({ x: event.clientX, y: event.clientY });
         setMenuOpen(true);
       }}

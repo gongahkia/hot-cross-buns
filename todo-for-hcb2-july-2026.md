@@ -10,7 +10,7 @@ This is the single July 2026 planning todo. Ports stay last.
 
 Last repo audit for this file: 2026-06-09.
 
-Audit note: static repo/source/test evidence only. No live Google API, external MCP client, packaged-app, or manual UI QA was performed for this update. Follow-up removed verified implemented leftovers for snooze UX, auto-tag audit/reapply, calendar drag-create, note-template creation, pointer repair, and dock badge code paths.
+Audit note: static repo/source/test evidence only. No live Google API, external MCP client, packaged-app, or manual UI QA was performed for this update. Follow-up removed verified implemented leftovers for snooze UX, auto-tag audit/reapply, calendar drag-create, note-template creation, pointer repair, dock badge code paths, bulk reschedule, task/event template quick-add, board subtask/reorder UX, and chrono quick-add examples.
 
 Status key:
 
@@ -50,6 +50,12 @@ Status key:
 - Durable pending agent action storage, IPC/preload contracts, floating approval tray, approve/reject/expiry states, and MCP dry-run confirmation persistence now exist with focused tests.
 - Loopback webhook subscriptions now exist with localhost-only URL validation, HMAC signatures, private-body redaction by default, Settings toggles, task-created/task-completed/sync-completed emits, and focused validation tests.
 - Google account disconnected state is surfaced as a user-visible issue while cached SQLite data can still render.
+- Multi-account planner UX now lists all known Google accounts, supports per-account disconnect, carries account IDs through task/calendar summaries, and shows account-scoped task/calendar resource filters and task-board badges.
+- Bulk task reschedule exists through shared IPC/preload/domain services, optimistic renderer mutation, grouped undo, and task-board multi-select due-date actions.
+- Task board subtask hierarchy and reorder controls exist beyond inspector-only previews, including nested child rows, promote-to-root, make-subtask, and sibling move actions.
+- Quick Add can instantiate task/event templates from Settings schemas, including `{{today}}`, `{{+Nd}}`, `{{prompt:Label}}`, and `{{clipboard}}`.
+- Quick Add recurrence parsing covers chrono-style examples including `every other Tue 9am`, `next Fri 2-4pm`, and `weekly until Jul 30`, with matched-token cleanup tests.
+- Dedicated renderer Today/Home surface is closed by product decision. Renderer `todayViewModel` was removed; legacy Today navigation routes to Calendar. MCP/CLI/native menu-bar Today data remains.
 - Sidebar task/note counts use HCB-visible task-backed counts instead of raw Google/cache totals.
 - Full unit suite was previously green after the latest auto-tag/settings hardening pass.
 
@@ -57,20 +63,18 @@ Status key:
 
 - Tags now have a first-class local catalog, many-to-many entity links, tag CRUD/merge UI, tag colors, bootstrap/IPC/preload/source plumbing, backfill from existing task/event tag JSON, grouped undo for bulk tag writes/merge/delete, and Settings tag analytics.
 - Auto-tagging has inspector-level audit detail plus backend full-cache preview/apply reapply for cached tasks/events/notes. Background scheduling and large-account perf QA remain open.
-- Multi-account plumbing is partially present: account IDs, account-scoped tokens/cache/checkpoints/mutations, latest-account transport, and multi-account docs/tests exist. Full connected-account management UX, account badges/filters, explicit target account selection, and merged multi-account Today remain open.
+- Multi-account plumbing is partially present: account IDs, account-scoped tokens/cache/checkpoints/mutations, connected-account management UX, account badges/resource filters, latest-account transport, and multi-account docs/tests exist. Explicit account target selection in ambiguous create flows, search/diagnostics filters, and live multi-account QA remain open.
 - Duplicate detection/review exists for tasks/events/notes with dismiss/open/delete/merge flows. Cleanup now runs through the main domain service with grouped undo and cleanup-group metadata on affected pending mutations; deeper duplicate-resolution QA and stronger mutation compaction remain open.
 - Conversion works, but should get one live/manual QA pass against real Google sync for replace-original cleanup and queued mutation replay.
 - MCP/CLI is featureful, and prompt/resource registries now include `hcb_brief`, `hcb tail`, `hcb plan`, `hcb://brief`, `hcb://plan`, and `hcb://tail`. Durable pending agent actions and loopback webhooks are now present; external MCP client QA, webhook retry/rate-limit hardening, and full event-source coverage remain open.
 - Birthday Google payload shape is unit-tested, but live Google API smoke for birthday create/update/delete is still the main external-risk test.
-- Quick-add/NL parsing has meaningful code and tests, including recurrence handling, but not the full chrono-style parser depth listed below.
+- Quick-add/NL parsing has meaningful code and tests, including recurrence handling, alternate-week weekdays, ranges, and until dates. Time-zone parsing and broader ambiguity QA remain open.
 - Calendar recurrence UI exists. Edit/delete scope selection now reaches repository writes; whole-series, Google-backed occurrence edits/deletes, and locally materialized future-series splits are covered by focused tests. Google-expanded future-series edits still fail fast when the master series is unavailable; deeper RRULE editor depth and live Google smoke remain open.
 - Search/filter depth is partial: advanced parser-backed operators, boolean `AND`/`OR`/`NOT`, saved-search settings, pinned filters, command-palette pinned filter chips, opt-in local semantic/hybrid search with disabled lexical fallback diagnostics, provider-backed chat, and a chat sidebar exist. Production semantic model/vector packaging and richer agentic planning remain open.
 - Portable data has real `.hcbexport` export/preview/import with deterministic state JSON, selected list/calendar/future filters, manifest SHA-256, attachment bundling/relinking, richer item-level import preview, pre-import backup, local pointer scan/repair UI, and focused tests. ICS import/subscriptions and manual migration QA remain open.
 
 ### Missing / not implemented yet
 
-- Hierarchical Areas.
-- Bulk reschedule beyond current bulk complete/move/delete, bulk tag, and duplicate undo paths.
 - Production semantic vector/model packaging and richer conversational planning/action proposals.
 - CSS snippets, JSON config/keymaps, and sandboxed user extensions.
 - ICS import/subscriptions.
@@ -142,52 +146,31 @@ Status key:
 ### Accounts and sync scope
 
 - Status: `Partial`.
-- Static evidence exists for account IDs, account-scoped OAuth token storage, account-scoped cache rows/checkpoints/mutations, latest-account transport selection, and migration/sync replay tests. Product UX and merged multi-account planning remain incomplete.
+- Static evidence exists for account IDs, account-scoped OAuth token storage, account-scoped cache rows/checkpoints/mutations, latest-account transport selection, migration/sync replay tests, connected-account management UX, account badges, and account-scoped task/calendar resource filters. Live multi-account QA and non-planner filters remain incomplete.
 - Promote the account mirror to first-class multi-account:
-  - list and manage all connected Google accounts, not only the latest account status
   - keep OAuth tokens, sync checkpoints, mutation queues, task lists, calendars, tasks, and events isolated per account
-  - add account badges and per-account filters for task lists, calendars, search, Today, and diagnostics
-  - support a merged Today view across Personal + Work while preserving source account identity
-  - make create/update flows choose an explicit target account/calendar/list when ambiguity exists
+  - add per-account filters for search and diagnostics
+  - make create/update flows choose an explicit target account/calendar/list when ambiguity remains after destination selection
   - verify disconnected/reauth-required accounts do not block healthy accounts
   - add migration tests for existing single-account caches and replay tests for per-account pending mutations
 
 ### Tasks and organisation
 
-- Status: `Verify` for Kanban parity; `Partial` for tags background/perf, duplicate resolution hardening, grouped duplicate cleanup undo, board-level subtasks/reorder, task/event template instantiation, and NL quick-add; `Done` for snooze inspector/list/search UX and note-template creation; `Missing` for Areas.
+- Status: `Verify` for Kanban parity; `Partial` for tags background/perf and duplicate resolution hardening; `Done` for snooze inspector/list/search UX, note-template creation, bulk reschedule, board-level subtasks/reorder, task/event template instantiation, and chrono quick-add examples.
 - Verify/finish Kanban parity beyond the current Google-list board if original `KanbanGrouping` behavior is not covered.
 - Harden first-class tags beyond current catalog/link/inspector-audit/bulk-reapply implementation:
   - background scheduling for backend auto-tag reapply
   - large-account tag analytics/reapply perf QA
-- Add hierarchical Areas:
-  - area schema
-  - area sort order
-  - area colors
-  - task-list grouping under areas
-  - settings/sidebar UI
 - Finish bulk operations where current multi-select is incomplete:
-  - reschedule
   - tag/untag QA beyond current bulk tag apply path
-  - batched/coalesced mutation entries for reschedule
+  - batched/coalesced mutation-entry perf QA for large bulk edits
 - Harden duplicate resolution for tasks, events, and notes.
   - Note: duplicate create controls, review/dismiss/open/delete, loaded-data merge flows, domain cleanup, and grouped undo are present.
   - Remaining: stronger mutation compaction and event/note duplicate-resolution QA.
-- Finish board-level subtask hierarchy/reorder UX:
-  - nested hierarchy display beyond current inspector subtasks
-  - move/reorder subtasks safely inside Google Tasks list constraints
-  - clear visual hierarchy in task views beyond shared subtask previews
-- Finish task/event template instantiation beyond current settings schemas and note-template create flow:
-  - `{{today}}`
-  - `{{+Nd}}`
-  - `{{prompt:Label}}`
-  - `{{clipboard}}`
-  - task/event creation from templates
-- Upgrade NL quick-add with chrono-style date parsing and RRULE inference:
-  - parse phrases like `every other Tue 9am`, `next Fri 2-4pm`, and `weekly until Jul 30`
-  - convert recurring phrases into the existing `CalendarEventRecurrence` shape
-  - preserve matched-token chips and remove parsed text from final title/summary
-  - keep deterministic fallbacks for ambiguous dates/times
-  - add parser tests for time zones, ranges, recurring weekdays, intervals, end dates, and count limits
+- Harden Quick Add parser edge cases:
+  - time zones
+  - broader ambiguous date/time QA
+  - count-limit and RRULE round-trip QA beyond current focused parser tests
 
 ### Calendar
 
@@ -217,13 +200,6 @@ Status key:
   - busy/free
   - public/private/default
 - Expand custom reminders beyond one simple reminder field if needed.
-
-### Today and review surfaces
-
-- Status: `Verify`; CLI/MCP `today` exists, renderer coverage still needs feature-specific audit.
-- Verify dedicated Today/Home surface coverage.
-- If incomplete, add overdue, due-today, scheduled, next-up, upcoming events, and sidebar-filter-aware sections.
-- Add forecast/review summary builders if still missing from original parity.
 
 ## 3. Linked markdown and knowledge graph
 
@@ -458,8 +434,8 @@ Status key:
   - recurrence master-missing/live-Google edge cases
   - extension sandboxing
 - Add Playwright/manual QA for:
-  - Today
-  - Kanban/areas/tags
+  - menu-bar Today data
+  - Kanban/tags
   - calendar views
   - advanced search/pinned filters
   - semantic search
@@ -469,7 +445,7 @@ Status key:
   - import/export/attachments
   - git-friendly `.hcb2export` output
   - ICS imports/subscriptions
-  - multi-account merged Today and per-account filters
+  - multi-account per-account filters
   - update checker
   - Spotlight/Raycast/Alfred discovery
   - App Intents/Shortcuts

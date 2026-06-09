@@ -366,6 +366,10 @@ function sanitizePaneContent(value: unknown): PaneContent | null {
     return { kind: "chooser" };
   }
 
+  if (record.kind === "section" && record.sectionId === "today") {
+    return { kind: "section", sectionId: "calendar" };
+  }
+
   if (record.kind === "section" && typeof record.sectionId === "string" && validSectionIds.has(record.sectionId)) {
     return { kind: "section", sectionId: record.sectionId as SectionId };
   }

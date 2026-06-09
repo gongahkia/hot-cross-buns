@@ -466,6 +466,7 @@ function recurrenceDisplay(recurrence: CalendarEventRecurrence): string {
 function extractRecurrence(text: string, now: Date): RecurrenceHit | null {
   const lower = text.toLowerCase();
   const checks: Array<(value: string) => Omit<RecurrenceHit, "display" | "ranges"> | null> = [
+    matchEveryOtherWeekday,
     matchEveryUnit,
     matchEveryWeekday,
     matchSimpleCadence,
@@ -494,6 +495,26 @@ function extractRecurrence(text: string, now: Date): RecurrenceHit | null {
   }
 
   return null;
+
+  function matchEveryOtherWeekday(value: string): Omit<RecurrenceHit, "display" | "ranges"> | null {
+    const match = /\b(?:every\s+other|alternate|alternating)\s+(sundays?|mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat|su|mo|tu|we|th|fr|sa)\b/.exec(value);
+    const byDay = match ? extractWeekdayCodes(match[1] ?? "") : [];
+
+    return match && byDay.length
+      ? {
+          recurrence: {
+            frequency: "weekly",
+            interval: 2,
+            endsOn: null,
+            count: null,
+            byDay
+          },
+          index: match.index,
+          length: match[0].length,
+          dateHint: nextDateForWeekdays(byDay, now)
+        }
+      : null;
+  }
 
   function matchEveryUnit(value: string): Omit<RecurrenceHit, "display" | "ranges"> | null {
     const match = /\b(?:every|each)\s+(\d{1,3})?\s*(days|day|weeks|week|months|month|years|year)(?:\s+on\s+([a-z,\s/&-]{2,80}))?/.exec(value);

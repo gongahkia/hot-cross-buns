@@ -417,6 +417,7 @@ export function AppShell(): JSX.Element {
               allDay: payload.allDay,
               location: payload.location,
               notes: payload.notes,
+              guests: payload.guestEmails.join(", "),
               ...quickAddRecurrenceDraft(payload.recurrence)
             }
           }

@@ -200,6 +200,14 @@ const hcbApi: HcbApi = {
         parentId: request.parentId ?? null
       }))
     ),
+    bulkReschedule: vi.fn(async (request) =>
+      ok({
+        ids: request.taskIds,
+        updatedCount: request.taskIds.length,
+        queued: true,
+        revision: now
+      })
+    ),
     delete: vi.fn(async (request) =>
       ok({
         id: request.id,
@@ -595,14 +603,31 @@ const hcbApi: HcbApi = {
           missingScopes: [],
           lastAuthenticatedAt: now,
           updatedAt: now
-        }
+        },
+        accounts: [
+          {
+            accountId: "google:test-account",
+            googleAccountId: "test-account",
+            email: "planner@example.com",
+            displayName: "Planner Test",
+            connectionState: "connected" as const,
+            grantedScopes: [
+              "https://www.googleapis.com/auth/tasks",
+              "https://www.googleapis.com/auth/calendar"
+            ],
+            missingScopes: [],
+            lastAuthenticatedAt: now,
+            updatedAt: now
+          }
+        ]
       })
     ),
     saveOAuthClient: vi.fn(async (request) =>
       ok({
         oauthClientConfigured: true,
         clientId: request.clientId,
-        hasClientSecret: Boolean(request.clientSecret)
+        hasClientSecret: Boolean(request.clientSecret),
+        accounts: []
       })
     ),
     beginOAuth: vi.fn(async () =>
@@ -622,7 +647,8 @@ const hcbApi: HcbApi = {
       ok({
         oauthClientConfigured: false,
         clientId: null,
-        hasClientSecret: false
+        hasClientSecret: false,
+        accounts: []
       })
     )
   },
