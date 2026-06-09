@@ -929,7 +929,36 @@ export function seededHcb(): HcbApi {
       ),
       delete: vi.fn(async (request) => ok({ id: request.id, queued: false, revision: now })),
       merge: vi.fn(async (request) => ok({ id: request.targetId, queued: false, revision: now })),
-      bulkApply: vi.fn(async () => ok({ id: "bulk-tags", queued: false, revision: now }))
+      bulkApply: vi.fn(async () => ok({ id: "bulk-tags", queued: false, revision: now })),
+      previewAutoReapply: vi.fn(async (request) =>
+        ok({
+          kind: request.kind,
+          scope: request.scope ?? "all",
+          scanned: 1,
+          changed: request.kind === "task" ? 1 : 0,
+          skipped: request.kind === "task" ? 0 : 1,
+          failed: 0,
+          blocked: false,
+          message: request.kind === "task" ? "1 item needs reapply." : "No items need reapply.",
+          sample: []
+        })
+      ),
+      applyAutoReapply: vi.fn(async (request) =>
+        ok({
+          kind: request.kind,
+          scope: request.scope ?? "all",
+          scanned: 1,
+          changed: request.kind === "task" ? 1 : 0,
+          skipped: request.kind === "task" ? 0 : 1,
+          failed: 0,
+          blocked: false,
+          message: request.kind === "task" ? "1 item updated." : "No items need reapply.",
+          sample: [],
+          queued: request.kind === "task",
+          revision: now,
+          undoLabel: request.kind === "task" ? "Auto-tag reapply" : undefined
+        })
+      )
     },
     duplicates: {
       cleanup: vi.fn(async (request) =>
