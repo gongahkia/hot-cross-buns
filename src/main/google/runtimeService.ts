@@ -26,11 +26,13 @@ export class GoogleRuntimeService {
   async status(): Promise<GoogleStatusResponse> {
     const config = await this.options.configStore.snapshot();
     const account = this.options.syncRepository.latestAccountStatus();
+    const accounts = this.options.syncRepository.accountStatuses().map(accountForIpc);
 
     return {
       oauthClientConfigured: config.configured,
       clientId: config.clientId,
       hasClientSecret: config.hasClientSecret,
+      accounts,
       ...(account === null ? {} : { account: accountForIpc(account) })
     };
   }

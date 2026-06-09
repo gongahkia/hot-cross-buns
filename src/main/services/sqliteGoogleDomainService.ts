@@ -16,6 +16,7 @@ export function createUnavailableGoogleDomainService(
       oauthClientConfigured: false,
       clientId: null,
       hasClientSecret: false,
+      accounts: repository.accountStatuses().map((account) => account as NonNullable<GoogleStatusResponse["account"]>),
       ...(repository.latestAccountStatus() === null
         ? {}
         : { account: repository.latestAccountStatus() as NonNullable<GoogleStatusResponse["account"]> })

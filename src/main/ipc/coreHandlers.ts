@@ -898,7 +898,8 @@ function deferredGoogleStatus(): GoogleStatusResponse {
   return {
     oauthClientConfigured: false,
     clientId: null,
-    hasClientSecret: false
+    hasClientSecret: false,
+    accounts: []
   };
 }
 

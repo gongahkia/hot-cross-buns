@@ -65,6 +65,7 @@ const calendarColorSchema = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
 export const calendarListSummarySchema = z
   .object({
     id: idSchema,
+    accountId: idSchema.optional(),
     title: z.string().min(1).max(500),
     selected: z.boolean(),
     timeZone: z.string().min(1).max(120).nullable().optional(),
@@ -107,6 +108,7 @@ export type CalendarEventStatus = z.infer<typeof calendarEventStatusSchema>;
 export const calendarEventSummarySchema = z
   .object({
     id: idSchema,
+    accountId: idSchema.optional(),
     eventId: idSchema.optional(),
     linkedTaskId: idSchema.optional(),
     hcbKind: calendarEventHcbKindSchema.optional(),

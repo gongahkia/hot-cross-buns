@@ -21,7 +21,8 @@ export const emptySyncStatus: SyncStatusResponse = {
 export const emptyGoogleStatus: GoogleStatusResponse = {
   oauthClientConfigured: false,
   clientId: null,
-  hasClientSecret: false
+  hasClientSecret: false,
+  accounts: []
 };
 
 export const emptyUndoStatus: UndoStackStatusResponse = {

@@ -177,6 +177,8 @@ import {
 } from "./undo";
 import {
   taskCompletionRequestSchema,
+  taskBulkMutationResponseSchema,
+  taskBulkRescheduleRequestSchema,
   taskCreateRequestSchema,
   taskDeleteRequestSchema,
   taskDetailSchema,
@@ -220,6 +222,12 @@ export const ipcContracts = {
     ),
     reopen: defineIpcContract("tasks", "reopen", taskCompletionRequestSchema, taskDetailSchema),
     move: defineIpcContract("tasks", "move", taskMoveRequestSchema, taskDetailSchema),
+    bulkReschedule: defineIpcContract(
+      "tasks",
+      "bulkReschedule",
+      taskBulkRescheduleRequestSchema,
+      taskBulkMutationResponseSchema
+    ),
     delete: defineIpcContract("tasks", "delete", taskDeleteRequestSchema, mutationAckSchema),
     createTaskList: defineIpcContract(
       "tasks",

@@ -34,7 +34,8 @@ export const googleStatusResponseSchema = z
     oauthClientConfigured: z.boolean(),
     clientId: z.string().min(1).max(500).nullable(),
     hasClientSecret: z.boolean(),
-    account: googleAccountConnectionStatusSchema.optional()
+    account: googleAccountConnectionStatusSchema.optional(),
+    accounts: z.array(googleAccountConnectionStatusSchema).max(20).default([])
   })
   .strict();
 

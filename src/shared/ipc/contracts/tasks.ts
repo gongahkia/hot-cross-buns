@@ -37,6 +37,7 @@ export type TaskListsRequest = z.input<typeof taskListsRequestSchema>;
 export const taskListSummarySchema = z
   .object({
     id: idSchema,
+    accountId: idSchema.optional(),
     title: z.string().min(1).max(500),
     updatedAt: isoDateTimeSchema,
     taskCount: z.number().int().nonnegative().optional(),
@@ -56,6 +57,7 @@ export type TaskListsResponse = z.infer<typeof taskListsResponseSchema>;
 export const taskSummarySchema = z
   .object({
     id: idSchema,
+    accountId: idSchema.optional(),
     listId: idSchema,
     title: z.string().min(1).max(500),
     status: taskStatusSchema,
@@ -170,6 +172,26 @@ export const taskMoveRequestSchema = z
   );
 
 export type TaskMoveRequest = z.input<typeof taskMoveRequestSchema>;
+
+export const taskBulkRescheduleRequestSchema = z
+  .object({
+    taskIds: z.array(idSchema).min(1).max(200),
+    dueDate: dateOnlySchema.nullable()
+  })
+  .strict();
+
+export type TaskBulkRescheduleRequest = z.input<typeof taskBulkRescheduleRequestSchema>;
+
+export const taskBulkMutationResponseSchema = z
+  .object({
+    ids: z.array(idSchema).max(200),
+    updatedCount: z.number().int().nonnegative(),
+    queued: z.boolean(),
+    revision: isoDateTimeSchema.optional()
+  })
+  .strict();
+
+export type TaskBulkMutationResponse = z.infer<typeof taskBulkMutationResponseSchema>;
 
 export const taskDeleteRequestSchema = entityByIdRequestSchema;
 export type TaskDeleteRequest = z.input<typeof taskDeleteRequestSchema>;

@@ -14,6 +14,7 @@ import type {
   SyncProgressEvent
 } from "../types";
 import {
+  accountStatuses as readAccountStatuses,
   accountStatus as readAccountStatus,
   latestAccountStatus as readLatestAccountStatus,
   upsertAccountStatus as writeAccountStatus
@@ -96,6 +97,10 @@ export class GoogleSyncRepository {
 
   latestAccountStatus(): GoogleAccountConnectionStatusDto | null {
     return readLatestAccountStatus(this.connection);
+  }
+
+  accountStatuses(): GoogleAccountConnectionStatusDto[] {
+    return readAccountStatuses(this.connection);
   }
 
   accountStatus(accountId: string): GoogleAccountConnectionStatusDto | null {

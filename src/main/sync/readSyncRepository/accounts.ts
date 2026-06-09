@@ -81,6 +81,30 @@ export function latestAccountStatus(
   return row === undefined ? null : accountStatusFromRow(row);
 }
 
+export function accountStatuses(
+  connection: SqliteConnection
+): GoogleAccountConnectionStatusDto[] {
+  const rows = connection.query<GoogleAccountRow>(
+    `SELECT
+       id,
+       google_account_id,
+       email,
+       display_name,
+       avatar_url,
+       locale,
+       time_zone,
+       connection_state,
+       granted_scopes_json,
+       last_authenticated_at,
+       updated_at
+     FROM google_accounts
+     WHERE deleted_at IS NULL
+     ORDER BY connection_state = 'connected' DESC, updated_at DESC, id ASC;`
+  );
+
+  return rows.map(accountStatusFromRow);
+}
+
 export function accountStatus(
   connection: SqliteConnection,
   accountId: string
