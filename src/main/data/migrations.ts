@@ -365,6 +365,101 @@ CREATE INDEX IF NOT EXISTS idx_local_entity_tags_entity
 `
     ,
     operations: (connection) => tagBackfillOperations(connection)
+  },
+  {
+    version: 16,
+    name: "agent webhooks semantic chat",
+    sql: `
+CREATE TABLE IF NOT EXISTS local_agent_actions (
+  id TEXT PRIMARY KEY,
+  status TEXT NOT NULL,
+  tool_name TEXT NOT NULL,
+  arguments_json TEXT NOT NULL,
+  preview_json TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  permission_mode TEXT NOT NULL,
+  credential_revision TEXT NOT NULL,
+  client_key TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  applied_at TEXT,
+  error_message TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_local_agent_actions_status
+  ON local_agent_actions(status, created_at DESC, id DESC);
+
+CREATE TABLE IF NOT EXISTS local_webhook_subscriptions (
+  id TEXT PRIMARY KEY,
+  url TEXT NOT NULL,
+  events_json TEXT NOT NULL,
+  enabled INTEGER NOT NULL,
+  include_private_bodies INTEGER NOT NULL,
+  secret TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  last_delivery_at TEXT,
+  last_error TEXT,
+  deleted_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_local_webhook_subscriptions_visible
+  ON local_webhook_subscriptions(deleted_at, enabled, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS local_webhook_deliveries (
+  id TEXT PRIMARY KEY,
+  subscription_id TEXT NOT NULL,
+  event TEXT NOT NULL,
+  status TEXT NOT NULL,
+  attempt_count INTEGER NOT NULL,
+  response_status INTEGER,
+  error_message TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_local_webhook_deliveries_recent
+  ON local_webhook_deliveries(created_at DESC, subscription_id);
+
+CREATE TABLE IF NOT EXISTS local_semantic_embeddings (
+  entity_kind TEXT NOT NULL,
+  entity_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  text_hash TEXT NOT NULL,
+  model_id TEXT NOT NULL,
+  vector_json TEXT NOT NULL,
+  generated_at TEXT NOT NULL,
+  last_error TEXT,
+  PRIMARY KEY(entity_kind, entity_id, model_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_local_semantic_embeddings_model
+  ON local_semantic_embeddings(model_id, generated_at DESC);
+
+CREATE TABLE IF NOT EXISTS local_chat_sessions (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  deleted_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_local_chat_sessions_visible
+  ON local_chat_sessions(deleted_at, updated_at DESC, id DESC);
+
+CREATE TABLE IF NOT EXISTS local_chat_messages (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  content TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  deleted_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_local_chat_messages_session
+  ON local_chat_messages(session_id, created_at ASC, id ASC);
+`
   }
 ];
 

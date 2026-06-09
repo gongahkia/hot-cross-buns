@@ -600,6 +600,7 @@ export class McpToolRegistry {
         ? this.confirmations.create({
             toolName: definition.name,
             arguments: argumentsObject,
+            preview,
             permissionMode: context.permissionMode,
             credentialRevision: context.credentialRevision,
             clientKey: context.clientKey,
@@ -618,8 +619,12 @@ export class McpToolRegistry {
       });
     }
 
+    const suppliedConfirmationId = requiresConfirmation
+      ? optionalString(argumentsObject, "confirmationId")
+      : undefined;
+
     if (requiresConfirmation) {
-      const confirmationId = optionalString(argumentsObject, "confirmationId");
+      const confirmationId = suppliedConfirmationId;
 
       if (!confirmationId) {
         throw new McpToolError(
@@ -645,13 +650,23 @@ export class McpToolRegistry {
       }
     }
 
-    const item = await handler.apply(argumentsObject);
+    try {
+      const item = await handler.apply(argumentsObject);
+      if (suppliedConfirmationId) {
+        this.confirmations.markApplied(suppliedConfirmationId, context.now);
+      }
 
-    return success({
-      applied: true,
-      message: appliedMessage(definition.name),
-      item
-    });
+      return success({
+        applied: true,
+        message: appliedMessage(definition.name),
+        item
+      });
+    } catch (error) {
+      if (suppliedConfirmationId) {
+        this.confirmations.markFailed(suppliedConfirmationId, error, context.now);
+      }
+      throw error;
+    }
   }
 
   private createWriteHandlers(): Record<string, WriteHandler> {

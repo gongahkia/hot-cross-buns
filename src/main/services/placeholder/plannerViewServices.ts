@@ -146,6 +146,13 @@ export function createPlaceholderPlannerViewService(
     deleteTag: (request) => ({ id: request.id, queued: false, revision: nowIso }),
     mergeTags: (request) => ({ id: request.targetId, queued: false, revision: nowIso }),
     bulkApplyTags: (request) => ({ id: request.tagIds[0] ?? "tags", queued: false, revision: nowIso }),
+    cleanupDuplicates: (request) => ({
+      id: request.winnerId,
+      kind: request.kind,
+      loserIds: request.loserIds,
+      queued: true,
+      revision: nowIso
+    }),
     getTask: ({ id }) => {
       const task = state.tasks.find((candidate) => candidate.id === id);
 
@@ -772,7 +779,19 @@ export function createPlaceholderPlannerViewService(
         );
       }
 
-      return pageItems(results, undefined, request.limit, DEFAULT_SEARCH_LIMIT, MAX_SEARCH_LIMIT);
+      const response = pageItems(results, undefined, request.limit, DEFAULT_SEARCH_LIMIT, MAX_SEARCH_LIMIT);
+      return request.mode && request.mode !== "lexical"
+        ? {
+            ...response,
+            diagnostics: {
+              mode: request.mode,
+              semanticEnabled: request.mode !== "lexical",
+              indexedCount: results.length,
+              staleCount: 0,
+              modelId: "placeholder"
+            }
+          }
+        : response;
     }
   };
 }

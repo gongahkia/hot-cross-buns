@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { LocalAgentRepository } from "../data/localRepositories/agentRepository";
 import type { JsonValue, McpPermissionMode } from "./types";
 
 interface PendingConfirmation {
@@ -21,6 +22,7 @@ export interface ConfirmationContext {
 
 export interface McpConfirmationStoreOptions {
   ttlMs?: number;
+  repository?: LocalAgentRepository;
 }
 
 const defaultTtlMs = 5 * 60 * 1000;
@@ -28,14 +30,17 @@ const defaultTtlMs = 5 * 60 * 1000;
 export class McpConfirmationStore {
   private readonly ttlMs: number;
   private readonly pending = new Map<string, PendingConfirmation>();
+  private readonly repository?: LocalAgentRepository;
 
   constructor(options: McpConfirmationStoreOptions = {}) {
     this.ttlMs = options.ttlMs ?? defaultTtlMs;
+    this.repository = options.repository;
   }
 
-  create(context: ConfirmationContext): string {
+  create(context: ConfirmationContext & { preview?: Record<string, unknown> }): string {
     this.prune(context.now);
     const confirmationId = randomUUID();
+    const expiresAt = new Date(context.now.getTime() + this.ttlMs);
 
     this.pending.set(confirmationId, {
       toolName: context.toolName,
@@ -43,7 +48,18 @@ export class McpConfirmationStore {
       permissionMode: context.permissionMode,
       credentialRevision: context.credentialRevision,
       clientKey: context.clientKey,
-      expiresAtMs: context.now.getTime() + this.ttlMs
+      expiresAtMs: expiresAt.getTime()
+    });
+    this.repository?.create({
+      id: confirmationId,
+      toolName: context.toolName,
+      argumentsObject: normalizedArguments(context.arguments),
+      preview: context.preview ?? {},
+      permissionMode: context.permissionMode,
+      credentialRevision: context.credentialRevision,
+      clientKey: context.clientKey,
+      createdAt: context.now.toISOString(),
+      expiresAt: expiresAt.toISOString()
     });
 
     return confirmationId;
@@ -54,7 +70,14 @@ export class McpConfirmationStore {
     const confirmation = this.pending.get(confirmationId);
 
     if (!confirmation) {
-      return false;
+      return this.repository?.consume(confirmationId, {
+        toolName: context.toolName,
+        argumentsObject: normalizedArguments(context.arguments),
+        permissionMode: context.permissionMode,
+        credentialRevision: context.credentialRevision,
+        clientKey: context.clientKey,
+        now: context.now.toISOString()
+      }) ?? false;
     }
 
     this.pending.delete(confirmationId);
@@ -73,6 +96,15 @@ export class McpConfirmationStore {
     this.pending.clear();
   }
 
+  markApplied(confirmationId: string, now = new Date()): void {
+    this.repository?.markApplied(confirmationId, now.toISOString());
+  }
+
+  markFailed(confirmationId: string, error: unknown, now = new Date()): void {
+    const message = error instanceof Error ? error.message : String(error);
+    this.repository?.markFailed(confirmationId, message, now.toISOString());
+  }
+
   private prune(now: Date): void {
     const nowMs = now.getTime();
 
@@ -85,11 +117,15 @@ export class McpConfirmationStore {
 }
 
 function canonicalArguments(argumentsObject: Record<string, unknown>): string {
+  const clone = normalizedArguments(argumentsObject);
+  return JSON.stringify(stableJsonValue(clone));
+}
+
+function normalizedArguments(argumentsObject: Record<string, unknown>): Record<string, unknown> {
   const clone = { ...argumentsObject };
   delete clone.dryRun;
   delete clone.confirmationId;
-
-  return JSON.stringify(stableJsonValue(clone));
+  return clone;
 }
 
 function stableJsonValue(value: unknown): JsonValue {

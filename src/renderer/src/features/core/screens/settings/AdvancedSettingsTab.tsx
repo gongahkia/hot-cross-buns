@@ -653,6 +653,86 @@ export function AdvancedSettingsTab({
         />
       </SettingsGroup>
 
+      <SettingsGroup title="Agent and semantic search">
+        <SettingsSwitch
+          checked={settings.semanticSearchEnabled}
+          icon={Filter}
+          label="Semantic search"
+          description="Indexes local planner text for semantic and hybrid search."
+          onChange={(checked) => updateSettings({ semanticSearchEnabled: checked })}
+        />
+        <SettingsControlRow label="Search mode">
+          <select
+            aria-label="Semantic search mode"
+            className={settingsSelectClass}
+            onChange={(event) =>
+              updateSettings({ semanticSearchMode: event.currentTarget.value as SettingsSnapshot["semanticSearchMode"] })
+            }
+            value={settings.semanticSearchMode}
+          >
+            <option value="lexical">Lexical</option>
+            <option value="semantic">Semantic</option>
+            <option value="hybrid">Hybrid</option>
+          </select>
+        </SettingsControlRow>
+        <SettingsSwitch
+          checked={settings.agentActionTrayEnabled}
+          icon={Layers3}
+          label="Pending agent action tray"
+          description="Shows MCP/CLI proposed writes before approval."
+          onChange={(checked) => updateSettings({ agentActionTrayEnabled: checked })}
+        />
+        <SettingsSwitch
+          checked={settings.webhooksEnabled}
+          icon={Database}
+          label="Loopback webhooks"
+          description="Delivers enabled localhost webhook subscriptions."
+          onChange={(checked) => updateSettings({ webhooksEnabled: checked })}
+        />
+        <SettingsSwitch
+          checked={settings.llmEnabled}
+          icon={FilePlus2}
+          label="LLM provider"
+          description="Uses a configured local or explicitly allowed remote chat endpoint."
+          onChange={(checked) => updateSettings({ llmEnabled: checked })}
+        />
+        <SettingsControlRow label="Provider">
+          <select
+            aria-label="LLM provider"
+            className={settingsSelectClass}
+            onChange={(event) =>
+              updateSettings({ llmProvider: event.currentTarget.value as SettingsSnapshot["llmProvider"] })
+            }
+            value={settings.llmProvider}
+          >
+            <option value="ollama">Ollama</option>
+            <option value="openai-compatible">OpenAI-compatible</option>
+          </select>
+        </SettingsControlRow>
+        <SettingsControlRow label="Endpoint">
+          <Input
+            aria-label="LLM endpoint"
+            className="min-w-80"
+            onBlur={(event) => updateSettings({ llmEndpoint: event.currentTarget.value.trim() || null })}
+            defaultValue={settings.llmEndpoint ?? ""}
+            placeholder="http://127.0.0.1:11434"
+          />
+        </SettingsControlRow>
+        <SettingsControlRow label="Model">
+          <Input
+            aria-label="LLM model"
+            className="min-w-56"
+            onBlur={(event) => updateSettings({ llmModel: event.currentTarget.value.trim() || "llama3.1" })}
+            defaultValue={settings.llmModel}
+          />
+        </SettingsControlRow>
+        <SettingsSwitch
+          checked={settings.llmAllowRemoteEndpoint}
+          label="Allow remote LLM endpoint"
+          onChange={(checked) => updateSettings({ llmAllowRemoteEndpoint: checked })}
+        />
+      </SettingsGroup>
+
       <SettingsGroup title="Portable export">
         <SettingsControlRow
           description="Exports settings and planner data into a folder package."

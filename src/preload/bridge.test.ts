@@ -313,9 +313,12 @@ describe("preload bridge", () => {
     });
 
     expect(Object.keys(api).sort()).toEqual([
+      "agent",
       "bootstrap",
       "calendar",
+      "chat",
       "diagnostics",
+      "duplicates",
       "google",
       "mcp",
       "native",
@@ -325,7 +328,8 @@ describe("preload bridge", () => {
       "sync",
       "tags",
       "tasks",
-      "undo"
+      "undo",
+      "webhooks"
     ]);
     expect(JSON.stringify(Object.keys(api))).not.toMatch(
       /ipcRenderer|invoke|send|process|require/

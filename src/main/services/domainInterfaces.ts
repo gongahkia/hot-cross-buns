@@ -5,6 +5,24 @@ import type {
   CalendarRangeResponse,
   CalendarScheduleSuggestRequest,
   CalendarScheduleSuggestResponse,
+  AgentActionApplyRequest,
+  AgentActionApplyResponse,
+  AgentActionClearExpiredResponse,
+  AgentActionListRequest,
+  AgentActionListResponse,
+  AgentActionRejectRequest,
+  AgentActionRejectResponse,
+  ChatClearRequest,
+  ChatClearResponse,
+  ChatListMessagesRequest,
+  ChatListMessagesResponse,
+  ChatListSessionsRequest,
+  ChatListSessionsResponse,
+  ChatProviderHealthResponse,
+  ChatSendRequest,
+  ChatSendResponse,
+  DuplicateCleanupRequest,
+  DuplicateCleanupResponse,
   CalendarEventCompletionRequest,
   CalendarEventCreateRequest,
   CalendarEventDeleteRequest,
@@ -79,7 +97,14 @@ import type {
   TaskListRequest,
   TaskListResponse,
   TaskListSummary,
-  TaskUpdateRequest
+  TaskUpdateRequest,
+  WebhookDeleteRequest,
+  WebhookListRequest,
+  WebhookListResponse,
+  WebhookMutationResponse,
+  WebhookTestRequest,
+  WebhookUpsertRequest,
+  WebhookEvent
 } from "@shared/ipc/contracts";
 
 export type DomainJsonPrimitive = string | number | boolean | null;
@@ -270,6 +295,7 @@ export interface PlannerViewDomainService {
   deleteTag: (request: TagDeleteRequest) => MaybePromise<TagMutationResponse>;
   mergeTags: (request: TagMergeRequest) => MaybePromise<TagMutationResponse>;
   bulkApplyTags: (request: TagBulkApplyRequest) => MaybePromise<TagMutationResponse>;
+  cleanupDuplicates: (request: DuplicateCleanupRequest) => MaybePromise<DuplicateCleanupResponse>;
 }
 
 export interface SyncControlDomainService {
@@ -311,6 +337,29 @@ export interface McpControlDomainService {
   setEnabled: (request: McpSetEnabledRequest) => MaybePromise<McpStatusResponse>;
 }
 
+export interface AgentActionDomainService {
+  listActions: (request: AgentActionListRequest) => MaybePromise<AgentActionListResponse>;
+  applyAction: (request: AgentActionApplyRequest) => MaybePromise<AgentActionApplyResponse>;
+  rejectAction: (request: AgentActionRejectRequest) => MaybePromise<AgentActionRejectResponse>;
+  clearExpired: () => MaybePromise<AgentActionClearExpiredResponse>;
+}
+
+export interface WebhookDomainService {
+  list: (request: WebhookListRequest) => MaybePromise<WebhookListResponse>;
+  upsert: (request: WebhookUpsertRequest) => MaybePromise<WebhookMutationResponse>;
+  delete: (request: WebhookDeleteRequest) => MaybePromise<WebhookMutationResponse>;
+  test: (request: WebhookTestRequest) => MaybePromise<WebhookMutationResponse>;
+  emit: (event: WebhookEvent, payload: DomainJsonObject) => MaybePromise<void>;
+}
+
+export interface ChatDomainService {
+  listSessions: (request: ChatListSessionsRequest) => MaybePromise<ChatListSessionsResponse>;
+  listMessages: (request: ChatListMessagesRequest) => MaybePromise<ChatListMessagesResponse>;
+  send: (request: ChatSendRequest) => MaybePromise<ChatSendResponse>;
+  clear: (request: ChatClearRequest) => MaybePromise<ChatClearResponse>;
+  providerHealth: () => MaybePromise<ChatProviderHealthResponse>;
+}
+
 export interface NativeDomainService {
   capabilities: () => MaybePromise<NativeCapabilitiesResponse>;
   requestNotificationPermission: () => MaybePromise<NativeNotificationPermissionResponse>;
@@ -324,6 +373,9 @@ export interface AppDomainServices {
   settings: SettingsDomainService;
   undo: UndoDomainService;
   mcp: McpControlDomainService;
+  agent: AgentActionDomainService;
+  webhooks: WebhookDomainService;
+  chat: ChatDomainService;
   native: NativeDomainService;
   mcpTools: McpDomainServices;
 }

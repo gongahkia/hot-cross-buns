@@ -1,4 +1,5 @@
 import { performance } from "node:perf_hooks";
+import { createHash } from "node:crypto";
 import type {
   NoteBrokenLinksRequest,
   NoteBrokenLinksResponse,
@@ -76,8 +77,13 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
 
         const domains = new Set<SearchDomain>(resolveLocalSearchDomains(parsed, request.domains));
         const limit = Math.max(1, Math.min(50, request.limit ?? 20));
+        const mode = request.mode ?? "lexical";
         const ftsQuery = ftsMatchQuery(parsed.text);
         const results: SearchResultItem[] = [];
+
+        if (mode === "semantic") {
+          return this.semanticSearch(request.query, domains, limit, "semantic");
+        }
 
         if (!hasRunnableLocalSearch(parsed) || (!ftsQuery && parsed.chips.length === 0 && parsed.boolean === undefined)) {
           return {
@@ -99,13 +105,14 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
         ) {
           const items = this.searchAllDomains(ftsQuery, limit);
 
-          return {
+          const lexical = {
             items,
             page: {
               limit,
               totalKnown: items.length
             }
           };
+          return mode === "hybrid" ? this.hybridSearch(lexical, request.query, domains, limit) : lexical;
         }
 
         if (domains.has("tasks")) {
@@ -124,13 +131,14 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
           .sort((left, right) => (right.updatedAt ?? "").localeCompare(left.updatedAt ?? ""))
           .slice(0, limit);
 
-        return {
+        const lexical = {
           items: sorted,
           page: {
             limit,
             totalKnown: results.length
           }
         };
+        return mode === "hybrid" ? this.hybridSearch(lexical, request.query, domains, limit) : lexical;
       });
 
       this.timings?.record({
@@ -154,6 +162,204 @@ export class SearchLocalRepository extends ScheduledTaskBlockLocalRepository {
       });
       throw error;
     }
+  }
+
+  private hybridSearch(
+    lexical: SearchQueryResponse,
+    query: string,
+    domains: Set<SearchDomain>,
+    limit: number
+  ): SearchQueryResponse {
+    const semantic = this.semanticSearch(query, domains, limit, "hybrid");
+    const byKey = new Map<string, SearchResultItem>();
+
+    for (const item of lexical.items) {
+      byKey.set(`${item.domain}:${item.id}`, {
+        ...item,
+        matchKind: "lexical",
+        score: 1
+      });
+    }
+
+    for (const item of semantic.items) {
+      const key = `${item.domain}:${item.id}`;
+      const existing = byKey.get(key);
+      byKey.set(key, existing
+        ? {
+            ...existing,
+            score: Math.max(existing.score ?? 0, item.score ?? 0),
+            matchKind: "hybrid"
+          }
+        : item);
+    }
+
+    const items = [...byKey.values()]
+      .sort((left, right) =>
+        (right.score ?? 0) - (left.score ?? 0) ||
+        (right.updatedAt ?? "").localeCompare(left.updatedAt ?? "")
+      )
+      .slice(0, limit);
+
+    return {
+      items,
+      page: {
+        limit,
+        totalKnown: byKey.size
+      },
+      diagnostics: semantic.diagnostics
+    };
+  }
+
+  private semanticSearch(
+    query: string,
+    domains: Set<SearchDomain>,
+    limit: number,
+    mode: "semantic" | "hybrid"
+  ): SearchQueryResponse {
+    const modelId = "hcb-local-hash-384";
+    const indexedCount = this.refreshSemanticIndex(modelId);
+    const queryVector = hashedEmbedding(query);
+    const rows = this.connection.query<{
+      id: string;
+      domain: SearchDomain;
+      title: string;
+      snippet: string | null;
+      tagsJson: string | null;
+      updatedAt: string;
+      vectorJson: string;
+    }>(
+      `SELECT
+         entity_id AS id,
+         entity_kind AS domain,
+         title,
+         title AS snippet,
+         NULL AS tagsJson,
+         generated_at AS updatedAt,
+         vector_json AS vectorJson
+       FROM local_semantic_embeddings
+       WHERE model_id = ?
+         AND entity_kind IN (${[...domains].map(() => "?").join(", ")})
+       LIMIT 1000;`,
+      [modelId, ...domains]
+    );
+    const items = rows
+      .map((row) => ({
+        id: row.id,
+        domain: row.domain,
+        title: row.title,
+        snippet: row.snippet ?? undefined,
+        tags: parseStringArray(row.tagsJson),
+        updatedAt: row.updatedAt,
+        score: cosine(queryVector, parseVector(row.vectorJson)),
+        matchKind: mode
+      }))
+      .filter((item) => item.score > 0.05)
+      .sort((left, right) => (right.score ?? 0) - (left.score ?? 0))
+      .slice(0, limit);
+
+    return {
+      items,
+      page: {
+        limit,
+        totalKnown: rows.length
+      },
+      diagnostics: {
+        mode,
+        semanticEnabled: true,
+        indexedCount,
+        staleCount: 0,
+        modelId
+      }
+    };
+  }
+
+  private refreshSemanticIndex(modelId: string): number {
+    const now = new Date().toISOString();
+    const entities = this.semanticEntities();
+
+    for (const entity of entities) {
+      const textHash = sha256(entity.text);
+      const existing = this.connection.get<{ textHash: string }>(
+        `SELECT text_hash AS textHash
+         FROM local_semantic_embeddings
+         WHERE entity_kind = ? AND entity_id = ? AND model_id = ?
+         LIMIT 1;`,
+        [entity.domain, entity.id, modelId]
+      );
+
+      if (existing?.textHash === textHash) {
+        continue;
+      }
+
+      this.connection.run(
+        `INSERT INTO local_semantic_embeddings (
+           entity_kind, entity_id, title, text_hash, model_id, vector_json, generated_at, last_error
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+         ON CONFLICT(entity_kind, entity_id, model_id) DO UPDATE SET
+           title = excluded.title,
+           text_hash = excluded.text_hash,
+           vector_json = excluded.vector_json,
+           generated_at = excluded.generated_at,
+           last_error = NULL;`,
+        [
+          entity.domain,
+          entity.id,
+          entity.title,
+          textHash,
+          modelId,
+          JSON.stringify(hashedEmbedding(entity.text)),
+          now
+        ]
+      );
+    }
+
+    return this.connection.get<{ count: number }>(
+      "SELECT COUNT(*) AS count FROM local_semantic_embeddings WHERE model_id = ?;",
+      [modelId]
+    )?.count ?? 0;
+  }
+
+  private semanticEntities(): Array<{ domain: SearchDomain; id: string; title: string; text: string }> {
+    const tasks = this.connection.query<{ id: string; title: string; notes: string | null; listTitle: string }>(
+      `SELECT tasks.id, tasks.title, tasks.notes, lists.title AS listTitle
+       FROM google_tasks tasks
+       INNER JOIN google_task_lists lists ON lists.id = tasks.task_list_id
+       WHERE tasks.deleted_at IS NULL
+         AND tasks.is_hidden = 0
+         AND tasks.status != 'completed'
+         AND NOT (tasks.due_at IS NULL AND tasks.parent_task_id IS NULL);`
+    ).map((row) => ({
+      domain: "tasks" as const,
+      id: row.id,
+      title: row.title,
+      text: [row.title, row.notes ?? "", row.listTitle].join("\n")
+    }));
+    const notes = this.connection.query<{ id: string; title: string; body: string | null; listTitle: string }>(
+      `SELECT tasks.id, tasks.title, tasks.notes AS body, lists.title AS listTitle
+       FROM google_tasks tasks
+       INNER JOIN google_task_lists lists ON lists.id = tasks.task_list_id
+       WHERE ${this.notePredicate("tasks", "lists")};`
+    ).map((row) => ({
+      domain: "notes" as const,
+      id: row.id,
+      title: row.title,
+      text: [row.title, row.body ?? "", row.listTitle].join("\n")
+    }));
+    const events = this.connection.query<{ id: string; title: string; description: string | null; location: string | null; calendarTitle: string }>(
+      `SELECT events.id, events.summary AS title, events.description, events.location, calendars.summary AS calendarTitle
+       FROM google_calendar_events events
+       INNER JOIN google_calendar_lists calendars ON calendars.id = events.calendar_id
+       WHERE events.deleted_at IS NULL
+         AND events.status != 'cancelled'
+         AND calendars.deleted_at IS NULL;`
+    ).map((row) => ({
+      domain: "calendar" as const,
+      id: row.id,
+      title: row.title,
+      text: [row.title, row.description ?? "", row.location ?? "", row.calendarTitle].join("\n")
+    }));
+
+    return [...tasks, ...notes, ...events];
   }
 
   private searchAllDomains(ftsQuery: string, limit: number): SearchResultItem[] {
@@ -1037,4 +1243,50 @@ function noteBooleanItem(row: {
     body: row.body,
     tags: parseTagsJson(row.tagsJson)
   };
+}
+
+const EMBEDDING_DIMENSIONS = 384;
+
+function hashedEmbedding(text: string): number[] {
+  const vector = Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0);
+  const tokens = text
+    .toLocaleLowerCase()
+    .split(/[^a-z0-9]+/i)
+    .filter((token) => token.length > 1);
+
+  for (const token of tokens) {
+    const digest = createHash("sha256").update(token).digest();
+    const index = digest.readUInt16BE(0) % EMBEDDING_DIMENSIONS;
+    const sign = digest[2] % 2 === 0 ? 1 : -1;
+    vector[index] += sign;
+  }
+
+  const magnitude = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
+  return magnitude === 0 ? vector : vector.map((value) => value / magnitude);
+}
+
+function parseVector(value: string): number[] {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.map((entry) => typeof entry === "number" ? entry : 0).slice(0, EMBEDDING_DIMENSIONS)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function cosine(left: readonly number[], right: readonly number[]): number {
+  const length = Math.min(left.length, right.length);
+  let sum = 0;
+
+  for (let index = 0; index < length; index += 1) {
+    sum += (left[index] ?? 0) * (right[index] ?? 0);
+  }
+
+  return Math.max(0, sum);
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
 }

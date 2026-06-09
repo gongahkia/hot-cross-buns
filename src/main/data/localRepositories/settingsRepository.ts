@@ -37,6 +37,12 @@ const PORTABLE_TABLES = [
   "local_settings",
   "local_tags",
   "local_entity_tags",
+  "local_agent_actions",
+  "local_webhook_subscriptions",
+  "local_webhook_deliveries",
+  "local_semantic_embeddings",
+  "local_chat_sessions",
+  "local_chat_messages",
   "local_history_entries",
   "local_undo_entries",
   "local_search_index_state"
@@ -126,7 +132,17 @@ const DEFAULT_SETTINGS: SettingsSnapshot = {
   rawGoogleDiagnosticsEnabled: false,
   savedSearchViews: [],
   pinnedSavedSearchViewIds: [],
-  savedTaskViews: []
+  savedTaskViews: [],
+  semanticSearchEnabled: false,
+  semanticSearchMode: "lexical",
+  embeddingModelId: "hcb-local-hash-384",
+  llmEnabled: false,
+  llmProvider: "ollama",
+  llmEndpoint: "http://127.0.0.1:11434",
+  llmModel: "llama3.1",
+  llmAllowRemoteEndpoint: false,
+  agentActionTrayEnabled: true,
+  webhooksEnabled: false
 };
 
 export class LocalSettingsRepository {
@@ -438,7 +454,37 @@ export class LocalSettingsRepository {
         "tasks",
         "savedViews",
         DEFAULT_SETTINGS.savedTaskViews
-      )
+      ),
+      semanticSearchEnabled: this.readSetting(
+        "search",
+        "semanticEnabled",
+        DEFAULT_SETTINGS.semanticSearchEnabled
+      ),
+      semanticSearchMode: this.readSetting(
+        "search",
+        "semanticMode",
+        DEFAULT_SETTINGS.semanticSearchMode
+      ),
+      embeddingModelId: this.readSetting(
+        "search",
+        "embeddingModelId",
+        DEFAULT_SETTINGS.embeddingModelId
+      ),
+      llmEnabled: this.readSetting("llm", "enabled", DEFAULT_SETTINGS.llmEnabled),
+      llmProvider: this.readSetting("llm", "provider", DEFAULT_SETTINGS.llmProvider),
+      llmEndpoint: this.readSetting("llm", "endpoint", DEFAULT_SETTINGS.llmEndpoint),
+      llmModel: this.readSetting("llm", "model", DEFAULT_SETTINGS.llmModel),
+      llmAllowRemoteEndpoint: this.readSetting(
+        "llm",
+        "allowRemoteEndpoint",
+        DEFAULT_SETTINGS.llmAllowRemoteEndpoint
+      ),
+      agentActionTrayEnabled: this.readSetting(
+        "agent",
+        "actionTrayEnabled",
+        DEFAULT_SETTINGS.agentActionTrayEnabled
+      ),
+      webhooksEnabled: this.readSetting("webhooks", "enabled", DEFAULT_SETTINGS.webhooksEnabled)
       };
 
       this.cachedSnapshot = snapshot;
@@ -790,6 +836,46 @@ export class LocalSettingsRepository {
 
     if (request.savedTaskViews !== undefined) {
       this.writeSetting("tasks", "savedViews", request.savedTaskViews, now);
+    }
+
+    if (request.semanticSearchEnabled !== undefined) {
+      this.writeSetting("search", "semanticEnabled", request.semanticSearchEnabled, now);
+    }
+
+    if (request.semanticSearchMode !== undefined) {
+      this.writeSetting("search", "semanticMode", request.semanticSearchMode, now);
+    }
+
+    if (request.embeddingModelId !== undefined) {
+      this.writeSetting("search", "embeddingModelId", request.embeddingModelId, now);
+    }
+
+    if (request.llmEnabled !== undefined) {
+      this.writeSetting("llm", "enabled", request.llmEnabled, now);
+    }
+
+    if (request.llmProvider !== undefined) {
+      this.writeSetting("llm", "provider", request.llmProvider, now);
+    }
+
+    if (request.llmEndpoint !== undefined) {
+      this.writeSetting("llm", "endpoint", request.llmEndpoint, now);
+    }
+
+    if (request.llmModel !== undefined) {
+      this.writeSetting("llm", "model", request.llmModel, now);
+    }
+
+    if (request.llmAllowRemoteEndpoint !== undefined) {
+      this.writeSetting("llm", "allowRemoteEndpoint", request.llmAllowRemoteEndpoint, now);
+    }
+
+    if (request.agentActionTrayEnabled !== undefined) {
+      this.writeSetting("agent", "actionTrayEnabled", request.agentActionTrayEnabled, now);
+    }
+
+    if (request.webhooksEnabled !== undefined) {
+      this.writeSetting("webhooks", "enabled", request.webhooksEnabled, now);
     }
 
     return this.get();

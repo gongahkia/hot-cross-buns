@@ -7,12 +7,17 @@ import type {
 import { GooglePendingMutationWorker } from "../sync/mutationWorker";
 import type {
   LocalHistoryRepository,
+  LocalAgentRepository,
+  LocalChatRepository,
   LocalPlannerRepository,
   LocalSettingsRepository,
-  LocalUndoRepository
+  LocalUndoRepository,
+  LocalWebhookRepository
 } from "../data/localRepositories";
 import type { GoogleSyncRepository } from "../sync/readSyncRepository";
 import type { AppDomainServices } from "./domainInterfaces";
+import { createSqliteAgentDomainService } from "./sqliteAgentDomainService";
+import { createSqliteChatDomainService } from "./sqliteChatDomainService";
 import { createUnavailableGoogleDomainService } from "./sqliteGoogleDomainService";
 import { createMcpDomainServices } from "./sqliteMcpDomainServices";
 import {
@@ -23,6 +28,7 @@ import { createSqliteNativeDomainService } from "./sqliteNativeDomainService";
 import { createSqlitePlannerDomainService } from "./sqlitePlannerDomainService";
 import { createSqliteSettingsDomainService } from "./sqliteSettingsDomainService";
 import { createSqliteUndoDomainService } from "./sqliteUndoDomainService";
+import { createSqliteWebhookDomainService } from "./sqliteWebhookDomainService";
 import {
   LocalSyncControlService,
   noopCalendarTransport,
@@ -33,6 +39,9 @@ export interface SqliteDomainServiceOptions {
   plannerRepository: LocalPlannerRepository;
   settingsRepository: LocalSettingsRepository;
   undoRepository: LocalUndoRepository;
+  agentRepository: LocalAgentRepository;
+  chatRepository: LocalChatRepository;
+  webhookRepository: LocalWebhookRepository;
   syncRepository: GoogleSyncRepository;
   historyRepository?: LocalHistoryRepository;
   syncTasksTransport?: GoogleTasksReadTransport;
@@ -82,6 +91,13 @@ export function createSqliteDomainServices(
       mcpState,
       settingsRepository: options.settingsRepository
     }),
+    agent: createSqliteAgentDomainService(options.agentRepository),
+    webhooks: createSqliteWebhookDomainService(options.webhookRepository, options.settingsRepository),
+    chat: createSqliteChatDomainService(
+      options.chatRepository,
+      options.plannerRepository,
+      options.settingsRepository
+    ),
     native: createSqliteNativeDomainService(),
     mcpTools: createMcpDomainServices({
       plannerRepository: options.plannerRepository,

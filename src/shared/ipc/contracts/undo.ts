@@ -10,7 +10,8 @@ export const undoResourceKindSchema = z.enum([
   "calendarEvent",
   "scheduledTaskBlock",
   "note",
-  "noteList"
+  "noteList",
+  "bulk"
 ]);
 
 export const undoStackStatusResponseSchema = z

@@ -2,6 +2,7 @@ import type { JsonValue } from "@shared/domain/localData";
 import type {
   CalendarEventCreateRequest,
   CalendarEventUpdateRequest,
+  DuplicateCleanupRequest,
   NoteCreateRequest,
   NoteUpdateRequest,
   TaskCreateRequest,
@@ -39,15 +40,111 @@ export function createSqlitePlannerDomainService(
     });
   }
 
+  function recordUndoGroup(input: {
+    actionKind: string;
+    label: string;
+    resourceId: string;
+    changes: Array<{
+      actionKind: string;
+      label: string;
+      resourceKind: Parameters<LocalUndoRepository["recordChange"]>[0]["resourceKind"];
+      resourceId: string;
+      before: unknown;
+      after: unknown;
+    }>;
+  }): void {
+    undoRepository?.recordGroupChange({
+      actionKind: input.actionKind,
+      label: input.label,
+      resourceId: input.resourceId,
+      changes: input.changes.map((change) => ({
+        actionKind: change.actionKind,
+        label: change.label,
+        resourceKind: change.resourceKind,
+        resourceId: change.resourceId,
+        before: jsonValue(change.before),
+        after: jsonValue(change.after)
+      }))
+    });
+  }
+
+  function snapshotFor(kind: "task" | "event" | "note", id: string): unknown {
+    if (kind === "event") {
+      return undoRepository?.calendarEventSnapshot(id) ?? null;
+    }
+    return undoRepository?.taskSnapshot(id) ?? null;
+  }
+
+  function resourceKindFor(kind: "task" | "event" | "note") {
+    return kind === "event" ? "calendarEvent" as const : "task" as const;
+  }
+
   return {
     listTaskLists: (request) => repository.listTaskLists(request),
     listTasks: (request) => repository.listTasks(request),
     listTags: (request) => repository.listTags(request),
     createTag: (request) => repository.createTag(request),
     updateTag: (request) => repository.updateTag(request),
-    deleteTag: (request) => repository.deleteTag(request),
-    mergeTags: (request) => repository.mergeTags(request),
-    bulkApplyTags: (request) => repository.bulkApplyTags(request),
+    deleteTag: (request) => {
+      const refs = repository.tagEntityRefsForIds([request.id]);
+      const before = refs.map((ref) => ({ ref, snapshot: snapshotFor(ref.kind, ref.entityId) }));
+      const deleted = repository.deleteTag(request);
+      recordUndoGroup({
+        actionKind: "tag.delete",
+        label: "Delete tag",
+        resourceId: request.id,
+        changes: before.map(({ ref, snapshot }) => ({
+          actionKind: "tag.delete",
+          label: "Delete tag",
+          resourceKind: resourceKindFor(ref.kind),
+          resourceId: ref.entityId,
+          before: snapshot,
+          after: snapshotFor(ref.kind, ref.entityId)
+        }))
+      });
+      return deleted;
+    },
+    mergeTags: (request) => {
+      const refs = repository.tagEntityRefsForIds([request.sourceId]);
+      const before = refs.map((ref) => ({ ref, snapshot: snapshotFor(ref.kind, ref.entityId) }));
+      const merged = repository.mergeTags(request);
+      recordUndoGroup({
+        actionKind: "tag.merge",
+        label: "Merge tags",
+        resourceId: `${request.sourceId}:${request.targetId}`,
+        changes: before.map(({ ref, snapshot }) => ({
+          actionKind: "tag.merge",
+          label: "Merge tags",
+          resourceKind: resourceKindFor(ref.kind),
+          resourceId: ref.entityId,
+          before: snapshot,
+          after: snapshotFor(ref.kind, ref.entityId)
+        }))
+      });
+      return merged;
+    },
+    bulkApplyTags: (request) => {
+      const entityIds = [...new Set(request.entityIds)];
+      const before = entityIds.map((entityId) => ({
+        entityId,
+        snapshot: snapshotFor(request.entityKind, entityId)
+      }));
+      const applied = repository.bulkApplyTags(request);
+      recordUndoGroup({
+        actionKind: "tag.bulk_apply",
+        label: "Bulk apply tags",
+        resourceId: `tags:${request.entityKind}`,
+        changes: before.map(({ entityId, snapshot }) => ({
+          actionKind: "tag.bulk_apply",
+          label: "Bulk apply tags",
+          resourceKind: resourceKindFor(request.entityKind),
+          resourceId: entityId,
+          before: snapshot,
+          after: snapshotFor(request.entityKind, entityId)
+        }))
+      });
+      return applied;
+    },
     listCalendarBootstrapTasks: (request) => repository.listCalendarBootstrapTasks(request),
     getTask: (request) => repository.getTask(request.id),
     createTask: (request) => {
@@ -382,7 +479,26 @@ export function createSqlitePlannerDomainService(
     },
     suggestNoteLinks: (request) => repository.suggestLinkTargets(request),
     listBrokenNoteLinks: (request) => repository.listBrokenNoteLinks(request),
-    search: (request) => repository.search(request)
+    search: (request) => repository.search(request),
+    cleanupDuplicates: (request) => {
+      const ids = [request.winnerId, ...new Set(request.loserIds)];
+      const before = ids.map((id) => ({ id, snapshot: snapshotFor(request.kind, id) }));
+      const result = cleanupDuplicateGroup(repository, request);
+      recordUndoGroup({
+        actionKind: "duplicates.cleanup",
+        label: "Merge duplicate group",
+        resourceId: `${request.kind}:${request.winnerId}`,
+        changes: before.map(({ id, snapshot }) => ({
+          actionKind: "duplicates.cleanup",
+          label: "Merge duplicate group",
+          resourceKind: resourceKindFor(request.kind),
+          resourceId: id,
+          before: snapshot,
+          after: snapshotFor(request.kind, id)
+        }))
+      });
+      return result;
+    }
   };
 }
 
@@ -536,4 +652,87 @@ function autoTaggedEventUpdate(
   }
 
   return tagged;
+}
+
+function cleanupDuplicateGroup(
+  repository: LocalPlannerRepository,
+  request: DuplicateCleanupRequest
+) {
+  if (request.kind === "task") {
+    const tasks = [request.winnerId, ...request.loserIds].map((id) => repository.getTask(id));
+    const winner = tasks[0];
+    repository.updateTask({
+      id: request.winnerId,
+      notes: mergeText(tasks.map((task) => task.notes ?? ""), 10_000),
+      priority: highestPriority(tasks.map((task) => task.priority)),
+      tags: uniqueText(tasks.flatMap((task) => task.tags ?? [])),
+      durationMinutes: maxNullable(tasks.map((task) => task.durationMinutes ?? null)),
+      snoozeUntil: minIso(tasks.map((task) => task.snoozeUntil ?? null))
+    });
+    for (const loserId of request.loserIds) {
+      repository.deleteTask({ id: loserId });
+    }
+    return { id: winner.id, kind: request.kind, loserIds: request.loserIds, queued: true, revision: new Date().toISOString() };
+  }
+
+  if (request.kind === "event") {
+    const events = [request.winnerId, ...request.loserIds].map((id) => repository.getCalendarEvent(id));
+    const winner = events[0];
+    repository.updateCalendarEvent({
+      id: request.winnerId,
+      notes: mergeText(events.map((event) => event.notes ?? ""), 20_000),
+      guestEmails: uniqueText(events.flatMap((event) => event.guestEmails ?? [])),
+      reminderMinutes: uniqueNumbers(events.flatMap((event) => event.reminderMinutes ?? [])),
+      tags: uniqueText(events.flatMap((event) => event.tags ?? [])),
+      colorId: winner.colorId ?? events.find((event) => event.colorId)?.colorId ?? null
+    });
+    for (const loserId of request.loserIds) {
+      repository.deleteCalendarEvent({ id: loserId });
+    }
+    return { id: winner.id, kind: request.kind, loserIds: request.loserIds, queued: true, revision: new Date().toISOString() };
+  }
+
+  const notes = [request.winnerId, ...request.loserIds].map((id) => repository.getNote(id));
+  const winner = notes[0];
+  repository.updateNote({
+    id: request.winnerId,
+    body: mergeText(notes.map((note) => note.body ?? ""), 50_000),
+    tags: uniqueText(notes.flatMap((note) => note.tags ?? []))
+  });
+  for (const loserId of request.loserIds) {
+    repository.deleteNote({ id: loserId });
+  }
+  return { id: winner.id, kind: request.kind, loserIds: request.loserIds, queued: true, revision: new Date().toISOString() };
+}
+
+function mergeText(values: readonly string[], maxLength: number): string {
+  const merged = values
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value, index, all) => all.indexOf(value) === index)
+    .join("\n\n--- merged duplicate ---\n\n");
+  return merged.length <= maxLength ? merged : merged.slice(0, maxLength);
+}
+
+function uniqueText(values: readonly string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+function uniqueNumbers(values: readonly number[]): number[] {
+  return [...new Set(values)].sort((left, right) => left - right);
+}
+
+function maxNullable(values: ReadonlyArray<number | null>): number | null {
+  const numbers = values.filter((value): value is number => typeof value === "number" && value >= 0);
+  return numbers.length === 0 ? null : Math.max(...numbers);
+}
+
+function minIso(values: ReadonlyArray<string | null>): string | null {
+  const dates = values.filter((value): value is string => Boolean(value));
+  return dates.length === 0 ? null : dates.sort()[0] ?? null;
+}
+
+function highestPriority(values: readonly NonNullable<ReturnType<LocalPlannerRepository["getTask"]>["priority"]>[]) {
+  const order = { none: 0, low: 1, medium: 2, high: 3 };
+  return values.reduce((best, value) => order[value] > order[best] ? value : best, "none" as const);
 }

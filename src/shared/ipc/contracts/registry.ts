@@ -10,6 +10,16 @@ import {
   type IpcContract
 } from "./core";
 import {
+  agentActionApplyRequestSchema,
+  agentActionApplyResponseSchema,
+  agentActionClearExpiredRequestSchema,
+  agentActionClearExpiredResponseSchema,
+  agentActionListRequestSchema,
+  agentActionListResponseSchema,
+  agentActionRejectRequestSchema,
+  agentActionRejectResponseSchema
+} from "./agent";
+import {
   calendarEventCreateRequestSchema,
   calendarEventDeleteRequestSchema,
   calendarEventCompletionRequestSchema,
@@ -30,6 +40,18 @@ import {
   scheduledTaskBlockSummarySchema,
   scheduledTaskBlockUnscheduleRequestSchema
 } from "./calendar";
+import {
+  chatClearRequestSchema,
+  chatClearResponseSchema,
+  chatListMessagesRequestSchema,
+  chatListMessagesResponseSchema,
+  chatListSessionsRequestSchema,
+  chatListSessionsResponseSchema,
+  chatProviderHealthRequestSchema,
+  chatProviderHealthResponseSchema,
+  chatSendRequestSchema,
+  chatSendResponseSchema
+} from "./chat";
 import {
   diagnosticsCachedDataRenderedRequestSchema,
   diagnosticsClearLogsRequestSchema,
@@ -63,6 +85,10 @@ import {
   diagnosticsSummaryResponseSchema,
   startupTimingSnapshotSchema
 } from "./diagnostics";
+import {
+  duplicateCleanupRequestSchema,
+  duplicateCleanupResponseSchema
+} from "./duplicates";
 import {
   googleBeginOAuthRequestSchema,
   googleBeginOAuthResponseSchema,
@@ -127,6 +153,14 @@ import {
   syncStatusRequestSchema,
   syncStatusResponseSchema
 } from "./sync";
+import {
+  webhookDeleteRequestSchema,
+  webhookListRequestSchema,
+  webhookListResponseSchema,
+  webhookMutationResponseSchema,
+  webhookTestRequestSchema,
+  webhookUpsertRequestSchema
+} from "./webhooks";
 import {
   undoApplyResponseSchema,
   undoRequestSchema,
@@ -308,12 +342,74 @@ export const ipcContracts = {
     merge: defineIpcContract("tags", "merge", tagMergeRequestSchema, tagMutationResponseSchema),
     bulkApply: defineIpcContract("tags", "bulkApply", tagBulkApplyRequestSchema, tagMutationResponseSchema)
   },
+  duplicates: {
+    cleanup: defineIpcContract(
+      "duplicates",
+      "cleanup",
+      duplicateCleanupRequestSchema,
+      duplicateCleanupResponseSchema
+    )
+  },
   search: {
     query: defineIpcContract(
       "search",
       "query",
       searchQueryRequestSchema,
       searchQueryResponseSchema
+    )
+  },
+  agent: {
+    listActions: defineIpcContract(
+      "agent",
+      "listActions",
+      agentActionListRequestSchema,
+      agentActionListResponseSchema
+    ),
+    applyAction: defineIpcContract(
+      "agent",
+      "applyAction",
+      agentActionApplyRequestSchema,
+      agentActionApplyResponseSchema
+    ),
+    rejectAction: defineIpcContract(
+      "agent",
+      "rejectAction",
+      agentActionRejectRequestSchema,
+      agentActionRejectResponseSchema
+    ),
+    clearExpired: defineIpcContract(
+      "agent",
+      "clearExpired",
+      agentActionClearExpiredRequestSchema,
+      agentActionClearExpiredResponseSchema
+    )
+  },
+  webhooks: {
+    list: defineIpcContract("webhooks", "list", webhookListRequestSchema, webhookListResponseSchema),
+    upsert: defineIpcContract("webhooks", "upsert", webhookUpsertRequestSchema, webhookMutationResponseSchema),
+    delete: defineIpcContract("webhooks", "delete", webhookDeleteRequestSchema, webhookMutationResponseSchema),
+    test: defineIpcContract("webhooks", "test", webhookTestRequestSchema, webhookMutationResponseSchema)
+  },
+  chat: {
+    listSessions: defineIpcContract(
+      "chat",
+      "listSessions",
+      chatListSessionsRequestSchema,
+      chatListSessionsResponseSchema
+    ),
+    listMessages: defineIpcContract(
+      "chat",
+      "listMessages",
+      chatListMessagesRequestSchema,
+      chatListMessagesResponseSchema
+    ),
+    send: defineIpcContract("chat", "send", chatSendRequestSchema, chatSendResponseSchema),
+    clear: defineIpcContract("chat", "clear", chatClearRequestSchema, chatClearResponseSchema),
+    providerHealth: defineIpcContract(
+      "chat",
+      "providerHealth",
+      chatProviderHealthRequestSchema,
+      chatProviderHealthResponseSchema
     )
   },
   sync: {

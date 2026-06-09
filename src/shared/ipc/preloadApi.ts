@@ -3,6 +3,13 @@ import type {
   AvailabilityExportResponse,
   BootstrapGetRequest,
   BootstrapGetResponse,
+  AgentActionApplyRequest,
+  AgentActionApplyResponse,
+  AgentActionClearExpiredResponse,
+  AgentActionListRequest,
+  AgentActionListResponse,
+  AgentActionRejectRequest,
+  AgentActionRejectResponse,
   CalendarRangeRequest,
   CalendarRangeResponse,
   CalendarScheduleSuggestRequest,
@@ -14,6 +21,15 @@ import type {
   CalendarEventUpdateRequest,
   CalendarListRequest,
   CalendarListResponse,
+  ChatClearRequest,
+  ChatClearResponse,
+  ChatListMessagesRequest,
+  ChatListMessagesResponse,
+  ChatListSessionsRequest,
+  ChatListSessionsResponse,
+  ChatProviderHealthResponse,
+  ChatSendRequest,
+  ChatSendResponse,
   DiagnosticsCachedDataRenderedRequest,
   DiagnosticsClearLogsResponse,
   DiagnosticsCopyableSummaryResponse,
@@ -35,6 +51,8 @@ import type {
   DiagnosticsRescheduleNotificationsResponse,
   DiagnosticsRevealLogsFolderResponse,
   DiagnosticsSummaryResponse,
+  DuplicateCleanupRequest,
+  DuplicateCleanupResponse,
   DiagnosticsShellVisibleRequest,
   EntityByIdRequest,
   GoogleBeginOAuthResponse,
@@ -108,7 +126,13 @@ import type {
   TaskMoveRequest,
   TaskListRequest,
   TaskListResponse,
-  TaskUpdateRequest
+  TaskUpdateRequest,
+  WebhookDeleteRequest,
+  WebhookListRequest,
+  WebhookListResponse,
+  WebhookMutationResponse,
+  WebhookTestRequest,
+  WebhookUpsertRequest
 } from "./contracts";
 import type { HcbResult } from "./result";
 
@@ -181,6 +205,9 @@ export interface HcbApi {
     merge: (request: TagMergeRequest) => Promise<HcbResult<TagMutationResponse>>;
     bulkApply: (request: TagBulkApplyRequest) => Promise<HcbResult<TagMutationResponse>>;
   };
+  duplicates: {
+    cleanup: (request: DuplicateCleanupRequest) => Promise<HcbResult<DuplicateCleanupResponse>>;
+  };
   sync: {
     status: () => Promise<HcbResult<SyncStatusResponse>>;
     runNow: (request?: SyncRunNowRequest) => Promise<HcbResult<SyncRunNowResponse>>;
@@ -216,6 +243,25 @@ export interface HcbApi {
   mcp: {
     status: () => Promise<HcbResult<McpStatusResponse>>;
     setEnabled: (request: McpSetEnabledRequest) => Promise<HcbResult<McpStatusResponse>>;
+  };
+  agent: {
+    listActions: (request?: AgentActionListRequest) => Promise<HcbResult<AgentActionListResponse>>;
+    applyAction: (request: AgentActionApplyRequest) => Promise<HcbResult<AgentActionApplyResponse>>;
+    rejectAction: (request: AgentActionRejectRequest) => Promise<HcbResult<AgentActionRejectResponse>>;
+    clearExpired: () => Promise<HcbResult<AgentActionClearExpiredResponse>>;
+  };
+  webhooks: {
+    list: (request?: WebhookListRequest) => Promise<HcbResult<WebhookListResponse>>;
+    upsert: (request: WebhookUpsertRequest) => Promise<HcbResult<WebhookMutationResponse>>;
+    delete: (request: WebhookDeleteRequest) => Promise<HcbResult<WebhookMutationResponse>>;
+    test: (request: WebhookTestRequest) => Promise<HcbResult<WebhookMutationResponse>>;
+  };
+  chat: {
+    listSessions: (request?: ChatListSessionsRequest) => Promise<HcbResult<ChatListSessionsResponse>>;
+    listMessages: (request: ChatListMessagesRequest) => Promise<HcbResult<ChatListMessagesResponse>>;
+    send: (request: ChatSendRequest) => Promise<HcbResult<ChatSendResponse>>;
+    clear: (request?: ChatClearRequest) => Promise<HcbResult<ChatClearResponse>>;
+    providerHealth: () => Promise<HcbResult<ChatProviderHealthResponse>>;
   };
   native: {
     capabilities: () => Promise<HcbResult<NativeCapabilitiesResponse>>;

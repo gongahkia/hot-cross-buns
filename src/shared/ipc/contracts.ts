@@ -127,6 +127,65 @@ export {
 } from "./contracts/calendar";
 
 export {
+  agentActionApplyRequestSchema,
+  agentActionApplyResponseSchema,
+  agentActionClearExpiredRequestSchema,
+  agentActionClearExpiredResponseSchema,
+  agentActionListRequestSchema,
+  agentActionListResponseSchema,
+  agentActionRejectRequestSchema,
+  agentActionRejectResponseSchema,
+  agentActionStatusSchema,
+  agentActionSummarySchema,
+  type AgentActionApplyRequest,
+  type AgentActionApplyResponse,
+  type AgentActionClearExpiredResponse,
+  type AgentActionListRequest,
+  type AgentActionListResponse,
+  type AgentActionRejectRequest,
+  type AgentActionRejectResponse,
+  type AgentActionStatus,
+  type AgentActionSummary
+} from "./contracts/agent";
+
+export {
+  chatClearRequestSchema,
+  chatClearResponseSchema,
+  chatListMessagesRequestSchema,
+  chatListMessagesResponseSchema,
+  chatListSessionsRequestSchema,
+  chatListSessionsResponseSchema,
+  chatMessageSchema,
+  chatProviderHealthRequestSchema,
+  chatProviderHealthResponseSchema,
+  chatRoleSchema,
+  chatSendRequestSchema,
+  chatSendResponseSchema,
+  chatSessionSchema,
+  type ChatClearRequest,
+  type ChatClearResponse,
+  type ChatListMessagesRequest,
+  type ChatListMessagesResponse,
+  type ChatListSessionsRequest,
+  type ChatListSessionsResponse,
+  type ChatMessage,
+  type ChatProviderHealthResponse,
+  type ChatRole,
+  type ChatSendRequest,
+  type ChatSendResponse,
+  type ChatSession
+} from "./contracts/chat";
+
+export {
+  duplicateCleanupRequestSchema,
+  duplicateCleanupResponseSchema,
+  duplicateEntityKindSchema,
+  type DuplicateCleanupRequest,
+  type DuplicateCleanupResponse,
+  type DuplicateEntityKind
+} from "./contracts/duplicates";
+
+export {
   noteBrokenLinksRequestSchema,
   noteBrokenLinksResponseSchema,
   noteCreateRequestSchema,
@@ -161,6 +220,7 @@ export {
 
 export {
   searchDomainSchema,
+  searchModeSchema,
   searchQueryRequestSchema,
   searchQueryResponseSchema,
   searchResultItemSchema,
@@ -202,6 +262,25 @@ export {
   type SyncRunNowResponse,
   type SyncStatusResponse
 } from "./contracts/sync";
+
+export {
+  webhookDeleteRequestSchema,
+  webhookEventSchema,
+  webhookListRequestSchema,
+  webhookListResponseSchema,
+  webhookMutationResponseSchema,
+  webhookSubscriptionSchema,
+  webhookTestRequestSchema,
+  webhookUpsertRequestSchema,
+  type WebhookDeleteRequest,
+  type WebhookEvent,
+  type WebhookListRequest,
+  type WebhookListResponse,
+  type WebhookMutationResponse,
+  type WebhookSubscription,
+  type WebhookTestRequest,
+  type WebhookUpsertRequest
+} from "./contracts/webhooks";
 
 export {
   undoApplyResponseSchema,
@@ -273,6 +352,8 @@ export {
   settingsRecoveryActionSchema,
   settingsSnapshotSchema,
   settingsUpdateRequestSchema,
+  semanticSearchModeSettingSchema,
+  llmProviderSchema,
   syncModeSchema,
   taskTemplateSchema,
   toolbarActionSchema,

@@ -6,10 +6,13 @@ import { MacOsKeychainSecretStore, UnsupportedSecretStore, type SecretStore } fr
 import { runLocalDataMigrations, type MigrationResult } from "../data/migrations";
 import {
   LocalHistoryRepository,
+  LocalAgentRepository,
+  LocalChatRepository,
   LocalPerformanceRepository,
   LocalPlannerRepository,
   LocalSettingsRepository,
-  LocalUndoRepository
+  LocalUndoRepository,
+  LocalWebhookRepository
 } from "../data/localRepositories";
 import {
   GoogleCalendarHttpAdapter,
@@ -26,6 +29,7 @@ import { RepositoryGoogleOAuthAccountStatusStore } from "../google/accountStatus
 import { GoogleRuntimeService } from "../google/runtimeService";
 import { LocalMcpServerController } from "../mcp/controller";
 import { KeychainMcpCredentialAdapter } from "../mcp/keychainCredentials";
+import { McpConfirmationStore } from "../mcp/confirmationStore";
 import { McpToolRegistry } from "../mcp/toolRegistry";
 import { createNoopNativeAdapter } from "../native/noopAdapter";
 import { NativeShellService } from "../native/service";
@@ -41,6 +45,7 @@ import type {
 import { markStartupTiming } from "../startupTiming";
 import type { AppDomainServices } from "./domainInterfaces";
 import { createSqliteDomainServices } from "./sqliteDomainServices";
+import { createSqliteAgentDomainService } from "./sqliteAgentDomainService";
 
 export interface LocalDataService {
   status: "ready";
@@ -51,6 +56,9 @@ export interface LocalDataService {
   syncRepository: GoogleSyncRepository;
   historyRepository: LocalHistoryRepository;
   undoRepository: LocalUndoRepository;
+  agentRepository: LocalAgentRepository;
+  chatRepository: LocalChatRepository;
+  webhookRepository: LocalWebhookRepository;
   performanceRepository: LocalPerformanceRepository;
 }
 
@@ -106,6 +114,9 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
   const performanceRepository = new LocalPerformanceRepository(connection);
   const historyRepository = new LocalHistoryRepository(connection);
   const undoRepository = new LocalUndoRepository(connection);
+  const agentRepository = new LocalAgentRepository(connection);
+  const chatRepository = new LocalChatRepository(connection);
+  const webhookRepository = new LocalWebhookRepository(connection);
   const plannerRepository = new LocalPlannerRepository(connection, performanceRepository);
   const settingsRepository = new LocalSettingsRepository(connection);
   const syncRepository = new GoogleSyncRepository(connection, { defaultTimeZone });
@@ -140,6 +151,9 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
     plannerRepository,
     settingsRepository,
     undoRepository,
+    agentRepository,
+    chatRepository,
+    webhookRepository,
     syncRepository,
     historyRepository,
     syncTasksTransport: options.syncTasksTransport ?? runtimeTasksTransport,
@@ -167,7 +181,10 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
         loopback: googleLoopback
       })
     : undefined;
-  const mcpToolRegistry = new McpToolRegistry(sqliteDomain.mcpTools);
+  const mcpToolRegistry = new McpToolRegistry(
+    sqliteDomain.mcpTools,
+    new McpConfirmationStore({ repository: agentRepository })
+  );
   const mcpController = new LocalMcpServerController({
     credentialAdapter: new KeychainMcpCredentialAdapter(secretStore),
     toolRegistry: mcpToolRegistry,
@@ -233,6 +250,9 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
         return mcpController.status(status);
       }
     },
+    agent: createSqliteAgentDomainService(agentRepository, mcpToolRegistry),
+    webhooks: sqliteDomain.webhooks,
+    chat: sqliteDomain.chat,
     native: nativeShell
   };
   mcpToolRegistry.setAdminServices({
@@ -267,6 +287,9 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
       syncRepository,
       historyRepository,
       undoRepository,
+      agentRepository,
+      chatRepository,
+      webhookRepository,
       performanceRepository
     },
     performance: performanceRepository,

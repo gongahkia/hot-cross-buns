@@ -191,6 +191,16 @@ export function testSettings(overrides: Partial<SettingsSnapshot> = {}): Setting
     savedSearchViews: [],
     pinnedSavedSearchViewIds: [],
     savedTaskViews: [],
+    semanticSearchEnabled: false,
+    semanticSearchMode: "lexical",
+    embeddingModelId: "hcb-local-hash-384",
+    llmEnabled: false,
+    llmProvider: "ollama",
+    llmEndpoint: "http://127.0.0.1:11434",
+    llmModel: "llama3.1",
+    llmAllowRemoteEndpoint: false,
+    agentActionTrayEnabled: true,
+    webhooksEnabled: false,
     ...overrides
   };
 }
@@ -903,6 +913,17 @@ export function seededHcb(): HcbApi {
       merge: vi.fn(async (request) => ok({ id: request.targetId, queued: false, revision: now })),
       bulkApply: vi.fn(async () => ok({ id: "bulk-tags", queued: false, revision: now }))
     },
+    duplicates: {
+      cleanup: vi.fn(async (request) =>
+        ok({
+          id: request.winnerId,
+          kind: request.kind,
+          loserIds: request.loserIds,
+          queued: true,
+          revision: now
+        })
+      )
+    },
     search: {
       query: vi.fn(async (request) => {
         const query = request.query.toLowerCase();
@@ -965,6 +986,104 @@ export function seededHcb(): HcbApi {
       status: vi.fn(async () => ok({ canUndo: false, canRedo: false })),
       undo: vi.fn(async () => ok({ action: "undo" as const, applied: false })),
       redo: vi.fn(async () => ok({ action: "redo" as const, applied: false }))
+    },
+    agent: {
+      listActions: vi.fn(async () => ok({ items: [], page: { limit: 50, totalKnown: 0 } })),
+      applyAction: vi.fn(async (request) =>
+        ok({
+          action: {
+            id: request.id,
+            status: "applied" as const,
+            toolName: "hcb_create_task",
+            summary: "Applied",
+            createdAt: now,
+            expiresAt: now,
+            updatedAt: now,
+            appliedAt: now,
+            errorMessage: null
+          }
+        })
+      ),
+      rejectAction: vi.fn(async (request) =>
+        ok({
+          action: {
+            id: request.id,
+            status: "rejected" as const,
+            toolName: "hcb_create_task",
+            summary: "Rejected",
+            createdAt: now,
+            expiresAt: now,
+            updatedAt: now,
+            appliedAt: null,
+            errorMessage: null
+          }
+        })
+      ),
+      clearExpired: vi.fn(async () => ok({ cleared: 0 }))
+    },
+    webhooks: {
+      list: vi.fn(async () => ok({ items: [], page: { limit: 50, totalKnown: 0 } })),
+      upsert: vi.fn(async (request) =>
+        ok({
+          id: request.id ?? "webhook:test",
+          queued: false,
+          revision: now,
+          subscription: {
+            id: request.id ?? "webhook:test",
+            url: request.url,
+            events: request.events,
+            enabled: request.enabled,
+            includePrivateBodies: request.includePrivateBodies ?? false,
+            createdAt: now,
+            updatedAt: now,
+            lastDeliveryAt: null,
+            lastError: null
+          }
+        })
+      ),
+      delete: vi.fn(async (request) => ok({ id: request.id, queued: false, revision: now })),
+      test: vi.fn(async (request) => ok({ id: request.id, queued: false, revision: now }))
+    },
+    chat: {
+      listSessions: vi.fn(async () => ok({ items: [], page: { limit: 50, totalKnown: 0 } })),
+      listMessages: vi.fn(async () => ok({ items: [], page: { limit: 50, totalKnown: 0 } })),
+      send: vi.fn(async (request) =>
+        ok({
+          session: {
+            id: request.sessionId ?? "chat:test",
+            title: request.message,
+            createdAt: now,
+            updatedAt: now
+          },
+          userMessage: {
+            id: "chat:user",
+            sessionId: request.sessionId ?? "chat:test",
+            role: "user" as const,
+            content: request.message,
+            createdAt: now
+          },
+          assistantMessage: {
+            id: "chat:assistant",
+            sessionId: request.sessionId ?? "chat:test",
+            role: "assistant" as const,
+            content: "Test answer",
+            createdAt: now
+          },
+          provider: "test",
+          proposedActionIds: []
+        })
+      ),
+      clear: vi.fn(async () => ok({ cleared: 0 })),
+      providerHealth: vi.fn(async () =>
+        ok({
+          enabled: false,
+          provider: "test",
+          endpoint: null,
+          remoteAllowed: false,
+          ok: true,
+          message: "Test provider"
+        })
+      )
     }
   };
 

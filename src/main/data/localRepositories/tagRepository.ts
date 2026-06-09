@@ -32,6 +32,7 @@ interface TagRow extends Record<string, unknown> {
 }
 
 type TagEntityKind = "task" | "event" | "note";
+export type TagEntityRef = { kind: TagEntityKind; entityId: string };
 
 export class TagLocalRepository extends SearchLocalRepository {
   listTags(request: TagListRequest): TagListResponse {
@@ -253,6 +254,19 @@ export class TagLocalRepository extends SearchLocalRepository {
     });
   }
 
+  tagEntityRefsForIds(tagIds: readonly string[]): TagEntityRef[] {
+    const ids = [...new Set(tagIds)].filter((id) => id.length > 0);
+    if (ids.length === 0) {
+      return [];
+    }
+    return this.connection.query<{ kind: TagEntityKind; entityId: string }>(
+      `SELECT DISTINCT entity_kind AS kind, entity_id AS entityId
+       FROM local_entity_tags
+       WHERE tag_id IN (${ids.map(() => "?").join(", ")});`,
+      ids
+    );
+  }
+
   private requireTag(id: string): TagSummary {
     return tagSummary(this.requireTagRow(id));
   }
@@ -307,7 +321,7 @@ export class TagLocalRepository extends SearchLocalRepository {
     });
   }
 
-  private entityRefs(tagId: string): Array<{ kind: TagEntityKind; entityId: string }> {
+  private entityRefs(tagId: string): TagEntityRef[] {
     return this.connection.query<{ kind: TagEntityKind; entityId: string }>(
       `SELECT entity_kind AS kind, entity_id AS entityId
        FROM local_entity_tags

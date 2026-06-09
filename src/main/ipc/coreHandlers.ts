@@ -5,6 +5,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   ipcContracts,
+  type AgentActionApplyRequest,
+  type AgentActionListRequest,
+  type AgentActionRejectRequest,
   type AvailabilityExportRequest,
   type BootstrapGetRequest,
   type CalendarEventCompletionRequest,
@@ -14,6 +17,11 @@ import {
   type CalendarEventUpdateRequest,
   type CalendarRangeRequest,
   type CalendarScheduleSuggestRequest,
+  type ChatClearRequest,
+  type ChatListMessagesRequest,
+  type ChatListSessionsRequest,
+  type ChatSendRequest,
+  type DuplicateCleanupRequest,
   type EntityByIdRequest,
   type GoogleDisconnectRequest,
   type GoogleStatusResponse,
@@ -61,7 +69,11 @@ import {
   type TagListRequest,
   type TagMergeRequest,
   type TagUpdateRequest,
-  type UndoStackStatusResponse
+  type UndoStackStatusResponse,
+  type WebhookDeleteRequest,
+  type WebhookListRequest,
+  type WebhookTestRequest,
+  type WebhookUpsertRequest
 } from "@shared/ipc/contracts";
 import { appLogger } from "../diagnostics/appLogger";
 import type { AppDomainServices } from "../services/domainInterfaces";
@@ -109,9 +121,15 @@ export function createCoreIpcHandlers(
     },
     {
       contract: ipcContracts.tasks.create,
-      handle: withMutationDrain((request) =>
-        services.planner.createTask(request as TaskCreateRequest)
-      )
+      handle: withMutationDrain(async (request) => {
+        const task = await services.planner.createTask(request as TaskCreateRequest);
+        void services.webhooks.emit("task.created", {
+          id: task.id,
+          title: task.title,
+          listId: task.listId
+        });
+        return task;
+      })
     },
     {
       contract: ipcContracts.tasks.update,
@@ -121,9 +139,15 @@ export function createCoreIpcHandlers(
     },
     {
       contract: ipcContracts.tasks.complete,
-      handle: withMutationDrain((request) =>
-        services.planner.completeTask(request as TaskCompletionRequest)
-      )
+      handle: withMutationDrain(async (request) => {
+        const task = await services.planner.completeTask(request as TaskCompletionRequest);
+        void services.webhooks.emit("task.completed", {
+          id: task.id,
+          title: task.title,
+          listId: task.listId
+        });
+        return task;
+      })
     },
     {
       contract: ipcContracts.tasks.reopen,
@@ -309,8 +333,68 @@ export function createCoreIpcHandlers(
       handle: (request) => services.planner.bulkApplyTags(request as TagBulkApplyRequest)
     },
     {
+      contract: ipcContracts.duplicates.cleanup,
+      handle: withMutationDrain((request) =>
+        services.planner.cleanupDuplicates(request as DuplicateCleanupRequest)
+      )
+    },
+    {
       contract: ipcContracts.search.query,
       handle: (request) => services.planner.search(request as SearchQueryRequest)
+    },
+    {
+      contract: ipcContracts.agent.listActions,
+      handle: (request) => services.agent.listActions(request as AgentActionListRequest)
+    },
+    {
+      contract: ipcContracts.agent.applyAction,
+      handle: withMutationDrain((request) =>
+        services.agent.applyAction(request as AgentActionApplyRequest)
+      )
+    },
+    {
+      contract: ipcContracts.agent.rejectAction,
+      handle: (request) => services.agent.rejectAction(request as AgentActionRejectRequest)
+    },
+    {
+      contract: ipcContracts.agent.clearExpired,
+      handle: () => services.agent.clearExpired()
+    },
+    {
+      contract: ipcContracts.webhooks.list,
+      handle: (request) => services.webhooks.list(request as WebhookListRequest)
+    },
+    {
+      contract: ipcContracts.webhooks.upsert,
+      handle: (request) => services.webhooks.upsert(request as WebhookUpsertRequest)
+    },
+    {
+      contract: ipcContracts.webhooks.delete,
+      handle: (request) => services.webhooks.delete(request as WebhookDeleteRequest)
+    },
+    {
+      contract: ipcContracts.webhooks.test,
+      handle: (request) => services.webhooks.test(request as WebhookTestRequest)
+    },
+    {
+      contract: ipcContracts.chat.listSessions,
+      handle: (request) => services.chat.listSessions(request as ChatListSessionsRequest)
+    },
+    {
+      contract: ipcContracts.chat.listMessages,
+      handle: (request) => services.chat.listMessages(request as ChatListMessagesRequest)
+    },
+    {
+      contract: ipcContracts.chat.send,
+      handle: (request) => services.chat.send(request as ChatSendRequest)
+    },
+    {
+      contract: ipcContracts.chat.clear,
+      handle: (request) => services.chat.clear(request as ChatClearRequest)
+    },
+    {
+      contract: ipcContracts.chat.providerHealth,
+      handle: () => services.chat.providerHealth()
     },
     {
       contract: ipcContracts.sync.status,
@@ -318,7 +402,15 @@ export function createCoreIpcHandlers(
     },
     {
       contract: ipcContracts.sync.runNow,
-      handle: (request) => services.sync.runNow(request as SyncRunNowRequest)
+      handle: async (request) => {
+        const result = await services.sync.runNow(request as SyncRunNowRequest);
+        void services.webhooks.emit("sync.completed", {
+          resources: result.resources,
+          drainOnly: result.drainOnly,
+          dryRun: result.dryRun
+        });
+        return result;
+      }
     },
     {
       contract: ipcContracts.google.status,

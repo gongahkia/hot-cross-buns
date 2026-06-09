@@ -274,6 +274,10 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
       bulkApply: (request) =>
         invokeContract(ipc, ipcContracts.tags.bulkApply, request, "Tag bulk apply request failed")
     },
+    duplicates: {
+      cleanup: (request) =>
+        invokeContract(ipc, ipcContracts.duplicates.cleanup, request, "Duplicate cleanup request failed")
+    },
     sync: {
       status: () => invokeContract(ipc, ipcContracts.sync.status, {}, "Sync status failed"),
       runNow: (request = {}) =>
@@ -354,6 +358,38 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
       status: () => invokeContract(ipc, ipcContracts.mcp.status, {}, "MCP status failed"),
       setEnabled: (request) =>
         invokeContract(ipc, ipcContracts.mcp.setEnabled, request, "MCP settings update failed")
+    },
+    agent: {
+      listActions: (request = {}) =>
+        invokeContract(ipc, ipcContracts.agent.listActions, request, "Agent action list request failed"),
+      applyAction: (request) =>
+        invokeContract(ipc, ipcContracts.agent.applyAction, request, "Agent action apply failed"),
+      rejectAction: (request) =>
+        invokeContract(ipc, ipcContracts.agent.rejectAction, request, "Agent action reject failed"),
+      clearExpired: () =>
+        invokeContract(ipc, ipcContracts.agent.clearExpired, {}, "Agent action cleanup failed")
+    },
+    webhooks: {
+      list: (request = {}) =>
+        invokeContract(ipc, ipcContracts.webhooks.list, request, "Webhook list request failed"),
+      upsert: (request) =>
+        invokeContract(ipc, ipcContracts.webhooks.upsert, request, "Webhook save request failed"),
+      delete: (request) =>
+        invokeContract(ipc, ipcContracts.webhooks.delete, request, "Webhook delete request failed"),
+      test: (request) =>
+        invokeContract(ipc, ipcContracts.webhooks.test, request, "Webhook test request failed")
+    },
+    chat: {
+      listSessions: (request = {}) =>
+        invokeContract(ipc, ipcContracts.chat.listSessions, request, "Chat session list request failed"),
+      listMessages: (request) =>
+        invokeContract(ipc, ipcContracts.chat.listMessages, request, "Chat message list request failed"),
+      send: (request) =>
+        invokeContract(ipc, ipcContracts.chat.send, request, "Chat send request failed"),
+      clear: (request = {}) =>
+        invokeContract(ipc, ipcContracts.chat.clear, request, "Chat clear request failed"),
+      providerHealth: () =>
+        invokeContract(ipc, ipcContracts.chat.providerHealth, {}, "Chat provider health request failed")
     },
     native: {
       capabilities: () =>

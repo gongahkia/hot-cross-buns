@@ -27,7 +27,7 @@ interface UndoEntryRow extends Record<string, unknown> {
   createdAt: string;
 }
 
-interface UndoPayload {
+interface UndoSinglePayload {
   version: 1;
   actionKind: string;
   resourceKind: UndoResourceKind;
@@ -35,6 +35,16 @@ interface UndoPayload {
   target: JsonValue;
   opposite: JsonValue;
 }
+
+interface UndoGroupPayload {
+  version: 2;
+  actionKind: string;
+  resourceKind: "bulk";
+  resourceId: string;
+  changes: UndoSinglePayload[];
+}
+
+type UndoPayload = UndoSinglePayload | UndoGroupPayload;
 
 interface TaskSnapshot extends Record<string, JsonValue> {
   id: string;
@@ -207,6 +217,61 @@ export class LocalUndoRepository {
           input.actionKind,
           input.label,
           input.resourceKind,
+          input.resourceId,
+          JSON.stringify(undoPayload),
+          JSON.stringify(redoPayload),
+          now
+        ]
+      },
+      ...this.cleanupOperations(now)
+    ]);
+  }
+
+  recordGroupChange(input: {
+    actionKind: string;
+    label: string;
+    resourceId: string;
+    changes: UndoChangeInput[];
+  }): void {
+    const changes = input.changes.filter((change) => JSON.stringify(change.before) !== JSON.stringify(change.after));
+
+    if (changes.length === 0) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const undoPayload: UndoGroupPayload = {
+      version: 2,
+      actionKind: input.actionKind,
+      resourceKind: "bulk",
+      resourceId: input.resourceId,
+      changes: changes.map((change) => payloadFromChange(change, change.before, change.after))
+    };
+    const redoPayload: UndoGroupPayload = {
+      version: 2,
+      actionKind: input.actionKind,
+      resourceKind: "bulk",
+      resourceId: input.resourceId,
+      changes: changes.map((change) => payloadFromChange(change, change.after, change.before))
+    };
+
+    this.connection.executeTransaction([
+      {
+        kind: "run",
+        sql: "DELETE FROM local_undo_entries WHERE session_id = ? AND stack = 'redo';",
+        params: [this.sessionId]
+      },
+      {
+        kind: "run",
+        sql: `INSERT INTO local_undo_entries (
+          id, session_id, stack, action_kind, label, resource_kind, resource_id,
+          undo_payload_json, redo_payload_json, created_at, applied_at
+        ) VALUES (?, ?, 'undo', ?, ?, 'bulk', ?, ?, ?, ?, NULL);`,
+        params: [
+          `undo:${Date.parse(now)}:${randomUUID()}`,
+          this.sessionId,
+          input.actionKind,
+          input.label,
           input.resourceId,
           JSON.stringify(undoPayload),
           JSON.stringify(redoPayload),
@@ -481,6 +546,10 @@ export class LocalUndoRepository {
   }
 
   private operationsForPayload(payload: UndoPayload, now: string): SqliteWriteOperation[] {
+    if (payload.version === 2) {
+      return payload.changes.flatMap((change) => this.operationsForPayload(change, now));
+    }
+
     switch (payload.resourceKind) {
       case "task":
         return taskOperations(
@@ -512,6 +581,13 @@ export class LocalUndoRepository {
   }
 
   private assertNoConflict(payload: UndoPayload, stack: UndoStack): void {
+    if (payload.version === 2) {
+      for (const change of payload.changes) {
+        this.assertNoConflict(change, stack);
+      }
+      return;
+    }
+
     const current = conflictFingerprint(
       payload.resourceKind,
       payload.actionKind,
@@ -536,6 +612,10 @@ export class LocalUndoRepository {
   }
 
   private currentSnapshot(payload: UndoPayload): JsonValue {
+    if (payload.version === 2) {
+      return null;
+    }
+
     switch (payload.resourceKind) {
       case "task":
         return this.taskSnapshot(payload.resourceId);
@@ -605,7 +685,7 @@ function payloadFromChange(input: UndoChangeInput, target: JsonValue, opposite: 
 function parsePayload(value: string): UndoPayload {
   const parsed = JSON.parse(value) as UndoPayload;
 
-  if (parsed.version !== 1) {
+  if (parsed.version !== 1 && parsed.version !== 2) {
     throw new HcbPublicError({
       code: "VALIDATION_ERROR",
       message: "Undo entry version is unsupported.",
@@ -768,10 +848,18 @@ function pickJson(
 }
 
 function titleFromUndoPayload(payload: UndoPayload): string | undefined {
+  if (payload.version === 2) {
+    return payload.changes.map(titleFromUndoPayload).find((title) => title !== undefined);
+  }
+
   return titleFromSnapshot(payload.target) ?? titleFromSnapshot(payload.opposite);
 }
 
-function historyResourceDomain(payload: UndoPayload): "task" | "note" | "taskList" | "noteList" | "calendarEvent" | "scheduledTaskBlock" {
+function historyResourceDomain(payload: UndoPayload): string {
+  if (payload.version === 2) {
+    return "bulk";
+  }
+
   if (payload.resourceKind === "task" && (isUndoNoteSnapshot(payload.target) || isUndoNoteSnapshot(payload.opposite))) {
     return "note";
   }

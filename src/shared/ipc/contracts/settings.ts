@@ -20,6 +20,8 @@ export const appColorThemeSchema = z.enum(appColorThemeIds);
 export const uiTextSizePointsSchema = z.number().min(9).max(24);
 export const uiFontNameSchema = z.string().trim().min(1).max(120).nullable();
 export const syncModeSchema = z.enum(["manual", "balanced", "near-real-time"]);
+export const semanticSearchModeSettingSchema = z.enum(["lexical", "semantic", "hybrid"]);
+export const llmProviderSchema = z.enum(["ollama", "openai-compatible"]);
 export const appLanguageSchema = z.enum(["system", "en", "zh-Hans", "ta", "ms", "ko", "ja"]);
 export const navigationPlacementSchema = z.enum(["left", "right"]);
 export const navigationTabSchema = z.enum(navigationTabIds);
@@ -315,7 +317,17 @@ export const settingsSnapshotSchema = z
     rawGoogleDiagnosticsEnabled: z.boolean(),
     savedSearchViews: z.array(savedSearchViewSchema).max(20),
     pinnedSavedSearchViewIds: z.array(idSchema).max(20),
-    savedTaskViews: z.array(savedTaskViewSchema).max(20)
+    savedTaskViews: z.array(savedTaskViewSchema).max(20),
+    semanticSearchEnabled: z.boolean(),
+    semanticSearchMode: semanticSearchModeSettingSchema,
+    embeddingModelId: z.string().trim().min(1).max(120),
+    llmEnabled: z.boolean(),
+    llmProvider: llmProviderSchema,
+    llmEndpoint: z.string().trim().max(2_000).nullable(),
+    llmModel: z.string().trim().min(1).max(120),
+    llmAllowRemoteEndpoint: z.boolean(),
+    agentActionTrayEnabled: z.boolean(),
+    webhooksEnabled: z.boolean()
   })
   .strict();
 
@@ -397,7 +409,17 @@ export const settingsUpdateRequestSchema = z
     rawGoogleDiagnosticsEnabled: z.boolean().optional(),
     savedSearchViews: z.array(savedSearchViewSchema).max(20).optional(),
     pinnedSavedSearchViewIds: z.array(idSchema).max(20).optional(),
-    savedTaskViews: z.array(savedTaskViewSchema).max(20).optional()
+    savedTaskViews: z.array(savedTaskViewSchema).max(20).optional(),
+    semanticSearchEnabled: z.boolean().optional(),
+    semanticSearchMode: semanticSearchModeSettingSchema.optional(),
+    embeddingModelId: z.string().trim().min(1).max(120).optional(),
+    llmEnabled: z.boolean().optional(),
+    llmProvider: llmProviderSchema.optional(),
+    llmEndpoint: z.string().trim().max(2_000).nullable().optional(),
+    llmModel: z.string().trim().min(1).max(120).optional(),
+    llmAllowRemoteEndpoint: z.boolean().optional(),
+    agentActionTrayEnabled: z.boolean().optional(),
+    webhooksEnabled: z.boolean().optional()
   })
   .strict()
   .refine((request) => Object.keys(request).length > 0, {
