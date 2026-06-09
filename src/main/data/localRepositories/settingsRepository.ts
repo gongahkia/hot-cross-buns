@@ -1129,6 +1129,59 @@ export class LocalSettingsRepository {
     };
   }
 
+  private localPointerRows(): LocalPointerListResponse["items"] {
+    const rows: LocalPointerListResponse["items"] = [];
+    const tasks = this.connection.query<{
+      id: string;
+      title: string;
+      notes: string | null;
+    }>(
+      `SELECT id, title, notes
+       FROM google_tasks
+       WHERE deleted_at IS NULL
+         AND notes IS NOT NULL
+         AND notes LIKE '%file://%';`
+    );
+    const events = this.connection.query<{
+      id: string;
+      title: string;
+      description: string | null;
+    }>(
+      `SELECT id, summary AS title, description
+       FROM google_calendar_events
+       WHERE deleted_at IS NULL
+         AND status != 'cancelled'
+         AND description IS NOT NULL
+         AND description LIKE '%file://%';`
+    );
+
+    for (const task of tasks) {
+      for (const pointer of filePointersFromText(task.notes ?? "")) {
+        rows.push({
+          pointer,
+          kind: "task",
+          entityId: task.id,
+          title: task.title,
+          exists: pointerExists(pointer)
+        });
+      }
+    }
+
+    for (const event of events) {
+      for (const pointer of filePointersFromText(event.description ?? "")) {
+        rows.push({
+          pointer,
+          kind: "event",
+          entityId: event.id,
+          title: event.title,
+          exists: pointerExists(pointer)
+        });
+      }
+    }
+
+    return rows;
+  }
+
   private portableState(now?: string, settings?: SettingsSnapshot): PortableState {
     const tables: PortableState["tables"] = {};
 
@@ -1557,6 +1610,45 @@ function portableTableDiff(
   return { added, removed, changed };
 }
 
+function portableTableDiffItems(
+  current: PortableState,
+  archive: PortableState,
+  table: (typeof PORTABLE_TABLES)[number],
+  titleColumn: string
+): Array<{ id: string; title: string; change: "added" | "removed" | "changed" }> {
+  const currentRows = new Map((current.tables[table]?.rows ?? []).map((row) => [portableRowKey(row), row]));
+  const archiveRows = new Map((archive.tables[table]?.rows ?? []).map((row) => [portableRowKey(row), row]));
+  const items: Array<{ id: string; title: string; change: "added" | "removed" | "changed" }> = [];
+
+  for (const [key, row] of archiveRows) {
+    if (!currentRows.has(key)) {
+      items.push(portablePreviewItem(row, titleColumn, "added"));
+    } else if (stableJson(currentRows.get(key)) !== stableJson(row)) {
+      items.push(portablePreviewItem(row, titleColumn, "changed"));
+    }
+  }
+
+  for (const [key, row] of currentRows) {
+    if (!archiveRows.has(key)) {
+      items.push(portablePreviewItem(row, titleColumn, "removed"));
+    }
+  }
+
+  return items.slice(0, 50);
+}
+
+function portablePreviewItem(
+  row: Record<string, unknown>,
+  titleColumn: string,
+  change: "added" | "removed" | "changed"
+): { id: string; title: string; change: "added" | "removed" | "changed" } {
+  const id = typeof row.id === "string" ? row.id : portableRowKey(row);
+  const rawTitle = row[titleColumn];
+  const title = typeof rawTitle === "string" && rawTitle.trim() ? rawTitle.trim() : id;
+
+  return { id, title: title.slice(0, 500), change };
+}
+
 function portableRowsByKey(table: PortableTableState | undefined): Map<string, string> {
   const rows = new Map<string, string>();
 
@@ -1585,15 +1677,63 @@ function portableFilePointers(state: PortableState): string[] {
     ...portableColumnValues(state, "google_calendar_events", "description")
   ];
   const pointers: string[] = [];
-  const pointerPattern = /file:\/\/[^\s)'"<>]+/g;
 
   for (const value of values) {
-    for (const match of value.matchAll(pointerPattern)) {
-      pointers.push(match[0]);
-    }
+    pointers.push(...filePointersFromText(value));
   }
 
   return pointers;
+}
+
+function filePointersFromText(value: string): string[] {
+  const pointers: string[] = [];
+  const pointerPattern = /file:\/\/[^\s)'"<>]+/g;
+
+  for (const match of value.matchAll(pointerPattern)) {
+    pointers.push(match[0]);
+  }
+
+  return pointers;
+}
+
+function replaceExactPointer(value: string, pointer: string, replacement: string): string {
+  return value.split(pointer).join(replacement);
+}
+
+function pointerExists(pointer: string): boolean {
+  try {
+    return existsSync(fileURLToPath(pointer));
+  } catch {
+    return false;
+  }
+}
+
+function pendingMutationOperation(input: {
+  id: string;
+  accountId: string | null;
+  resourceType: "task" | "event";
+  resourceId: string;
+  operation: "task.update" | "calendar.events.update";
+  payload: Record<string, unknown>;
+  now: string;
+}) {
+  return {
+    kind: "run" as const,
+    sql: `INSERT INTO google_pending_mutations (
+      id, account_id, resource_type, resource_id, operation, payload_json, status,
+      attempt_count, next_retry_at, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, NULL, ?, ?);`,
+    params: [
+      input.id,
+      input.accountId,
+      input.resourceType,
+      input.resourceId,
+      input.operation,
+      JSON.stringify(input.payload),
+      input.now,
+      input.now
+    ]
+  };
 }
 
 function applyPortableExportFilters(

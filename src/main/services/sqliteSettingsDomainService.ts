@@ -146,7 +146,9 @@ export function createSqliteSettingsDomainService({
     previewPortableImport: (request: PortableArchivePathRequest) =>
       settingsRepository.previewPortableImport(request.path),
     importPortableArchive: (request: PortableImportRequest) =>
-      settingsRepository.importPortableArchive(request.path)
+      settingsRepository.importPortableArchive(request.path),
+    listLocalPointers: (request) => settingsRepository.listLocalPointers(request),
+    repairLocalPointer: (request) => settingsRepository.repairLocalPointer(request)
   };
 }
 

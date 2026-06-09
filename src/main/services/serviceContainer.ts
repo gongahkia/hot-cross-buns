@@ -237,7 +237,9 @@ export function createServiceContainer(options: ServiceContainerOptions): Servic
       },
       exportPortableArchive: () => sqliteDomain.settings.exportPortableArchive(),
       previewPortableImport: (request) => sqliteDomain.settings.previewPortableImport(request),
-      importPortableArchive: (request) => sqliteDomain.settings.importPortableArchive(request)
+      importPortableArchive: (request) => sqliteDomain.settings.importPortableArchive(request),
+      listLocalPointers: (request) => sqliteDomain.settings.listLocalPointers(request),
+      repairLocalPointer: (request) => sqliteDomain.settings.repairLocalPointer(request)
     },
     google: googleRuntime ?? sqliteDomain.google,
     mcp: {

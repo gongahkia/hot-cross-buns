@@ -391,6 +391,41 @@ export class TagLocalRepository extends SearchLocalRepository {
       .map((change) => ({ kind: change.kind, entityId: change.id }));
   }
 
+  markDuplicateCleanupMutations(input: {
+    kind: TagEntityKind;
+    winnerId: string;
+    loserIds: readonly string[];
+    cleanupGroupId: string;
+  }): void {
+    const resourceType = input.kind === "event" ? "event" : "task";
+    const ids = [input.winnerId, ...input.loserIds];
+    const rows = this.connection.query<{ id: string; payloadJson: string }>(
+      `SELECT id, payload_json AS payloadJson
+       FROM google_pending_mutations
+       WHERE resource_type = ?
+         AND resource_id IN (${ids.map(() => "?").join(", ")})
+         AND status IN ('pending', 'failed');`,
+      [resourceType, ...ids]
+    );
+    const now = new Date().toISOString();
+
+    this.connection.executeTransaction(rows.map((row) => ({
+      kind: "run" as const,
+      sql: "UPDATE google_pending_mutations SET payload_json = ?, updated_at = ? WHERE id = ?;",
+      params: [
+        JSON.stringify({
+          ...parsePayloadObject(row.payloadJson),
+          cleanupGroupId: input.cleanupGroupId,
+          cleanupKind: input.kind,
+          cleanupWinnerId: input.winnerId,
+          cleanupLoserIds: input.loserIds
+        }),
+        now,
+        row.id
+      ]
+    })));
+  }
+
   tagEntityRefsForIds(tagIds: readonly string[]): TagEntityRef[] {
     const ids = [...new Set(tagIds)].filter((id) => id.length > 0);
     if (ids.length === 0) {
@@ -682,4 +717,32 @@ function tagSummarySelect(): string {
 
 function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, (match) => `\\${match}`);
+}
+
+function sameStringSet(left: readonly string[], right: readonly string[]): boolean {
+  const leftSet = new Set(left.map((value) => value.trim().toLocaleLowerCase()).filter(Boolean));
+  const rightSet = new Set(right.map((value) => value.trim().toLocaleLowerCase()).filter(Boolean));
+
+  if (leftSet.size !== rightSet.size) {
+    return false;
+  }
+
+  for (const value of leftSet) {
+    if (!rightSet.has(value)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function parsePayloadObject(value: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
 }

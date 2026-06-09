@@ -496,6 +496,28 @@ function usePreloadCoreSource(): CoreViewModelSource {
     return result.data;
   }, [load]);
 
+  const previewAutoTagReapply = useCallback(async (request: Parameters<NonNullable<typeof window.hcb>["tags"]["previewAutoReapply"]>[0]) => {
+    const result = await window.hcb?.tags.previewAutoReapply(request);
+    return result?.ok ? result.data : null;
+  }, []);
+
+  const applyAutoTagReapply = useCallback(async (request: Parameters<NonNullable<typeof window.hcb>["tags"]["applyAutoReapply"]>[0]) => {
+    const result = await window.hcb?.tags.applyAutoReapply(request);
+
+    if (!result?.ok) {
+      return null;
+    }
+
+    load();
+    void refreshUndoStatus();
+    return result.data;
+  }, [load, refreshUndoStatus]);
+
+  const tagAnalytics = useCallback(async () => {
+    const result = await window.hcb?.tags.analytics();
+    return result?.ok ? result.data : null;
+  }, []);
+
   useEffect(() => {
     load();
   }, [load]);
@@ -762,6 +784,9 @@ function usePreloadCoreSource(): CoreViewModelSource {
       deleteTag,
       mergeTags,
       bulkApplyTags,
+      previewAutoTagReapply,
+      applyAutoTagReapply,
+      tagAnalytics,
       runRecoveryAction,
       undo: runUndo,
       redo: runRedo,
@@ -788,6 +813,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
       completeEvent,
       completeTask,
       bulkApplyTags,
+      applyAutoTagReapply,
       createTag,
       createTask,
       createTaskList,
@@ -800,6 +826,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
       moveTask,
       moveScheduledTaskBlock,
       mergeTags,
+      previewAutoTagReapply,
       prefersDark,
       refreshGoogleStatus,
       refreshUndoStatus,
@@ -812,6 +839,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
       reopenTask,
       setGoogleStatus,
       settingsMutation,
+      tagAnalytics,
       scheduleTaskBlock,
       taskMutation,
       unscheduleTaskBlock,

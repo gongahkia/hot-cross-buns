@@ -491,7 +491,44 @@ const hcbApi: HcbApi = {
     ),
     delete: vi.fn(async (request) => ok({ id: request.id, queued: false, revision: now })),
     merge: vi.fn(async (request) => ok({ id: request.targetId, queued: false, revision: now })),
-    bulkApply: vi.fn(async () => ok({ id: "bulk-tags", queued: false, revision: now }))
+    bulkApply: vi.fn(async () => ok({ id: "bulk-tags", queued: false, revision: now })),
+    previewAutoReapply: vi.fn(async (request) =>
+      ok({
+        kind: request.kind,
+        scope: "all" as const,
+        scanned: 0,
+        changed: 0,
+        skipped: 0,
+        failed: 0,
+        blocked: false,
+        message: "No changes.",
+        sample: []
+      })
+    ),
+    applyAutoReapply: vi.fn(async (request) =>
+      ok({
+        kind: request.kind,
+        scope: "all" as const,
+        scanned: 0,
+        changed: 0,
+        skipped: 0,
+        failed: 0,
+        blocked: false,
+        message: "No changes.",
+        sample: [],
+        queued: false,
+        revision: now
+      })
+    ),
+    analytics: vi.fn(async () =>
+      ok({
+        totalTags: 0,
+        unusedTags: 0,
+        linkedEntities: 0,
+        topTags: [],
+        staleTags: []
+      })
+    )
   },
   search: {
     query: vi.fn(async (request) =>
@@ -819,7 +856,8 @@ const hcbApi: HcbApi = {
         taskLists: { added: 0, removed: 0, changed: 0 },
         settingsWillChange: false,
         queuedMutationCount: 0,
-        attachments: { bundled: 0, missing: 0, corrupt: 0, skipped: 0 }
+        attachments: { bundled: 0, missing: 0, corrupt: 0, skipped: 0 },
+        items: { tasks: [], events: [], calendars: [], taskLists: [] }
       })
     ),
     importPortableArchive: vi.fn(async (request) =>
@@ -837,8 +875,19 @@ const hcbApi: HcbApi = {
           taskLists: { added: 0, removed: 0, changed: 0 },
           settingsWillChange: false,
           queuedMutationCount: 0,
-          attachments: { bundled: 0, missing: 0, corrupt: 0, skipped: 0 }
+          attachments: { bundled: 0, missing: 0, corrupt: 0, skipped: 0 },
+          items: { tasks: [], events: [], calendars: [], taskLists: [] }
         }
+      })
+    ),
+    listLocalPointers: vi.fn(async () => ok({ items: [], totalKnown: 0 })),
+    repairLocalPointer: vi.fn(async (request) =>
+      ok({
+        pointer: request.pointer,
+        replacementPointer: request.replacementPath,
+        updated: 0,
+        queued: false,
+        revision: now
       })
     )
   },

@@ -529,9 +529,16 @@ export function createSqlitePlannerDomainService(
       return repository.search({ ...request, mode });
     },
     cleanupDuplicates: (request) => {
+      const cleanupGroupId = `duplicates:${request.kind}:${request.winnerId}:${Date.now()}`;
       const ids = [request.winnerId, ...new Set(request.loserIds)];
       const before = ids.map((id) => ({ id, snapshot: snapshotFor(request.kind, id) }));
       const result = cleanupDuplicateGroup(repository, request);
+      repository.markDuplicateCleanupMutations({
+        kind: request.kind,
+        winnerId: request.winnerId,
+        loserIds: request.loserIds,
+        cleanupGroupId
+      });
       recordUndoGroup({
         actionKind: "duplicates.cleanup",
         label: "Merge duplicate group",

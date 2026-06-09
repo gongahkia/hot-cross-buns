@@ -339,89 +339,27 @@ export function SettingsView({
   }
 
   async function reapplyAutoTags(kind: AutoTagTargetKind): Promise<void> {
-    let applied = 0;
-    let failed = 0;
+    const preview = await source.previewAutoTagReapply({ kind, scope: "all" });
 
-    if (kind === "task") {
-      for (const task of source.largeTaskWindow) {
-        const preview = previewAutoTagRules(settings.autoTagRules, {
-          kind,
-          title: task.title,
-          body: task.detail,
-          existingTags: task.tags ?? []
-        });
-
-        if (
-          previewDiffers(preview.title, task.title) ||
-          previewDiffers(preview.body, task.detail) ||
-          !sameStringSet(preview.tags, task.tags ?? [])
-        ) {
-          if (await source.updateTask({ id: task.id, title: preview.title, notes: preview.body, tags: preview.tags })) {
-            applied += 1;
-          } else {
-            failed += 1;
-          }
-        }
-      }
-    } else if (kind === "event") {
-      for (const event of source.calendarAgendaEvents) {
-        if (event.sourceKind === "task" || event.hcbKind === "birthday") {
-          continue;
-        }
-
-        const preview = previewAutoTagRules(settings.autoTagRules, {
-          kind,
-          title: event.title,
-          body: event.notes,
-          existingTags: event.tags ?? [],
-          existingEventColorId: event.colorId ?? null
-        });
-
-        if (
-          previewDiffers(preview.title, event.title) ||
-          previewDiffers(preview.body, event.notes) ||
-          !sameStringSet(preview.tags, event.tags ?? []) ||
-          (preview.eventColorId ?? event.colorId ?? null) !== (event.colorId ?? null)
-        ) {
-          const result = await window.hcb?.calendar.update({
-            id: event.id,
-            title: preview.title,
-            notes: preview.body,
-            tags: preview.tags,
-            colorId: preview.eventColorId ?? event.colorId ?? null,
-            scope: "seriesAll"
-          });
-          result?.ok ? applied += 1 : failed += 1;
-        }
-      }
-    } else {
-      for (const note of source.initialNotes) {
-        const preview = previewAutoTagRules(settings.autoTagRules, {
-          kind,
-          title: note.title,
-          body: note.body,
-          existingTags: note.tags ?? []
-        });
-
-        if (
-          previewDiffers(preview.title, note.title) ||
-          previewDiffers(preview.body, note.body) ||
-          !sameStringSet(preview.tags, note.tags ?? [])
-        ) {
-          const result = await window.hcb?.notes.update({
-            id: note.id,
-            title: preview.title,
-            body: preview.body,
-            tags: preview.tags
-          });
-          result?.ok ? applied += 1 : failed += 1;
-        }
-      }
+    if (!preview) {
+      setRecoveryMessage(`Auto-tag reapply ${kind}: preview failed.`);
+      return;
     }
+
+    if (preview.blocked || preview.changed === 0) {
+      setRecoveryMessage(`Auto-tag reapply ${kind}: ${preview.message}`);
+      return;
+    }
+
+    const applied = await source.applyAutoTagReapply({ kind, scope: "all", confirm: true });
 
     source.refreshUndoStatus();
     source.refresh();
-    setRecoveryMessage(`Auto-tag reapply ${kind}: ${applied} updated, ${failed} failed.`);
+    setRecoveryMessage(
+      applied
+        ? `Auto-tag reapply ${kind}: ${applied.changed} updated, ${applied.failed} failed.`
+        : `Auto-tag reapply ${kind}: apply failed.`
+    );
   }
 
   function updateBaseTheme(theme: SettingsSnapshot["theme"]): void {

@@ -17,6 +17,11 @@ import type {
   SettingsSnapshot,
   SettingsUpdateRequest,
   SyncStatusResponse,
+  AutoTagReapplyApplyRequest,
+  AutoTagReapplyApplyResponse,
+  AutoTagReapplyPreviewRequest,
+  AutoTagReapplyPreviewResponse,
+  TagAnalyticsResponse,
   TagBulkApplyRequest,
   TagCreateRequest,
   TagDeleteRequest,
@@ -92,6 +97,13 @@ export interface CoreViewModelSource {
   deleteTag: (request: TagDeleteRequest) => Promise<TagMutationResponse | null>;
   mergeTags: (request: TagMergeRequest) => Promise<TagMutationResponse | null>;
   bulkApplyTags: (request: TagBulkApplyRequest) => Promise<TagMutationResponse | null>;
+  previewAutoTagReapply: (
+    request: AutoTagReapplyPreviewRequest
+  ) => Promise<AutoTagReapplyPreviewResponse | null>;
+  applyAutoTagReapply: (
+    request: AutoTagReapplyApplyRequest
+  ) => Promise<AutoTagReapplyApplyResponse | null>;
+  tagAnalytics: () => Promise<TagAnalyticsResponse | null>;
   runRecoveryAction: (
     request: SettingsRecoveryActionRequest
   ) => Promise<SettingsRecoveryActionResponse | null>;
@@ -221,6 +233,13 @@ export interface CoreViewModelSourceOptions {
   deleteTag: (request: TagDeleteRequest) => Promise<TagMutationResponse | null>;
   mergeTags: (request: TagMergeRequest) => Promise<TagMutationResponse | null>;
   bulkApplyTags: (request: TagBulkApplyRequest) => Promise<TagMutationResponse | null>;
+  previewAutoTagReapply: (
+    request: AutoTagReapplyPreviewRequest
+  ) => Promise<AutoTagReapplyPreviewResponse | null>;
+  applyAutoTagReapply: (
+    request: AutoTagReapplyApplyRequest
+  ) => Promise<AutoTagReapplyApplyResponse | null>;
+  tagAnalytics: () => Promise<TagAnalyticsResponse | null>;
   runRecoveryAction: (
     request: SettingsRecoveryActionRequest
   ) => Promise<SettingsRecoveryActionResponse | null>;

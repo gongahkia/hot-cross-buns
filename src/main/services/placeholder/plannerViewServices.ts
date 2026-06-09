@@ -146,6 +146,37 @@ export function createPlaceholderPlannerViewService(
     deleteTag: (request) => ({ id: request.id, queued: false, revision: nowIso }),
     mergeTags: (request) => ({ id: request.targetId, queued: false, revision: nowIso }),
     bulkApplyTags: (request) => ({ id: request.tagIds[0] ?? "tags", queued: false, revision: nowIso }),
+    previewAutoTagReapply: (request) => ({
+      kind: request.kind,
+      scope: "all",
+      scanned: 0,
+      changed: 0,
+      skipped: 0,
+      failed: 0,
+      blocked: false,
+      message: "No cached placeholder items to reapply.",
+      sample: []
+    }),
+    applyAutoTagReapply: (request) => ({
+      kind: request.kind,
+      scope: "all",
+      scanned: 0,
+      changed: 0,
+      skipped: 0,
+      failed: 0,
+      blocked: false,
+      message: "No cached placeholder items to reapply.",
+      sample: [],
+      queued: false,
+      revision: nowIso
+    }),
+    tagAnalytics: () => ({
+      totalTags: 0,
+      unusedTags: 0,
+      linkedEntities: 0,
+      topTags: [],
+      staleTags: []
+    }),
     cleanupDuplicates: (request) => ({
       id: request.winnerId,
       kind: request.kind,

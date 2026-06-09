@@ -10,12 +10,14 @@ import type { AutoTagTargetKind } from "@shared/ipc/autoTags";
 import type {
   AutoTagRule,
   CalendarListSummary,
+  LocalPointerListResponse,
   PortableImportPreview,
   SettingsRecoveryActionRequest,
   SettingsSnapshot,
   SettingsUpdateRequest,
   TagCreateRequest,
   TagDeleteRequest,
+  TagAnalyticsResponse,
   TagMergeRequest,
   TagMutationResponse,
   TagSummary,
@@ -34,6 +36,7 @@ import {
   Filter,
   History,
   Layers3,
+  Link2,
   ListChecks,
   Pin,
   RotateCcw,
@@ -129,6 +132,7 @@ export function AdvancedSettingsTab({
   const [tagDrafts, setTagDrafts] = useState<Record<string, { color: string; name: string }>>({});
   const [tagMergeSourceId, setTagMergeSourceId] = useState("");
   const [tagMergeTargetId, setTagMergeTargetId] = useState("");
+  const [tagAnalytics, setTagAnalytics] = useState<TagAnalyticsResponse | null>(null);
   const [autoTagPreviewKind, setAutoTagPreviewKind] = useState<AutoTagTargetKind>("task");
   const [autoTagPreviewTitle, setAutoTagPreviewTitle] = useState("CODING: Ship planner polish");
   const [autoTagPreviewBody, setAutoTagPreviewBody] = useState("");
@@ -140,6 +144,8 @@ export function AdvancedSettingsTab({
   const [portableArchivePath, setPortableArchivePath] = useState("");
   const [portableImportPreview, setPortableImportPreview] = useState<PortableImportPreview | null>(null);
   const [portableStatus, setPortableStatus] = useState<string | null>(null);
+  const [localPointers, setLocalPointers] = useState<LocalPointerListResponse | null>(null);
+  const [pointerReplacementPath, setPointerReplacementPath] = useState("");
   const autoTagAutoDisableRequestRef = useRef<string | null>(null);
   const autoTagPreviewExistingTagValues = useMemo(
     () => parseTagText(autoTagPreviewExistingTags),
@@ -202,6 +208,25 @@ export function AdvancedSettingsTab({
       updateSettings({ autoTagRules: nextRules });
     }
   }, [settings.autoTagRules, updateSettings]);
+
+  useEffect(() => {
+    void refreshTagAnalytics();
+    void refreshLocalPointers();
+  }, []);
+
+  async function refreshTagAnalytics(): Promise<void> {
+    const result = await window.hcb?.tags.analytics();
+    if (result?.ok) {
+      setTagAnalytics(result.data);
+    }
+  }
+
+  async function refreshLocalPointers(): Promise<void> {
+    const result = await window.hcb?.settings.listLocalPointers({ includeHealthy: false, limit: 100 });
+    if (result?.ok) {
+      setLocalPointers(result.data);
+    }
+  }
 
   function updatePerTabFilter(
     tab: keyof SettingsSnapshot["perTabListFilters"],
@@ -288,6 +313,7 @@ export function AdvancedSettingsTab({
 
     if (result) {
       setNewTagName("");
+      void refreshTagAnalytics();
     }
   }
 
@@ -325,6 +351,7 @@ export function AdvancedSettingsTab({
     if (result) {
       const { [tag.id]: _removed, ...rest } = tagDrafts;
       setTagDrafts(rest);
+      void refreshTagAnalytics();
     }
   }
 
@@ -334,6 +361,7 @@ export function AdvancedSettingsTab({
     }
 
     await deleteTag({ id: tag.id });
+    void refreshTagAnalytics();
   }
 
   async function mergeSelectedTags(): Promise<void> {
@@ -346,6 +374,7 @@ export function AdvancedSettingsTab({
     if (result) {
       setTagMergeSourceId("");
       setTagMergeTargetId("");
+      void refreshTagAnalytics();
     }
   }
 
@@ -531,6 +560,30 @@ export function AdvancedSettingsTab({
     setPortableImportPreview(result.data.preview);
   }
 
+  async function repairFirstLocalPointer(): Promise<void> {
+    const pointer = localPointers?.items[0]?.pointer;
+
+    if (!pointer || !pointerReplacementPath.trim()) {
+      setPortableStatus("Select a missing pointer and replacement path.");
+      return;
+    }
+
+    const result = await window.hcb?.settings.repairLocalPointer({
+      pointer,
+      replacementPath: pointerReplacementPath.trim(),
+      confirm: true
+    });
+
+    if (!result?.ok) {
+      setPortableStatus(result?.error.message ?? "Local pointer repair failed.");
+      return;
+    }
+
+    setPortableStatus(`Repaired ${result.data.updated} local pointer reference${result.data.updated === 1 ? "" : "s"}.`);
+    setPointerReplacementPath("");
+    void refreshLocalPointers();
+  }
+
   return (
     <div className="grid gap-5">
       <SettingsGroup title="Calendars">
@@ -658,7 +711,7 @@ export function AdvancedSettingsTab({
           checked={settings.semanticSearchEnabled}
           icon={Filter}
           label="Semantic search"
-          description="Indexes local planner text for semantic and hybrid search."
+          description={settings.semanticSearchEnabled ? `Local index enabled: ${settings.embeddingModelId}.` : "Off; search uses the existing lexical path."}
           onChange={(checked) => updateSettings({ semanticSearchEnabled: checked })}
         />
         <SettingsControlRow label="Search mode">
@@ -797,9 +850,52 @@ export function AdvancedSettingsTab({
               <Badge>Task lists {portableImportPreview.taskLists.added}/{portableImportPreview.taskLists.changed}/{portableImportPreview.taskLists.removed}</Badge>
               <Badge>Queued {portableImportPreview.queuedMutationCount}</Badge>
               <Badge>Attachments {portableImportPreview.attachments.bundled}</Badge>
+              <Badge>Missing pointers {portableImportPreview.attachments.skipped + portableImportPreview.attachments.missing}</Badge>
             </div>
           </SettingsControlRow>
         ) : null}
+        {portableImportPreview?.items ? (
+          <SettingsControlRow label="Changed items">
+            <div className="grid max-h-36 min-w-0 gap-1 overflow-auto text-[var(--text-sm)] text-text-secondary">
+              {[...portableImportPreview.items.tasks, ...portableImportPreview.items.events]
+                .slice(0, 12)
+                .map((item) => (
+                  <div className="truncate" key={`${item.change}:${item.id}`}>
+                    {item.change}: {item.title}
+                  </div>
+                ))}
+            </div>
+          </SettingsControlRow>
+        ) : null}
+        <SettingsControlRow
+          description={localPointers ? `${localPointers.totalKnown} missing local pointer${localPointers.totalKnown === 1 ? "" : "s"}.` : "Scan cached task and event text for missing local files."}
+          icon={Link2}
+          label="Local pointer repair"
+        >
+          <div className="grid min-w-0 gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => void refreshLocalPointers()} variant="secondary">
+                <RotateCcw aria-hidden="true" size={14} />
+                Scan pointers
+              </Button>
+              <Input
+                aria-label="Replacement local path"
+                className="min-w-64"
+                onChange={(event) => setPointerReplacementPath(event.currentTarget.value)}
+                placeholder="/path/to/replacement-file"
+                value={pointerReplacementPath}
+              />
+              <Button disabled={!localPointers?.items[0] || !pointerReplacementPath.trim()} onClick={() => void repairFirstLocalPointer()} variant="secondary">
+                Repair first
+              </Button>
+            </div>
+            {localPointers?.items[0] ? (
+              <div className="truncate text-[var(--text-sm)] text-text-secondary">
+                {localPointers.items[0].title}: {localPointers.items[0].pointer}
+              </div>
+            ) : null}
+          </div>
+        </SettingsControlRow>
       </SettingsGroup>
 
       <SettingsGroup title="Local backups">
@@ -959,6 +1055,19 @@ export function AdvancedSettingsTab({
             </Button>
           </div>
         </SettingsControlRow>
+        {tagAnalytics ? (
+          <SettingsControlRow
+            description={`${tagAnalytics.linkedEntities} entity links across ${tagAnalytics.totalTags} tags.`}
+            label="Tag analytics"
+          >
+            <div className="flex flex-wrap gap-2 text-[var(--text-sm)] text-text-secondary">
+              <Badge>Unused {tagAnalytics.unusedTags}</Badge>
+              {tagAnalytics.topTags.slice(0, 5).map((tag) => (
+                <Badge key={tag.id}>{tag.name} {tag.totalCount}</Badge>
+              ))}
+            </div>
+          </SettingsControlRow>
+        ) : null}
         {tags.length > 1 ? (
           <SettingsControlRow description="Moves entity links from the source tag into the target tag." label="Merge tags">
             <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">

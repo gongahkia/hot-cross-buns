@@ -161,7 +161,8 @@ export function createPlaceholderControlServices(
         taskLists: { added: 0, removed: 0, changed: 0 },
         settingsWillChange: false,
         queuedMutationCount: 0,
-        attachments: { bundled: 0, missing: 0, corrupt: 0, skipped: 0 }
+        attachments: { bundled: 0, missing: 0, corrupt: 0, skipped: 0 },
+        items: { tasks: [], events: [], calendars: [], taskLists: [] }
       }),
       importPortableArchive: (request) => ({
         importedAt: new Date().toISOString(),
@@ -177,8 +178,17 @@ export function createPlaceholderControlServices(
           taskLists: { added: 0, removed: 0, changed: 0 },
           settingsWillChange: false,
           queuedMutationCount: 0,
-          attachments: { bundled: 0, missing: 0, corrupt: 0, skipped: 0 }
+          attachments: { bundled: 0, missing: 0, corrupt: 0, skipped: 0 },
+          items: { tasks: [], events: [], calendars: [], taskLists: [] }
         }
+      }),
+      listLocalPointers: () => ({ items: [], totalKnown: 0 }),
+      repairLocalPointer: (request) => ({
+        pointer: request.pointer,
+        replacementPointer: request.replacementPath,
+        updated: 0,
+        queued: false,
+        revision: new Date().toISOString()
       })
     },
     undo: {
