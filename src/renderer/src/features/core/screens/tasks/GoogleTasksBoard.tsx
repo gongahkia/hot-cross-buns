@@ -1,4 +1,4 @@
-import { useMemo, useState, type DragEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type DragEvent, type ReactNode } from "react";
 import {
   CalendarClock,
   Clock,
@@ -18,9 +18,9 @@ import {
   Target,
   Trash2
 } from "lucide-react";
-import type { TaskListSummary } from "@shared/ipc/contracts";
+import type { TaskListSummary, TaskMoveRequest } from "@shared/ipc/contracts";
 import { FloatingMenu } from "../../../../components/FloatingMenu";
-import { Badge, Button, IconButton, cx } from "../../../../components/primitives";
+import { Badge, Button, IconButton, Input, cx } from "../../../../components/primitives";
 import { EmptyState } from "../../../../components/states";
 import type { CoreViewModelSource } from "../../coreViewModelSource";
 import type { ScheduledTaskBlockViewModel, TaskViewModel } from "../../coreViewModels";
@@ -51,6 +51,7 @@ interface GoogleTasksBoardProps {
   onDeleteTask: (taskId: string) => void;
   onDuplicateTask: (taskId: string) => void;
   onMoveTask: (taskId: string, listId: string) => void;
+  onMoveTaskRequest: (request: TaskMoveRequest) => void;
   onOpenTask: (taskId: string) => void;
   onRenameList: (list: TaskListSummary) => void;
   onSetListSort: (listId: string, sort: TaskListSort) => void;
@@ -150,6 +151,7 @@ export function GoogleTasksBoard({
   onDeleteTask,
   onDuplicateTask,
   onMoveTask,
+  onMoveTaskRequest,
   onOpenTask,
   onRenameList,
   onSetListSort,
@@ -164,6 +166,8 @@ export function GoogleTasksBoard({
   starred
 }: GoogleTasksBoardProps): JSX.Element {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkCustomDueDate, setBulkCustomDueDate] = useState("");
   const { autoCollapsed, containerRef } = useAutoCollapsedSidebar();
   const effectiveSidebarCollapsed = sidebarCollapsed || autoCollapsed;
   const starredVisibleCount = activeRootTasks(source).filter((task) => starred.ids.has(task.id)).length;
@@ -201,6 +205,45 @@ export function GoogleTasksBoard({
       completedTasks: sortTasks(completedListTasks(source, list.id), "date", starred)
     }));
   }, [listSorts, selectedView.mode, source, starred, visibleListIdSet]);
+  const bulkSelectedTasks = source.largeTaskWindow.filter((task) => bulkSelectedIds.has(task.id));
+  const bulkSelectedIdsInWindow = bulkSelectedTasks.map((task) => task.id);
+
+  useEffect(() => {
+    setBulkSelectedIds((current) => {
+      const knownIds = new Set(source.largeTaskWindow.map((task) => task.id));
+      const next = new Set([...current].filter((id) => knownIds.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [source.largeTaskWindow]);
+
+  function toggleBulkTask(taskId: string, selected: boolean): void {
+    setBulkSelectedIds((current) => {
+      const next = new Set(current);
+
+      if (selected) {
+        next.add(taskId);
+      } else {
+        next.delete(taskId);
+      }
+
+      return next;
+    });
+  }
+
+  async function bulkReschedule(dueDate: string | null): Promise<void> {
+    if (bulkSelectedIdsInWindow.length === 0 || source.taskMutationPending) {
+      return;
+    }
+
+    const saved = await source.bulkRescheduleTasks({
+      taskIds: bulkSelectedIdsInWindow,
+      dueDate
+    });
+
+    if (saved) {
+      setBulkSelectedIds(new Set());
+    }
+  }
 
   return (
     <div
@@ -222,6 +265,18 @@ export function GoogleTasksBoard({
         visibleListIds={visibleListIds}
       />
       <div className="min-h-0 min-w-0 overflow-hidden rounded-hcbLg bg-bg-secondary">
+        {bulkSelectedIdsInWindow.length > 0 ? (
+          <BoardBulkRescheduleBanner
+            customDueDate={bulkCustomDueDate}
+            onApplyCustom={() => void bulkReschedule(bulkCustomDueDate || null)}
+            onClearSelection={() => setBulkSelectedIds(new Set())}
+            onCustomDueDateChange={setBulkCustomDueDate}
+            onReschedule={(dueDate) => void bulkReschedule(dueDate)}
+            pending={source.taskMutationPending}
+            selectedCount={bulkSelectedIdsInWindow.length}
+            selectedTitles={bulkSelectedTasks.map((task) => task.title)}
+          />
+        ) : null}
         <div
           className="flex h-full min-h-[480px] min-w-0 gap-3 overflow-x-auto p-3"
           role="list"
@@ -239,12 +294,15 @@ export function GoogleTasksBoard({
                 onDeleteTask={onDeleteTask}
                 onDuplicateTask={onDuplicateTask}
                 onMoveTask={onMoveTask}
+                onMoveTaskRequest={onMoveTaskRequest}
                 onOpenTask={onOpenTask}
                 onRenameList={onRenameList}
                 onSetListSort={onSetListSort}
                 onToggleStar={onToggleStar}
                 onToggleTask={onToggleTask}
                 onAddSubtask={onAddSubtask}
+                bulkSelectedIds={bulkSelectedIds}
+                onBulkSelectTask={toggleBulkTask}
                 scheduledBlocksByTask={scheduledBlocksByTask}
                 selectedTaskId={selectedTaskId}
                 source={source}
@@ -459,6 +517,68 @@ function TaskListCheckbox({
   );
 }
 
+function dateOnlyFromLocalOffset(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function BoardBulkRescheduleBanner({
+  customDueDate,
+  onApplyCustom,
+  onClearSelection,
+  onCustomDueDateChange,
+  onReschedule,
+  pending,
+  selectedCount,
+  selectedTitles
+}: {
+  customDueDate: string;
+  onApplyCustom: () => void;
+  onClearSelection: () => void;
+  onCustomDueDateChange: (value: string) => void;
+  onReschedule: (dueDate: string | null) => void;
+  pending: boolean;
+  selectedCount: number;
+  selectedTitles: string[];
+}): JSX.Element {
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-b border-border bg-bg-primary px-3 py-2">
+      <div className="min-w-0 flex-1">
+        <div className="text-[var(--text-sm)] font-semibold text-text-primary">
+          {selectedCount} {selectedCount === 1 ? "task" : "tasks"} selected
+        </div>
+        <div className="truncate text-[var(--text-xs)] text-text-muted">
+          {selectedTitles.slice(0, 3).join(", ")}
+        </div>
+      </div>
+      <Button disabled={pending} onClick={() => onReschedule(dateOnlyFromLocalOffset(0))} size="sm" variant="secondary">
+        Today
+      </Button>
+      <Button disabled={pending} onClick={() => onReschedule(dateOnlyFromLocalOffset(1))} size="sm" variant="secondary">
+        Tomorrow
+      </Button>
+      <Button disabled={pending} onClick={() => onReschedule(dateOnlyFromLocalOffset(7))} size="sm" variant="secondary">
+        Next week
+      </Button>
+      <Input
+        aria-label="Bulk due date"
+        className="h-8 w-36"
+        onChange={(event) => onCustomDueDateChange(event.target.value)}
+        type="date"
+        value={customDueDate}
+      />
+      <Button disabled={pending || !customDueDate} onClick={onApplyCustom} size="sm" variant="secondary">
+        Apply date
+      </Button>
+      <Button disabled={pending} onClick={() => onReschedule(null)} size="sm" variant="secondary">
+        Clear due
+      </Button>
+      <IconButton icon={X} label="Clear task selection" onClick={onClearSelection} variant="ghost" />
+    </div>
+  );
+}
+
 function TaskListColumn({
   list,
   listSort,
@@ -468,12 +588,15 @@ function TaskListColumn({
   onDeleteTask,
   onDuplicateTask,
   onMoveTask,
+  onMoveTaskRequest,
   onOpenTask,
   onRenameList,
   onSetListSort,
   onToggleStar,
   onToggleTask,
   onAddSubtask,
+  bulkSelectedIds,
+  onBulkSelectTask,
   scheduledBlocksByTask,
   selectedTaskId,
   source,
@@ -490,12 +613,15 @@ function TaskListColumn({
   onDeleteTask: (taskId: string) => void;
   onDuplicateTask: (taskId: string) => void;
   onMoveTask: (taskId: string, listId: string) => void;
+  onMoveTaskRequest: (request: TaskMoveRequest) => void;
   onOpenTask: (taskId: string) => void;
   onRenameList: (list: TaskListSummary) => void;
   onSetListSort: (listId: string, sort: TaskListSort) => void;
   onToggleStar: (taskId: string) => void;
   onToggleTask: (taskId: string) => void;
   onAddSubtask: (task: TaskViewModel) => void;
+  bulkSelectedIds: ReadonlySet<string>;
+  onBulkSelectTask: (taskId: string, selected: boolean) => void;
   scheduledBlocksByTask: Map<string, ScheduledTaskBlockViewModel>;
   selectedTaskId: string | null;
   source: CoreViewModelSource;
@@ -590,10 +716,13 @@ function TaskListColumn({
               onDeleteTask={onDeleteTask}
               onDuplicateTask={onDuplicateTask}
               onMoveTask={onMoveTask}
+              onMoveTaskRequest={onMoveTaskRequest}
               onOpenTask={onOpenTask}
               onToggleStar={onToggleStar}
               onToggleTask={onToggleTask}
               onAddSubtask={onAddSubtask}
+              bulkSelected={bulkSelectedIds.has(task.id)}
+              onBulkSelectTask={onBulkSelectTask}
               scheduledBlock={scheduledBlocksByTask.get(task.id)}
               selected={selectedTaskId === task.id}
               source={source}
@@ -625,10 +754,13 @@ function TaskListColumn({
                     onDeleteTask={onDeleteTask}
                     onDuplicateTask={onDuplicateTask}
                     onMoveTask={onMoveTask}
+                    onMoveTaskRequest={onMoveTaskRequest}
                     onOpenTask={onOpenTask}
                     onToggleStar={onToggleStar}
                     onToggleTask={onToggleTask}
                     onAddSubtask={onAddSubtask}
+                    bulkSelected={bulkSelectedIds.has(task.id)}
+                    onBulkSelectTask={onBulkSelectTask}
                     scheduledBlock={scheduledBlocksByTask.get(task.id)}
                     selected={selectedTaskId === task.id}
                     source={source}
