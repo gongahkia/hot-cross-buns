@@ -55,17 +55,17 @@ Status key:
 
 ### Partial / still worth drilling down
 
-- Tags now have a first-class local catalog, many-to-many entity links, tag CRUD/merge UI, tag colors, bootstrap/IPC/preload/source plumbing, backfill from existing task/event tag JSON, and grouped undo for bulk tag writes/merge/delete. Saved tag analytics remain basic count totals.
-- Auto-tagging has inspector-level audit detail and settings-level bulk reapply for loaded tasks/events/notes. Full background reapply across unloaded cache windows remains open.
+- Tags now have a first-class local catalog, many-to-many entity links, tag CRUD/merge UI, tag colors, bootstrap/IPC/preload/source plumbing, backfill from existing task/event tag JSON, grouped undo for bulk tag writes/merge/delete, and Settings tag analytics.
+- Auto-tagging has inspector-level audit detail plus backend full-cache preview/apply reapply for cached tasks/events/notes. Background scheduling and large-account perf QA remain open.
 - Multi-account plumbing is partially present: account IDs, account-scoped tokens/cache/checkpoints/mutations, latest-account transport, and multi-account docs/tests exist. Full connected-account management UX, account badges/filters, explicit target account selection, and merged multi-account Today remain open.
-- Duplicate detection/review exists for tasks/events/notes with dismiss/open/delete/merge flows. Cleanup now runs through the main domain service with grouped undo for task/event/note duplicate merges; deeper duplicate-resolution QA and mutation coalescing remain open.
+- Duplicate detection/review exists for tasks/events/notes with dismiss/open/delete/merge flows. Cleanup now runs through the main domain service with grouped undo and cleanup-group metadata on affected pending mutations; deeper duplicate-resolution QA and stronger mutation compaction remain open.
 - Conversion works, but should get one live/manual QA pass against real Google sync for replace-original cleanup and queued mutation replay.
 - MCP/CLI is featureful, and prompt/resource registries now include `hcb_brief`, `hcb tail`, `hcb plan`, `hcb://brief`, `hcb://plan`, and `hcb://tail`. Durable pending agent actions and loopback webhooks are now present; external MCP client QA, webhook retry/rate-limit hardening, and full event-source coverage remain open.
 - Birthday Google payload shape is unit-tested, but live Google API smoke for birthday create/update/delete is still the main external-risk test.
 - Quick-add/NL parsing has meaningful code and tests, including recurrence handling, but not the full chrono-style parser depth listed below.
 - Calendar recurrence UI exists. Edit/delete scope selection now reaches repository writes; whole-series, Google-backed occurrence edits/deletes, and locally materialized future-series splits are covered by focused tests. Google-expanded future-series edits still fail fast when the master series is unavailable; deeper RRULE editor depth and live Google smoke remain open.
-- Search/filter depth is partial: advanced parser-backed operators, boolean `AND`/`OR`/`NOT`, saved-search settings, pinned filters, command-palette pinned filter chips, local semantic/hybrid search, provider-backed chat, and a chat sidebar exist. Production semantic model/vector packaging and richer agentic planning remain open.
-- Portable data has real `.hcbexport` export/preview/import with deterministic state JSON, selected list/calendar/future filters, manifest SHA-256, attachment bundling/relinking, pre-import backup, and focused tests. ICS import/subscriptions and local pointer repair UI remain open.
+- Search/filter depth is partial: advanced parser-backed operators, boolean `AND`/`OR`/`NOT`, saved-search settings, pinned filters, command-palette pinned filter chips, opt-in local semantic/hybrid search with disabled lexical fallback diagnostics, provider-backed chat, and a chat sidebar exist. Production semantic model/vector packaging and richer agentic planning remain open.
+- Portable data has real `.hcbexport` export/preview/import with deterministic state JSON, selected list/calendar/future filters, manifest SHA-256, attachment bundling/relinking, richer item-level import preview, pre-import backup, local pointer scan/repair UI, and focused tests. ICS import/subscriptions and manual migration QA remain open.
 
 ### Missing / not implemented yet
 
@@ -73,7 +73,7 @@ Status key:
 - Bulk reschedule/multi-select operations beyond current grouped tag and duplicate undo.
 - Production semantic vector/model packaging and richer conversational planning/action proposals.
 - CSS snippets, JSON config/keymaps, and sandboxed user extensions.
-- ICS import/subscriptions and local pointer repair UI.
+- ICS import/subscriptions.
 - Cache encryption.
 - Spotlight/Raycast/Alfred/App Intents/Shortcuts/Share Extension.
 - Rich notification actions.
@@ -82,21 +82,21 @@ Status key:
 ## Recommended next implementation order
 
 1. First-class tags:
-   - Status: `Partial`; implemented local tag catalog/repository, tag/entity tables, CRUD/merge UI, tag colors, counts, filters via tag search, pinned saved filters, inspector audit, and loaded-data bulk reapply.
-   - Remaining: full-cache/background auto-tag reapply and richer tag analytics.
+   - Status: `Partial`; implemented local tag catalog/repository, tag/entity tables, CRUD/merge UI, tag colors, counts, filters via tag search, pinned saved filters, inspector audit, backend full-cache auto-tag reapply, and Settings analytics.
+   - Remaining: background scheduling and large-account perf QA.
 2. Recurrence correctness:
    - Status: `Partial`; whole-series, Google-backed occurrence edits/deletes, locally materialized future-series splits, and recurrence tests exist.
    - Remaining: Google-expanded future-series writes when master data is unavailable, deeper RRULE editor, and live Google smoke.
    - reason: high-risk calendar behavior; better before broad calendar automation.
 3. Boolean/custom search and pinned filters:
-   - Status: `Partial`; boolean DSL, pinned saved filters, local semantic/hybrid search, local-disabled chat, Ollama/OpenAI-compatible provider hooks, and a chat sidebar are implemented.
+   - Status: `Partial`; boolean DSL, pinned saved filters, opt-in local semantic/hybrid search with lexical fallback when disabled, local-disabled chat, Ollama/OpenAI-compatible provider hooks, and a chat sidebar are implemented.
    - Remaining: production transformer/vector-extension path, background embedding worker/model controls, broader embedding coverage, richer provider health/diagnostics, and MCP-backed action proposals.
 4. Duplicate merge/coalesced cleanup:
-   - Status: `Partial`; duplicate group merge is implemented for loaded tasks/events/notes, with domain-backed cleanup and grouped undo.
-   - Remaining: mutation coalescing and deeper duplicate-resolution QA.
+   - Status: `Partial`; duplicate group merge is implemented for loaded tasks/events/notes, with domain-backed cleanup, grouped undo, cleanup-group pending-mutation metadata, and added task QA.
+   - Remaining: stronger mutation compaction and deeper event/note duplicate-resolution QA.
 5. Portable export/import verification or implementation:
-   - Status: `Partial`; deterministic `.hcbexport`, selected list/calendar/future filters, dry-run import diff, attachment bundling/relinking, and pre-import backups exist.
-   - Remaining: local pointer repair UI, richer item-level preview, `.hcb2export` naming decision, and manual migration QA.
+   - Status: `Partial`; deterministic `.hcbexport`, selected list/calendar/future filters, dry-run import diff with item summaries, attachment bundling/relinking, local pointer scan/repair UI, and pre-import backups exist.
+   - Remaining: manual migration QA on a real profile copy.
 6. Agent-native MCP/CLI v2:
    - Status: `Partial`; `hcb brief`, `hcb tail`, `hcb plan`, `hcb_brief`, `hcb_tail`, `hcb_plan`, resources, prompts, durable pending action storage, approval tray, and loopback webhooks are implemented.
    - Remaining: webhook retry/rate-limit hardening, event-starting/mutation-failed emit sources, external MCP client QA, and deeper approval-tray UI QA.
@@ -157,8 +157,8 @@ Status key:
 - Status: `Verify` for Kanban parity; `Partial` for tags/auto-tagging, duplicate detection/review, grouped duplicate cleanup undo, snooze, subtasks, templates, and NL quick-add; `Missing` for Areas.
 - Verify/finish Kanban parity beyond the current Google-list board if original `KanbanGrouping` behavior is not covered.
 - Harden first-class tags beyond current catalog/link implementation:
-  - full-cache/background auto-tag reapply
-  - richer tag analytics
+  - background scheduling for backend auto-tag reapply
+  - large-account tag analytics/reapply perf QA
 - Harden current rule-based auto-tagging and color assignment:
   - "why was this tagged?" inspector/audit detail
 - Add auto-tag bulk tools:
@@ -177,7 +177,7 @@ Status key:
   - batched/coalesced mutation entries
 - Harden duplicate resolution for tasks, events, and notes.
   - Note: duplicate create controls, review/dismiss/open/delete, loaded-data merge flows, domain cleanup, and grouped undo are present.
-  - Remaining: mutation coalescing and stronger duplicate-resolution QA.
+  - Remaining: stronger mutation compaction and event/note duplicate-resolution QA.
 - Finish snooze UX:
   - inspector controls for `snoozeUntil`
   - visible snoozed state in task lists/today/search
@@ -362,11 +362,9 @@ Status key:
 ## 6. Data, import/export, and local files
 
 - Status: `Partial`; portable `.hcbexport` export/preview/import now writes manifest/state/Attachments, deterministic table JSON, selected list/calendar/future filters, SHA-256 checks, bundled attachment copies, skipped pointer reporting, destructive import preview, pre-import backup, and attachment relinking.
-- Harden portable `.hcbexport` / `.hcb2export` workflow:
-  - richer item-level preview
-  - local pointer repair UI
-  - `.hcb2export` naming/version decision
+- Harden portable `.hcbexport` workflow:
   - manual migration QA on a real profile copy
+  - decide only if a future `.hcb2export` alias/version is needed
 - Verify/finish local file attachments for notes, tasks, and events:
   - image/file refs
   - app-owned attachment storage
