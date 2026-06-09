@@ -233,6 +233,13 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
           request,
           "Schedule suggestion request failed"
         ),
+      smartReschedule: (request) =>
+        invokeContract(
+          ipc,
+          ipcContracts.calendar.smartReschedule,
+          request,
+          "Smart reschedule request failed"
+        ),
       exportAvailability: (request) =>
         invokeContract(
           ipc,

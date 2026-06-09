@@ -95,6 +95,8 @@ import type {
   ScheduledTaskBlockMoveRequest,
   ScheduledTaskBlockSummary,
   ScheduledTaskBlockUnscheduleRequest,
+  SmartRescheduleRequest,
+  SmartRescheduleResponse,
   SettingsRecoveryActionRequest,
   SettingsRecoveryActionResponse,
   SettingsSnapshot,
@@ -190,6 +192,9 @@ export interface HcbApi {
     scheduleSuggest: (
       request: CalendarScheduleSuggestRequest
     ) => Promise<HcbResult<CalendarScheduleSuggestResponse>>;
+    smartReschedule: (
+      request: SmartRescheduleRequest
+    ) => Promise<HcbResult<SmartRescheduleResponse>>;
     exportAvailability: (
       request: AvailabilityExportRequest
     ) => Promise<HcbResult<AvailabilityExportResponse>>;
