@@ -1,6 +1,8 @@
 import type {
   CalendarConference,
+  CalendarEventAttendee,
   CalendarEventDetail,
+  CalendarEventReminder,
   CalendarEventSummary,
   CalendarListSummary,
   NoteDetail,
@@ -57,6 +59,86 @@ function parseConference(value: string | null | undefined): CalendarConference |
     return Object.keys(conference).length > 0 ? conference : null;
   } catch {
     return null;
+  }
+}
+
+function parseAttendees(value: string | null | undefined): CalendarEventAttendee[] {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.flatMap((entry): CalendarEventAttendee[] => {
+      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+        return [];
+      }
+
+      const source = entry as Record<string, unknown>;
+      const email = typeof source.email === "string" ? source.email.trim().toLowerCase() : "";
+
+      if (!email) {
+        return [];
+      }
+
+      return [{
+        email,
+        ...(typeof source.displayName === "string" && source.displayName.trim()
+          ? { displayName: source.displayName.trim().slice(0, 500) }
+          : {}),
+        ...(source.responseStatus === "needsAction" ||
+        source.responseStatus === "declined" ||
+        source.responseStatus === "tentative" ||
+        source.responseStatus === "accepted"
+          ? { responseStatus: source.responseStatus }
+          : {}),
+        ...(typeof source.self === "boolean" ? { self: source.self } : {}),
+        ...(typeof source.resource === "boolean" ? { resource: source.resource } : {})
+      }];
+    }).slice(0, 50);
+  } catch {
+    return [];
+  }
+}
+
+function parseReminders(value: string | null | undefined): CalendarEventReminder[] {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.flatMap((entry): CalendarEventReminder[] => {
+      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+        return [];
+      }
+
+      const source = entry as Record<string, unknown>;
+      const method = source.method;
+      const minutes = source.minutes;
+
+      if ((method !== "popup" && method !== "email") || typeof minutes !== "number" || !Number.isInteger(minutes)) {
+        return [];
+      }
+
+      if (minutes < 0 || minutes > 28 * 24 * 60) {
+        return [];
+      }
+
+      return [{ method, minutes }];
+    }).slice(0, 10);
+  } catch {
+    return [];
   }
 }
 
@@ -144,6 +226,8 @@ export function calendarListSummary(row: CalendarListRow): CalendarListSummary {
 }
 
 export function calendarEventSummary(row: CalendarEventRow): CalendarEventSummary {
+  const reminders = parseReminders(row.remindersJson);
+
   return {
     id: row.id,
     accountId: row.accountId,
@@ -161,9 +245,19 @@ export function calendarEventSummary(row: CalendarEventRow): CalendarEventSummar
     location: truncateText(row.location ?? "", textLimits.eventLocation),
     notes: truncateText(row.notes ?? "", textLimits.eventNotes),
     guestEmails: parseStringArray(row.guestEmailsJson).slice(0, 50),
-    reminderMinutes: parseNumberArray(row.reminderMinutesJson)
+    reminderMinutes: (reminders.length > 0
+      ? reminders.map((reminder) => reminder.minutes)
+      : parseNumberArray(row.reminderMinutesJson))
       .filter((minutes) => minutes >= 0 && minutes <= 28 * 24 * 60)
       .slice(0, 10),
+    attendees: parseAttendees(row.attendeeDetailsJson),
+    reminders,
+    remindersUseDefault: row.remindersUseDefault === 1,
+    transparency: row.transparency === "transparent" || row.transparency === "opaque" ? row.transparency : null,
+    visibility:
+      row.visibility === "default" || row.visibility === "public" || row.visibility === "private"
+        ? row.visibility
+        : null,
     conference: parseConference(row.conferenceJson),
     mutationState: mutationState(row.pendingMutationStatus),
     timeZone: truncateNullableText(row.timeZone, textLimits.timeZone),

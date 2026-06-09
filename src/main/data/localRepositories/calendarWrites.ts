@@ -1,10 +1,17 @@
 import {
   addUtcDaysIso,
+  normalizeCalendarReminders,
   normalizeGuestEmails,
   normalizeReminderMinutes,
   startOfUtcDayIso
 } from "@shared/domain/calendar";
-import type { CalendarEventRecurrence } from "@shared/ipc/contracts";
+import type {
+  CalendarConferenceCreateRequest,
+  CalendarEventRecurrence,
+  CalendarEventReminder,
+  CalendarEventTransparency,
+  CalendarEventVisibility
+} from "@shared/ipc/contracts";
 import type { SqliteWriteOperation } from "../sqliteConnection";
 import { boolInt, nullIfEmpty, validationFailed } from "./shared";
 
@@ -18,7 +25,12 @@ export interface NormalizedCalendarWrite {
   notes: string;
   guestEmails: string[];
   reminderMinutes: number[];
+  reminders?: CalendarEventReminder[];
+  remindersUseDefault?: boolean;
   colorId?: string | null;
+  transparency?: CalendarEventTransparency | null;
+  visibility?: CalendarEventVisibility | null;
+  conferenceCreateRequest?: CalendarConferenceCreateRequest | null;
   recurrenceRule: string | null;
 }
 
@@ -34,6 +46,10 @@ export function normalizeCalendarWrite(input: NormalizedCalendarWrite): Normaliz
     throw validationFailed("Event end must be after start.");
   }
 
+  const reminders = normalizeCalendarReminders(
+    input.reminders ?? input.reminderMinutes.map((minutes) => ({ method: "popup", minutes }))
+  );
+
   return {
     title: input.title.trim(),
     calendarId: input.calendarId,
@@ -43,8 +59,13 @@ export function normalizeCalendarWrite(input: NormalizedCalendarWrite): Normaliz
     location: input.location.trim(),
     notes: input.notes,
     guestEmails: normalizeGuestEmails(input.guestEmails),
-    reminderMinutes: normalizeReminderMinutes(input.reminderMinutes),
+    reminderMinutes: normalizeReminderMinutes(reminders.map((reminder) => reminder.minutes)),
+    reminders,
+    remindersUseDefault: input.remindersUseDefault ?? false,
     colorId: normalizeColorId(input.colorId),
+    transparency: normalizeTransparency(input.transparency),
+    visibility: normalizeVisibility(input.visibility),
+    conferenceCreateRequest: input.conferenceCreateRequest ?? null,
     recurrenceRule: input.recurrenceRule
   };
 }
@@ -53,6 +74,8 @@ export interface ParsedLocalRRule {
   freq: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
   interval: number;
   byDay?: CalendarEventRecurrence["byDay"];
+  byMonthDay?: number;
+  bySetPos?: number;
   count?: number;
   until?: Date;
 }
@@ -74,8 +97,16 @@ export function recurrenceRuleFromRequest(recurrence: CalendarEventRecurrence | 
     `INTERVAL=${recurrence.interval}`
   ];
 
-  if (recurrence.frequency === "weekly" && recurrence.byDay?.length) {
+  if ((recurrence.frequency === "weekly" || recurrence.bySetPos) && recurrence.byDay?.length) {
     parts.push(`BYDAY=${recurrence.byDay.join(",")}`);
+  }
+
+  if (recurrence.frequency === "monthly" && recurrence.byMonthDay) {
+    parts.push(`BYMONTHDAY=${recurrence.byMonthDay}`);
+  }
+
+  if (recurrence.frequency === "monthly" && recurrence.bySetPos && recurrence.byDay?.length) {
+    parts.push(`BYSETPOS=${recurrence.bySetPos}`);
   }
 
   if (recurrence.endsOn) {
@@ -100,6 +131,8 @@ export function recurrenceFromRule(rule: string | null): CalendarEventRecurrence
     frequency: parsed.freq.toLowerCase() as CalendarEventRecurrence["frequency"],
     interval: parsed.interval,
     ...(parsed.byDay === undefined ? {} : { byDay: parsed.byDay }),
+    ...(parsed.byMonthDay === undefined ? {} : { byMonthDay: parsed.byMonthDay }),
+    ...(parsed.bySetPos === undefined ? {} : { bySetPos: parsed.bySetPos }),
     endsOn: parsed.until ? parsed.until.toISOString().slice(0, 10) : null,
     count: parsed.count ?? null
   };
@@ -246,6 +279,12 @@ export function parseLocalRRule(value: string | null | undefined): ParsedLocalRR
     freq,
     interval: Math.min(366, Math.max(1, Number.parseInt(parts.INTERVAL ?? "1", 10) || 1)),
     ...(parts.BYDAY === undefined ? {} : { byDay: parseRRuleByDay(parts.BYDAY) }),
+    ...(parts.BYMONTHDAY === undefined
+      ? {}
+      : { byMonthDay: Math.min(31, Math.max(1, Number.parseInt(parts.BYMONTHDAY, 10) || 1)) }),
+    ...(parts.BYSETPOS === undefined
+      ? {}
+      : { bySetPos: Math.min(5, Math.max(-5, Number.parseInt(parts.BYSETPOS, 10) || 1)) }),
     ...(parts.COUNT === undefined
       ? {}
       : { count: Math.min(366, Math.max(1, Number.parseInt(parts.COUNT, 10) || 1)) }),
@@ -256,6 +295,7 @@ export function parseLocalRRule(value: string | null | undefined): ParsedLocalRR
 function parseRRuleByDay(value: string): CalendarEventRecurrence["byDay"] {
   return value
     .split(",")
+    .map((day) => day.replace(/^[+-]?\d+/, ""))
     .filter((day): day is NonNullable<CalendarEventRecurrence["byDay"]>[number] =>
       day === "SU" || day === "MO" || day === "TU" || day === "WE" || day === "TH" || day === "FR" || day === "SA"
     );

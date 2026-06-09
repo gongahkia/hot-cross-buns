@@ -1,6 +1,20 @@
 const GUEST_EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const GOOGLE_TIMED_INSTANCE_SUFFIX = /_\d{8}T\d{6}Z$/;
 const GOOGLE_ALL_DAY_INSTANCE_SUFFIX = /_\d{8}$/;
+const ATTENDEE_RESPONSE_STATUSES = new Set(["needsAction", "declined", "tentative", "accepted"]);
+
+export interface NormalizedCalendarReminder {
+  method: "popup" | "email";
+  minutes: number;
+}
+
+export interface NormalizedCalendarAttendee {
+  email: string;
+  displayName?: string;
+  responseStatus?: "needsAction" | "declined" | "tentative" | "accepted";
+  self?: boolean;
+  resource?: boolean;
+}
 
 export function isPlausibleGuestEmail(candidate: string): boolean {
   return GUEST_EMAIL_PATTERN.test(candidate.trim());
@@ -38,6 +52,62 @@ export function normalizeReminderMinutes(values: readonly number[] | undefined):
   }
 
   return normalized.sort((left, right) => left - right);
+}
+
+export function normalizeCalendarReminders(
+  values: readonly NormalizedCalendarReminder[] | undefined
+): NormalizedCalendarReminder[] {
+  const seen = new Set<string>();
+  const normalized: NormalizedCalendarReminder[] = [];
+
+  for (const value of values ?? []) {
+    const method = value.method === "email" ? "email" : value.method === "popup" ? "popup" : null;
+    const minutes = value.minutes;
+    const key = `${method}:${minutes}`;
+
+    if (
+      method === null ||
+      !Number.isInteger(minutes) ||
+      minutes < 0 ||
+      minutes > 28 * 24 * 60 ||
+      seen.has(key)
+    ) {
+      continue;
+    }
+
+    seen.add(key);
+    normalized.push({ method, minutes });
+  }
+
+  return normalized.sort((left, right) => left.minutes - right.minutes || left.method.localeCompare(right.method));
+}
+
+export function normalizeCalendarAttendees(
+  values: readonly NormalizedCalendarAttendee[] | undefined
+): NormalizedCalendarAttendee[] {
+  const seen = new Set<string>();
+  const normalized: NormalizedCalendarAttendee[] = [];
+
+  for (const value of values ?? []) {
+    const email = value.email.trim().toLowerCase();
+
+    if (!isPlausibleGuestEmail(email) || seen.has(email)) {
+      continue;
+    }
+
+    seen.add(email);
+    normalized.push({
+      email,
+      ...(value.displayName?.trim() ? { displayName: value.displayName.trim().slice(0, 500) } : {}),
+      ...(value.responseStatus && ATTENDEE_RESPONSE_STATUSES.has(value.responseStatus)
+        ? { responseStatus: value.responseStatus }
+        : {}),
+      ...(value.self === undefined ? {} : { self: value.self }),
+      ...(value.resource === undefined ? {} : { resource: value.resource })
+    });
+  }
+
+  return normalized;
 }
 
 export function startOfUtcDay(date: Date): Date {
